@@ -11,6 +11,7 @@ import {
 import { assertBalanced, type DraftPosting, type EntryType } from "@/domain/accounting";
 import { consumeFifo } from "@/domain/fifo";
 import { D, Decimal } from "@/domain/decimal";
+import { todayIso } from "@/lib/format";
 
 export type PostEntryInput = {
   entryDate: string;
@@ -21,6 +22,7 @@ export type PostEntryInput = {
   postings: DraftPosting[];
   /** open a FIFO lot for this asset account (buy / inbound) */
   openLot?: { accountId: string; assetId: string; quantity: string; costBase: string };
+  openLots?: Array<{ accountId: string; assetId: string; quantity: string; costBase: string }>;
   /** consume FIFO lots (sell / outbound) */
   closeLot?: { assetId: string; quantity: string; proceedsBase: string };
 };
@@ -30,10 +32,10 @@ export type PostEntryInput = {
  * (transfers, buys, sells, installments, executed plans) funnels through here
  * so the double-entry invariant can never be bypassed.
  */
-export async function postEntry(input: PostEntryInput): Promise<{ id: string }> {
+export async function postEntry(input: PostEntryInput, txClient?: any): Promise<{ id: string }> {
   assertBalanced(input.postings);
 
-  return db.transaction(async (tx) => {
+  const runTx = async (tx: any) => {
     const [entry] = await tx
       .insert(journalEntries)
       .values({
@@ -44,7 +46,7 @@ export async function postEntry(input: PostEntryInput): Promise<{ id: string }> 
         source: input.source ?? "manual",
         status: "posted",
       })
-      .returning({ id: journalEntries.id });
+      .returning();
 
     await tx.insert(postings).values(
       input.postings.map((p) => ({
@@ -57,17 +59,20 @@ export async function postEntry(input: PostEntryInput): Promise<{ id: string }> 
       })),
     );
 
-    if (input.openLot && D(input.openLot.quantity).gt(0)) {
-      const qty = D(input.openLot.quantity);
-      await tx.insert(lots).values({
-        accountId: input.openLot.accountId,
-        assetId: input.openLot.assetId,
-        openEntryId: entry.id,
-        openedAt: input.entryDate,
-        qtyOpened: qty.toString(),
-        qtyRemaining: qty.toString(),
-        unitCostBase: D(input.openLot.costBase).div(qty).toString(),
-      });
+    const lotList = input.openLots ?? (input.openLot ? [input.openLot] : []);
+    for (const lotInfo of lotList) {
+      if (D(lotInfo.quantity).gt(0)) {
+        const qty = D(lotInfo.quantity);
+        await tx.insert(lots).values({
+          accountId: lotInfo.accountId,
+          assetId: lotInfo.assetId,
+          openEntryId: entry.id,
+          openedAt: input.entryDate,
+          qtyOpened: qty.toString(),
+          qtyRemaining: qty.toString(),
+          unitCostBase: D(lotInfo.costBase).div(qty).toString(),
+        });
+      }
     }
 
     if (input.closeLot && D(input.closeLot.quantity).gt(0)) {
@@ -107,37 +112,93 @@ export async function postEntry(input: PostEntryInput): Promise<{ id: string }> 
     });
 
     return { id: entry.id };
-  });
+  };
+
+  if (txClient) {
+    return runTx(txClient);
+  }
+  return db.transaction(runTx);
 }
 
-/** Immutable ledger: corrections are made with a mirrored reversal entry. */
+/** Immutable ledger: corrections are made with a mirrored reversal entry and FIFO lot restoration. */
 export async function reverseEntry(entryId: string): Promise<{ id: string }> {
-  const original = await db
-    .select()
-    .from(journalEntries)
-    .where(eq(journalEntries.id, entryId))
-    .limit(1);
-  if (!original.length) throw new Error("سند یافت نشد");
-  if (original[0].status === "void") throw new Error("این سند قبلاً ابطال شده است");
-
-  const lines = await db.select().from(postings).where(eq(postings.entryId, entryId));
-
   return db.transaction(async (tx) => {
-    const [entry] = await tx
+    const original = await tx
+      .select()
+      .from(journalEntries)
+      .where(eq(journalEntries.id, entryId))
+      .limit(1);
+    if (!original.length) throw new Error("سند یافت نشد");
+    if (original[0].status === "void") throw new Error("این سند قبلاً ابطال شده است");
+
+    // 1. Check open lots created by this entry (for buys)
+    const openLots = await tx
+      .select()
+      .from(lots)
+      .where(eq(lots.openEntryId, entryId));
+
+    for (const lot of openLots) {
+      if (D(lot.qtyRemaining).lt(lot.qtyOpened)) {
+        throw new Error(
+          "امکان ابطال این سند وجود ندارد زیرا بخشی از دارایی‌های آن در تراکنش‌های بعدی فروخته شده است. لطفاً ابتدا تراکنش‌های فروش بعدی را ابطال کنید.",
+        );
+      }
+      // Zero out remaining quantity so it won't be consumed by future FIFO calls
+      await tx
+        .update(lots)
+        .set({ qtyRemaining: "0" })
+        .where(eq(lots.id, lot.id));
+    }
+
+    // 2. Check lot consumptions made by this entry (for sells)
+    const consumptions = await tx
+      .select()
+      .from(lotConsumptions)
+      .where(eq(lotConsumptions.entryId, entryId));
+
+    for (const c of consumptions) {
+      const [lot] = await tx
+        .select()
+        .from(lots)
+        .where(eq(lots.id, c.lotId))
+        .limit(1);
+
+      if (lot) {
+        const restored = D(lot.qtyRemaining).add(c.quantity).toString();
+        await tx
+          .update(lots)
+          .set({ qtyRemaining: restored })
+          .where(eq(lots.id, lot.id));
+      }
+    }
+
+    if (consumptions.length > 0) {
+      await tx
+        .delete(lotConsumptions)
+        .where(eq(lotConsumptions.entryId, entryId));
+    }
+
+    // 3. Post reversal entry
+    const lines = await tx
+      .select()
+      .from(postings)
+      .where(eq(postings.entryId, entryId));
+
+    const [reversalEntry] = await tx
       .insert(journalEntries)
       .values({
-        entryDate: new Date().toISOString().slice(0, 10),
+        entryDate: todayIso(),
         type: "adjustment",
         description: `ابطال: ${original[0].description}`,
         reversalOf: entryId,
         source: "manual",
-        status: "posted",
+        status: "void",
       })
-      .returning({ id: journalEntries.id });
+      .returning();
 
     await tx.insert(postings).values(
       lines.map((l) => ({
-        entryId: entry.id,
+        entryId: reversalEntry.id,
         accountId: l.accountId,
         assetId: l.assetId,
         quantity: D(l.quantity).neg().toString(),
@@ -146,13 +207,20 @@ export async function reverseEntry(entryId: string): Promise<{ id: string }> {
       })),
     );
 
-    await tx.update(journalEntries).set({ status: "void" }).where(eq(journalEntries.id, entryId));
+    // Mark original entry as void
+    await tx
+      .update(journalEntries)
+      .set({ status: "void" })
+      .where(eq(journalEntries.id, entryId));
+
     await tx.insert(auditLog).values({
       action: "reverse_entry",
       entityType: "journal_entry",
       entityId: entryId,
+      payload: JSON.stringify({ reversalEntryId: reversalEntry.id }),
     });
-    return { id: entry.id };
+
+    return { id: reversalEntry.id };
   });
 }
 
@@ -202,7 +270,7 @@ export type TransferCmd = {
   feeAssetId?: string | null;
 };
 
-export async function recordTransfer(cmd: TransferCmd) {
+export async function recordTransfer(cmd: TransferCmd, txClient?: any) {
   const value = D(cmd.quantity).mul(cmd.unitPrice);
   const fee = D(cmd.feeBase ?? "0");
   const lines: DraftPosting[] = [
@@ -228,7 +296,7 @@ export async function recordTransfer(cmd: TransferCmd) {
       memo: "کارمزد انتقال",
     });
   }
-  return postEntry({ ...cmd, type: "transfer", postings: lines });
+  return postEntry({ ...cmd, type: "transfer", postings: lines }, txClient);
 }
 
 export type TradeCmd = {
@@ -245,12 +313,15 @@ export type TradeCmd = {
   feeAccountId?: string | null;
 };
 
-export async function recordBuy(cmd: TradeCmd) {
+export async function recordBuy(cmd: TradeCmd, txClient?: any) {
   const value = D(cmd.baseValue);
   const fee = D(cmd.feeBase ?? "0");
+  const dbClient = txClient ?? db;
+
   const cashUnit = D(cmd.cashQuantity).isZero()
     ? Decimal.zero()
     : value.add(fee).div(cmd.cashQuantity);
+
   const lines: DraftPosting[] = [
     {
       accountId: cmd.assetAccountId,
@@ -265,32 +336,44 @@ export async function recordBuy(cmd: TradeCmd) {
       baseValue: value.add(fee).neg().toString(),
     },
   ];
-  if (fee.gt(0) && cmd.feeAccountId) {
-    lines.push({
-      accountId: cmd.feeAccountId,
-      assetId: cmd.cashAssetId,
-      quantity: cashUnit.isZero() ? fee.toString() : fee.div(cashUnit).toString(),
-      baseValue: fee.toString(),
-      memo: "کارمزد معامله",
-    });
+
+  if (fee.gt(0)) {
+    const feeAcctId =
+      cmd.feeAccountId ??
+      (await dbClient.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id;
+
+    if (feeAcctId) {
+      lines.push({
+        accountId: feeAcctId,
+        assetId: cmd.cashAssetId,
+        quantity: cashUnit.isZero() ? fee.toString() : fee.div(cashUnit).toString(),
+        baseValue: fee.toString(),
+        memo: "کارمزد معامله",
+      });
+    }
   }
-  return postEntry({
-    ...cmd,
-    type: "buy",
-    postings: lines,
-    openLot: {
-      accountId: cmd.assetAccountId,
-      assetId: cmd.assetId,
-      quantity: cmd.quantity,
-      costBase: value.add(fee).toString(),
+
+  return postEntry(
+    {
+      ...cmd,
+      type: "buy",
+      postings: lines,
+      openLot: {
+        accountId: cmd.assetAccountId,
+        assetId: cmd.assetId,
+        quantity: cmd.quantity,
+        costBase: value.add(fee).toString(),
+      },
     },
-  });
+    txClient,
+  );
 }
 
-export async function recordSell(cmd: TradeCmd & { pnlAccountId: string }) {
+export async function recordSell(cmd: TradeCmd & { pnlAccountId: string }, txClient?: any) {
   const proceeds = D(cmd.baseValue);
   const fee = D(cmd.feeBase ?? "0");
-  const open = await db
+  const dbClient = txClient ?? db;
+  const open = await dbClient
     .select({
       id: lots.id,
       openedAt: lots.openedAt,
@@ -320,37 +403,49 @@ export async function recordSell(cmd: TradeCmd & { pnlAccountId: string }) {
       quantity: cmd.cashQuantity,
       baseValue: netProceeds.toString(),
     },
-    {
+  ];
+
+  if (!realized.isZero()) {
+    lines.push({
       accountId: cmd.pnlAccountId,
       assetId: cmd.cashAssetId,
-      quantity: realized.isZero() ? "0.000000000000000001" : realized.neg().toString(),
+      quantity: realized.neg().toString(),
       baseValue: realized.neg().toString(),
       memo: "سود/زیان تحقق‌یافته",
-    },
-  ];
-  if (fee.gt(0) && cmd.feeAccountId) {
-    lines.push({
-      accountId: cmd.feeAccountId,
-      assetId: cmd.cashAssetId,
-      quantity: fee.toString(),
-      baseValue: fee.toString(),
-      memo: "کارمزد معامله",
-    });
-    lines.push({
-      accountId: cmd.cashAccountId,
-      assetId: cmd.cashAssetId,
-      quantity: fee.neg().toString(),
-      baseValue: fee.neg().toString(),
-      memo: "کسر کارمزد",
     });
   }
+  if (fee.gt(0)) {
+    const feeAcctId =
+      cmd.feeAccountId ??
+      (await dbClient.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id;
 
-  return postEntry({
-    ...cmd,
-    type: "sell",
-    postings: lines,
-    closeLot: { assetId: cmd.assetId, quantity: cmd.quantity, proceedsBase: netProceeds.toString() },
-  });
+    if (feeAcctId) {
+      lines.push({
+        accountId: feeAcctId,
+        assetId: cmd.cashAssetId,
+        quantity: fee.toString(),
+        baseValue: fee.toString(),
+        memo: "کارمزد معامله",
+      });
+      lines.push({
+        accountId: cmd.cashAccountId,
+        assetId: cmd.cashAssetId,
+        quantity: fee.neg().toString(),
+        baseValue: fee.neg().toString(),
+        memo: "کسر کارمزد",
+      });
+    }
+  }
+
+  return postEntry(
+    {
+      ...cmd,
+      type: "sell",
+      postings: lines,
+      closeLot: { assetId: cmd.assetId, quantity: cmd.quantity, proceedsBase: netProceeds.toString() },
+    },
+    txClient,
+  );
 }
 
 export type FlowCmd = {
@@ -363,44 +458,50 @@ export type FlowCmd = {
   baseValue: string;
 };
 
-export async function recordIncome(cmd: FlowCmd) {
-  return postEntry({
-    ...cmd,
-    type: "income",
-    postings: [
-      {
-        accountId: cmd.cashAccountId,
-        assetId: cmd.assetId,
-        quantity: cmd.quantity,
-        baseValue: cmd.baseValue,
-      },
-      {
-        accountId: cmd.categoryAccountId,
-        assetId: cmd.assetId,
-        quantity: D(cmd.quantity).neg().toString(),
-        baseValue: D(cmd.baseValue).neg().toString(),
-      },
-    ],
-  });
+export async function recordIncome(cmd: FlowCmd, txClient?: any) {
+  return postEntry(
+    {
+      ...cmd,
+      type: "income",
+      postings: [
+        {
+          accountId: cmd.cashAccountId,
+          assetId: cmd.assetId,
+          quantity: cmd.quantity,
+          baseValue: cmd.baseValue,
+        },
+        {
+          accountId: cmd.categoryAccountId,
+          assetId: cmd.assetId,
+          quantity: D(cmd.quantity).neg().toString(),
+          baseValue: D(cmd.baseValue).neg().toString(),
+        },
+      ],
+    },
+    txClient,
+  );
 }
 
-export async function recordExpense(cmd: FlowCmd) {
-  return postEntry({
-    ...cmd,
-    type: "expense",
-    postings: [
-      {
-        accountId: cmd.cashAccountId,
-        assetId: cmd.assetId,
-        quantity: D(cmd.quantity).neg().toString(),
-        baseValue: D(cmd.baseValue).neg().toString(),
-      },
-      {
-        accountId: cmd.categoryAccountId,
-        assetId: cmd.assetId,
-        quantity: cmd.quantity,
-        baseValue: cmd.baseValue,
-      },
-    ],
-  });
+export async function recordExpense(cmd: FlowCmd, txClient?: any) {
+  return postEntry(
+    {
+      ...cmd,
+      type: "expense",
+      postings: [
+        {
+          accountId: cmd.cashAccountId,
+          assetId: cmd.assetId,
+          quantity: D(cmd.quantity).neg().toString(),
+          baseValue: D(cmd.baseValue).neg().toString(),
+        },
+        {
+          accountId: cmd.categoryAccountId,
+          assetId: cmd.assetId,
+          quantity: cmd.quantity,
+          baseValue: cmd.baseValue,
+        },
+      ],
+    },
+    txClient,
+  );
 }

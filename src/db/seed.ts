@@ -30,6 +30,12 @@ import { D } from "@/domain/decimal";
 let seeding: Promise<void> | null = null;
 
 export async function seedIfEmpty(): Promise<void> {
+  const mode = process.env.APP_MODE ?? "personal";
+  const allowDemo = process.env.ALLOW_DEMO_SEED === "true" || mode === "development";
+
+  // In Personal mode (or production), NEVER automatically load demo financial data.
+  if (!allowDemo) return;
+
   if (seeding) return seeding;
   seeding = (async () => {
     const existing = await db.select({ c: sql<number>`count(*)::int` }).from(accounts);

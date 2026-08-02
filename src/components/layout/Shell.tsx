@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactNode } from "react";
 const NAV = [
   { href: "/", label: "داشبورد", icon: "◎" },
   { href: "/portfolio", label: "سبد دارایی", icon: "◈" },
+  { href: "/analytics", label: "تحلیل ثروت", icon: "📊" },
   { href: "/ledger", label: "دفترکل", icon: "≡" },
   { href: "/planning", label: "برنامه‌ریزی", icon: "◷" },
   { href: "/reports", label: "گزارش‌ها", icon: "▤" },
@@ -15,6 +16,8 @@ const NAV = [
 const MORE = [
   { href: "/debts", label: "بدهی و اقساط", icon: "⚖" },
   { href: "/accounts", label: "حساب‌ها و کیف‌پول‌ها", icon: "▣" },
+  { href: "/market-data", label: "قیمت‌های بازار", icon: "📈" },
+  { href: "/import", label: "درون‌ریزی داده‌ها", icon: "⇲" },
   { href: "/settings", label: "تنظیمات و پشتیبان", icon: "⚙" },
 ];
 

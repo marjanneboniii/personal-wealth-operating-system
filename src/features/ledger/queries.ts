@@ -1,5 +1,6 @@
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { accounts, journalEntries, postings } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import type { AccountType } from "@/domain/accounting";
 
@@ -38,11 +39,11 @@ export async function getAccountBalances(): Promise<AccountBalance[]> {
            w.name          as "walletName",
            ac.name         as "className",
            ac.color        as "classColor",
-           coalesce(sum(p.quantity), 0)::text  as "quantity",
-           coalesce(sum(p.base_value), 0)::text as "baseValue"
+           coalesce(sum(case when je.status = 'posted' then p.quantity else 0 end), 0)::text  as "quantity",
+           coalesce(sum(case when je.status = 'posted' then p.base_value else 0 end), 0)::text as "baseValue"
     from accounts a
       left join postings p on p.account_id = a.id
-      left join journal_entries je on je.id = p.entry_id and je.status = 'posted'
+      left join journal_entries je on je.id = p.entry_id
       left join assets ast on ast.id = coalesce(p.asset_id, a.asset_id)
       left join wallets w on w.id = a.wallet_id
       left join asset_classes ac on ac.id = ast.class_id
@@ -77,13 +78,13 @@ export async function getHoldings(): Promise<Holding[]> {
            ast.decimals as "decimals",
            ac.name as "className",
            ac.color as "classColor",
-           coalesce(sum(p.quantity), 0)::text as "quantity",
-           coalesce(sum(p.base_value), 0)::text as "costBase",
+           coalesce(sum(case when je.status = 'posted' then p.quantity else 0 end), 0)::text as "quantity",
+           coalesce(sum(case when je.status = 'posted' then p.base_value else 0 end), 0)::text as "costBase",
            l.price_base::text as "price"
     from assets ast
       join asset_classes ac on ac.id = ast.class_id
       left join postings p on p.asset_id = ast.id
-      left join journal_entries je on je.id = p.entry_id and je.status = 'posted'
+      left join journal_entries je on je.id = p.entry_id
       left join accounts a on a.id = p.account_id and a.type = 'asset'
       left join latest l on l.asset_id = ast.id
     where ast.deleted_at is null and (a.type = 'asset' or p.id is null)
@@ -219,4 +220,28 @@ export async function getCashflow(months = 6) {
       and je.entry_date >= (current_date - (${months} || ' months')::interval)
     group by 1 order by 1
   `);
+}
+
+/** Accounting Query Service: Exposes capital flow records for analytics adapter */
+export async function getCapitalFlowRecords(periodStart: string, periodEnd: string) {
+  return db
+    .select({
+      id: journalEntries.id,
+      entryDate: journalEntries.entryDate,
+      type: journalEntries.type,
+      description: journalEntries.description,
+      reference: journalEntries.reference,
+      baseValue: postings.baseValue,
+    })
+    .from(postings)
+    .innerJoin(journalEntries, eq(journalEntries.id, postings.entryId))
+    .innerJoin(accounts, eq(accounts.id, postings.accountId))
+    .where(
+      and(
+        eq(journalEntries.status, "posted"),
+        eq(accounts.type, "asset"),
+        sql`${journalEntries.entryDate} >= ${periodStart}`,
+        sql`${journalEntries.entryDate} <= ${periodEnd}`,
+      ),
+    );
 }

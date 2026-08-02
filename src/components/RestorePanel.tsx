@@ -23,11 +23,15 @@ export default function RestorePanel() {
           setBusy(true);
           setStatus(null);
           try {
-            const json = JSON.parse(await file.text());
+            const parsed = JSON.parse(await file.text());
+            const payload = {
+              ...parsed,
+              confirmToken: "RESTORE_DATABASE_OVERWRITE",
+            };
             const res = await fetch("/api/restore", {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify(json),
+              body: JSON.stringify(payload),
             });
             const out = await res.json();
             setStatus(
