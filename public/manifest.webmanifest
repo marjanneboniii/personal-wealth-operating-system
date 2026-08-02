@@ -1,0 +1,20 @@
+{
+  "name": "PWOS — سیستم‌عامل مدیریت ثروت شخصی",
+  "short_name": "PWOS",
+  "description": "هسته مالی خصوصی و خودمیزبان برای مدیریت بلندمدت ثروت شخصی و خانوادگی",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06080c",
+  "theme_color": "#06080c",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

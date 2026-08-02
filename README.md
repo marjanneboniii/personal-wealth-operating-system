@@ -1,0 +1,56 @@
+# PWOS — Personal Wealth Operating System
+
+سیستم‌عامل خصوصی مدیریت ثروت شخصی و خانوادگی. خودمیزبان، بدون تله‌متری، مبتنی بر **حسابداری دوطرفه** و **دفترکل تغییرناپذیر**.
+
+سند طراحی کامل (فاز ۱ تا ۹): [`docs/DESIGN.md`](docs/DESIGN.md)
+
+## فناوری‌ها
+Next.js 16 (App Router, Server Components) · TypeScript · PostgreSQL · Drizzle ORM · Tailwind CSS v4 · zod · نمودارهای SVG بدون وابستگی · PWA (manifest + آیکون) · فونت Vazirmatn، RTL کامل.
+
+## معماری
+```
+src/domain        هسته مالی خالص: Decimal (BigInt/18)، قواعد تراز، موتور FIFO
+src/features      Use-Caseها: ledger (نوشتن/کوئری)، planning (اهداف، اقساط، پیش‌بینی)
+src/db            اسکیما (۳۰ جدول)، اتصال، seed
+src/app           صفحات، Server Actions، API (health/backup/restore)
+src/components    Design System، نمودارها، فرم‌ها، پوسته موبایل‌اول
+```
+قانون وابستگی یک‌طرفه است: `app → features → domain`؛ دامنه هیچ وابستگی به Next یا Drizzle ندارد.
+
+## اصول مالی پیاده‌سازی‌شده
+* هر سند حداقل دو ردیف دارد و `Σ base_value = 0` (در `assertBalanced`).
+* **هیچ ستون موجودی وجود ندارد**؛ همه مانده‌ها با `SUM(postings)` محاسبه می‌شوند.
+* اصلاح فقط با **سند معکوس**؛ سند اصلی به `void` می‌رود و حذف نمی‌شود.
+* خرید → باز شدن **Lot**؛ فروش → مصرف Lotها به روش **FIFO** و ثبت **سود تحقق‌یافته** در حساب `4100`.
+* سود تحقق‌نیافته فقط گزارشی است و هرگز در دفترکل ثبت نمی‌شود.
+* **برنامه‌های آینده** (planned_transactions، رویدادها، اهداف، تعهدات) تا لحظه «اجرا» هیچ اثری روی دفترکل ندارند؛ اجرا Idempotent است.
+* پرداخت قسط یک سند دوطرفه می‌سازد و مانده بدهی را از دفترکل کم می‌کند.
+
+## اجرا
+```bash
+cp .env.example .env        # DATABASE_URL=postgresql://user:pass@host:5432/db
+npm install
+npx drizzle-kit push        # ایجاد جداول
+npm run build && npm start  # اجرای تولیدی
+```
+اولین بازدید از صفحه اصلی، در صورت خالی بودن دیتابیس، داده نمونه واقع‌گرایانه (حساب‌ها، معاملات، وام، اقساط، اهداف، رویدادها و ۱۲ اسنپ‌شات) را می‌سازد.
+
+## پشتیبان‌گیری و بازیابی
+* `GET /api/backup` → خروجی JSON نسخه‌دار از تمام جداول (قابل دانلود از صفحه تنظیمات).
+* `POST /api/restore` → بازیابی **تراکنشی** (all-or-nothing) با بررسی نسخه اسکیما.
+* توصیه عملیاتی: `pg_dump` شبانه + قاعده ۳-۲-۱ + آزمون بازیابی ماهانه.
+
+## آزمون و صحت‌سنجی
+* دکمه «بررسی یکپارچگی» در دفترکل و تنظیمات، تراز همه اسناد را با یک کوئری تجمیعی بررسی می‌کند.
+* بررسی سریع در پایگاه داده:
+```sql
+select je.id, sum(p.base_value) from journal_entries je
+join postings p on p.entry_id = je.id
+group by je.id having abs(sum(p.base_value)) > 1e-9;   -- باید صفر سطر برگرداند
+```
+
+## عملکرد
+تجمیع‌ها در سمت PostgreSQL انجام می‌شود؛ ایندکس روی `postings(account_id, entry_id)`، `prices(asset_id, as_of desc)`، `installments(due_date,status)` و `planned_transactions(planned_date,status)`. صفحات Server Component هستند و فقط فرم‌ها و نمودارها به کلاینت می‌روند.
+
+## امنیت و حریم خصوصی
+هیچ درخواست خارجی اجباری وجود ندارد، قیمت‌ها دستی/محلی ثبت می‌شوند، همه ورودی‌ها با zod در سرور اعتبارسنجی می‌شوند و هر نوشتن در `audit_log` ثبت می‌گردد. برای استقرار خانگی، اجرا پشت VPN/شبکه خصوصی توصیه می‌شود.
