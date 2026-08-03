@@ -5,6 +5,7 @@ import { snapshots } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { getCashflow, getLedger, getNetWorth, getRealizedPnl } from "@/features/ledger/queries";
 import { listFunds, listGoals, projectCashflow, upcomingInstallments } from "@/features/planning/service";
+import { getSetupState } from "@/features/setup/service";
 import { Card, Money, Progress, Stat } from "@/components/ui/Card";
 import { AreaChart, BarsChart, Donut } from "@/components/charts/Charts";
 import { formatMoney, formatQty, formatShortDate } from "@/lib/format";
@@ -23,7 +24,8 @@ const QUICK = [
 export default async function DashboardPage() {
   await seedIfEmpty();
 
-  const [nw, snaps, ledger, insts, goals, funds, pnl, flow, projection] = await Promise.all([
+  const [setupState, nw, snaps, ledger, insts, goals, funds, pnl, flow, projection] = await Promise.all([
+    getSetupState(),
     getNetWorth(),
     db.select().from(snapshots).orderBy(desc(snapshots.asOf)).limit(24),
     getLedger(6),
@@ -44,6 +46,22 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-4">
+      {!setupState.completed && (
+        <div className="card soft flex flex-wrap items-center justify-between gap-3 p-4 border" style={{ borderColor: "var(--accent)" }}>
+          <div>
+            <div className="text-xs font-bold" style={{ color: "var(--accent)" }}>
+              راه‌اندازی اولیه انجام نشده است
+            </div>
+            <div className="muted text-[11px] mt-0.5">
+              ارز پایه محاسباتی، حساب‌های اصلی و موجودی اولیه خود را پیکربندی کنید.
+            </div>
+          </div>
+          <Link href="/setup" className="btn btn-primary !py-1.5 !px-4 text-xs">
+            شروع راه‌اندازی اولیه ←
+          </Link>
+        </div>
+      )}
+
       {/* Hero */}
       <section className="card rise overflow-hidden p-5">
         <div className="muted text-[11px]">ارزش خالص دارایی‌ها (Net Worth)</div>

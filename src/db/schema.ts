@@ -216,6 +216,180 @@ export const prices = pgTable(
   (t) => [uniqueIndex("prices_asset_date_uq").on(t.assetId, t.asOf)],
 );
 
+export const marketPriceSources = pgTable("market_price_sources", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  name: text("name").notNull().unique(), // MANUAL | COINGECKO | TSETMC | API | IMPORT
+  type: text("type").notNull().default("manual"), // manual | api | import
+  description: text("description"),
+});
+
+export const marketPrices = pgTable(
+  "market_prices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id),
+    price: money("price").notNull(),
+    currencyId: uuid("currency_id").references(() => currencies.id),
+    priceTimestamp: timestamp("price_timestamp", { withTimezone: true }).notNull().defaultNow(),
+    sourceId: uuid("source_id").references(() => marketPriceSources.id),
+  },
+  (t) => [index("market_prices_asset_idx").on(t.assetId)],
+);
+
+export const marketSnapshots = pgTable(
+  "market_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id),
+    snapshotDate: date("snapshot_date").notNull(),
+    price: money("price").notNull(),
+    currencyId: uuid("currency_id").references(() => currencies.id),
+    sourceId: uuid("source_id").references(() => marketPriceSources.id),
+  },
+  (t) => [uniqueIndex("market_snapshots_uq").on(t.assetId, t.snapshotDate, t.sourceId)],
+);
+
+export const portfolioValuations = pgTable(
+  "portfolio_valuations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid("user_id").references(() => users.id),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id),
+    quantity: money("quantity").notNull(),
+    marketPrice: money("market_price").notNull(),
+    marketCurrencyId: uuid("market_currency_id").references(() => currencies.id),
+    totalValue: money("total_value").notNull(),
+    valuationDate: date("valuation_date").notNull(),
+  },
+  (t) => [index("portfolio_valuations_date_idx").on(t.valuationDate)],
+);
+
+export const portfolioSnapshots = pgTable(
+  "portfolio_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid("user_id").references(() => users.id),
+    snapshotDate: date("snapshot_date").notNull().unique(),
+    totalPortfolioValue: money("total_portfolio_value").notNull(),
+    baseCurrencyId: uuid("base_currency_id").references(() => currencies.id),
+  },
+  (t) => [uniqueIndex("portfolio_snapshots_asof_uq").on(t.snapshotDate)],
+);
+
+export const assetPerformance = pgTable("asset_performance", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  assetId: uuid("asset_id")
+    .notNull()
+    .references(() => assets.id),
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  startingValue: money("starting_value").notNull(),
+  endingValue: money("ending_value").notNull(),
+  absoluteChange: money("absolute_change").notNull(),
+  percentageChange: money("percentage_change").notNull(),
+});
+
+export const wealthPerformanceSnapshots = pgTable("wealth_performance_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  userId: uuid("user_id").references(() => users.id),
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  startingValue: money("starting_value").notNull(),
+  endingValue: money("ending_value").notNull(),
+  absoluteChange: money("absolute_change").notNull(),
+  percentageChange: money("percentage_change").notNull(),
+  currencyId: uuid("currency_id").references(() => currencies.id),
+});
+
+export const assetPerformanceAnalysis = pgTable("asset_performance_analysis", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  userId: uuid("user_id").references(() => users.id),
+  assetId: uuid("asset_id")
+    .notNull()
+    .references(() => assets.id),
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  startingValue: money("starting_value").notNull(),
+  endingValue: money("ending_value").notNull(),
+  absoluteChange: money("absolute_change").notNull(),
+  percentageChange: money("percentage_change").notNull(),
+  contributionPercentage: money("contribution_percentage").notNull(),
+});
+
+export const portfolioRiskMetrics = pgTable("portfolio_risk_metrics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  userId: uuid("user_id").references(() => users.id),
+  snapshotDate: date("snapshot_date").notNull(),
+  largestAssetSymbol: text("largest_asset_symbol"),
+  largestAssetPercentage: money("largest_asset_percentage").notNull(),
+  cryptoExposurePercentage: money("crypto_exposure_percentage").notNull(),
+  maxDrawdownPercentage: money("max_drawdown_percentage").notNull(),
+  riskScore: text("risk_score").notNull().default("moderate"),
+});
+
+export const benchmarkDefinitions = pgTable("benchmark_definitions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  name: text("name").notNull(),
+  symbol: text("symbol").notNull().unique(), // BTC | GOLD | SP500 | USD | NASDAQ | ETH
+  type: text("type").notNull().default("crypto"), // crypto | commodity | index | fiat
+  description: text("description"),
+});
+
+export const benchmarkSnapshots = pgTable(
+  "benchmark_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    benchmarkId: uuid("benchmark_id")
+      .notNull()
+      .references(() => benchmarkDefinitions.id, { onDelete: "cascade" }),
+    snapshotDate: date("snapshot_date").notNull(),
+    price: money("price").notNull(),
+    currencyId: uuid("currency_id").references(() => currencies.id),
+  },
+  (t) => [uniqueIndex("benchmark_snapshots_uq").on(t.benchmarkId, t.snapshotDate)],
+);
+
+export const benchmarkResults = pgTable("benchmark_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  userId: uuid("user_id").references(() => users.id),
+  benchmarkAssetSymbol: text("benchmark_asset_symbol").notNull(),
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  portfolioReturn: money("portfolio_return").notNull(),
+  benchmarkReturn: money("benchmark_return").notNull(),
+  difference: money("difference").notNull(),
+});
+
+export const analyticsRuns = pgTable("analytics_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  userId: uuid("user_id").references(() => users.id),
+  runType: text("run_type").notNull().default("dashboard"),
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  calculationVersion: text("calculation_version").notNull().default("v1.0"),
+  sourceSnapshotReference: text("source_snapshot_reference"),
+  generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const snapshots = pgTable(
   "snapshots",
   {
@@ -406,6 +580,39 @@ export const auditLog = pgTable("audit_log", {
   entityType: text("entity_type").notNull(),
   entityId: text("entity_id"),
   payload: text("payload"),
+});
+
+export const userSetupState = pgTable("user_setup_state", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id),
+  completed: boolean("completed").notNull().default(false),
+  currentStep: integer("current_step").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const importJobs = pgTable("import_jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id),
+  source: text("source").notNull().default("csv"), // csv | clipboard | exchange
+  status: text("status").notNull().default("pending"), // pending | processing | completed | failed | cancelled
+  rowCount: integer("row_count").notNull().default(0),
+  validCount: integer("valid_count").notNull().default(0),
+  errorCount: integer("error_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
+export const importRecords = pgTable("import_records", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  importJobId: uuid("import_job_id")
+    .notNull()
+    .references(() => importJobs.id, { onDelete: "cascade" }),
+  rawData: text("raw_data").notNull(), // JSON string of row
+  status: text("status").notNull().default("valid"), // valid | invalid | skipped
+  errorMessage: text("error_message"),
+  mappedTransactionId: uuid("mapped_transaction_id").references(() => journalEntries.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const backupRuns = pgTable("backup_runs", {

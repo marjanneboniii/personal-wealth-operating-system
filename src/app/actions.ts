@@ -26,6 +26,11 @@ import {
   reverseEntry,
 } from "@/features/ledger/service";
 import { executePlanned, payInstallment } from "@/features/planning/service";
+import { completeSetup, getSetupState } from "@/features/setup/service";
+import { createImportJob, executeImportJob } from "@/features/import/service";
+import { recordManualPrice } from "@/features/marketData/service";
+import { createPortfolioSnapshot, getPortfolioValuation } from "@/features/portfolio/service";
+import { getAnalyticsSummary } from "@/features/analytics/service";
 import { getHoldings, getNetWorth } from "@/features/ledger/queries";
 import { todayIso } from "@/lib/format";
 
@@ -329,4 +334,111 @@ export async function overviewCounts() {
 
 export async function sumDecimal(values: string[]) {
   return Decimal.sum(values).toString();
+}
+
+const setupSchema = z.object({
+  userName: z.string().default("مالک خانواده"),
+  baseCurrency: z.string().default("USD"),
+  displayCurrency: z.string().default("IRT"),
+  dateCalendar: z.enum(["jalali", "gregorian"]).default("jalali"),
+  digitStyle: z.enum(["fa", "en"]).default("fa"),
+  bankAccountName: z.string().optional(),
+  cashWalletName: z.string().optional(),
+  bankOpeningBalance: z.string().optional(),
+  cashOpeningBalance: z.string().optional(),
+  cryptoOpeningQty: z.string().optional(),
+  cryptoUnitPrice: z.string().optional(),
+  goldOpeningQty: z.string().optional(),
+  goldUnitPrice: z.string().optional(),
+});
+
+export async function completeSetupAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  try {
+    const raw = Object.fromEntries(fd) as Record<string, string>;
+    const input = setupSchema.parse(raw);
+    await completeSetup(input);
+    refreshAll();
+    return { ok: true, message: "راه‌اندازی اولیه با موفقیت انجام شد." };
+  } catch (e) {
+    const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطای راه‌اندازی";
+    return { ok: false, message: msg };
+  }
+}
+
+export async function fetchSetupStateAction() {
+  return getSetupState();
+}
+
+export async function createImportJobAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult & { jobData?: any }> {
+  try {
+    const rawText = String(fd.get("importText") || "");
+    const source = String(fd.get("source") || "csv");
+
+    if (!rawText.trim()) throw new Error("متن یا فایل درون‌ریزی نمی‌تواند خالی باشد.");
+
+    const summary = await createImportJob(rawText, source);
+    refreshAll();
+
+    return {
+      ok: true,
+      message: `پردازش انجام شد: ${summary.rowCount} سطر شناسایی شد (${summary.validCount} سطر معتبر، ${summary.errorCount} سطر خطادار).`,
+      jobData: summary,
+    };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطای پردازش فایل درون‌ریزی" };
+  }
+}
+
+export async function executeImportJobAction(jobId: string): Promise<ActionResult> {
+  try {
+    const res = await executeImportJob(jobId);
+    refreshAll();
+    return { ok: res.success, message: res.message };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطای اجرای درون‌ریزی" };
+  }
+}
+
+export async function recordManualPriceAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  try {
+    const assetId = String(fd.get("assetId") || "");
+    const price = String(fd.get("price") || "");
+    const currencyId = String(fd.get("currencyId") || "") || undefined;
+    const asOfDate = String(fd.get("asOfDate") || "") || undefined;
+    const sourceName = String(fd.get("sourceName") || "MANUAL");
+
+    if (!assetId) throw new Error("دارایی را انتخاب کنید.");
+    if (!price || Number(price) <= 0) throw new Error("قیمت باید بزرگ‌تر از صفر باشد.");
+
+    await recordManualPrice({
+      assetId,
+      price,
+      currencyId,
+      asOfDate,
+      sourceName,
+    });
+
+    refreshAll();
+    return { ok: true, message: "قیمت بازار با موفقیت ثبت شد (بدون تغییر در دفترکل)." };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطای ثبت قیمت" };
+  }
+}
+
+export async function createPortfolioSnapshotAction(): Promise<ActionResult> {
+  try {
+    const res = await createPortfolioSnapshot();
+    refreshAll();
+    return { ok: true, message: "اسنپ‌شات ثروت با موفقیت ثبت شد (بدون تغییر در دفترکل)." };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطای ثبت اسنپ‌شات" };
+  }
+}
+
+export async function fetchPortfolioValuationAction() {
+  return getPortfolioValuation();
+}
+
+export async function fetchAnalyticsSummaryAction() {
+  return getAnalyticsSummary();
 }
