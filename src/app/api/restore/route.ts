@@ -48,6 +48,8 @@ const ORDER = [
   "user_setup_state",
   "import_jobs",
   "import_records",
+  "exchange_rates",
+  "user_display_preferences",
   "settings",
   "notifications",
   "audit_log",

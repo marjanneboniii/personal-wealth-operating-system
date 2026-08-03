@@ -615,6 +615,54 @@ export const importRecords = pgTable("import_records", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/* ------------------------------------------------------------------ */
+/* Phase 2.6 — FX Engine & Display Currency (Valuation-only layer)    */
+/*                                                                    */
+/* CRITICAL ISOLATION GUARANTEE:                                      */
+/* These tables exist ONLY in the Market Data / Valuation domain.     */
+/* They NEVER affect journal_entries, postings, accounts, lots,       */
+/* lot_consumptions, FIFO, or cost basis.                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Exchange rates for currency conversion.
+ * FX rates are valuation reference data only.
+ * They are NEVER used to create accounting transactions.
+ */
+export const exchangeRates = pgTable(
+  "exchange_rates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    baseCurrency: text("base_currency").notNull(),   // e.g. "USD"
+    quoteCurrency: text("quote_currency").notNull(), // e.g. "IRT"
+    rate: numeric("rate", { precision: 38, scale: 18 }).notNull(),
+    source: text("source").notNull().default("manual"), // manual | import | api
+    effectiveDate: date("effective_date").notNull(),    // YYYY-MM-DD
+  },
+  (t) => [
+    uniqueIndex("exchange_rates_pair_date_uq").on(
+      t.baseCurrency,
+      t.quoteCurrency,
+      t.effectiveDate,
+    ),
+    index("exchange_rates_pair_idx").on(t.baseCurrency, t.quoteCurrency),
+  ],
+);
+
+/**
+ * User display preferences.
+ * Display currency is a UI preference only.
+ * Changing display currency NEVER creates financial events.
+ */
+export const userDisplayPreferences = pgTable("user_display_preferences", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  userId: uuid("user_id").references(() => users.id),
+  displayCurrency: text("display_currency").notNull().default("USD"), // USD | IRT | BTC | ETH | XAUT | PAXG
+});
+
 export const backupRuns = pgTable("backup_runs", {
   id: uuid("id").primaryKey().defaultRandom(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

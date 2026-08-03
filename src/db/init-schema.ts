@@ -477,6 +477,25 @@ const STATEMENTS = [
     row_count integer NOT NULL DEFAULT 0,
     note text
   );`,
+  /* Phase 2.6 — FX Engine & Display Currency */
+  `CREATE TABLE IF NOT EXISTS exchange_rates (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    base_currency text NOT NULL,
+    quote_currency text NOT NULL,
+    rate numeric(38,18) NOT NULL,
+    source text NOT NULL DEFAULT 'manual',
+    effective_date date NOT NULL,
+    CONSTRAINT exchange_rates_pair_date_uq UNIQUE (base_currency, quote_currency, effective_date)
+  );`,
+  `CREATE INDEX IF NOT EXISTS exchange_rates_pair_idx ON exchange_rates (base_currency, quote_currency);`,
+  `CREATE TABLE IF NOT EXISTS user_display_preferences (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    user_id uuid REFERENCES users(id),
+    display_currency text NOT NULL DEFAULT 'USD'
+  );`,
 ];
 
 export async function createSchemaIfNotExists() {
