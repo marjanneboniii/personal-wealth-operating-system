@@ -477,6 +477,40 @@ const STATEMENTS = [
     row_count integer NOT NULL DEFAULT 0,
     note text
   );`,
+  /* Scenario Engine — isolated tables */
+  `CREATE TABLE IF NOT EXISTS scenario_simulations (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    user_id uuid REFERENCES users(id),
+    name text NOT NULL,
+    description text,
+    asset_id uuid NOT NULL REFERENCES assets(id),
+    initial_capital numeric(38,18) NOT NULL,
+    capital_currency_id uuid REFERENCES currencies(id),
+    start_date date NOT NULL,
+    initial_price numeric(38,18) NOT NULL,
+    initial_quantity numeric(38,18) NOT NULL,
+    status text NOT NULL DEFAULT 'active',
+    notes text
+  );`,
+  `CREATE INDEX IF NOT EXISTS scenario_simulations_asset_idx ON scenario_simulations(asset_id);`,
+  `CREATE INDEX IF NOT EXISTS scenario_simulations_user_idx ON scenario_simulations(user_id);`,
+  `CREATE INDEX IF NOT EXISTS scenario_simulations_start_date_idx ON scenario_simulations(start_date);`,
+  `CREATE TABLE IF NOT EXISTS scenario_evaluation_runs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    scenario_id uuid NOT NULL REFERENCES scenario_simulations(id) ON DELETE CASCADE,
+    evaluation_date date NOT NULL,
+    current_price numeric(38,18) NOT NULL,
+    current_value numeric(38,18) NOT NULL,
+    profit_loss numeric(38,18) NOT NULL,
+    roi_percentage numeric(38,18) NOT NULL,
+    annualized_return_percentage numeric(38,18),
+    benchmark_comparisons text,
+    CONSTRAINT scenario_eval_scenario_date_uq UNIQUE (scenario_id, evaluation_date)
+  );`,
+  `CREATE INDEX IF NOT EXISTS scenario_eval_scenario_idx ON scenario_evaluation_runs(scenario_id);`,
 ];
 
 export async function createSchemaIfNotExists() {

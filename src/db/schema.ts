@@ -548,6 +548,61 @@ export const funds = pgTable("funds", {
 });
 
 /* ------------------------------------------------------------------ */
+/* Scenario / Simulation Engine — Isolated Bounded Context              */
+/* ------------------------------------------------------------------ */
+// NOTE: No FK to journal_entries, postings, accounts, lots, lot_consumptions
+// Only references assets (identity), currencies, users (ownership)
+
+export const scenarioSimulations = pgTable(
+  "scenario_simulations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    userId: uuid("user_id").references(() => users.id),
+    name: text("name").notNull(),
+    description: text("description"),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id),
+    initialCapital: money("initial_capital").notNull(),
+    capitalCurrencyId: uuid("capital_currency_id").references(() => currencies.id),
+    startDate: date("start_date").notNull(),
+    initialPrice: money("initial_price").notNull(),
+    initialQuantity: money("initial_quantity").notNull(),
+    status: text("status").notNull().default("active"), // active | archived | closed
+    notes: text("notes"),
+  },
+  (t) => [
+    index("scenario_simulations_asset_idx").on(t.assetId),
+    index("scenario_simulations_user_idx").on(t.userId),
+    index("scenario_simulations_start_date_idx").on(t.startDate),
+  ],
+);
+
+export const scenarioEvaluationRuns = pgTable(
+  "scenario_evaluation_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    scenarioId: uuid("scenario_id")
+      .notNull()
+      .references(() => scenarioSimulations.id, { onDelete: "cascade" }),
+    evaluationDate: date("evaluation_date").notNull(),
+    currentPrice: money("current_price").notNull(),
+    currentValue: money("current_value").notNull(),
+    profitLoss: money("profit_loss").notNull(),
+    roiPercentage: money("roi_percentage").notNull(),
+    annualizedReturnPercentage: money("annualized_return_percentage"),
+    benchmarkComparisons: text("benchmark_comparisons"), // JSON string
+  },
+  (t) => [
+    index("scenario_eval_scenario_idx").on(t.scenarioId),
+    uniqueIndex("scenario_eval_scenario_date_uq").on(t.scenarioId, t.evaluationDate),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /* Platform                                                             */
 /* ------------------------------------------------------------------ */
 
