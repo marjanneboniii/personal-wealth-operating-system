@@ -496,6 +496,61 @@ const STATEMENTS = [
     user_id uuid REFERENCES users(id),
     display_currency text NOT NULL DEFAULT 'USD'
   );`,
+  /* Phase 2.7 — External Market Data Provider Layer */
+  `CREATE TABLE IF NOT EXISTS external_providers (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    name text NOT NULL UNIQUE,
+    display_name text NOT NULL,
+    provider_type text NOT NULL DEFAULT 'crypto',
+    base_url text,
+    is_active boolean NOT NULL DEFAULT true,
+    description text
+  );`,
+  `CREATE TABLE IF NOT EXISTS asset_provider_mappings (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    asset_id uuid NOT NULL REFERENCES assets(id),
+    provider_id uuid NOT NULL REFERENCES external_providers(id),
+    external_symbol text NOT NULL,
+    external_name text,
+    provider_asset_id text,
+    asset_type text NOT NULL DEFAULT 'crypto',
+    logo_url text,
+    supported_markets text,
+    metadata_json text,
+    CONSTRAINT asset_provider_mapping_uq UNIQUE (asset_id, provider_id)
+  );`,
+  `CREATE INDEX IF NOT EXISTS asset_provider_mapping_asset_idx ON asset_provider_mappings (asset_id);`,
+  `CREATE TABLE IF NOT EXISTS external_price_history (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    asset_id uuid NOT NULL REFERENCES assets(id),
+    provider_id uuid NOT NULL REFERENCES external_providers(id),
+    price numeric(38,18) NOT NULL,
+    currency text NOT NULL DEFAULT 'USD',
+    as_of_date date NOT NULL,
+    timestamp timestamptz NOT NULL DEFAULT now(),
+    is_current boolean NOT NULL DEFAULT true,
+    raw_response text,
+    CONSTRAINT external_price_history_uq UNIQUE (asset_id, provider_id, as_of_date, currency)
+  );`,
+  `CREATE INDEX IF NOT EXISTS external_price_history_asset_idx ON external_price_history (asset_id);`,
+  `CREATE INDEX IF NOT EXISTS external_price_history_provider_idx ON external_price_history (provider_id);`,
+  `CREATE TABLE IF NOT EXISTS wallet_observations (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    user_id uuid REFERENCES users(id),
+    wallet_id uuid REFERENCES wallets(id),
+    asset_id uuid NOT NULL REFERENCES assets(id),
+    observed_balance numeric(38,18) NOT NULL,
+    recorded_balance numeric(38,18) NOT NULL,
+    discrepancy numeric(38,18) NOT NULL,
+    observation_date date NOT NULL,
+    source text NOT NULL DEFAULT 'manual_observation',
+    notes text
+  );`,
+  `CREATE INDEX IF NOT EXISTS wallet_observations_asset_date_idx ON wallet_observations (asset_id, observation_date);`,
 ];
 
 export async function createSchemaIfNotExists() {

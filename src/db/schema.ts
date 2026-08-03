@@ -671,3 +671,111 @@ export const backupRuns = pgTable("backup_runs", {
   rowCount: integer("row_count").notNull().default(0),
   note: text("note"),
 });
+
+/**
+ * External market data providers reference data.
+ * No foreign keys to accounting tables.
+ */
+export const externalProviders = pgTable("external_providers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  name: text("name").notNull().unique(), // coingecko | binance | coinbase | mock
+  displayName: text("display_name").notNull(),
+  providerType: text("provider_type").notNull().default("crypto"), // crypto | stocks | tokenized_assets | fx
+  baseUrl: text("base_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  description: text("description"),
+});
+
+/**
+ * Maps system assets to external market data provider symbols/IDs.
+ * No foreign keys to accounting tables.
+ */
+export const assetProviderMappings = pgTable(
+  "asset_provider_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id),
+    providerId: uuid("provider_id")
+      .notNull()
+      .references(() => externalProviders.id),
+    externalSymbol: text("external_symbol").notNull(), // BTC, ETH, PAXG, XAUT
+    externalName: text("external_name"), // Bitcoin, PAX Gold, etc.
+    providerAssetId: text("provider_asset_id"), // e.g., bitcoin on coingecko
+    assetType: text("asset_type").notNull().default("crypto"), // crypto | tokenized_asset | stock
+    logoUrl: text("logo_url"),
+    supportedMarkets: text("supported_markets"), // comma-separated or JSON list of quote currencies
+    metadataJson: text("metadata_json"),
+  },
+  (t) => [
+    uniqueIndex("asset_provider_mapping_uq").on(t.assetId, t.providerId),
+    index("asset_provider_mapping_asset_idx").on(t.assetId),
+  ],
+);
+
+/**
+ * Stored current and historical price data from external providers.
+ * READ-ONLY valuation reference data.
+ * NEVER creates or modifies journal entries, postings, accounts, lots, or lot consumptions.
+ */
+export const externalPriceHistory = pgTable(
+  "external_price_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id),
+    providerId: uuid("provider_id")
+      .notNull()
+      .references(() => externalProviders.id),
+    price: money("price").notNull(),
+    currency: text("currency").notNull().default("USD"),
+    asOfDate: date("as_of_date").notNull(),
+    timestamp: timestamp("timestamp", { withTimezone: true }).notNull().defaultNow(),
+    isCurrent: boolean("is_current").notNull().default(true),
+    rawResponse: text("raw_response"),
+  },
+  (t) => [
+    uniqueIndex("external_price_history_uq").on(
+      t.assetId,
+      t.providerId,
+      t.asOfDate,
+      t.currency,
+    ),
+    index("external_price_history_asset_idx").on(t.assetId),
+    index("external_price_history_provider_idx").on(t.providerId),
+  ],
+);
+
+/**
+ * Wallet balances are portfolio observations ONLY.
+ * Manual transactions remain the source of accounting truth.
+ * No blockchain synchronization is implemented in this phase.
+ * Prevents double counting between blockchain wallet balances and manually recorded transactions.
+ */
+export const walletObservations = pgTable(
+  "wallet_observations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid("user_id").references(() => users.id),
+    walletId: uuid("wallet_id").references(() => wallets.id),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id),
+    observedBalance: money("observed_balance").notNull(),
+    recordedBalance: money("recorded_balance").notNull(),
+    discrepancy: money("discrepancy").notNull(), // observedBalance - recordedBalance
+    observationDate: date("observation_date").notNull(),
+    source: text("source").notNull().default("manual_observation"),
+    notes: text("notes"),
+  },
+  (t) => [
+    index("wallet_observations_asset_date_idx").on(t.assetId, t.observationDate),
+  ],
+);
+
