@@ -6,7 +6,8 @@
  * Incorrect: Asset Ahvaz Kianpars because location is metadata not identity
  */
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
   assetClasses,
@@ -206,13 +207,16 @@ export async function upsertTokenMetadata(
 }
 
 export async function getTokenMetadata(assetId?: string): Promise<TokenMetadata[]> {
+  // Native Drizzle alias for the self-join on assets (retains $inferSelect typing).
+  const underlyingAssets = alias(assets, "underlying");
+
   const rows = await db
     .select({
       id: assetTokenMetadata.id,
       assetId: assetTokenMetadata.assetId,
       assetSymbol: assets.symbol,
       underlyingAssetId: assetTokenMetadata.underlyingAssetId,
-      underlyingSymbol: sql<string>`underlying.symbol`.as("underlyingSymbol"),
+      underlyingSymbol: underlyingAssets.symbol,
       logoUri: assetTokenMetadata.logoUri,
       coingeckoId: assetTokenMetadata.coingeckoId,
       coinMarketCapId: assetTokenMetadata.coinMarketCapId,
@@ -222,10 +226,10 @@ export async function getTokenMetadata(assetId?: string): Promise<TokenMetadata[
     })
     .from(assetTokenMetadata)
     .innerJoin(assets, eq(assets.id, assetTokenMetadata.assetId))
-    .leftJoin(sql`assets as underlying`.as("underlying"), sql`underlying.id = ${assetTokenMetadata.underlyingAssetId}`)
+    .leftJoin(underlyingAssets, eq(assetTokenMetadata.underlyingAssetId, underlyingAssets.id))
     .where(assetId ? eq(assetTokenMetadata.assetId, assetId) : undefined);
 
-  // Drizzle doesn't easily handle alias join for underlying, fallback to simple query without underlying symbol
+  // Fallback: simple query without underlying symbol when the join yields nothing
   if (rows.length === 0 && assetId) {
     const simple = await db
       .select()
@@ -244,12 +248,12 @@ export async function getTokenMetadata(assetId?: string): Promise<TokenMetadata[
     }));
   }
 
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: r.id,
     assetId: r.assetId,
     assetSymbol: r.assetSymbol,
     underlyingAssetId: r.underlyingAssetId ?? null,
-    underlyingSymbol: r.underlyingSymbol ?? null,
+    underlyingSymbol: r.underlyingSymbol ?? undefined,
     logoUri: r.logoUri ?? null,
     coingeckoId: r.coingeckoId ?? null,
     coinMarketCapId: r.coinMarketCapId ?? null,

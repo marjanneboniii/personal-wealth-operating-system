@@ -296,7 +296,7 @@ export class CommodityAnalyticsService {
       id: r.id,
       commodityId: r.commodityId,
       commodityName: r.commodityName,
-      categoryName: r.categoryName ?? null,
+      categoryName: r.categoryName ?? undefined,
       unitPrice: r.unitPrice.toString(),
       unit: r.unit,
       quantity: r.quantity.toString(),

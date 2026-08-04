@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const signature = request.headers.get("x-zerion-signature") || request.headers.get("x-webhook-signature") || request.headers.get("authorization")?.replace("Bearer ", "");
     const secret = process.env.ZERION_WEBHOOK_SECRET || null;
 
-    const isValid = verifySignature(rawBody, signature, secret);
+    const isValid = verifySignature(rawBody, signature ?? null, secret);
     if (!isValid) {
       console.error("[Zerion Webhook] Invalid signature");
       return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
