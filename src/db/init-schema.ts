@@ -1001,6 +1001,40 @@ const STATEMENTS = [
   );`,
   `CREATE INDEX IF NOT EXISTS coingecko_mappings_asset_idx ON coingecko_asset_mappings(internal_asset_id);`,
   `CREATE INDEX IF NOT EXISTS coingecko_mappings_symbol_idx ON coingecko_asset_mappings(symbol);`,
+
+  /* Commodities Domain — Dynamic Price Tracking & Inflation Analytics — Isolated, No FK to Financial Core */
+  `CREATE TABLE IF NOT EXISTS commodity_categories (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT now()
+  );`,
+  `CREATE INDEX IF NOT EXISTS commodity_categories_name_idx ON commodity_categories(name);`,
+
+  `CREATE TABLE IF NOT EXISTS commodity_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL UNIQUE,
+    category_id uuid REFERENCES commodity_categories(id) ON DELETE SET NULL,
+    default_unit text NOT NULL DEFAULT 'piece',
+    created_at timestamptz NOT NULL DEFAULT now()
+  );`,
+  `CREATE INDEX IF NOT EXISTS commodity_items_name_idx ON commodity_items(name);`,
+  `CREATE INDEX IF NOT EXISTS commodity_items_category_idx ON commodity_items(category_id);`,
+
+  `CREATE TABLE IF NOT EXISTS commodity_price_records (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    commodity_id uuid NOT NULL REFERENCES commodity_items(id) ON DELETE CASCADE,
+    unit_price numeric(38,18) NOT NULL,
+    unit text NOT NULL DEFAULT 'piece',
+    quantity numeric(38,18) NOT NULL DEFAULT 1,
+    total_amount numeric(38,18) NOT NULL,
+    purchased_at timestamptz NOT NULL DEFAULT now(),
+    merchant_name text,
+    notes text,
+    created_at timestamptz NOT NULL DEFAULT now()
+  );`,
+  `CREATE INDEX IF NOT EXISTS commodity_price_commodity_idx ON commodity_price_records(commodity_id);`,
+  `CREATE INDEX IF NOT EXISTS commodity_price_purchased_idx ON commodity_price_records(purchased_at);`,
+  `CREATE INDEX IF NOT EXISTS commodity_price_merchant_idx ON commodity_price_records(merchant_name);`,
 ];
 
 export async function createSchemaIfNotExists() {

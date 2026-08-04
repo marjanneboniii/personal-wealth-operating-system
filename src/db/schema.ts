@@ -1289,6 +1289,59 @@ export const coingeckoAssetMappings = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/* Commodities Domain — Dynamic Price Tracking & Inflation Analytics    */
+/* ------------------------------------------------------------------ */
+// No FK to Financial Core — isolated tables
+
+export const commodityCategories = pgTable(
+  "commodity_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("commodity_categories_name_idx").on(t.name)],
+);
+
+export const commodityItems = pgTable(
+  "commodity_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull().unique(),
+    categoryId: uuid("category_id").references(() => commodityCategories.id, { onDelete: "set null" }),
+    defaultUnit: text("default_unit").notNull().default("piece"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("commodity_items_name_idx").on(t.name),
+    index("commodity_items_category_idx").on(t.categoryId),
+  ],
+);
+
+export const commodityPriceRecords = pgTable(
+  "commodity_price_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    commodityId: uuid("commodity_id")
+      .notNull()
+      .references(() => commodityItems.id, { onDelete: "cascade" }),
+    unitPrice: money("unit_price").notNull(),
+    unit: text("unit").notNull().default("piece"),
+    quantity: money("quantity").notNull().default("1"),
+    totalAmount: money("total_amount").notNull(),
+    purchasedAt: timestamp("purchased_at", { withTimezone: true }).notNull().defaultNow(),
+    merchantName: text("merchant_name"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("commodity_price_commodity_idx").on(t.commodityId),
+    index("commodity_price_purchased_idx").on(t.purchasedAt),
+    index("commodity_price_merchant_idx").on(t.merchantName),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /* Platform                                                             */
 /* ------------------------------------------------------------------ */
 
