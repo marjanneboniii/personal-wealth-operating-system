@@ -1,190 +1,168 @@
 /**
- * PWOS — Phase 2.7: CoinGecko Market Data Provider
- *
- * Implements ExternalMarketProvider for Crypto and Tokenized Assets
- * (e.g., BTC, ETH, XAUT, PAXG).
- *
- * READ-ONLY reference data provider. No ledger mutations.
+ * CoinGecko API Provider Client — Supports optional COINGECKO_API_KEY
+ * Implements: getSimplePrice, getHistoricalPrice (DD-MM-YYYY), getCoinMarketData, searchCoin
+ * CRITICAL RULE: Provider returns market data, but only Market Data Service writes to SSOT tables market_prices, market_snapshots, prices
+ * No FK to Financial Core, never imports postEntry/recordBuy/recordSell
  */
-import {
-  ExternalAssetMetadata,
-  ExternalMarketProvider,
-  ExternalPriceQuote,
-} from "../types";
 
-export class CoinGeckoProvider implements ExternalMarketProvider {
-  public readonly name = "coingecko";
-  public readonly displayName = "CoinGecko API";
-  public readonly type = "crypto";
+export type SimplePriceResult = Record<string, Record<string, number>>;
 
-  // Built-in symbol to CoinGecko ID mapping for major crypto and tokenized assets
-  private symbolToId: Record<string, string> = {
-    BTC: "bitcoin",
-    ETH: "ethereum",
-    XAUT: "tether-gold",
-    PAXG: "pax-gold",
-    USDT: "tether",
-    SOL: "solana",
-  };
+export type CoinMarketData = {
+  id: string;
+  symbol: string;
+  name: string;
+  currentPrice: Record<string, number> | null;
+  marketCap: Record<string, number> | null;
+  totalVolume: Record<string, number> | null;
+  priceChange24h: number | null;
+  lastUpdated: string | null;
+  rawJson: string;
+};
 
-  // Built-in metadata for tokenized assets and top crypto
-  private metadataRegistry: Record<string, ExternalAssetMetadata> = {
-    bitcoin: {
-      name: "Bitcoin",
-      symbol: "BTC",
-      assetType: "crypto",
-      providerId: "bitcoin",
-      logoUrl: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
-      supportedMarkets: ["USD", "IRT", "USDT", "EUR"],
-    },
-    ethereum: {
-      name: "Ethereum",
-      symbol: "ETH",
-      assetType: "crypto",
-      providerId: "ethereum",
-      logoUrl: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
-      supportedMarkets: ["USD", "IRT", "USDT", "EUR"],
-    },
-    "tether-gold": {
-      name: "Tether Gold",
-      symbol: "XAUT",
-      assetType: "tokenized_asset",
-      providerId: "tether-gold",
-      logoUrl: "https://assets.coingecko.com/coins/images/10481/large/Tether_Gold.png",
-      supportedMarkets: ["USD", "USDT"],
-    },
-    "pax-gold": {
-      name: "PAX Gold",
-      symbol: "PAXG",
-      assetType: "tokenized_asset",
-      providerId: "pax-gold",
-      logoUrl: "https://assets.coingecko.com/coins/images/9519/large/paxg.png",
-      supportedMarkets: ["USD", "USDT"],
-    },
-  };
+export type CoinSearchResult = {
+  id: string;
+  symbol: string;
+  name: string;
+  thumb?: string;
+};
 
-  // Test override cache for deterministic offline integration testing
-  private testPriceOverrides = new Map<string, ExternalPriceQuote>();
+function getApiKey(): string | null {
+  const key = process.env.COINGECKO_API_KEY;
+  if (!key) {
+    console.log("[CoinGeckoProvider] COINGECKO_API_KEY not set — using public API rate limits. Set COINGECKO_API_KEY in .env.local for higher limits.");
+    return null;
+  }
+  return key;
+}
+
+export class CoinGeckoProvider {
+  private baseUrl = "https://api.coingecko.com/api/v3";
+  private proBaseUrl = "https://pro-api.coingecko.com/api/v3";
+  private apiKey: string | null;
+
+  constructor() {
+    this.apiKey = getApiKey();
+  }
+
+  private getBaseUrl(): string {
+    // If API key present, use pro API, else public
+    return this.apiKey ? this.proBaseUrl : this.baseUrl;
+  }
+
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+    };
+    if (this.apiKey) {
+      headers["x-cg-pro-api-key"] = this.apiKey;
+    }
+    return headers;
+  }
+
+  private async fetchWithErrorHandling(url: string): Promise<any> {
+    try {
+      const res = await fetch(url, { headers: this.getHeaders() });
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[CoinGeckoProvider] API error ${res.status} for ${url}: ${text.slice(0, 1000)}`);
+        if (res.status === 429) {
+          console.error("[CoinGeckoProvider] Rate limited — consider setting COINGECKO_API_KEY");
+        }
+        return null;
+      }
+      return await res.json();
+    } catch (e) {
+      console.error(`[CoinGeckoProvider] Network error for ${url}:`, e instanceof Error ? e.message : String(e));
+      return null;
+    }
+  }
 
   /**
-   * Register test override for offline test determinism
+   * Get simple price for coinIds
+   * Endpoint: GET /simple/price?ids=bitcoin,ethereum&vs_currencies=usd,eur,irt
    */
-  public setTestOverride(symbolOrId: string, quote: ExternalPriceQuote): void {
-    this.testPriceOverrides.set(symbolOrId.toUpperCase(), quote);
-    const id = this.resolveId(symbolOrId);
-    this.testPriceOverrides.set(id, quote);
+  async getSimplePrice(coinIds: string[], vsCurrencies: string[] = ["usd"]): Promise<SimplePriceResult | null> {
+    if (coinIds.length === 0) return {};
+
+    const idsParam = coinIds.map((id) => encodeURIComponent(id)).join(",");
+    const vsParam = vsCurrencies.map((c) => encodeURIComponent(c)).join(",");
+
+    const url = `${this.getBaseUrl()}/simple/price?ids=${idsParam}&vs_currencies=${vsParam}&include_last_updated_at=true`;
+
+    const data = await this.fetchWithErrorHandling(url);
+    return data;
   }
 
-  public clearTestOverrides(): void {
-    this.testPriceOverrides.clear();
-  }
-
-  private resolveId(symbolOrId: string): string {
-    const upper = symbolOrId.toUpperCase();
-    if (this.symbolToId[upper]) {
-      return this.symbolToId[upper];
-    }
-    return symbolOrId.toLowerCase();
-  }
-
-  public async getCurrentPrice(
-    symbolOrId: string,
-    currency = "USD",
-  ): Promise<ExternalPriceQuote | null> {
-    const coinId = this.resolveId(symbolOrId);
-    const key = `${coinId}_${currency.toUpperCase()}`;
-
-    // 1. Check test overrides first (for deterministic unit/integration tests)
-    if (this.testPriceOverrides.has(coinId)) {
-      return this.testPriceOverrides.get(coinId)!;
-    }
-    if (this.testPriceOverrides.has(symbolOrId.toUpperCase())) {
-      return this.testPriceOverrides.get(symbolOrId.toUpperCase())!;
+  /**
+   * Get historical price for coinId on date (format DD-MM-YYYY)
+   * Endpoint: GET /coins/{id}/history?date=DD-MM-YYYY
+   */
+  async getHistoricalPrice(coinId: string, date: string): Promise<{ price: number | null; rawJson: string } | null> {
+    // Validate date format DD-MM-YYYY
+    if (!/^\d{2}-\d{2}-\d{4}$/.test(date)) {
+      throw new Error(`Invalid date format for CoinGecko historical price, expected DD-MM-YYYY, got ${date}`);
     }
 
-    // 2. Try fetching from CoinGecko API when online
-    try {
-      const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
-        coinId,
-      )}&vs_currencies=${encodeURIComponent(currency.toLowerCase())}`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
-      if (res.ok) {
-        const data = (await res.json()) as Record<string, Record<string, number>>;
-        const priceVal = data[coinId]?.[currency.toLowerCase()];
-        if (typeof priceVal === "number") {
-          return {
-            provider: this.name,
-            symbol: symbolOrId.toUpperCase(),
-            price: priceVal.toString(),
-            currency: currency.toUpperCase(),
-            timestamp: new Date().toISOString(),
-            sourceType: "api",
-            rawResponse: JSON.stringify(data),
-          };
-        }
-      }
-    } catch {
-      // Network error or offline mode: do not throw, return null
-    }
+    const url = `${this.getBaseUrl()}/coins/${encodeURIComponent(coinId)}/history?date=${encodeURIComponent(date)}&localization=false`;
 
-    return null;
-  }
-
-  public async getHistoricalPrice(
-    symbolOrId: string,
-    asOfDate: string,
-    currency = "USD",
-  ): Promise<ExternalPriceQuote | null> {
-    const coinId = this.resolveId(symbolOrId);
-    const overrideKey = `${coinId}_${asOfDate}`;
-    if (this.testPriceOverrides.has(overrideKey)) {
-      return this.testPriceOverrides.get(overrideKey)!;
-    }
+    const data = await this.fetchWithErrorHandling(url);
+    if (!data) return null;
 
     try {
-      // CoinGecko historical date format is DD-MM-YYYY
-      const parts = asOfDate.split("-");
-      let formattedDate = asOfDate;
-      if (parts.length === 3 && parts[0].length === 4) {
-        formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-      }
-
-      const url = `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(
-        coinId,
-      )}/history?date=${encodeURIComponent(formattedDate)}`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
-      if (res.ok) {
-        const data = (await res.json()) as {
-          market_data?: { current_price?: Record<string, number> };
-        };
-        const priceVal = data.market_data?.current_price?.[currency.toLowerCase()];
-        if (typeof priceVal === "number") {
-          return {
-            provider: this.name,
-            symbol: symbolOrId.toUpperCase(),
-            price: priceVal.toString(),
-            currency: currency.toUpperCase(),
-            timestamp: new Date().toISOString(),
-            asOfDate,
-            sourceType: "api",
-            rawResponse: JSON.stringify(data),
-          };
-        }
-      }
-    } catch {
-      // Offline / network failure: return null
+      const priceUSD = data?.market_data?.current_price?.usd ?? null;
+      return {
+        price: priceUSD ? Number(priceUSD) : null,
+        rawJson: JSON.stringify(data).slice(0, 10000),
+      };
+    } catch (e) {
+      console.error("[CoinGeckoProvider] Failed to parse historical price", e);
+      return { price: null, rawJson: JSON.stringify(data).slice(0, 10000) };
     }
-
-    return null;
   }
 
-  public async getAssetMetadata(
-    symbolOrId: string,
-  ): Promise<ExternalAssetMetadata | null> {
-    const coinId = this.resolveId(symbolOrId);
-    if (this.metadataRegistry[coinId]) {
-      return this.metadataRegistry[coinId];
+  /**
+   * Get coin market data
+   * Endpoint: GET /coins/{id}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false
+   */
+  async getCoinMarketData(coinId: string): Promise<CoinMarketData | null> {
+    const url = `${this.getBaseUrl()}/coins/${encodeURIComponent(coinId)}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`;
+
+    const data = await this.fetchWithErrorHandling(url);
+    if (!data) return null;
+
+    try {
+      return {
+        id: String(data.id),
+        symbol: String(data.symbol || ""),
+        name: String(data.name || ""),
+        currentPrice: data.market_data?.current_price || null,
+        marketCap: data.market_data?.market_cap || null,
+        totalVolume: data.market_data?.total_volume || null,
+        priceChange24h: data.market_data?.price_change_percentage_24h ? Number(data.market_data.price_change_percentage_24h) : null,
+        lastUpdated: data.last_updated ? String(data.last_updated) : null,
+        rawJson: JSON.stringify(data).slice(0, 10000),
+      };
+    } catch (e) {
+      console.error("[CoinGeckoProvider] Failed to parse market data", e);
+      return null;
     }
-    return null;
+  }
+
+  /**
+   * Search coin
+   * Endpoint: GET /search?query=bitcoin
+   */
+  async searchCoin(query: string): Promise<CoinSearchResult[]> {
+    const url = `${this.getBaseUrl()}/search?query=${encodeURIComponent(query)}`;
+
+    const data = await this.fetchWithErrorHandling(url);
+    if (!data || !Array.isArray(data?.coins)) return [];
+
+    return data.coins.map((coin: any) => ({
+      id: String(coin.id),
+      symbol: String(coin.symbol || ""),
+      name: String(coin.name || ""),
+      thumb: coin.thumb ? String(coin.thumb) : undefined,
+    }));
   }
 }

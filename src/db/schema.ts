@@ -49,6 +49,9 @@ export const assetClasses = pgTable("asset_classes", {
   name: text("name").notNull(),
   color: text("color").notNull().default("#64748b"),
   sortOrder: integer("sort_order").notNull().default(0),
+  parentId: uuid("parent_id"), // self-FK for hierarchy Crypto -> Tokenized -> etc., no DB FK constraint to avoid circular migration issues in init-schema, logical parent
+  level: integer("level").notNull().default(0),
+  attributesSchema: text("attributes_schema"), // JSON schema for expected metadata keys
 });
 
 export const networks = pgTable("networks", {
@@ -56,6 +59,11 @@ export const networks = pgTable("networks", {
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
   chainType: text("chain_type"),
+  chainId: integer("chain_id").unique(),
+  rpcUrl: text("rpc_url"),
+  explorerUrl: text("explorer_url"),
+  isEVM: boolean("is_evm").notNull().default(true),
+  isTestnet: boolean("is_testnet").notNull().default(false),
 });
 
 export const institutions = pgTable("institutions", {
@@ -548,6 +556,792 @@ export const funds = pgTable("funds", {
 });
 
 /* ------------------------------------------------------------------ */
+/* Scenario / Simulation Engine — Isolated Bounded Context              */
+/* ------------------------------------------------------------------ */
+// NOTE: No FK to journal_entries, postings, accounts, lots, lot_consumptions
+// Only references assets (identity), currencies, users (ownership)
+
+export const scenarioSimulations = pgTable(
+  "scenario_simulations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    userId: uuid("user_id").references(() => users.id),
+    name: text("name").notNull(),
+    description: text("description"),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id),
+    initialCapital: money("initial_capital").notNull(),
+    capitalCurrencyId: uuid("capital_currency_id").references(() => currencies.id),
+    startDate: date("start_date").notNull(),
+    initialPrice: money("initial_price").notNull(),
+    initialQuantity: money("initial_quantity").notNull(),
+    status: text("status").notNull().default("active"), // active | archived | closed
+    notes: text("notes"),
+  },
+  (t) => [
+    index("scenario_simulations_asset_idx").on(t.assetId),
+    index("scenario_simulations_user_idx").on(t.userId),
+    index("scenario_simulations_start_date_idx").on(t.startDate),
+  ],
+);
+
+export const scenarioEvaluationRuns = pgTable(
+  "scenario_evaluation_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    scenarioId: uuid("scenario_id")
+      .notNull()
+      .references(() => scenarioSimulations.id, { onDelete: "cascade" }),
+    evaluationDate: date("evaluation_date").notNull(),
+    currentPrice: money("current_price").notNull(),
+    currentValue: money("current_value").notNull(),
+    profitLoss: money("profit_loss").notNull(),
+    roiPercentage: money("roi_percentage").notNull(),
+    annualizedReturnPercentage: money("annualized_return_percentage"),
+    benchmarkComparisons: text("benchmark_comparisons"), // JSON string
+  },
+  (t) => [
+    index("scenario_eval_scenario_idx").on(t.scenarioId),
+    uniqueIndex("scenario_eval_scenario_date_uq").on(t.scenarioId, t.evaluationDate),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Asset Registry Extension — Hierarchy + Multi-Chain                    */
+/* ------------------------------------------------------------------ */
+// parentId self reference logical, no DB FK to avoid circular init issues, but level tracks depth
+// Existing assetClasses now has parentId, level, attributesSchema added above
+
+export const assetNetworks = pgTable(
+  "asset_networks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" }),
+    networkId: uuid("network_id")
+      .notNull()
+      .references(() => networks.id),
+    contractAddress: text("contract_address"),
+    chainId: integer("chain_id"),
+    decimals: integer("decimals"),
+    tokenStandard: text("token_standard"), // ERC20, SPL, etc.
+    isPrimary: boolean("is_primary").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    explorerUrl: text("explorer_url"),
+    logoUri: text("logo_uri"),
+  },
+  (t) => [
+    uniqueIndex("asset_networks_uq").on(t.assetId, t.networkId, t.contractAddress),
+    index("asset_networks_asset_idx").on(t.assetId),
+    index("asset_networks_network_idx").on(t.networkId),
+  ],
+);
+
+export const assetTokenMetadata = pgTable("asset_token_metadata", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  assetId: uuid("asset_id")
+    .notNull()
+    .references(() => assets.id, { onDelete: "cascade" })
+    .unique(),
+  underlyingAssetId: uuid("underlying_asset_id").references(() => assets.id),
+  logoUri: text("logo_uri"),
+  coingeckoId: text("coingecko_id"),
+  coinMarketCapId: text("coinmarketcap_id"),
+  websiteUrl: text("website_url"),
+  description: text("description"),
+});
+
+/* ------------------------------------------------------------------ */
+/* Wallet Identity Layer — Separate from accounting wallets              */
+/* ------------------------------------------------------------------ */
+// NOTE: No FK to journal_entries, postings, lots — only to users, networks, accounts (optional soft link)
+
+export const walletIdentities = pgTable(
+  "wallet_identities",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    userId: uuid("user_id").references(() => users.id),
+    address: text("address").notNull(), // lowercased blockchain address
+    networkId: uuid("network_id").references(() => networks.id),
+    chainId: integer("chain_id"),
+    label: text("label"),
+    walletType: text("wallet_type").notNull().default("personal"), // personal | external_research | protocol_treasury | whale
+    ownershipCategory: text("ownership_category").notNull().default("self_custody"), // self_custody | external | research | observed
+    isVerified: boolean("is_verified").notNull().default(false),
+    linkedAccountId: uuid("linked_account_id").references(() => accounts.id, { onDelete: "set null" }), // optional soft link, SET NULL, no CASCADE, never creates accounting movement
+    notes: text("notes"),
+  },
+  (t) => [
+    uniqueIndex("wallet_identities_user_addr_net_uq").on(t.userId, t.address, t.networkId),
+    index("wallet_identities_address_idx").on(t.address),
+    index("wallet_identities_user_idx").on(t.userId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* External Asset Discovery — Quarantine for Unknown Tokens             */
+/* ------------------------------------------------------------------ */
+
+export const externalAssets = pgTable(
+  "external_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    providerName: text("provider_name").notNull(), // DEBANK, ZERION, RPC, COINGECKO, etc.
+    rawSymbol: text("raw_symbol"),
+    rawName: text("raw_name"),
+    contractAddress: text("contract_address"),
+    chainId: integer("chain_id"),
+    networkId: uuid("network_id").references(() => networks.id),
+    decimals: integer("decimals"),
+    tokenStandard: text("token_standard"),
+    logoUri: text("logo_uri"),
+    explorerUrl: text("explorer_url"),
+    sourceMetadata: text("source_metadata"), // JSON string
+    discoveryStatus: text("discovery_status").notNull().default("pending_review"), // pending_review | approved | rejected | ignored
+    discoveredAt: timestamp("discovered_at", { withTimezone: true }).notNull().defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedBy: uuid("reviewed_by").references(() => users.id),
+    notes: text("notes"),
+  },
+  (t) => [
+    index("external_assets_contract_chain_idx").on(t.contractAddress, t.chainId),
+    index("external_assets_status_idx").on(t.discoveryStatus),
+  ],
+);
+
+export const externalAssetMappings = pgTable(
+  "external_asset_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    externalAssetId: uuid("external_asset_id")
+      .notNull()
+      .references(() => externalAssets.id, { onDelete: "cascade" }),
+    internalAssetId: uuid("internal_asset_id").references(() => assets.id, { onDelete: "set null" }),
+    mappingStatus: text("mapping_status").notNull().default("pending"), // pending | verified | rejected
+    mappedAt: timestamp("mapped_at", { withTimezone: true }),
+    mappedBy: uuid("mapped_by").references(() => users.id),
+    confidenceScore: numeric("confidence_score", { precision: 5, scale: 2 }),
+    mappingSource: text("mapping_source").notNull().default("manual"), // manual | auto
+    notes: text("notes"),
+  },
+  (t) => [
+    uniqueIndex("external_asset_mappings_ext_uq").on(t.externalAssetId),
+    index("external_asset_mappings_internal_idx").on(t.internalAssetId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Observation Layer — DeBank, Zerion, RPC (Read-Only Cache)            */
+/* ------------------------------------------------------------------ */
+// NOTE: No FK to accounts, journal_entries, postings, lots — isolated observation
+
+export const observationProviders = pgTable("observation_providers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  name: text("name").notNull().unique(), // DEBANK, ZERION, RPC, etc.
+  type: text("type").notNull().default("api"), // api | rpc
+  config: text("config"), // JSON string
+  isActive: boolean("is_active").notNull().default(true),
+});
+
+export const observationRuns = pgTable(
+  "observation_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    walletIdentityId: uuid("wallet_identity_id")
+      .notNull()
+      .references(() => walletIdentities.id, { onDelete: "cascade" }),
+    providerName: text("provider_name").notNull(),
+    status: text("status").notNull().default("pending"), // pending | success | failed
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    positionsCount: integer("positions_count").notNull().default(0),
+    rawResponseSummary: text("raw_response_summary"), // JSON
+    errorMessage: text("error_message"),
+  },
+  (t) => [index("observation_runs_wallet_idx").on(t.walletIdentityId)],
+);
+
+export const observedPositions = pgTable(
+  "observed_positions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    observationRunId: uuid("observation_run_id")
+      .notNull()
+      .references(() => observationRuns.id, { onDelete: "cascade" }),
+    walletIdentityId: uuid("wallet_identity_id")
+      .notNull()
+      .references(() => walletIdentities.id, { onDelete: "cascade" }),
+    networkId: uuid("network_id").references(() => networks.id),
+    assetId: uuid("asset_id").references(() => assets.id), // nullable mapped canonical asset
+    externalAssetId: uuid("external_asset_id").references(() => externalAssets.id),
+    rawSymbol: text("raw_symbol"),
+    rawContractAddress: text("raw_contract_address"),
+    positionType: text("position_type").notNull().default("token"), // token | lp | aave_supply | aave_borrow | pendle_pt | pendle_yt | staking | vault | etc.
+    protocol: text("protocol"), // aave, pendle, hyperEvm, etc.
+    contractAddress: text("contract_address"), // pool address
+    quantity: money("quantity").notNull(),
+    cachedPriceUSD: money("cached_price_usd"), // observation cache, NOT SSOT price
+    cachedValueUSD: money("cached_value_usd"), // observation cache, NOT SSOT
+    metadata: text("metadata"), // JSON string additional data apy, maturity etc.
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+    snapshotDate: date("snapshot_date").notNull(),
+  },
+  (t) => [
+    index("observed_positions_wallet_idx").on(t.walletIdentityId),
+    index("observed_positions_asset_idx").on(t.assetId),
+    index("observed_positions_network_idx").on(t.networkId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Reconciliation Engine — Reporting Only, Never Auto Creates Ledger   */
+/* ------------------------------------------------------------------ */
+// NOTE: No FK to journal_entries, postings, lots — only to wallet_identities, assets, external_assets
+
+export const reconciliationRuns = pgTable(
+  "reconciliation_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid("user_id").references(() => users.id),
+    runType: text("run_type").notNull().default("wallet_reconciliation"), // wallet_reconciliation | portfolio_reconciliation | rwa_reconciliation
+    status: text("status").notNull().default("pending"), // pending | completed | failed
+    periodStart: date("period_start"),
+    periodEnd: date("period_end"),
+    summary: text("summary"), // JSON summary
+  },
+  (t) => [index("reconciliation_runs_user_idx").on(t.userId)],
+);
+
+export const reconciliationItems = pgTable(
+  "reconciliation_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    reconciliationRunId: uuid("reconciliation_run_id")
+      .notNull()
+      .references(() => reconciliationRuns.id, { onDelete: "cascade" }),
+    walletIdentityId: uuid("wallet_identity_id").references(() => walletIdentities.id, { onDelete: "set null" }),
+    assetId: uuid("asset_id").references(() => assets.id),
+    externalAssetId: uuid("external_asset_id").references(() => externalAssets.id),
+    ledgerQuantity: money("ledger_quantity"),
+    ledgerValue: money("ledger_value"),
+    observedQuantity: money("observed_quantity"),
+    observedValue: money("observed_value"),
+    differenceQuantity: money("difference_quantity"),
+    differenceValue: money("difference_value"),
+    status: text("status").notNull().default("needs_review"), // matched | difference | needs_review | external_only | ledger_only
+    resolutionStatus: text("resolution_status").notNull().default("pending"), // pending | reviewed | ignored | resolved
+    resolutionCategory: text("resolution_category"), // already_accounted | not_yet_accounted | external_research | duplicate | new_acquisition_candidate
+    notes: text("notes"),
+  },
+  (t) => [
+    index("reconciliation_items_run_idx").on(t.reconciliationRunId),
+    index("reconciliation_items_wallet_idx").on(t.walletIdentityId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* RWA Domain — Identity, Ownership, Valuation Separation              */
+/* ------------------------------------------------------------------ */
+// NOTE: No FK to journal_entries, postings, lots — only assets, users, currencies, debts
+
+export const realEstateProperties = pgTable(
+  "real_estate_properties",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" })
+      .unique(),
+    userId: uuid("user_id").references(() => users.id),
+    propertyType: text("property_type").notNull().default("apartment"), // apartment | house | land | commercial
+    city: text("city").notNull().default("Ahvaz"),
+    area: text("area"), // Kianpars, Golestan, Shahrak Daneshgah, Padad, Kianabad, Zeytoon
+    address: text("address"),
+    sizeSqm: numeric("size_sqm", { precision: 10, scale: 2 }),
+    floor: integer("floor"),
+    yearBuilt: integer("year_built"),
+    deedNumber: text("deed_number"),
+    notes: text("notes"),
+  },
+  (t) => [
+    index("real_estate_properties_user_idx").on(t.userId),
+    index("real_estate_properties_city_area_idx").on(t.city, t.area),
+  ],
+);
+
+export const vehicleAssets = pgTable(
+  "vehicle_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" })
+      .unique(),
+    userId: uuid("user_id").references(() => users.id),
+    brand: text("brand").notNull(),
+    model: text("model").notNull(),
+    year: integer("year").notNull(),
+    licensePlate: text("license_plate"),
+    chassisNumber: text("chassis_number"),
+    mileage: integer("mileage"),
+    notes: text("notes"),
+  },
+  (t) => [index("vehicle_assets_user_idx").on(t.userId)],
+);
+
+export const rwaOwnershipRecords = pgTable(
+  "rwa_ownership_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id),
+    ownershipPercentage: numeric("ownership_percentage", { precision: 5, scale: 2 }).notNull().default("100"),
+    ownershipType: text("ownership_type").notNull().default("full"), // full | partial | partnership | inherited | mortgaged
+    acquisitionDate: date("acquisition_date").notNull(),
+    acquisitionPriceIRR: money("acquisition_price_irr"),
+    acquisitionPriceUSD: money("acquisition_price_usd"),
+    acquisitionCurrencyId: uuid("acquisition_currency_id").references(() => currencies.id),
+    debtId: uuid("debt_id").references(() => debts.id, { onDelete: "set null" }), // mortgage attached
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes"),
+  },
+  (t) => [
+    index("rwa_ownership_asset_idx").on(t.assetId),
+    index("rwa_ownership_user_idx").on(t.userId),
+  ],
+);
+
+export const rwaValuationEvents = pgTable(
+  "rwa_valuation_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" }),
+    valuationDate: date("valuation_date").notNull(),
+    priceIRR: money("price_irr"),
+    priceUSD: money("price_usd"),
+    priceBase: money("price_base"), // generic base if needed
+    currencyId: uuid("currency_id").references(() => currencies.id),
+    valuationSource: text("valuation_source").notNull().default("manual"), // manual | appraisal | market_estimate | spot | book_value
+    appraiser: text("appraiser"),
+    sourceId: uuid("source_id").references(() => marketPriceSources.id),
+    note: text("note"),
+  },
+  (t) => [
+    index("rwa_valuation_asset_date_idx").on(t.assetId, t.valuationDate),
+    uniqueIndex("rwa_valuation_asset_date_source_uq").on(t.assetId, t.valuationDate, t.valuationSource),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Valuation Engine — Source -> Event -> Engine                         */
+/* ------------------------------------------------------------------ */
+
+export const valuationSources = pgTable(
+  "valuation_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" })
+      .unique(),
+    sourceType: text("source_type").notNull().default("market_price"), // market_price | spot_price | appraisal | manual | book_value
+    primaryProviderName: text("primary_provider_name").notNull().default("MANUAL"), // COINGECKO, TSETMC, MANUAL, APPRAISAL, etc.
+    backupProviderName: text("backup_provider_name"),
+    isActive: boolean("is_active").notNull().default(true),
+    config: text("config"), // JSON config
+  },
+  (t) => [index("valuation_sources_asset_idx").on(t.assetId)],
+);
+
+export const valuationEvents = pgTable(
+  "valuation_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" }),
+    valuationDate: date("valuation_date").notNull(),
+    price: money("price").notNull(),
+    currencyId: uuid("currency_id").references(() => currencies.id),
+    sourceType: text("source_type").notNull().default("market_price"),
+    providerName: text("provider_name").notNull().default("MANUAL"),
+    sourceId: uuid("source_id").references(() => marketPriceSources.id),
+    metadata: text("metadata"), // JSON additional
+    note: text("note"),
+  },
+  (t) => [
+    index("valuation_events_asset_date_idx").on(t.assetId, t.valuationDate),
+    uniqueIndex("valuation_events_asset_date_provider_uq").on(t.assetId, t.valuationDate, t.providerName),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Wealth Aggregation Engine — Read-Only Calculated Views Only          */
+/* ------------------------------------------------------------------ */
+// NOTE: No FK to accounts, journal_entries, postings, lots — only users
+// Owns calculated views only, never writes ledger
+
+export const wealthAggregationRuns = pgTable(
+  "wealth_aggregation_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid("user_id").references(() => users.id),
+    asOf: date("as_of").notNull(),
+    totalOwnedUSD: money("total_owned_usd").notNull().default("0"),
+    totalOwnedIRR: money("total_owned_irr").notNull().default("0"),
+    totalRWAUSD: money("total_rwa_usd").notNull().default("0"),
+    totalRWAIRR: money("total_rwa_irr").notNull().default("0"),
+    totalObservedUSD: money("total_observed_usd").notNull().default("0"),
+    totalObservedIRR: money("total_observed_irr").notNull().default("0"),
+    netWorthUSD: money("net_worth_usd").notNull().default("0"),
+    netWorthIRR: money("net_worth_irr").notNull().default("0"),
+    breakdown: text("breakdown"), // JSON breakdown per asset/class
+    reconciliationRunId: uuid("reconciliation_run_id").references(() => reconciliationRuns.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    index("wealth_agg_runs_user_date_idx").on(t.userId, t.asOf),
+    uniqueIndex("wealth_agg_runs_user_date_uq").on(t.userId, t.asOf),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Observation Domain — Watch Wallets Cache (Zerion Spec)               */
+/* ------------------------------------------------------------------ */
+// No FK to Financial Core — isolated cache tables
+
+export const watchWallets = pgTable(
+  "watch_wallets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    address: text("address").notNull().unique(),
+    label: text("label"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("watch_wallets_address_idx").on(t.address)],
+);
+
+export const watchWalletPortfolioCache = pgTable(
+  "watch_wallet_portfolio_cache",
+  {
+    walletAddress: text("wallet_address").primaryKey(),
+    totalValueUSD: money("total_value_usd").notNull().default("0"),
+    netUnrealizedPnlUSD: money("net_unrealized_pnl_usd").notNull().default("0"),
+    netRealizedPnlUSD: money("net_realized_pnl_usd").notNull().default("0"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("watch_wallet_portfolio_cache_fetched_idx").on(t.fetchedAt)],
+);
+
+export const watchWalletPositionsCache = pgTable(
+  "watch_wallet_positions_cache",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    walletAddress: text("wallet_address").notNull(),
+    protocolId: text("protocol_id"),
+    marketSymbol: text("market_symbol"),
+    positionType: text("position_type").notNull().default("deposit"),
+    quantity: money("quantity").notNull().default("0"),
+    priceUSD: money("price_usd"),
+    valueUSD: money("value_usd"),
+    unrealizedPnlUSD: money("unrealized_pnl_usd"),
+    rawJson: text("raw_json"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("watch_wallet_positions_wallet_idx").on(t.walletAddress),
+    index("watch_wallet_positions_protocol_idx").on(t.protocolId),
+  ],
+);
+
+export const watchWalletTransactionsCache = pgTable(
+  "watch_wallet_transactions_cache",
+  {
+    id: text("id").primaryKey(),
+    walletAddress: text("wallet_address").notNull(),
+    txHash: text("tx_hash"),
+    txType: text("tx_type"),
+    status: text("status"),
+    feeUSD: money("fee_usd"),
+    summary: text("summary"),
+    detailsJson: text("details_json"),
+    minedAt: timestamp("mined_at", { withTimezone: true }),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("watch_wallet_txs_wallet_idx").on(t.walletAddress),
+    index("watch_wallet_txs_mined_idx").on(t.minedAt),
+  ],
+);
+
+export const watchWalletNftsCache = pgTable(
+  "watch_wallet_nfts_cache",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    walletAddress: text("wallet_address").notNull(),
+    collectionName: text("collection_name"),
+    nftId: text("nft_id"),
+    floorPriceUSD: money("floor_price_usd"),
+    estimatedValueUSD: money("estimated_value_usd"),
+    rawJson: text("raw_json"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("watch_wallet_nfts_wallet_idx").on(t.walletAddress),
+    index("watch_wallet_nfts_collection_idx").on(t.collectionName),
+  ],
+);
+
+export const watchWalletPerpsCache = pgTable(
+  "watch_wallet_perps_cache",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    walletAddress: text("wallet_address").notNull(),
+    exchangeProtocol: text("exchange_protocol"),
+    marketPair: text("market_pair"),
+    side: text("side"),
+    leverage: numeric("leverage", { precision: 10, scale: 2 }),
+    marginUSD: money("margin_usd"),
+    size: money("size"),
+    entryPriceUSD: money("entry_price_usd"),
+    markPriceUSD: money("mark_price_usd"),
+    unrealizedPnlUSD: money("unrealized_pnl_usd"),
+    rawJson: text("raw_json"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("watch_wallet_perps_wallet_idx").on(t.walletAddress),
+    index("watch_wallet_perps_pair_idx").on(t.marketPair),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Research Domain — DeFiLlama Metrics Cache                            */
+/* ------------------------------------------------------------------ */
+
+export const defiProtocolMetrics = pgTable(
+  "defi_protocol_metrics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    protocolSlug: text("protocol_slug").notNull().unique(),
+    name: text("name"),
+    category: text("category"),
+    chain: text("chain"),
+    tvlUSD: money("tvl_usd"),
+    tvlChange24h: numeric("tvl_change_24h", { precision: 10, scale: 4 }),
+    fees24h: money("fees_24h"),
+    revenue24h: money("revenue_24h"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("defi_protocol_metrics_chain_idx").on(t.chain),
+    index("defi_protocol_metrics_category_idx").on(t.category),
+  ],
+);
+
+export const defiChainTvl = pgTable(
+  "defi_chain_tvl",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    chainName: text("chain_name").notNull().unique(),
+    tvlUSD: money("tvl_usd"),
+    tokenSymbol: text("token_symbol"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+export const defiYieldOpportunities = pgTable(
+  "defi_yield_opportunities",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    poolId: text("pool_id").notNull().unique(),
+    protocolSlug: text("protocol_slug"),
+    chain: text("chain"),
+    symbol: text("symbol"),
+    tvlUSD: money("tvl_usd"),
+    apy: numeric("apy", { precision: 10, scale: 4 }),
+    apyBase: numeric("apy_base", { precision: 10, scale: 4 }),
+    apyReward: numeric("apy_reward", { precision: 10, scale: 4 }),
+    ilRisk: text("il_risk"),
+    rawJson: text("raw_json"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("defi_yield_chain_idx").on(t.chain),
+    index("defi_yield_apy_idx").on(t.apy),
+  ],
+);
+
+export const defiStablecoinsCache = pgTable(
+  "defi_stablecoins_cache",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stablecoinId: text("stablecoin_id").notNull().unique(),
+    name: text("name"),
+    symbol: text("symbol"),
+    circulatingUSD: money("circulating_usd"),
+    priceUSD: money("price_usd"),
+    pegType: text("peg_type"),
+    pegMechanism: text("peg_mechanism"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+export const defiFeesRevenue = pgTable(
+  "defi_fees_revenue",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    targetSlug: text("target_slug").notNull(),
+    targetType: text("target_type").notNull().default("protocol"),
+    dailyFeesUSD: money("daily_fees_usd"),
+    dailyRevenueUSD: money("daily_revenue_usd"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("defi_fees_target_slug_idx").on(t.targetSlug),
+    index("defi_fees_type_idx").on(t.targetType),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Scenarios Domain — Dune Query Cache + AI Hypothesis                   */
+/* ------------------------------------------------------------------ */
+
+export const duneQueryCache = pgTable(
+  "dune_query_cache",
+  {
+    queryId: integer("query_id").primaryKey(),
+    queryName: text("query_name"),
+    parametersJson: text("parameters_json"),
+    resultRowsJson: text("result_rows_json"),
+    executionId: text("execution_id"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("dune_query_cache_fetched_idx").on(t.fetchedAt)],
+);
+
+// Extended AI scenario table — distinct from investment scenario_simulations, stores AI analysis
+export const aiScenarioSimulations = pgTable(
+  "ai_scenario_simulations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    scenarioTitle: text("scenario_title").notNull(),
+    userHypothesis: text("user_hypothesis").notNull(),
+    duneQueryId: integer("dune_query_id"),
+    aiMarkdownAnalysis: text("ai_markdown_analysis"),
+    structuredMetricsJson: text("structured_metrics_json"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ai_scenario_created_idx").on(t.createdAt)],
+);
+
+/* ------------------------------------------------------------------ */
+/* Market Data — CoinGecko Mapping                                        */
+/* ------------------------------------------------------------------ */
+
+export const coingeckoAssetMappings = pgTable(
+  "coingecko_asset_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    internalAssetId: text("internal_asset_id").notNull(), // uuid text for flexibility, references assets.id logically
+    coingeckoId: text("coingecko_id").notNull().unique(),
+    symbol: text("symbol"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("coingecko_mappings_asset_idx").on(t.internalAssetId),
+    index("coingecko_mappings_symbol_idx").on(t.symbol),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Commodities Domain — Dynamic Price Tracking & Inflation Analytics    */
+/* ------------------------------------------------------------------ */
+// No FK to Financial Core — isolated tables
+
+export const commodityCategories = pgTable(
+  "commodity_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("commodity_categories_name_idx").on(t.name)],
+);
+
+export const commodityItems = pgTable(
+  "commodity_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull().unique(),
+    categoryId: uuid("category_id").references(() => commodityCategories.id, { onDelete: "set null" }),
+    defaultUnit: text("default_unit").notNull().default("piece"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("commodity_items_name_idx").on(t.name),
+    index("commodity_items_category_idx").on(t.categoryId),
+  ],
+);
+
+export const commodityPriceRecords = pgTable(
+  "commodity_price_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    commodityId: uuid("commodity_id")
+      .notNull()
+      .references(() => commodityItems.id, { onDelete: "cascade" }),
+    unitPrice: money("unit_price").notNull(),
+    unit: text("unit").notNull().default("piece"),
+    quantity: money("quantity").notNull().default("1"),
+    totalAmount: money("total_amount").notNull(),
+    purchasedAt: timestamp("purchased_at", { withTimezone: true }).notNull().defaultNow(),
+    merchantName: text("merchant_name"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("commodity_price_commodity_idx").on(t.commodityId),
+    index("commodity_price_purchased_idx").on(t.purchasedAt),
+    index("commodity_price_merchant_idx").on(t.merchantName),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /* Platform                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -615,54 +1409,6 @@ export const importRecords = pgTable("import_records", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/* ------------------------------------------------------------------ */
-/* Phase 2.6 — FX Engine & Display Currency (Valuation-only layer)    */
-/*                                                                    */
-/* CRITICAL ISOLATION GUARANTEE:                                      */
-/* These tables exist ONLY in the Market Data / Valuation domain.     */
-/* They NEVER affect journal_entries, postings, accounts, lots,       */
-/* lot_consumptions, FIFO, or cost basis.                             */
-/* ------------------------------------------------------------------ */
-
-/**
- * Exchange rates for currency conversion.
- * FX rates are valuation reference data only.
- * They are NEVER used to create accounting transactions.
- */
-export const exchangeRates = pgTable(
-  "exchange_rates",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    baseCurrency: text("base_currency").notNull(),   // e.g. "USD"
-    quoteCurrency: text("quote_currency").notNull(), // e.g. "IRT"
-    rate: numeric("rate", { precision: 38, scale: 18 }).notNull(),
-    source: text("source").notNull().default("manual"), // manual | import | api
-    effectiveDate: date("effective_date").notNull(),    // YYYY-MM-DD
-  },
-  (t) => [
-    uniqueIndex("exchange_rates_pair_date_uq").on(
-      t.baseCurrency,
-      t.quoteCurrency,
-      t.effectiveDate,
-    ),
-    index("exchange_rates_pair_idx").on(t.baseCurrency, t.quoteCurrency),
-  ],
-);
-
-/**
- * User display preferences.
- * Display currency is a UI preference only.
- * Changing display currency NEVER creates financial events.
- */
-export const userDisplayPreferences = pgTable("user_display_preferences", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }),
-  userId: uuid("user_id").references(() => users.id),
-  displayCurrency: text("display_currency").notNull().default("USD"), // USD | IRT | BTC | ETH | XAUT | PAXG
-});
-
 export const backupRuns = pgTable("backup_runs", {
   id: uuid("id").primaryKey().defaultRandom(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -671,111 +1417,3 @@ export const backupRuns = pgTable("backup_runs", {
   rowCount: integer("row_count").notNull().default(0),
   note: text("note"),
 });
-
-/**
- * External market data providers reference data.
- * No foreign keys to accounting tables.
- */
-export const externalProviders = pgTable("external_providers", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  name: text("name").notNull().unique(), // coingecko | binance | coinbase | mock
-  displayName: text("display_name").notNull(),
-  providerType: text("provider_type").notNull().default("crypto"), // crypto | stocks | tokenized_assets | fx
-  baseUrl: text("base_url"),
-  isActive: boolean("is_active").notNull().default(true),
-  description: text("description"),
-});
-
-/**
- * Maps system assets to external market data provider symbols/IDs.
- * No foreign keys to accounting tables.
- */
-export const assetProviderMappings = pgTable(
-  "asset_provider_mappings",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    assetId: uuid("asset_id")
-      .notNull()
-      .references(() => assets.id),
-    providerId: uuid("provider_id")
-      .notNull()
-      .references(() => externalProviders.id),
-    externalSymbol: text("external_symbol").notNull(), // BTC, ETH, PAXG, XAUT
-    externalName: text("external_name"), // Bitcoin, PAX Gold, etc.
-    providerAssetId: text("provider_asset_id"), // e.g., bitcoin on coingecko
-    assetType: text("asset_type").notNull().default("crypto"), // crypto | tokenized_asset | stock
-    logoUrl: text("logo_url"),
-    supportedMarkets: text("supported_markets"), // comma-separated or JSON list of quote currencies
-    metadataJson: text("metadata_json"),
-  },
-  (t) => [
-    uniqueIndex("asset_provider_mapping_uq").on(t.assetId, t.providerId),
-    index("asset_provider_mapping_asset_idx").on(t.assetId),
-  ],
-);
-
-/**
- * Stored current and historical price data from external providers.
- * READ-ONLY valuation reference data.
- * NEVER creates or modifies journal entries, postings, accounts, lots, or lot consumptions.
- */
-export const externalPriceHistory = pgTable(
-  "external_price_history",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    assetId: uuid("asset_id")
-      .notNull()
-      .references(() => assets.id),
-    providerId: uuid("provider_id")
-      .notNull()
-      .references(() => externalProviders.id),
-    price: money("price").notNull(),
-    currency: text("currency").notNull().default("USD"),
-    asOfDate: date("as_of_date").notNull(),
-    timestamp: timestamp("timestamp", { withTimezone: true }).notNull().defaultNow(),
-    isCurrent: boolean("is_current").notNull().default(true),
-    rawResponse: text("raw_response"),
-  },
-  (t) => [
-    uniqueIndex("external_price_history_uq").on(
-      t.assetId,
-      t.providerId,
-      t.asOfDate,
-      t.currency,
-    ),
-    index("external_price_history_asset_idx").on(t.assetId),
-    index("external_price_history_provider_idx").on(t.providerId),
-  ],
-);
-
-/**
- * Wallet balances are portfolio observations ONLY.
- * Manual transactions remain the source of accounting truth.
- * No blockchain synchronization is implemented in this phase.
- * Prevents double counting between blockchain wallet balances and manually recorded transactions.
- */
-export const walletObservations = pgTable(
-  "wallet_observations",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    userId: uuid("user_id").references(() => users.id),
-    walletId: uuid("wallet_id").references(() => wallets.id),
-    assetId: uuid("asset_id")
-      .notNull()
-      .references(() => assets.id),
-    observedBalance: money("observed_balance").notNull(),
-    recordedBalance: money("recorded_balance").notNull(),
-    discrepancy: money("discrepancy").notNull(), // observedBalance - recordedBalance
-    observationDate: date("observation_date").notNull(),
-    source: text("source").notNull().default("manual_observation"),
-    notes: text("notes"),
-  },
-  (t) => [
-    index("wallet_observations_asset_date_idx").on(t.assetId, t.observationDate),
-  ],
-);
-
