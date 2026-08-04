@@ -30,7 +30,10 @@ const STATEMENTS = [
     code text NOT NULL UNIQUE,
     name text NOT NULL,
     color text NOT NULL DEFAULT '#64748b',
-    sort_order integer NOT NULL DEFAULT 0
+    sort_order integer NOT NULL DEFAULT 0,
+    parent_id uuid,
+    level integer NOT NULL DEFAULT 0,
+    attributes_schema text
   );`,
   `CREATE TABLE IF NOT EXISTS networks (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -39,8 +42,21 @@ const STATEMENTS = [
     deleted_at timestamptz,
     code text NOT NULL UNIQUE,
     name text NOT NULL,
-    chain_type text
+    chain_type text,
+    chain_id integer UNIQUE,
+    rpc_url text,
+    explorer_url text,
+    is_evm boolean NOT NULL DEFAULT true,
+    is_testnet boolean NOT NULL DEFAULT false
   );`,
+  `ALTER TABLE asset_classes ADD COLUMN IF NOT EXISTS parent_id uuid;`,
+  `ALTER TABLE asset_classes ADD COLUMN IF NOT EXISTS level integer NOT NULL DEFAULT 0;`,
+  `ALTER TABLE asset_classes ADD COLUMN IF NOT EXISTS attributes_schema text;`,
+  `ALTER TABLE networks ADD COLUMN IF NOT EXISTS chain_id integer UNIQUE;`,
+  `ALTER TABLE networks ADD COLUMN IF NOT EXISTS rpc_url text;`,
+  `ALTER TABLE networks ADD COLUMN IF NOT EXISTS explorer_url text;`,
+  `ALTER TABLE networks ADD COLUMN IF NOT EXISTS is_evm boolean NOT NULL DEFAULT true;`,
+  `ALTER TABLE networks ADD COLUMN IF NOT EXISTS is_testnet boolean NOT NULL DEFAULT false;`,
   `CREATE TABLE IF NOT EXISTS institutions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -511,6 +527,304 @@ const STATEMENTS = [
     CONSTRAINT scenario_eval_scenario_date_uq UNIQUE (scenario_id, evaluation_date)
   );`,
   `CREATE INDEX IF NOT EXISTS scenario_eval_scenario_idx ON scenario_evaluation_runs(scenario_id);`,
+
+  /* Asset Registry Extension — Multi-Chain */
+  `CREATE TABLE IF NOT EXISTS asset_networks (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    network_id uuid NOT NULL REFERENCES networks(id),
+    contract_address text,
+    chain_id integer,
+    decimals integer,
+    token_standard text,
+    is_primary boolean NOT NULL DEFAULT false,
+    is_active boolean NOT NULL DEFAULT true,
+    explorer_url text,
+    logo_uri text,
+    CONSTRAINT asset_networks_uq UNIQUE (asset_id, network_id, contract_address)
+  );`,
+  `CREATE INDEX IF NOT EXISTS asset_networks_asset_idx ON asset_networks(asset_id);`,
+  `CREATE INDEX IF NOT EXISTS asset_networks_network_idx ON asset_networks(network_id);`,
+
+  `CREATE TABLE IF NOT EXISTS asset_token_metadata (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE UNIQUE,
+    underlying_asset_id uuid REFERENCES assets(id),
+    logo_uri text,
+    coingecko_id text,
+    coinmarketcap_id text,
+    website_url text,
+    description text
+  );`,
+
+  /* Wallet Identity Layer — Separate from accounting wallets */
+  `CREATE TABLE IF NOT EXISTS wallet_identities (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    user_id uuid REFERENCES users(id),
+    address text NOT NULL,
+    network_id uuid REFERENCES networks(id),
+    chain_id integer,
+    label text,
+    wallet_type text NOT NULL DEFAULT 'personal',
+    ownership_category text NOT NULL DEFAULT 'self_custody',
+    is_verified boolean NOT NULL DEFAULT false,
+    linked_account_id uuid REFERENCES accounts(id) ON DELETE SET NULL,
+    notes text,
+    CONSTRAINT wallet_identities_user_addr_net_uq UNIQUE (user_id, address, network_id)
+  );`,
+  `CREATE INDEX IF NOT EXISTS wallet_identities_address_idx ON wallet_identities(address);`,
+  `CREATE INDEX IF NOT EXISTS wallet_identities_user_idx ON wallet_identities(user_id);`,
+
+  /* External Asset Discovery — Quarantine */
+  `CREATE TABLE IF NOT EXISTS external_assets (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    provider_name text NOT NULL,
+    raw_symbol text,
+    raw_name text,
+    contract_address text,
+    chain_id integer,
+    network_id uuid REFERENCES networks(id),
+    decimals integer,
+    token_standard text,
+    logo_uri text,
+    explorer_url text,
+    source_metadata text,
+    discovery_status text NOT NULL DEFAULT 'pending_review',
+    discovered_at timestamptz NOT NULL DEFAULT now(),
+    reviewed_at timestamptz,
+    reviewed_by uuid REFERENCES users(id),
+    notes text
+  );`,
+  `CREATE INDEX IF NOT EXISTS external_assets_contract_chain_idx ON external_assets(contract_address, chain_id);`,
+  `CREATE INDEX IF NOT EXISTS external_assets_status_idx ON external_assets(discovery_status);`,
+
+  `CREATE TABLE IF NOT EXISTS external_asset_mappings (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    external_asset_id uuid NOT NULL REFERENCES external_assets(id) ON DELETE CASCADE,
+    internal_asset_id uuid REFERENCES assets(id) ON DELETE SET NULL,
+    mapping_status text NOT NULL DEFAULT 'pending',
+    mapped_at timestamptz,
+    mapped_by uuid REFERENCES users(id),
+    confidence_score numeric(5,2),
+    mapping_source text NOT NULL DEFAULT 'manual',
+    notes text,
+    CONSTRAINT external_asset_mappings_ext_uq UNIQUE (external_asset_id)
+  );`,
+  `CREATE INDEX IF NOT EXISTS external_asset_mappings_internal_idx ON external_asset_mappings(internal_asset_id);`,
+
+  /* Observation Layer — DeBank, Zerion, RPC Read-Only Cache */
+  `CREATE TABLE IF NOT EXISTS observation_providers (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    name text NOT NULL UNIQUE,
+    type text NOT NULL DEFAULT 'api',
+    config text,
+    is_active boolean NOT NULL DEFAULT true
+  );`,
+
+  `CREATE TABLE IF NOT EXISTS observation_runs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    wallet_identity_id uuid NOT NULL REFERENCES wallet_identities(id) ON DELETE CASCADE,
+    provider_name text NOT NULL,
+    status text NOT NULL DEFAULT 'pending',
+    started_at timestamptz NOT NULL DEFAULT now(),
+    finished_at timestamptz,
+    positions_count integer NOT NULL DEFAULT 0,
+    raw_response_summary text,
+    error_message text
+  );`,
+  `CREATE INDEX IF NOT EXISTS observation_runs_wallet_idx ON observation_runs(wallet_identity_id);`,
+
+  `CREATE TABLE IF NOT EXISTS observed_positions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    observation_run_id uuid NOT NULL REFERENCES observation_runs(id) ON DELETE CASCADE,
+    wallet_identity_id uuid NOT NULL REFERENCES wallet_identities(id) ON DELETE CASCADE,
+    network_id uuid REFERENCES networks(id),
+    asset_id uuid REFERENCES assets(id),
+    external_asset_id uuid REFERENCES external_assets(id),
+    raw_symbol text,
+    raw_contract_address text,
+    position_type text NOT NULL DEFAULT 'token',
+    protocol text,
+    contract_address text,
+    quantity numeric(38,18) NOT NULL,
+    cached_price_usd numeric(38,18),
+    cached_value_usd numeric(38,18),
+    metadata text,
+    fetched_at timestamptz NOT NULL DEFAULT now(),
+    snapshot_date date NOT NULL
+  );`,
+  `CREATE INDEX IF NOT EXISTS observed_positions_wallet_idx ON observed_positions(wallet_identity_id);`,
+  `CREATE INDEX IF NOT EXISTS observed_positions_asset_idx ON observed_positions(asset_id);`,
+  `CREATE INDEX IF NOT EXISTS observed_positions_network_idx ON observed_positions(network_id);`,
+
+  /* Reconciliation Engine — Reporting Only */
+  `CREATE TABLE IF NOT EXISTS reconciliation_runs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    user_id uuid REFERENCES users(id),
+    run_type text NOT NULL DEFAULT 'wallet_reconciliation',
+    status text NOT NULL DEFAULT 'pending',
+    period_start date,
+    period_end date,
+    summary text
+  );`,
+  `CREATE INDEX IF NOT EXISTS reconciliation_runs_user_idx ON reconciliation_runs(user_id);`,
+
+  `CREATE TABLE IF NOT EXISTS reconciliation_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    reconciliation_run_id uuid NOT NULL REFERENCES reconciliation_runs(id) ON DELETE CASCADE,
+    wallet_identity_id uuid REFERENCES wallet_identities(id) ON DELETE SET NULL,
+    asset_id uuid REFERENCES assets(id),
+    external_asset_id uuid REFERENCES external_assets(id),
+    ledger_quantity numeric(38,18),
+    ledger_value numeric(38,18),
+    observed_quantity numeric(38,18),
+    observed_value numeric(38,18),
+    difference_quantity numeric(38,18),
+    difference_value numeric(38,18),
+    status text NOT NULL DEFAULT 'needs_review',
+    resolution_status text NOT NULL DEFAULT 'pending',
+    resolution_category text,
+    notes text
+  );`,
+  `CREATE INDEX IF NOT EXISTS reconciliation_items_run_idx ON reconciliation_items(reconciliation_run_id);`,
+  `CREATE INDEX IF NOT EXISTS reconciliation_items_wallet_idx ON reconciliation_items(wallet_identity_id);`,
+
+  /* RWA Domain — Identity, Ownership, Valuation Separation */
+  `CREATE TABLE IF NOT EXISTS real_estate_properties (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE UNIQUE,
+    user_id uuid REFERENCES users(id),
+    property_type text NOT NULL DEFAULT 'apartment',
+    city text NOT NULL DEFAULT 'Ahvaz',
+    area text,
+    address text,
+    size_sqm numeric(10,2),
+    floor integer,
+    year_built integer,
+    deed_number text,
+    notes text
+  );`,
+  `CREATE INDEX IF NOT EXISTS real_estate_properties_user_idx ON real_estate_properties(user_id);`,
+  `CREATE INDEX IF NOT EXISTS real_estate_properties_city_area_idx ON real_estate_properties(city, area);`,
+
+  `CREATE TABLE IF NOT EXISTS vehicle_assets (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE UNIQUE,
+    user_id uuid REFERENCES users(id),
+    brand text NOT NULL,
+    model text NOT NULL,
+    year integer NOT NULL,
+    license_plate text,
+    chassis_number text,
+    mileage integer,
+    notes text
+  );`,
+  `CREATE INDEX IF NOT EXISTS vehicle_assets_user_idx ON vehicle_assets(user_id);`,
+
+  `CREATE TABLE IF NOT EXISTS rwa_ownership_records (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES users(id),
+    ownership_percentage numeric(5,2) NOT NULL DEFAULT 100,
+    ownership_type text NOT NULL DEFAULT 'full',
+    acquisition_date date NOT NULL,
+    acquisition_price_irr numeric(38,18),
+    acquisition_price_usd numeric(38,18),
+    acquisition_currency_id uuid REFERENCES currencies(id),
+    debt_id uuid REFERENCES debts(id) ON DELETE SET NULL,
+    is_active boolean NOT NULL DEFAULT true,
+    notes text
+  );`,
+  `CREATE INDEX IF NOT EXISTS rwa_ownership_asset_idx ON rwa_ownership_records(asset_id);`,
+  `CREATE INDEX IF NOT EXISTS rwa_ownership_user_idx ON rwa_ownership_records(user_id);`,
+
+  `CREATE TABLE IF NOT EXISTS rwa_valuation_events (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    valuation_date date NOT NULL,
+    price_irr numeric(38,18),
+    price_usd numeric(38,18),
+    price_base numeric(38,18),
+    currency_id uuid REFERENCES currencies(id),
+    valuation_source text NOT NULL DEFAULT 'manual',
+    appraiser text,
+    source_id uuid REFERENCES market_price_sources(id),
+    note text,
+    CONSTRAINT rwa_valuation_asset_date_source_uq UNIQUE (asset_id, valuation_date, valuation_source)
+  );`,
+  `CREATE INDEX IF NOT EXISTS rwa_valuation_asset_date_idx ON rwa_valuation_events(asset_id, valuation_date);`,
+
+  /* Valuation Engine — Source -> Event -> Engine */
+  `CREATE TABLE IF NOT EXISTS valuation_sources (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE UNIQUE,
+    source_type text NOT NULL DEFAULT 'market_price',
+    primary_provider_name text NOT NULL DEFAULT 'MANUAL',
+    backup_provider_name text,
+    is_active boolean NOT NULL DEFAULT true,
+    config text
+  );`,
+  `CREATE INDEX IF NOT EXISTS valuation_sources_asset_idx ON valuation_sources(asset_id);`,
+
+  `CREATE TABLE IF NOT EXISTS valuation_events (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    valuation_date date NOT NULL,
+    price numeric(38,18) NOT NULL,
+    currency_id uuid REFERENCES currencies(id),
+    source_type text NOT NULL DEFAULT 'market_price',
+    provider_name text NOT NULL DEFAULT 'MANUAL',
+    source_id uuid REFERENCES market_price_sources(id),
+    metadata text,
+    note text,
+    CONSTRAINT valuation_events_asset_date_provider_uq UNIQUE (asset_id, valuation_date, provider_name)
+  );`,
+  `CREATE INDEX IF NOT EXISTS valuation_events_asset_date_idx ON valuation_events(asset_id, valuation_date);`,
+
+  /* Wealth Aggregation Engine — Read-Only Calculated Views Only */
+  `CREATE TABLE IF NOT EXISTS wealth_aggregation_runs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    user_id uuid REFERENCES users(id),
+    as_of date NOT NULL,
+    total_owned_usd numeric(38,18) NOT NULL DEFAULT 0,
+    total_owned_irr numeric(38,18) NOT NULL DEFAULT 0,
+    total_rwa_usd numeric(38,18) NOT NULL DEFAULT 0,
+    total_rwa_irr numeric(38,18) NOT NULL DEFAULT 0,
+    total_observed_usd numeric(38,18) NOT NULL DEFAULT 0,
+    total_observed_irr numeric(38,18) NOT NULL DEFAULT 0,
+    net_worth_usd numeric(38,18) NOT NULL DEFAULT 0,
+    net_worth_irr numeric(38,18) NOT NULL DEFAULT 0,
+    breakdown text,
+    reconciliation_run_id uuid REFERENCES reconciliation_runs(id) ON DELETE SET NULL,
+    CONSTRAINT wealth_agg_runs_user_date_uq UNIQUE (user_id, as_of)
+  );`,
+  `CREATE INDEX IF NOT EXISTS wealth_agg_runs_user_date_idx ON wealth_aggregation_runs(user_id, as_of);`,
 ];
 
 export async function createSchemaIfNotExists() {
