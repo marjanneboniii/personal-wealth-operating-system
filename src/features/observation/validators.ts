@@ -20,7 +20,7 @@ export const providerPositionSchema = z.object({
     .optional()
     .default("token"),
   protocol: z.string().max(100).optional().nullable(),
-  metadata: z.record(z.any()).optional().nullable(),
+  metadata: z.record(z.string(), z.any()).optional().nullable(),
 });
 
 export const observationProviderSchema = z.object({

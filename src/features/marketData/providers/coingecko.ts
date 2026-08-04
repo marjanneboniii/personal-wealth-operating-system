@@ -5,6 +5,12 @@
  * No FK to Financial Core, never imports postEntry/recordBuy/recordSell
  */
 
+import type {
+  ExternalAssetMetadata,
+  ExternalMarketProvider,
+  ExternalPriceQuote,
+} from "../types";
+
 export type SimplePriceResult = Record<string, Record<string, number>>;
 
 export type CoinMarketData = {
@@ -164,5 +170,102 @@ export class CoinGeckoProvider {
       name: String(coin.name || ""),
       thumb: coin.thumb ? String(coin.thumb) : undefined,
     }));
+  }
+}
+
+/**
+ * CoinGeckoMarketProvider — ExternalMarketProvider adapter over the raw
+ * CoinGeckoProvider API client.
+ *
+ * The raw client keeps its low-level API (DD-MM-YYYY history dates, raw JSON
+ * payloads) used by the legacy market data service; this adapter normalizes it
+ * to the Phase 2.7 ExternalMarketProvider contract used by the provider
+ * registry (YYYY-MM-DD dates, ExternalPriceQuote records).
+ *
+ * READ-ONLY reference data provider. No ledger mutations.
+ */
+export class CoinGeckoMarketProvider implements ExternalMarketProvider {
+  public readonly name = "coingecko";
+  public readonly displayName = "CoinGecko API";
+  public readonly type = "crypto";
+
+  private readonly client: CoinGeckoProvider;
+
+  constructor(client?: CoinGeckoProvider) {
+    this.client = client ?? new CoinGeckoProvider();
+  }
+
+  async getCurrentPrice(
+    symbolOrId: string,
+    currency = "USD",
+  ): Promise<ExternalPriceQuote | null> {
+    const coinId = symbolOrId.toLowerCase();
+    const vsCurrency = currency.toLowerCase();
+
+    const data = await this.client.getSimplePrice([coinId], [vsCurrency]);
+    const entry = data ? data[coinId] : undefined;
+    const price = entry ? entry[vsCurrency] : undefined;
+    if (price == null) return null;
+
+    const lastUpdatedAt = entry?.last_updated_at;
+    return {
+      provider: this.name,
+      symbol: symbolOrId.toUpperCase(),
+      price: String(price),
+      currency: currency.toUpperCase(),
+      timestamp:
+        typeof lastUpdatedAt === "number"
+          ? new Date(lastUpdatedAt * 1000).toISOString()
+          : new Date().toISOString(),
+      sourceType: "api",
+      rawResponse: JSON.stringify(data).slice(0, 10000),
+    };
+  }
+
+  async getHistoricalPrice(
+    symbolOrId: string,
+    asOfDate: string,
+    currency = "USD",
+  ): Promise<ExternalPriceQuote | null> {
+    // Raw client requires DD-MM-YYYY; registry contract is YYYY-MM-DD.
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(asOfDate);
+    if (!match) {
+      throw new Error(`Invalid date format, expected YYYY-MM-DD, got ${asOfDate}`);
+    }
+    const coinGeckoDate = `${match[3]}-${match[2]}-${match[1]}`;
+
+    const result = await this.client.getHistoricalPrice(
+      symbolOrId.toLowerCase(),
+      coinGeckoDate,
+    );
+    if (!result || result.price == null) return null;
+
+    return {
+      provider: this.name,
+      symbol: symbolOrId.toUpperCase(),
+      price: String(result.price),
+      currency: currency.toUpperCase(),
+      timestamp: new Date().toISOString(),
+      asOfDate,
+      sourceType: "api",
+      rawResponse: result.rawJson,
+    };
+  }
+
+  async getAssetMetadata(
+    symbolOrId: string,
+  ): Promise<ExternalAssetMetadata | null> {
+    const data = await this.client.getCoinMarketData(symbolOrId.toLowerCase());
+    if (!data) return null;
+
+    return {
+      name: data.name,
+      symbol: data.symbol.toUpperCase(),
+      assetType: "crypto",
+      providerId: data.id,
+      supportedMarkets: data.currentPrice
+        ? Object.keys(data.currentPrice).map((c) => c.toUpperCase())
+        : undefined,
+    };
   }
 }

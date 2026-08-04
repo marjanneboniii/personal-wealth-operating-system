@@ -288,7 +288,7 @@ export async function evaluateScenario(
     scenarioId: scenario.id,
     name: scenario.name,
     assetId: scenario.assetId,
-    assetSymbol: scenario.assetSymbol,
+    assetSymbol: scenario.assetSymbol ?? "",
     assetName: scenario.assetName ?? undefined,
     initialCapital: scenario.initialCapital,
     capitalCurrencyCode: scenario.capitalCurrencyCode ?? "USD",
@@ -355,7 +355,7 @@ export async function getScenarioTimeline(
   return simulateTimeRange({
     scenarioId: scenario.id,
     assetId: scenario.assetId,
-    assetSymbol: scenario.assetSymbol,
+    assetSymbol: scenario.assetSymbol ?? "",
     initialCapital: scenario.initialCapital,
     initialPrice: scenario.initialPrice,
     initialQuantity: scenario.initialQuantity,
@@ -420,8 +420,8 @@ export async function compareAssets(
 
   return simulateAssetComparison({
     primaryAssetId: scenario.assetId,
-    primarySymbol: scenario.assetSymbol,
-    primaryName: scenario.assetName ?? scenario.assetSymbol,
+    primarySymbol: scenario.assetSymbol ?? "",
+    primaryName: scenario.assetName ?? scenario.assetSymbol ?? "",
     benchmarkAssetInfos: benchmarkAssets,
     initialCapital: scenario.initialCapital,
     startDate: scenario.startDate,

@@ -6,7 +6,7 @@ import { runOnChainScenarioSimulation, getAiScenarioHistory, getDuneQueryCache }
 const executeScenarioSchema = z.object({
   userHypothesis: z.string().min(10, "Hypothesis must be at least 10 characters").max(5000),
   duneQueryId: z.number().int().positive("Dune query ID must be positive integer"),
-  parameters: z.record(z.any()).optional(),
+  parameters: z.record(z.string(), z.any()).optional(),
 });
 
 export async function executeScenarioAction(userHypothesis: string, duneQueryId: number, parameters?: Record<string, any>) {

@@ -8,7 +8,7 @@
 import { ExternalMarketProvider, ExternalPriceQuote } from "../types";
 import { BinanceProvider } from "./binance";
 import { CoinbaseProvider } from "./coinbase";
-import { CoinGeckoProvider } from "./coingecko";
+import { CoinGeckoMarketProvider, CoinGeckoProvider } from "./coingecko";
 import { MockExternalProvider } from "./mock";
 
 export class MarketProviderRegistry {
@@ -19,7 +19,7 @@ export class MarketProviderRegistry {
   }
 
   private registerDefaultProviders(): void {
-    this.registerProvider(new CoinGeckoProvider());
+    this.registerProvider(new CoinGeckoMarketProvider());
     this.registerProvider(new BinanceProvider());
     this.registerProvider(new CoinbaseProvider());
     this.registerProvider(new MockExternalProvider());
@@ -84,4 +84,4 @@ export class MarketProviderRegistry {
 }
 
 export const marketProviderRegistry = new MarketProviderRegistry();
-export { BinanceProvider, CoinbaseProvider, CoinGeckoProvider, MockExternalProvider };
+export { BinanceProvider, CoinbaseProvider, CoinGeckoMarketProvider, CoinGeckoProvider, MockExternalProvider };
