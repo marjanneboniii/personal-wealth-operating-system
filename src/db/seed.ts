@@ -26,18 +26,20 @@ import { postEntry, recordBuy, recordExpense, recordIncome, recordSell } from "@
 import { payInstallment } from "@/features/planning/service";
 import { addMonthsIso, todayIso } from "@/lib/format";
 import { D } from "@/domain/decimal";
+import { createSchemaIfNotExists } from "@/db/init-schema";
 
 let seeding: Promise<void> | null = null;
 
 export async function seedIfEmpty(): Promise<void> {
-  const mode = process.env.APP_MODE ?? "personal";
-  const allowDemo = process.env.ALLOW_DEMO_SEED === "true" || mode === "development";
-
-  // In Personal mode (or production), NEVER automatically load demo financial data.
-  if (!allowDemo) return;
-
   if (seeding) return seeding;
   seeding = (async () => {
+    await createSchemaIfNotExists();
+    const mode = process.env.APP_MODE ?? "personal";
+    const allowDemo = process.env.ALLOW_DEMO_SEED === "true" || mode === "development";
+
+    // In Personal mode (or production), NEVER automatically load demo financial data.
+    if (!allowDemo) return;
+
     const existing = await db.select({ c: sql<number>`count(*)::int` }).from(accounts);
     if ((existing[0]?.c ?? 0) > 0) return;
     await runSeed();
