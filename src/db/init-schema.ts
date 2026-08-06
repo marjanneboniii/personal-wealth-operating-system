@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 
 const STATEMENTS = [
-  `CREATE TABLE IF NOT EXISTS users (
+`CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz,
@@ -147,6 +147,18 @@ const STATEMENTS = [
     proceeds_base numeric(38,18) NOT NULL,
     realized_pnl numeric(38,18) NOT NULL
   );`,
+    `CREATE TABLE IF NOT EXISTS entry_fx_snapshots (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    entry_id uuid NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE UNIQUE,
+    irt_amount numeric(38,18) NOT NULL,
+    usd_amount numeric(38,18) NOT NULL,
+    fx_rate numeric(38,18) NOT NULL,
+    rate_source text NOT NULL DEFAULT 'settings',
+    rate_date date NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  );`,
+  `CREATE INDEX IF NOT EXISTS entry_fx_snap_entry_idx ON entry_fx_snapshots(entry_id);`,
+
   `CREATE TABLE IF NOT EXISTS prices (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),

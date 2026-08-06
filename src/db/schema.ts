@@ -824,6 +824,34 @@ export const commodityPriceRecords = pgTable(
   ],
 );
 
+
+/* ------------------------------------------------------------------ */
+/* Presentation Layer — Historical FX Snapshot (Freeze on Commit)      */
+/* Purely for display & audit, never used for accounting logic.        */
+/* Written atomically with ledger entry, immutable after creation.     */
+/* ------------------------------------------------------------------ */
+
+export const entryFxSnapshots = pgTable(
+  "entry_fx_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => journalEntries.id, { onDelete: "cascade" })
+      .unique(),
+    // User input in IRT (reference amount)
+    irtAmount: money("irt_amount").notNull(),
+    // Computed USD at commit time using latest rate
+    usdAmount: money("usd_amount").notNull(),
+    // Rate snapshot: IRT per 1 USD
+    fxRate: money("fx_rate").notNull(),
+    rateSource: text("rate_source").notNull().default("settings"),
+    rateDate: date("rate_date").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("entry_fx_snap_entry_idx").on(t.entryId)],
+);
+
 /* ------------------------------------------------------------------ */
 /* Platform                                                             */
 /* ------------------------------------------------------------------ */
