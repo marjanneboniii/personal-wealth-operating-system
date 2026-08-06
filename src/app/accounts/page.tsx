@@ -5,6 +5,7 @@ import { seedIfEmpty } from "@/db/seed";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { Card, Money, PageHeader } from "@/components/ui/Card";
 import PriceForm from "@/components/forms/PriceForm";
+import WalletForm from "@/components/forms/WalletForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
 import { D } from "@/domain/decimal";
 import { formatMoney, formatQty } from "@/lib/format";
@@ -66,6 +67,10 @@ export default async function AccountsPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="حساب‌ها و مرجع‌ها" subtitle="درخت حساب‌ها، کیف‌پول‌ها، بانک‌ها، صرافی‌ها، شبکه‌ها و دارایی‌ها." />
+
+      <Card title="معرفی حساب یا کیف‌پول جدید">
+        <WalletForm />
+      </Card>
 
       <Card title="به‌روزرسانی قیمت دارایی">
         <PriceForm

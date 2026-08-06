@@ -38,7 +38,7 @@ export default async function PortfolioPage() {
 
       <div className="soft rounded-2xl p-3 text-[11px] flex flex-wrap items-center justify-between gap-2">
         <span>نرخ دلار مرجع: <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
-        <span className="muted">تاریخ نرخ: <span dir="ltr" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · بهای تمام‌شده و ارزش دارایی هم‌زمان به تومان و دلار نمایش داده می‌شوند (خوانش مستقیم از FIFO)</span>
+        <span className="muted">تاریخ نرخ: <span dir="auto" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · بهای تمام‌شده و ارزش دارایی هم‌زمان به تومان و دلار نمایش داده می‌شوند (خوانش مستقیم از FIFO)</span>
       </div>
 
       {/* Primary Wealth Metrics — dual */}
@@ -155,7 +155,7 @@ export default async function PortfolioPage() {
                 <li key={l.id} className="flex items-center justify-between py-2.5">
                   <div>
                     <div className="font-bold">{l.symbol}</div>
-                    <div className="muted text-[10px]">تاریخ خرید شمسی: {dual.jalali} · میلادی: <span dir="ltr" className="num">{dual.gregorian}</span></div>
+                    <div className="muted text-[10px]">تاریخ خرید شمسی: {dual.jalali} · میلادی: <span dir="auto" className="num">{dual.gregorian}</span></div>
                   </div>
                   <div className="text-left">
                     <div className="num" dir="ltr">{formatQty(l.qtyRemaining, 8)}</div>

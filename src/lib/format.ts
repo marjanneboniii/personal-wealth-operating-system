@@ -49,8 +49,10 @@ export function formatQty(
 export function formatMoney(
   value: string | number,
   currency = "USD",
-  digits: DigitStyle = "fa",
+  digits?: DigitStyle,
 ): string {
+  // Presentation convention: USD always uses Latin digits; IRT/IRR use Persian digits.
+  const resolvedDigits = digits ?? (currency === "USD" ? "en" : (currency === "IRT" || currency === "IRR" ? "fa" : "fa"));
   const symbols: Record<string, string> = {
     USD: "$",
     USDT: "₮",
@@ -59,7 +61,7 @@ export function formatMoney(
     EUR: "€",
   };
   const dp = currency === "IRT" || currency === "IRR" ? 0 : 2;
-  const n = formatNumber(value, { decimals: dp, digits });
+  const n = formatNumber(value, { decimals: dp, digits: resolvedDigits });
   const sym = symbols[currency] ?? currency;
   return currency === "IRT" || currency === "IRR" ? `${n} ${sym}` : `${sym}${n}`;
 }
@@ -234,7 +236,7 @@ export function formatDualMoneyFromIrt(irtAmount: string | number, usdToIrtRate:
   const usd = irtToUsd(irtStr, usdToIrtRate);
   return {
     irt: formatMoney(irtStr, "IRT", digits),
-    usd: formatMoney(usd, "USD", digits),
+    usd: formatMoney(usd, "USD", "en"),
     rateLabel: `نرخ: ${formatMoney(usdToIrtRate, "IRT", digits)} ≈ $1`,
   };
 }
@@ -244,14 +246,14 @@ export function formatDualMoneyFromUsd(usdAmount: string | number, usdToIrtRate:
   if (!usdToIrtRate || D(usdToIrtRate).lte(0)) {
     return {
       irt: "—",
-      usd: formatMoney(usdStr, "USD", digits),
+      usd: formatMoney(usdStr, "USD", "en"),
       rateLabel: "نرخ ثبت نشده",
     };
   }
   const irt = usdToIrt(usdStr, usdToIrtRate);
   return {
     irt: formatMoney(irt, "IRT", digits),
-    usd: formatMoney(usdStr, "USD", digits),
+    usd: formatMoney(usdStr, "USD", "en"),
     rateLabel: `نرخ: ${formatMoney(usdToIrtRate, "IRT", digits)} ≈ $1`,
   };
 }

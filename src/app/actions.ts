@@ -16,6 +16,7 @@ import {
   prices,
   snapshotLines,
   snapshots,
+  wallets,
 } from "@/db/schema";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { D, Decimal } from "@/domain/decimal";
@@ -37,6 +38,16 @@ import { getHoldings, getNetWorth } from "@/features/ledger/queries";
 import { todayIso } from "@/lib/format";
 
 export type ActionResult = { ok: boolean; message: string };
+
+/** Presentation flow confirms creation before writing the reference record. */
+export async function createWalletAction(input: { name: string; kind: string; note?: string }): Promise<ActionResult> {
+  const allowed = ["bank", "exchange", "hot", "cold", "cash", "fund"];
+  const name = input.name.trim();
+  if (!name || !allowed.includes(input.kind)) return { ok: false, message: "نام و نوع حساب را بررسی کنید." };
+  await db.insert(wallets).values({ name, kind: input.kind, note: input.note?.trim() || null });
+  revalidatePath("/accounts");
+  return { ok: true, message: "حساب جدید با موفقیت ایجاد شد." };
+}
 
 function refreshAll() {
   for (const p of ["/", "/portfolio", "/ledger", "/planning", "/debts", "/reports", "/accounts"]) {

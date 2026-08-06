@@ -8,12 +8,13 @@ import { formatQty, getDualDate, formatMoney } from "@/lib/format";
 import { db } from "@/db";
 import { entryFxSnapshots, installments, debts } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
+import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
 
 export default async function LedgerPage() {
   await seedIfEmpty();
-  const [entries, balances] = await Promise.all([getLedger(80), getAccountBalances()]);
+  const [entries, balances, fxCurrent] = await Promise.all([getLedger(80), getAccountBalances(), getLatestUsdIrtRate()]);
 
   // Fetch FX snapshots for these entries — historical immutability display
   const entryIds = entries.map((e) => e.id);
@@ -36,11 +37,10 @@ export default async function LedgerPage() {
     <div className="space-y-4">
       <PageHeader
         title="دفترکل (General Ledger)"
-        subtitle="دفترکل تغییرناپذیر است؛ اصلاح فقط با ثبت سند معکوس انجام می‌شود. تمام مبالغ و نرخ‌ها پس از ثبت Freeze می‌شوند."
         action={<RowAction kind="integrity" label="بررسی یکپارچگی" />}
       />
 
-      <Card title="تراز آزمایشی (Trial Balance) — فقط نمایشی، هیچ تغییری در محاسبات ایجاد نمی‌کند">
+      <Card title="تراز آزمایشی (Trial Balance)">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="muted">
@@ -61,7 +61,7 @@ export default async function LedgerPage() {
                     <td className="py-2.5">{b.name}</td>
                     <td className="py-2.5"><span className="chip">{ACCOUNT_TYPE_LABELS[b.type as AccountType]}</span></td>
                     <td className="num py-2.5" dir="ltr">{formatQty(b.quantity, b.assetDecimals)} {b.symbol ?? ""}</td>
-                    <td className="num py-2.5" dir="ltr"><Money value={b.baseValue} tone /></td>
+                    <td className="py-2.5"><Money value={b.baseValue} tone /><div className="num text-[10px]" dir="rtl">{formatMoney(D(b.baseValue).mul(fxCurrent.rate).toFixed(0), "IRT")}</div></td>
                   </tr>
                 ))}
             </tbody>
@@ -87,7 +87,7 @@ export default async function LedgerPage() {
                     <div className="muted mt-1 text-[11px] flex flex-wrap gap-2">
                       <span className="chip">{ENTRY_TYPE_LABELS[e.type as EntryType] ?? e.type}</span>
                       <span>شمسی: <strong dir="rtl">{dual.jalali}</strong></span>
-                      <span>میلادی: <strong dir="ltr" className="num">{dual.gregorian}</strong></span>
+                      <span>میلادی: <strong dir="auto" className="num">{dual.gregorian}</strong></span>
                       <span>· منبع: {e.source === "plan" ? "اجرای برنامه" : e.source === "import" ? "درون‌ریزی" : "دستی"}</span>
                     </div>
                     {fx ? (
@@ -96,7 +96,7 @@ export default async function LedgerPage() {
                         <span className="mx-1">≈</span>
                         <span dir="ltr" className="num" style={{ color: "var(--accent)" }}>{formatMoney(fx.usdAmount, "USD")}</span>
                         <span className="mx-1">· نرخ دلار زمان ثبت (Freeze): <strong dir="ltr" className="num">{formatMoney(fx.fxRate, "IRT")}</strong> ≈ $1</span>
-                        <span>· تاریخ نرخ: <span dir="ltr" className="num">{fx.rateDate}</span> · منبع: {fx.rateSource}</span>
+                        <span>· تاریخ نرخ: <span dir="auto" className="num">{fx.rateDate}</span> · منبع: {fx.rateSource}</span>
                       </div>
                     ) : (
                       <div className="muted text-[10px]">بدون اسنپ‌شات FX (سند قدیمی یا بدون مبلغ IRT) — مبلغ پایه: <span dir="ltr" className="num">{e.lines[0] ? formatMoney(e.lines[0].baseValue, "USD") : "—"}</span></div>

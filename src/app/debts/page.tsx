@@ -45,7 +45,7 @@ export default async function DebtsPage() {
 
       <div className="soft rounded-2xl p-3 text-[11px] flex flex-wrap items-center justify-between gap-2">
         <span>نرخ دلار مرجع: <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
-        <span className="muted">تاریخ نرخ: <span dir="ltr" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · تا قبل از «تأیید نهایی»، هیچ سندی در دفترکل ایجاد نمی‌شود</span>
+        <span className="muted">تاریخ نرخ: <span dir="auto" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · تا قبل از «تأیید نهایی»، هیچ سندی در دفترکل ایجاد نمی‌شود</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -79,7 +79,7 @@ export default async function DebtsPage() {
                 <div className="muted text-[10px]">نرخ سود</div>
                 <span className="num" dir="ltr">{Number(d.interestRate)}%</span>
                 <div className="muted text-[10px]">شروع شمسی: {dualStart.jalali}</div>
-                <div className="muted text-[10px]">میلادی: <span dir="ltr" className="num">{dualStart.gregorian}</span></div>
+                <div className="muted text-[10px]">میلادی: <span dir="auto" className="num">{dualStart.gregorian}</span></div>
               </div>
               <div>
                 <div className="muted text-[10px]">اقساط پرداختی</div>

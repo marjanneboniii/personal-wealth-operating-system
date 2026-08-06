@@ -59,7 +59,6 @@ export default async function PlanningPage() {
     <div className="space-y-4">
       <PageHeader
         title="برنامه‌ریزی مالی"
-        subtitle="آینده کاملاً از دفترکل جدا است؛ فقط با «اجرا» به ثروت واقعی تبدیل می‌شود. معادل دلاری با آخرین نرخ به‌صورت لحظه‌ای محاسبه می‌شود."
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -72,7 +71,7 @@ export default async function PlanningPage() {
       {/* Rate banner — shared source of truth */}
       <div className="soft rounded-2xl p-3 text-[11px] flex flex-wrap items-center justify-between gap-2">
         <span>نرخ دلار مرجع برای تمام پیش‌نمایش‌ها: <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
-        <span className="muted">تاریخ نرخ: <span dir="ltr" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · با تغییر نرخ، معادل دلاری تمام آیتم‌های برنامه‌ریزی به‌صورت خودکار به‌روزرسانی می‌شود (فقط نمایشی)</span>
+        <span className="muted">تاریخ نرخ: <span dir="auto" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · با تغییر نرخ، معادل دلاری تمام آیتم‌های برنامه‌ریزی به‌صورت خودکار به‌روزرسانی می‌شود (فقط نمایشی)</span>
       </div>
 
       <Card title="پیش‌بینی جریان نقدی ۱۲ ماه آینده">
@@ -98,11 +97,11 @@ export default async function PlanningPage() {
               {projection.points.map((p) => (
                 <tr key={p.month} className="border-t" style={{ borderColor: "var(--line)" }}>
                   <td className="py-1.5">{formatShortDate(p.month)} <span className="muted text-[10px]" dir="ltr">{p.month}</span></td>
-                  <td className="num py-1.5" dir="ltr">{formatMoney(p.inflow)}</td>
-                  <td className="num py-1.5" dir="ltr">{formatMoney(p.outflow)}</td>
-                  <td className="num py-1.5" dir="ltr"><Money value={p.net} tone /></td>
+                  <td className="py-1.5"><span className="num" dir="rtl">{formatMoney(D(p.inflow).mul(rate ?? 0).toFixed(0), "IRT")}</span><br/><span className="num" dir="ltr">{formatMoney(p.inflow, "USD")}</span></td>
+                  <td className="py-1.5"><span className="num" dir="rtl">{formatMoney(D(p.outflow).mul(rate ?? 0).toFixed(0), "IRT")}</span><br/><span className="num" dir="ltr">{formatMoney(p.outflow, "USD")}</span></td>
+                  <td className="py-1.5"><span className="num" dir="rtl">{formatMoney(D(p.net).mul(rate ?? 0).toFixed(0), "IRT")}</span><br/><Money value={p.net} tone /></td>
                   <td className="num py-1.5" dir="ltr" style={{ color: p.deficit ? "var(--danger)" : undefined }}>
-                    {formatMoney(p.cumulative)}
+                    {formatMoney(D(p.cumulative).mul(rate ?? 0).toFixed(0), "IRT")}<br/><span dir="ltr">{formatMoney(p.cumulative, "USD")}</span>
                   </td>
                 </tr>
               ))}
@@ -128,7 +127,7 @@ export default async function PlanningPage() {
                   </div>
                   <div className="muted mt-1 text-[10px] flex flex-wrap gap-2">
                     <span>شمسی: <span dir="rtl">{dual.jalali}</span></span>
-                    <span>میلادی: <span dir="ltr" className="num">{dual.gregorian}</span></span>
+                    <span>میلادی: <span dir="auto" className="num">{dual.gregorian}</span></span>
                     <span>·</span>
                     <span>{p.status === "executed" ? "اجرا شده — در دفترکل" : p.status === "cancelled" ? "لغو شده" : "در انتظار اجرا"}</span>
                   </div>
@@ -163,7 +162,7 @@ export default async function PlanningPage() {
                   <div className="mb-1 flex items-center justify-between text-xs">
                     <span>
                       {g.name}
-                      {dual && <span className="muted mr-2 text-[10px]">تا {dual.jalali} / <span dir="ltr" className="num">{dual.gregorian}</span></span>}
+                      {dual && <span className="muted mr-2 text-[10px]">تا {dual.jalali} / <span dir="auto" className="num">{dual.gregorian}</span></span>}
                     </span>
                     <span className="num muted" dir="ltr">
                       {formatMoney(g.savedBase, "IRT")} / {formatMoney(g.targetBase, "IRT")}
@@ -214,7 +213,7 @@ export default async function PlanningPage() {
                 <li key={e.id} className="flex items-center justify-between py-2.5">
                   <div>
                     <div>{e.name} <span className="chip mr-2">{CATEGORY[e.category] ?? e.category}</span></div>
-                    <div className="muted text-[10px] flex gap-2"><span>شمسی: {dual.jalali}</span><span>میلادی: <span dir="ltr" className="num">{dual.gregorian}</span></span></div>
+                    <div className="muted text-[10px] flex gap-2"><span>شمسی: {dual.jalali}</span><span>میلادی: <span dir="auto" className="num">{dual.gregorian}</span></span></div>
                   </div>
                   <div className="text-left">
                     <div className="num font-bold" dir="rtl">{formatMoney(e.budgetBase, "IRT")}</div>
@@ -235,7 +234,7 @@ export default async function PlanningPage() {
                 <li key={o.id} className="flex items-center justify-between py-2.5">
                   <div>
                     <div>{o.title} <span className="chip mr-2">{o.recurrence === "monthly" ? "ماهانه" : o.recurrence === "yearly" ? "سالانه" : "یک‌بار"}</span></div>
-                    <div className="muted text-[10px] flex gap-2"><span>سررسید شمسی: {dual.jalali}</span><span>میلادی: <span dir="ltr" className="num">{dual.gregorian}</span></span></div>
+                    <div className="muted text-[10px] flex gap-2"><span>سررسید شمسی: {dual.jalali}</span><span>میلادی: <span dir="auto" className="num">{dual.gregorian}</span></span></div>
                   </div>
                   <div className="text-left">
                     <div className="num font-bold" dir="rtl">{formatMoney(o.amountBase, "IRT")}</div>

@@ -75,25 +75,24 @@ export default async function ReportsPage() {
   return (
     <div className="space-y-4" id="monthly-report">
       <PageHeader
-        title="گزارش‌ها — بر اساس ماه‌های شمسی"
-        subtitle="همه اعداد مشتق‌شده از دفترکل هستند؛ هیچ جدول Summary یا ذخیره تکراری استفاده نشده. در صورت وجود Cache/Snapshot، همان سازوکار توسعه یافته."
+        title="گزارش‌ها"
         action={<div className="flex gap-2"><RowAction kind="snapshot" label="ثبت عکس لحظه‌ای" primary /><PdfButton /></div>}
       />
 
       <div className="soft rounded-2xl p-3 text-[11px] flex flex-wrap items-center justify-between gap-2">
         <span>نرخ دلار مرجع برای گزارش ماهانه: <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
-        <span className="muted">تاریخ نرخ: <span dir="ltr" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · گزارش بر اساس ماه‌های شمسی</span>
+
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="ارزش خالص" value={formatMoney(nw.netWorth)} />
-        <Stat label="کل درآمد ثبت‌شده" value={formatMoney(totalIncome.toString())} tone="up" />
-        <Stat label="کل هزینه ثبت‌شده" value={formatMoney(totalExpense.toString())} tone="down" />
+        <Stat label="ارزش خالص" value={formatMoney(nw.netWorth, "USD")} hint={formatMoney(toIrt(nw.netWorth), "IRT")} />
+        <Stat label="کل درآمد ثبت‌شده" value={formatMoney(totalIncome.toString(), "USD")} hint={formatMoney(toIrt(totalIncome.toString()), "IRT")} tone="up" />
+        <Stat label="کل هزینه ثبت‌شده" value={formatMoney(totalExpense.toString(), "USD")} hint={formatMoney(toIrt(totalExpense.toString()), "IRT")} tone="down" />
         <Stat label="نرخ پس‌انداز" value={`${savingsRate}٪`} tone={Number(savingsRate) >= 0 ? "up" : "down"} />
       </div>
 
       {/* 6. Monthly reports organized by Jalali months */}
-      <Card title="گزارش ماهانه — سازمان‌دهی بر اساس ماه‌های شمسی" action={<PdfButton />}>
+      <Card title="گزارش ماهانه" action={<PdfButton />}>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-[11px]">
             <thead className="muted">
@@ -151,7 +150,7 @@ export default async function ReportsPage() {
             />
           </div>
         </div>
-        <p className="muted text-[10px] mt-2">گزارش بر اساس ماه‌های شمسی سازمان‌دهی شده — از همان تراکنش‌های دفترکل تولید شده، بدون Snapshot موازی. میانگین و روند از روی داده‌های موجود محاسبه شده.</p>
+
       </Card>
 
       {/* Existing cards — now with dual display where relevant */}

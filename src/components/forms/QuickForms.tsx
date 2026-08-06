@@ -48,11 +48,11 @@ function PlanningPreview({ title, description, irtAmount, rate, rateDate, rateSo
           <div className="muted text-[10px]">مبلغ به تومان و معادل دلاری (نرخ لحظه‌ای)</div>
           <div className="num font-bold" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</div>
           <div className="num" dir="ltr" style={{ color: "var(--accent)" }}>{usd ? formatMoney(usd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {rate ? formatMoney(rate, "IRT") + " ≈ $1" : "ثبت نشده"}</span></div>
-          {rateDate && <div className="muted text-[10px]">تاریخ نرخ: <span dir="ltr" className="num">{rateDate}</span> · منبع: {rateSource ?? "—"}</div>}
+          {rateDate && <div className="muted text-[10px]">تاریخ نرخ: <span dir="auto" className="num">{rateDate}</span> · منبع: {rateSource ?? "—"}</div>}
         </div>
         <div className="flex flex-wrap gap-3">
           <span>تاریخ شمسی: <strong dir="rtl">{dual?.jalali ?? "—"}</strong></span>
-          <span>میلادی: <strong dir="ltr" className="num">{dual?.gregorian ?? "—"}</strong></span>
+          <span>میلادی: <strong dir="auto" className="num">{dual?.gregorian ?? "—"}</strong></span>
         </div>
         {status && <div><span className="muted">وضعیت:</span> <strong>{status}</strong></div>}
         {priority && <div><span className="muted">اولویت:</span> <strong>{priority}</strong></div>}

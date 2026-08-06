@@ -70,7 +70,7 @@ export default async function DashboardPage() {
 
       <div className="soft rounded-2xl p-3 text-[11px] flex flex-wrap items-center justify-between gap-2">
         <span>نرخ دلار مرجع (Single Source): <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
-        <span className="muted">تاریخ نرخ: <span dir="ltr" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · تمام پیش‌نمایش‌های مبلغ با این نرخ محاسبه می‌شوند (فقط نمایشی)</span>
+        <span className="muted">تاریخ نرخ: <span dir="auto" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · تمام پیش‌نمایش‌های مبلغ با این نرخ محاسبه می‌شوند (فقط نمایشی)</span>
       </div>
 
       {/* Hero — dual */}
@@ -168,7 +168,7 @@ export default async function DashboardPage() {
                 <li key={i.id} className="flex items-center justify-between py-2.5 text-xs">
                   <div>
                     <div>{i.debtTitle} — قسط {i.seq}</div>
-                    <div className="muted text-[10px] flex gap-2"><span>شمسی: {dual.jalali}</span><span>میلادی: <span dir="ltr" className="num">{dual.gregorian}</span></span> · {i.creditor}</div>
+                    <div className="muted text-[10px] flex gap-2"><span>شمسی: {dual.jalali}</span><span>میلادی: <span dir="auto" className="num">{dual.gregorian}</span></span> · {i.creditor}</div>
                   </div>
                   <div className="text-left">
                     <div className="num font-bold" dir="ltr">{formatMoney(i.amountBase)}</div>
@@ -215,7 +215,7 @@ export default async function DashboardPage() {
                   <div className="muted text-[10px] flex flex-wrap gap-2">
                     <span className="chip ml-2">{ENTRY_TYPE_LABELS[e.type as EntryType] ?? e.type}</span>
                     <span>شمسی: {dual.jalali}</span>
-                    <span>میلادی: <span dir="ltr" className="num">{dual.gregorian}</span></span>
+                    <span>میلادی: <span dir="auto" className="num">{dual.gregorian}</span></span>
                     <span>· {e.lines.length} ردیف</span>
                   </div>
                 </div>

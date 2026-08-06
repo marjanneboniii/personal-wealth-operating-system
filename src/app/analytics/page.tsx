@@ -4,14 +4,16 @@ import { Card, PageHeader, Stat } from "@/components/ui/Card";
 import { AreaChart } from "@/components/charts/Charts";
 import { D } from "@/domain/decimal";
 import { formatMoney, formatPercent, formatShortDate } from "@/lib/format";
+import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage() {
   await seedIfEmpty();
 
-  const analytics = await getAnalyticsSummary();
-  const { growth, attribution, benchmarks, risk, timeline } = analytics;
+  const [analytics, fx] = await Promise.all([getAnalyticsSummary(), getLatestUsdIrtRate()]);
+  const { growth, risk, timeline } = analytics;
+  const rate = fx.rate;
 
   const areaSeries = timeline.map((pt) => ({
     date: pt.date,
@@ -41,19 +43,20 @@ export default async function AnalyticsPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat
           label="ارزش فعلی ثروت"
-          value={formatMoney(growth.endingValue)}
+          value={formatMoney(growth.endingValue, "USD")}
+          hint={formatMoney(D(growth.endingValue).mul(rate).toFixed(0), "IRT")}
         />
         <Stat
           label="تغییرات کل ثروت"
-          value={formatMoney(growth.absoluteChange)}
+          value={formatMoney(growth.absoluteChange, "USD")}
           tone={D(growth.absoluteChange).isNegative() ? "down" : "up"}
-          hint={`از ${formatShortDate(growth.periodStart)} تا ${formatShortDate(growth.periodEnd)}`}
+          hint={`${formatMoney(D(growth.absoluteChange).mul(rate).toFixed(0), "IRT")} · از ${formatShortDate(growth.periodStart)} تا ${formatShortDate(growth.periodEnd)}`}
         />
         <Stat
           label="بازدهی خالص سرمایه‌گذاری"
-          value={formatMoney(growth.netInvestmentReturn)}
+          value={formatMoney(growth.netInvestmentReturn, "USD")}
           tone={D(growth.netInvestmentReturn).isNegative() ? "down" : "up"}
-          hint={`بدون احتساب واریز/برداشت‌ها (${formatMoney(growth.netExternalCapitalFlows)})`}
+          hint={`${formatMoney(D(growth.netInvestmentReturn).mul(rate).toFixed(0), "IRT")} · بدون احتساب واریز/برداشت‌ها (${formatMoney(growth.netExternalCapitalFlows, "USD")})`}
         />
         <Stat
           label="بازدهی تعدیل‌شده ثروت (Adjusted Return)"
@@ -96,115 +99,6 @@ export default async function AnalyticsPage() {
           </p>
         )}
       </Card>
-
-      {/* SECTION 3: Best & Worst Performers & Asset Attribution */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="بهترین و بدترین عملکرد دارایی‌ها">
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="soft rounded-2xl p-3">
-              <div className="muted text-[10px]">بهترین عملکرد (Top Winner)</div>
-              {attribution.topWinner ? (
-                <div>
-                  <div className="font-bold text-sm mt-1">{attribution.topWinner.symbol}</div>
-                  <div className="num font-bold text-xs" style={{ color: "var(--accent)" }}>
-                    +{attribution.topWinner.percentageChange}% ({formatMoney(attribution.topWinner.absoluteChange)})
-                  </div>
-                </div>
-              ) : (
-                <div className="muted text-xs mt-1">—</div>
-              )}
-            </div>
-
-            <div className="soft rounded-2xl p-3">
-              <div className="muted text-[10px]">بدترین عملکرد (Top Loser)</div>
-              {attribution.topLoser ? (
-                <div>
-                  <div className="font-bold text-sm mt-1">{attribution.topLoser.symbol}</div>
-                  <div className="num font-bold text-xs" style={{ color: "var(--danger)" }}>
-                    {attribution.topLoser.percentageChange}% ({formatMoney(attribution.topLoser.absoluteChange)})
-                  </div>
-                </div>
-              ) : (
-                <div className="muted text-xs mt-1">—</div>
-              )}
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead className="muted">
-                <tr className="border-b" style={{ borderColor: "var(--line)" }}>
-                  <th className="py-2 font-normal">نماد</th>
-                  <th className="py-2 font-normal">بهای اولیه</th>
-                  <th className="py-2 font-normal">ارزش فعلی</th>
-                  <th className="py-2 font-normal">سود/زیان</th>
-                  <th className="py-2 font-normal">سهم در رشد٪</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attribution.attributions.map((a) => {
-                  const isNeg = D(a.absoluteChange).isNegative();
-                  return (
-                    <tr key={a.assetId} className="border-b last:border-0" style={{ borderColor: "var(--line)" }}>
-                      <td className="font-bold py-2.5">{a.symbol}</td>
-                      <td className="num py-2.5" dir="ltr">{formatMoney(a.startingValue)}</td>
-                      <td className="num py-2.5 font-bold" dir="ltr">{formatMoney(a.endingValue)}</td>
-                      <td className="num py-2.5 font-bold" dir="ltr" style={{ color: isNeg ? "var(--danger)" : "var(--accent)" }}>
-                        {formatMoney(a.absoluteChange)} ({a.percentageChange}٪)
-                      </td>
-                      <td className="num py-2.5" dir="ltr">{a.contributionPercentage}٪</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        {/* SECTION 4: Benchmark Comparison */}
-        <Card title="مقایسه عملکرد با شاخص‌های بازار (Benchmark Comparison)">
-          <p className="muted mb-4 text-[11px] leading-5">
-            شاخص‌های بنچمارک ابزارهای تحلیلی بیرونی هستند و کاملاً از اسناد دفترکل و حساب‌های شما جدا نگهداری می‌شوند.
-          </p>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead className="muted">
-                <tr className="border-b" style={{ borderColor: "var(--line)" }}>
-                  <th className="py-2 font-normal">شاخص بنچمارک</th>
-                  <th className="py-2 font-normal">بازدهی شما</th>
-                  <th className="py-2 font-normal">بازدهی بنچمارک</th>
-                  <th className="py-2 font-normal">اختلاف (Alpha)</th>
-                  <th className="py-2 font-normal">ارزیابی</th>
-                </tr>
-              </thead>
-              <tbody>
-                {benchmarks.map((b) => (
-                  <tr key={b.symbol} className="border-b last:border-0" style={{ borderColor: "var(--line)" }}>
-                    <td className="font-bold py-2.5">{b.name}</td>
-                    <td className="num py-2.5 font-bold" dir="ltr">{b.portfolioReturnPercentage}٪</td>
-                    <td className="num py-2.5" dir="ltr">{b.benchmarkReturnPercentage}٪</td>
-                    <td className="num py-2.5 font-bold" dir="ltr" style={{ color: b.outperformed ? "var(--accent)" : "var(--danger)" }}>
-                      {b.alphaPercentage}%
-                    </td>
-                    <td className="py-2.5">
-                      {b.outperformed ? (
-                        <span className="chip" style={{ color: "var(--accent)" }}>
-                          عملکرد برتر 🏆
-                        </span>
-                      ) : (
-                        <span className="chip" style={{ color: "var(--danger)" }}>
-                          عقب‌تر از بنچمارک 🔻
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
 
       {/* SECTION 5: Risk Dashboard */}
       <Card title="داشبورد سنجش ریسک و افت تاریخی (Risk Dashboard)">

@@ -17,7 +17,6 @@ const MORE = [
   { href: "/debts", label: "بدهی و اقساط", icon: "⚖" },
   { href: "/accounts", label: "حساب‌ها و کیف‌پول‌ها", icon: "▣" },
   { href: "/market-data", label: "قیمت‌های بازار", icon: "📈" },
-  { href: "/import", label: "درون‌ریزی داده‌ها", icon: "⇲" },
   { href: "/settings", label: "تنظیمات و پشتیبان", icon: "⚙" },
 ];
 
