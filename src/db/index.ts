@@ -17,6 +17,14 @@ function initDb() {
       globalForDb.__arenaNextJsPostgresqlPool ??
       new Pool({
         connectionString: databaseUrl,
+        // Resilience against flaky / cold-starting remote databases:
+        // fail fast on connect, recycle idle sockets, and keep TCP alive
+        // so proxies that silently drop connections don't poison the pool.
+        max: 5,
+        connectionTimeoutMillis: 15_000,
+        idleTimeoutMillis: 30_000,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10_000,
       });
 
     if (process.env.NODE_ENV !== "production") {

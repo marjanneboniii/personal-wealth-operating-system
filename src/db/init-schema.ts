@@ -775,8 +775,61 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS wallet_observations_wallet_idx ON wallet_observations(wallet_id);`,
 ];
 
+/**
+ * Transient network/connection failures (socket reset mid-query, serverless
+ * cold starts, admin shutdowns). Drizzle wraps driver errors, so the real
+ * code usually lives on `err.cause`. All schema statements are idempotent
+ * (IF NOT EXISTS), so retrying them is safe.
+ */
+const TRANSIENT_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "EPIPE",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "08000", // connection_exception
+  "08001", // sqlclient_unable_to_establish_sqlconnection
+  "08003", // connection_does_not_exist
+  "08006", // connection_failure
+  "57P01", // admin_shutdown
+  "57P02", // crash_shutdown
+  "57P03", // cannot_connect_now
+]);
+
+function isTransientDbError(err: unknown): boolean {
+  const seen = new Set<unknown>();
+  let cur: unknown = err;
+  while (cur && typeof cur === "object" && !seen.has(cur)) {
+    seen.add(cur);
+    const e = cur as { code?: string; errno?: string; message?: string; cause?: unknown };
+    if (e.code && TRANSIENT_CODES.has(String(e.code))) return true;
+    if (e.errno && TRANSIENT_CODES.has(String(e.errno))) return true;
+    if (e.message && /connection (terminated|reset|refused)|socket hang up|read econnreset/i.test(e.message)) {
+      return true;
+    }
+    cur = e.cause;
+  }
+  return false;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const MAX_ATTEMPTS = 5;
+
 export async function createSchemaIfNotExists() {
   for (const stmt of STATEMENTS) {
-    await db.execute(sql.raw(stmt));
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await db.execute(sql.raw(stmt));
+        break;
+      } catch (err) {
+        if (attempt >= MAX_ATTEMPTS || !isTransientDbError(err)) throw err;
+        console.warn(
+          `[db] transient connection error during schema init (attempt ${attempt}/${MAX_ATTEMPTS}); retrying…`,
+        );
+        await sleep(400 * attempt);
+      }
+    }
   }
 }
