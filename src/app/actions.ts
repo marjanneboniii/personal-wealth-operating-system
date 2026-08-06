@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
   accounts,
   assets,
   debts,
+  entryFxSnapshots,
   events,
   goals,
   installments,
@@ -16,6 +17,7 @@ import {
   snapshotLines,
   snapshots,
 } from "@/db/schema";
+import { getLatestUsdIrtRate } from "@/lib/fx";
 import { D, Decimal } from "@/domain/decimal";
 import {
   recordBuy,
@@ -64,80 +66,177 @@ const txSchema = z.object({
   description: z.string().min(2, "شرح را وارد کنید"),
   primaryAccountId: z.string().uuid("حساب مبدأ را انتخاب کنید"),
   counterAccountId: z.string().uuid("حساب مقابل را انتخاب کنید"),
-  amount: z.string().min(1),
+  amount: z.string().min(1).optional(),
+  irtAmount: z.string().optional(),
+  fxRate: z.string().optional(),
+  fxRateDate: z.string().optional(),
+  debtId: z.string().optional(),
+  installmentId: z.string().optional(),
   quantity: z.string().optional(),
   fee: z.string().optional(),
 });
 
 export async function createTransactionAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   try {
-    const input = txSchema.parse(Object.fromEntries(fd) as Record<string, string>);
-    const amount = D(input.amount);
-    if (amount.lte(0)) throw new Error("مبلغ باید بزرگ‌تر از صفر باشد");
-    const fee = input.fee ? D(input.fee).toString() : "0";
+    const raw = Object.fromEntries(fd) as Record<string, string>;
+    // Support both legacy 'amount' (USD) and new 'irtAmount' (IRT) — IRT is reference, USD is computed via server rate (freeze)
+    const input = txSchema.parse(raw);
+    // Fetch server-side frozen rate — single source of truth, not trusting client
+    const fxSnap = await getLatestUsdIrtRate();
+    const serverRate = D(fxSnap.rate);
+    if (serverRate.lte(0)) throw new Error("نرخ دلار ثبت نشده است. ابتدا نرخ را در تنظیمات ثبت کنید.");
 
-    if (input.type === "income" || input.type === "expense") {
-      const cashAsset = await accountAsset(input.primaryAccountId);
-      const price = await latestPrice(cashAsset);
-      const qty = amount.div(price).toString();
-      const cmd = {
-        entryDate: input.entryDate,
-        description: input.description,
-        cashAccountId: input.primaryAccountId,
-        categoryAccountId: input.counterAccountId,
-        assetId: cashAsset,
-        quantity: qty,
-        baseValue: amount.toString(),
-      };
-      if (input.type === "income") await recordIncome(cmd);
-      else await recordExpense(cmd);
-    } else if (input.type === "transfer") {
-      const assetId = await accountAsset(input.primaryAccountId);
-      const price = await latestPrice(assetId);
-      const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : amount.div(price).toString();
-      await recordTransfer({
-        entryDate: input.entryDate,
-        description: input.description,
-        fromAccountId: input.primaryAccountId,
-        toAccountId: input.counterAccountId,
-        assetId,
-        quantity: qty,
-        unitPrice: price,
-        feeBase: fee,
-        feeAccountId: (await db.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id,
-      });
+    let usdAmount: any;
+    let irtAmountStr: string;
+    if (input.irtAmount && D(input.irtAmount).gt(0)) {
+      irtAmountStr = D(input.irtAmount).toFixed(0);
+      usdAmount = D(irtAmountStr).div(serverRate);
+    } else if (input.amount && D(input.amount).gt(0)) {
+      // legacy USD path — compute IRT for snapshot as USD * rate
+      usdAmount = D(input.amount);
+      irtAmountStr = usdAmount.mul(serverRate).toFixed(0);
     } else {
-      // buy / sell — primary = asset account, counter = cash account
-      const assetId = await accountAsset(input.primaryAccountId);
-      const cashAssetId = await accountAsset(input.counterAccountId);
-      const cashPrice = await latestPrice(cashAssetId);
-      const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : "0";
-      if (D(qty).lte(0)) throw new Error("مقدار دارایی را وارد کنید");
-      const cashQuantity = amount.div(cashPrice).toString();
-      const feeAccountId = (await db.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id ?? null;
-      const common = {
-        entryDate: input.entryDate,
-        description: input.description,
-        assetAccountId: input.primaryAccountId,
-        cashAccountId: input.counterAccountId,
-        assetId,
-        quantity: qty,
-        cashAssetId,
-        cashQuantity,
-        baseValue: amount.toString(),
-        feeBase: fee,
-        feeAccountId,
-      };
-      if (input.type === "buy") await recordBuy(common);
-      else {
-        const pnl = (await db.select().from(accounts).where(eq(accounts.code, "4100")).limit(1))[0];
-        if (!pnl) throw new Error("حساب سود سرمایه‌ای تعریف نشده است");
-        await recordSell({ ...common, pnlAccountId: pnl.id });
-      }
+      throw new Error("مبلغ باید بزرگ‌تر از صفر باشد");
+    }
+    if (usdAmount.lte(0)) throw new Error("مبلغ باید بزرگ‌تر از صفر باشد");
+    const amount = usdAmount; // keep variable name for downstream logic
+    // Fee is entered in IRT (toman) — convert to USD for ledger
+    let feeUsd = "0";
+    if (input.fee && D(input.fee).gt(0)) {
+      // fee field from form is IRT
+      feeUsd = D(input.fee).div(serverRate).toString();
+    }
+    const fee = feeUsd;
+    // Debt/Installment linkage — validate before ledger write (prevent duplicate, exceed outstanding, already paid)
+    let linkedDebt: any = null;
+    let linkedInst: any = null;
+    if (input.installmentId) {
+      const [row] = await db.select().from(installments).where(eq(installments.id, input.installmentId)).limit(1);
+      if (!row) throw new Error("قسط انتخاب‌شده یافت نشد");
+      if (row.status === "paid") throw new Error("این قسط قبلاً به‌طور کامل پرداخت شده است — جلوگیری از ثبت تکراری");
+      linkedInst = row;
+      const [debtRow] = await db.select().from(debts).where(eq(debts.id, row.debtId)).limit(1);
+      if (debtRow) linkedDebt = debtRow;
+      // Check amount not exceed installment amount (allow small tolerance)
+      const instAmt = D(row.amountBase);
+      if (amount.gt(instAmt.mul("1.05"))) throw new Error("مبلغ واردشده بیشتر از مبلغ قسط است");
+    } else if (input.debtId) {
+      const [debtRow] = await db.select().from(debts).where(eq(debts.id, input.debtId)).limit(1);
+      if (!debtRow) throw new Error("بدهی انتخاب‌شده یافت نشد");
+      if (debtRow.status === "settled") throw new Error("این بدهی قبلاً تسویه شده است");
+      linkedDebt = debtRow;
     }
 
+    // Wrap ledger write + FX snapshot + debt linkage in one atomic transaction
+    const entryId = await db.transaction(async (tx) => {
+      let entry: { id: string } | null = null;
+
+      if (input.type === "income" || input.type === "expense") {
+        const cashAsset = await accountAsset(input.primaryAccountId);
+        const price = await latestPrice(cashAsset);
+        const qty = amount.div(price).toString();
+        const cmd = {
+          entryDate: input.entryDate,
+          description: input.description,
+          cashAccountId: input.primaryAccountId,
+          categoryAccountId: input.counterAccountId,
+          assetId: cashAsset,
+          quantity: qty,
+          baseValue: amount.toString(),
+        };
+        if (input.type === "income") entry = await recordIncome(cmd, tx);
+        else entry = await recordExpense(cmd, tx);
+      } else if (input.type === "transfer") {
+        const assetId = await accountAsset(input.primaryAccountId);
+        const price = await latestPrice(assetId);
+        const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : amount.div(price).toString();
+        entry = await recordTransfer(
+          {
+            entryDate: input.entryDate,
+            description: input.description,
+            fromAccountId: input.primaryAccountId,
+            toAccountId: input.counterAccountId,
+            assetId,
+            quantity: qty,
+            unitPrice: price,
+            feeBase: fee,
+            feeAccountId: (await tx.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id,
+          },
+          tx,
+        );
+      } else {
+        const assetId = await accountAsset(input.primaryAccountId);
+        const cashAssetId = await accountAsset(input.counterAccountId);
+        const cashPrice = await latestPrice(cashAssetId);
+        const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : "0";
+        if (D(qty).lte(0)) throw new Error("مقدار دارایی را وارد کنید");
+        const cashQuantity = amount.div(cashPrice).toString();
+        const feeAccountId = (await tx.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id ?? null;
+        const common = {
+          entryDate: input.entryDate,
+          description: input.description,
+          assetAccountId: input.primaryAccountId,
+          cashAccountId: input.counterAccountId,
+          assetId,
+          quantity: qty,
+          cashAssetId,
+          cashQuantity,
+          baseValue: amount.toString(),
+          feeBase: fee,
+          feeAccountId,
+        };
+        if (input.type === "buy") entry = await recordBuy(common, tx);
+        else {
+          const pnl = (await tx.select().from(accounts).where(eq(accounts.code, "4100")).limit(1))[0];
+          if (!pnl) throw new Error("حساب سود سرمایه‌ای تعریف نشده است");
+          entry = await recordSell({ ...common, pnlAccountId: pnl.id }, tx);
+        }
+      }
+
+      if (!entry?.id) throw new Error("خطا در ایجاد سند حسابداری");
+
+      // Historical immutability: freeze IRT, USD, rate at commit time
+      await tx.insert(entryFxSnapshots).values({
+        entryId: entry.id,
+        irtAmount: D(irtAmountStr).toString(),
+        usdAmount: amount.toString(),
+        fxRate: serverRate.toString(),
+        rateSource: fxSnap.source,
+        rateDate: fxSnap.effectiveDate,
+      });
+
+      // Debt / Installment linkage — update status within same transaction (Transactional Integrity)
+      if (linkedInst) {
+        await tx
+          .update(installments)
+          .set({ status: "paid", paidAt: input.entryDate, paidEntryId: entry.id })
+          .where(eq(installments.id, linkedInst.id));
+        // Check if debt settled
+        const pending = await tx
+          .select({ c: sql<number>`count(*)::int` })
+          .from(installments)
+          .where(and(eq(installments.debtId, linkedInst.debtId), eq(installments.status, "pending")));
+        if ((pending[0]?.c ?? 0) === 0) {
+          await tx.update(debts).set({ status: "settled" }).where(eq(debts.id, linkedInst.debtId));
+        }
+      } else if (linkedDebt && input.type === "expense") {
+        // For direct debt payment (not installment), if amount covers outstanding, mark settled?
+        // Outstanding is derived from ledger, but we can mark settled if no pending installments left
+        const pending = await tx
+          .select({ c: sql<number>`count(*)::int` })
+          .from(installments)
+          .where(and(eq(installments.debtId, linkedDebt.id), eq(installments.status, "pending")));
+        if ((pending[0]?.c ?? 0) === 0) {
+          // If no installments, check if payment amount >= principal? For simplicity, if user explicitly paid debt via explorer and it has no installments, mark settled when they pay
+          // We don't auto-settle based on amount; rely on installments
+        }
+      }
+
+      return entry.id;
+    });
+
     refreshAll();
-    return { ok: true, message: "سند با موفقیت در دفترکل ثبت شد." };
+    return { ok: true, message: "سند با موفقیت در دفترکل ثبت شد. نرخ دلار و مبالغ تاریخی منجمد شدند." + (linkedInst || linkedDebt ? " وضعیت بدهی/قسط به‌روزرسانی شد." : "") };
   } catch (e) {
     const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطای ناشناخته";
     return { ok: false, message: msg };

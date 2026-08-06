@@ -126,3 +126,145 @@ export function addMonthsIso(iso: string, months: number): string {
   d.setUTCMonth(d.getUTCMonth() + months);
   return d.toISOString().slice(0, 10);
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Shared Calendar Engine — Single Source of Truth (Gregorian ↔ Jalali)
+   Used by ALL date inputs & displays: TransactionForm, Planning, Debts,
+   Ledger, Reports, etc. No duplicate conversion logic elsewhere.
+   ════════════════════════════════════════════════════════════════════ */
+
+/** Jalali → Gregorian (reverse of toJalali). No external deps. */
+export function fromJalali(jy: number, jm: number, jd: number): { gy: number; gm: number; gd: number } {
+  let gy = jy <= 979 ? 621 : 1600;
+  jy -= jy <= 979 ? 0 : 979;
+  let days =
+    365 * jy +
+    Math.floor(jy / 33) * 8 +
+    Math.floor(((jy % 33) + 3) / 4) +
+    78 +
+    jd +
+    (jm < 7 ? (jm - 1) * 31 : (jm - 7) * 30 + 186);
+  gy += 400 * Math.floor(days / 146097);
+  days %= 146097;
+  if (days > 36524) {
+    gy += 100 * Math.floor(--days / 36524);
+    days %= 36524;
+    if (days >= 365) days++;
+  }
+  gy += 4 * Math.floor(days / 1461);
+  days %= 1461;
+  if (days > 365) {
+    gy += Math.floor((days - 1) / 365);
+    days = (days - 1) % 365;
+  }
+  let gd = days + 1;
+  const sal_a = [0, 31, ((gy % 4 === 0 && gy % 100 !== 0) || gy % 400 === 0 ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  let gm: number;
+  for (gm = 0; gm < 13; gm++) {
+    const v = sal_a[gm];
+    if (gd <= v) break;
+    gd -= v;
+  }
+  return { gy, gm, gd };
+}
+
+export function jalaliToIso(jy: number, jm: number, jd: number): string {
+  const { gy, gm, gd } = fromJalali(jy, jm, jd);
+  return `${String(gy).padStart(4, "0")}-${String(gm).padStart(2, "0")}-${String(gd).padStart(2, "0")}`;
+}
+
+/** Parse Jalali string "YYYY/MM/DD" or "YYYY-MM-DD" → {y,m,d} | null */
+export function parseJalaliString(input: string): { y: number; m: number; d: number } | null {
+  if (!input) return null;
+  const parts = input.trim().replace(/-/g, "/").split("/").map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [y, m, d] = parts;
+  if (y < 1200 || y > 1600 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+  return { y, m, d };
+}
+
+export function formatJalaliIso(iso: string, digits: DigitStyle = "fa"): string {
+  if (!iso) return "—";
+  const { y, m, d } = toJalali(iso);
+  const s = `${String(y).padStart(4, "0")}/${String(m).padStart(2, "0")}/${String(d).padStart(2, "0")}`;
+  return digits === "fa" ? toFaDigits(s) : s;
+}
+
+export function formatGregorianIso(iso: string): string {
+  if (!iso) return "—";
+  return iso.slice(0, 10);
+}
+
+/** Returns both representations for dual display */
+export function getDualDate(iso: string): { iso: string; jalali: string; gregorian: string; jalaliDigits: string } {
+  if (!iso) return { iso: "", jalali: "—", gregorian: "—", jalaliDigits: "—" };
+  return {
+    iso: iso.slice(0, 10),
+    jalali: formatJalaliIso(iso, "fa"),
+    gregorian: formatGregorianIso(iso),
+    jalaliDigits: formatJalaliIso(iso, "en"),
+  };
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   FX Preview Helpers — Single Source of Truth for IRT ↔ USD
+   Uses latest USD→IRT rate from exchange_rates / settings.irt_rate
+   Pure functions, no side effects, no ledger writes.
+   ════════════════════════════════════════════════════════════════════ */
+
+export function irtToUsd(irtAmount: string | number, usdToIrtRate: string | number): string {
+  const rate = D(usdToIrtRate);
+  if (rate.lte(0)) return "0";
+  return D(irtAmount).div(rate).toFixed(2);
+}
+
+export function usdToIrt(usdAmount: string | number, usdToIrtRate: string | number): string {
+  return D(usdAmount).mul(usdToIrtRate).toFixed(0);
+}
+
+export function formatDualMoneyFromIrt(irtAmount: string | number, usdToIrtRate: string | number | null, digits: DigitStyle = "fa"): { irt: string; usd: string; rateLabel: string } {
+  const irtStr = D(irtAmount).toFixed(0);
+  if (!usdToIrtRate || D(usdToIrtRate).lte(0)) {
+    return {
+      irt: formatMoney(irtStr, "IRT", digits),
+      usd: "—",
+      rateLabel: "نرخ ثبت نشده",
+    };
+  }
+  const usd = irtToUsd(irtStr, usdToIrtRate);
+  return {
+    irt: formatMoney(irtStr, "IRT", digits),
+    usd: formatMoney(usd, "USD", digits),
+    rateLabel: `نرخ: ${formatMoney(usdToIrtRate, "IRT", digits)} ≈ $1`,
+  };
+}
+
+export function formatDualMoneyFromUsd(usdAmount: string | number, usdToIrtRate: string | number | null, digits: DigitStyle = "fa"): { irt: string; usd: string; rateLabel: string } {
+  const usdStr = D(usdAmount).toFixed(2);
+  if (!usdToIrtRate || D(usdToIrtRate).lte(0)) {
+    return {
+      irt: "—",
+      usd: formatMoney(usdStr, "USD", digits),
+      rateLabel: "نرخ ثبت نشده",
+    };
+  }
+  const irt = usdToIrt(usdStr, usdToIrtRate);
+  return {
+    irt: formatMoney(irt, "IRT", digits),
+    usd: formatMoney(usdStr, "USD", digits),
+    rateLabel: `نرخ: ${formatMoney(usdToIrtRate, "IRT", digits)} ≈ $1`,
+  };
+}
+
+/** Group ISO dates by Jalali month key "YYYY/MM" */
+export function jalaliMonthKey(iso: string): string {
+  const { y, m } = toJalali(iso);
+  return `${String(y).padStart(4, "0")}/${String(m).padStart(2, "0")}`;
+}
+
+export function jalaliMonthLabel(key: string, digits: DigitStyle = "fa"): string {
+  const [y, m] = key.split("/").map(Number);
+  if (!y || !m) return key;
+  const s = `${FA_MONTHS[m - 1]} ${y}`;
+  return digits === "fa" ? toFaDigits(s) : s;
+}

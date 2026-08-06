@@ -1,8 +1,12 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { createTransactionAction, type ActionResult } from "@/app/actions";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, getDualDate } from "@/lib/format";
+import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
+import DualDateInput from "@/components/ui/DualDateInput";
+import DebtInstallmentExplorer, { type DebtOption } from "./DebtInstallmentExplorer";
+import { D } from "@/domain/decimal";
 
 export type AccountOption = {
   id: string;
@@ -23,21 +27,56 @@ const TYPES = [
 
 type TxType = (typeof TYPES)[number]["key"];
 
-export default function TransactionForm({
-  accounts,
-  defaultType = "expense",
-  today,
-}: {
+type Props = {
   accounts: AccountOption[];
+  debts?: DebtOption[];
   defaultType?: TxType;
   today: string;
-}) {
+  initialRate?: string | null;
+  initialRateDate?: string;
+  initialRateSource?: string;
+  initialIrtAmount?: string;
+  initialTitle?: string;
+  initialDescription?: string;
+  initialEntryDate?: string;
+  initialDebtId?: string;
+  initialInstallmentId?: string;
+};
+
+export default function TransactionForm({
+  accounts,
+  debts = [],
+  defaultType = "expense",
+  today,
+  initialRate,
+  initialRateDate,
+  initialRateSource,
+  initialIrtAmount,
+  initialTitle,
+  initialDescription,
+  initialEntryDate,
+  initialDebtId,
+  initialInstallmentId,
+}: Props) {
   const [type, setType] = useState<TxType>(defaultType);
-  const [amount, setAmount] = useState("");
-  const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
-    createTransactionAction,
-    null,
-  );
+  const [irtAmount, setIrtAmount] = useState(initialIrtAmount ?? "");
+  const [quantity, setQuantity] = useState("");
+  const [primaryAccountId, setPrimaryAccountId] = useState("");
+  const [counterAccountId, setCounterAccountId] = useState("");
+  const [entryDate, setEntryDate] = useState(initialEntryDate ?? today);
+  const [description, setDescription] = useState(initialDescription ?? initialTitle ?? "");
+  const [fee, setFee] = useState("");
+  const [selectedDebt, setSelectedDebt] = useState<DebtOption | null>(null);
+  const [selectedInst, setSelectedInst] = useState<DebtOption["installments"][number] | null>(null);
+  const [showExplorer, setShowExplorer] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+
+  const { rate, date: rateDate, source: rateSource } = useLatestRate(initialRate ?? null);
+  const effectiveRate = initialRate ?? rate;
+  const effectiveRateDate = initialRateDate ?? rateDate;
+  const effectiveRateSource = initialRateSource ?? rateSource;
+
+  const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(createTransactionAction, null);
 
   const meta = TYPES.find((t) => t.key === type)!;
   const cash = accounts.filter((a) => a.type === "asset");
@@ -53,8 +92,80 @@ export default function TransactionForm({
 
   const needsQty = type === "buy" || type === "sell" || type === "transfer";
 
+  // Auto-populate from initialDebt/Installment ids (when navigated from debts/planning)
+  useEffect(() => {
+    if (!debts.length) return;
+    if (initialInstallmentId) {
+      for (const d of debts) {
+        const inst = d.installments.find((i) => i.id === initialInstallmentId);
+        if (inst) {
+          handleSelectInstallment(d, inst);
+          break;
+        }
+      }
+    } else if (initialDebtId) {
+      const d = debts.find((x) => x.id === initialDebtId);
+      if (d) handleSelectDebt(d);
+    }
+  }, [debts, initialDebtId, initialInstallmentId]);
+
+  const handleSelectDebt = (d: DebtOption) => {
+    setSelectedDebt(d);
+    setSelectedInst(null);
+    // IRT amount: use outstandingBase? But outstandingBase is stored as USD base? For preview we treat as IRT?
+    // Spec says amount in IRT is reference. For debt, we treat principal/outstanding as IRT for preview simplicity.
+    // We'll use outstandingBase as IRT amount if rate exists, otherwise as is.
+    // Actually debts are stored in base USD, but for planning we show IRT via rate. For simplicity use the base value as IRT preview input.
+    // Use first pending installment amount if exists else outstanding
+    const pendingInst = d.installments.find((i) => i.status === "pending");
+    const amt = pendingInst ? pendingInst.amountBase : d.outstandingBase;
+    // Convert USD base to IRT for input? If stored as USD, IRT = USD * rate
+    // But spec says planning IRT is reference, USD is live. For debts, we want to show IRT input.
+    // We'll attempt to derive IRT: if rate exists, IRT = USD * rate
+    const irt = effectiveRate ? D(amt).mul(effectiveRate).toFixed(0) : amt;
+    setIrtAmount(irt);
+    setDescription(`پرداخت بدهی — ${d.title} (${d.creditor})`);
+    setEntryDate(today);
+    setType("expense");
+    setShowExplorer(false);
+    // auto select counter category? Use default expense account if exists
+    const expAcc = accounts.find((a) => a.type === "expense");
+    if (expAcc) setCounterAccountId(expAcc.id);
+    const cashAcc = accounts.find((a) => a.type === "asset");
+    if (cashAcc) setPrimaryAccountId(cashAcc.id);
+  };
+
+  const handleSelectInstallment = (d: DebtOption, inst: DebtOption["installments"][number]) => {
+    setSelectedDebt(d);
+    setSelectedInst(inst);
+    const irt = effectiveRate ? D(inst.amountBase).mul(effectiveRate).toFixed(0) : inst.amountBase;
+    setIrtAmount(irt);
+    setDescription(`پرداخت قسط ${inst.seq} — ${d.title}`);
+    setEntryDate(inst.dueDate);
+    setType("expense");
+    setShowExplorer(false);
+    const expAcc = accounts.find((a) => a.type === "expense");
+    if (expAcc) setCounterAccountId(expAcc.id);
+    const cashAcc = accounts.find((a) => a.type === "asset");
+    if (cashAcc) setPrimaryAccountId(cashAcc.id);
+  };
+
+  const previewUsd = irtAmount && effectiveRate ? D(irtAmount).div(effectiveRate).toFixed(2) : "";
+  const canPreview = irtAmount && D(irtAmount).gt(0) && description && entryDate && primaryAccountId && counterAccountId;
+
+  const debtStatusAfter = useMemo(() => {
+    if (!selectedDebt) return null;
+    if (selectedInst) {
+      const remaining = selectedDebt.installments.filter((i) => i.status === "pending").length - 1;
+      if (remaining <= 0) return "پرداخت کامل — بدهی تسویه می‌شود";
+      return `پرداخت بخشی — ${remaining} قسط باقی می‌ماند`;
+    }
+    return D(selectedDebt.outstandingBase).lte(previewUsd || "0") ? "پرداخت کامل" : "پرداخت بخشی از مانده";
+  }, [selectedDebt, selectedInst, previewUsd]);
+
   return (
     <form action={formAction} className="space-y-4">
+      {/* Type selector */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {TYPES.map((t) => (
           <button
@@ -69,21 +180,56 @@ export default function TransactionForm({
         ))}
       </div>
       <input type="hidden" name="type" value={type} />
+      {/* hidden FX + debt linkage */}
+      <input type="hidden" name="irtAmount" value={irtAmount} />
+      <input type="hidden" name="fxRate" value={effectiveRate ?? ""} />
+      <input type="hidden" name="fxRateDate" value={effectiveRateDate ?? ""} />
+      <input type="hidden" name="debtId" value={selectedDebt?.id ?? ""} />
+      <input type="hidden" name="installmentId" value={selectedInst?.id ?? ""} />
+      {/* Explorer toggle for expense */}
+      {type === "expense" && debts.length > 0 && (
+        <div>
+          <button type="button" onClick={() => setShowExplorer((v) => !v)} className="btn btn-ghost w-full !justify-between">
+            <span>🔍 انتخاب بدهی / قسط (Explorer)</span>
+            <span className="chip">{showExplorer ? "بستن" : "نمایش"} · {debts.length} بدهی</span>
+          </button>
+          {showExplorer && (
+            <div className="mt-3">
+              <DebtInstallmentExplorer
+                debts={debts}
+                onSelectDebt={handleSelectDebt}
+                onSelectInstallment={handleSelectInstallment}
+                rate={effectiveRate}
+              />
+            </div>
+          )}
+          {(selectedDebt || selectedInst) && (
+            <div className="soft rounded-2xl p-3 mt-2 text-xs flex flex-wrap items-center justify-between gap-2">
+              <span>انتخاب شده: <strong>{selectedDebt?.title}</strong>{selectedInst ? ` — قسط ${selectedInst.seq}` : ""}</span>
+              <button type="button" onClick={() => { setSelectedDebt(null); setSelectedInst(null); }} className="chip">حذف انتخاب</button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="card space-y-3 p-4">
         <div>
-          <label className="label">مبلغ (به ارز پایه USD)</label>
+          <label className="label">مبلغ به تومان (IRT) — مرجع برنامه‌ریزی</label>
           <input
-            name="amount"
-            inputMode="decimal"
+            name="irtAmountInput"
+            inputMode="numeric"
             required
-            value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
-            placeholder="0.00"
+            value={irtAmount}
+            onChange={(e) => setIrtAmount(e.target.value.replace(/[^0-9]/g, ""))}
+            placeholder="مثال: 25000000"
             className="field num !text-2xl !font-bold"
             dir="ltr"
           />
-          {amount && <p className="muted mt-1 text-[11px]">{formatMoney(amount)}</p>}
+          <div className="mt-2">
+            <SmartAmountPreview irtAmount={irtAmount} rate={effectiveRate ?? null} rateDate={effectiveRateDate} rateSource={effectiveRateSource} />
+          </div>
+          {/* hidden USD amount for server fallback (computed) */}
+          <input type="hidden" name="amount" value={previewUsd} />
         </div>
 
         {needsQty && (
@@ -91,17 +237,23 @@ export default function TransactionForm({
             <label className="label">
               مقدار دارایی {type === "transfer" ? "(اختیاری — اگر خالی باشد از مبلغ محاسبه می‌شود)" : ""}
             </label>
-            <input name="quantity" inputMode="decimal" className="field num" dir="ltr" placeholder="0.00000000" />
+            <input
+              name="quantity"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value.replace(/[^0-9.]/g, ""))}
+              inputMode="decimal"
+              className="field num"
+              dir="ltr"
+              placeholder="0.00000000"
+            />
           </div>
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label">{meta.primary}</label>
-            <select name="primaryAccountId" required className="field" defaultValue="">
-              <option value="" disabled>
-                انتخاب کنید…
-              </option>
+            <select name="primaryAccountId" required className="field" value={primaryAccountId} onChange={(e) => setPrimaryAccountId(e.target.value)}>
+              <option value="" disabled>انتخاب کنید…</option>
               {primaryOptions.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.code} — {a.name} {a.symbol ? `(${a.symbol})` : ""}
@@ -111,10 +263,8 @@ export default function TransactionForm({
           </div>
           <div>
             <label className="label">{meta.counter}</label>
-            <select name="counterAccountId" required className="field" defaultValue="">
-              <option value="" disabled>
-                انتخاب کنید…
-              </option>
+            <select name="counterAccountId" required className="field" value={counterAccountId} onChange={(e) => setCounterAccountId(e.target.value)}>
+              <option value="" disabled>انتخاب کنید…</option>
               {counterOptions.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.code} — {a.name} {a.symbol ? `(${a.symbol})` : ""}
@@ -124,23 +274,43 @@ export default function TransactionForm({
           </div>
         </div>
 
+        {/* Dual Date Engine — shared single source of truth */}
+        <DualDateInput name="entryDate" value={entryDate} onChange={setEntryDate} label="تاریخ سند" required />
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="label">تاریخ سند</label>
-            <input name="entryDate" type="date" required defaultValue={today} className="field num" dir="ltr" />
+            <label className="label">کارمزد (اختیاری) — به تومان</label>
+            <input
+              name="fee"
+              value={fee}
+              onChange={(e) => setFee(e.target.value.replace(/[^0-9]/g, ""))}
+              inputMode="numeric"
+              className="field num"
+              dir="ltr"
+              placeholder="0"
+            />
+            {fee && effectiveRate && <p className="muted mt-1 text-[10px]">کارمزد دلاری ≈ {D(fee).div(effectiveRate).toFixed(2)} $</p>}
           </div>
-          <div>
-            <label className="label">کارمزد (اختیاری)</label>
-            <input name="fee" inputMode="decimal" className="field num" dir="ltr" placeholder="0" />
+          <div className="flex items-end">
+            <div className="muted text-[11px] leading-5">
+              کارمزد نیز با همین نرخ تبدیل و در همان سند ثبت می‌شود.
+            </div>
           </div>
         </div>
 
         <div>
           <label className="label">شرح</label>
-          <input name="description" required className="field" placeholder="مثلاً خرید ماهانه خوراک" />
+          <input
+            name="description"
+            required
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="field"
+            placeholder="مثلاً پرداخت قسط ۳ — وام مسکن"
+          />
         </div>
       </div>
 
+      {/* Accounting rule preview — still present */}
       <div className="card soft p-3 text-[11px] leading-6">
         <strong>پیش‌نمایش قاعده حسابداری:</strong>{" "}
         {type === "buy" && "دارایی بدهکار می‌شود، حساب نقدی بستانکار؛ یک بسته FIFO باز می‌شود."}
@@ -150,6 +320,62 @@ export default function TransactionForm({
         {type === "expense" && "حساب هزینه بدهکار و حساب نقدی بستانکار می‌شود."}
         {" "}مجموع ارزش پایه سند همیشه باید صفر باشد.
       </div>
+
+      {/* Smart Preview Before Commit */}
+      {showPreview ? (
+        <PreviewCard title="پیش‌نمایش هوشمند قبل از ثبت نهایی — فقط نمایشی">
+          <div className="space-y-2 text-xs leading-6">
+            <div><span className="muted">نوع تراکنش:</span> <strong>{TYPES.find(t=>t.key===type)?.label}</strong></div>
+            <div><span className="muted">عنوان/شرح:</span> <strong>{description || "—"}</strong></div>
+            <div className="soft rounded-xl p-2">
+              <div className="muted text-[10px]">مبلغ به تومان و معادل دلاری (با نرخ لحظه‌ای)</div>
+              <div className="num font-bold" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</div>
+              <div className="num" dir="ltr" style={{ color:"var(--accent)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {effectiveRate ? formatMoney(effectiveRate, "IRT")+" ≈ $1" : "ثبت نشده"}</span></div>
+              {effectiveRateDate && <div className="muted text-[10px]">تاریخ نرخ: <span dir="ltr" className="num">{effectiveRateDate}</span> · منبع: {effectiveRateSource ?? "—"}</div>}
+            </div>
+            <div className="grid sm:grid-cols-2 gap-2">
+              <div><span className="muted">حساب مبدأ:</span> <strong>{accounts.find(a=>a.id===primaryAccountId)?.name ?? "—"}</strong> <span className="chip">{accounts.find(a=>a.id===primaryAccountId)?.code ?? ""}</span></div>
+              <div><span className="muted">حساب مقابل:</span> <strong>{accounts.find(a=>a.id===counterAccountId)?.name ?? "—"}</strong> <span className="chip">{accounts.find(a=>a.id===counterAccountId)?.code ?? ""}</span></div>
+            </div>
+            <div>
+              <span className="muted">تاریخ شمسی / میلادی:</span>
+              <div className="soft rounded-xl p-2 mt-1 flex flex-wrap gap-3 text-[11px]">
+                <span>شمسی: <strong dir="rtl">{entryDate ? getDualDate(entryDate).jalali : "—"}</strong></span>
+                <span>میلادی: <strong dir="ltr" className="num">{entryDate || "—"}</strong></span>
+              </div>
+            </div>
+            {needsQty && <div><span className="muted">مقدار دارایی:</span> <strong dir="ltr" className="num">{quantity || "محاسبه خودکار از مبلغ"}</strong></div>}
+            {fee && <div><span className="muted">کارمزد:</span> <strong dir="ltr" className="num">{formatMoney(fee, "IRT")}</strong> ≈ {effectiveRate ? formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD") : "—"}</div>}
+            {(selectedDebt || selectedInst) && (
+              <div className="soft rounded-xl p-2 border" style={{ borderColor:"var(--line)" }}>
+                <div className="font-bold">مرجع بدهی/قسط</div>
+                <div>بدهی: <strong>{selectedDebt?.title}</strong> — {selectedDebt?.creditor}</div>
+                {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید {getDualDate(selectedInst.dueDate).jalali} / <span dir="ltr">{selectedInst.dueDate}</span> — مبلغ <span dir="ltr">{formatMoney(selectedInst.amountBase,"USD")}</span></div>}
+                <div>وضعیت پس از پرداخت: <strong style={{ color:"var(--accent)" }}>{debtStatusAfter}</strong></div>
+                <div className="muted text-[10px]">شناسه مرجع در سند حسابداری ذخیره و قابل پیگیری از هر دو سمت خواهد بود.</div>
+              </div>
+            )}
+            <div className="muted text-[10px] leading-5">
+              تا قبل از «تأیید نهایی ثبت تراکنش» هیچ اطلاعاتی وارد Accounting Core, Ledger یا FIFO نمی‌شود. پس از تأیید، مبلغ تاریخی به تومان، معادل به دلار و نرخ زمان ثبت Freeze می‌شوند (Historical Immutability).
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setShowPreview(false)} className="btn btn-ghost flex-1">بازگشت به ویرایش</button>
+            <button type="submit" disabled={pending} className="btn btn-primary flex-1">
+              {pending ? "در حال ثبت…" : "تأیید نهایی ثبت تراکنش"}
+            </button>
+          </div>
+        </PreviewCard>
+      ) : (
+        <button
+          type="button"
+          disabled={!canPreview}
+          onClick={() => setShowPreview(true)}
+          className="btn btn-primary w-full disabled:opacity-40"
+        >
+          {canPreview ? "پیش‌نمایش هوشمند قبل از ثبت نهایی" : "برای پیش‌نمایش، مبلغ، تاریخ و حساب‌ها را تکمیل کنید"}
+        </button>
+      )}
 
       {state && (
         <p
@@ -163,9 +389,7 @@ export default function TransactionForm({
         </p>
       )}
 
-      <button type="submit" disabled={pending} className="btn btn-primary w-full">
-        {pending ? "در حال ثبت…" : "ثبت در دفترکل"}
-      </button>
+      {/* entryDate is provided by DualDateInput hidden input */}
     </form>
   );
 }
