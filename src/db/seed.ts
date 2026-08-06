@@ -28,12 +28,25 @@ import { addMonthsIso, todayIso } from "@/lib/format";
 import { D } from "@/domain/decimal";
 import { createSchemaIfNotExists } from "@/db/init-schema";
 
-let seeding: Promise<void> | null = null;
+let schemaReady: Promise<void> | null = null;
+let seeded: Promise<void> | null = null;
+
+/**
+ * Schema creation is ~90 round-trips; run it once per process instead of on
+ * every page load. On failure the cache is cleared so the next request
+ * retries from scratch (all statements are idempotent).
+ */
+function ensureSchema(): Promise<void> {
+  schemaReady ??= createSchemaIfNotExists().catch((err) => {
+    schemaReady = null;
+    throw err;
+  });
+  return schemaReady;
+}
 
 export async function seedIfEmpty(): Promise<void> {
-  if (seeding) return seeding;
-  seeding = (async () => {
-    await createSchemaIfNotExists();
+  seeded ??= (async () => {
+    await ensureSchema();
     const mode = process.env.APP_MODE ?? "personal";
     const allowDemo = process.env.ALLOW_DEMO_SEED === "true" || mode === "development";
 
@@ -43,12 +56,11 @@ export async function seedIfEmpty(): Promise<void> {
     const existing = await db.select({ c: sql<number>`count(*)::int` }).from(accounts);
     if ((existing[0]?.c ?? 0) > 0) return;
     await runSeed();
-  })();
-  try {
-    await seeding;
-  } finally {
-    seeding = null;
-  }
+  })().catch((err) => {
+    seeded = null;
+    throw err;
+  });
+  return seeded;
 }
 
 export async function runSeed(): Promise<void> {
