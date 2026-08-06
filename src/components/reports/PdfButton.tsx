@@ -49,7 +49,7 @@ export default function PdfButton({ targetId = "monthly-report" }: { targetId?: 
 
   return (
     <button onClick={handlePrint} className="btn btn-primary !py-1.5 !px-3 text-xs">
-      خروجی PDF گزارش ماهانه
+      خروجی PDF
     </button>
   );
 }

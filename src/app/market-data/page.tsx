@@ -49,7 +49,7 @@ export default async function MarketDataPage() {
 
       <div className="soft rounded-2xl p-3 text-[11px] flex flex-wrap items-center justify-between gap-2">
         <span>نرخ دلار مرجع: <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
-        <span className="muted">تاریخ نرخ: <span dir="ltr" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · قیمت تومان = قیمت دلاری × نرخ (فقط نمایشی)</span>
+        <span className="muted">تاریخ نرخ: <span dir="auto" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · قیمت تومان = قیمت دلاری × نرخ (فقط نمایشی)</span>
       </div>
 
       {/* Manual Price Entry Form */}
