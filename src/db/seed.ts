@@ -26,19 +26,45 @@ import { postEntry, recordBuy, recordExpense, recordIncome, recordSell } from "@
 import { payInstallment } from "@/features/planning/service";
 import { addMonthsIso, todayIso } from "@/lib/format";
 import { D } from "@/domain/decimal";
-import { createSchemaIfNotExists } from "@/db/init-schema";
+import { createSchemaIfNotExists, rootCauseOf } from "@/db/init-schema";
 
 let schemaReady: Promise<void> | null = null;
 let seeded: Promise<void> | null = null;
+
+/**
+ * The browser overlay only shows Drizzle's generic "Failed query: …" wrapper.
+ * Log the real root cause + an actionable hint to the dev-server terminal so
+ * database misconfiguration is diagnosable without digging into error.cause.
+ */
+function logDbFailure(err: unknown): void {
+  if (err && typeof err === "object") {
+    if (loggedFailures.has(err)) return;
+    loggedFailures.add(err);
+  }
+  const root = rootCauseOf(err);
+  const url = process.env.DATABASE_URL;
+  console.error(
+    `\n[db] Database initialization failed: ${root.message}` +
+      (root.code ? ` (code: ${root.code})` : "") +
+      (url && !url.startsWith("memory://")
+        ? `\n[db] DATABASE_URL is set (${url.replace(/\/\/([^:]+):[^@]*@/, "//$1:***@")}). ` +
+          `Check that PostgreSQL is running, the database exists, and credentials are correct. ` +
+          `Tip: set DATABASE_URL=memory:// in .env for zero-setup local development.`
+        : `\n[db] Using the embedded in-memory database (PGlite).`),
+  );
+}
 
 /**
  * Schema creation is ~90 round-trips; run it once per process instead of on
  * every page load. On failure the cache is cleared so the next request
  * retries from scratch (all statements are idempotent).
  */
+const loggedFailures = new WeakSet<object>();
+
 function ensureSchema(): Promise<void> {
   schemaReady ??= createSchemaIfNotExists().catch((err) => {
     schemaReady = null;
+    logDbFailure(err);
     throw err;
   });
   return schemaReady;
@@ -58,6 +84,7 @@ export async function seedIfEmpty(): Promise<void> {
     await runSeed();
   })().catch((err) => {
     seeded = null;
+    logDbFailure(err);
     throw err;
   });
   return seeded;
