@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { jalaliToIso, parseJalaliString, formatJalaliIso, toFaDigits } from "@/lib/format";
 import { DualDatePreview } from "./SmartPreview";
 
@@ -19,13 +19,16 @@ export default function DualDateInput({ name, defaultValue, value, onChange, lab
 
   const iso = value !== undefined ? value : isoInternal;
 
-  useEffect(() => {
-    const v = value !== undefined ? value : defaultValue;
+  // Sync from parent changes during render (no cascading effect render)
+  const [prevV, setPrevV] = useState<string | undefined>(value !== undefined ? value : defaultValue);
+  const v = value !== undefined ? value : defaultValue;
+  if (v !== prevV) {
+    setPrevV(v);
     if (v) {
       if (value === undefined) setIsoInternal(v);
       setJalali(formatJalaliIso(v, "en"));
     }
-  }, [defaultValue, value]);
+  }
 
   const setIso = (v: string) => {
     if (value === undefined) setIsoInternal(v);

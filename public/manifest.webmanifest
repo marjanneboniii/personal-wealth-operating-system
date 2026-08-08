@@ -1,20 +1,40 @@
 {
-  "name": "PWOS — سیستم‌عامل مدیریت ثروت شخصی",
-  "short_name": "PWOS",
+  "name": "سرمایه‌ی من — سیستم‌عامل ثروت شخصی",
+  "short_name": "سرمایه‌ی من",
   "description": "هسته مالی خصوصی و خودمیزبان برای مدیریت بلندمدت ثروت شخصی و خانوادگی",
   "lang": "fa",
   "dir": "rtl",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#06080c",
-  "theme_color": "#06080c",
-  "orientation": "portrait",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#0c0e12",
+  "theme_color": "#0c0e12",
+  "orientation": "any",
+  "categories": ["finance", "productivity"],
   "icons": [
     {
       "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "ثبت هزینه",
+      "url": "/new?type=expense",
+      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "تراکنش‌ها",
+      "url": "/transactions",
+      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "ارزش خالص",
+      "url": "/net-worth",
+      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ]
 }

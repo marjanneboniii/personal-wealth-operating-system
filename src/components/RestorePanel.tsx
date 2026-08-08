@@ -9,7 +9,7 @@ export default function RestorePanel() {
   const router = useRouter();
 
   return (
-    <div className="soft rounded-2xl p-3">
+    <div className="soft rounded-[var(--r-md)] p-3">
       <label className="label">بازیابی از فایل پشتیبان</label>
       <input
         type="file"
@@ -49,7 +49,7 @@ export default function RestorePanel() {
       />
       {busy && <p className="muted mt-2 text-[11px]">در حال بازیابی…</p>}
       {status && (
-        <p className="mt-2 text-[11px]" style={{ color: status.ok ? "var(--accent)" : "var(--danger)" }}>
+        <p className="mt-2 text-[11px]" style={{ color: status.ok ? "var(--brand)" : "var(--negative)" }}>
           {status.msg}
         </p>
       )}

@@ -55,8 +55,13 @@ export default function RowAction({
       </button>
       {result && (
         <span
-          className="text-[10px]"
-          style={{ color: result.ok ? "var(--accent)" : "var(--danger)" }}
+          className="badge"
+          role="status"
+          style={
+            result.ok
+              ? { background: "var(--positive-soft)", color: "var(--positive)" }
+              : { background: "var(--negative-soft)", color: "var(--negative)" }
+          }
         >
           {result.message}
         </span>

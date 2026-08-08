@@ -1,139 +1,274 @@
+import Link from "next/link";
+import { sql } from "drizzle-orm";
+import { db } from "@/db";
 import { seedIfEmpty } from "@/db/seed";
 import { getAccountBalances, getLedger } from "@/features/ledger/queries";
-import { Card, Money, PageHeader } from "@/components/ui/Card";
+import { PageHeader, Section } from "@/components/ui/Card";
+import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import { ACCOUNT_TYPE_LABELS, ENTRY_TYPE_LABELS, type AccountType, type EntryType } from "@/domain/accounting";
 import { D } from "@/domain/decimal";
-import { formatQty, getDualDate, formatMoney } from "@/lib/format";
-import { db } from "@/db";
-import { entryFxSnapshots, installments, debts } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { formatJalaliIso, formatMoney, formatQty } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
+import { eq, inArray } from "drizzle-orm";
+import { debts, entryFxSnapshots, installments } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
+function shortId(id: string) {
+  return "#" + id.replace(/-/g, "").slice(0, 6).toUpperCase();
+}
+
 export default async function LedgerPage() {
   await seedIfEmpty();
-  const [entries, balances, fxCurrent] = await Promise.all([getLedger(80), getAccountBalances(), getLatestUsdIrtRate()]);
+  const [entries, balances, fx, integrity] = await Promise.all([
+    getLedger(60),
+    getAccountBalances(),
+    getLatestUsdIrtRate(),
+    // The register certifies itself: live balance check
+    db.execute(sql`
+      select count(*)::text as bad, (select count(*) from journal_entries)::text as total
+      from (
+        select je.id from journal_entries je
+        join postings p on p.entry_id = je.id
+        group by je.id having abs(sum(p.base_value)) > 0.000000001
+      ) x
+    `),
+  ]);
 
-  // Fetch FX snapshots for these entries — historical immutability display
+  const bad = Number((integrity.rows[0] as { bad?: string } | undefined)?.bad ?? 0);
+  const totalEntries = Number((integrity.rows[0] as { total?: string } | undefined)?.total ?? 0);
+
   const entryIds = entries.map((e) => e.id);
-  const fxRows = entryIds.length
-    ? await db.select().from(entryFxSnapshots).where(inArray(entryFxSnapshots.entryId, entryIds))
-    : [];
+  const [fxRows, linkedInsts] = entryIds.length
+    ? await Promise.all([
+        db.select().from(entryFxSnapshots).where(inArray(entryFxSnapshots.entryId, entryIds)),
+        db
+          .select({ entryId: installments.paidEntryId, seq: installments.seq, title: debts.title, creditor: debts.creditor })
+          .from(installments)
+          .innerJoin(debts, eq(debts.id, installments.debtId))
+          .where(inArray(installments.paidEntryId, entryIds)),
+      ])
+    : [[], []];
   const fxByEntry = new Map(fxRows.map((r) => [r.entryId, r]));
-
-  // Fetch installment linkage for reference display
-  const linkedInsts = entryIds.length
-    ? await db
-        .select({ entryId: installments.paidEntryId, seq: installments.seq, title: debts.title, creditor: debts.creditor })
-        .from(installments)
-        .innerJoin(debts, eq(debts.id, installments.debtId))
-        .where(inArray(installments.paidEntryId, entryIds))
-    : [];
   const instByEntry = new Map(linkedInsts.filter((r) => r.entryId).map((r) => [r.entryId!, r]));
 
+  const activeBalances = balances.filter((b) => !D(b.baseValue).isZero());
+  const totalDebit = activeBalances.filter((b) => D(b.baseValue).gt(0)).reduce((s, b) => s + Number(b.baseValue), 0);
+  const totalCredit = activeBalances.filter((b) => D(b.baseValue).lt(0)).reduce((s, b) => s + Math.abs(Number(b.baseValue)), 0);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <PageHeader
-        title="دفترکل (General Ledger)"
-        action={<RowAction kind="integrity" label="بررسی یکپارچگی" />}
+        title="دفترکل"
+        subtitle="مرجع رسمی و تغییرناپذیر حسابداری — دقیقاً چه چیزی در سوابق ثبت شده است؟ هر سند حداقل دو ردیف دارد و مجموع آن صفر است."
+        action={
+          <Link href="/audit" className="btn btn-soft">
+            <Icon name="audit" size={16} />
+            گزارش حسابرسی کامل
+          </Link>
+        }
       />
 
-      <Card title="تراز آزمایشی (Trial Balance)">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead className="muted">
-              <tr className="border-b" style={{ borderColor: "var(--line)" }}>
-                <th className="py-2 font-normal">کد</th>
-                <th className="py-2 font-normal">حساب</th>
-                <th className="py-2 font-normal">نوع</th>
-                <th className="py-2 font-normal">مقدار</th>
-                <th className="py-2 font-normal">ارزش پایه</th>
+      {/* Register certification strip */}
+      <div
+        className="rise flex flex-wrap items-center gap-x-5 gap-y-2 border-y py-3 text-[12px]"
+        style={{ borderColor: "var(--border)" }}
+        role="status"
+      >
+        <span className="flex items-center gap-2 font-semibold" style={{ color: bad ? "var(--negative)" : "var(--positive)" }}>
+          <Icon name={bad ? "xcircle" : "check-circle"} size={16} />
+          {bad ? `${bad} سند نامتوازن` : "دفترکل تراز است"}
+        </span>
+        <span className="muted num">{totalEntries} سند ثبت‌شده</span>
+        <span className="muted">اصلاح فقط با سند معکوس — حذف و ویرایش ممنوع</span>
+        <span className="muted mr-auto hidden sm:block">مانده‌ها هرگز ذخیره نمی‌شوند؛ همیشه محاسبه می‌شوند</span>
+      </div>
+
+      {/* ── Trial balance ── */}
+      <Section title="تراز آزمایشی" hint="مانده هر حساب، مشتق مستقیم از مجموع ردیف‌ها">
+        <div className="card overflow-x-auto">
+          <table className="table">
+            <thead>
+              <tr>
+                <th className="w-14">کد</th>
+                <th>حساب</th>
+                <th>نوع</th>
+                <th className="td-num">مقدار</th>
+                <th className="td-num">بدهکار</th>
+                <th className="td-num">بستانکار</th>
               </tr>
             </thead>
             <tbody>
-              {balances
-                .filter((b) => !D(b.baseValue).isZero())
-                .map((b) => (
-                  <tr key={b.accountId} className="border-b last:border-0" style={{ borderColor: "var(--line)" }}>
-                    <td className="num py-2.5 opacity-60" dir="ltr">{b.code}</td>
-                    <td className="py-2.5">{b.name}</td>
-                    <td className="py-2.5"><span className="chip">{ACCOUNT_TYPE_LABELS[b.type as AccountType]}</span></td>
-                    <td className="num py-2.5" dir="ltr">{formatQty(b.quantity, b.assetDecimals)} {b.symbol ?? ""}</td>
-                    <td className="py-2.5"><Money value={b.baseValue} tone /><div className="num text-[10px]" dir="rtl">{formatMoney(D(b.baseValue).mul(fxCurrent.rate).toFixed(0), "IRT")}</div></td>
+              {activeBalances.map((b) => {
+                const v = Number(b.baseValue);
+                return (
+                  <tr key={b.accountId}>
+                    <td className="num muted" dir="ltr">
+                      {b.code}
+                    </td>
+                    <td className="font-medium">
+                      {b.name}
+                      {b.walletName && <span className="muted mr-1.5 text-[10px]">· {b.walletName}</span>}
+                    </td>
+                    <td>
+                      <span className="badge badge-neutral">{ACCOUNT_TYPE_LABELS[b.type as AccountType]}</span>
+                    </td>
+                    <td className="td-num" dir="ltr">
+                      {formatQty(b.quantity, b.assetDecimals)} {b.symbol ?? ""}
+                    </td>
+                    <td className="td-num font-semibold" dir="ltr">
+                      {v > 0 ? formatMoney(v) : "—"}
+                    </td>
+                    <td className="td-num font-semibold" dir="ltr">
+                      {v < 0 ? formatMoney(Math.abs(v)) : "—"}
+                    </td>
                   </tr>
-                ))}
+                );
+              })}
+              <tr style={{ background: "var(--sunken)" }}>
+                <td colSpan={4} className="text-[12px] font-bold">
+                  جمع تراز آزمایشی
+                </td>
+                <td className="td-num text-[12px] font-bold" dir="ltr">
+                  {formatMoney(totalDebit)}
+                </td>
+                <td className="td-num text-[12px] font-bold" dir="ltr">
+                  {formatMoney(totalCredit)}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
-      </Card>
+      </Section>
 
-      <Card title="اسناد روزنامه — نمایش دوگانه تاریخ و مبلغ (فقط نمایشی)">
-        <ul className="space-y-3">
+      {/* ── Journal register ── */}
+      <Section title="اسناد روزنامه" hint="۶۰ سند اخیر — برای باز شدن هر سند روی آن بزنید">
+        <div className="space-y-1.5">
           {entries.map((e) => {
-            const fx = fxByEntry.get(e.id);
+            const fxr = fxByEntry.get(e.id);
             const linked = instByEntry.get(e.id);
-            const dual = getDualDate(e.entryDate);
+            const isVoid = e.status === "void";
+            const sumIn = e.lines.filter((l) => Number(l.baseValue) > 0).reduce((s, l) => s + Number(l.baseValue), 0);
             return (
-              <li key={e.id} className="soft rounded-2xl p-3 border" style={{ borderColor: fx ? "var(--line)" : "transparent" }}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-medium">
+              <details key={e.id} className="card group overflow-hidden">
+                <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-2.5 marker:hidden [&::-webkit-details-marker]:hidden">
+                  <span className="num muted hidden w-16 shrink-0 text-[10px] sm:block" dir="ltr">
+                    {shortId(e.id)}
+                  </span>
+                  <span className="muted hidden w-[86px] shrink-0 flex-col leading-tight sm:flex">
+                    <span className="num text-[11px] font-medium" style={{ color: "var(--text-2)" }}>
+                      {formatJalaliIso(e.entryDate)}
+                    </span>
+                    <span className="num text-[9px]">{e.entryDate}</span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-[12.5px] font-medium ${isVoid ? "line-through" : ""}`}>
                       {e.description}
-                      {e.status === "void" && <span className="chip mr-2" style={{ color: "var(--danger)" }}>ابطال‌شده</span>}
-                      {linked && <span className="chip mr-2" style={{ color: "var(--accent)" }}>مرتبط با قسط {linked.seq} — {linked.title}</span>}
-                    </div>
-                    <div className="muted mt-1 text-[11px] flex flex-wrap gap-2">
-                      <span className="chip">{ENTRY_TYPE_LABELS[e.type as EntryType] ?? e.type}</span>
-                      <span>شمسی: <strong dir="rtl">{dual.jalali}</strong></span>
-                      <span>میلادی: <strong dir="auto" className="num">{dual.gregorian}</strong></span>
-                      <span>· منبع: {e.source === "plan" ? "اجرای برنامه" : e.source === "import" ? "درون‌ریزی" : "دستی"}</span>
-                    </div>
-                    {fx ? (
-                      <div className="muted mt-1 text-[10px] leading-5">
-                        <span>مبلغ تاریخی: <strong dir="rtl" className="num" style={{ color: "var(--fg)" }}>{formatMoney(fx.irtAmount, "IRT")}</strong></span>
-                        <span className="mx-1">≈</span>
-                        <span dir="ltr" className="num" style={{ color: "var(--accent)" }}>{formatMoney(fx.usdAmount, "USD")}</span>
-                        <span className="mx-1">· نرخ دلار زمان ثبت (Freeze): <strong dir="ltr" className="num">{formatMoney(fx.fxRate, "IRT")}</strong> ≈ $1</span>
-                        <span>· تاریخ نرخ: <span dir="auto" className="num">{fx.rateDate}</span> · منبع: {fx.rateSource}</span>
-                      </div>
-                    ) : (
-                      <div className="muted text-[10px]">بدون اسنپ‌شات FX (سند قدیمی یا بدون مبلغ IRT) — مبلغ پایه: <span dir="ltr" className="num">{e.lines[0] ? formatMoney(e.lines[0].baseValue, "USD") : "—"}</span></div>
+                    </span>
+                    <span className="muted mt-0.5 flex items-center gap-1.5 text-[10px] sm:hidden">
+                      {formatJalaliIso(e.entryDate)} · {shortId(e.id)}
+                    </span>
+                  </span>
+                  <span className="badge badge-neutral hidden shrink-0 sm:inline-flex">{ENTRY_TYPE_LABELS[e.type as EntryType] ?? e.type}</span>
+                  {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
+                  <span className="num w-24 shrink-0 text-left text-[12.5px] font-bold" dir="ltr">
+                    {formatMoney(sumIn)}
+                  </span>
+                  <span className="muted shrink-0 transition-transform group-open:rotate-180">
+                    <Icon name="chevronDown" size={14} />
+                  </span>
+                </summary>
+
+                <div className="border-t px-3.5 py-3 sm:px-4" style={{ borderColor: "var(--border)", background: "var(--sunken)" }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>حساب</th>
+                        <th className="td-num">مقدار</th>
+                        <th className="td-num">بدهکار</th>
+                        <th className="td-num">بستانکار</th>
+                        <th>یادداشت</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {e.lines.map((l, i) => {
+                        const v = Number(l.baseValue);
+                        return (
+                          <tr key={i}>
+                            <td className="pr-3 font-medium">{l.account}</td>
+                            <td className="td-num" dir="ltr">
+                              {formatQty(l.quantity, l.decimals, "en")} {l.symbol}
+                            </td>
+                            <td className="td-num font-semibold" dir="ltr" style={{ color: v > 0 ? "var(--positive)" : undefined }}>
+                              {v > 0 ? formatMoney(v) : ""}
+                            </td>
+                            <td className="td-num font-semibold" dir="ltr" style={{ color: v < 0 ? "var(--negative)" : undefined }}>
+                              {v < 0 ? formatMoney(Math.abs(v)) : ""}
+                            </td>
+                            <td className="muted text-[10.5px]">{l.memo ?? ""}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr style={{ background: "var(--surface)" }}>
+                        <td colSpan={2} className="muted text-[10.5px]">
+                          جمع سند (باید صفر باشد)
+                        </td>
+                        <td className="td-num text-[11px] font-bold" dir="ltr">
+                          {formatMoney(e.lines.filter((l) => Number(l.baseValue) > 0).reduce((s, l) => s + Number(l.baseValue), 0))}
+                        </td>
+                        <td className="td-num text-[11px] font-bold" dir="ltr">
+                          {formatMoney(Math.abs(e.lines.filter((l) => Number(l.baseValue) < 0).reduce((s, l) => s + Number(l.baseValue), 0)))}
+                        </td>
+                        <td className="text-[10.5px]" style={{ color: "var(--positive)" }}>
+                          <Icon name="check" size={13} />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[10.5px]">
+                    <span className="muted">
+                      منبع: {e.source === "plan" ? "اجرای برنامه" : e.source === "import" ? "درون‌ریزی" : "دستی"}
+                    </span>
+                    {fxr && (
+                      <span className="muted">
+                        فریز تاریخی: <b className="num">{formatMoney(fxr.irtAmount, "IRT")}</b> ≈{" "}
+                        <b className="num" dir="ltr">
+                          {formatMoney(fxr.usdAmount)}
+                        </b>{" "}
+                        · نرخ <span className="num" dir="ltr">{formatMoney(fxr.fxRate, "IRT")}</span> ({fxr.rateSource}، {fxr.rateDate})
+                      </span>
+                    )}
+                    {linked && (
+                      <span style={{ color: "var(--positive)" }}>
+                        مرتبط با قسط {linked.seq} «{linked.title}» — {linked.creditor}
+                      </span>
+                    )}
+                    {!isVoid && (
+                      <span className="mr-auto">
+                        <RowAction
+                          kind="reverse"
+                          id={e.id}
+                          label="ابطال با سند معکوس"
+                          confirmText="سند معکوس ثبت شود؟ سند اصلی در تاریخچه باقی می‌ماند و به «ابطال‌شده» می‌رود."
+                        />
+                      </span>
                     )}
                   </div>
-                  {e.status === "posted" && (
-                    <RowAction
-                      kind="reverse"
-                      id={e.id}
-                      label="ابطال با سند معکوس"
-                      confirmText="سند معکوس ثبت شود؟ سند اصلی حذف نمی‌شود."
-                    />
-                  )}
                 </div>
-                <table className="mt-2 w-full text-right text-[11px]">
-                  <tbody>
-                    {e.lines.map((l, idx) => (
-                      <tr key={idx}>
-                        <td className="py-1">{l.account}</td>
-                        <td className="muted py-1 text-[10px]">{ACCOUNT_TYPE_LABELS[l.accountType as AccountType]}</td>
-                        <td className="num py-1" dir="ltr">{formatQty(l.quantity, l.decimals)} {l.symbol}</td>
-                        <td className="num py-1 text-left" dir="ltr"><Money value={l.baseValue} tone /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {linked && (
-                  <div className="muted mt-2 text-[10px]">
-                    از طریق بدهی/قسط «{linked.title} — {linked.creditor}» ایجاد شده · قابل مشاهده از هر دو سمت (بدهی → سند، سند → بدهی)
-                  </div>
-                )}
-                <div className="muted mt-1 text-[10px]">این اطلاعات فقط نمایشی هستند و از داده‌های ثبت‌شده موجود خوانده می‌شوند؛ هیچ منطق حسابی تغییر نکرده است.</div>
-              </li>
+              </details>
             );
           })}
-        </ul>
-      </Card>
+        </div>
+        <p className="muted mt-3 text-[10.5px]">
+          نمایش ۶۰ سند اخیر · برای کار با تراکنش‌ها به زبان انسانی، به{" "}
+          <Link href="/transactions" className="underline underline-offset-2" style={{ color: "var(--brand)" }}>
+            تراکنش‌ها
+          </Link>{" "}
+          بروید — دفترکل مرجع حسابداری است.
+        </p>
+      </Section>
     </div>
   );
 }

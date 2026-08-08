@@ -7,8 +7,10 @@ import { db } from "@/db";
 import {
   accounts,
   assets,
+  budgets,
   debts,
   entryFxSnapshots,
+  entryReviews,
   events,
   goals,
   installments,
@@ -50,8 +52,83 @@ export async function createWalletAction(input: { name: string; kind: string; no
 }
 
 function refreshAll() {
-  for (const p of ["/", "/portfolio", "/ledger", "/planning", "/debts", "/reports", "/accounts"]) {
+  for (const p of [
+    "/",
+    "/portfolio",
+    "/crypto",
+    "/net-worth",
+    "/ledger",
+    "/transactions",
+    "/cash-flow",
+    "/planning",
+    "/budgets",
+    "/goals",
+    "/debts",
+    "/installments",
+    "/reports",
+    "/audit",
+    "/accounts",
+  ]) {
     revalidatePath(p);
+  }
+}
+
+/** A human reviewed a record — metadata only, ledger stays immutable. */
+export async function markReviewedAction(entryId: string, reviewed: boolean): Promise<ActionResult> {
+  try {
+    if (reviewed) {
+      await db.insert(entryReviews).values({ entryId }).onConflictDoNothing();
+    } else {
+      await db.delete(entryReviews).where(eq(entryReviews.entryId, entryId));
+    }
+    revalidatePath("/transactions");
+    revalidatePath("/audit");
+    return { ok: true, message: reviewed ? "رکورد تأیید شد." : "رکورد به حالت «بررسی‌نشده» برگشت." };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطا" };
+  }
+}
+
+export async function markManyReviewedAction(entryIds: string[]): Promise<ActionResult> {
+  try {
+    if (entryIds.length) {
+      await db
+        .insert(entryReviews)
+        .values(entryIds.map((entryId) => ({ entryId })))
+        .onConflictDoNothing();
+    }
+    revalidatePath("/transactions");
+    revalidatePath("/audit");
+    return { ok: true, message: `${entryIds.length} رکورد تأیید شد.` };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطا" };
+  }
+}
+
+const budgetSchema = z.object({
+  name: z.string().min(2, "نام بودجه را وارد کنید"),
+  accountId: z.string().uuid("حساب هزینه را انتخاب کنید"),
+  amountBase: z.string().min(1, "مبلغ بودجه را وارد کنید"),
+  periodStart: z.string().min(8),
+  periodEnd: z.string().min(8),
+});
+
+export async function createBudgetAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  try {
+    const v = budgetSchema.parse(Object.fromEntries(fd) as Record<string, string>);
+    if (v.periodEnd < v.periodStart) throw new Error("پایان دوره باید بعد از شروع آن باشد");
+    await db.insert(budgets).values({
+      name: v.name,
+      accountId: v.accountId,
+      amountBase: D(v.amountBase).toString(),
+      periodStart: v.periodStart,
+      periodEnd: v.periodEnd,
+    });
+    refreshAll();
+    return { ok: true, message: "بودجه ایجاد شد." };
+  } catch (e) {
+    const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطا";
+    return { ok: false, message: msg };
   }
 }
 
@@ -215,6 +292,9 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         rateSource: fxSnap.source,
         rateDate: fxSnap.effectiveDate,
       });
+
+      // Manual entries are reviewed by construction — a human just made them.
+      await tx.insert(entryReviews).values({ entryId: entry.id }).onConflictDoNothing();
 
       // Debt / Installment linkage — update status within same transaction (Transactional Integrity)
       if (linkedInst) {
@@ -428,7 +508,7 @@ export async function integrityCheckAction(): Promise<ActionResult> {
   `);
   const count = bad.rows.length;
   return count === 0
-    ? { ok: true, message: "بررسی یکپارچگی: همه اسناد دفترکل تراز هستند ✅" }
+    ? { ok: true, message: "بررسی یکپارچگی: همه اسناد دفترکل تراز هستند." }
     : { ok: false, message: `${count} سند نامتوازن یافت شد!` };
 }
 

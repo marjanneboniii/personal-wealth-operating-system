@@ -147,7 +147,7 @@ export type LedgerRow = {
   description: string;
   status: string;
   source: string;
-  lines: { account: string; accountType: string; symbol: string; quantity: string; baseValue: string; decimals: number }[];
+  lines: { account: string; accountType: string; symbol: string; quantity: string; baseValue: string; decimals: number; memo: string | null }[];
 };
 
 export async function getLedger(limit = 60): Promise<LedgerRow[]> {
@@ -161,7 +161,8 @@ export async function getLedger(limit = 60): Promise<LedgerRow[]> {
              'symbol', ast.symbol,
              'decimals', ast.decimals,
              'quantity', p.quantity::text,
-             'baseValue', p.base_value::text
+             'baseValue', p.base_value::text,
+             'memo', p.memo
            ) order by p.base_value desc) filter (where p.id is not null), '[]') as lines
     from journal_entries je
       left join postings p on p.entry_id = je.id
@@ -220,6 +221,151 @@ export async function getCashflow(months = 6) {
       and je.entry_date >= (current_date - (${months} || ' months')::interval)
     group by 1 order by 1
   `);
+}
+
+/* ------------------------------------------------------------------ */
+/* Human Finance Layer — Transactions                                  */
+/* Same ledger truth underneath, filtered/ordered for humans.          */
+/* ------------------------------------------------------------------ */
+
+export type TxFilter = {
+  limit?: number;
+  type?: string; // income|expense|transfer|buy|sell|adjustment|installment|debt|opening
+  q?: string;
+  accountId?: string;
+  from?: string; // ISO date
+  to?: string; // ISO date
+  review?: "reviewed" | "unreviewed";
+  sort?: "new" | "old" | "amount";
+};
+
+export type TxRow = LedgerRow & { reviewed: boolean };
+
+export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
+  const { limit = 120, type, q, accountId, from, to } = filter;
+  const orderBy =
+    filter.sort === "old"
+      ? sql`order by je.entry_date asc, je.created_at asc`
+      : filter.sort === "amount"
+        ? sql`order by (select coalesce(sum(p3.base_value), 0) from postings p3 where p3.entry_id = je.id and p3.base_value > 0) desc`
+        : sql`order by je.entry_date desc, je.created_at desc`;
+  return rows<TxRow>(sql`
+    select je.id,
+           je.entry_date::text as "entryDate",
+           je.type, je.description, je.status, je.source,
+           coalesce(json_agg(json_build_object(
+             'account', a.name,
+             'accountType', a.type,
+             'symbol', ast.symbol,
+             'decimals', ast.decimals,
+             'quantity', p.quantity::text,
+             'baseValue', p.base_value::text,
+             'memo', p.memo
+           ) order by p.base_value desc) filter (where p.id is not null), '[]') as lines,
+           (er.entry_id is not null) as reviewed
+    from journal_entries je
+      left join postings p on p.entry_id = je.id
+      left join accounts a on a.id = p.account_id
+      left join assets ast on ast.id = p.asset_id
+      left join entry_reviews er on er.entry_id = je.id
+    where 1 = 1
+      ${type ? sql`and je.type = ${type}` : sql``}
+      ${from ? sql`and je.entry_date >= ${from}` : sql``}
+      ${to ? sql`and je.entry_date <= ${to}` : sql``}
+      ${q ? sql`and (je.description ilike ${"%" + q + "%"} or je.reference ilike ${"%" + q + "%"})` : sql``}
+      ${
+        accountId
+          ? sql`and exists (select 1 from postings p2 where p2.entry_id = je.id and p2.account_id = ${accountId})`
+          : sql``
+      }
+      ${filter.review === "reviewed" ? sql`and er.entry_id is not null` : sql``}
+      ${filter.review === "unreviewed" ? sql`and er.entry_id is null` : sql``}
+    group by je.id, er.entry_id
+    ${orderBy}
+    limit ${limit}
+  `);
+}
+
+export async function countUnreviewed(): Promise<number> {
+  const res = await rows<{ c: string }>(sql`
+    select count(*)::text as c
+    from journal_entries je
+    where je.source = 'import' and je.status = 'posted'
+      and not exists (select 1 from entry_reviews er where er.entry_id = je.id)
+  `);
+  return Number(res[0]?.c ?? 0);
+}
+
+/** Expense/income category breakdown for the Cash Flow page (posted, last N months). */
+export async function getFlowByAccount(accountType: "income" | "expense", months = 6) {
+  return rows<{ accountId: string; code: string; name: string; total: string; months: number }>(sql`
+    select a.id as "accountId", a.code, a.name,
+           coalesce(sum(case when ${accountType} = 'income' then -p.base_value else p.base_value end), 0)::text as total,
+           ${months}::int as months
+    from postings p
+      join journal_entries je on je.id = p.entry_id
+      join accounts a on a.id = p.account_id
+    where a.type = ${accountType}
+      and je.status = 'posted'
+      and je.entry_date >= (current_date - (${months} || ' months')::interval)
+    group by a.id, a.code, a.name
+    having abs(coalesce(sum(p.base_value), 0)) > 0.000000001
+    order by abs(sum(p.base_value)) desc
+  `);
+}
+
+/** Net (income − expense) inside an arbitrary window — for Net Worth attribution. */
+export async function getNetSavingsBetween(from: string, to: string): Promise<string> {
+  const res = await rows<{ net: string }>(sql`
+    select coalesce(sum(
+      case when a.type = 'income' then -p.base_value
+           when a.type = 'expense' then -p.base_value
+           else 0 end), 0)::text as net
+    from journal_entries je
+      join postings p on p.entry_id = je.id
+      join accounts a on a.id = p.account_id
+    where je.status = 'posted' and a.type in ('income', 'expense')
+      and je.entry_date >= ${from} and je.entry_date <= ${to}
+  `);
+  return res[0]?.net ?? "0";
+}
+
+/** Snapshot nearest to (and not after) a date — Net Worth range baselines. */
+export async function getSnapshotAsOf(isoDate: string) {
+  const res = await rows<{ asOf: string; netWorth: string; totalAssets: string; totalLiabilities: string }>(sql`
+    select as_of::text as "asOf", net_worth::text as "netWorth",
+           total_assets::text as "totalAssets", total_liabilities::text as "totalLiabilities"
+    from snapshots
+    where as_of <= ${isoDate}
+    order by as_of desc
+    limit 1
+  `);
+  return res[0] ?? null;
+}
+
+/** Earliest snapshot on/after a date — used when no prior baseline exists. */
+export async function getFirstSnapshotAfter(isoDate: string) {
+  const res = await rows<{ asOf: string; netWorth: string; totalAssets: string; totalLiabilities: string }>(sql`
+    select as_of::text as "asOf", net_worth::text as "netWorth",
+           total_assets::text as "totalAssets", total_liabilities::text as "totalLiabilities"
+    from snapshots
+    where as_of >= ${isoDate}
+    order by as_of asc
+    limit 1
+  `);
+  return res[0] ?? null;
+}
+
+/** Liability balance (derived from ledger) as derived total — no dates stored; snapshots give history. */
+export async function getLiabilitiesTotal(): Promise<string> {
+  const res = await rows<{ total: string }>(sql`
+    select coalesce(-sum(p.base_value) filter (where a.type = 'liability'), 0)::text as total
+    from postings p
+      join journal_entries je on je.id = p.entry_id
+      join accounts a on a.id = p.account_id
+    where je.status = 'posted'
+  `);
+  return res[0]?.total ?? "0";
 }
 
 /** Accounting Query Service: Exposes capital flow records for analytics adapter */

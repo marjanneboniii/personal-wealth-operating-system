@@ -2,115 +2,374 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import Icon, { type IconName } from "@/components/ui/Icon";
+import Sheet from "@/components/ui/Sheet";
+import CommandPalette from "@/components/ui/CommandPalette";
+import { NAV_GROUPS, SECONDARY_ITEMS, MOBILE_TABS, QUICK_ACTIONS, isNavActive, type NavItem } from "@/lib/nav";
 
-const NAV = [
-  { href: "/", label: "داشبورد", icon: "◎" },
-  { href: "/portfolio", label: "سبد دارایی", icon: "◈" },
-  { href: "/analytics", label: "تحلیل ثروت", icon: "📊" },
-  { href: "/ledger", label: "دفترکل", icon: "≡" },
-  { href: "/planning", label: "برنامه‌ریزی", icon: "◷" },
-  { href: "/reports", label: "گزارش‌ها", icon: "▤" },
-];
+/* ───────────────────────── Theme ───────────────────────── */
 
-const MORE = [
-  { href: "/debts", label: "بدهی و اقساط", icon: "⚖" },
-  { href: "/accounts", label: "حساب‌ها و کیف‌پول‌ها", icon: "▣" },
-  { href: "/market-data", label: "قیمت‌های بازار", icon: "📈" },
-  { href: "/settings", label: "تنظیمات و پشتیبان", icon: "⚙" },
-];
+function subscribeTheme(cb: () => void) {
+  const obs = new MutationObserver(cb);
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  return () => obs.disconnect();
+}
 
 function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
+  const dark = useSyncExternalStore(
+    subscribeTheme,
+    () => document.documentElement.classList.contains("dark"),
+    () => false,
+  );
   return (
     <button
       aria-label="تغییر حالت روشن و تاریک"
-      className="btn btn-ghost !min-h-10 !px-3 !py-2"
+      className="icon-btn"
       onClick={() => {
         const next = !dark;
-        setDark(next);
         document.documentElement.classList.toggle("dark", next);
         localStorage.setItem("pwos-theme", next ? "dark" : "light");
       }}
     >
-      <span className="text-base">{dark ? "☀" : "☾"}</span>
+      <Icon name={dark ? "sun" : "moon"} size={18} />
     </button>
   );
 }
 
+/* ───────────────────── Connectivity ────────────────────── */
+
+function subscribeOnline(cb: () => void) {
+  window.addEventListener("online", cb);
+  window.addEventListener("offline", cb);
+  return () => {
+    window.removeEventListener("online", cb);
+    window.removeEventListener("offline", cb);
+  };
+}
+
+function useOnline() {
+  return useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
+}
+
+/* ─────────────────── Collapsed sidebar pref ────────────── */
+
+const NAV_EVENT = "pwos-nav-change";
+
+function subscribeNav(cb: () => void) {
+  window.addEventListener(NAV_EVENT, cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener(NAV_EVENT, cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+function useNavCollapsed() {
+  return useSyncExternalStore(
+    subscribeNav,
+    () => localStorage.getItem("pwos-nav") === "collapsed",
+    () => false,
+  );
+}
+
+/* ─────────────────── Desktop nav link ──────────────────── */
+
+function SideLink({ item, active, collapsed }: { item: NavItem; active: boolean; collapsed: boolean }) {
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      data-tip={item.label}
+      className={`nav-item nav-tip ${active ? "nav-active" : ""} ${collapsed ? "justify-center !px-0 !py-2.5" : ""}`}
+    >
+      <Icon name={item.icon} size={19} className="shrink-0" />
+      {!collapsed && <span className="truncate">{item.label}</span>}
+    </Link>
+  );
+}
+
+/* ─────────────────────── Mobile More ───────────────────── */
+
+function MoreSheet({ open, onClose, pathname }: { open: boolean; onClose: () => void; pathname: string }) {
+  return (
+    <Sheet open={open} onClose={onClose} title="بیشتر">
+      <nav className="px-2 pb-4 pt-1" aria-label="همه بخش‌ها">
+        <div className="nav-group-label">اقدامات سریع</div>
+        <div className="mb-1 grid grid-cols-3 gap-1.5 px-2">
+          {QUICK_ACTIONS.slice(0, 3).map((a) => (
+            <Link
+              key={a.href}
+              href={a.href}
+              onClick={onClose}
+              className="soft flex flex-col items-center gap-1.5 rounded-[var(--r-md)] px-2 py-3 text-[11px] font-medium"
+              style={{ color: "var(--text-2)" }}
+            >
+              <span style={{ color: "var(--brand)" }}>
+                <Icon name={a.icon} size={17} />
+              </span>
+              {a.label}
+            </Link>
+          ))}
+        </div>
+        {NAV_GROUPS.map((g) => (
+          <div key={g.id}>
+            <div className="nav-group-label">{g.label}</div>
+            <ul>
+              {g.items.map((n) => {
+                const active = isNavActive(pathname, n.href);
+                return (
+                  <li key={n.href}>
+                    <Link
+                      href={n.href}
+                      onClick={onClose}
+                      className="flex items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
+                      style={
+                        active
+                          ? { background: "var(--brand-soft)", color: "var(--brand)", fontWeight: 600 }
+                          : { color: "var(--text-2)" }
+                      }
+                    >
+                      <Icon name={n.icon} size={18} />
+                      <span className="flex-1">{n.label}</span>
+                      {active && <Icon name="check" size={15} />}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+        <div className="nav-group-label">سیستم</div>
+        <ul>
+          {SECONDARY_ITEMS.map((n) => (
+            <li key={n.href}>
+              <Link
+                href={n.href}
+                onClick={onClose}
+                className="flex items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
+                style={{ color: "var(--text-2)" }}
+              >
+                <Icon name={n.icon} size={18} />
+                {n.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </Sheet>
+  );
+}
+
+/* ───────────────────────── Shell ───────────────────────── */
+
 export default function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
-  const all = [...NAV, ...MORE];
+  const collapsed = useNavCollapsed();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const online = useOnline();
+
+  // Global keyboard: ⌘K / Ctrl+K → command palette
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // PWA service worker (production only — dev relies on HMR)
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
+
+  const toggleCollapse = () => {
+    localStorage.setItem("pwos-nav", collapsed ? "expanded" : "collapsed");
+    window.dispatchEvent(new CustomEvent(NAV_EVENT));
+  };
+
+  const moreActive = !MOBILE_TABS.some((t) =>
+    t.match ? t.match.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m))) : false,
+  );
 
   return (
-    <div className="min-h-dvh">
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex fixed inset-y-0 right-0 w-64 flex-col gap-1 border-l p-4" style={{ background: "var(--bg-elev)" }}>
-        <div className="mb-6 px-2 pt-2">
-          <div className="text-lg font-bold tracking-tight">PWOS</div>
-          <div className="muted text-[11px]">سیستم‌عامل ثروت شخصی</div>
+    <div
+      className="min-h-dvh"
+      style={{ ["--nav-w" as never]: collapsed ? "76px" : "264px" }}
+    >
+      {/* Offline banner — trust first: never lose context */}
+      {!online && (
+        <div
+          role="status"
+          className="fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-2 px-4 py-1.5 text-[11.5px] font-medium"
+          style={{ background: "var(--warning-soft)", color: "var(--warning)" }}
+        >
+          <Icon name="alert" size={14} />
+          اتصال اینترنت قطع است — داده‌های ذخیره‌شده نمایش داده می‌شود و تغییرات پس از اتصال ثبت می‌شوند.
         </div>
-        {all.map((n) => (
-          <Link
-            key={n.href}
-            href={n.href}
-            className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition"
-            style={
-              isActive(n.href)
-                ? { background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 600 }
-                : undefined
-            }
+      )}
+
+      {/* ───────────── Desktop sidebar ───────────── */}
+      <aside
+        className={`fixed inset-y-0 right-0 z-40 hidden flex-col border-l transition-[width] duration-200 lg:flex ${collapsed ? "nav-collapsed w-[76px]" : "w-[264px]"}`}
+        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+        aria-label="ناوبری اصلی"
+      >
+        {/* Brand + collapse */}
+        <div className={`flex items-center gap-2 px-4 pb-2 pt-4 ${collapsed ? "justify-center !px-2" : "justify-between"}`}>
+          {!(collapsed) && (
+            <Link href="/" className="flex items-center gap-2.5 rounded-[10px] px-1 py-1">
+              <span
+                className="flex h-7 w-7 items-center justify-center rounded-[9px] text-[13px] font-bold"
+                style={{ background: "var(--brand)", color: "var(--on-brand)" }}
+              >
+                ع
+              </span>
+              <span className="leading-tight">
+                <span className="block text-[14px] font-bold tracking-tight">سرمایه‌ی من</span>
+                <span className="muted block text-[10px]">سیستم‌عامل ثروت شخصی</span>
+              </span>
+            </Link>
+          )}
+          <button
+            onClick={toggleCollapse}
+            className="icon-btn !min-h-8 !min-w-8"
+            aria-label={collapsed ? "باز کردن ناوبری" : "جمع کردن ناوبری"}
           >
-            <span className="w-5 text-center opacity-70">{n.icon}</span>
-            {n.label}
-          </Link>
-        ))}
-        <div className="mt-auto flex items-center justify-between px-2">
-          <ThemeToggle />
-          <Link href="/new" className="btn btn-primary !min-h-10 !py-2 text-xs">
-            ثبت تراکنش
-          </Link>
+            <Icon name={collapsed ? "chevronLeft" : "chevronRight"} size={16} />
+          </button>
+        </div>
+
+        {/* Command trigger */}
+        <div className="px-3 pb-2 pt-1">
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className={`flex w-full items-center gap-2 rounded-[10px] border px-3 py-2 text-[12.5px] transition-colors ${
+              collapsed ? "justify-center !px-0" : ""
+            }`}
+            style={{ borderColor: "var(--border)", color: "var(--text-3)", background: "var(--sunken)" }}
+            aria-label="مرکز فرمان — جستجو و اقدام سریع"
+          >
+            <Icon name="search" size={15} />
+            {!(collapsed) && (
+              <>
+                <span className="flex-1 text-right">جستجو یا فرمان…</span>
+                <span className="flex gap-0.5" dir="ltr">
+                  <kbd className="kbd">⌘</kbd>
+                  <kbd className="kbd">K</kbd>
+                </span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Groups */}
+        <nav className="min-h-0 flex-1 overflow-y-auto pb-2" aria-label="بخش‌های اصلی">
+          {NAV_GROUPS.map((g) => (
+            <div key={g.id} role="group" aria-label={g.label}>
+              {!(collapsed) ? (
+                <div className="nav-group-label">{g.label}</div>
+              ) : (
+                <div className="mx-4 my-2 border-t" style={{ borderColor: "var(--border)" }} />
+              )}
+              <div className="space-y-0.5">
+                {g.items.map((n) => (
+                  <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed={collapsed} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* Bottom cluster */}
+        <div className="border-t px-1.5 py-2" style={{ borderColor: "var(--border)" }}>
+          {SECONDARY_ITEMS.map((n) => (
+            <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed={collapsed} />
+          ))}
+          <div className={`mt-1.5 flex items-center gap-1.5 px-1.5 ${collapsed ? "flex-col" : ""}`}>
+            <ThemeToggle />
+            <Link
+              href="/new"
+              className={`btn btn-primary flex-1 !text-[12.5px] ${collapsed ? "!w-11 !px-0" : ""}`}
+              aria-label="ثبت تراکنش جدید"
+            >
+              <Icon name="plus" size={16} />
+              {!(collapsed) && "ثبت تراکنش"}
+            </Link>
+          </div>
         </div>
       </aside>
 
-      {/* Mobile top bar */}
-      <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3 backdrop-blur-xl" style={{ background: "color-mix(in oklab, var(--bg) 80%, transparent)" }}>
-        <div>
-          <div className="text-base font-bold tracking-tight">PWOS</div>
-          <div className="muted text-[10px]">سیستم‌عامل ثروت شخصی</div>
-        </div>
-        <div className="flex items-center gap-2">
+      {/* ───────────── Mobile top bar ───────────── */}
+      <header
+        className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 backdrop-blur-xl lg:hidden"
+        style={{ background: "color-mix(in oklab, var(--bg) 82%, transparent)", borderBottom: "1px solid var(--border)" }}
+      >
+        <Link href="/" className="flex items-center gap-2">
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-[9px] text-[13px] font-bold"
+            style={{ background: "var(--brand)", color: "var(--on-brand)" }}
+          >
+            ع
+          </span>
+          <span className="text-[15px] font-bold tracking-tight">سرمایه‌ی من</span>
+        </Link>
+        <div className="flex items-center gap-1">
+          <button className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان">
+            <Icon name="search" size={18} />
+          </button>
           <ThemeToggle />
-          <Link href="/new" className="btn btn-primary !min-h-10 !py-2 !px-4 text-xs">
-            + ثبت
+          <Link href="/new" className="btn btn-primary !min-h-9 !px-3 !py-1.5 !text-[12px]" aria-label="ثبت تراکنش جدید">
+            <Icon name="plus" size={15} />
+            ثبت
           </Link>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-2 lg:pr-72 lg:pt-8 lg:pb-16">{children}</main>
-
-      {/* Mobile bottom nav */}
-      <nav
-        className="lg:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 gap-1 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl"
-        style={{ background: "color-mix(in oklab, var(--bg-elev) 88%, transparent)" }}
+      {/* ───────────── Content ───────────── */}
+      <main
+        id="main"
+        className="mx-auto w-full max-w-[1180px] px-4 pb-28 pt-4 transition-[padding] duration-200 sm:px-6 lg:pb-16 lg:pl-10 lg:pr-[var(--nav-w)] lg:pt-7"
       >
-        {NAV.map((n) => (
-          <Link
-            key={n.href}
-            href={n.href}
-            aria-label={n.label}
-            className="flex flex-col items-center gap-1 rounded-2xl py-1.5 text-[10px]"
-            style={isActive(n.href) ? { color: "var(--accent)", fontWeight: 600 } : { color: "var(--fg-muted)" }}
-          >
-            <span className="text-lg leading-none">{n.icon}</span>
-            {n.label}
-          </Link>
-        ))}
+        {children}
+      </main>
+
+      {/* ───────────── Mobile bottom nav ───────────── */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 lg:hidden"
+        aria-label="ناوبری اصلی موبایل"
+        style={{
+          background: "color-mix(in oklab, var(--surface) 92%, transparent)",
+          backdropFilter: "blur(16px)",
+          borderTop: "1px solid var(--border)",
+          paddingBottom: "max(0.35rem, env(safe-area-inset-bottom))",
+        }}
+      >
+        <div className="grid grid-cols-5 px-1.5 pt-1.5">
+          {MOBILE_TABS.map((t) => {
+            const active = t.match!.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m)));
+            return (
+              <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`tab-item ${active ? "tab-active" : ""}`}>
+                <Icon name={t.icon as IconName} size={21} strokeWidth={active ? 2 : 1.7} />
+                {t.label}
+              </Link>
+            );
+          })}
+          <button onClick={() => setMoreOpen(true)} aria-label="بیشتر" className={`tab-item ${moreActive ? "tab-active" : ""}`}>
+            <Icon name="more" size={21} />
+            بیشتر
+          </button>
+        </div>
       </nav>
+
+      <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }

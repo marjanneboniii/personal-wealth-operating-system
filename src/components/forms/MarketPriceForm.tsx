@@ -92,10 +92,10 @@ export default function MarketPriceForm({
 
       {state && (
         <p
-          className="rounded-2xl px-4 py-3 text-xs"
+          className="rounded-[var(--r-md)] px-4 py-3 text-xs"
           style={{
-            background: state.ok ? "var(--accent-soft)" : "rgba(225,29,72,0.12)",
-            color: state.ok ? "var(--accent)" : "var(--danger)",
+            background: state.ok ? "var(--brand-soft)" : "rgba(225,29,72,0.12)",
+            color: state.ok ? "var(--brand)" : "var(--negative)",
           }}
         >
           {state.message}

@@ -11,7 +11,7 @@ export function DualMoneyFromIrt({ irt, rate, digits = "fa" }: PropsIrt) {
     <span className="inline-flex flex-wrap items-center gap-1.5">
       <span className="num font-bold" dir="rtl">{irtLabel}</span>
       <span className="muted text-[10px]">≈</span>
-      <span className="num" dir="ltr" style={{ color: "var(--accent)" }}>{usd}</span>
+      <span className="num" dir="ltr" style={{ color: "var(--brand)" }}>{usd}</span>
       <span className="chip text-[10px]">{rateLabel}</span>
     </span>
   );

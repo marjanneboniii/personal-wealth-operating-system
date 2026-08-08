@@ -1,194 +1,143 @@
 import { seedIfEmpty } from "@/db/seed";
-import { getAccountBalances, getOpenLots, getRealizedPnl } from "@/features/ledger/queries";
+import { getOpenLots, getRealizedPnl } from "@/features/ledger/queries";
 import { getPortfolioValuation } from "@/features/portfolio/service";
-import { Card, Money, PageHeader, Stat } from "@/components/ui/Card";
+import { Alert, EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import { Donut } from "@/components/charts/Charts";
+import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D } from "@/domain/decimal";
-import { formatMoney, formatQty, getDualDate } from "@/lib/format";
+import { formatJalaliIso, formatMoney, formatQty } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortfolioPage() {
   await seedIfEmpty();
 
-  const [valuation, lots, pnl, balances, fxSnap] = await Promise.all([
+  const [valuation, lots, pnl, fx] = await Promise.all([
     getPortfolioValuation(),
     getOpenLots(),
     getRealizedPnl(),
-    getAccountBalances(),
     getLatestUsdIrtRate(),
   ]);
 
-  const rate = fxSnap.rate;
-  const toIrt = (usd: string) => (rate ? D(usd).mul(rate).toFixed(0) : "—");
-  const dualMoney = (usd: string) => (
-    <span className="flex flex-col items-end gap-0.5">
-      <span className="num font-bold" dir="ltr">{formatMoney(usd, "USD")}</span>
-      <span className="num text-[10px]" dir="rtl" style={{ color: "var(--accent)" }}>{rate ? formatMoney(toIrt(usd), "IRT") : "—"}</span>
-    </span>
-  );
+  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(D(usd).mul(fx.rate).toFixed(0), "IRT") : null);
+  const unrealized = D(valuation.totalUnrealizedPnl);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <PageHeader
-        title="سبد دارایی و ارزش‌گذاری (Portfolio Valuation)"
-        subtitle="مالکیت و قیمت تمام‌شده از دفترکل (FIFO) — ارزش روز از لایه Market Data — نمایش دوگانه تومان/دلار فقط نمایشی است و هیچ محاسبه حسابی را تغییر نمی‌دهد."
+        title="سبد دارایی"
+        subtitle="چه چیزهایی در اختیار دارم؟ — مالکیت و بهای تمام‌شده از دفترکل (FIFO)، ارزش روز از لایه قیمت."
+        action={<SectionLink href="/market-data" label="به‌روزرسانی قیمت‌ها" />}
       />
 
-      <div className="soft rounded-2xl p-3 text-[11px] flex flex-wrap items-center justify-between gap-2">
-        <span>نرخ دلار مرجع: <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
-        <span className="muted">تاریخ نرخ: <span dir="auto" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · بهای تمام‌شده و ارزش دارایی هم‌زمان به تومان و دلار نمایش داده می‌شوند (خوانش مستقیم از FIFO)</span>
-      </div>
-
-      {/* Primary Wealth Metrics — dual */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="card p-3">
-          <div className="muted text-[10px]">ارزش روز سبد دارایی</div>
-          <div className="num font-bold text-sm" dir="ltr">{formatMoney(valuation.totalNetWorth, "USD")}</div>
-          <div className="num text-[11px]" dir="rtl" style={{ color: "var(--accent)" }}>{formatMoney(toIrt(valuation.totalNetWorth), "IRT")}</div>
-        </div>
-        <div className="card p-3">
-          <div className="muted text-[10px]">قیمت تمام‌شده (Cost Basis) — FIFO</div>
-          <div className="num font-bold text-sm" dir="ltr">{formatMoney(valuation.totalCostBasis, "USD")}</div>
-          <div className="num text-[11px]" dir="rtl" style={{ color: "var(--accent)" }}>{formatMoney(toIrt(valuation.totalCostBasis), "IRT")}</div>
-          <div className="muted text-[10px]">خوانش مستقیم از FIFO — بدون تغییر محاسبات</div>
-        </div>
-        <div className="card p-3">
-          <div className="muted text-[10px]">سود/زیان تحقق‌نیافته</div>
-          <div className="num font-bold text-sm" dir="ltr" style={{ color: D(valuation.totalUnrealizedPnl).isNegative() ? "var(--danger)" : "var(--accent)" }}>{formatMoney(valuation.totalUnrealizedPnl, "USD")}</div>
-          <div className="num text-[11px]" dir="rtl" style={{ color: D(valuation.totalUnrealizedPnl).isNegative() ? "var(--danger)" : "var(--accent)" }}>{formatMoney(toIrt(valuation.totalUnrealizedPnl), "IRT")}</div>
-          <div className="muted text-[10px]">ROI: {valuation.overallRoiPercentage}%</div>
-        </div>
-        <div className="card p-3">
-          <div className="muted text-[10px]">سود تحقق‌یافته (Realized)</div>
-          <div className="num font-bold text-sm" dir="ltr" style={{ color: Number(pnl.total) >= 0 ? "var(--accent)" : "var(--danger)" }}>{formatMoney(pnl.total, "USD")}</div>
-          <div className="num text-[11px]" dir="rtl" style={{ color: Number(pnl.total) >= 0 ? "var(--accent)" : "var(--danger)" }}>{formatMoney(toIrt(pnl.total), "IRT")}</div>
-          <div className="muted text-[10px]">{lots.length} بسته FIFO باز</div>
-        </div>
-      </div>
-
-      {/* Allocation Chart */}
-      <Card title="تخصیص ثروت بر اساس کلاس دارایی">
-        <Donut
-          data={valuation.allocationByClass.map((c) => ({
-            label: c.className,
-            value: Number(c.value),
-            color: c.color,
-          }))}
+      {/* KPI strip */}
+      <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
+        <Metric label="ارزش روز سبد" value={formatMoney(valuation.totalNetWorth)} hint={toIrt(valuation.totalNetWorth) ?? undefined} />
+        <Metric label="بهای تمام‌شده" value={formatMoney(valuation.totalCostBasis)} hint="روش FIFO — خوانش مستقیم از دفترکل" />
+        <Metric
+          label="سود/زیان تحقق‌نیافته"
+          value={`${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}`}
+          tone={unrealized.gte(0) ? "up" : "down"}
+          hint={`بازده کل: ${valuation.overallRoiPercentage}٪ — نمایشی، در دفترکل ثبت نمی‌شود`}
         />
-      </Card>
+        <Metric
+          label="سود تحقق‌یافته"
+          value={`${D(pnl.total).gte(0) ? "+" : "−"}${formatMoney(D(pnl.total).abs().toString())}`}
+          tone={D(pnl.total).gte(0) ? "up" : "down"}
+          hint={`${lots.length} بسته FIFO باز`}
+        />
+      </section>
 
-      {/* Multi-Asset Valuation Table — dual */}
-      <Card title="ارزش‌گذاری تفکیکی دارایی‌ها — نمایش دوگانه">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead className="muted">
-              <tr className="border-b" style={{ borderColor: "var(--line)" }}>
-                <th className="py-2 font-normal">دارایی</th>
-                <th className="py-2 font-normal">مقدار</th>
-                <th className="py-2 font-normal">قیمت بازار (USD / IRT)</th>
-                <th className="py-2 font-normal">بهای تمام‌شده (USD / IRT)</th>
-                <th className="py-2 font-normal">ارزش روز (USD / IRT)</th>
-                <th className="py-2 font-normal">سود/زیان تحقق‌نیافته</th>
-                <th className="py-2 font-normal">ROI</th>
-              </tr>
-            </thead>
-            <tbody>
-              {valuation.assetValuations.map((a) => {
-                const pnlDec = D(a.unrealizedPnl);
-                return (
-                  <tr key={a.assetId} className="border-b last:border-0" style={{ borderColor: "var(--line)" }}>
-                    <td className="py-3">
-                      <div className="flex items-center gap-2">
-                        <i className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: a.classColor }} />
-                        <div>
-                          <div className="font-bold">{a.symbol}</div>
-                          <div className="muted text-[10px]">{a.name}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="num py-3" dir="ltr">{formatQty(a.quantity, a.decimals)}</td>
-                    <td className="py-3">
-                      <div className="num font-bold" dir="ltr">{formatMoney(a.marketPrice, "USD")}</div>
-                      <div className="num text-[10px]" dir="rtl" style={{ color: "var(--accent)" }}>{formatMoney(toIrt(a.marketPrice), "IRT")}</div>
-                    </td>
-                    <td className="py-3">
-                      <div className="num" dir="ltr">{formatMoney(a.costBasis, "USD")}</div>
-                      <div className="num text-[10px]" dir="rtl">{formatMoney(toIrt(a.costBasis), "IRT")}</div>
-                      <div className="muted text-[10px]">FIFO</div>
-                    </td>
-                    <td className="py-3">
-                      <div className="num font-bold" dir="ltr">{formatMoney(a.currentValue, "USD")}</div>
-                      <div className="num text-[10px]" dir="rtl" style={{ color: "var(--accent)" }}>{formatMoney(toIrt(a.currentValue), "IRT")}</div>
-                    </td>
-                    <td className="num py-3" dir="ltr" style={{ color: pnlDec.isNegative() ? "var(--danger)" : "var(--accent)" }}>
-                      <div>{formatMoney(a.unrealizedPnl, "USD")}</div>
-                      <div className="text-[10px]">{formatMoney(toIrt(a.unrealizedPnl), "IRT")}</div>
-                    </td>
-                    <td className="num py-3 font-bold" dir="ltr" style={{ color: pnlDec.isNegative() ? "var(--danger)" : "var(--accent)" }}>
-                      {a.roiPercentage}%
-                    </td>
-                  </tr>
-                );
-              })}
-              {!valuation.assetValuations.length && (
-                <tr>
-                  <td colSpan={7} className="muted py-8 text-center text-xs">
-                    دارایی‌ای برای ارزش‌گذاری ثبت نشده است.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {valuation.assetValuations.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            icon="portfolio"
+            title="هنوز سرمایه‌گذاری‌ای ثبت نشده است"
+            body="یک دارایی اضافه کنید یا حساب متصل کنید تا سبد شما از همین‌جا ردیابی شود."
+            action={
+              <Link href="/new?type=buy" className="btn btn-primary">
+                ثبت خرید دارایی
+              </Link>
+            }
+          />
         </div>
-        <p className="muted text-[10px] mt-2">بهای تمام‌شده از FIFO و ارزش روز از Market Data خوانده می‌شود — نمایش دوگانه فقط نمایشی است.</p>
-      </Card>
+      ) : (
+        <>
+          {/* Allocation — where is the money? */}
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,380px)_1fr]">
+            <Section title="ثروت شما کجا قرار دارد؟">
+              <div className="card p-4 sm:p-5">
+                <Donut
+                  centerLabel="ارزش سبد"
+                  data={valuation.allocationByClass.map((c) => ({
+                    label: c.className,
+                    value: Number(c.value),
+                    color: c.color,
+                  }))}
+                />
+              </div>
+            </Section>
+            <Section title="ارزش‌گذاری دارایی‌ها" hint={`به‌روزرسانی با آخرین قیمت‌ها · نرخ مرجع ${fx.rate ? formatMoney(fx.rate, "IRT") : "—"}`}>
+              <HoldingsTable rows={valuation.assetValuations} toIrt={toIrt} />
+            </Section>
+          </div>
 
-      {/* FIFO Lots & Account Balances — dual */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="بسته‌های FIFO باز (Cost Basis Reference) — نمایش دوگانه">
-          <ul className="divide-y text-xs" style={{ borderColor: "var(--line)" }}>
-            {lots.map((l) => {
-              const dual = getDualDate(l.openedAt);
-              return (
-                <li key={l.id} className="flex items-center justify-between py-2.5">
-                  <div>
-                    <div className="font-bold">{l.symbol}</div>
-                    <div className="muted text-[10px]">تاریخ خرید شمسی: {dual.jalali} · میلادی: <span dir="auto" className="num">{dual.gregorian}</span></div>
-                  </div>
-                  <div className="text-left">
-                    <div className="num" dir="ltr">{formatQty(l.qtyRemaining, 8)}</div>
-                    <div className="num text-[10px]" dir="ltr">قیمت خرید واحد {formatMoney(l.unitCostBase, "USD")} ≈ {formatMoney(toIrt(l.unitCostBase), "IRT")}</div>
-                    <div className="muted text-[10px]">بهای تمام‌شده از FIFO — بدون تغییر محاسبات</div>
-                  </div>
-                </li>
-              );
-            })}
-            {!lots.length && <li className="muted py-6 text-center">بسته بازی وجود ندارد</li>}
-          </ul>
-        </Card>
+          {/* FIFO lots — accounting reference, tucked away until needed */}
+          {lots.length > 0 && (
+            <details className="card overflow-hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 marker:hidden [&::-webkit-details-marker]:hidden">
+                <span className="text-[13px] font-semibold">
+                  بسته‌های FIFO باز <span className="muted num text-[11px]">({lots.length})</span>
+                </span>
+                <span className="muted text-[11px]">مرجع بهای تمام‌شده — باز کنید</span>
+              </summary>
+              <div className="border-t" style={{ borderColor: "var(--border)" }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>دارایی</th>
+                      <th>تاریخ خرید</th>
+                      <th className="td-num">مانده بسته</th>
+                      <th className="td-num">قیمت واحد</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lots.map((l) => (
+                      <tr key={l.id}>
+                        <td className="font-bold" dir="ltr">
+                          {l.symbol}
+                        </td>
+                        <td className="num text-[11.5px]">{formatJalaliIso(l.openedAt)}</td>
+                        <td className="td-num" dir="ltr">
+                          {formatQty(l.qtyRemaining, 8, "en")}
+                        </td>
+                        <td className="td-num" dir="ltr">
+                          {formatMoney(l.unitCostBase)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
 
-        <Card title="موجودی حساب‌های دفترکل — ارزش دوگانه">
-          <ul className="divide-y text-xs" style={{ borderColor: "var(--line)" }}>
-            {balances
-              .filter((b) => b.type === "asset" && D(b.quantity).abs().gt("0.00000001"))
-              .map((b) => (
-                <li key={b.accountId} className="flex items-center justify-between py-2.5">
-                  <div>
-                    <div className="font-bold">{b.name}</div>
-                    <div className="muted text-[10px]">{b.walletName ?? "—"} · {b.code}</div>
-                  </div>
-                  <div className="text-left">
-                    <div className="num" dir="ltr">{formatQty(b.quantity, b.assetDecimals)} {b.symbol}</div>
-                    <div className="num font-bold" dir="ltr">{formatMoney(b.baseValue, "USD")}</div>
-                    <div className="num text-[10px]" dir="rtl" style={{ color: "var(--accent)" }}>{formatMoney(toIrt(b.baseValue), "IRT")}</div>
-                  </div>
-                </li>
-              ))}
-          </ul>
-        </Card>
-      </div>
+          {pnl.bySymbol.length > 0 && (
+            <Alert tone="info" icon="info" title="سود/زیان تحقق‌یافته بر اساس دارایی">
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                {pnl.bySymbol.map((p) => (
+                  <span key={p.symbol} className="num text-[11.5px]" dir="ltr" style={{ color: D(p.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
+                    {p.symbol}: {D(p.pnl).gte(0) ? "+" : "−"}
+                    {formatMoney(D(p.pnl).abs().toString())}
+                  </span>
+                ))}
+              </div>
+            </Alert>
+          )}
+        </>
+      )}
     </div>
   );
 }

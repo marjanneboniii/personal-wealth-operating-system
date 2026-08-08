@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditLog, backupRuns, settings } from "@/db/schema";
+import { backupRuns, settings } from "@/db/schema";
 import { desc } from "drizzle-orm";
 import { seedIfEmpty } from "@/db/seed";
-import { Card, PageHeader } from "@/components/ui/Card";
+import { Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
+import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import RestorePanel from "@/components/RestorePanel";
 import { formatDate } from "@/lib/format";
@@ -19,9 +21,8 @@ const LABELS: Record<string, string> = {
 
 export default async function SettingsPage() {
   await seedIfEmpty();
-  const [config, audits, backups, counts] = await Promise.all([
+  const [config, backups, counts] = await Promise.all([
     db.select().from(settings).where(sql`${settings.deletedAt} is null`),
-    db.select().from(auditLog).orderBy(desc(auditLog.createdAt)).limit(12),
     db.select().from(backupRuns).orderBy(desc(backupRuns.createdAt)).limit(5),
     db.execute(sql`
       select
@@ -34,79 +35,97 @@ export default async function SettingsPage() {
   const c = counts.rows[0] as Record<string, string>;
 
   return (
-    <div className="space-y-4">
-      <PageHeader title="تنظیمات، پشتیبان و امنیت" subtitle="داده‌ها کاملاً محلی هستند و هیچ اطلاعاتی به بیرون ارسال نمی‌شود." />
+    <div className="space-y-8">
+      <PageHeader
+        title="تنظیمات"
+        subtitle="سیستم چگونه پیکربندی شده است؟ — داده‌ها کاملاً محلی هستند و هیچ چیزی به بیرون ارسال نمی‌شود."
+      />
 
-      <Card title="پیکربندی">
-        <ul className="divide-y text-xs" style={{ borderColor: "var(--line)" }}>
-          {config.map((s) => (
-            <li key={s.id} className="flex items-center justify-between py-2.5">
-              <span>{LABELS[s.key] ?? s.key}</span>
-              <span className="num chip" dir="ltr">{s.value}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="muted mt-3 text-[11px]">
-          پوسته روشن/تاریک از نوار بالای صفحه قابل تغییر است و در همین دستگاه ذخیره می‌شود.
+      <Section title="پیکربندی">
+        <div className="card overflow-hidden">
+          <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
+            {config.map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <span className="text-[13px]">{LABELS[s.key] ?? s.key}</span>
+                <span className="num chip" dir="ltr">
+                  {s.value}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <p className="muted mt-2 flex items-center gap-1.5 text-[11px]">
+          <Icon name="info" size={13} />
+          پوسته روشن/تاریک از نوار بالا (موبایل) یا پایین سایدبار (دسکتاپ) تغییر می‌کند و در همین دستگاه ذخیره می‌شود.
         </p>
-      </Card>
+      </Section>
 
-      <Card title="سلامت داده">
-        <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-          {[
-            ["اسناد", c.entries],
-            ["ردیف‌های دفترکل", c.postings],
-            ["حساب‌ها", c.accounts],
-            ["دارایی‌ها", c.assets],
-          ].map(([label, value]) => (
-            <div key={label} className="soft rounded-2xl p-3">
-              <div className="muted text-[10px]">{label}</div>
-              <div className="num text-base font-bold" dir="ltr">{value}</div>
-            </div>
-          ))}
+      <Section title="سلامت داده" action={<SectionLink href="/audit" label="حسابرسی کامل" />}>
+        <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+          <Metric label="اسناد روزنامه" value={c.entries} />
+          <Metric label="ردیف‌های دفترکل" value={c.postings} />
+          <Metric label="حساب‌ها" value={c.accounts} />
+          <Metric label="دارایی‌ها" value={c.assets} />
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <RowAction kind="integrity" label="بررسی تراز همه اسناد" primary />
-          <RowAction kind="snapshot" label="ثبت عکس لحظه‌ای" />
+          <RowAction kind="snapshot" label="ثبت اسنپ‌شات" />
+          <Link href="/audit" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[12px]">
+            <Icon name="audit" size={15} />
+            گزارش یکپارچگی کامل
+          </Link>
         </div>
-      </Card>
+      </Section>
 
-      <Card title="پشتیبان‌گیری و بازیابی">
-        <div className="flex flex-wrap items-center gap-3">
-          <a className="btn btn-primary" href="/api/backup" download>
-            دانلود پشتیبان کامل (JSON)
-          </a>
-          <span className="muted text-[11px]">
-            توصیه: خروجی روزانه + <span className="num" dir="ltr">pg_dump</span> شبانه و آزمون بازیابی ماهانه.
-          </span>
+      <Section title="پشتیبان‌گیری و بازیابی" hint="صاحب داده‌های خود باشید — خروجی کامل JSON، تراکنشی و بدون قفل">
+        <div className="card p-4 sm:p-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <a className="btn btn-primary" href="/api/backup" download>
+              <Icon name="download" size={16} />
+              دانلود پشتیبان کامل
+            </a>
+            <span className="muted text-[11.5px]">
+              توصیه عملیاتی: خروجی روزانه + قاعده ۳-۲-۱ + آزمون بازیابی ماهانه.
+            </span>
+          </div>
+          <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+            <RestorePanel />
+          </div>
+          {backups.length > 0 && (
+            <ul className="muted mt-4 space-y-1 text-[10.5px]">
+              {backups.map((b) => (
+                <li key={b.id} className="flex gap-2">
+                  <Icon name="check" size={12} className="mt-0.5 shrink-0" />
+                  پشتیبان {formatDate(b.createdAt.toISOString().slice(0, 10))} — {b.rowCount} سطر
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-        <div className="mt-4">
-          <RestorePanel />
-        </div>
-        <ul className="muted mt-4 space-y-1 text-[10px]">
-          {backups.map((b) => (
-            <li key={b.id}>
-              پشتیبان {formatDate(b.createdAt.toISOString().slice(0, 10))} — {b.rowCount} سطر
-            </li>
-          ))}
-        </ul>
-      </Card>
+      </Section>
 
-      <Card title="گزارش حسابرسی (Audit Log)">
-        <ul className="divide-y text-[11px]" style={{ borderColor: "var(--line)" }}>
-          {audits.map((a) => (
-            <li key={a.id} className="flex items-center justify-between py-2">
-              <span>
-                {a.action === "post_entry" ? "ثبت سند" : a.action === "reverse_entry" ? "ابطال سند" : a.action}
-                <span className="muted mr-2">{a.entityType}</span>
+      <Section title="ابزارهای داده">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          {[
+            { href: "/market-data", label: "قیمت‌های بازار", icon: "globe" as const, q: "به‌روزرسانی دستی و منابع" },
+            { href: "/import", label: "درون‌ریزی داده", icon: "import" as const, q: "CSV / متن خام" },
+            { href: "/setup", label: "راه‌اندازی اولیه", icon: "settings" as const, q: "پیکربندی از نو" },
+          ].map((l) => (
+            <Link key={l.href} href={l.href} className="card p-4 transition-transform hover:-translate-y-0.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
+                <Icon name={l.icon} size={17} />
               </span>
-              <span className="muted num" dir="ltr">
-                {new Date(a.createdAt).toISOString().slice(0, 16).replace("T", " ")}
-              </span>
-            </li>
+              <p className="mt-2.5 text-[13px] font-semibold">{l.label}</p>
+              <p className="muted mt-0.5 text-[10.5px]">{l.q}</p>
+            </Link>
           ))}
-        </ul>
-      </Card>
+        </div>
+      </Section>
+
+      <p className="muted flex items-center gap-1.5 text-[10.5px]">
+        <Icon name="lock" size={13} />
+        خودمیزبان و خصوصی — بدون تله‌متری، بدون سرویس ابری اجباری. ردپای هر نوشتن در صفحه حسابرسی قابل مشاهده است.
+      </p>
     </div>
   );
 }

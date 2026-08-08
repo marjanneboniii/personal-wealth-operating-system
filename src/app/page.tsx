@@ -1,236 +1,385 @@
 import Link from "next/link";
-import { desc } from "drizzle-orm";
+import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { snapshots } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
-import { getCashflow, getLedger, getNetWorth, getRealizedPnl } from "@/features/ledger/queries";
-import { listFunds, listGoals, projectCashflow, upcomingInstallments } from "@/features/planning/service";
+import {
+  countUnreviewed,
+  getCashflow,
+  getNetWorth,
+  getTransactions,
+} from "@/features/ledger/queries";
+import { projectCashflow, upcomingInstallments } from "@/features/planning/service";
 import { getSetupState } from "@/features/setup/service";
-import { Card, Money, Progress, Stat } from "@/components/ui/Card";
-import { AreaChart, BarsChart, Donut } from "@/components/charts/Charts";
-import { formatMoney, formatQty, getDualDate } from "@/lib/format";
-import { getLatestUsdIrtRate } from "@/lib/fx";
+import { Alert, Delta, EmptyState, Section, SectionLink } from "@/components/ui/Card";
+import { AreaChart, BarsChart } from "@/components/charts/Charts";
+import Icon from "@/components/ui/Icon";
+import { humanizeEntry } from "@/lib/tx";
 import { D } from "@/domain/decimal";
-import { ENTRY_TYPE_LABELS, type EntryType } from "@/domain/accounting";
+import { formatMoney, formatShortDate, toJalali } from "@/lib/format";
+import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
 
 const QUICK = [
-  { href: "/new?type=expense", label: "هزینه", icon: "−" },
-  { href: "/new?type=income", label: "درآمد", icon: "+" },
-  { href: "/new?type=transfer", label: "انتقال", icon: "⇄" },
-  { href: "/new?type=buy", label: "خرید دارایی", icon: "↑" },
-  { href: "/new?type=sell", label: "فروش دارایی", icon: "↓" },
+  { href: "/new?type=expense", label: "هزینه", icon: "arrow-down" as const },
+  { href: "/new?type=income", label: "درآمد", icon: "arrow-up" as const },
+  { href: "/new?type=transfer", label: "انتقال", icon: "swap" as const },
+  { href: "/new?type=buy", label: "خرید دارایی", icon: "plus" as const },
+  { href: "/new?type=sell", label: "فروش دارایی", icon: "arrow-down" as const },
 ];
 
-export default async function DashboardPage() {
+function daysUntil(iso: string) {
+  return Math.ceil((new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
+}
+
+export default async function OverviewPage() {
   await seedIfEmpty();
 
-  const [setupState, nw, snaps, ledger, insts, goals, funds, pnl, flow, projection, fxSnap] = await Promise.all([
+  const [setupState, nw, snaps, tx, insts, flow, projection, unreviewed, stale, fx] = await Promise.all([
     getSetupState(),
     getNetWorth(),
-    db.select().from(snapshots).orderBy(desc(snapshots.asOf)).limit(24),
-    getLedger(6),
-    upcomingInstallments(4),
-    listGoals(),
-    listFunds(),
-    getRealizedPnl(),
+    db.select().from(snapshots).orderBy(desc(snapshots.asOf)).limit(40),
+    getTransactions({ limit: 6 }),
+    upcomingInstallments(3),
     getCashflow(6),
     projectCashflow(6),
+    countUnreviewed(),
+    db.execute(sql`
+      with held as (
+        select p.asset_id from postings p
+        join journal_entries je on je.id = p.entry_id
+        join accounts a on a.id = p.account_id
+        where je.status = 'posted' and a.type = 'asset'
+        group by p.asset_id having abs(sum(p.quantity)) > 0.00000001
+      )
+      select count(*)::text as c from held h
+      left join prices pr on pr.asset_id = h.asset_id and pr.as_of >= current_date - interval '30 days'
+      where pr.id is null
+    `),
     getLatestUsdIrtRate(),
   ]);
 
-  const rate = fxSnap.rate;
-  const toIrt = (usd: string) => (rate ? D(usd).mul(rate).toFixed(0) : "—");
+  const staleCount = Number((stale.rows[0] as { c?: string } | undefined)?.c ?? 0);
+  const rate = fx.rate;
+  const toIrt = (usd: string | number) => (rate ? D(usd).mul(rate).toFixed(0) : null);
 
   const series = [...snaps]
     .reverse()
     .map((s) => ({ date: s.asOf, value: Number(s.netWorth) }))
     .concat([{ date: new Date().toISOString().slice(0, 10), value: Number(nw.netWorth) }]);
 
+  const lastSnap = snaps[0];
+  const deltaAbs = lastSnap ? D(nw.netWorth).sub(lastSnap.netWorth).toString() : "0";
+  const deltaPct = lastSnap && !D(lastSnap.netWorth).isZero()
+    ? D(deltaAbs).div(lastSnap.netWorth).abs().mul(100).toFixed(2)
+    : null;
+
+  const monthFlow = flow.at(-1);
+  const netMonth = monthFlow ? Number(monthFlow.inflow) - Number(monthFlow.outflow) : 0;
   const nextDeficit = projection.points.find((p) => p.deficit);
 
+  // Attention items — only what genuinely needs a human
+  const attention: { icon: "alert" | "clock" | "refresh" | "check"; tone: "warn" | "neg" | "info"; text: string; detail: string; href: string; action: string }[] = [];
+  if (unreviewed > 0)
+    attention.push({
+      icon: "check",
+      tone: "warn",
+      text: `${unreviewed} رکورد درون‌ریزی‌شده در انتظار بازبینی است`,
+      detail: "قبل از اعتماد به گزارش‌ها، این رکوردها را تأیید کنید.",
+      href: "/transactions?review=unreviewed",
+      action: "بازبینی",
+    });
+  const soonInst = insts.find((i) => daysUntil(i.dueDate) <= 14);
+  if (soonInst) {
+    const d = daysUntil(soonInst.dueDate);
+    attention.push({
+      icon: "clock",
+      tone: d < 0 ? "neg" : "info",
+      text: d < 0 ? `قسط ${soonInst.seq} «${soonInst.debtTitle}» سررسید گذشته است` : `قسط ${soonInst.seq} «${soonInst.debtTitle}» ${d === 0 ? "امروز" : `${d} روز دیگر`} سر می‌رسد`,
+      detail: `${formatMoney(soonInst.amountBase)} — ${soonInst.creditor}`,
+      href: "/installments",
+      action: "مشاهده اقساط",
+    });
+  }
+  if (nextDeficit)
+    attention.push({
+      icon: "alert",
+      tone: "neg",
+      text: `کسری نقدینگی در راه است`,
+      detail: `اگر برنامه‌ها همان‌طور اجرا شوند، در ${formatShortDate(nextDeficit.month)} نقدینگی شما منفی می‌شود.`,
+      href: "/planning",
+      action: "دیدن پیش‌بینی",
+    });
+  if (staleCount > 0)
+    attention.push({
+      icon: "refresh",
+      tone: "warn",
+      text: `${staleCount} دارایی قیمت تازه ندارد`,
+      detail: "ارزش‌گذاری این دارایی‌ها ممکن است قدیمی باشد.",
+      href: "/market-data",
+      action: "به‌روزرسانی",
+    });
+
+  const hasAnything = !D(nw.totalAssets).isZero();
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       {!setupState.completed && (
-        <div className="card soft flex flex-wrap items-center justify-between gap-3 p-4 border" style={{ borderColor: "var(--accent)" }}>
-          <div>
-            <div className="text-xs font-bold" style={{ color: "var(--accent)" }}>
-              راه‌اندازی اولیه انجام نشده است
-            </div>
-            <div className="muted text-[11px] mt-0.5">
-              ارز پایه محاسباتی، حساب‌های اصلی و موجودی اولیه خود را پیکربندی کنید.
-            </div>
-          </div>
-          <Link href="/setup" className="btn btn-primary !py-1.5 !px-4 text-xs">
-            شروع راه‌اندازی اولیه ←
-          </Link>
-        </div>
+        <Alert
+          tone="brand"
+          icon="info"
+          title="راه‌اندازی اولیه انجام نشده است"
+          action={
+            <Link href="/setup" className="btn btn-primary !min-h-9 !px-4 !py-1.5 text-xs">
+              شروع راه‌اندازی
+            </Link>
+          }
+        >
+          ارز پایه، حساب‌های اصلی و موجودی اولیه را پیکربندی کنید تا اعداد دقیق شوند.
+        </Alert>
       )}
 
-      <div className="soft rounded-2xl p-3 text-[11px] flex flex-wrap items-center justify-between gap-2">
-        <span>نرخ دلار مرجع (Single Source): <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
-        <span className="muted">تاریخ نرخ: <span dir="auto" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · تمام پیش‌نمایش‌های مبلغ با این نرخ محاسبه می‌شوند (فقط نمایشی)</span>
-      </div>
+      {/* ═══ HERO — وضعیت مالی من چگونه است؟ ═══ */}
+      <section className="rise pt-1">
+        <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-6">
+          <div className="min-w-0">
+            <p className="muted text-[12px] font-medium">ارزش خالص دارایی</p>
+            <div className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+              <span className="display-num text-[40px] font-bold leading-none tracking-tight sm:text-[52px]" dir="ltr">
+                {formatMoney(nw.netWorth)}
+              </span>
+              {lastSnap && (
+                <Delta
+                  value={deltaAbs}
+                  pct={deltaPct}
+                  suffix={lastSnap ? `از ${formatShortDate(lastSnap.asOf)}` : undefined}
+                  className="text-[15px]"
+                />
+              )}
+            </div>
+            {toIrt(nw.netWorth) && (
+              <p className="muted mt-2 text-[12.5px]">
+                ≈ <span className="num">{formatMoney(toIrt(nw.netWorth)!, "IRT")}</span>
+                <span className="mx-1.5 opacity-50">·</span>
+                نرخ مرجع <span className="num" dir="ltr">{formatMoney(rate, "IRT")}</span> ≈ $1
+              </p>
+            )}
+          </div>
 
-      {/* Hero — dual */}
-      <section className="card rise overflow-hidden p-5">
-        <div className="muted text-[11px]">ارزش خالص دارایی‌ها (Net Worth) — نمایش دوگانه</div>
-        <div className="num mt-1 text-3xl font-bold tracking-tight sm:text-4xl" dir="ltr">
-          {formatMoney(nw.netWorth)} <span className="text-[16px] muted">≈</span> <span dir="rtl" className="text-[18px]" style={{ color:"var(--accent)" }}>{formatMoney(toIrt(nw.netWorth), "IRT")}</span>
+          {/* Quick capture — fastest workflow in the product */}
+          <div>
+            <p className="muted mb-2 text-[11px] font-medium">ثبت سریع</p>
+            <div className="flex gap-1.5">
+              {QUICK.map((q) => (
+                <Link
+                  key={q.href}
+                  href={q.href}
+                  className="card flex w-[62px] flex-col items-center gap-1.5 py-2.5 text-[10.5px] font-medium transition-transform hover:-translate-y-0.5"
+                  style={{ color: "var(--text-2)" }}
+                >
+                  <span
+                    className="flex h-7 w-7 items-center justify-center rounded-full"
+                    style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+                  >
+                    <Icon name={q.icon} size={14} />
+                  </span>
+                  {q.label}
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
-        <div className="muted mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
-          <span>
-            دارایی: <span dir="ltr" className="num">{formatMoney(nw.totalAssets)}</span> <span dir="rtl" className="num text-[10px]" style={{ color:"var(--accent)" }}>≈ {formatMoney(toIrt(nw.totalAssets), "IRT")}</span>
-          </span>
-          <span>
-            بدهی: <span style={{ color: "var(--danger)" }}><span dir="ltr" className="num">{formatMoney(nw.totalLiabilities)}</span> <span dir="rtl" className="num text-[10px]">≈ {formatMoney(toIrt(nw.totalLiabilities), "IRT")}</span></span>
-          </span>
-          <span>
-            نقدشوندگی: <span dir="ltr" className="num">{formatMoney(nw.liquid)}</span> <span dir="rtl" className="num text-[10px]">≈ {formatMoney(toIrt(nw.liquid), "IRT")}</span>
-          </span>
-        </div>
-        <div className="mt-4 grid grid-cols-5 gap-2">
-          {QUICK.map((q) => (
-            <Link key={q.href} href={q.href} className="soft flex flex-col items-center gap-1 rounded-2xl py-2.5 text-[10px]">
-              <span className="text-base leading-none">{q.icon}</span>
-              {q.label}
-            </Link>
+
+        {/* Structure strip — dividers, not cards */}
+        <div className="mt-6 grid grid-cols-3 divide-x divide-x-reverse border-t pt-4" style={{ borderColor: "var(--border)" }}>
+          {[
+            { label: "کل دارایی‌ها", value: nw.totalAssets, tone: "var(--text)" },
+            { label: "کل بدهی‌ها", value: D(nw.totalLiabilities).neg().toString(), tone: "var(--text)" },
+            { label: "نقدشونده", value: nw.liquid, tone: "var(--text)" },
+          ].map((m) => (
+            <div key={m.label} className="px-4 first:pr-0 last:pl-0" style={{ borderColor: "var(--border)" }}>
+              <p className="muted text-[11px]">{m.label}</p>
+              <p className="num mt-1 text-[15px] font-bold sm:text-lg" dir="ltr" style={{ color: m.tone }}>
+                {formatMoney(m.value)}
+              </p>
+              {rate && (
+                <p className="muted num mt-0.5 hidden text-[10.5px] sm:block">
+                  ≈ {formatMoney(toIrt(D(m.value).abs().toString())!, "IRT")}
+                </p>
+              )}
+            </div>
           ))}
         </div>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="روند ثروت">
-          <AreaChart data={series} />
-        </Card>
-        <Card title="تخصیص دارایی">
-          <Donut
-            data={nw.byClass.map((c) => ({ label: c.className, value: Number(c.value), color: c.color }))}
+      {!hasAnything ? (
+        <div className="card">
+          <EmptyState
+            icon="networth"
+            title="هنوز هیچ دارایی‌ای ثبت نشده است"
+            body="با ثبت اولین تراکنش یا اجرای راه‌اندازی اولیه، تصویر کامل ثروت شما اینجا ساخته می‌شود."
+            action={
+              <Link href="/new" className="btn btn-primary">
+                ثبت اولین تراکنش
+              </Link>
+            }
           />
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="card p-3">
-          <div className="muted text-[10px]">سود تحقق‌یافته — دوگانه</div>
-          <div className="num font-bold" dir="ltr" style={{ color: Number(pnl.total) >= 0 ? "var(--accent)" : "var(--danger)" }}>{formatMoney(pnl.total)}</div>
-          <div className="num text-[10px]" dir="rtl">{formatMoney(toIrt(pnl.total), "IRT")}</div>
         </div>
-        <div className="card p-3">
-          <div className="muted text-[10px]">نقدینگی ۶ ماه آینده</div>
-          <div className="num font-bold" dir="ltr">{formatMoney(projection.points.at(-1)?.cumulative ?? "0")}</div>
-          <div className="num text-[10px]" dir="rtl">{formatMoney(toIrt(projection.points.at(-1)?.cumulative ?? "0"), "IRT")}</div>
-          <div className="muted text-[10px]">{nextDeficit ? "هشدار کسری نقدینگی" : "بدون کسری"}</div>
-        </div>
-        <Stat label="اهداف فعال" value={`${goals.filter((g) => g.status === "active").length}`} hint="در حال پیگیری" />
-        <Stat label="اقساط پیش‌رو" value={formatMoney(insts.reduce((s, i) => s + Number(i.amountBase), 0))} hint={`${insts.length} قسط`} tone="down" />
-      </div>
+      ) : (
+        <>
+          {/* ═══ ROND ═══ */}
+          <Section title="ثروت شما چگونه تغییر کرده است؟" action={<SectionLink href="/net-worth" label="تحلیل ارزش خالص" />}>
+            <div className="card p-4 sm:p-5">
+              <AreaChart data={series} />
+            </div>
+          </Section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="جریان نقدی ۶ ماه اخیر — نمایش دوگانه">
-          <BarsChart
-            data={flow.map((f) => ({
-              label: getDualDate(f.month).jalali,
-              positive: Number(f.inflow),
-              negative: Number(f.outflow),
-            }))}
-          />
-          <div className="muted mt-2 flex gap-4 text-[10px]">
-            <span><i className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--accent)" }} /> ورودی</span>
-            <span><i className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--danger)" }} /> خروجی</span>
+          <div className="grid gap-8 lg:grid-cols-2">
+            {/* ═══ COMPOSITION ═══ */}
+            <Section title="ثروت شما کجا قرار دارد؟" action={<SectionLink href="/portfolio" label="سبد دارایی" />}>
+              {nw.byClass.length === 0 ? (
+                <p className="muted py-6 text-xs">دارایی‌ای ثبت نشده است.</p>
+              ) : (
+                <div>
+                  <div className="comp-bar" role="img" aria-label="ترکیب ثروت">
+                    {nw.byClass.map((c) => (
+                      <span key={c.className} style={{ width: `${Number(c.share)}%`, background: c.color }} />
+                    ))}
+                  </div>
+                  <ul className="mt-3 divide-y" style={{ borderColor: "var(--border)" }}>
+                    {nw.byClass.slice(0, 5).map((c) => (
+                      <li key={c.className} className="flex items-center justify-between gap-3 py-2.5">
+                        <span className="flex min-w-0 items-center gap-2.5 text-[13px]">
+                          <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: c.color }} />
+                          <span className="truncate">{c.className}</span>
+                        </span>
+                        <span className="flex shrink-0 items-baseline gap-2">
+                          <span className="num muted text-[11px]" dir="ltr">
+                            {Number(c.share).toFixed(1)}٪
+                          </span>
+                          <span className="num text-[13px] font-semibold" dir="ltr">
+                            {formatMoney(c.value)}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Section>
+
+            {/* ═══ CASH FLOW ═══ */}
+            <Section title="پول این ماه چه کرد؟" action={<SectionLink href="/cash-flow" label="جریان نقدی" />}>
+              <div className="mb-4 grid grid-cols-3 gap-2">
+                <div>
+                  <p className="muted text-[10.5px]">درآمد</p>
+                  <p className="num mt-0.5 text-[15px] font-bold" dir="ltr" style={{ color: "var(--positive)" }}>
+                    {formatMoney(monthFlow?.inflow ?? 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="muted text-[10.5px]">هزینه</p>
+                  <p className="num mt-0.5 text-[15px] font-bold" dir="ltr" style={{ color: "var(--negative)" }}>
+                    {formatMoney(monthFlow?.outflow ?? 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="muted text-[10.5px]">خالص</p>
+                  <p className="num mt-0.5 text-[15px] font-bold" dir="ltr" style={{ color: netMonth >= 0 ? "var(--positive)" : "var(--negative)" }}>
+                    {netMonth >= 0 ? "+" : "−"}
+                    {formatMoney(Math.abs(netMonth))}
+                  </p>
+                </div>
+              </div>
+              <BarsChart
+                height={110}
+                data={flow.map((f) => ({
+                  label: (() => {
+                    const j = toJalali(f.month);
+                    return ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"][j.m];
+                  })(),
+                  positive: Number(f.inflow),
+                  negative: Number(f.outflow),
+                }))}
+              />
+            </Section>
           </div>
-        </Card>
 
-        <Card title="اهداف مالی — دوگانه" action={<Link href="/planning" className="chip">همه</Link>}>
-          <ul className="space-y-3">
-            {goals.slice(0, 4).map((g) => (
-              <li key={g.id}>
-                <div className="mb-1 flex items-center justify-between text-xs">
-                  <span>{g.name}</span>
-                  <span className="num muted" dir="ltr">
-                    {formatMoney(g.savedBase, "IRT")} / {formatMoney(g.targetBase, "IRT")} <span style={{ color:"var(--accent)" }}>≈ {formatMoney(toIrt(g.savedBase), "IRT")} / {formatMoney(toIrt(g.targetBase), "IRT")}</span>
-                  </span>
-                </div>
-                <Progress value={g.progress} />
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="سررسیدهای پیش‌رو — دوگانه" action={<Link href="/debts" className="chip">اقساط</Link>}>
-          <ul className="divide-y" style={{ borderColor: "var(--line)" }}>
-            {insts.map((i) => {
-              const dual = getDualDate(i.dueDate);
-              return (
-                <li key={i.id} className="flex items-center justify-between py-2.5 text-xs">
-                  <div>
-                    <div>{i.debtTitle} — قسط {i.seq}</div>
-                    <div className="muted text-[10px] flex gap-2"><span>شمسی: {dual.jalali}</span><span>میلادی: <span dir="auto" className="num">{dual.gregorian}</span></span> · {i.creditor}</div>
-                  </div>
-                  <div className="text-left">
-                    <div className="num font-bold" dir="ltr">{formatMoney(i.amountBase)}</div>
-                    <div className="num text-[10px]" dir="rtl">{formatMoney(toIrt(i.amountBase), "IRT")}</div>
-                  </div>
-                </li>
-              );
-            })}
-            {!insts.length && <li className="muted py-6 text-center text-xs">قسط سررسیدنشده‌ای نیست</li>}
-          </ul>
-        </Card>
-
-        <Card title="صندوق‌های اختصاصی — دوگانه">
-          <ul className="space-y-3">
-            {funds.map((f) => (
-              <li key={f.id}>
-                <div className="mb-1 flex items-center justify-between text-xs">
-                  <span>
-                    {f.name}
-                    <span className="chip mr-2">
-                      {f.kind === "emergency" ? "اضطراری" : f.kind === "family_support" ? "خانواده" : "ذخیره"}
+          {/* ═══ ATTENTION ═══ */}
+          {attention.length > 0 && (
+            <Section title="نیازمند توجه شما" hint="فقط مواردی که واقعاً به تصمیم شما نیاز دارند">
+              <ul className="divide-y border-t border-b" style={{ borderColor: "var(--border)" }}>
+                {attention.map((a, i) => (
+                  <li key={i} className="flex items-center gap-3 py-3">
+                    <span
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                      style={{
+                        background: a.tone === "neg" ? "var(--negative-soft)" : a.tone === "warn" ? "var(--warning-soft)" : "var(--info-soft)",
+                        color: a.tone === "neg" ? "var(--negative)" : a.tone === "warn" ? "var(--warning)" : "var(--info)",
+                      }}
+                    >
+                      <Icon name={a.icon} size={15} />
                     </span>
-                  </span>
-                  <span className="num muted" dir="ltr">
-                    {formatMoney(f.savedBase)} / {formatMoney(f.targetBase)} <span style={{ color:"var(--accent)" }}>≈ {formatMoney(toIrt(f.savedBase), "IRT")} / {formatMoney(toIrt(f.targetBase), "IRT")}</span>
-                  </span>
-                </div>
-                <Progress value={f.progress} color={f.kind === "emergency" ? "#38bdf8" : f.kind === "family_support" ? "#f472b6" : "#fbbf24"} />
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-medium">{a.text}</p>
+                      <p className="muted truncate text-[11px]">{a.detail}</p>
+                    </div>
+                    <Link href={a.href} className="btn btn-ghost !min-h-8 !px-3 !py-1 shrink-0 text-[11.5px]">
+                      {a.action}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
 
-      <Card title="آخرین اسناد دفترکل — دوگانه" action={<Link href="/ledger" className="chip">دفترکل</Link>}>
-        <ul className="divide-y" style={{ borderColor: "var(--line)" }}>
-          {ledger.map((e) => {
-            const amount = e.lines.reduce((s, l) => s + Math.max(0, Number(l.baseValue)), 0);
-            const dual = getDualDate(e.entryDate);
-            return (
-              <li key={e.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="truncate text-xs">{e.description}</div>
-                  <div className="muted text-[10px] flex flex-wrap gap-2">
-                    <span className="chip ml-2">{ENTRY_TYPE_LABELS[e.type as EntryType] ?? e.type}</span>
-                    <span>شمسی: {dual.jalali}</span>
-                    <span>میلادی: <span dir="auto" className="num">{dual.gregorian}</span></span>
-                    <span>· {e.lines.length} ردیف</span>
-                  </div>
-                </div>
-                <div className="text-left">
-                  <div className="num font-bold" dir="ltr">{formatMoney(amount)}</div>
-                  <div className="num text-[10px]" dir="rtl">{formatMoney(toIrt(String(amount)), "IRT")}</div>
-                  <div className="muted num text-[10px]" dir="ltr">
-                    {e.lines[0] ? `${formatQty(e.lines[0].quantity, e.lines[0].decimals)} ${e.lines[0].symbol}` : ""}
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </Card>
+          {/* ═══ ACTIVITY ═══ */}
+          <Section title="فعالیت اخیر" action={<SectionLink href="/transactions" label="همه تراکنش‌ها" />}>
+            <ul className="divide-y border-t border-b" style={{ borderColor: "var(--border)" }} role="list">
+              {tx.map((e) => {
+                const h = humanizeEntry(e);
+                return (
+                  <li key={e.id} className="flex items-center gap-3 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-medium">{e.description}</p>
+                      <p className="muted mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px]">
+                        <span>{formatShortDate(e.entryDate)}</span>
+                        <span className="opacity-40">·</span>
+                        <span>{h.typeLabel}</span>
+                        {h.from && h.to && (
+                          <>
+                            <span className="opacity-40">·</span>
+                            <span className="truncate">
+                              {h.from} ← {h.to}
+                            </span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-left">
+                      <span
+                        className="num text-[13.5px] font-bold"
+                        dir="ltr"
+                        style={{
+                          color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)",
+                        }}
+                      >
+                        {h.sign > 0 ? "+" : h.sign < 0 ? "−" : ""}
+                        {formatMoney(h.amount)}
+                      </span>
+                      {rate && (
+                        <p className="muted num text-[10px]">≈ {formatMoney(toIrt(h.amount)!, "IRT")}</p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+              {!tx.length && <li className="muted py-8 text-center text-xs">هنوز تراکنشی ثبت نشده است.</li>}
+            </ul>
+          </Section>
+        </>
+      )}
     </div>
   );
 }
