@@ -813,6 +813,25 @@ function isTransientDbError(err: unknown): boolean {
   return false;
 }
 
+/**
+ * Walk the `.cause` chain (Drizzle wraps driver errors in a generic
+ * "Failed query: …" error) and return the deepest, most specific error —
+ * that is what actually tells you WHY the query failed (connection refused,
+ * missing database, auth failure, …).
+ */
+export function rootCauseOf(err: unknown): { message: string; code?: string } {
+  const seen = new Set<unknown>();
+  let cur: unknown = err;
+  let last: { message?: string; code?: string } = {};
+  while (cur && typeof cur === "object" && !seen.has(cur)) {
+    seen.add(cur);
+    const e = cur as { message?: string; code?: string; errno?: string; cause?: unknown };
+    last = { message: e.message ?? last.message, code: e.code ?? e.errno ?? last.code };
+    cur = e.cause;
+  }
+  return { message: last.message ?? String(err), code: last.code };
+}
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const MAX_ATTEMPTS = 5;
