@@ -1,178 +1,161 @@
-import { asc, eq, sql } from "drizzle-orm";
-import { db } from "@/db";
-import { accounts, assets } from "@/db/schema";
+import Link from "next/link";
 import { seedIfEmpty } from "@/db/seed";
 import { listDebts } from "@/features/planning/service";
-import { Card, Money, PageHeader, Progress, Stat } from "@/components/ui/Card";
-import RowAction from "@/components/RowAction";
-import { formatMoney, getDualDate } from "@/lib/format";
-import { getLatestUsdIrtRate } from "@/lib/fx";
-import { D } from "@/domain/decimal";
-import Link from "next/link";
+import { EmptyState, Metric, PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
+import Icon from "@/components/ui/Icon";
+import { formatJalaliIso, formatMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+function daysUntil(iso: string) {
+  return Math.ceil((new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
+}
+
 export default async function DebtsPage() {
   await seedIfEmpty();
-  const [debts, cashAccounts, fxSnap] = await Promise.all([
-    listDebts(),
-    db
-      .select({ id: accounts.id, code: accounts.code, name: accounts.name, symbol: assets.symbol })
-      .from(accounts)
-      .leftJoin(assets, eq(assets.id, accounts.assetId))
-      .where(sql`${accounts.type} = 'asset' and ${accounts.assetId} is not null`)
-      .orderBy(asc(accounts.code)),
-    getLatestUsdIrtRate(),
-  ]);
+  const debts = await listDebts();
 
   const today = new Date().toISOString().slice(0, 10);
-  const rate = fxSnap.rate;
   const totalOutstanding = debts.reduce((s, d) => s + Number(d.outstandingBase), 0);
   const overdue = debts.flatMap((d) => d.installments.filter((i) => i.status === "pending" && i.dueDate < today));
-  const next30 = debts.flatMap((d) =>
-    d.installments.filter((i) => i.status === "pending" && i.dueDate >= today).slice(0, 1),
-  );
-
-  const toIrt = (usd: string) => (rate ? D(usd).mul(rate).toFixed(0) : usd);
-  const toUsd = (irt: string) => (rate ? D(irt).div(rate).toFixed(2) : "—");
+  const active = debts.filter((d) => d.status === "active");
+  const nextPayment = debts
+    .flatMap((d) => (d.nextDue ? [{ ...d.nextDue, title: d.title }] : []))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <PageHeader
-        title="بدهی‌ها و اقساط — لایه برنامه‌ریزی"
-        subtitle="تا قبل از تبدیل به تراکنش واقعی، بدهی‌ها و اقساط فقط تعهد برنامه‌ریزی هستند؛ هیچ Journal Entry ایجاد نمی‌کنند. معادل دلاری با آخرین نرخ به‌صورت لحظه‌ای محاسبه می‌شود."
+        title="بدهی‌ها"
+        subtitle="چه مقدار بدهی دارم؟ — مانده هر بدهی از دفترکل مشتق می‌شود؛ با هر پرداخت، کم می‌شود."
+        action={<SectionLink href="/installments" label="برنامه اقساط" />}
       />
 
-      <div className="soft rounded-2xl p-3 text-[11px] flex flex-wrap items-center justify-between gap-2">
-        <span>نرخ دلار مرجع: <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
-        <span className="muted">تاریخ نرخ: <span dir="auto" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · تا قبل از «تأیید نهایی»، هیچ سندی در دفترکل ایجاد نمی‌شود</span>
-      </div>
+      <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
+        <Metric
+          label="مانده کل بدهی"
+          value={formatMoney(totalOutstanding)}
+          tone={totalOutstanding > 0 ? "down" : "up"}
+          hint={totalOutstanding === 0 ? "بدهی‌ای ندارید" : `${active.length} بدهی فعال`}
+        />
+        <Metric label="اقساط معوق" value={String(overdue.length)} tone={overdue.length ? "down" : "up"} />
+        <Metric label="قسط بعدی" value={nextPayment ? formatMoney(nextPayment.amountBase) : "—"} hint={nextPayment ? `${nextPayment.title} · ${formatJalaliIso(nextPayment.dueDate)}` : "قسطی در انتظار نیست"} />
+        <Metric
+          label="تسویه‌شده"
+          value={String(debts.filter((d) => d.status === "settled").length)}
+          hint={debts.length ? `از مجموع ${debts.length} بدهی` : undefined}
+        />
+      </section>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="مانده کل بدهی" value={formatMoney(totalOutstanding)} tone="down" />
-        <Stat label="اقساط معوق" value={String(overdue.length)} tone={overdue.length ? "down" : "up"} />
-        <Stat label="قسط بعدی" value={formatMoney(next30.reduce((s, i) => s + Number(i.amountBase), 0))} />
-        <Stat label="تعداد بدهی فعال" value={String(debts.filter((d) => d.status === "active").length)} />
-      </div>
+      <Section title="وضعیت هر بدهی">
+        {debts.length === 0 ? (
+          <div className="card">
+            <EmptyState
+              icon="debts"
+              title="هیچ بدهی‌ای ثبت نشده است"
+              body="وقتی وام یا بدهی راه‌اندازی شود، مانده‌اش از دفترکل محاسبه و برنامه بازپرداختش اینجا دنبال می‌شود."
+            />
+          </div>
+        ) : (
+          <ul className="space-y-2.5">
+            {debts.map((d) => {
+              const progress = d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0;
+              const settled = d.status === "settled";
+              const late = d.nextDue && d.nextDue.dueDate < today;
+              const dDays = d.nextDue ? daysUntil(d.nextDue.dueDate) : null;
+              return (
+                <li key={d.id} className="card p-4 sm:p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 text-[15px] font-semibold tracking-tight">
+                        {settled && (
+                          <span style={{ color: "var(--positive)" }}>
+                            <Icon name="check-circle" size={17} />
+                          </span>
+                        )}
+                        {d.title}
+                        <span className={settled ? "badge badge-pos" : "badge badge-neutral"}>{settled ? "تسویه شد" : "فعال"}</span>
+                        {late && <span className="badge badge-neg">قسط معوق</span>}
+                      </p>
+                      <p className="muted mt-1 text-[11.5px]">
+                        {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود <span className="num" dir="ltr">{Number(d.interestRate)}٪</span>
+                      </p>
+                    </div>
+                    <div className="text-left">
+                      <p className="muted text-[10.5px]">مانده قابل پرداخت</p>
+                      <p className="num text-xl font-bold" dir="ltr" style={{ color: settled ? "var(--positive)" : "var(--negative)" }}>
+                        {formatMoney(settled ? 0 : d.outstandingBase)}
+                      </p>
+                      <p className="muted num mt-0.5 text-[10.5px]" dir="ltr">
+                        اصل: {formatMoney(d.principalBase)}
+                      </p>
+                    </div>
+                  </div>
 
-      {debts.map((d) => {
-        const progress = d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0;
-        const dualStart = getDualDate(d.startDate);
-        return (
-          <Card
-            key={d.id}
-            title={`${d.title} — ${d.creditor}`}
-            action={<span className="chip">{d.status === "settled" ? "تسویه شده" : "فعال"}</span>}
-          >
-            <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-              <div>
-                <div className="muted text-[10px]">اصل بدهی (IRT مرجع)</div>
-                <div className="num font-bold" dir="rtl">{formatMoney(toIrt(d.principalBase), "IRT")}</div>
-                <div className="num text-[10px]" dir="ltr" style={{ color: "var(--accent)" }}>{formatMoney(d.principalBase, "USD")} <span className="chip text-[10px]">ذخیره USD</span></div>
-              </div>
-              <div>
-                <div className="muted text-[10px]">مانده قابل پرداخت</div>
-                <div className="num font-bold" dir="rtl" style={{ color: "var(--danger)" }}>{formatMoney(toIrt(d.outstandingBase), "IRT")}</div>
-                <div className="num text-[10px]" dir="ltr">{formatMoney(d.outstandingBase, "USD")}</div>
-              </div>
-              <div>
-                <div className="muted text-[10px]">نرخ سود</div>
-                <span className="num" dir="ltr">{Number(d.interestRate)}%</span>
-                <div className="muted text-[10px]">شروع شمسی: {dualStart.jalali}</div>
-                <div className="muted text-[10px]">میلادی: <span dir="auto" className="num">{dualStart.gregorian}</span></div>
-              </div>
-              <div>
-                <div className="muted text-[10px]">اقساط پرداختی</div>
-                <span className="num" dir="ltr">{d.paidCount}/{d.totalCount}</span>
-                <div className="mt-1">
-                  <Link href={`/new?type=expense&debtId=${d.id}&title=${encodeURIComponent(d.title)}`} className="btn btn-ghost !py-1 !px-2 text-[10px]">بارگذاری در فرم تراکنش</Link>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3">
-              <Progress value={progress} />
-            </div>
+                  {d.totalCount > 0 && (
+                    <div className="mt-4">
+                      <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                        <span className="muted">
+                          <span className="num" dir="ltr">
+                            {d.paidCount} از {d.totalCount}
+                          </span>{" "}
+                          قسط پرداخت شده
+                        </span>
+                        <span className="num" dir="ltr">
+                          {progress.toFixed(0)}٪
+                        </span>
+                      </div>
+                      <Progress value={progress} color={settled ? "var(--positive)" : "var(--brand)"} />
+                    </div>
+                  )}
 
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold">اقساط — نمایش دوگانه تاریخ و مبلغ</span>
-                <span className="chip text-[10px]">تا قبل از پرداخت، هیچ سندی ایجاد نشده</span>
-              </div>
-              <div className="max-h-96 overflow-y-auto rounded-2xl border" style={{ borderColor: "var(--line)" }}>
-                <table className="w-full text-right text-[11px]">
-                  <thead className="muted sticky top-0" style={{ background: "var(--bg-elev)" }}>
-                    <tr>
-                      <th className="py-2 px-2 font-normal">#</th>
-                      <th className="py-2 px-2 font-normal">سررسید (شمسی / میلادی)</th>
-                      <th className="py-2 px-2 font-normal">مبلغ (IRT / USD)</th>
-                      <th className="py-2 px-2 font-normal">وضعیت</th>
-                      <th className="py-2 px-2 font-normal">عملیات</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.installments.map((i) => {
-                      const late = i.status === "pending" && i.dueDate < today;
-                      const dual = getDualDate(i.dueDate);
-                      const irt = toIrt(i.amountBase);
-                      return (
-                        <tr key={i.id} className="border-t" style={{ borderColor: "var(--line)" }}>
-                          <td className="num py-2 px-2" dir="ltr">{i.seq}</td>
-                          <td className="py-2 px-2">
-                            <div dir="rtl" className="font-bold">{dual.jalali}</div>
-                            <div dir="ltr" className="num text-[10px] muted">{dual.gregorian}</div>
-                          </td>
-                          <td className="py-2 px-2">
-                            <div className="num font-bold" dir="rtl">{formatMoney(irt, "IRT")}</div>
-                            <div className="num text-[10px]" dir="ltr" style={{ color: "var(--accent)" }}>{formatMoney(i.amountBase, "USD")}</div>
-                          </td>
-                          <td className="py-2 px-2">
-                            <span
-                              className="chip"
-                              style={
-                                i.status === "paid"
-                                  ? { color: "var(--accent)" }
-                                  : late
-                                    ? { color: "var(--danger)" }
-                                    : undefined
-                              }
-                            >
-                              {i.status === "paid" ? "پرداخت‌شده" : late ? "معوق" : "در انتظار"}
-                            </span>
-                          </td>
-                          <td className="py-2 px-2">
-                            <div className="flex flex-wrap gap-1">
-                              {i.status === "pending" && (
-                                <>
-                                  <Link
-                                    href={`/new?type=expense&installmentId=${i.id}&irtAmount=${irt}&entryDate=${i.dueDate}&title=${encodeURIComponent(`قسط ${i.seq} — ${d.title}`)}`}
-                                    className="btn btn-primary !py-1 !px-2 text-[10px]"
-                                  >
-                                    تکمیل خودکار
-                                  </Link>
-                                  <RowAction
-                                    kind="pay-installment"
-                                    id={i.id}
-                                    cashAccountId={cashAccounts[0]?.id}
-                                    label="پرداخت سریع"
-                                  />
-                                </>
-                              )}
-                              <Link href={`/ledger`} className="btn btn-ghost !py-1 !px-2 text-[10px]">دفترکل</Link>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div className="soft rounded-xl p-3 mt-3 text-[11px] leading-6">
-              <strong>راهنما:</strong> برای پرداخت هر قسط، «تکمیل خودکار» را بزنید تا فرم استاندارد ثبت تراکنش با اطلاعات مرجع مقداردهی شود. پیش‌نمایش کامل (مبلغ تومان، معادل دلاری، نرخ، تاریخ‌های دوگانه، وضعیت پس از پرداخت) نمایش داده می‌شود و تنها پس از «تأیید نهایی ثبت تراکنش» سند حسابداری از همان مسیر استاندارد ایجاد و نرخ Freeze می‌شود. سپس وضعیت قسط/بدهی به‌صورت خودکار و در یک تراکنش یکپارچه به‌روزرسانی می‌شود (جلوگیری از ثبت تکراری، کنترل مانده، Rollback در صورت خطا).
-            </div>
-          </Card>
-        );
-      })}
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3.5" style={{ borderColor: "var(--border)" }}>
+                    <p className="text-[12px]" style={{ color: late ? "var(--negative)" : "var(--text-2)" }}>
+                      {d.nextDue ? (
+                        <>
+                          قسط بعدی: <b className="num">{formatMoney(d.nextDue.amountBase)}</b> ·{" "}
+                          {dDays != null && dDays < 0 ? (
+                            <b>{Math.abs(dDays)} روز گذشته</b>
+                          ) : dDays === 0 ? (
+                            <b>امروز</b>
+                          ) : (
+                            <span className="num">{dDays} روز دیگر</span>
+                          )}
+                        </>
+                      ) : settled ? (
+                        "همه اقساط پرداخت شدند."
+                      ) : (
+                        "اقساطی تعریف نشده است."
+                      )}
+                    </p>
+                    <div className="flex gap-1.5">
+                      {d.nextDue && (
+                        <Link
+                          href={`/new?type=expense&installmentId=${d.nextDue.id}&entryDate=${d.nextDue.dueDate}&title=${encodeURIComponent(`قسط ${d.nextDue.seq} — ${d.title}`)}`}
+                          className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[12px]"
+                        >
+                          پرداخت قسط بعدی
+                        </Link>
+                      )}
+                      <Link href="/installments" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[12px]">
+                        همه اقساط
+                      </Link>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Section>
+
+      <p className="muted text-[10.5px]">
+        اصل مهم: تا قبل از پرداخت واقعی، اقساط فقط «تعهد برنامه‌ریزی» هستند و سندی در دفترکل ندارند. مانده بدهی همیشه از{" "}
+        <Link href="/ledger" className="underline underline-offset-2" style={{ color: "var(--brand)" }}>
+          دفترکل
+        </Link>{" "}
+        خوانده می‌شود.
+      </p>
     </div>
   );
 }

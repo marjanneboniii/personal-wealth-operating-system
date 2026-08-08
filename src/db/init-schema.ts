@@ -469,6 +469,10 @@ const STATEMENTS = [
     entity_id text,
     payload text
   );`,
+  `CREATE TABLE IF NOT EXISTS entry_reviews (
+    entry_id uuid PRIMARY KEY REFERENCES journal_entries(id) ON DELETE CASCADE,
+    reviewed_at timestamptz NOT NULL DEFAULT now()
+  );`,
   `CREATE TABLE IF NOT EXISTS user_setup_state (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid REFERENCES users(id),

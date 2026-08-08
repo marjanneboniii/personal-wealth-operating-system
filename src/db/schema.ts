@@ -206,6 +206,20 @@ export const lotConsumptions = pgTable("lot_consumptions", {
 });
 
 /* ------------------------------------------------------------------ */
+/* Review workflow — "has a human confirmed this record?"              */
+/* Separate from the ledger: review state is metadata, never changes  */
+/* accounting truth. Manual entries are auto-reviewed on creation;    */
+/* imported entries start unreviewed until a human confirms them.     */
+/* ------------------------------------------------------------------ */
+
+export const entryReviews = pgTable("entry_reviews", {
+  entryId: uuid("entry_id")
+    .primaryKey()
+    .references(() => journalEntries.id, { onDelete: "cascade" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ------------------------------------------------------------------ */
 /* Prices & snapshots                                                   */
 /* ------------------------------------------------------------------ */
 

@@ -1,0 +1,212 @@
+import type { IconName } from "@/components/ui/Icon";
+
+/**
+ * Information Architecture — single source of truth.
+ * Two conceptual layers are kept visually apart:
+ *   HUMAN FINANCE LAYER  → تراکنش‌ها (human, simple)
+ *   ACCOUNTING TRUTH     → دفترکل + حسابرسی (precise, audited)
+ */
+
+export type NavItem = {
+  href: string;
+  label: string;
+  icon: IconName;
+  /** the financial question this page answers */
+  question: string;
+  /** command-palette keywords (fa/en) */
+  keywords?: string[];
+};
+
+export type NavGroup = {
+  id: string;
+  label: string;
+  items: NavItem[];
+};
+
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    id: "wealth",
+    label: "ثروت",
+    items: [
+      {
+        href: "/",
+        label: "نمای کلی",
+        icon: "overview",
+        question: "وضعیت مالی من چگونه است؟",
+        keywords: ["home", "dashboard", "overview", "خانه", "داشبورد"],
+      },
+    ],
+  },
+  {
+    id: "money",
+    label: "پول",
+    items: [
+      {
+        href: "/transactions",
+        label: "تراکنش‌ها",
+        icon: "transactions",
+        question: "چه اتفاقی برای پول من افتاده است؟",
+        keywords: ["transactions", "activity", "تراکنش", "فعالیت"],
+      },
+      {
+        href: "/accounts",
+        label: "حساب‌ها",
+        icon: "accounts",
+        question: "پول من در کدام حساب‌ها است؟",
+        keywords: ["accounts", "wallets", "حساب", "کیف", "بانک"],
+      },
+      {
+        href: "/cash-flow",
+        label: "جریان نقدی",
+        icon: "cashflow",
+        question: "پول از کجا می‌آید و به کجا می‌رود؟",
+        keywords: ["cashflow", "income", "expense", "جریان", "درآمد", "هزینه"],
+      },
+      {
+        href: "/ledger",
+        label: "دفترکل",
+        icon: "ledger",
+        question: "دقیقاً چه چیزی در سوابق حسابداری ثبت شده است؟",
+        keywords: ["ledger", "journal", "accounting", "دفتر", "سند", "حسابداری"],
+      },
+    ],
+  },
+  {
+    id: "assets",
+    label: "دارایی‌ها",
+    items: [
+      {
+        href: "/portfolio",
+        label: "سبد دارایی",
+        icon: "portfolio",
+        question: "چه چیزهایی در اختیار دارم؟",
+        keywords: ["portfolio", "holdings", "سبد", "سرمایه"],
+      },
+      {
+        href: "/crypto",
+        label: "رمزارزها",
+        icon: "crypto",
+        question: "وضعیت دارایی‌های دیجیتال من چیست؟",
+        keywords: ["crypto", "bitcoin", "رمز", "بیت", "تتر", "ارز دیجیتال"],
+      },
+      {
+        href: "/net-worth",
+        label: "ارزش خالص",
+        icon: "networth",
+        question: "آیا در حال ثروتمندتر شدن هستم؟",
+        keywords: ["net worth", "wealth", "ارزش خالص", "ثروت"],
+      },
+    ],
+  },
+  {
+    id: "planning",
+    label: "برنامه‌ریزی",
+    items: [
+      {
+        href: "/planning",
+        label: "پیش‌بینی مالی",
+        icon: "goals",
+        question: "قدم بعدی که باید بردارم چیست؟",
+        keywords: ["planning", "forecast", "برنامه", "پیش‌بینی"],
+      },
+      {
+        href: "/budgets",
+        label: "بودجه‌ها",
+        icon: "budgets",
+        question: "آیا در چارچوب بودجه هستم؟",
+        keywords: ["budget", "بودجه"],
+      },
+      {
+        href: "/goals",
+        label: "اهداف و صندوق‌ها",
+        icon: "goals",
+        question: "به اهدافم چقدر نزدیک هستم؟",
+        keywords: ["goals", "funds", "هدف", "صندوق", "پس‌انداز"],
+      },
+      {
+        href: "/debts",
+        label: "بدهی‌ها",
+        icon: "debts",
+        question: "چه مقدار بدهی دارم؟",
+        keywords: ["debt", "loan", "بدهی", "وام"],
+      },
+      {
+        href: "/installments",
+        label: "اقساط",
+        icon: "installments",
+        question: "کدام قسط کی سر می‌رسد؟",
+        keywords: ["installment", "قسط", "اقساط"],
+      },
+    ],
+  },
+  {
+    id: "reports",
+    label: "گزارش‌ها",
+    items: [
+      {
+        href: "/reports",
+        label: "گزارش‌های مالی",
+        icon: "reports",
+        question: "تصویر کامل عملکرد مالی من چیست؟",
+        keywords: ["reports", "گزارش"],
+      },
+      {
+        href: "/audit",
+        label: "حسابرسی",
+        icon: "audit",
+        question: "آیا می‌توانم به این اعداد اعتماد کنم؟",
+        keywords: ["audit", "integrity", "حسابرسی", "یکپارچگی"],
+      },
+    ],
+  },
+];
+
+/** Pinned at the bottom of the sidebar, and inside mobile "More". */
+export const SECONDARY_ITEMS: NavItem[] = [
+  {
+    href: "/market-data",
+    label: "قیمت‌های بازار",
+    icon: "globe",
+    question: "آخرین قیمت‌ها چیست؟",
+    keywords: ["market", "price", "قیمت", "بازار"],
+  },
+  {
+    href: "/import",
+    label: "درون‌ریزی داده",
+    icon: "import",
+    question: "داده‌هایم را چگونه وارد کنم؟",
+    keywords: ["import", "csv", "درون‌ریزی", "ورود داده"],
+  },
+  {
+    href: "/settings",
+    label: "تنظیمات",
+    icon: "settings",
+    question: "سیستم چگونه پیکربندی شده است؟",
+    keywords: ["settings", "backup", "تنظیمات", "پشتیبان"],
+  },
+];
+
+export const ALL_NAV_ITEMS: NavItem[] = [...NAV_GROUPS.flatMap((g) => g.items), ...SECONDARY_ITEMS];
+
+/** Mobile bottom navigation — 5 top-level destinations only. */
+export const MOBILE_TABS: { href: string; label: string; icon: IconName; match?: string[] }[] = [
+  { href: "/", label: "خانه", icon: "home", match: ["/"] },
+  { href: "/portfolio", label: "دارایی‌ها", icon: "portfolio", match: ["/portfolio", "/crypto", "/net-worth"] },
+  { href: "/transactions", label: "تراکنش‌ها", icon: "transactions", match: ["/transactions", "/cash-flow", "/ledger"] },
+  { href: "/planning", label: "برنامه‌ریزی", icon: "goals", match: ["/planning", "/budgets", "/goals", "/debts", "/installments"] },
+];
+
+/** Quick actions surfaced in the command palette and mobile "More". */
+export const QUICK_ACTIONS: { href: string; label: string; icon: IconName; hint: string; keywords: string[] }[] = [
+  { href: "/new?type=expense", label: "ثبت هزینه", icon: "arrow-down", hint: "سریع‌ترین مسیر", keywords: ["expense", "هزینه"] },
+  { href: "/new?type=income", label: "ثبت درآمد", icon: "arrow-up", hint: "", keywords: ["income", "درآمد"] },
+  { href: "/new?type=transfer", label: "انتقال بین حساب‌ها", icon: "swap", hint: "", keywords: ["transfer", "انتقال"] },
+  { href: "/new?type=buy", label: "خرید دارایی", icon: "plus", hint: "", keywords: ["buy", "خرید"] },
+  { href: "/new?type=sell", label: "فروش دارایی", icon: "arrow-down", hint: "", keywords: ["sell", "فروش"] },
+  { href: "/new", label: "ثبت تراکنش جدید", icon: "plus", hint: "فرم کامل", keywords: ["new", "transaction", "تراکنش", "جدید", "ثبت"] },
+];
+
+export function isNavActive(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(href + "/");
+}

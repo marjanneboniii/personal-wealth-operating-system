@@ -2,6 +2,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   accounts,
+  budgets,
   debts,
   events,
   funds,
@@ -54,6 +55,56 @@ export async function listFunds() {
       progress: target.isZero() ? 0 : Math.min(100, saved.div(target).mul(100).toNumber()),
     };
   });
+}
+
+/* ---------------- Budgets ---------------- */
+
+/** Budgets with actual spend derived from the ledger (never stored balances). */
+export async function listBudgets() {
+  const rows = await db
+    .select({
+      id: budgets.id,
+      name: budgets.name,
+      periodStart: budgets.periodStart,
+      periodEnd: budgets.periodEnd,
+      amountBase: budgets.amountBase,
+      accountId: budgets.accountId,
+      accountName: accounts.name,
+      accountCode: accounts.code,
+    })
+    .from(budgets)
+    .leftJoin(accounts, eq(accounts.id, budgets.accountId))
+    .where(sql`${budgets.deletedAt} is null`)
+    .orderBy(asc(budgets.periodStart));
+
+  // Spend must respect each budget's own period — derive per budget.
+  const result = [];
+  for (const b of rows) {
+    let spentInPeriod = "0";
+    if (b.accountId) {
+      const r = await db.execute(sql`
+        select coalesce(sum(p.base_value), 0)::text as spent
+        from postings p
+          join journal_entries je on je.id = p.entry_id
+        where je.status = 'posted'
+          and p.account_id = ${b.accountId}
+          and je.entry_date >= ${b.periodStart}
+          and je.entry_date <= ${b.periodEnd}
+      `);
+      spentInPeriod = (r.rows[0] as { spent: string } | undefined)?.spent ?? "0";
+    }
+    const limit = D(b.amountBase);
+    const used = D(spentInPeriod);
+    const remaining = limit.sub(used);
+    result.push({
+      ...b,
+      spentBase: used.toString(),
+      remainingBase: remaining.toString(),
+      usage: limit.isZero() ? 0 : Math.max(0, used.div(limit).mul(100).toNumber()),
+      over: remaining.isNegative(),
+    });
+  }
+  return result;
 }
 
 /* ---------------- Debts & installments ---------------- */

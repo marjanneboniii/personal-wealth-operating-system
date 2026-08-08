@@ -17,7 +17,7 @@ type Opt = { id: string; code: string; name: string };
 function Feedback({ state }: { state: ActionResult | null }) {
   if (!state) return null;
   return (
-    <p className="text-[11px]" style={{ color: state.ok ? "var(--accent)" : "var(--danger)" }}>
+    <p className="text-[11px]" style={{ color: state.ok ? "var(--brand)" : "var(--negative)" }}>
       {state.message}
     </p>
   );
@@ -47,7 +47,7 @@ function PlanningPreview({ title, description, irtAmount, rate, rateDate, rateSo
         <div className="soft rounded-xl p-2">
           <div className="muted text-[10px]">مبلغ به تومان و معادل دلاری (نرخ لحظه‌ای)</div>
           <div className="num font-bold" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</div>
-          <div className="num" dir="ltr" style={{ color: "var(--accent)" }}>{usd ? formatMoney(usd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {rate ? formatMoney(rate, "IRT") + " ≈ $1" : "ثبت نشده"}</span></div>
+          <div className="num" dir="ltr" style={{ color: "var(--brand)" }}>{usd ? formatMoney(usd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {rate ? formatMoney(rate, "IRT") + " ≈ $1" : "ثبت نشده"}</span></div>
           {rateDate && <div className="muted text-[10px]">تاریخ نرخ: <span dir="auto" className="num">{rateDate}</span> · منبع: {rateSource ?? "—"}</div>}
         </div>
         <div className="flex flex-wrap gap-3">

@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { createImportJobAction, executeImportJobAction, type ActionResult } from "@/app/actions";
 import { Card, PageHeader, Stat } from "@/components/ui/Card";
+import Icon from "@/components/ui/Icon";
 import { formatMoney } from "@/lib/format";
 
 export default function ImportPage() {
@@ -47,8 +48,8 @@ export default function ImportPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="درون‌ریزی تراکنش‌ها و موجودی (Import System)"
-        subtitle="مهاجرت تاریخچه مالی و موجودی‌های قبلی از فایل CSV یا کلیپ‌بورد به دفترکل معتبر"
+        title="درون‌ریزی داده"
+        subtitle="داده‌هایم را چگونه وارد کنم؟ — رکوردهای درون‌ریزی تا تأیید شما، «بررسی‌نشده» باقی می‌مانند."
       />
 
       {/* Input Section */}
@@ -59,7 +60,8 @@ export default function ImportPage() {
 
           <div className="flex flex-wrap items-center gap-3">
             <label className="btn btn-primary cursor-pointer !py-2 text-xs">
-              📁 انتخاب فایل CSV / TSV
+              <Icon name="upload" size={15} />
+              انتخاب فایل CSV / TSV
               <input
                 type="file"
                 accept=".csv,.tsv,.txt"
@@ -98,7 +100,11 @@ export default function ImportPage() {
           </div>
 
           {state && !state.ok && (
-            <p className="rounded-2xl bg-[rgba(225,29,72,0.12)] p-3 text-xs style={{ color: 'var(--danger)' }}">
+            <p
+              className="rounded-[var(--r-md)] p-3 text-xs font-medium"
+              style={{ background: "var(--negative-soft)", color: "var(--negative)" }}
+              role="alert"
+            >
               {state.message}
             </p>
           )}
@@ -116,9 +122,9 @@ export default function ImportPage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
+              <table className="table">
                 <thead className="muted">
-                  <tr className="border-b" style={{ borderColor: "var(--line)" }}>
+                  <tr className="border-b" style={{ borderColor: "var(--border)" }}>
                     <th className="py-2 font-normal">سطر</th>
                     <th className="py-2 font-normal">تاریخ</th>
                     <th className="py-2 font-normal">نوع</th>
@@ -130,7 +136,7 @@ export default function ImportPage() {
                 </thead>
                 <tbody>
                   {job.records.map((r: any) => (
-                    <tr key={r.lineIndex} className="border-b last:border-0" style={{ borderColor: "var(--line)" }}>
+                    <tr key={r.lineIndex} className="border-b last:border-0" style={{ borderColor: "var(--border)" }}>
                       <td className="num py-2.5 opacity-60" dir="ltr">{r.lineIndex}</td>
                       <td className="num py-2.5" dir="ltr">{r.rawData.date}</td>
                       <td className="py-2.5">
@@ -141,13 +147,12 @@ export default function ImportPage() {
                       <td className="num py-2.5" dir="ltr">{formatMoney(r.rawData.price)}</td>
                       <td className="py-2.5">
                         {r.status === "valid" ? (
-                          <span className="chip" style={{ color: "var(--accent)" }}>
-                            معتبر ✅ {r.warningMessage && `(${r.warningMessage})`}
+                          <span className="badge badge-pos">
+                            <Icon name="check" size={11} />
+                            معتبر {r.warningMessage && `(${r.warningMessage})`}
                           </span>
                         ) : (
-                          <span className="chip" style={{ color: "var(--danger)" }}>
-                            خطا: {r.errorMessage}
-                          </span>
+                          <span className="badge badge-neg">خطا: {r.errorMessage}</span>
                         )}
                       </td>
                     </tr>
@@ -157,7 +162,7 @@ export default function ImportPage() {
             </div>
 
             {/* Execution Controls */}
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4" style={{ borderColor: "var(--line)" }}>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4" style={{ borderColor: "var(--border)" }}>
               <div className="muted text-xs">
                 با تایید نهایی، {job.validCount} سطر معتبر از طریق سرویس‌های حسابداری در دفترکل ثبت خواهند شد.
               </div>
@@ -173,23 +178,30 @@ export default function ImportPage() {
 
             {execResult && (
               <div
-                className="mt-4 rounded-2xl p-4 text-xs"
+                className="mt-4 flex items-start gap-3 rounded-[var(--r-md)] p-4 text-xs"
                 style={{
-                  background: execResult.ok ? "var(--accent-soft)" : "rgba(225,29,72,0.12)",
-                  color: execResult.ok ? "var(--accent)" : "var(--danger)",
+                  background: execResult.ok ? "var(--positive-soft)" : "var(--negative-soft)",
+                  color: execResult.ok ? "var(--positive)" : "var(--negative)",
                 }}
+                role="status"
               >
-                <div>{execResult.message}</div>
-                {execResult.ok && (
-                  <div className="mt-2 flex gap-3">
-                    <Link href="/ledger" className="btn btn-primary !py-1 !px-3 text-[11px]">
-                      مشاهده دفترکل ←
-                    </Link>
-                    <Link href="/portfolio" className="btn !py-1 !px-3 text-[11px]">
-                      مشاهده سبد دارایی ←
-                    </Link>
-                  </div>
-                )}
+                <span className="mt-0.5 shrink-0">
+                  <Icon name={execResult.ok ? "check-circle" : "xcircle"} size={17} />
+                </span>
+                <div>
+                  <div className="font-semibold">{execResult.message}</div>
+                  {execResult.ok && (
+                    <div className="mt-2.5 flex flex-wrap gap-2">
+                      <Link href="/transactions?review=unreviewed" className="btn btn-primary !min-h-9 !px-3 !py-1.5 text-[11.5px]">
+                        <Icon name="check" size={14} />
+                        بازبینی رکوردهای درون‌ریزی‌شده
+                      </Link>
+                      <Link href="/ledger" className="btn !min-h-9 !px-3 !py-1.5 text-[11.5px]">
+                        مشاهده دفترکل
+                      </Link>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </Card>

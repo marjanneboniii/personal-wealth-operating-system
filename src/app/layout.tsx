@@ -4,16 +4,20 @@ import "./globals.css";
 import Shell from "@/components/layout/Shell";
 
 export const metadata: Metadata = {
-  title: "PWOS — سیستم‌عامل مدیریت ثروت شخصی",
-  description: "هسته مالی خصوصی برای مدیریت بلندمدت ثروت، سرمایه‌گذاری، بدهی و برنامه‌های آینده.",
+  title: {
+    default: "سرمایه‌ی من — سیستم‌عامل ثروت شخصی",
+    template: "%s — سرمایه‌ی من",
+  },
+  description: "هسته مالی خصوصی برای مدیریت بلندمدت ثروت، سرمایه‌گذاری، بدهی و برنامه‌های آینده — مبتنی بر حسابداری دوطرفه و دفترکل تغییرناپذیر.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "PWOS" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "سرمایه‌ی من" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f7f9" },
-    { media: "(prefers-color-scheme: dark)", color: "#06080c" },
+    { media: "(prefers-color-scheme: light)", color: "#f7f7f5" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0e12" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -29,6 +33,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="antialiased">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:right-3 focus:top-3 focus:z-[100] focus:rounded-lg focus:px-3 focus:py-2 focus:text-[13px]"
+          style={{ background: "var(--brand)", color: "var(--on-brand)" }}
+        >
+          پرش به محتوای اصلی
+        </a>
         <Shell>{children}</Shell>
       </body>
     </html>

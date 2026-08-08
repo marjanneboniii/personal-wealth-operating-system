@@ -1,41 +1,38 @@
+import Link from "next/link";
 import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, assets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import {
+  listDebts,
   listEvents,
-  listFunds,
-  listGoals,
-  listObligations,
   listPlanned,
   projectCashflow,
+  upcomingInstallments,
 } from "@/features/planning/service";
-import { Card, Money, PageHeader, Progress, Stat } from "@/components/ui/Card";
+import { Alert, EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import { BarsChart } from "@/components/charts/Charts";
 import { EventForm, GoalForm, PlannedForm } from "@/components/forms/QuickForms";
 import RowAction from "@/components/RowAction";
-import { formatMoney, formatShortDate, getDualDate, formatJalaliIso } from "@/lib/format";
+import Icon from "@/components/ui/Icon";
+import { formatMoney, formatShortDate, getDualDate, toJalali } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
-import { D } from "@/domain/decimal";
 
 export const dynamic = "force-dynamic";
 
-const CATEGORY: Record<string, string> = {
-  trip: "سفر",
-  ceremony: "مراسم",
-  gift: "هدیه",
-  purchase: "خرید بزرگ",
-  other: "سایر",
-};
+const FA_MONTHS = ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
+
+function daysUntil(iso: string) {
+  return Math.ceil((new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
+}
 
 export default async function PlanningPage() {
   await seedIfEmpty();
-  const [goals, events, planned, obligations, funds, projection, accountRows, fxSnap] = await Promise.all([
-    listGoals(),
-    listEvents(),
+  const [planned, insts, debts, events, projection, accountRows, fx] = await Promise.all([
     listPlanned(),
-    listObligations(),
-    listFunds(),
+    upcomingInstallments(6),
+    listDebts(),
+    listEvents(),
     projectCashflow(12),
     db
       .select({ id: accounts.id, code: accounts.code, name: accounts.name })
@@ -48,215 +45,184 @@ export default async function PlanningPage() {
 
   const pending = planned.filter((p) => p.status === "pending");
   const deficit = projection.points.find((p) => p.deficit);
-  const totalPlannedOut = pending
-    .filter((p) => p.direction === "outflow")
-    .reduce((s, p) => s + Number(p.amountBase), 0);
+  const totalPlannedOut = pending.filter((p) => p.direction === "outflow").reduce((s, p) => s + Number(p.amountBase), 0);
 
-  const rate = fxSnap.rate;
-  const toUsd = (irt: string) => (rate ? D(irt).div(rate).toFixed(2) : "—");
+  // Next actions — the single merged "what's next" queue
+  const queue: {
+    date: string;
+    title: string;
+    kind: "installment" | "plan" | "event";
+    amount: string;
+    id: string;
+    extra?: string;
+  }[] = [
+    ...insts.slice(0, 4).map((i) => ({
+      date: i.dueDate,
+      title: `قسط ${i.seq} «${i.debtTitle}»`,
+      kind: "installment" as const,
+      amount: i.amountBase,
+      id: i.id,
+      extra: i.creditor,
+    })),
+    ...pending.slice(0, 4).map((p) => ({
+      date: p.plannedDate,
+      title: p.title,
+      kind: "plan" as const,
+      amount: p.amountBase,
+      id: p.id,
+      extra: p.direction === "inflow" ? "ورودی برنامه‌ریزی‌شده" : "خروجی برنامه‌ریزی‌شده",
+    })),
+    ...events
+      .filter((e) => e.status === "planned")
+      .slice(0, 3)
+      .map((e) => ({
+        date: e.eventDate,
+        title: e.name,
+        kind: "event" as const,
+        amount: e.budgetBase,
+        id: e.id,
+        extra: "رویداد پیش‌رو",
+      })),
+  ]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 6);
+
+  const kindIcon = { installment: "installments" as const, plan: "goals" as const, event: "calendar" as const };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <PageHeader
-        title="برنامه‌ریزی مالی"
+        title="پیش‌بینی مالی"
+        subtitle="قدم بعدی که باید بردارم چیست؟ — برنامه‌ها تا لحظه «اجرا» هیچ اثری روی دفترکل ندارند."
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="نقدینگی فعلی" value={formatMoney(projection.startingLiquidity)} />
-        <Stat label="خروج برنامه‌ریزی‌شده" value={formatMoney(totalPlannedOut)} tone="down" />
-        <Stat label="نقدینگی پایان دوره" value={formatMoney(projection.points.at(-1)?.cumulative ?? "0")} tone={deficit ? "down" : "up"} />
-        <Stat label="هشدار کسری" value={deficit ? formatShortDate(deficit.month) : "ندارد"} tone={deficit ? "down" : "up"} />
-      </div>
+      {deficit && (
+        <Alert tone="neg" icon="alert" title={`کسری نقدینگی در ${formatShortDate(deficit.month)}`}>
+          اگر همه برنامه‌ها و اقساط اجرا شوند، نقدینگی شما در این ماه منفی می‌شود. این برنامه‌ها را بازنگری یا نقدینگی را افزایش دهید.
+        </Alert>
+      )}
 
-      {/* Rate banner — shared source of truth */}
-      <div className="soft rounded-2xl p-3 text-[11px] flex flex-wrap items-center justify-between gap-2">
-        <span>نرخ دلار مرجع برای تمام پیش‌نمایش‌ها: <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
-        <span className="muted">تاریخ نرخ: <span dir="auto" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · با تغییر نرخ، معادل دلاری تمام آیتم‌های برنامه‌ریزی به‌صورت خودکار به‌روزرسانی می‌شود (فقط نمایشی)</span>
-      </div>
-
-      <Card title="پیش‌بینی جریان نقدی ۱۲ ماه آینده">
-        <BarsChart
-          data={projection.points.map((p) => ({
-            label: formatShortDate(p.month),
-            positive: Number(p.inflow),
-            negative: Number(p.outflow),
-          }))}
+      <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
+        <Metric label="نقدینگی فعلی" value={formatMoney(projection.startingLiquidity)} />
+        <Metric label="خروجی برنامه‌ریزی‌شده" value={formatMoney(totalPlannedOut)} tone="down" hint={`${pending.length} برنامه در انتظار`} />
+        <Metric
+          label="نقدینگی پایان ۱۲ ماه"
+          value={formatMoney(projection.points.at(-1)?.cumulative ?? "0")}
+          tone={deficit ? "down" : "up"}
         />
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-right text-[11px]">
-            <thead className="muted">
-              <tr>
-                <th className="py-1 font-normal">ماه</th>
-                <th className="py-1 font-normal">ورودی</th>
-                <th className="py-1 font-normal">خروجی</th>
-                <th className="py-1 font-normal">خالص</th>
-                <th className="py-1 font-normal">نقدینگی تجمعی</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projection.points.map((p) => (
-                <tr key={p.month} className="border-t" style={{ borderColor: "var(--line)" }}>
-                  <td className="py-1.5">{formatShortDate(p.month)} <span className="muted text-[10px]" dir="ltr">{p.month}</span></td>
-                  <td className="py-1.5"><span className="num" dir="rtl">{formatMoney(D(p.inflow).mul(rate ?? 0).toFixed(0), "IRT")}</span><br/><span className="num" dir="ltr">{formatMoney(p.inflow, "USD")}</span></td>
-                  <td className="py-1.5"><span className="num" dir="rtl">{formatMoney(D(p.outflow).mul(rate ?? 0).toFixed(0), "IRT")}</span><br/><span className="num" dir="ltr">{formatMoney(p.outflow, "USD")}</span></td>
-                  <td className="py-1.5"><span className="num" dir="rtl">{formatMoney(D(p.net).mul(rate ?? 0).toFixed(0), "IRT")}</span><br/><Money value={p.net} tone /></td>
-                  <td className="num py-1.5" dir="ltr" style={{ color: p.deficit ? "var(--danger)" : undefined }}>
-                    {formatMoney(D(p.cumulative).mul(rate ?? 0).toFixed(0), "IRT")}<br/><span dir="ltr">{formatMoney(p.cumulative, "USD")}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+        <Metric label="هشدار کسری" value={deficit ? formatShortDate(deficit.month) : "ندارد"} tone={deficit ? "down" : "up"} />
+      </section>
 
-      <Card title="تراکنش‌های برنامه‌ریزی‌شده">
-        <ul className="divide-y" style={{ borderColor: "var(--line)" }}>
-          {planned.map((p) => {
-            const usd = toUsd(p.amountBase);
-            const dual = getDualDate(p.plannedDate);
-            return (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-xs">
-                <div>
-                  <div>
-                    {p.title}
-                    <span className="chip mr-2">{p.direction === "inflow" ? "ورودی" : "خروجی"}</span>
-                    {p.recurrence !== "none" && (
-                      <span className="chip mr-1">{p.recurrence === "monthly" ? "ماهانه" : "سالانه"}</span>
-                    )}
+      {/* The queue */}
+      <Section title="قدم‌های بعدی شما" hint="مرتب‌شده بر اساس نزدیک‌ترین سررسید">
+        {queue.length === 0 ? (
+          <div className="card">
+            <EmptyState
+              icon="check-circle"
+              title="همه‌چیز مرتب است"
+              body="هیچ قسط، برنامه یا رویداد نزدیکی وجود ندارد. برنامه جدید بسازید تا آینده شکل بگیرد."
+            />
+          </div>
+        ) : (
+          <ul className="divide-y border-t border-b" style={{ borderColor: "var(--border)" }}>
+            {queue.map((q) => {
+              const d = daysUntil(q.date);
+              const dual = getDualDate(q.date);
+              return (
+                <li key={q.kind + q.id} className="flex items-center gap-3 py-3">
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                    style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+                  >
+                    <Icon name={kindIcon[q.kind]} size={16} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium">{q.title}</p>
+                    <p className="muted mt-0.5 text-[11px]">
+                      {q.extra} · {dual.jalali} ·{" "}
+                      <span style={{ color: d < 0 ? "var(--negative)" : undefined }} className="num">
+                        {d < 0 ? `${Math.abs(d)} روز گذشته` : d === 0 ? "امروز" : `${d} روز دیگر`}
+                      </span>
+                    </p>
                   </div>
-                  <div className="muted mt-1 text-[10px] flex flex-wrap gap-2">
-                    <span>شمسی: <span dir="rtl">{dual.jalali}</span></span>
-                    <span>میلادی: <span dir="auto" className="num">{dual.gregorian}</span></span>
-                    <span>·</span>
-                    <span>{p.status === "executed" ? "اجرا شده — در دفترکل" : p.status === "cancelled" ? "لغو شده" : "در انتظار اجرا"}</span>
-                  </div>
-                  <div className="muted text-[10px]">مبلغ به تومان: <span dir="rtl" className="num">{formatMoney(p.amountBase, "IRT")}</span> ≈ <span dir="ltr" className="num" style={{ color:"var(--accent)" }}>{usd !== "—" ? formatMoney(usd, "USD") : "—"}</span> <span className="chip">نرخ لحظه‌ای</span></div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="num" dir="rtl">{formatMoney(p.amountBase, "IRT")}</span>
-                  <span className="muted text-[10px]">≈</span>
-                  <span className="num" dir="ltr" style={{ color:"var(--accent)" }}>{usd !== "—" ? formatMoney(usd, "USD") : "—"}</span>
-                  {p.status === "pending" && (
-                    <div className="flex gap-1">
-                      <RowAction kind="execute-plan" id={p.id} label="اجرا" primary />
-                      <a href={`/new?title=${encodeURIComponent(p.title)}&irtAmount=${p.amountBase}&entryDate=${p.plannedDate}`} className="btn btn-ghost !py-1 !px-2 text-[11px]">بارگذاری در فرم تراکنش</a>
-                    </div>
+                  <span className="num shrink-0 text-[13.5px] font-bold" dir="ltr">
+                    {formatMoney(q.amount)}
+                  </span>
+                  {q.kind === "installment" && (
+                    <Link
+                      href={`/new?type=expense&installmentId=${q.id}&entryDate=${q.date}&title=${encodeURIComponent(q.title)}`}
+                      className="btn btn-primary !min-h-9 shrink-0 !px-3.5 !py-1.5 text-[12px]"
+                    >
+                      پرداخت
+                    </Link>
                   )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="اهداف مالی">
-          <ul className="space-y-4">
-            {goals.map((g) => {
-              const usdTarget = toUsd(g.targetBase);
-              const usdSaved = toUsd(g.savedBase);
-              const dual = g.targetDate ? getDualDate(g.targetDate) : null;
-              return (
-                <li key={g.id}>
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span>
-                      {g.name}
-                      {dual && <span className="muted mr-2 text-[10px]">تا {dual.jalali} / <span dir="auto" className="num">{dual.gregorian}</span></span>}
-                    </span>
-                    <span className="num muted" dir="ltr">
-                      {formatMoney(g.savedBase, "IRT")} / {formatMoney(g.targetBase, "IRT")}
-                      <span className="mr-1" style={{ color:"var(--accent)" }}>≈ {usdSaved !== "—" ? formatMoney(usdSaved, "USD") : "—"} / {usdTarget !== "—" ? formatMoney(usdTarget, "USD") : "—"}</span>
-                    </span>
-                  </div>
-                  <Progress value={g.progress} />
-                  <div className="muted mt-1 text-[10px] flex justify-between">
-                    <span>باقی‌مانده: {formatMoney(g.remainingBase, "IRT")} ≈ {toUsd(g.remainingBase) !== "—" ? formatMoney(toUsd(g.remainingBase), "USD") : "—"}</span>
-                    <span>اولویت: {g.priority === 1 ? "بالا" : g.priority === 2 ? "متوسط" : "پایین"} · وضعیت: {g.status}</span>
-                  </div>
+                  {q.kind === "plan" && <RowAction kind="execute-plan" id={q.id} label="اجرا" primary />}
                 </li>
               );
             })}
           </ul>
-        </Card>
+        )}
+      </Section>
 
-        <Card title="صندوق‌های اختصاصی">
-          <ul className="space-y-4">
-            {funds.map((f) => {
-              const usdSaved = toUsd(f.savedBase);
-              const usdTarget = toUsd(f.targetBase);
-              return (
-                <li key={f.id}>
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span>{f.name}</span>
-                    <span className="num muted" dir="ltr">
-                      {formatMoney(f.savedBase, "IRT")} / {formatMoney(f.targetBase, "IRT")}
-                      <span className="mr-1" style={{ color:"var(--accent)" }}>≈ {formatMoney(usdSaved, "USD")} / {formatMoney(usdTarget, "USD")}</span>
-                    </span>
-                  </div>
-                  <Progress value={f.progress} color="#38bdf8" />
-                  {f.note && <div className="muted mt-1 text-[10px]">{f.note}</div>}
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="رویدادها و خریدهای آینده">
-          <ul className="divide-y text-xs" style={{ borderColor: "var(--line)" }}>
-            {events.map((e) => {
-              const usd = toUsd(e.budgetBase);
-              const dual = getDualDate(e.eventDate);
-              return (
-                <li key={e.id} className="flex items-center justify-between py-2.5">
-                  <div>
-                    <div>{e.name} <span className="chip mr-2">{CATEGORY[e.category] ?? e.category}</span></div>
-                    <div className="muted text-[10px] flex gap-2"><span>شمسی: {dual.jalali}</span><span>میلادی: <span dir="auto" className="num">{dual.gregorian}</span></span></div>
-                  </div>
-                  <div className="text-left">
-                    <div className="num font-bold" dir="rtl">{formatMoney(e.budgetBase, "IRT")}</div>
-                    <div className="num text-[10px]" dir="ltr" style={{ color:"var(--accent)" }}>{usd !== "—" ? formatMoney(usd, "USD") : "—"}</div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-
-        <Card title="تعهدات مالی">
-          <ul className="divide-y text-xs" style={{ borderColor: "var(--line)" }}>
-            {obligations.map((o) => {
-              const usd = toUsd(o.amountBase);
-              const dual = getDualDate(o.dueDate);
-              return (
-                <li key={o.id} className="flex items-center justify-between py-2.5">
-                  <div>
-                    <div>{o.title} <span className="chip mr-2">{o.recurrence === "monthly" ? "ماهانه" : o.recurrence === "yearly" ? "سالانه" : "یک‌بار"}</span></div>
-                    <div className="muted text-[10px] flex gap-2"><span>سررسید شمسی: {dual.jalali}</span><span>میلادی: <span dir="auto" className="num">{dual.gregorian}</span></span></div>
-                  </div>
-                  <div className="text-left">
-                    <div className="num font-bold" dir="rtl">{formatMoney(o.amountBase, "IRT")}</div>
-                    <div className="num text-[10px]" dir="ltr" style={{ color:"var(--accent)" }}>{usd !== "—" ? formatMoney(usd, "USD") : "—"}</div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      </div>
-
-      <Card title="افزودن برنامه جدید — لایه برنامه‌ریزی (Planning Layer)">
-        <p className="muted text-[11px] mb-4">هر آیتم مبلغ به تومان (IRT) به‌عنوان مرجع دارد؛ معادل دلاری با آخرین نرخ به‌صورت لحظه‌ای و فقط نمایشی محاسبه می‌شود. تا قبل از «تأیید نهایی» و «اجرا»، هیچ Journal Entry ایجاد نمی‌شود.</p>
-        <div className="space-y-6">
-          <PlannedForm accounts={accountRows} initialRate={rate} initialRateDate={fxSnap.effectiveDate} initialRateSource={fxSnap.source} />
-          <hr style={{ borderColor: "var(--line)" }} />
-          <GoalForm accounts={accountRows} initialRate={rate} initialRateDate={fxSnap.effectiveDate} initialRateSource={fxSnap.source} />
-          <hr style={{ borderColor: "var(--line)" }} />
-          <EventForm initialRate={rate} initialRateDate={fxSnap.effectiveDate} initialRateSource={fxSnap.source} />
+      {/* Forecast */}
+      <Section title="جریان نقدی ۱۲ ماه آینده" hint="برنامه‌ها + اقساط + تعهدات + رویدادها — پیش‌بینی، نه واقعیت">
+        <div className="card p-4 sm:p-5">
+          <BarsChart
+            height={150}
+            data={projection.points.map((p) => ({
+              label: FA_MONTHS[toJalali(p.month).m],
+              positive: Number(p.inflow),
+              negative: Number(p.outflow),
+            }))}
+          />
         </div>
-      </Card>
+      </Section>
+
+      {/* Doorways to the planning family */}
+      <Section title="ابزارهای برنامه‌ریزی">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          {[
+            { href: "/budgets", label: "بودجه‌ها", q: "آیا در چارچوب هستم؟", icon: "budgets" as const },
+            { href: "/goals", label: "اهداف و صندوق‌ها", q: "چقدر نزدیکم؟", icon: "goals" as const },
+            { href: "/debts", label: "بدهی‌ها", q: `مانده: ${formatMoney(debts.reduce((s, d) => s + Number(d.outstandingBase), 0))}`, icon: "debts" as const },
+            { href: "/installments", label: "اقساط", q: "چه زمانی سر می‌رسد؟", icon: "installments" as const },
+          ].map((l) => (
+            <Link key={l.href} href={l.href} className="card group p-4 transition-transform hover:-translate-y-0.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
+                <Icon name={l.icon} size={17} />
+              </span>
+              <p className="mt-2.5 text-[13px] font-semibold">{l.label}</p>
+              <p className="muted mt-0.5 truncate text-[10.5px]">{l.q}</p>
+            </Link>
+          ))}
+        </div>
+      </Section>
+
+      {/* Capture — collapsed until needed */}
+      <Section title="افزودن برنامه جدید" hint="تا قبل از «اجرا» هیچ سندی در دفترکل ایجاد نمی‌شود">
+        <div className="space-y-2.5">
+          {[
+            { id: "planned", label: "تراکنش برنامه‌ریزی‌شده", body: <PlannedForm accounts={accountRows} initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} /> },
+            { id: "goal", label: "هدف مالی", body: <GoalForm accounts={accountRows} initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} /> },
+            { id: "event", label: "رویداد آینده", body: <EventForm initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} /> },
+          ].map((f) => (
+            <details key={f.id} className="card group overflow-hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
+                <span className="text-[13.5px] font-semibold">{f.label}</span>
+                <span className="muted transition-transform group-open:rotate-180">
+                  <Icon name="chevronDown" size={15} />
+                </span>
+              </summary>
+              <div className="border-t p-4" style={{ borderColor: "var(--border)" }}>
+                {f.body}
+              </div>
+            </details>
+          ))}
+        </div>
+        <div className="mt-4">
+          <SectionLink href="/goals" label="مدیریت اهداف، صندوق‌ها و تعهدات" />
+        </div>
+      </Section>
     </div>
   );
 }

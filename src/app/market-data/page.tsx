@@ -43,27 +43,30 @@ export default async function MarketDataPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="مدیریت قیمت‌های بازار (Market Data Layer)"
-        subtitle="قیمت‌های بازار ورودی‌های ارزش‌گذاری بیرونی هستند و هرگز اسناد دفترکل، مانده‌ها یا بسته‌های FIFO را تغییر نمی‌دهند. قیمت تومان از رابطه «قیمت دلاری × آخرین نرخ دلار» فقط نمایشی محاسبه می‌شود."
+        title="قیمت‌های بازار"
+        subtitle="آخرین قیمت‌ها چیست؟ — ورودی ارزش‌گذاری؛ هرگز سند دفترکل یا مانده‌ای را تغییر نمی‌دهند."
       />
 
-      <div className="soft rounded-2xl p-3 text-[11px] flex flex-wrap items-center justify-between gap-2">
-        <span>نرخ دلار مرجع: <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
-        <span className="muted">تاریخ نرخ: <span dir="auto" className="num">{fxSnap.effectiveDate}</span> · منبع: {fxSnap.source} · قیمت تومان = قیمت دلاری × نرخ (فقط نمایشی)</span>
-      </div>
+      <p className="muted rise flex flex-wrap items-center gap-x-3 gap-y-1 border-b pb-4 text-[11.5px]" style={{ borderColor: "var(--border)" }}>
+        <span>نرخ مرجع: <strong dir="ltr" className="num">{formatMoney(rate, "IRT")}</strong> ≈ $1</span>
+        <span className="opacity-40">·</span>
+        <span>تاریخ: <span className="num">{fxSnap.effectiveDate}</span></span>
+        <span className="opacity-40">·</span>
+        <span>منبع: {fxSnap.source}</span>
+      </p>
 
       {/* Manual Price Entry Form */}
-      <Card title="ثبت قیمت جدید بازار (Manual Price Snapshot)">
+      <Card title="ثبت قیمت جدید">
         <MarketPriceForm assets={assetRows} currencies={curRows} sources={sources} today={new Date().toISOString().slice(0,10)} />
-        <p className="muted text-[11px] mt-2">فرم ثبت قیمت از موتور مشترک تاریخ و نمایش مبلغ دوگانه استفاده می‌کند — هیچ تغییری در دفترکل ایجاد نمی‌کند.</p>
+        
       </Card>
 
       {/* Latest Market Quotes Table — dual price */}
-      <Card title="آخرین قیمت‌های ثبت‌شده — نمایش دوگانه (USD / IRT)">
+      <Card title="آخرین قیمت‌ها">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+          <table className="table">
             <thead className="muted">
-              <tr className="border-b" style={{ borderColor: "var(--line)" }}>
+              <tr className="border-b" style={{ borderColor: "var(--border)" }}>
                 <th className="py-2 font-normal">دارایی</th>
                 <th className="py-2 font-normal">قیمت بازار (USD)</th>
                 <th className="py-2 font-normal">قیمت معادل (IRT)</th>
@@ -78,7 +81,7 @@ export default async function MarketDataPage() {
                 const irt = rate ? D(usd).mul(rate).toFixed(0) : "—";
                 const dual = getDualDate(new Date(q.priceTimestamp).toISOString().slice(0,10));
                 return (
-                  <tr key={q.id} className="border-b last:border-0" style={{ borderColor: "var(--line)" }}>
+                  <tr key={q.id} className="border-b last:border-0" style={{ borderColor: "var(--border)" }}>
                     <td className="py-2.5">
                       <span className="font-bold">{q.symbol}</span>
                       <span className="muted mr-2 text-[10px]">{q.assetName}</span>
@@ -86,7 +89,7 @@ export default async function MarketDataPage() {
                     <td className="num py-2.5 font-bold" dir="ltr">
                       {formatMoney(usd, "USD")}
                     </td>
-                    <td className="num py-2.5 font-bold" dir="rtl" style={{ color:"var(--accent)" }}>
+                    <td className="num py-2.5 font-bold" dir="rtl" style={{ color:"var(--brand)" }}>
                       {irt !== "—" ? formatMoney(irt, "IRT") : "—"}
                     </td>
                     <td className="py-2.5"><span className="chip">{q.currencyCode ?? "USD"}</span></td>
@@ -108,15 +111,15 @@ export default async function MarketDataPage() {
             </tbody>
           </table>
         </div>
-        <p className="muted text-[10px] mt-2">قیمت IRT = قیمت دلاری × آخرین نرخ دلار (نمایش فقط، هیچ داده حسابی تغییر نمی‌کند)</p>
+        
       </Card>
 
       {/* Historical Market Snapshots Table — dual */}
-      <Card title="تاریخچه اسنپ‌شات‌های قیمت — نمایش دوگانه">
+      <Card title="تاریخچه قیمت‌ها">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+          <table className="table">
             <thead className="muted">
-              <tr className="border-b" style={{ borderColor: "var(--line)" }}>
+              <tr className="border-b" style={{ borderColor: "var(--border)" }}>
                 <th className="py-2 font-normal">تاریخ شمسی</th>
                 <th className="py-2 font-normal">تاریخ میلادی</th>
                 <th className="py-2 font-normal">دارایی</th>
@@ -130,12 +133,12 @@ export default async function MarketDataPage() {
                 const dual = getDualDate(s.snapshotDate);
                 const irt = rate ? D(s.price).mul(rate).toFixed(0) : "—";
                 return (
-                  <tr key={s.id} className="border-b last:border-0" style={{ borderColor: "var(--line)" }}>
+                  <tr key={s.id} className="border-b last:border-0" style={{ borderColor: "var(--border)" }}>
                     <td className="py-2.5" dir="rtl">{dual.jalali}</td>
                     <td className="num py-2.5" dir="ltr">{dual.gregorian}</td>
                     <td className="font-bold py-2.5">{s.symbol}</td>
                     <td className="num py-2.5" dir="ltr">{formatMoney(s.price, "USD")}</td>
-                    <td className="num py-2.5" dir="rtl" style={{ color:"var(--accent)" }}>{irt !== "—" ? formatMoney(irt, "IRT") : "—"}</td>
+                    <td className="num py-2.5" dir="rtl" style={{ color:"var(--brand)" }}>{irt !== "—" ? formatMoney(irt, "IRT") : "—"}</td>
                     <td className="py-2.5"><span className="chip">{s.sourceName ?? "MANUAL"}</span></td>
                   </tr>
                 );

@@ -5,6 +5,7 @@ import { createTransactionAction, type ActionResult } from "@/app/actions";
 import { formatMoney, getDualDate } from "@/lib/format";
 import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
+import Icon from "@/components/ui/Icon";
 import DebtInstallmentExplorer, { type DebtOption } from "./DebtInstallmentExplorer";
 import { D } from "@/domain/decimal";
 
@@ -92,23 +93,6 @@ export default function TransactionForm({
 
   const needsQty = type === "buy" || type === "sell" || type === "transfer";
 
-  // Auto-populate from initialDebt/Installment ids (when navigated from debts/planning)
-  useEffect(() => {
-    if (!debts.length) return;
-    if (initialInstallmentId) {
-      for (const d of debts) {
-        const inst = d.installments.find((i) => i.id === initialInstallmentId);
-        if (inst) {
-          handleSelectInstallment(d, inst);
-          break;
-        }
-      }
-    } else if (initialDebtId) {
-      const d = debts.find((x) => x.id === initialDebtId);
-      if (d) handleSelectDebt(d);
-    }
-  }, [debts, initialDebtId, initialInstallmentId]);
-
   const handleSelectDebt = (d: DebtOption) => {
     setSelectedDebt(d);
     setSelectedInst(null);
@@ -150,6 +134,26 @@ export default function TransactionForm({
     if (cashAcc) setPrimaryAccountId(cashAcc.id);
   };
 
+  // Auto-populate from initialDebt/Installment ids (when navigated from debts/planning)
+  // — one-time initialization done during render (React re-renders immediately,
+  // before paint), not in an effect.
+  const [autoPopulated, setAutoPopulated] = useState(false);
+  if (!autoPopulated && debts.length) {
+    setAutoPopulated(true);
+    if (initialInstallmentId) {
+      for (const d of debts) {
+        const inst = d.installments.find((i) => i.id === initialInstallmentId);
+        if (inst) {
+          handleSelectInstallment(d, inst);
+          break;
+        }
+      }
+    } else if (initialDebtId) {
+      const d = debts.find((x) => x.id === initialDebtId);
+      if (d) handleSelectDebt(d);
+    }
+  }
+
   const previewUsd = irtAmount && effectiveRate ? D(irtAmount).div(effectiveRate).toFixed(2) : "";
   const canPreview = irtAmount && D(irtAmount).gt(0) && description && entryDate && primaryAccountId && counterAccountId;
 
@@ -166,14 +170,14 @@ export default function TransactionForm({
   return (
     <form action={formAction} className="space-y-4">
       {/* Type selector */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="seg max-w-full overflow-x-auto" role="group" aria-label="نوع تراکنش">
         {TYPES.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setType(t.key)}
-            className="chip !px-4 !py-2"
-            style={type === t.key ? { background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 600 } : undefined}
+            className={`!px-4 !min-h-9 ${type === t.key ? "seg-on" : ""}`}
+            aria-pressed={type === t.key}
           >
             {t.label}
           </button>
@@ -190,7 +194,10 @@ export default function TransactionForm({
       {type === "expense" && debts.length > 0 && (
         <div>
           <button type="button" onClick={() => setShowExplorer((v) => !v)} className="btn btn-ghost w-full !justify-between">
-            <span>🔍 انتخاب بدهی / قسط (Explorer)</span>
+            <span className="inline-flex items-center gap-1.5">
+              <Icon name="search" size={15} />
+              انتخاب بدهی / قسط (Explorer)
+            </span>
             <span className="chip">{showExplorer ? "بستن" : "نمایش"} · {debts.length} بدهی</span>
           </button>
           {showExplorer && (
@@ -204,7 +211,7 @@ export default function TransactionForm({
             </div>
           )}
           {(selectedDebt || selectedInst) && (
-            <div className="soft rounded-2xl p-3 mt-2 text-xs flex flex-wrap items-center justify-between gap-2">
+            <div className="soft mt-2 flex flex-wrap items-center justify-between gap-2 rounded-[var(--r-md)] p-3 text-xs">
               <span>انتخاب شده: <strong>{selectedDebt?.title}</strong>{selectedInst ? ` — قسط ${selectedInst.seq}` : ""}</span>
               <button type="button" onClick={() => { setSelectedDebt(null); setSelectedInst(null); }} className="chip">حذف انتخاب</button>
             </div>
@@ -330,7 +337,7 @@ export default function TransactionForm({
             <div className="soft rounded-xl p-2">
               <div className="muted text-[10px]">مبلغ به تومان و معادل دلاری (با نرخ لحظه‌ای)</div>
               <div className="num font-bold" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</div>
-              <div className="num" dir="ltr" style={{ color:"var(--accent)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {effectiveRate ? formatMoney(effectiveRate, "IRT")+" ≈ $1" : "ثبت نشده"}</span></div>
+              <div className="num" dir="ltr" style={{ color:"var(--brand)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {effectiveRate ? formatMoney(effectiveRate, "IRT")+" ≈ $1" : "ثبت نشده"}</span></div>
               {effectiveRateDate && <div className="muted text-[10px]">تاریخ نرخ: <span dir="ltr" className="num">{effectiveRateDate}</span> · منبع: {effectiveRateSource ?? "—"}</div>}
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
@@ -347,11 +354,11 @@ export default function TransactionForm({
             {needsQty && <div><span className="muted">مقدار دارایی:</span> <strong dir="ltr" className="num">{quantity || "محاسبه خودکار از مبلغ"}</strong></div>}
             {fee && <div><span className="muted">کارمزد:</span> <strong dir="ltr" className="num">{formatMoney(fee, "IRT")}</strong> ≈ {effectiveRate ? formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD") : "—"}</div>}
             {(selectedDebt || selectedInst) && (
-              <div className="soft rounded-xl p-2 border" style={{ borderColor:"var(--line)" }}>
+              <div className="soft rounded-xl p-2 border" style={{ borderColor:"var(--border)" }}>
                 <div className="font-bold">مرجع بدهی/قسط</div>
                 <div>بدهی: <strong>{selectedDebt?.title}</strong> — {selectedDebt?.creditor}</div>
                 {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید {getDualDate(selectedInst.dueDate).jalali} / <span dir="ltr">{selectedInst.dueDate}</span> — مبلغ <span dir="ltr">{formatMoney(selectedInst.amountBase,"USD")}</span></div>}
-                <div>وضعیت پس از پرداخت: <strong style={{ color:"var(--accent)" }}>{debtStatusAfter}</strong></div>
+                <div>وضعیت پس از پرداخت: <strong style={{ color:"var(--brand)" }}>{debtStatusAfter}</strong></div>
                 <div className="muted text-[10px]">شناسه مرجع در سند حسابداری ذخیره و قابل پیگیری از هر دو سمت خواهد بود.</div>
               </div>
             )}
@@ -379,10 +386,11 @@ export default function TransactionForm({
 
       {state && (
         <p
-          className="rounded-2xl px-4 py-3 text-xs"
+          className="rounded-[var(--r-md)] px-4 py-3 text-xs font-medium"
+          role="status"
           style={{
-            background: state.ok ? "var(--accent-soft)" : "rgba(225,29,72,0.12)",
-            color: state.ok ? "var(--accent)" : "var(--danger)",
+            background: state.ok ? "var(--positive-soft)" : "var(--negative-soft)",
+            color: state.ok ? "var(--positive)" : "var(--negative)",
           }}
         >
           {state.message}

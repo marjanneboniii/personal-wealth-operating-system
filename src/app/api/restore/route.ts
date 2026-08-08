@@ -15,6 +15,7 @@ const ORDER = [
   "wallets",
   "accounts",
   "journal_entries",
+  "entry_reviews",
   "postings",
   "lots",
   "lot_consumptions",

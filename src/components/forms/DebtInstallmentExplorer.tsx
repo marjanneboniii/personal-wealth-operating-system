@@ -27,20 +27,24 @@ type Props = {
   rate: string | null;
 };
 
+/** Hoisted to module scope — evaluated once at load, keeps render pure. */
+const TODAY_ISO = new Date().toISOString().slice(0, 10);
+const WEEK_LATER_ISO = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
 export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectInstallment, rate }: Props) {
   const [query, setQuery] = useState("");
   const [filterType, setFilterType] = useState<"all" | "debt" | "installment">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "overdue" | "upcoming">("all");
   const [sortBy, setSortBy] = useState<"dueDate" | "amount" | "creditor">("dueDate");
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = TODAY_ISO;
 
   const installmentRows = useMemo(() => {
     const rows: Array<{ debt: DebtOption; inst: DebtOption["installments"][number]; overdue: boolean; upcoming: boolean }> = [];
     for (const d of debts) {
       for (const inst of d.installments) {
         const overdue = inst.status === "pending" && inst.dueDate < today;
-        const upcoming = inst.status === "pending" && inst.dueDate >= today && inst.dueDate <= new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0,10);
+        const upcoming = inst.status === "pending" && inst.dueDate >= today && inst.dueDate <= WEEK_LATER_ISO;
         rows.push({ debt: d, inst, overdue, upcoming });
       }
     }
@@ -75,7 +79,7 @@ export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectI
   }, [installmentRows, query, filterStatus, sortBy]);
 
   return (
-    <div className="card p-4 space-y-3 border" style={{ borderColor: "var(--line)" }}>
+    <div className="card p-4 space-y-3 border" style={{ borderColor: "var(--border)" }}>
       <div className="text-xs font-bold">انتخاب بدهی یا قسط برای تکمیل خودکار هزینه</div>
       <div className="muted text-[11px]">Explorer — بدون ایجاد فرم جدید، همان TransactionForm را مقداردهی می‌کند.</div>
 
@@ -113,7 +117,7 @@ export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectI
             <div className="muted text-[10px] mb-1">بدهی‌های فعال</div>
             <ul className="space-y-2">
               {filteredDebts.map((d) => (
-                <li key={d.id} className="soft rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <li key={d.id} className="soft rounded-[var(--r-md)] p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="text-xs">
                     <div className="font-bold">{d.title} — {d.creditor}</div>
                     <div className="muted text-[10px]">مانده: <span dir="ltr" className="num">{formatMoney(d.outstandingBase, "USD")}</span> · {d.status === "settled" ? "تسویه شده" : "فعال"} · سود {d.interestRate}% · {d.installments.filter(i=>i.status==="pending").length} قسط مانده</div>
@@ -132,9 +136,9 @@ export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectI
             <div className="muted text-[10px] mb-1">اقساط (سررسیدشده / نزدیک)</div>
             <ul className="space-y-2">
               {filteredInstallments.slice(0, 30).map(({ debt, inst, overdue, upcoming }) => (
-                <li key={inst.id} className="soft rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2" style={overdue ? { border: "1px solid var(--danger)" } : upcoming ? { border: "1px solid var(--warn)" } : undefined}>
+                <li key={inst.id} className="soft rounded-[var(--r-md)] p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2" style={overdue ? { border: "1px solid var(--negative)" } : upcoming ? { border: "1px solid var(--warning)" } : undefined}>
                   <div className="text-xs">
-                    <div className="font-bold">{debt.title} — قسط {toFaDigits(String(inst.seq))} <span className="chip mr-1" style={overdue ? { color:"var(--danger)" } : upcoming ? { color:"var(--warn)" } : undefined}>{overdue ? "معوق" : upcoming ? "نزدیک به سررسید" : inst.status==="paid" ? "پرداخت شده" : "در انتظار"}</span></div>
+                    <div className="font-bold">{debt.title} — قسط {toFaDigits(String(inst.seq))} <span className="chip mr-1" style={overdue ? { color:"var(--negative)" } : upcoming ? { color:"var(--warning)" } : undefined}>{overdue ? "معوق" : upcoming ? "نزدیک به سررسید" : inst.status==="paid" ? "پرداخت شده" : "در انتظار"}</span></div>
                     <div className="muted text-[10px]">مبلغ: <span dir="ltr" className="num">{formatMoney(inst.amountBase, "USD")}</span> · سررسید میلادی <span dir="ltr" className="num">{inst.dueDate}</span> / شمسی <span dir="rtl">{formatJalaliIso(inst.dueDate)}</span> · مانده قابل پرداخت {formatMoney(debt.outstandingBase, "USD")}</div>
                     <div className="muted text-[10px]">{debt.creditor} · اولویت بستانکار — {debt.title}</div>
                   </div>

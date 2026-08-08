@@ -93,15 +93,15 @@ export default function SetupWizardPage() {
                 <span
                   className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${
                     s === step
-                      ? "bg-[var(--accent)] text-white shadow-md"
+                      ? "bg-[var(--brand)] text-white shadow-md"
                       : s < step
-                        ? "bg-[var(--accent-soft)] text-[var(--accent)] cursor-pointer"
-                        : "bg-[var(--line)] muted"
+                        ? "bg-[var(--brand-soft)] text-[var(--brand)] cursor-pointer"
+                        : "bg-[var(--border)] muted"
                   }`}
                 >
                   {s}
                 </span>
-                {s < 4 && <div className="h-0.5 w-8 bg-[var(--line)]" />}
+                {s < 4 && <div className="h-0.5 w-8 bg-[var(--border)]" />}
               </div>
             ))}
           </div>
@@ -126,7 +126,7 @@ export default function SetupWizardPage() {
           {/* STEP 1 */}
           {step === 1 && (
             <section className="space-y-4">
-              <div className="border-b pb-3" style={{ borderColor: "var(--line)" }}>
+              <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
                 <h2 className="text-base font-semibold">{t.step1Title}</h2>
                 <p className="muted text-xs">{t.step1Desc}</p>
               </div>
@@ -212,7 +212,7 @@ export default function SetupWizardPage() {
           {/* STEP 2 */}
           {step === 2 && (
             <section className="space-y-4">
-              <div className="border-b pb-3" style={{ borderColor: "var(--line)" }}>
+              <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
                 <h2 className="text-base font-semibold">{t.step2Title}</h2>
                 <p className="muted text-xs">{t.step2Desc}</p>
               </div>
@@ -271,7 +271,7 @@ export default function SetupWizardPage() {
           {/* STEP 3 */}
           {step === 3 && (
             <section className="space-y-4">
-              <div className="border-b pb-3" style={{ borderColor: "var(--line)" }}>
+              <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
                 <h2 className="text-base font-semibold">{t.step3Title}</h2>
                 <p className="muted text-xs">{t.step3Desc}</p>
               </div>
@@ -385,14 +385,14 @@ export default function SetupWizardPage() {
           {/* STEP 4 */}
           {step === 4 && (
             <section className="space-y-4">
-              <div className="border-b pb-3" style={{ borderColor: "var(--line)" }}>
+              <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
                 <h2 className="text-base font-semibold">{t.step4Title}</h2>
                 <p className="muted text-xs">{t.step4Desc}</p>
               </div>
 
-              <div className="soft rounded-2xl p-4 space-y-3">
+              <div className="soft rounded-[var(--r-md)] p-4 space-y-3">
                 <h3 className="text-xs font-bold">{t.previewTitle}</h3>
-                <div className="divide-y text-xs" style={{ borderColor: "var(--line)" }}>
+                <div className="divide-y text-xs" style={{ borderColor: "var(--border)" }}>
                   {D(previewData.bankVal).gt(0) && (
                     <div className="flex justify-between py-2">
                       <span>بدهکار: {bankAccountName}</span>
@@ -430,7 +430,7 @@ export default function SetupWizardPage() {
                   )}
 
                   {previewData.hasItems ? (
-                    <div className="flex justify-between py-2 font-bold" style={{ color: "var(--danger)" }}>
+                    <div className="flex justify-between py-2 font-bold" style={{ color: "var(--negative)" }}>
                       <span>بستانکار: سرمایه افتتاحیه (Opening Equity - 3010)</span>
                       <span className="num" dir="ltr">
                         −{formatMoney(previewData.totalEquity, baseCurrency)}
@@ -443,17 +443,17 @@ export default function SetupWizardPage() {
                   )}
                 </div>
 
-                <p className="text-[11px] font-medium" style={{ color: "var(--accent)" }}>
+                <p className="text-[11px] font-medium" style={{ color: "var(--brand)" }}>
                   {t.balancedCheck}
                 </p>
               </div>
 
               {state && (
                 <p
-                  className="rounded-2xl px-4 py-3 text-xs"
+                  className="rounded-[var(--r-md)] px-4 py-3 text-xs"
                   style={{
-                    background: state.ok ? "var(--accent-soft)" : "rgba(225,29,72,0.12)",
-                    color: state.ok ? "var(--accent)" : "var(--danger)",
+                    background: state.ok ? "var(--brand-soft)" : "rgba(225,29,72,0.12)",
+                    color: state.ok ? "var(--brand)" : "var(--negative)",
                   }}
                 >
                   {state.message}

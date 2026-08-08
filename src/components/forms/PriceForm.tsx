@@ -29,7 +29,7 @@ export default function PriceForm({
         {pending ? "…" : "به‌روزرسانی قیمت"}
       </button>
       {state && (
-        <p className="w-full text-[11px]" style={{ color: state.ok ? "var(--accent)" : "var(--danger)" }}>
+        <p className="w-full text-[11px]" style={{ color: state.ok ? "var(--brand)" : "var(--negative)" }}>
           {state.message}
         </p>
       )}
