@@ -131,6 +131,12 @@
 
 * {
   border-color: var(--border);
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none;
 }
 
 html,
@@ -144,6 +150,19 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-feature-settings: "ss01";
+  overscroll-behavior-y: contain;
+  touch-action: manipulation;
+}
+
+/* Prevent double-tap zoom and improve touch responsiveness globally */
+button,
+a,
+[role="button"],
+select,
+input[type="checkbox"],
+input[type="radio"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
@@ -239,6 +258,7 @@ body {
   background: var(--surface);
   white-space: nowrap;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  touch-action: manipulation;
 }
 a.chip:hover,
 button.chip:hover {
@@ -306,6 +326,8 @@ button.chip:hover {
   transition: background 0.15s ease, opacity 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
   cursor: pointer;
   user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 @media (pointer: coarse) {
   .btn {
@@ -365,6 +387,8 @@ button.chip:hover {
   background: transparent;
   transition: background 0.15s ease, color 0.15s ease;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .icon-btn:hover {
   background: var(--hover);
@@ -384,6 +408,7 @@ button.chip:hover {
   color: var(--text);
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  touch-action: manipulation;
 }
 .field::placeholder {
   color: var(--text-3);
@@ -452,6 +477,8 @@ select.field {
   white-space: nowrap;
   transition: background 0.15s ease, color 0.15s ease;
   min-height: 30px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .seg button:hover,
 .seg a:hover {
@@ -614,6 +641,8 @@ select.field {
   position: relative;
   transition: background 0.14s ease, color 0.14s ease;
   outline: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .nav-item:hover {
   background: var(--hover);
@@ -685,7 +714,11 @@ select.field {
   font-weight: 500;
   color: var(--text-3);
   border-radius: 12px;
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, background 0.15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .tab-item.tab-active {
   color: var(--brand);
@@ -696,6 +729,9 @@ select.field {
 }
 .tab-item.tab-active svg {
   transform: translateY(-1px);
+}
+.tab-item:active {
+  background: var(--hover);
 }
 
 /* Stacked composition bar */
@@ -709,6 +745,29 @@ select.field {
 .comp-bar > span {
   display: block;
   height: 100%;
+}
+
+/* ─────────────────────── Mobile hardening ─────────────────────── */
+/* Fix: overlay pointer-events, scroll containers, sticky issues */
+@media (pointer: coarse) {
+  /* Ensure scroll containers don't trap horizontal swipes */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  /* Sticky filter bar on mobile must not intercept taps through */
+  .sticky {
+    transform: translateZ(0);
+  }
+}
+
+/* Prevent zoom on input focus for iOS (font-size >=16px) */
+@media (max-width: 768px) {
+  input.field,
+  select.field,
+  textarea.field {
+    font-size: 16px;
+  }
 }
 
 /* Print */

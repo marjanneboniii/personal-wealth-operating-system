@@ -1,4 +1,5 @@
 import { asc, sql, eq } from "drizzle-orm";
+import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
 import { accounts, assets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
@@ -18,6 +19,7 @@ export default async function NewTransactionPage({
 }: {
   searchParams: Promise<{ type?: string; debtId?: string; installmentId?: string; irtAmount?: string; title?: string; entryDate?: string }>;
 }) {
+  await ensureAuth();
   await seedIfEmpty();
   const params = await searchParams;
   const defaultType = VALID.includes(params.type as TxType) ? (params.type as TxType) : "expense";

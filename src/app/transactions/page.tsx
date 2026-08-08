@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ensureAuth } from "@/lib/authGuard";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { debts, entryFxSnapshots, installments } from "@/db/schema";
@@ -21,6 +22,7 @@ function monthShift(iso: string, months: number) {
 }
 
 export default async function TransactionsPage({ searchParams }: { searchParams: SearchParams }) {
+  await ensureAuth();
   await seedIfEmpty();
   const sp = await searchParams;
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");

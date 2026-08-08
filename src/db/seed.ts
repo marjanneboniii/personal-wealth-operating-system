@@ -475,6 +475,6 @@ export async function runSeed(): Promise<void> {
     { key: "base_currency", value: "USD" },
     { key: "digit_style", value: "fa" },
     { key: "theme", value: "system" },
-    { key: "irt_rate", value: "100000" },
+    { key: "irt_rate", value: "190000" },
   ]);
 }

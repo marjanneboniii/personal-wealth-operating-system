@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ensureAuth } from "@/lib/authGuard";
 import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, assets } from "@/db/schema";
@@ -27,6 +28,7 @@ function daysUntil(iso: string) {
 }
 
 export default async function PlanningPage() {
+  await ensureAuth();
   await seedIfEmpty();
   const [planned, insts, debts, events, projection, accountRows, fx] = await Promise.all([
     listPlanned(),

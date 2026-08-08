@@ -24,8 +24,10 @@ function ThemeToggle() {
   );
   return (
     <button
+      type="button"
       aria-label="تغییر حالت روشن و تاریک"
       className="icon-btn"
+      style={{ touchAction: "manipulation" }}
       onClick={() => {
         const next = !dark;
         document.documentElement.classList.toggle("dark", next);
@@ -82,6 +84,7 @@ function SideLink({ item, active, collapsed }: { item: NavItem; active: boolean;
       aria-current={active ? "page" : undefined}
       data-tip={item.label}
       className={`nav-item nav-tip ${active ? "nav-active" : ""} ${collapsed ? "justify-center !px-0 !py-2.5" : ""}`}
+      style={{ touchAction: "manipulation" }}
     >
       <Icon name={item.icon} size={19} className="shrink-0" />
       {!collapsed && <span className="truncate">{item.label}</span>}
@@ -103,7 +106,7 @@ function MoreSheet({ open, onClose, pathname }: { open: boolean; onClose: () => 
               href={a.href}
               onClick={onClose}
               className="soft flex flex-col items-center gap-1.5 rounded-[var(--r-md)] px-2 py-3 text-[11px] font-medium"
-              style={{ color: "var(--text-2)" }}
+              style={{ color: "var(--text-2)", touchAction: "manipulation" }}
             >
               <span style={{ color: "var(--brand)" }}>
                 <Icon name={a.icon} size={17} />
@@ -126,8 +129,8 @@ function MoreSheet({ open, onClose, pathname }: { open: boolean; onClose: () => 
                       className="flex items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
                       style={
                         active
-                          ? { background: "var(--brand-soft)", color: "var(--brand)", fontWeight: 600 }
-                          : { color: "var(--text-2)" }
+                          ? { background: "var(--brand-soft)", color: "var(--brand)", fontWeight: 600, touchAction: "manipulation" }
+                          : { color: "var(--text-2)", touchAction: "manipulation" }
                       }
                     >
                       <Icon name={n.icon} size={18} />
@@ -148,7 +151,7 @@ function MoreSheet({ open, onClose, pathname }: { open: boolean; onClose: () => 
                 href={n.href}
                 onClick={onClose}
                 className="flex items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
-                style={{ color: "var(--text-2)" }}
+                style={{ color: "var(--text-2)", touchAction: "manipulation" }}
               >
                 <Icon name={n.icon} size={18} />
                 {n.label}
@@ -221,26 +224,22 @@ export default function Shell({ children }: { children: ReactNode }) {
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         aria-label="ناوبری اصلی"
       >
-        {/* Brand + collapse */}
+        {/* Brand + collapse — حرف «ع» حذف شد، فقط «سرمایه من است» */}
         <div className={`flex items-center gap-2 px-4 pb-2 pt-4 ${collapsed ? "justify-center !px-2" : "justify-between"}`}>
           {!(collapsed) && (
-            <Link href="/" className="flex items-center gap-2.5 rounded-[10px] px-1 py-1">
-              <span
-                className="flex h-7 w-7 items-center justify-center rounded-[9px] text-[13px] font-bold"
-                style={{ background: "var(--brand)", color: "var(--on-brand)" }}
-              >
-                ع
-              </span>
+            <Link href="/" className="flex items-center gap-2.5 rounded-[10px] px-1 py-1" style={{ touchAction: "manipulation" }}>
               <span className="leading-tight">
-                <span className="block text-[14px] font-bold tracking-tight">سرمایه‌ی من</span>
+                <span className="block text-[14px] font-bold tracking-tight">سرمایه من است</span>
                 <span className="muted block text-[10px]">سیستم‌عامل ثروت شخصی</span>
               </span>
             </Link>
           )}
           <button
+            type="button"
             onClick={toggleCollapse}
             className="icon-btn !min-h-8 !min-w-8"
             aria-label={collapsed ? "باز کردن ناوبری" : "جمع کردن ناوبری"}
+            style={{ touchAction: "manipulation" }}
           >
             <Icon name={collapsed ? "chevronLeft" : "chevronRight"} size={16} />
           </button>
@@ -249,11 +248,12 @@ export default function Shell({ children }: { children: ReactNode }) {
         {/* Command trigger */}
         <div className="px-3 pb-2 pt-1">
           <button
+            type="button"
             onClick={() => setPaletteOpen(true)}
             className={`flex w-full items-center gap-2 rounded-[10px] border px-3 py-2 text-[12.5px] transition-colors ${
               collapsed ? "justify-center !px-0" : ""
             }`}
-            style={{ borderColor: "var(--border)", color: "var(--text-3)", background: "var(--sunken)" }}
+            style={{ borderColor: "var(--border)", color: "var(--text-3)", background: "var(--sunken)", touchAction: "manipulation" }}
             aria-label="مرکز فرمان — جستجو و اقدام سریع"
           >
             <Icon name="search" size={15} />
@@ -298,6 +298,7 @@ export default function Shell({ children }: { children: ReactNode }) {
               href="/new"
               className={`btn btn-primary flex-1 !text-[12.5px] ${collapsed ? "!w-11 !px-0" : ""}`}
               aria-label="ثبت تراکنش جدید"
+              style={{ touchAction: "manipulation" }}
             >
               <Icon name="plus" size={16} />
               {!(collapsed) && "ثبت تراکنش"}
@@ -311,21 +312,15 @@ export default function Shell({ children }: { children: ReactNode }) {
         className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 backdrop-blur-xl lg:hidden"
         style={{ background: "color-mix(in oklab, var(--bg) 82%, transparent)", borderBottom: "1px solid var(--border)" }}
       >
-        <Link href="/" className="flex items-center gap-2">
-          <span
-            className="flex h-7 w-7 items-center justify-center rounded-[9px] text-[13px] font-bold"
-            style={{ background: "var(--brand)", color: "var(--on-brand)" }}
-          >
-            ع
-          </span>
-          <span className="text-[15px] font-bold tracking-tight">سرمایه‌ی من</span>
+        <Link href="/" className="flex items-center gap-2" style={{ touchAction: "manipulation" }}>
+          <span className="text-[15px] font-bold tracking-tight">سرمایه من است</span>
         </Link>
         <div className="flex items-center gap-1">
-          <button className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان">
+          <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
             <Icon name="search" size={18} />
           </button>
           <ThemeToggle />
-          <Link href="/new" className="btn btn-primary !min-h-9 !px-3 !py-1.5 !text-[12px]" aria-label="ثبت تراکنش جدید">
+          <Link href="/new" className="btn btn-primary !min-h-9 !px-3 !py-1.5 !text-[12px]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>
             <Icon name="plus" size={15} />
             ثبت
           </Link>
@@ -349,19 +344,20 @@ export default function Shell({ children }: { children: ReactNode }) {
           backdropFilter: "blur(16px)",
           borderTop: "1px solid var(--border)",
           paddingBottom: "max(0.35rem, env(safe-area-inset-bottom))",
+          touchAction: "manipulation",
         }}
       >
         <div className="grid grid-cols-5 px-1.5 pt-1.5">
           {MOBILE_TABS.map((t) => {
             const active = t.match!.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m)));
             return (
-              <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`tab-item ${active ? "tab-active" : ""}`}>
+              <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`tab-item ${active ? "tab-active" : ""}`} style={{ touchAction: "manipulation" }}>
                 <Icon name={t.icon as IconName} size={21} strokeWidth={active ? 2 : 1.7} />
                 {t.label}
               </Link>
             );
           })}
-          <button onClick={() => setMoreOpen(true)} aria-label="بیشتر" className={`tab-item ${moreActive ? "tab-active" : ""}`}>
+          <button type="button" onClick={() => setMoreOpen(true)} aria-label="بیشتر" className={`tab-item ${moreActive ? "tab-active" : ""}`} style={{ touchAction: "manipulation" }}>
             <Icon name="more" size={21} />
             بیشتر
           </button>

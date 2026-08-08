@@ -9,6 +9,11 @@ import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import RestorePanel from "@/components/RestorePanel";
 import { formatDate } from "@/lib/format";
+import { getCurrentUser } from "@/lib/auth";
+import { ensureAuth } from "@/lib/authGuard";
+import { getUserFxRate } from "@/features/fx/userRate";
+import FxSettings from "@/components/settings/FxSettings";
+import UserPanel from "@/components/settings/UserPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +21,14 @@ const LABELS: Record<string, string> = {
   base_currency: "ارز پایه محاسبات",
   digit_style: "سبک ارقام",
   theme: "پوسته پیش‌فرض",
-  irt_rate: "نرخ تبدیل دلار به تومان",
+  irt_rate: "نرخ تبدیل دلار به تومان (قدیمی — اکنون کاربرمحور)",
 };
 
 export default async function SettingsPage() {
+  await ensureAuth();
   await seedIfEmpty();
-  const [config, backups, counts] = await Promise.all([
+  const user = await getCurrentUser();
+  const [config, backups, counts, fx] = await Promise.all([
     db.select().from(settings).where(sql`${settings.deletedAt} is null`),
     db.select().from(backupRuns).orderBy(desc(backupRuns.createdAt)).limit(5),
     db.execute(sql`
@@ -31,6 +38,7 @@ export default async function SettingsPage() {
         (select count(*) from accounts) as accounts,
         (select count(*) from assets) as assets
     `),
+    user ? getUserFxRate(user.id) : Promise.resolve({ rate: "190000", lastUpdatedAt: null, nextUpdateAt: null, canUpdate: false } as any),
   ]);
   const c = counts.rows[0] as Record<string, string>;
 
@@ -40,6 +48,28 @@ export default async function SettingsPage() {
         title="تنظیمات"
         subtitle="سیستم چگونه پیکربندی شده است؟ — داده‌ها کاملاً محلی هستند و هیچ چیزی به بیرون ارسال نمی‌شود."
       />
+
+      {user && (
+        <Section title="حساب کاربری">
+          <UserPanel user={user as any} />
+        </Section>
+      )}
+
+      <Section title="نرخ ارز — ارزش‌گذاری جاری" hint="نرخ فقط Current Valuation را تغییر می‌دهد؛ تاریخچه مالی (Historical) برای همیشه منجمد است.">
+        {user ? (
+          <FxSettings
+            currentRate={fx.rate}
+            lastUpdatedAt={fx.lastUpdatedAt}
+            nextUpdateAt={fx.nextUpdateAt}
+            canUpdate={fx.canUpdate}
+          />
+        ) : (
+          <div className="card p-4 text-[12px]">برای مدیریت نرخ ارز وارد شوید.</div>
+        )}
+        <div className="muted mt-3 rounded-[var(--r-md)] p-3 text-[11px] leading-5" style={{ background: "var(--sunken)", border: "1px solid var(--border)" }}>
+          <strong>تفکیک Current vs Historical:</strong> نرخ فعلی فقط ارزش خالص فعلی، موجودی جاری و Unrealized P&L را تغییر می‌دهد. تراکنش‌های ثبت‌شده، Cost Basis، FIFO، Realized P&L و دفترکل با تغییر نرخ فعلی هرگز دوباره محاسبه نمی‌شوند.
+        </div>
+      </Section>
 
       <Section title="پیکربندی">
         <div className="card overflow-hidden">

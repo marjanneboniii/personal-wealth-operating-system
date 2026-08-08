@@ -1,4 +1,5 @@
 import { asc, eq, sql } from "drizzle-orm";
+import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
 import { institutions, networks, wallets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
@@ -23,6 +24,7 @@ const WALLET_KIND: Record<string, string> = {
 };
 
 export default async function AccountsPage() {
+  await ensureAuth();
   await seedIfEmpty();
   const [balances, walletRows, fx] = await Promise.all([
     getAccountBalances(),

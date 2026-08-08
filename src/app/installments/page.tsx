@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ensureAuth } from "@/lib/authGuard";
 import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, assets, debts, installments } from "@/db/schema";
@@ -14,6 +15,7 @@ function daysUntil(iso: string) {
 }
 
 export default async function InstallmentsPage() {
+  await ensureAuth();
   await seedIfEmpty();
   const rows = await db
     .select({

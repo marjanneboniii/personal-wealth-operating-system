@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ensureAuth } from "@/lib/authGuard";
 import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { auditLog } from "@/db/schema";
@@ -22,6 +23,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export default async function AuditPage() {
+  await ensureAuth();
   await seedIfEmpty();
   const [checks, auditRows] = await Promise.all([
     runIntegrityChecks(),

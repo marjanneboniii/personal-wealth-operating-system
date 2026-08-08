@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState, useRef } from "react";
 import { createTransactionAction, type ActionResult } from "@/app/actions";
 import { formatMoney, getDualDate } from "@/lib/format";
 import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
@@ -96,23 +96,14 @@ export default function TransactionForm({
   const handleSelectDebt = (d: DebtOption) => {
     setSelectedDebt(d);
     setSelectedInst(null);
-    // IRT amount: use outstandingBase? But outstandingBase is stored as USD base? For preview we treat as IRT?
-    // Spec says amount in IRT is reference. For debt, we treat principal/outstanding as IRT for preview simplicity.
-    // We'll use outstandingBase as IRT amount if rate exists, otherwise as is.
-    // Actually debts are stored in base USD, but for planning we show IRT via rate. For simplicity use the base value as IRT preview input.
-    // Use first pending installment amount if exists else outstanding
     const pendingInst = d.installments.find((i) => i.status === "pending");
     const amt = pendingInst ? pendingInst.amountBase : d.outstandingBase;
-    // Convert USD base to IRT for input? If stored as USD, IRT = USD * rate
-    // But spec says planning IRT is reference, USD is live. For debts, we want to show IRT input.
-    // We'll attempt to derive IRT: if rate exists, IRT = USD * rate
     const irt = effectiveRate ? D(amt).mul(effectiveRate).toFixed(0) : amt;
     setIrtAmount(irt);
     setDescription(`پرداخت بدهی — ${d.title} (${d.creditor})`);
     setEntryDate(today);
     setType("expense");
     setShowExplorer(false);
-    // auto select counter category? Use default expense account if exists
     const expAcc = accounts.find((a) => a.type === "expense");
     if (expAcc) setCounterAccountId(expAcc.id);
     const cashAcc = accounts.find((a) => a.type === "asset");
@@ -134,25 +125,30 @@ export default function TransactionForm({
     if (cashAcc) setPrimaryAccountId(cashAcc.id);
   };
 
-  // Auto-populate from initialDebt/Installment ids (when navigated from debts/planning)
-  // — one-time initialization done during render (React re-renders immediately,
-  // before paint), not in an effect.
-  const [autoPopulated, setAutoPopulated] = useState(false);
-  if (!autoPopulated && debts.length) {
-    setAutoPopulated(true);
+  // Auto-populate from initialDebt/Installment ids — useEffect to avoid setState during render (mobile hydration fix)
+  const autoPopulatedRef = useRef(false);
+  useEffect(() => {
+    if (autoPopulatedRef.current) return;
+    if (!debts.length) return;
     if (initialInstallmentId) {
       for (const d of debts) {
         const inst = d.installments.find((i) => i.id === initialInstallmentId);
         if (inst) {
+          autoPopulatedRef.current = true;
           handleSelectInstallment(d, inst);
-          break;
+          return;
         }
       }
-    } else if (initialDebtId) {
-      const d = debts.find((x) => x.id === initialDebtId);
-      if (d) handleSelectDebt(d);
     }
-  }
+    if (initialDebtId) {
+      const d = debts.find((x) => x.id === initialDebtId);
+      if (d) {
+        autoPopulatedRef.current = true;
+        handleSelectDebt(d);
+      }
+    }
+    if (initialDebtId || initialInstallmentId) autoPopulatedRef.current = true;
+  }, [debts, initialDebtId, initialInstallmentId]);
 
   const previewUsd = irtAmount && effectiveRate ? D(irtAmount).div(effectiveRate).toFixed(2) : "";
   const canPreview = irtAmount && D(irtAmount).gt(0) && description && entryDate && primaryAccountId && counterAccountId;
@@ -168,9 +164,9 @@ export default function TransactionForm({
   }, [selectedDebt, selectedInst, previewUsd]);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-4" style={{ touchAction: "manipulation" }}>
       {/* Type selector */}
-      <div className="seg max-w-full overflow-x-auto" role="group" aria-label="نوع تراکنش">
+      <div className="seg max-w-full overflow-x-auto" role="group" aria-label="نوع تراکنش" style={{ touchAction: "pan-x" }}>
         {TYPES.map((t) => (
           <button
             key={t.key}
@@ -178,6 +174,7 @@ export default function TransactionForm({
             onClick={() => setType(t.key)}
             className={`!px-4 !min-h-9 ${type === t.key ? "seg-on" : ""}`}
             aria-pressed={type === t.key}
+            style={{ touchAction: "manipulation" }}
           >
             {t.label}
           </button>
@@ -193,7 +190,7 @@ export default function TransactionForm({
       {/* Explorer toggle for expense */}
       {type === "expense" && debts.length > 0 && (
         <div>
-          <button type="button" onClick={() => setShowExplorer((v) => !v)} className="btn btn-ghost w-full !justify-between">
+          <button type="button" onClick={() => setShowExplorer((v) => !v)} className="btn btn-ghost w-full !justify-between" style={{ touchAction: "manipulation" }}>
             <span className="inline-flex items-center gap-1.5">
               <Icon name="search" size={15} />
               انتخاب بدهی / قسط (Explorer)
@@ -213,7 +210,7 @@ export default function TransactionForm({
           {(selectedDebt || selectedInst) && (
             <div className="soft mt-2 flex flex-wrap items-center justify-between gap-2 rounded-[var(--r-md)] p-3 text-xs">
               <span>انتخاب شده: <strong>{selectedDebt?.title}</strong>{selectedInst ? ` — قسط ${selectedInst.seq}` : ""}</span>
-              <button type="button" onClick={() => { setSelectedDebt(null); setSelectedInst(null); }} className="chip">حذف انتخاب</button>
+              <button type="button" onClick={() => { setSelectedDebt(null); setSelectedInst(null); }} className="chip" style={{ touchAction: "manipulation" }}>حذف انتخاب</button>
             </div>
           )}
         </div>
@@ -231,6 +228,7 @@ export default function TransactionForm({
             placeholder="مثال: 25000000"
             className="field num !text-2xl !font-bold"
             dir="ltr"
+            style={{ touchAction: "manipulation" }}
           />
           <div className="mt-2">
             <SmartAmountPreview irtAmount={irtAmount} rate={effectiveRate ?? null} rateDate={effectiveRateDate} rateSource={effectiveRateSource} />
@@ -252,6 +250,7 @@ export default function TransactionForm({
               className="field num"
               dir="ltr"
               placeholder="0.00000000"
+              style={{ touchAction: "manipulation" }}
             />
           </div>
         )}
@@ -259,7 +258,7 @@ export default function TransactionForm({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label">{meta.primary}</label>
-            <select name="primaryAccountId" required className="field" value={primaryAccountId} onChange={(e) => setPrimaryAccountId(e.target.value)}>
+            <select name="primaryAccountId" required className="field" value={primaryAccountId} onChange={(e) => setPrimaryAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
               <option value="" disabled>انتخاب کنید…</option>
               {primaryOptions.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -270,7 +269,7 @@ export default function TransactionForm({
           </div>
           <div>
             <label className="label">{meta.counter}</label>
-            <select name="counterAccountId" required className="field" value={counterAccountId} onChange={(e) => setCounterAccountId(e.target.value)}>
+            <select name="counterAccountId" required className="field" value={counterAccountId} onChange={(e) => setCounterAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
               <option value="" disabled>انتخاب کنید…</option>
               {counterOptions.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -294,6 +293,7 @@ export default function TransactionForm({
               className="field num"
               dir="ltr"
               placeholder="0"
+              style={{ touchAction: "manipulation" }}
             />
             {fee && effectiveRate && <p className="muted mt-1 text-[10px]">کارمزد دلاری ≈ {D(fee).div(effectiveRate).toFixed(2)} $</p>}
           </div>
@@ -313,6 +313,7 @@ export default function TransactionForm({
             onChange={(e) => setDescription(e.target.value)}
             className="field"
             placeholder="مثلاً پرداخت قسط ۳ — وام مسکن"
+            style={{ touchAction: "manipulation" }}
           />
         </div>
       </div>
@@ -367,8 +368,8 @@ export default function TransactionForm({
             </div>
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={() => setShowPreview(false)} className="btn btn-ghost flex-1">بازگشت به ویرایش</button>
-            <button type="submit" disabled={pending} className="btn btn-primary flex-1">
+            <button type="button" onClick={() => setShowPreview(false)} className="btn btn-ghost flex-1" style={{ touchAction: "manipulation" }}>بازگشت به ویرایش</button>
+            <button type="submit" disabled={pending} className="btn btn-primary flex-1" style={{ touchAction: "manipulation" }}>
               {pending ? "در حال ثبت…" : "تأیید نهایی ثبت تراکنش"}
             </button>
           </div>
@@ -379,6 +380,7 @@ export default function TransactionForm({
           disabled={!canPreview}
           onClick={() => setShowPreview(true)}
           className="btn btn-primary w-full disabled:opacity-40"
+          style={{ touchAction: "manipulation" }}
         >
           {canPreview ? "پیش‌نمایش هوشمند قبل از ثبت نهایی" : "برای پیش‌نمایش، مبلغ، تاریخ و حساب‌ها را تکمیل کنید"}
         </button>

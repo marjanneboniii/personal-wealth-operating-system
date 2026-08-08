@@ -30,7 +30,9 @@ export default function RowAction({
   const [pending, start] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
 
-  const run = () => {
+  const run = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     if (confirmText && !window.confirm(confirmText)) return;
     start(async () => {
       let res: ActionResult;
@@ -47,9 +49,11 @@ export default function RowAction({
   return (
     <span className="inline-flex flex-col items-stretch gap-1">
       <button
+        type="button"
         onClick={run}
         disabled={pending || (kind === "pay-installment" && !cashAccountId)}
         className={`btn !min-h-9 !px-3 !py-1.5 text-[11px] ${primary ? "btn-primary" : ""}`}
+        style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" } as any}
       >
         {pending ? "…" : label}
       </button>

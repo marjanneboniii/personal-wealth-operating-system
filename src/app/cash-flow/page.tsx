@@ -1,4 +1,5 @@
 import { seedIfEmpty } from "@/db/seed";
+import { ensureAuth } from "@/lib/authGuard";
 import { getCashflow, getFlowByAccount } from "@/features/ledger/queries";
 import { Metric, PageHeader, Section, SectionLink, EmptyState } from "@/components/ui/Card";
 import { BarsChart } from "@/components/charts/Charts";
@@ -58,6 +59,7 @@ function FlowTable({
 }
 
 export default async function CashFlowPage() {
+  await ensureAuth();
   await seedIfEmpty();
   const [flow, expenses, incomes, fx] = await Promise.all([
     getCashflow(12),

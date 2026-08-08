@@ -70,7 +70,6 @@ export default function TransactionsView({
   };
 
   // Sync the local query box when the URL filter changes (back/forward, clear-all)
-  // — derived state adjusted during render, no cascading effect.
   const [lastQ, setLastQ] = useState(filters.q);
   if (filters.q !== lastQ) {
     setLastQ(filters.q);
@@ -78,7 +77,6 @@ export default function TransactionsView({
   }
 
   useEffect(() => {
-    // "/" focuses search — muscle memory for power users
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (e.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") {
@@ -96,7 +94,8 @@ export default function TransactionsView({
     debounce.current = setTimeout(() => apply({ q: v }), 350);
   };
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = (id: string, e?: React.MouseEvent | React.ChangeEvent) => {
+    e?.stopPropagation();
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -137,7 +136,7 @@ export default function TransactionsView({
   return (
     <div className="space-y-3">
       {/* ─────────── Filter bar ─────────── */}
-      <div className="card sticky top-[52px] z-20 flex flex-wrap items-center gap-2 p-2 lg:top-0">
+      <div className="card sticky top-[52px] z-20 flex flex-wrap items-center gap-2 p-2 lg:top-0" style={{ touchAction: "manipulation" }}>
         <div className="relative min-w-[180px] flex-1">
           <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 opacity-40">
             <Icon name="search" size={15} />
@@ -149,13 +148,21 @@ export default function TransactionsView({
             placeholder="جستجوی شرح یا مرجع…"
             aria-label="جستجوی تراکنش‌ها"
             className="field !min-h-9 !py-1.5 pr-9 text-[13px]"
+            style={{ touchAction: "manipulation" }}
           />
           <kbd className="kbd absolute left-2.5 top-1/2 hidden -translate-y-1/2 lg:inline-flex">/</kbd>
         </div>
 
-        <div className="seg order-3 w-full overflow-x-auto sm:order-none sm:w-auto">
+        <div className="seg order-3 w-full overflow-x-auto sm:order-none sm:w-auto" style={{ touchAction: "pan-x" }}>
           {TYPE_OPTIONS.map((t) => (
-            <button key={t.key} onClick={() => apply({ type: t.key })} className={filters.type === t.key ? "seg-on" : ""} aria-pressed={filters.type === t.key}>
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => apply({ type: t.key })}
+              className={filters.type === t.key ? "seg-on" : ""}
+              aria-pressed={filters.type === t.key}
+              style={{ touchAction: "manipulation" }}
+            >
               {t.label}
             </button>
           ))}
@@ -166,6 +173,7 @@ export default function TransactionsView({
           onChange={(e) => apply({ range: e.target.value })}
           className="field !min-h-9 !w-auto !py-1.5 text-[12.5px]"
           aria-label="بازه زمانی"
+          style={{ touchAction: "manipulation" }}
         >
           {RANGE_OPTIONS.map((r) => (
             <option key={r.key} value={r.key}>
@@ -179,6 +187,7 @@ export default function TransactionsView({
           onChange={(e) => apply({ accountId: e.target.value })}
           className="field !min-h-9 !w-auto max-w-[150px] !py-1.5 text-[12.5px]"
           aria-label="فیلتر حساب یا دسته"
+          style={{ touchAction: "manipulation" }}
         >
           <option value="">همه حساب‌ها و دسته‌ها</option>
           {accountGroups.map((g) => (
@@ -193,36 +202,47 @@ export default function TransactionsView({
         </select>
 
         <button
+          type="button"
           onClick={() => apply({ sort: filters.sort === "old" ? "new" : "old" })}
           className={`chip ${filters.sort === "old" ? "chip-on" : ""}`}
           aria-pressed={filters.sort === "old"}
           title="ترتیب زمانی"
+          style={{ touchAction: "manipulation" }}
         >
           <Icon name="calendar" size={12} />
           {filters.sort === "old" ? "قدیمی‌ترین" : "جدیدترین"}
         </button>
 
         <button
+          type="button"
           onClick={() => apply({ sort: filters.sort === "amount" ? "new" : "amount" })}
           className={`chip ${filters.sort === "amount" ? "chip-on" : ""}`}
           aria-pressed={filters.sort === "amount"}
           title="مرتب‌سازی بر اساس مبلغ"
+          style={{ touchAction: "manipulation" }}
         >
           <Icon name="filter" size={12} />
           بیشترین مبلغ
         </button>
 
         <button
+          type="button"
           onClick={() => apply({ review: filters.review === "unreviewed" ? "" : "unreviewed" })}
           className={`chip ${filters.review === "unreviewed" ? "chip-on" : ""}`}
           aria-pressed={filters.review === "unreviewed"}
+          style={{ touchAction: "manipulation" }}
         >
           <Icon name="check" size={12} />
           بررسی‌نشده
         </button>
 
         {isFiltered && (
-          <button className="btn btn-ghost !min-h-8 !px-2 !py-1 text-[11.5px]" onClick={() => router.replace("/transactions")}>
+          <button
+            type="button"
+            className="btn btn-ghost !min-h-8 !px-2 !py-1 text-[11.5px]"
+            onClick={() => router.replace("/transactions")}
+            style={{ touchAction: "manipulation" }}
+          >
             <Icon name="x" size={13} />
             پاک کردن فیلترها
           </button>
@@ -240,7 +260,7 @@ export default function TransactionsView({
             {isFiltered ? "فیلترها را تغییر دهید یا بازه زمانی بزرگ‌تری انتخاب کنید." : "با ثبت تراکنش، تاریخچه مالی شما اینجا نمایش داده می‌شود."}
           </p>
           {isFiltered ? (
-            <button className="btn btn-soft mt-1" onClick={() => router.replace("/transactions")}>
+            <button type="button" className="btn btn-soft mt-1" onClick={() => router.replace("/transactions")} style={{ touchAction: "manipulation" }}>
               حذف فیلترها
             </button>
           ) : null}
@@ -252,22 +272,26 @@ export default function TransactionsView({
             const open = expanded === e.id;
             const isVoid = e.status === "void";
             return (
-              <li key={e.id} className={isVoid ? "opacity-55" : ""}>
+              <li key={e.id} className={isVoid ? "opacity-55" : ""} style={{ touchAction: "manipulation" }}>
                 <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4">
-                  {/* Select (bulk actions) */}
+                  {/* Select (bulk actions) — stopPropagation so row button does not toggle */}
                   <input
                     type="checkbox"
                     checked={selected.has(e.id)}
-                    onChange={() => toggleSelect(e.id)}
+                    onChange={(ev) => toggleSelect(e.id, ev)}
+                    onClick={(ev) => ev.stopPropagation()}
                     aria-label={`انتخاب «${e.description}»`}
                     className="hidden h-4 w-4 shrink-0 cursor-pointer accent-[#4c4edb] sm:block"
+                    style={{ touchAction: "manipulation" }}
                   />
 
-                  {/* Main row button */}
+                  {/* Main row button — isolated, no nested clickable inside */}
                   <button
+                    type="button"
                     onClick={() => setExpanded(open ? null : e.id)}
                     aria-expanded={open}
                     className="flex min-w-0 flex-1 items-center gap-3 rounded-[10px] py-0.5 text-right"
+                    style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" } as any}
                   >
                     <span className="muted hidden w-[74px] shrink-0 flex-col leading-tight sm:flex" dir="rtl">
                       <span className="num text-[11px] font-medium" style={{ color: "var(--text-2)" }}>
@@ -279,9 +303,7 @@ export default function TransactionsView({
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
                         <span className={`truncate text-[13px] font-medium ${isVoid ? "line-through" : ""}`}>{e.description}</span>
-                        {!e.reviewed && (
-                          <span className="badge badge-warn shrink-0">بررسی‌نشده</span>
-                        )}
+                        {!e.reviewed && <span className="badge badge-warn shrink-0">بررسی‌نشده</span>}
                         {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
                       </span>
                       <span className="muted mt-0.5 flex items-center gap-x-1.5 text-[10.5px]">
@@ -315,7 +337,11 @@ export default function TransactionsView({
 
                 {/* ─────────── Detail panel ─────────── */}
                 {open && (
-                  <div className="fade-in border-t px-4 py-4 sm:px-12" style={{ borderColor: "var(--border)", background: "var(--sunken)" }}>
+                  <div
+                    className="fade-in border-t px-4 py-4 sm:px-12"
+                    style={{ borderColor: "var(--border)", background: "var(--sunken)", touchAction: "pan-y" }}
+                    onClick={(ev) => ev.stopPropagation()}
+                  >
                     <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
                       {/* Postings — the accounting truth of this transaction */}
                       <div>
@@ -370,7 +396,7 @@ export default function TransactionsView({
                         )}
                       </div>
 
-                      {/* Meta + actions */}
+                      {/* Meta + actions — isolated buttons with stopPropagation */}
                       <div className="space-y-3">
                         <div>
                           <p className="muted mb-1.5 text-[11px] font-semibold">جزئیات</p>
@@ -406,26 +432,31 @@ export default function TransactionsView({
                           </dl>
                         </div>
 
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1.5" onClick={(ev) => ev.stopPropagation()}>
                           <button
+                            type="button"
                             disabled={pending}
-                            onClick={() =>
+                            onClick={(ev) => {
+                              ev.stopPropagation();
                               startTransition(async () => {
                                 await markReviewedAction(e.id, !e.reviewed);
-                              })
-                            }
+                              });
+                            }}
                             className={`btn ${e.reviewed ? "btn-soft" : "btn-primary"} !min-h-9 !py-1.5 text-[12px]`}
+                            style={{ touchAction: "manipulation" }}
                           >
                             <Icon name="check" size={14} />
                             {e.reviewed ? "برگشت به «بررسی‌نشده»" : "تأیید این رکورد"}
                           </button>
                           {!isVoid && (
-                            <RowAction
-                              kind="reverse"
-                              id={e.id}
-                              label="ابطال با سند معکوس"
-                              confirmText="برای اصلاح، دفترکل سند معکوس ثبت می‌کند. سند اصلی حذف نمی‌شود. ادامه می‌دهید؟"
-                            />
+                            <div onClick={(ev) => ev.stopPropagation()}>
+                              <RowAction
+                                kind="reverse"
+                                id={e.id}
+                                label="ابطال با سند معکوس"
+                                confirmText="برای اصلاح، دفترکل سند معکوس ثبت می‌کند. سند اصلی حذف نمی‌شود. ادامه می‌دهید؟"
+                              />
+                            </div>
                           )}
                         </div>
                       </div>
@@ -449,18 +480,18 @@ export default function TransactionsView({
       {selectedRows.length > 0 && (
         <div
           className="pop-in fixed inset-x-3 bottom-[76px] z-50 mx-auto flex max-w-lg items-center justify-between gap-2 rounded-[var(--r-lg)] border px-4 py-2.5 lg:bottom-6"
-          style={{ background: "var(--surface-elev)", borderColor: "var(--border-strong)", boxShadow: "var(--shadow-lg)" }}
-          role="region" aria-label="اقدامات گروهی"
+          style={{ background: "var(--surface-elev)", borderColor: "var(--border-strong)", boxShadow: "var(--shadow-lg)", touchAction: "manipulation" }}
+          role="region"
+          aria-label="اقدامات گروهی"
         >
-          <span className="text-[12.5px] font-semibold">
-            {selectedRows.length} مورد انتخاب شده
-          </span>
+          <span className="text-[12.5px] font-semibold">{selectedRows.length} مورد انتخاب شده</span>
           <div className="flex items-center gap-1.5">
-            <button className="btn btn-primary !min-h-9 !px-3 !py-1.5 text-[12px]" onClick={exportCsv}>
+            <button type="button" className="btn btn-primary !min-h-9 !px-3 !py-1.5 text-[12px]" onClick={exportCsv} style={{ touchAction: "manipulation" }}>
               <Icon name="download" size={14} />
               خروجی CSV
             </button>
             <button
+              type="button"
               className="btn !min-h-9 !px-3 !py-1.5 text-[12px]"
               disabled={pending}
               onClick={() =>
@@ -469,11 +500,18 @@ export default function TransactionsView({
                   setSelected(new Set());
                 })
               }
+              style={{ touchAction: "manipulation" }}
             >
               <Icon name="check" size={14} />
               تأیید همه
             </button>
-            <button className="icon-btn !min-h-9 !min-w-9" onClick={() => setSelected(new Set())} aria-label="لغو انتخاب">
+            <button
+              type="button"
+              className="icon-btn !min-h-9 !min-w-9"
+              onClick={() => setSelected(new Set())}
+              aria-label="لغو انتخاب"
+              style={{ touchAction: "manipulation" }}
+            >
               <Icon name="x" size={15} />
             </button>
           </div>
