@@ -875,6 +875,11 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   role: text("role").notNull().default("owner"),
   pinHash: text("pin_hash"),
+  username: text("username").unique(),
+  email: text("email").unique(),
+  passwordHash: text("password_hash"),
+  googleId: text("google_id").unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
 });
 
 export const settings = pgTable("settings", {
@@ -1042,6 +1047,41 @@ export const externalPriceHistory = pgTable(
     ),
     index("external_price_history_asset_idx").on(t.assetId),
   ],
+);
+
+
+/* ------------------------------------------------------------------ */
+/* Authentication & Per-User FX (New: username/password + Google)      */
+/* ------------------------------------------------------------------ */
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    token: text("token").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("sessions_user_idx").on(t.userId), index("sessions_token_idx").on(t.token)],
+);
+
+export const userFxSettings = pgTable(
+  "user_fx_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" })
+      .unique(),
+    currentRate: money("current_rate").notNull().default("190000"),
+    lastUpdatedAt: timestamp("last_updated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+  },
+  (t) => [index("user_fx_settings_user_idx").on(t.userId)],
 );
 
 export const walletObservations = pgTable(

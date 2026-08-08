@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ensureAuth } from "@/lib/authGuard";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { seedIfEmpty } from "@/db/seed";
@@ -20,6 +21,7 @@ function shortId(id: string) {
 }
 
 export default async function LedgerPage() {
+  await ensureAuth();
   await seedIfEmpty();
   const [entries, balances, fx, integrity] = await Promise.all([
     getLedger(60),

@@ -1,4 +1,5 @@
 import { seedIfEmpty } from "@/db/seed";
+import { ensureAuth } from "@/lib/authGuard";
 import { getAccountBalances, getRealizedPnl } from "@/features/ledger/queries";
 import { getPortfolioValuation } from "@/features/portfolio/service";
 import { EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
@@ -11,6 +12,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function CryptoPage() {
+  await ensureAuth();
   await seedIfEmpty();
 
   const [valuation, balances, pnl, fx] = await Promise.all([

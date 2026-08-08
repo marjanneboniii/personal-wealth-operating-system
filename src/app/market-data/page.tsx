@@ -1,4 +1,5 @@
 import { asc, eq, sql } from "drizzle-orm";
+import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
 import { assetClasses, assets, currencies } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
@@ -16,6 +17,7 @@ import { D } from "@/domain/decimal";
 export const dynamic = "force-dynamic";
 
 export default async function MarketDataPage() {
+  await ensureAuth();
   await seedIfEmpty();
 
   const [assetRows, curRows, sources, latestQuotes, snapshotHistory, fxSnap] = await Promise.all([

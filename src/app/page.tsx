@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ensureAuth } from "@/lib/authGuard";
 import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { snapshots } from "@/db/schema";
@@ -34,6 +35,7 @@ function daysUntil(iso: string) {
 }
 
 export default async function OverviewPage() {
+  await ensureAuth();
   await seedIfEmpty();
 
   const [setupState, nw, snaps, tx, insts, flow, projection, unreviewed, stale, fx] = await Promise.all([

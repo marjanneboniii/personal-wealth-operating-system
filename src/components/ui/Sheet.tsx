@@ -7,6 +7,7 @@ import Icon from "@/components/ui/Icon";
  * Sheet — bottom sheet on mobile, centered dialog on desktop.
  * Accessible: role=dialog, Escape closes, focus is moved inside,
  * body scroll is locked while open.
+ * Mobile-hardened: touch-action, pointer-events isolation, scroll lock fix.
  */
 export default function Sheet({
   open,
@@ -29,24 +30,50 @@ export default function Sheet({
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
+    // Lock scroll: use fixed + overflow hidden with overscroll containment
+    const prevOverflow = document.body.style.overflow;
+    const prevTouchAction = document.body.style.touchAction;
+    const prevOverscroll = (document.body.style as any).overscrollBehavior;
     document.body.style.overflow = "hidden";
-    ref.current?.querySelector<HTMLElement>("a, button, input")?.focus();
+    (document.body.style as any).overscrollBehavior = "contain";
+    document.body.style.touchAction = "none";
+    // Move focus inside
+    requestAnimationFrame(() => {
+      ref.current?.querySelector<HTMLElement>("a, button, input, [tabindex]")?.focus();
+    });
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouchAction;
+      (document.body.style as any).overscrollBehavior = prevOverscroll;
     };
   }, [open, onClose]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label={title}>
+    <div
+      className="fixed inset-0 z-[80]"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      style={{ touchAction: "manipulation" }}
+    >
+      {/* Overlay — pointer events isolated, does not capture touches meant for sheet */}
       <button
+        type="button"
         aria-label="بستن"
         className="fade-in absolute inset-0 cursor-default"
-        style={{ background: "rgba(10,12,16,0.45)", backdropFilter: "blur(2px)" }}
+        style={{
+          background: "rgba(10,12,16,0.45)",
+          backdropFilter: "blur(2px)",
+          touchAction: "manipulation",
+        }}
         onClick={onClose}
+        onTouchStart={(e) => {
+          // Prevent ghost clicks on mobile when sheet is open
+          e.preventDefault();
+        }}
       />
       <div
         ref={ref}
@@ -58,18 +85,29 @@ export default function Sheet({
           borderColor: "var(--border)",
           boxShadow: "var(--shadow-lg)",
           paddingBottom: "max(0px, env(safe-area-inset-bottom))",
+          touchAction: "pan-y",
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch" as any,
         }}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mt-2 h-1 w-9 rounded-full sm:hidden" style={{ background: "var(--border-strong)" }} />
         {title && (
           <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: "var(--border)" }}>
             <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
-            <button className="icon-btn !min-h-9 !min-w-9" onClick={onClose} aria-label="بستن">
+            <button type="button" className="icon-btn !min-h-9 !min-w-9" onClick={onClose} aria-label="بستن" style={{ touchAction: "manipulation" }}>
               <Icon name="x" size={17} />
             </button>
           </div>
         )}
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div
+          className="min-h-0 flex-1 overflow-y-auto"
+          style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" as any }}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
+          {children}
+        </div>
       </div>
     </div>
   );

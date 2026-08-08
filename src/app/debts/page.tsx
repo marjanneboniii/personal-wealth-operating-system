@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import { listDebts } from "@/features/planning/service";
 import { EmptyState, Metric, PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
@@ -12,6 +13,7 @@ function daysUntil(iso: string) {
 }
 
 export default async function DebtsPage() {
+  await ensureAuth();
   await seedIfEmpty();
   const debts = await listDebts();
 

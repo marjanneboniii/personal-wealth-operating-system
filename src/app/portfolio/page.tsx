@@ -1,4 +1,5 @@
 import { seedIfEmpty } from "@/db/seed";
+import { ensureAuth } from "@/lib/authGuard";
 import { getOpenLots, getRealizedPnl } from "@/features/ledger/queries";
 import { getPortfolioValuation } from "@/features/portfolio/service";
 import { Alert, EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
@@ -12,6 +13,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function PortfolioPage() {
+  await ensureAuth();
   await seedIfEmpty();
 
   const [valuation, lots, pnl, fx] = await Promise.all([

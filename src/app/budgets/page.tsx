@@ -1,4 +1,5 @@
 import { asc, sql } from "drizzle-orm";
+import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
 import { accounts } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
@@ -12,6 +13,7 @@ import { formatJalaliIso, formatMoney } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function BudgetsPage() {
+  await ensureAuth();
   await seedIfEmpty();
   const [budgets, expenseAccounts] = await Promise.all([
     listBudgets(),

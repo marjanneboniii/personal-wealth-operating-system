@@ -777,6 +777,32 @@ const STATEMENTS = [
   );`,
   `CREATE INDEX IF NOT EXISTS wallet_observations_asset_idx ON wallet_observations(asset_id);`,
   `CREATE INDEX IF NOT EXISTS wallet_observations_wallet_idx ON wallet_observations(wallet_id);`,
+
+  // ───────────── Auth & Per-User FX (new) ─────────────
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS username text UNIQUE;`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS email text UNIQUE;`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash text;`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id text UNIQUE;`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified boolean NOT NULL DEFAULT false;`,
+  `CREATE TABLE IF NOT EXISTS sessions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token text NOT NULL UNIQUE,
+    expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  );`,
+  `CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);`,
+  `CREATE INDEX IF NOT EXISTS sessions_token_idx ON sessions(token);`,
+  `CREATE TABLE IF NOT EXISTS user_fx_settings (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+    current_rate numeric(38,18) NOT NULL DEFAULT '190000',
+    last_updated_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz
+  );`,
+  `CREATE INDEX IF NOT EXISTS user_fx_settings_user_idx ON user_fx_settings(user_id);`,
+
 ];
 
 /**

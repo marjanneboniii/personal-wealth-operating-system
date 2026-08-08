@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import {
   getAccountBalances,
@@ -19,6 +20,7 @@ import { getLatestUsdIrtRate } from "@/lib/fx";
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
+  await ensureAuth();
   await seedIfEmpty();
   const [nw, flow, pnl, balances, holdings, debts, projection, fx] = await Promise.all([
     getNetWorth(),

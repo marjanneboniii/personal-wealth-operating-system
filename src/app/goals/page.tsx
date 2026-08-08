@@ -1,4 +1,5 @@
 import { asc, eq, sql } from "drizzle-orm";
+import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
 import { accounts, assets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
@@ -26,6 +27,7 @@ const EVENT_CATEGORY: Record<string, string> = {
 };
 
 export default async function GoalsPage() {
+  await ensureAuth();
   await seedIfEmpty();
   const [goals, funds, events, obligations, accountRows, fx] = await Promise.all([
     listGoals(),

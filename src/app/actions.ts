@@ -20,7 +20,8 @@ import {
   snapshots,
   wallets,
 } from "@/db/schema";
-import { getLatestUsdIrtRate } from "@/lib/fx";
+import { getLatestUsdIrtRateForUser, getLatestUsdIrtRate } from "@/lib/fx";
+import { getCurrentUser } from "@/lib/auth";
 import { D, Decimal } from "@/domain/decimal";
 import {
   recordBuy,
@@ -43,6 +44,19 @@ export type ActionResult = { ok: boolean; message: string };
 
 /** Presentation flow confirms creation before writing the reference record. */
 export async function createWalletAction(input: { name: string; kind: string; note?: string }): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   const allowed = ["bank", "exchange", "hot", "cold", "cash", "fund"];
   const name = input.name.trim();
   if (!name || !allowed.includes(input.kind)) return { ok: false, message: "نام و نوع حساب را بررسی کنید." };
@@ -75,6 +89,19 @@ function refreshAll() {
 
 /** A human reviewed a record — metadata only, ledger stays immutable. */
 export async function markReviewedAction(entryId: string, reviewed: boolean): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     if (reviewed) {
       await db.insert(entryReviews).values({ entryId }).onConflictDoNothing();
@@ -90,6 +117,19 @@ export async function markReviewedAction(entryId: string, reviewed: boolean): Pr
 }
 
 export async function markManyReviewedAction(entryIds: string[]): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     if (entryIds.length) {
       await db
@@ -114,6 +154,19 @@ const budgetSchema = z.object({
 });
 
 export async function createBudgetAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const v = budgetSchema.parse(Object.fromEntries(fd) as Record<string, string>);
     if (v.periodEnd < v.periodStart) throw new Error("پایان دوره باید بعد از شروع آن باشد");
@@ -165,12 +218,33 @@ const txSchema = z.object({
 });
 
 export async function createTransactionAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const raw = Object.fromEntries(fd) as Record<string, string>;
     // Support both legacy 'amount' (USD) and new 'irtAmount' (IRT) — IRT is reference, USD is computed via server rate (freeze)
     const input = txSchema.parse(raw);
-    // Fetch server-side frozen rate — single source of truth, not trusting client
-    const fxSnap = await getLatestUsdIrtRate();
+    // Auth check for ledger writes
+    const authUser = await getCurrentUser();
+    // If auth is configured (users with username exist), require login for writes; otherwise allow (single-tenant legacy)
+    const { db: db2 } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const [hasAuthUsers] = await db2.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuthUsers && !authUser) throw new Error("برای ثبت تراکنش ابتدا وارد شوید.");
+    // Fetch server-side frozen rate — per-user if logged in, single source of truth, not trusting client
+    const fxSnap = authUser ? await getLatestUsdIrtRateForUser(authUser.id) : await getLatestUsdIrtRate();
     const serverRate = D(fxSnap.rate);
     if (serverRate.lte(0)) throw new Error("نرخ دلار ثبت نشده است. ابتدا نرخ را در تنظیمات ثبت کنید.");
 
@@ -335,6 +409,19 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
 }
 
 export async function reverseEntryAction(entryId: string): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     await reverseEntry(entryId);
     refreshAll();
@@ -345,6 +432,19 @@ export async function reverseEntryAction(entryId: string): Promise<ActionResult>
 }
 
 export async function executePlanAction(id: string): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     await executePlanned(id);
     refreshAll();
@@ -355,6 +455,19 @@ export async function executePlanAction(id: string): Promise<ActionResult> {
 }
 
 export async function payInstallmentAction(id: string, cashAccountId: string): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     await payInstallment(id, cashAccountId);
     refreshAll();
@@ -373,6 +486,19 @@ const goalSchema = z.object({
 });
 
 export async function createGoalAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const v = goalSchema.parse(Object.fromEntries(fd) as Record<string, string>);
     await db.insert(goals).values({
@@ -397,6 +523,19 @@ const eventSchema = z.object({
 });
 
 export async function createEventAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const v = eventSchema.parse(Object.fromEntries(fd) as Record<string, string>);
     await db.insert(events).values({
@@ -423,6 +562,19 @@ const planSchema = z.object({
 });
 
 export async function createPlannedAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const v = planSchema.parse(Object.fromEntries(fd) as Record<string, string>);
     await db.insert(plannedTransactions).values({
@@ -442,6 +594,19 @@ export async function createPlannedAction(_p: ActionResult | null, fd: FormData)
 }
 
 export async function updatePriceAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const assetId = String(fd.get("assetId"));
     const price = D(String(fd.get("price"))).toString();
@@ -459,6 +624,19 @@ export async function updatePriceAction(_p: ActionResult | null, fd: FormData): 
 
 /** Snapshot engine — freezes today's valuation for historical reporting. */
 export async function takeSnapshotAction(): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const [nw, holdings] = await Promise.all([getNetWorth(), getHoldings()]);
     const asOf = todayIso();
@@ -543,6 +721,19 @@ const setupSchema = z.object({
 });
 
 export async function completeSetupAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const raw = Object.fromEntries(fd) as Record<string, string>;
     const input = setupSchema.parse(raw);
@@ -560,6 +751,19 @@ export async function fetchSetupStateAction() {
 }
 
 export async function createImportJobAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult & { jobData?: any }> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const rawText = String(fd.get("importText") || "");
     const source = String(fd.get("source") || "csv");
@@ -580,6 +784,19 @@ export async function createImportJobAction(_prev: ActionResult | null, fd: Form
 }
 
 export async function executeImportJobAction(jobId: string): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const res = await executeImportJob(jobId);
     refreshAll();
@@ -590,6 +807,19 @@ export async function executeImportJobAction(jobId: string): Promise<ActionResul
 }
 
 export async function recordManualPriceAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const assetId = String(fd.get("assetId") || "");
     const price = String(fd.get("price") || "");
@@ -616,6 +846,19 @@ export async function recordManualPriceAction(_prev: ActionResult | null, fd: Fo
 }
 
 export async function createPortfolioSnapshotAction(): Promise<ActionResult> {
+  // Auth guard — if auth is enabled, require login for writes
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const { db: dbCheck } = await import("@/db");
+    const { users: usersTbl } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+  }
+
   try {
     const res = await createPortfolioSnapshot();
     refreshAll();
