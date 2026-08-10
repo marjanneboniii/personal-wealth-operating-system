@@ -141,7 +141,7 @@ export async function createPortfolioSnapshot(
         baseCurrencyId: usdCur?.id ?? null,
       })
       .onConflictDoUpdate({
-        target: portfolioSnapshots.snapshotDate,
+        target: [portfolioSnapshots.userId, portfolioSnapshots.snapshotDate],
         set: { totalPortfolioValue: valuation.totalNetWorth },
       })
       .returning();

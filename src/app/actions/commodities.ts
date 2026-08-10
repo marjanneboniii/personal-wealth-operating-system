@@ -19,14 +19,25 @@ import { isNotNull } from "drizzle-orm";
  * Require an authenticated session for any commodity operation once auth is
  * enabled (legacy single-tenant mode keeps working). Identity always comes
  * from the server-side session — never from the request payload.
+ * FAIL-CLOSED: DB/auth errors DENY, never allow.
  */
 async function guardCommodities(): Promise<string | null> {
   try {
     const user = await getCurrentUser();
-    const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
-    if (row && !user) return "برای این عملیات ابتدا وارد شوید.";
-  } catch (e) {
+    let hasAuth = false;
+    try {
+      const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
+      hasAuth = !!row;
+    } catch {
+      throw new Error("Authentication/Database error: Access denied");
+    }
+    if (hasAuth && !user) return "برای این عملیات ابتدا وارد شوید.";
+  } catch (e: any) {
     if (e instanceof Error && e.message.includes("وارد شوید")) return e.message;
+    if (e instanceof Error && e.message.includes("Authentication/Database error")) {
+      return "خطای احراز هویت/پایگاه داده: دسترسی رد شد";
+    }
+    return "خطای احراز هویت: دسترسی رد شد";
   }
   return null;
 }
