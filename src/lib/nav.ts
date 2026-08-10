@@ -96,6 +96,13 @@ export const NAV_GROUPS: NavGroup[] = [
         question: "آیا در حال ثروتمندتر شدن هستم؟",
         keywords: ["net worth", "wealth", "ارزش خالص", "ثروت"],
       },
+      {
+        href: "/asset-registry",
+        label: "دارایی واقعی و کالا",
+        icon: "portfolio",
+        question: "ارزش دارایی واقعی و هزینه کالاهای من چیست؟",
+        keywords: ["rwa", "real estate", "vehicle", "commodity", "ملک", "خودرو", "کالا", "ارزش‌گذاری"],
+      },
     ],
   },
   {
