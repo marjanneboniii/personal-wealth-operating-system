@@ -23,6 +23,7 @@ import {
 } from "@/db/schema";
 import { getLatestUsdIrtRateForUser, getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentUser } from "@/lib/auth";
+import { recordAuditEvent } from "@/lib/audit";
 import { D, Decimal } from "@/domain/decimal";
 import {
   recordBuy,
@@ -38,7 +39,7 @@ import { recordManualPrice } from "@/features/marketData/service";
 import { createPortfolioSnapshot, getPortfolioValuation } from "@/features/portfolio/service";
 import { getAnalyticsSummary } from "@/features/analytics/service";
 import { getHoldings, getNetWorth } from "@/features/ledger/queries";
-import { todayIso } from "@/lib/format";
+import { addMonthsIso, todayIso } from "@/lib/format";
 
 export type ActionResult = { ok: boolean; message: string };
 
@@ -82,6 +83,8 @@ function refreshAll() {
     "/reports",
     "/audit",
     "/accounts",
+    "/market-data",
+    "/settings",
   ]) {
     revalidatePath(p);
   }
@@ -515,6 +518,128 @@ export async function payInstallmentAction(id: string, cashAccountId: string): P
     return { ok: true, message: "قسط پرداخت و مانده بدهی به‌روزرسانی شد." };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "خطا" };
+  }
+}
+
+const debtSchema = z.object({
+  title: z.string().trim().min(2, "عنوان بدهی را وارد کنید").max(160),
+  creditor: z.string().trim().min(2, "نام بستانکار را وارد کنید").max(160),
+  principalIrt: z.string().min(1, "اصل بدهی را وارد کنید"),
+  interestRate: z.string().optional().default("0"),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاریخ شروع را انتخاب کنید"),
+  installmentCount: z.string().optional().default("0"),
+  installmentIrt: z.string().optional().default(""),
+  firstDueDate: z.string().optional().default(""),
+});
+
+/**
+ * Defines a debt and its repayment schedule in the planning layer.
+ *
+ * Deliberately does not call postEntry(): defining a future obligation is not
+ * a cash movement. The immutable ledger changes only when the user records an
+ * actual financial transaction or pays an installment through its existing
+ * accounting path.
+ */
+export async function createDebtAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  try {
+    const { users: usersTable } = await import("@/db/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const user = await getCurrentUser();
+    const [hasAuth] = await db.select().from(usersTable).where(isNotNull(usersTable.username)).limit(1);
+    if (hasAuth && !user) return { ok: false, message: "برای تعریف بدهی ابتدا وارد شوید." };
+
+    const raw = Object.fromEntries(fd) as Record<string, string>;
+    const value = debtSchema.parse({
+      title: raw.title ?? "",
+      creditor: raw.creditor ?? "",
+      principalIrt: raw.principalIrt ?? "",
+      interestRate: raw.interestRate ?? "0",
+      startDate: raw.startDate ?? "",
+      installmentCount: raw.installmentCount ?? "0",
+      installmentIrt: raw.installmentIrt ?? "",
+      firstDueDate: raw.firstDueDate ?? "",
+    });
+
+    const principalIrt = D(value.principalIrt);
+    const interestRate = D(value.interestRate || "0");
+    const count = Number(value.installmentCount || "0");
+    if (!principalIrt.gt(0)) throw new Error("اصل بدهی باید بزرگ‌تر از صفر باشد.");
+    if (interestRate.isNegative() || interestRate.gt(100)) throw new Error("نرخ سود باید بین صفر تا ۱۰۰ درصد باشد.");
+    if (!Number.isInteger(count) || count < 0 || count > 360) throw new Error("تعداد اقساط باید بین صفر تا ۳۶۰ باشد.");
+    if (count > 0 && !value.firstDueDate) throw new Error("برای بدهی قسطی، تاریخ اولین سررسید را انتخاب کنید.");
+    if (count > 0 && value.firstDueDate < value.startDate) throw new Error("اولین سررسید نمی‌تواند قبل از تاریخ شروع بدهی باشد.");
+    if (count > 0 && value.installmentIrt && !D(value.installmentIrt).gt(0)) throw new Error("مبلغ هر قسط باید بزرگ‌تر از صفر باشد.");
+
+    const installmentIrt = count > 0
+      ? value.installmentIrt && D(value.installmentIrt).gt(0)
+        ? D(value.installmentIrt)
+        : principalIrt.div(String(count))
+      : D("0");
+    if (count > 0 && !installmentIrt.gt(0)) throw new Error("مبلغ هر قسط باید بزرگ‌تر از صفر باشد.");
+
+    const fx = user ? await getLatestUsdIrtRateForUser(user.id) : await getLatestUsdIrtRate();
+    const rate = D(fx.rate);
+    if (!rate.gt(0)) throw new Error("نرخ تبدیل دلار به تومان برای ثبت این بدهی موجود نیست.");
+    const principalBase = principalIrt.div(rate).toString();
+    const installmentBase = installmentIrt.div(rate).toString();
+
+    const debt = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(debts)
+        .values({
+          userId: user?.id ?? null,
+          creditor: value.creditor,
+          title: value.title,
+          principalBase,
+          interestRate: interestRate.toString(),
+          startDate: value.startDate,
+          // A planning-only debt has no ledger account by design. This keeps
+          // the accounting core untouched until a real movement is recorded.
+          accountId: null,
+          status: "active",
+        } as any)
+        .returning();
+
+      if (count > 0 && value.firstDueDate) {
+        await tx.insert(installments).values(
+          Array.from({ length: count }, (_, index) => ({
+            debtId: created.id,
+            seq: index + 1,
+            dueDate: addMonthsIso(value.firstDueDate, index),
+            amountBase: installmentBase,
+            status: "pending",
+          })),
+        );
+      }
+      return created;
+    });
+
+    await recordAuditEvent({
+      action: "CREATE_DEBT",
+      entityType: "debt",
+      entityId: debt.id,
+      userId: user?.id ?? null,
+      result: "SUCCESS",
+      payload: {
+        title: value.title,
+        creditor: value.creditor,
+        installmentCount: count,
+        rateSource: fx.source,
+        rateDate: fx.effectiveDate,
+        ledgerMutation: false,
+      },
+    });
+
+    refreshAll();
+    return {
+      ok: true,
+      message: count > 0
+        ? `بدهی و برنامه ${count} قسط با موفقیت ثبت شد؛ دفترکل و حسابداری تغییری نکرد.`
+        : "بدهی با موفقیت ثبت شد؛ دفترکل و حسابداری تغییری نکرد.",
+    };
+  } catch (e) {
+    const msg = e instanceof z.ZodError ? e.issues[0]?.message : e instanceof Error ? e.message : "خطا در ثبت بدهی";
+    return { ok: false, message: msg };
   }
 }
 

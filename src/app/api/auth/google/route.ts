@@ -16,7 +16,9 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request) {
   try {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
+    // A Google OAuth client id is public by design. Accept the public-prefixed
+    // variable too so the browser button and server verifier cannot drift.
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId || clientId.trim() === "") {
       return NextResponse.json(
         { ok: false, error: "Google authentication is not configured." },

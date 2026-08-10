@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { users, userFxSettings } from "@/db/schema";
 import { eq, isNull, or } from "drizzle-orm";
@@ -163,5 +164,12 @@ export async function updateFxRateAction(prev: AuthResult | null, formData: Form
   if (!rateStr) return { ok: false, message: "نرخ را وارد کنید." };
   const { updateUserFxRate } = await import("@/features/fx/userRate");
   const result = await updateUserFxRate(user.id, rateStr);
+  if (result.ok) {
+    revalidatePath("/settings");
+    revalidatePath("/market-data");
+    revalidatePath("/");
+    revalidatePath("/net-worth");
+    revalidatePath("/portfolio");
+  }
   return { ok: result.ok, message: result.message };
 }

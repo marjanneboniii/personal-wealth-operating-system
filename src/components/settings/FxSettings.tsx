@@ -1,5 +1,8 @@
 "use client";
 
+/* The countdown synchronizes with wall-clock time; its state updates are intentional. */
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useActionState, useEffect, useState } from "react";
 import { updateFxRateAction, type AuthResult } from "@/lib/auth-actions";
 import { formatMoney, formatJalaliIso } from "@/lib/format";
@@ -49,8 +52,8 @@ export default function FxSettings({ currentRate, lastUpdatedAt, nextUpdateAt, c
     <div className="card p-4 sm:p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-[14px] font-bold">نرخ فعلی دلار</h3>
-          <p className="muted mt-1 text-[12px] leading-5">این نرخ فقط برای ارزش‌گذاری جاری (Current Valuation) استفاده می‌شود و هرگز تاریخچه مالی را تغییر نمی‌دهد.</p>
+          <h3 className="text-[14px] font-bold">ثبت و ویرایش دستی نرخ دلار</h3>
+          <p className="muted mt-1 text-[12px] leading-5">این نرخ دستی فقط برای ارزش‌گذاری جاری (Current Valuation) استفاده می‌شود و هرگز تاریخچه مالی، FIFO یا دفترکل را تغییر نمی‌دهد.</p>
         </div>
         <span className="badge badge-brand">هر ۲۴ ساعت یک‌بار</span>
       </div>
@@ -78,7 +81,7 @@ export default function FxSettings({ currentRate, lastUpdatedAt, nextUpdateAt, c
 
       <form action={formAction} className="mt-4 space-y-3">
         <div>
-          <label className="label">ویرایش نرخ ارز (تومان برای هر دلار)</label>
+          <label className="label">ثبت نرخ دستی دلار (تومان برای هر دلار)</label>
           <div className="flex gap-2">
             <input
               name="rate"
@@ -98,7 +101,7 @@ export default function FxSettings({ currentRate, lastUpdatedAt, nextUpdateAt, c
               style={{ touchAction: "manipulation" }}
             >
               <Icon name="refresh" size={15} />
-              به‌روزرسانی نرخ
+              ذخیره نرخ دستی
             </button>
           </div>
           {!localCanUpdate && (

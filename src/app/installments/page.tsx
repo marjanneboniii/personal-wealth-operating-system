@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, assets, debts, installments } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
@@ -15,7 +15,7 @@ function daysUntil(iso: string) {
 }
 
 export default async function InstallmentsPage() {
-  await ensureAuth();
+  const authUser = await ensureAuth();
   await seedIfEmpty();
   const rows = await db
     .select({
@@ -31,14 +31,19 @@ export default async function InstallmentsPage() {
     })
     .from(installments)
     .innerJoin(debts, eq(debts.id, installments.debtId))
-    .where(sql`${debts.deletedAt} is null`)
+    .where(and(sql`${debts.deletedAt} is null`, authUser ? sql`(${debts.userId} = ${authUser.id} or ${debts.userId} is null)` : sql`1=1`))
     .orderBy(asc(installments.dueDate));
 
   const cashAccount = await db
     .select({ id: accounts.id })
     .from(accounts)
     .leftJoin(assets, eq(assets.id, accounts.assetId))
-    .where(sql`${accounts.type} = 'asset' and ${accounts.assetId} is not null and ${accounts.deletedAt} is null`)
+    .where(
+      and(
+        sql`${accounts.type} = 'asset' and ${accounts.assetId} is not null and ${accounts.deletedAt} is null`,
+        authUser ? sql`(${accounts.userId} = ${authUser.id} or ${accounts.userId} is null)` : sql`1=1`,
+      ),
+    )
     .orderBy(asc(accounts.code))
     .limit(1);
 

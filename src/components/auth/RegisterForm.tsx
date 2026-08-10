@@ -3,9 +3,9 @@
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { registerAction, type AuthResult } from "@/lib/auth-actions";
-import Icon from "@/components/ui/Icon";
+import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
 
-export default function RegisterForm() {
+export default function RegisterForm({ googleClientId }: { googleClientId?: string }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<AuthResult | null, FormData>(registerAction, null);
 
@@ -85,28 +85,7 @@ export default function RegisterForm() {
         {pending ? "در حال ثبت‌نام…" : "ثبت‌نام"}
       </button>
 
-      <GoogleButton />
+      <GoogleAuthButton clientId={googleClientId} label="ثبت‌نام با Google" />
     </form>
-  );
-}
-
-function GoogleButton() {
-  const handleGoogle = async () => {
-    const clientId = (window as any).__GOOGLE_CLIENT_ID__ || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      alert("احراز هویت گوگل تنظیم نشده است. (Google authentication is not configured.)");
-      return;
-    }
-    if ((window as any).google?.accounts?.id) {
-      (window as any).google.accounts.id.prompt();
-    } else {
-      alert("سرویس احراز هویت گوگل در دسترس نیست.");
-    }
-  };
-  return (
-    <button type="button" onClick={handleGoogle} className="btn w-full" style={{ touchAction: "manipulation" }}>
-      <Icon name="globe" size={16} />
-      ثبت‌نام با Google
-    </button>
   );
 }

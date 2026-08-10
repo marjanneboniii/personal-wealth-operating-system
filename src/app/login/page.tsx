@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { seedIfEmpty } from "@/db/seed";
 import LoginForm from "@/components/auth/LoginForm";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ next?: string; claim?: string }>;
 }) {
+  await seedIfEmpty();
   const user = await getCurrentUser();
   if (user) redirect("/");
 
@@ -25,15 +27,16 @@ export default async function LoginPage({
           </p>
         </div>
 
-        <LoginForm claimMode={isClaim} />
+        <LoginForm
+          claimMode={isClaim}
+          googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID}
+        />
 
         <div className="mt-6 flex items-center gap-3">
           <span className="h-px flex-1" style={{ background: "var(--border)" }} />
           <span className="muted text-[11px]">یا</span>
           <span className="h-px flex-1" style={{ background: "var(--border)" }} />
         </div>
-
-        <div id="google-btn" className="mt-4" />
 
         <p className="muted mt-6 text-center text-[12px]">
           حساب ندارید؟{" "}

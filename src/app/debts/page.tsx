@@ -2,9 +2,11 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import { listDebts } from "@/features/planning/service";
-import { EmptyState, Metric, PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
+import { EmptyState, Card, Metric, PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
+import DebtForm from "@/components/forms/DebtForm";
 import Icon from "@/components/ui/Icon";
-import { formatJalaliIso, formatMoney } from "@/lib/format";
+import { formatJalaliIso, formatMoney, todayIso } from "@/lib/format";
+import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +17,9 @@ function daysUntil(iso: string) {
 export default async function DebtsPage() {
   await ensureAuth();
   await seedIfEmpty();
-  const debts = await listDebts();
+  const [debts, fx] = await Promise.all([listDebts(), getLatestUsdIrtRate()]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
   const totalOutstanding = debts.reduce((s, d) => s + Number(d.outstandingBase), 0);
   const overdue = debts.flatMap((d) => d.installments.filter((i) => i.status === "pending" && i.dueDate < today));
   const active = debts.filter((d) => d.status === "active");
@@ -29,8 +31,16 @@ export default async function DebtsPage() {
     <div className="space-y-8">
       <PageHeader
         title="بدهی‌ها"
-        subtitle="چه مقدار بدهی دارم؟ — مانده هر بدهی از دفترکل مشتق می‌شود؛ با هر پرداخت، کم می‌شود."
-        action={<SectionLink href="/installments" label="برنامه اقساط" />}
+        subtitle="چه مقدار بدهی دارم؟ — بدهی‌های حسابداری از دفترکل می‌آیند؛ بدهی‌های دستی و برنامه اقساط با تأیید شما اینجا تعریف می‌شوند."
+        action={
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="#manual-debt" className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[12px]">
+              <Icon name="plus" size={15} />
+              ثبت بدهی دستی
+            </Link>
+            <SectionLink href="/installments" label="برنامه اقساط" />
+          </div>
+        }
       />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
@@ -47,6 +57,17 @@ export default async function DebtsPage() {
           value={String(debts.filter((d) => d.status === "settled").length)}
           hint={debts.length ? `از مجموع ${debts.length} بدهی` : undefined}
         />
+      </section>
+
+      <section id="manual-debt" className="scroll-mt-24">
+        <Section title="تعریف دستی بدهی" hint="اول پیش‌نمایش را ببینید؛ فقط بعد از تأیید نهایی، بدهی و اقساط در برنامه‌ریزی ذخیره می‌شوند.">
+          <Card className="p-4 sm:p-5" title="بدهی جدید">
+            <p className="muted mb-4 text-[11px] leading-5">
+              این مسیر برای تعریف بدهی و برنامه بازپرداخت است و عمداً به هسته حسابداری، سند روزنامه و دفترکل دست نمی‌زند. مبلغ پایه با نرخ فعلی فقط برای نمایش و محاسبات تاریخی برنامه ذخیره می‌شود.
+            </p>
+            <DebtForm today={today} initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} />
+          </Card>
+        </Section>
       </section>
 
       <Section title="وضعیت هر بدهی">
@@ -152,11 +173,11 @@ export default async function DebtsPage() {
       </Section>
 
       <p className="muted text-[10.5px]">
-        اصل مهم: تا قبل از پرداخت واقعی، اقساط فقط «تعهد برنامه‌ریزی» هستند و سندی در دفترکل ندارند. مانده بدهی همیشه از{" "}
+        اصل مهم: تعریف دستی این صفحه یک «تعهد برنامه‌ریزی» است و تا قبل از پرداخت واقعی سندی در دفترکل ندارد. بدهی‌های دارای حساب حسابداری از{" "}
         <Link href="/ledger" className="underline underline-offset-2" style={{ color: "var(--brand)" }}>
           دفترکل
         </Link>{" "}
-        خوانده می‌شود.
+        مشتق می‌شوند؛ بدهی‌های برنامه‌ریزی‌شده فعلاً با اصل ثبت‌شده نمایش داده می‌شوند.
       </p>
     </div>
   );
