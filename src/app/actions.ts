@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -19,10 +19,18 @@ import {
   prices,
   snapshotLines,
   snapshots,
+  users,
   wallets,
 } from "@/db/schema";
 import { getLatestUsdIrtRateForUser, getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentUser } from "@/lib/auth";
+import { isAdminOrOwner } from "@/lib/authGuard";
+import { validateAccountOwnership } from "@/lib/validation";
+import {
+  assertDebtOwnership,
+  assertInstallmentOwnership,
+  assertJournalEntryOwnership,
+} from "@/lib/accessControl";
 import { recordAuditEvent } from "@/lib/audit";
 import { D, Decimal } from "@/domain/decimal";
 import {
@@ -42,6 +50,34 @@ import { getHoldings, getNetWorth } from "@/features/ledger/queries";
 import { addMonthsIso, todayIso } from "@/lib/format";
 
 export type ActionResult = { ok: boolean; message: string };
+
+/**
+ * Security boundary helper for Server Actions.
+ *
+ * Resolves the current session user and whether auth is enabled (any user
+ * with a username exists). In legacy single-tenant mode (no auth users) the
+ * app keeps working without login; once auth users exist, user-specific data
+ * access requires a session — "no userId -> DENY", never global data.
+ *
+ * Authorization decisions live HERE (Action boundary); the accounting core
+ * (postEntry / FIFO / ledger) is invoked unchanged afterwards.
+ */
+async function getAuthContext(): Promise<{ user: any; hasAuth: boolean }> {
+  let user: any = null;
+  let hasAuth = false;
+  try {
+    user = await getCurrentUser();
+  } catch {}
+  try {
+    const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
+    hasAuth = !!row;
+  } catch {}
+  return { user, hasAuth };
+}
+
+function loginRequiredMessage() {
+  return "برای این عملیات ابتدا وارد شوید.";
+}
 
 /** Presentation flow confirms creation before writing the reference record. */
 export async function createWalletAction(input: { name: string; kind: string; note?: string }): Promise<ActionResult> {
@@ -108,9 +144,12 @@ export async function markReviewedAction(entryId: string, reviewed: boolean): Pr
 
   try {
     if (user) {
-      const [je] = await db.select().from(journalEntries).where(eq(journalEntries.id, entryId)).limit(1);
-      if (je?.userId && je.userId !== user.id) {
-        return { ok: false, message: "دسترسی غیرمجاز: این سند متعلق به شما نیست." };
+      // SECURITY: strict ownership — review state may only be changed on the
+      // current user's own entries (NULL-owner entries are denied).
+      try {
+        await assertJournalEntryOwnership(entryId, user);
+      } catch (e: any) {
+        return { ok: false, message: e?.message || "دسترسی غیرمجاز." };
       }
     }
     if (reviewed) {
@@ -128,12 +167,13 @@ export async function markReviewedAction(entryId: string, reviewed: boolean): Pr
 
 export async function markManyReviewedAction(entryIds: string[]): Promise<ActionResult> {
   // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -141,6 +181,19 @@ export async function markManyReviewedAction(entryIds: string[]): Promise<Action
   }
 
   try {
+    // SECURITY: verify ownership of every entry in the batch. If any entry is
+    // missing or belongs to another user (or has no owner), the whole batch
+    // is denied — never partially applied.
+    if (user && entryIds.length) {
+      const rows = await db
+        .select({ id: journalEntries.id, userId: journalEntries.userId })
+        .from(journalEntries)
+        .where(inArray(journalEntries.id, entryIds));
+      const allOwned = rows.length === entryIds.length && rows.every((r) => r.userId === user.id);
+      if (!allOwned) {
+        return { ok: false, message: "دسترسی غیرمجاز: برخی اسناد متعلق به شما نیستند." };
+      }
+    }
     if (entryIds.length) {
       await db
         .insert(entryReviews)
@@ -180,6 +233,8 @@ export async function createBudgetAction(_p: ActionResult | null, fd: FormData):
   try {
     const v = budgetSchema.parse(Object.fromEntries(fd) as Record<string, string>);
     if (v.periodEnd < v.periodStart) throw new Error("پایان دوره باید بعد از شروع آن باشد");
+    // SECURITY: client-provided account reference must belong to the user.
+    if (user) await validateAccountOwnership(v.accountId, user.id);
     await db.insert(budgets).values({
       name: v.name,
       accountId: v.accountId,
@@ -255,6 +310,22 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     const { isNotNull } = await import("drizzle-orm");
     const [hasAuthUsers] = await db2.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuthUsers && !authUser) throw new Error("برای ثبت تراکنش ابتدا وارد شوید.");
+
+    // SECURITY (Authorization boundary): validate ownership of EVERY
+    // client-provided account / reference id BEFORE the accounting service is
+    // invoked. System-derived accounts (fee 5040 / PnL 4100 looked up by code
+    // server-side) are shared chart-of-accounts records and never come from
+    // the client. On violation we throw (403 semantics) and NO journal entry,
+    // posting, FIFO lot or balance is created or mutated.
+    if (authUser) {
+      await validateAccountOwnership(input.primaryAccountId, authUser.id);
+      await validateAccountOwnership(input.counterAccountId, authUser.id);
+      if (input.installmentId) {
+        await assertInstallmentOwnership(input.installmentId, authUser);
+      } else if (input.debtId) {
+        await assertDebtOwnership(input.debtId, authUser);
+      }
+    }
     // Fetch server-side frozen rate — per-user if logged in, single source of truth, not trusting client
     const fxSnap = authUser ? await getLatestUsdIrtRateForUser(authUser.id) : await getLatestUsdIrtRate();
     const serverRate = D(fxSnap.rate);
@@ -443,9 +514,15 @@ export async function reverseEntryAction(entryId: string): Promise<ActionResult>
 
   try {
     if (user) {
-      const [je] = await db.select().from(journalEntries).where(eq(journalEntries.id, entryId)).limit(1);
-      if (je?.userId && je.userId !== user.id) {
-        return { ok: false, message: "دسترسی غیرمجاز: این سند متعلق به شما نیست." };
+      // SECURITY: strict ownership for sensitive financial operations.
+      // `userId === currentUser.id` is a hard condition — an entry owned by
+      // someone else OR an entry with no owner (NULL) is DENIED, never
+      // allowed. The accounting core (reverseEntry) is invoked unchanged and
+      // only after this check passes.
+      try {
+        await assertJournalEntryOwnership(entryId, user);
+      } catch (e: any) {
+        return { ok: false, message: e?.message || "دسترسی غیرمجاز." };
       }
     }
     await reverseEntry(entryId);
@@ -477,6 +554,11 @@ export async function executePlanAction(id: string): Promise<ActionResult> {
       if (plan?.userId && plan.userId !== user.id) {
         return { ok: false, message: "دسترسی غیرمجاز: این برنامه متعلق به شما نیست." };
       }
+      // SECURITY: executing a plan posts to the ledger using the plan's
+      // accounts — validate ownership of those accounts before the
+      // accounting service runs.
+      if (plan?.fromAccountId) await validateAccountOwnership(plan.fromAccountId, user.id);
+      if (plan?.toAccountId) await validateAccountOwnership(plan.toAccountId, user.id);
     }
     await executePlanned(id);
     refreshAll();
@@ -512,6 +594,9 @@ export async function payInstallmentAction(id: string, cashAccountId: string): P
       if (instRow?.debt?.userId && instRow.debt.userId !== user.id) {
         return { ok: false, message: "دسترسی غیرمجاز: این بدهی متعلق به شما نیست." };
       }
+      // SECURITY: the cash account comes from the client — it must belong to
+      // the current user before the installment payment posts to the ledger.
+      await validateAccountOwnership(cashAccountId, user.id);
     }
     await payInstallment(id, cashAccountId);
     refreshAll();
@@ -667,6 +752,8 @@ export async function createGoalAction(_p: ActionResult | null, fd: FormData): P
 
   try {
     const v = goalSchema.parse(Object.fromEntries(fd) as Record<string, string>);
+    // SECURITY: client-provided fund account reference must belong to the user.
+    if (user && v.fundAccountId) await validateAccountOwnership(v.fundAccountId, user.id);
     await db.insert(goals).values({
       name: v.name,
       targetBase: D(v.targetBase).toString(),
@@ -745,6 +832,9 @@ export async function createPlannedAction(_p: ActionResult | null, fd: FormData)
 
   try {
     const v = planSchema.parse(Object.fromEntries(fd) as Record<string, string>);
+    // SECURITY: client-provided account references must belong to the user.
+    if (user && v.fromAccountId) await validateAccountOwnership(v.fromAccountId, user.id);
+    if (user && v.toAccountId) await validateAccountOwnership(v.toAccountId, user.id);
     await db.insert(plannedTransactions).values({
       title: v.title,
       plannedDate: v.plannedDate,
@@ -764,14 +854,20 @@ export async function createPlannedAction(_p: ActionResult | null, fd: FormData)
 
 export async function updatePriceAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+    // SECURITY: market prices are global reference data — modifying them is
+    // an administrative operation (owner/admin only). Reads stay open.
+    if (hasAuth && user && !isAdminOrOwner(user)) {
+      return { ok: false, message: "دسترسی غیرمجاز: تغییر قیمت‌ها فقط برای مدیر امکان‌پذیر است." };
+    }
   } catch (e) {
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
   }
@@ -849,6 +945,10 @@ export async function takeSnapshotAction(): Promise<ActionResult> {
 }
 
 export async function integrityCheckAction(): Promise<ActionResult> {
+  // SECURITY: ledger diagnostics require a session once auth is enabled.
+  const { user, hasAuth } = await getAuthContext();
+  if (hasAuth && !user) return { ok: false, message: loginRequiredMessage() };
+
   const bad = await db.execute(sql`
     select je.id, sum(p.base_value)::text as delta
     from journal_entries je join postings p on p.entry_id = je.id
@@ -905,6 +1005,12 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
     const user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+    // SECURITY: setup bootstraps the global chart of accounts and opening
+    // balances. Once auth users exist, only owner/admin may run it. On a
+    // fresh instance (no auth users yet) the first-run bootstrap still works.
+    if (hasAuth && user && !isAdminOrOwner(user)) {
+      return { ok: false, message: "دسترسی غیرمجاز: راه‌اندازی اولیه فقط برای مدیر امکان‌پذیر است." };
+    }
   } catch (e) {
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
   }
@@ -922,20 +1028,30 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
 }
 
 export async function fetchSetupStateAction() {
+  // SECURITY: require a session once auth is enabled — never serve state to
+  // an anonymous caller in multi-user mode.
+  const { user, hasAuth } = await getAuthContext();
+  if (hasAuth && !user) throw new Error("Unauthorized: login required");
   return getSetupState();
 }
 
 
 export async function recordManualPriceAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
+    // SECURITY: market prices are global reference data — modifying them is
+    // an administrative operation (owner/admin only). Reads stay open.
+    if (hasAuth && user && !isAdminOrOwner(user)) {
+      return { ok: false, message: "دسترسی غیرمجاز: تغییر قیمت‌ها فقط برای مدیر امکان‌پذیر است." };
+    }
   } catch (e) {
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
   }
@@ -967,12 +1083,13 @@ export async function recordManualPriceAction(_prev: ActionResult | null, fd: Fo
 
 export async function createPortfolioSnapshotAction(): Promise<ActionResult> {
   // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -980,7 +1097,8 @@ export async function createPortfolioSnapshotAction(): Promise<ActionResult> {
   }
 
   try {
-    const res = await createPortfolioSnapshot();
+    // SECURITY: scope the valuation snapshot to the session user.
+    const res = await createPortfolioSnapshot(undefined, user?.id);
     refreshAll();
     return { ok: true, message: "اسنپ‌شات ثروت با موفقیت ثبت شد (بدون تغییر در دفترکل)." };
   } catch (e) {
@@ -989,9 +1107,19 @@ export async function createPortfolioSnapshotAction(): Promise<ActionResult> {
 }
 
 export async function fetchPortfolioValuationAction() {
-  return getPortfolioValuation();
+  // SECURITY: user-specific data — require authentication and scope the
+  // valuation to the session user. Calculation logic stays untouched; only
+  // the data scope is enforced. Legacy single-tenant mode keeps global view.
+  const { user, hasAuth } = await getAuthContext();
+  if (hasAuth && !user) throw new Error("Unauthorized: login required");
+  return getPortfolioValuation(undefined, user?.id);
 }
 
 export async function fetchAnalyticsSummaryAction() {
-  return getAnalyticsSummary();
+  // SECURITY: user-specific data — require authentication and scope the
+  // analytics run to the session user (no global data for authenticated
+  // requests). Calculation logic stays untouched.
+  const { user, hasAuth } = await getAuthContext();
+  if (hasAuth && !user) throw new Error("Unauthorized: login required");
+  return getAnalyticsSummary(user?.id);
 }

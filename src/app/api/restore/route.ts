@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { auditLog, sessions, users } from "@/db/schema";
+import { auditLog, backupRuns, sessions, users } from "@/db/schema";
 import { authorizeOwnerOrAdmin } from "@/lib/authGuard";
 import { clearSessionCookie } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
@@ -73,6 +73,17 @@ const backupPayloadSchema = z.object({
 export async function POST(request: Request) {
   const auth = await authorizeOwnerOrAdmin(request);
   if (!auth.ok) {
+    // Audit every denied restore attempt. Identity/role come only from the
+    // server-side session — never from the request payload.
+    try {
+      await recordAuditEvent({
+        action: "RESTORE_DENIED",
+        entityType: "database",
+        userId: auth.user?.id ?? null,
+        result: "FAILURE",
+        metadata: { status: auth.status },
+      });
+    } catch {}
     return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
   }
 
@@ -92,6 +103,27 @@ export async function POST(request: Request) {
 
     const { data } = parseResult.data;
     let inserted = 0;
+
+    // Pre-restore safety snapshot: record what is about to be overwritten.
+    // The operator should take a full backup (GET /api/backup) before a
+    // restore; this marker captures the row counts of the critical
+    // accounting tables as a last-line audit trail.
+    let preRestoreRowCount = 0;
+    try {
+      const criticalTables = ["users", "accounts", "journal_entries", "postings", "lots", "lot_consumptions", "audit_log"];
+      for (const t of criticalTables) {
+        const res = await db.execute(sql`select count(*)::int as cnt from ${sql.identifier(t)}`);
+        preRestoreRowCount += Number((res.rows[0] as { cnt?: number })?.cnt ?? 0);
+      }
+      // backup_runs is intentionally NOT part of the restore table list, so
+      // this marker survives the restore itself.
+      await db.insert(backupRuns).values({
+        kind: "pre_restore_snapshot",
+        rowCount: preRestoreRowCount,
+        schemaVersion: "1.0",
+        note: "row counts captured immediately before restore overwrite",
+      });
+    } catch {}
 
     await db.transaction(async (tx) => {
       // Clear existing tables in reverse dependency order using parameterized identifiers

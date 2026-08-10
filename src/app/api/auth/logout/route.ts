@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { sessions } from "@/db/schema";
+import { destroySession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +9,8 @@ export async function POST() {
     const store = await cookies();
     const token = store.get("pwos_session")?.value;
     if (token) {
-      await db.delete(sessions).where(eq(sessions.token, token));
+      // destroySession matches the stored hash (and any legacy raw row).
+      await destroySession(token);
     }
     store.delete("pwos_session");
   } catch {}

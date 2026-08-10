@@ -3,6 +3,12 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { isNotNull } from "drizzle-orm";
 import { getCurrentUser, getCurrentUserFromRequest } from "@/lib/auth";
+import { safeEqual } from "@/lib/rateLimit";
+
+/** Roles considered privileged (administrative). Assigned server-side only. */
+export function isAdminOrOwner(user: { role?: string | null } | null | undefined): boolean {
+  return !!user && (user.role === "owner" || user.role === "admin");
+}
 
 /**
  * Call at top of any protected server component.
@@ -71,7 +77,8 @@ export async function authenticateApi(request: Request) {
     const headerToken =
       request.headers.get("x-pwos-auth") ??
       request.headers.get("authorization")?.replace("Bearer ", "");
-    if (headerToken === authToken) {
+    // Constant-time comparison for the system admin token.
+    if (headerToken && safeEqual(headerToken, authToken)) {
       return { authenticated: true, user: { id: "admin-token", role: "owner", name: "System Admin" } };
     }
   }
@@ -89,10 +96,12 @@ export async function authenticateApi(request: Request) {
 export async function authorizeOwnerOrAdmin(request: Request) {
   const auth = await authenticateApi(request);
   if (!auth.authenticated || !auth.user) {
-    return { ok: false, status: 401, error: "دسترسی غیرمجاز (401 Unauthorized)" };
+    return { ok: false, status: 401, error: "دسترسی غیرمجاز (401 Unauthorized)", user: null };
   }
+  // Role is read exclusively from the server-side session/token user —
+  // never from the request body, query, or headers.
   if (auth.user.role !== "owner" && auth.user.role !== "admin") {
-    return { ok: false, status: 403, error: "شما مجوز این عملیات را ندارید (403 Forbidden)" };
+    return { ok: false, status: 403, error: "شما مجوز این عملیات را ندارید (403 Forbidden)", user: auth.user };
   }
   return { ok: true, status: 200, user: auth.user };
 }

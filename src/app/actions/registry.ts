@@ -10,8 +10,28 @@ import { createOwnershipRecord } from "@/features/rwa/ownership/service";
 import { createValuationEvent } from "@/features/rwa/valuation/service";
 import { createCategory, createCommodityItem, recordPricePoint } from "@/features/commodities/service";
 
+import { getCurrentUser } from "@/lib/auth";
+import { users } from "@/db/schema";
+import { isNotNull } from "drizzle-orm";
+
 export type RegistryResult = { ok: boolean; message: string };
 const refresh = () => revalidatePath("/asset-registry");
+
+/**
+ * SECURITY: registry writes create/modify shared reference records. Require
+ * an authenticated session once auth is enabled (legacy single-tenant mode
+ * keeps working). Identity comes from the server-side session only.
+ */
+async function guardRegistry(): Promise<string | null> {
+  try {
+    const user = await getCurrentUser();
+    const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
+    if (row && !user) return "برای این عملیات ابتدا وارد شوید.";
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return e.message;
+  }
+  return null;
+}
 const val = (f: FormData, key: string) => String(f.get(key) ?? "").trim();
 const optional = (f: FormData, key: string) => val(f,key) || undefined;
 
@@ -31,7 +51,7 @@ async function rwaAsset(form: FormData) {
 }
 
 export async function saveRwaAction(_previous: RegistryResult | null, form: FormData): Promise<RegistryResult> {
-  try {
+  const denied = await guardRegistry(); if (denied) return { ok: false, message: denied }; try {
     const { asset, kind } = await rwaAsset(form);
     if (kind === "property") await createRealEstateProperty({ assetId:asset.id, propertyType: val(form,"propertyType") as any, city:val(form,"city") || "Ahvaz", area:optional(form,"area"), address:optional(form,"address"), sizeSqm:optional(form,"sizeSqm"), floor: optional(form,"floor") ? Number(val(form,"floor")) : undefined, yearBuilt: optional(form,"yearBuilt") ? Number(val(form,"yearBuilt")) : undefined, deedNumber:optional(form,"deedNumber"), notes:optional(form,"notes") });
     else await createVehicleAsset({ assetId:asset.id, brand:val(form,"brand"), model:val(form,"model"), year:Number(val(form,"year")), licensePlate:optional(form,"licensePlate"), mileage:optional(form,"mileage") ? Number(val(form,"mileage")) : undefined, notes:optional(form,"notes") });
@@ -42,7 +62,7 @@ export async function saveRwaAction(_previous: RegistryResult | null, form: Form
 }
 
 export async function saveCommodityAction(_previous: RegistryResult | null, form: FormData): Promise<RegistryResult> {
- try {
+ const denied = await guardRegistry(); if (denied) return { ok: false, message: denied }; try {
   let categoryId = optional(form,"categoryId"); const categoryName=optional(form,"newCategory");
   if (categoryName) categoryId=(await createCategory(categoryName)).id;
   let commodityId=optional(form,"commodityId");
@@ -53,9 +73,9 @@ export async function saveCommodityAction(_previous: RegistryResult | null, form
 }
 
 export async function updateCommodityItemAction(_previous: RegistryResult | null, form: FormData): Promise<RegistryResult> {
- try { const id=val(form,"id"), name=val(form,"name"), unit=val(form,"unit"); if(!id||!name) throw new Error("اطلاعات قلم ناقص است."); await db.update(commodityItems).set({name,defaultUnit:unit||"عدد"}).where(eq(commodityItems.id,id)); refresh(); return {ok:true,message:"قلم کالا ویرایش شد."}; } catch(e){return {ok:false,message:e instanceof Error?e.message:"ویرایش ناموفق بود."};}
+ const denied = await guardRegistry(); if (denied) return { ok: false, message: denied }; try { const id=val(form,"id"), name=val(form,"name"), unit=val(form,"unit"); if(!id||!name) throw new Error("اطلاعات قلم ناقص است."); await db.update(commodityItems).set({name,defaultUnit:unit||"عدد"}).where(eq(commodityItems.id,id)); refresh(); return {ok:true,message:"قلم کالا ویرایش شد."}; } catch(e){return {ok:false,message:e instanceof Error?e.message:"ویرایش ناموفق بود."};}
 }
 
 export async function updateCommodityPriceAction(_previous: RegistryResult | null, form: FormData): Promise<RegistryResult> {
- try {const id=val(form,"id"), price=val(form,"unitPrice"), qty=val(form,"quantity")||"1"; if(!id||!price)throw new Error("قیمت را وارد کنید."); await db.update(commodityPriceRecords).set({unitPrice:price,quantity:qty,totalAmount:String(Number(price)*Number(qty)),merchantName:optional(form,"merchant"),notes:optional(form,"notes")}).where(eq(commodityPriceRecords.id,id)); refresh();return {ok:true,message:"رکورد قیمت ویرایش شد."};}catch(e){return {ok:false,message:e instanceof Error?e.message:"ویرایش ناموفق بود."};}
+ const denied = await guardRegistry(); if (denied) return { ok: false, message: denied }; try {const id=val(form,"id"), price=val(form,"unitPrice"), qty=val(form,"quantity")||"1"; if(!id||!price)throw new Error("قیمت را وارد کنید."); await db.update(commodityPriceRecords).set({unitPrice:price,quantity:qty,totalAmount:String(Number(price)*Number(qty)),merchantName:optional(form,"merchant"),notes:optional(form,"notes")}).where(eq(commodityPriceRecords.id,id)); refresh();return {ok:true,message:"رکورد قیمت ویرایش شد."};}catch(e){return {ok:false,message:e instanceof Error?e.message:"ویرایش ناموفق بود."};}
 }
