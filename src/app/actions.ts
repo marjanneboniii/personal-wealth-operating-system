@@ -61,37 +61,81 @@ export type ActionResult = { ok: boolean; message: string };
  *
  * Authorization decisions live HERE (Action boundary); the accounting core
  * (postEntry / FIFO / ledger) is invoked unchanged afterwards.
+ *
+ * FAIL-CLOSED: Any Database/Auth/Session error is DENIED (throws), never
+ * converted to anonymous/null and continued.
  */
 async function getAuthContext(): Promise<{ user: any; hasAuth: boolean }> {
-  let user: any = null;
+  // getCurrentUser throws on DB/auth error -> fail-closed (propagates as 500/DENY)
+  const user = await getCurrentUser();
   let hasAuth = false;
-  try {
-    user = await getCurrentUser();
-  } catch {}
   try {
     const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
     hasAuth = !!row;
-  } catch {}
+  } catch (e: any) {
+    // DB error -> DENY, never anonymous
+    throw new Error("Authentication/Database error: Access denied");
+  }
   return { user, hasAuth };
+}
+
+/**
+ * Fail-closed helper for Server Actions that mutate data.
+ * Returns the authenticated user (or null in legacy single-tenant mode where
+ * no auth users exist). Throws on DB/auth errors or when auth is required
+ * but no session exists.
+ */
+async function requireAuthenticatedUserStrict(): Promise<any> {
+  const { user, hasAuth } = await getAuthContext();
+  if (hasAuth && !user) {
+    throw new Error("Unauthorized: login required");
+  }
+  return user;
 }
 
 function loginRequiredMessage() {
   return "برای این عملیات ابتدا وارد شوید.";
 }
 
+/**
+ * Uniform fail-closed auth guard for Server Actions.
+ * Returns { user } on success, or { error } string if auth is required but
+ * no session exists. Throws (DENY) on DB/auth errors — never returns
+ * anonymous success.
+ */
+async function guardActionAuth(): Promise<{ user: any; hasAuth: boolean } | { error: string }> {
+  try {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) {
+      return { error: loginRequiredMessage() };
+    }
+    return ctx;
+  } catch (e: any) {
+    // Propagate login-required as error string, but DB/auth errors throw DENY
+    if (e?.message === "Unauthorized: login required" || e?.message?.includes("وارد شوید")) {
+      return { error: e.message.includes("وارد شوید") ? e.message : loginRequiredMessage() };
+    }
+    if (e?.message?.includes("Authentication/Database error")) {
+      throw e;
+    }
+    // Any other unexpected error -> fail-closed DENY
+    throw new Error("Authentication/Database error: Access denied");
+  }
+}
+
 /** Presentation flow confirms creation before writing the reference record. */
 export async function createWalletAction(input: { name: string; kind: string; note?: string }): Promise<ActionResult> {
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   const allowed = ["bank", "exchange", "hot", "cold", "cash", "fund"];
@@ -128,18 +172,18 @@ function refreshAll() {
 
 /** A human reviewed a record — metadata only, ledger stays immutable. */
 export async function markReviewedAction(entryId: string, reviewed: boolean): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  // Auth guard — FAIL-CLOSED: DB/auth errors DENY, never anonymous
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -166,18 +210,18 @@ export async function markReviewedAction(entryId: string, reviewed: boolean): Pr
 }
 
 export async function markManyReviewedAction(entryIds: string[]): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  // Auth guard — FAIL-CLOSED
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -219,15 +263,15 @@ const budgetSchema = z.object({
 export async function createBudgetAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -284,17 +328,16 @@ const txSchema = z.object({
 });
 
 export async function createTransactionAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  // Auth guard — FAIL-CLOSED: DB/auth errors DENY, never anonymous
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -302,14 +345,16 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     const idempotencyKey = String(raw.idempotencyKey || fd.get("idempotencyKey") || "").trim() || undefined;
     // Support both legacy 'amount' (USD) and new 'irtAmount' (IRT) — IRT is reference, USD is computed via server rate (freeze)
     const input = txSchema.parse(raw);
-    // Auth check for ledger writes
-    const authUser = await getCurrentUser();
-    // If auth is configured (users with username exist), require login for writes; otherwise allow (single-tenant legacy)
-    const { db: db2 } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    const [hasAuthUsers] = await db2.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuthUsers && !authUser) throw new Error("برای ثبت تراکنش ابتدا وارد شوید.");
+    // Auth check for ledger writes — FAIL-CLOSED
+    let authUser: any = null;
+    try {
+      const ctx2 = await getAuthContext();
+      if (ctx2.hasAuth && !ctx2.user) throw new Error("برای ثبت تراکنش ابتدا وارد شوید.");
+      authUser = ctx2.user;
+    } catch (e: any) {
+      if (e?.message?.includes("Authentication/Database error")) throw e;
+      throw e;
+    }
 
     // SECURITY (Authorization boundary): validate ownership of EVERY
     // client-provided account / reference id BEFORE the accounting service is
@@ -498,18 +543,18 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
 }
 
 export async function reverseEntryAction(entryId: string): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  // Auth guard — FAIL-CLOSED
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -534,18 +579,18 @@ export async function reverseEntryAction(entryId: string): Promise<ActionResult>
 }
 
 export async function executePlanAction(id: string): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  // Auth guard — FAIL-CLOSED
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -569,18 +614,18 @@ export async function executePlanAction(id: string): Promise<ActionResult> {
 }
 
 export async function payInstallmentAction(id: string, cashAccountId: string): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  // Auth guard — FAIL-CLOSED
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -739,15 +784,15 @@ const goalSchema = z.object({
 export async function createGoalAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -779,15 +824,15 @@ const eventSchema = z.object({
 export async function createEventAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -819,15 +864,15 @@ const planSchema = z.object({
 export async function createPlannedAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -853,23 +898,21 @@ export async function createPlannedAction(_p: ActionResult | null, fd: FormData)
 }
 
 export async function updatePriceAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  // Auth guard — FAIL-CLOSED: DB/auth errors DENY
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-    // SECURITY: market prices are global reference data — modifying them is
-    // an administrative operation (owner/admin only). Reads stay open.
-    if (hasAuth && user && !isAdminOrOwner(user)) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+    if (ctx.hasAuth && user && !isAdminOrOwner(user)) {
       return { ok: false, message: "دسترسی غیرمجاز: تغییر قیمت‌ها فقط برای مدیر امکان‌پذیر است." };
     }
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -891,15 +934,15 @@ export async function updatePriceAction(_p: ActionResult | null, fd: FormData): 
 export async function takeSnapshotAction(): Promise<ActionResult> {
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -996,23 +1039,19 @@ const setupSchema = z.object({
 });
 
 export async function completeSetupAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  // Auth guard — FAIL-CLOSED
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-    // SECURITY: setup bootstraps the global chart of accounts and opening
-    // balances. Once auth users exist, only owner/admin may run it. On a
-    // fresh instance (no auth users yet) the first-run bootstrap still works.
-    if (hasAuth && user && !isAdminOrOwner(user)) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    if (ctx.hasAuth && ctx.user && !isAdminOrOwner(ctx.user)) {
       return { ok: false, message: "دسترسی غیرمجاز: راه‌اندازی اولیه فقط برای مدیر امکان‌پذیر است." };
     }
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -1037,23 +1076,21 @@ export async function fetchSetupStateAction() {
 
 
 export async function recordManualPriceAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  // Auth guard — FAIL-CLOSED
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-    // SECURITY: market prices are global reference data — modifying them is
-    // an administrative operation (owner/admin only). Reads stay open.
-    if (hasAuth && user && !isAdminOrOwner(user)) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+    if (ctx.hasAuth && user && !isAdminOrOwner(user)) {
       return { ok: false, message: "دسترسی غیرمجاز: تغییر قیمت‌ها فقط برای مدیر امکان‌پذیر است." };
     }
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {
@@ -1082,18 +1119,18 @@ export async function recordManualPriceAction(_prev: ActionResult | null, fd: Fo
 }
 
 export async function createPortfolioSnapshotAction(): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  // Auth guard — FAIL-CLOSED
   let user: any = null;
   try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
     if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
   }
 
   try {

@@ -24,14 +24,23 @@ import { isNotNull } from "drizzle-orm";
 async function guardMarketData(mutate: boolean): Promise<string | null> {
   try {
     const user = await getCurrentUser();
-    const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
-    const hasAuth = !!row;
+    let hasAuth = false;
+    try {
+      const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
+      hasAuth = !!row;
+    } catch {
+      throw new Error("Authentication/Database error: Access denied");
+    }
     if (hasAuth && !user) return "برای این عملیات ابتدا وارد شوید.";
     if (mutate && hasAuth && user && !isAdminOrOwner(user)) {
       return "دسترسی غیرمجاز: تغییر داده‌های بازار فقط برای مدیر امکان‌پذیر است.";
     }
-  } catch (e) {
+  } catch (e: any) {
     if (e instanceof Error && e.message.includes("وارد شوید")) return e.message;
+    if (e instanceof Error && e.message.includes("Authentication/Database error")) {
+      return "خطای احراز هویت/پایگاه داده: دسترسی رد شد";
+    }
+    return "خطای احراز هویت: دسترسی رد شد";
   }
   return null;
 }

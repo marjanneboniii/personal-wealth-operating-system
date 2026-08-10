@@ -320,7 +320,10 @@ export const portfolioValuations = pgTable(
     totalValue: money("total_value").notNull(),
     valuationDate: date("valuation_date").notNull(),
   },
-  (t) => [index("portfolio_valuations_date_idx").on(t.valuationDate)],
+  (t) => [
+    index("portfolio_valuations_date_idx").on(t.valuationDate),
+    uniqueIndex("portfolio_valuations_user_asset_date_uq").on(t.userId, t.assetId, t.valuationDate),
+  ],
 );
 
 export const portfolioSnapshots = pgTable(
@@ -329,11 +332,11 @@ export const portfolioSnapshots = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     userId: uuid("user_id").references(() => users.id),
-    snapshotDate: date("snapshot_date").notNull().unique(),
+    snapshotDate: date("snapshot_date").notNull(),
     totalPortfolioValue: money("total_portfolio_value").notNull(),
     baseCurrencyId: uuid("base_currency_id").references(() => currencies.id),
   },
-  (t) => [uniqueIndex("portfolio_snapshots_asof_uq").on(t.snapshotDate)],
+  (t) => [uniqueIndex("portfolio_snapshots_asof_uq").on(t.userId, t.snapshotDate)],
 );
 
 export const assetPerformance = pgTable("asset_performance", {
@@ -898,7 +901,7 @@ export const entryFxSnapshots = pgTable(
 export const users = pgTable("users", {
   ...base,
   name: text("name").notNull(),
-  role: text("role").notNull().default("owner"),
+  role: text("role").notNull().default("user"),
   pinHash: text("pin_hash"),
   username: text("username").unique(),
   email: text("email").unique(),

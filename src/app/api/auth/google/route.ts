@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "خطا در تأیید توکن Google." }, { status: 401 });
     }
 
-    // Security Hardening: strict validation of aud, iss, sub, email, and email_verified
+    // Security Hardening: strict validation of aud, iss, sub, email, email_verified, expiration
     if (info.aud !== clientId) {
       return NextResponse.json({ ok: false, error: "توکن برای این اپ نیست." }, { status: 401 });
     }
@@ -66,6 +66,19 @@ export async function POST(req: Request) {
 
     if (!info.sub || typeof info.sub !== "string") {
       return NextResponse.json({ ok: false, error: "شناسه حساب Google نامعتبر است." }, { status: 401 });
+    }
+
+    // Expiration check: exp is seconds since epoch (Google tokeninfo)
+    if (info.exp !== undefined && info.exp !== null) {
+      const expNum = Number(info.exp);
+      if (!Number.isFinite(expNum) || expNum * 1000 < Date.now()) {
+        return NextResponse.json({ ok: false, error: "توکن Google منقضی شده است." }, { status: 401 });
+      }
+    } else if (info.expires_in !== undefined) {
+      const expiresIn = Number(info.expires_in);
+      if (Number.isFinite(expiresIn) && expiresIn <= 0) {
+        return NextResponse.json({ ok: false, error: "توکن Google منقضی شده است." }, { status: 401 });
+      }
     }
 
     if (info.email_verified !== "true" && info.email_verified !== true) {

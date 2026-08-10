@@ -19,7 +19,7 @@ const STATEMENTS = [
     updated_at timestamptz,
     deleted_at timestamptz,
     name text NOT NULL,
-    role text NOT NULL DEFAULT 'owner',
+    role text NOT NULL DEFAULT 'user',
     pin_hash text
   );`,
   `CREATE TABLE IF NOT EXISTS currencies (
@@ -216,14 +216,16 @@ const STATEMENTS = [
     total_value numeric(38,18) NOT NULL,
     valuation_date date NOT NULL
   );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS portfolio_valuations_user_asset_date_uq ON portfolio_valuations(user_id, asset_id, valuation_date);`,
   `CREATE TABLE IF NOT EXISTS portfolio_snapshots (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
     user_id uuid REFERENCES users(id),
-    snapshot_date date NOT NULL UNIQUE,
+    snapshot_date date NOT NULL,
     total_portfolio_value numeric(38,18) NOT NULL,
     base_currency_id uuid REFERENCES currencies(id)
   );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS portfolio_snapshots_asof_uq ON portfolio_snapshots(user_id, snapshot_date);`,
   `CREATE TABLE IF NOT EXISTS asset_performance (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -744,6 +746,18 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS audit_log_user_idx ON audit_log(user_id);`,
   `CREATE INDEX IF NOT EXISTS audit_log_action_idx ON audit_log(action);`,
   `CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log(created_at);`,
+
+  // ───────────── FINAL SECURITY REMEDIATION: Portfolio Snapshot Isolation & Role Default ─────────────
+  // Migrate portfolio_snapshots from single-date unique to (user_id, snapshot_date)
+  `ALTER TABLE portfolio_snapshots DROP CONSTRAINT IF EXISTS portfolio_snapshots_snapshot_date_key;`,
+  `ALTER TABLE portfolio_snapshots DROP CONSTRAINT IF EXISTS portfolio_snapshots_asof_uq;`,
+  `DROP INDEX IF EXISTS portfolio_snapshots_snapshot_date_key;`,
+  `DROP INDEX IF EXISTS portfolio_snapshots_asof_uq_old;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS portfolio_snapshots_asof_uq ON portfolio_snapshots(user_id, snapshot_date);`,
+  // Portfolio valuations: ensure per-user isolation
+  `CREATE UNIQUE INDEX IF NOT EXISTS portfolio_valuations_user_asset_date_uq ON portfolio_valuations(user_id, asset_id, valuation_date);`,
+  // Role default: change DB default from owner to user (existing rows untouched)
+  `ALTER TABLE users ALTER COLUMN role SET DEFAULT 'user';`,
 ];
 
 /**

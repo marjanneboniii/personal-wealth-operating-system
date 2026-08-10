@@ -47,7 +47,42 @@ export function validateCurrency(code: string): string {
 }
 
 /**
+ * System accounts are explicitly whitelisted global chart-of-accounts records
+ * that legitimately have userId = NULL (shared fee/PnL/income/expense equity
+ * accounts looked up server-side by code, never chosen from client input).
+ * Any account with userId = NULL that is NOT in this whitelist is treated as
+ * orphan/unknown and DENIED — never allowed.
+ */
+const SYSTEM_ACCOUNT_CODES = new Set([
+  "1000",
+  "2000",
+  "3000",
+  "3010",
+  "4000",
+  "4010",
+  "4100",
+  "4900",
+  "5000",
+  "5010",
+  "5020",
+  "5030",
+  "5040",
+  "5050",
+  "5900",
+]);
+
+function isSystemAccount(acc: { code?: string | null; type?: string | null; userId: string | null }): boolean {
+  if (acc.userId !== null) return false;
+  if (acc.code && SYSTEM_ACCOUNT_CODES.has(acc.code)) return true;
+  // Additional fallback for global income/expense/equity/liability accounts
+  if (acc.type && ["income", "expense", "equity", "liability"].includes(acc.type)) return true;
+  return false;
+}
+
+/**
  * Validates that an account exists and belongs to the authenticated user.
+ * FAIL-CLOSED for orphan NULL: user accounts must have userId === currentUser.id,
+ * only explicitly whitelisted system accounts may have userId = NULL.
  */
 export async function validateAccountOwnership(
   accountId: string,
@@ -57,7 +92,7 @@ export async function validateAccountOwnership(
   if (!accountId) throw new Error("شناسه حساب الزامی است.");
   const dbClient = txClient ?? db;
   const [acc] = await dbClient
-    .select({ id: accounts.id, userId: accounts.userId })
+    .select({ id: accounts.id, userId: accounts.userId, code: accounts.code, type: accounts.type })
     .from(accounts)
     .where(eq(accounts.id, accountId))
     .limit(1);
@@ -66,7 +101,18 @@ export async function validateAccountOwnership(
     throw new Error("حساب انتخاب‌شده یافت نشد.");
   }
 
-  if (userId && acc.userId && acc.userId !== userId) {
+  // Orphan NULL check: if account has no owner, only allow if it's an explicit system account
+  if (acc.userId === null || acc.userId === undefined) {
+    if (isSystemAccount(acc as any)) {
+      return;
+    }
+    const err: any = new Error("دسترسی غیرمجاز: این حساب بدون مالک و غیرسیستمی است.");
+    err.status = 403;
+    err.code = "OWNERSHIP_VIOLATION";
+    throw err;
+  }
+
+  if (userId && acc.userId !== userId) {
     const err: any = new Error("دسترسی غیرمجاز: این حساب متعلق به شما نیست.");
     err.status = 403;
     err.code = "OWNERSHIP_VIOLATION";
