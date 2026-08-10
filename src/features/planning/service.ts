@@ -158,14 +158,25 @@ export async function listDebts(userId?: string) {
   const rows = await db
     .select()
     .from(debts)
-    .where(and(sql`${debts.deletedAt} is null`, u ? eq(debts.userId, u) : sql`1=1`));
+    // Legacy/demo debt rows predate user IDs. They remain visible while the
+    // single-user workspace is being claimed, just like ledger reference rows.
+    .where(and(sql`${debts.deletedAt} is null`, u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`));
   const inst = await db.select().from(installments).orderBy(asc(installments.dueDate));
 
   return rows.map((d) => {
     const bal = balances.find((b) => b.accountId === d.accountId);
-    const outstanding = bal ? D(bal.baseValue).neg() : D(d.principalBase);
     const own = inst.filter((i) => i.debtId === d.id);
     const paid = own.filter((i) => i.status === "paid");
+    // Planning-only debts have no liability account yet. Their visible
+    // outstanding amount still decreases when a linked installment is marked
+    // paid, while ledger-backed debts continue to use the ledger balance.
+    const paidScheduled = paid.reduce((sum, i) => sum.add(i.amountBase), Decimal.zero());
+    const planningOutstanding = D(d.principalBase).sub(paidScheduled);
+    const outstanding = bal
+      ? D(bal.baseValue).neg()
+      : planningOutstanding.isNegative()
+        ? Decimal.zero()
+        : planningOutstanding;
     return {
       ...d,
       outstandingBase: outstanding.toString(),
@@ -192,7 +203,7 @@ export async function upcomingInstallments(limit = 8, userId?: string) {
     })
     .from(installments)
     .innerJoin(debts, eq(debts.id, installments.debtId))
-    .where(and(eq(installments.status, "pending"), u ? eq(debts.userId, u) : sql`1=1`))
+    .where(and(eq(installments.status, "pending"), u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`))
     .orderBy(asc(installments.dueDate))
     .limit(limit);
 }
@@ -352,7 +363,7 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
       .select({ inst: installments })
       .from(installments)
       .innerJoin(debts, eq(debts.id, installments.debtId))
-      .where(and(eq(installments.status, "pending"), u ? eq(debts.userId, u) : sql`1=1`))
+      .where(and(eq(installments.status, "pending"), u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`))
       .then((rows) => rows.map((r) => r.inst)),
     db
       .select()

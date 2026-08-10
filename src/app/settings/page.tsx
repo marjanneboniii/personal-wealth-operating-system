@@ -14,6 +14,7 @@ import { ensureAuth } from "@/lib/authGuard";
 import { getUserFxRate } from "@/features/fx/userRate";
 import FxSettings from "@/components/settings/FxSettings";
 import UserPanel from "@/components/settings/UserPanel";
+import AuthAccessCard from "@/components/auth/AuthAccessCard";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,11 @@ export default async function SettingsPage() {
             canUpdate={fx.canUpdate}
           />
         ) : (
-          <div className="card p-4 text-[12px]">برای مدیریت نرخ ارز وارد شوید.</div>
+          <AuthAccessCard
+            googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID}
+            title="ورود و Auth کاربر در دسترس است"
+            body="برای فعال‌کردن ثبت دستی نرخ ارز و جداسازی داده‌ها، از همین‌جا وارد شوید یا حساب بسازید. ورود با Google نیز در همین کارت نمایش داده می‌شود."
+          />
         )}
         <div className="muted mt-3 rounded-[var(--r-md)] p-3 text-[11px] leading-5" style={{ background: "var(--sunken)", border: "1px solid var(--border)" }}>
           <strong>تفکیک Current vs Historical:</strong> نرخ فعلی فقط ارزش خالص فعلی، موجودی جاری و Unrealized P&L را تغییر می‌دهد. تراکنش‌های ثبت‌شده، Cost Basis، FIFO، Realized P&L و دفترکل با تغییر نرخ فعلی هرگز دوباره محاسبه نمی‌شوند.

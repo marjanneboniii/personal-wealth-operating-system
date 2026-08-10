@@ -3,9 +3,9 @@
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { loginAction, type AuthResult } from "@/lib/auth-actions";
-import Icon from "@/components/ui/Icon";
+import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
 
-export default function LoginForm({ claimMode }: { claimMode?: boolean }) {
+export default function LoginForm({ claimMode, googleClientId }: { claimMode?: boolean; googleClientId?: string }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<AuthResult | null, FormData>(loginAction, null);
 
@@ -59,34 +59,7 @@ export default function LoginForm({ claimMode }: { claimMode?: boolean }) {
         {pending ? "در حال ورود…" : claimMode ? "تأیید و حفظ داده‌ها" : "ورود"}
       </button>
 
-      <GoogleButton />
+      <GoogleAuthButton clientId={googleClientId} label="ورود با Google" />
     </form>
-  );
-}
-
-function GoogleButton() {
-  const handleGoogle = async () => {
-    const clientId = (window as any).__GOOGLE_CLIENT_ID__ || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      alert("احراز هویت گوگل تنظیم نشده است. (Google authentication is not configured.)");
-      return;
-    }
-    if ((window as any).google?.accounts?.id) {
-      (window as any).google.accounts.id.prompt();
-    } else {
-      alert("سرویس احراز هویت گوگل در دسترس نیست.");
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleGoogle}
-      className="btn w-full"
-      style={{ touchAction: "manipulation", background: "var(--surface)" }}
-    >
-      <Icon name="globe" size={16} />
-      ورود با Google
-    </button>
   );
 }

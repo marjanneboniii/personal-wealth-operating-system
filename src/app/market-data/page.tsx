@@ -8,19 +8,23 @@ import {
   getMarketSnapshots,
   listPriceSources,
 } from "@/features/marketData/service";
-import { Card, PageHeader } from "@/components/ui/Card";
+import { Card, PageHeader, Section } from "@/components/ui/Card";
 import MarketPriceForm from "@/components/forms/MarketPriceForm";
+import FxSettings from "@/components/settings/FxSettings";
+import AuthAccessCard from "@/components/auth/AuthAccessCard";
 import { formatMoney, getDualDate } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
+import { getUserFxRate } from "@/features/fx/userRate";
 import { D } from "@/domain/decimal";
 
 export const dynamic = "force-dynamic";
 
 export default async function MarketDataPage() {
-  await ensureAuth();
+  const authUser = await ensureAuth();
   await seedIfEmpty();
 
-  const [assetRows, curRows, sources, latestQuotes, snapshotHistory, fxSnap] = await Promise.all([
+  const [assetRows, curRows, sources, latestQuotes, snapshotHistory, fxSnap, userFx] = await Promise.all([
+
     db
       .select({
         id: assets.id,
@@ -38,6 +42,7 @@ export default async function MarketDataPage() {
     getMarketPrices(),
     getMarketSnapshots(),
     getLatestUsdIrtRate(),
+    authUser ? getUserFxRate(authUser.id) : Promise.resolve(null),
   ]);
 
   const rate = fxSnap.rate;
@@ -56,6 +61,23 @@ export default async function MarketDataPage() {
         <span className="opacity-40">·</span>
         <span>منبع: {fxSnap.source}</span>
       </p>
+
+      <Section title="ثبت دستی نرخ ارز" hint="نرخ دلار به تومان برای ارزش‌گذاری جاری؛ تراکنش‌های تاریخی و دفترکل منجمد می‌مانند.">
+        {authUser && userFx ? (
+          <FxSettings
+            currentRate={userFx.rate}
+            lastUpdatedAt={userFx.lastUpdatedAt}
+            nextUpdateAt={userFx.nextUpdateAt}
+            canUpdate={userFx.canUpdate}
+          />
+        ) : (
+          <AuthAccessCard
+            googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID}
+            title="برای ثبت نرخ شخصی وارد شوید"
+            body="ورود کاربر و ورود با Google از همین‌جا در دسترس است. پس از ورود، کادر ثبت دستی نرخ ارز فعال می‌شود و نرخ هر کاربر جداگانه نگهداری خواهد شد."
+          />
+        )}
+      </Section>
 
       {/* Manual Price Entry Form */}
       <Card title="ثبت قیمت جدید">

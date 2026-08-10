@@ -135,7 +135,7 @@ export default function TransactionForm({
         const inst = d.installments.find((i) => i.id === initialInstallmentId);
         if (inst) {
           autoPopulatedRef.current = true;
-          handleSelectInstallment(d, inst);
+          window.setTimeout(() => handleSelectInstallment(d, inst), 0);
           return;
         }
       }
@@ -144,10 +144,12 @@ export default function TransactionForm({
       const d = debts.find((x) => x.id === initialDebtId);
       if (d) {
         autoPopulatedRef.current = true;
-        handleSelectDebt(d);
+        window.setTimeout(() => handleSelectDebt(d), 0);
       }
     }
     if (initialDebtId || initialInstallmentId) autoPopulatedRef.current = true;
+    // The handlers are stable for this one-time auto-population path.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debts, initialDebtId, initialInstallmentId]);
 
   const previewUsd = irtAmount && effectiveRate ? D(irtAmount).div(effectiveRate).toFixed(2) : "";

@@ -75,6 +75,45 @@ function useNavCollapsed() {
   );
 }
 
+type ShellUser = {
+  name: string;
+  username: string | null;
+  email: string | null;
+  role: string;
+};
+
+function AccountLink({ user, compact = false }: { user: ShellUser | null; compact?: boolean }) {
+  if (user) {
+    const label = user.name || user.username || "حساب کاربری";
+    return (
+      <Link
+        href="/settings"
+        className={`inline-flex items-center gap-1.5 rounded-[var(--r-md)] text-[11.5px] font-medium ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
+        style={{ background: "var(--brand-soft)", color: "var(--brand)", touchAction: "manipulation" }}
+        aria-label={`حساب کاربری ${label}`}
+        title={user.email || user.username || label}
+      >
+        <span className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: "var(--brand)", color: "var(--on-brand)" }}>
+          {(user.username?.[0] || user.name?.[0] || "U").toUpperCase()}
+        </span>
+        {!compact && <span className="max-w-[110px] truncate">{label}</span>}
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      href="/login"
+      className={`inline-flex items-center gap-1.5 rounded-[var(--r-md)] text-[11.5px] font-semibold ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
+      style={{ background: "var(--brand-soft)", color: "var(--brand)", touchAction: "manipulation" }}
+      aria-label="ورود یا ساخت حساب کاربری"
+    >
+      <Icon name="lock" size={14} />
+      {compact ? "ورود" : "ورود / ثبت‌نام"}
+    </Link>
+  );
+}
+
 /* ─────────────────── Desktop nav link ──────────────────── */
 
 function SideLink({ item, active, collapsed }: { item: NavItem; active: boolean; collapsed: boolean }) {
@@ -94,10 +133,14 @@ function SideLink({ item, active, collapsed }: { item: NavItem; active: boolean;
 
 /* ─────────────────────── Mobile More ───────────────────── */
 
-function MoreSheet({ open, onClose, pathname }: { open: boolean; onClose: () => void; pathname: string }) {
+function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClose: () => void; pathname: string; authUser: ShellUser | null }) {
   return (
     <Sheet open={open} onClose={onClose} title="بیشتر">
       <nav className="px-2 pb-4 pt-1" aria-label="همه بخش‌ها">
+        <div className="mb-3 rounded-[var(--r-md)] border p-2" style={{ borderColor: "var(--border)" }}>
+          <AccountLink user={authUser} />
+          {!authUser && <p className="muted mt-1.5 px-1 text-[10.5px]">ورود برای مدیریت نرخ ارز و مالکیت داده‌ها</p>}
+        </div>
         <div className="nav-group-label">اقدامات سریع</div>
         <div className="mb-1 grid grid-cols-3 gap-1.5 px-2">
           {QUICK_ACTIONS.slice(0, 3).map((a) => (
@@ -166,7 +209,7 @@ function MoreSheet({ open, onClose, pathname }: { open: boolean; onClose: () => 
 
 /* ───────────────────────── Shell ───────────────────────── */
 
-export default function Shell({ children }: { children: ReactNode }) {
+export default function Shell({ children, authUser = null }: { children: ReactNode; authUser?: ShellUser | null }) {
   const pathname = usePathname();
   const collapsed = useNavCollapsed();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -296,6 +339,7 @@ export default function Shell({ children }: { children: ReactNode }) {
             <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed={collapsed} />
           ))}
           <div className={`mt-1.5 flex items-center gap-1.5 px-1.5 ${collapsed ? "flex-col" : ""}`}>
+            <AccountLink user={authUser} compact={collapsed} />
             <ThemeToggle />
             <Link
               href="/new"
@@ -322,6 +366,7 @@ export default function Shell({ children }: { children: ReactNode }) {
           <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
             <Icon name="search" size={18} />
           </button>
+          <AccountLink user={authUser} compact />
           <ThemeToggle />
           <Link href="/new" className="btn btn-primary !min-h-9 !px-3 !py-1.5 !text-[12px]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>
             <Icon name="plus" size={15} />
@@ -367,7 +412,7 @@ export default function Shell({ children }: { children: ReactNode }) {
         </div>
       </nav>
 
-      <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} />
+      <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} authUser={authUser} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );

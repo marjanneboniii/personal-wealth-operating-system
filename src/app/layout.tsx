@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import Shell from "@/components/layout/Shell";
+import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: {
@@ -26,7 +27,25 @@ export const viewport: Viewport = {
 
 const themeScript = `(function(){try{var t=localStorage.getItem('pwos-theme')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();`;
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Keep the account affordance visible in the shell without exposing any
+  // credential fields to the client. Auth remains enforced by each protected
+  // server component through ensureAuth().
+  let authUser: { name: string; username: string | null; email: string | null; role: string } | null = null;
+  try {
+    const user = await getCurrentUser();
+    if (user) {
+      authUser = {
+        name: user.name,
+        username: (user as any).username ?? null,
+        email: (user as any).email ?? null,
+        role: user.role,
+      };
+    }
+  } catch {
+    // A protected page will surface the fail-closed auth/database error.
+  }
+
   return (
     <html lang="fa" dir="rtl" suppressHydrationWarning>
       <head>
@@ -40,7 +59,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           پرش به محتوای اصلی
         </a>
-        <Shell>{children}</Shell>
+        <Shell authUser={authUser}>{children}</Shell>
       </body>
     </html>
   );

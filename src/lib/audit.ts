@@ -14,6 +14,7 @@ export type AuditAction =
   | "CREATE_TRANSFER"
   | "CREATE_ASSET_BUY"
   | "CREATE_ASSET_SELL"
+  | "CREATE_DEBT"
   | "IDEMPOTENT_REPLAY"
   | "UPDATE_FX"
   | "RESTORE"
