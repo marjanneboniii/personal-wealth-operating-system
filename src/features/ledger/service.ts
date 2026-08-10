@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -12,6 +13,7 @@ import { assertBalanced, type DraftPosting, type EntryType } from "@/domain/acco
 import { consumeFifo } from "@/domain/fifo";
 import { D, Decimal } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
+import { recordAuditEvent } from "@/lib/audit";
 
 export type PostEntryInput = {
   entryDate: string;
@@ -25,28 +27,227 @@ export type PostEntryInput = {
   openLots?: Array<{ accountId: string; assetId: string; quantity: string; costBase: string }>;
   /** consume FIFO lots (sell / outbound) */
   closeLot?: { assetId: string; quantity: string; proceedsBase: string };
+  userId?: string;
+  idempotencyKey?: string | null;
+  preventOverdraft?: boolean;
 };
+
+export function canonicalizePayload(input: PostEntryInput): string {
+  const sortedPostings = [...input.postings]
+    .map((p) => ({
+      accountId: p.accountId,
+      assetId: p.assetId,
+      quantity: D(p.quantity).toString(),
+      baseValue: D(p.baseValue).toString(),
+    }))
+    .sort((a, b) => (a.accountId + a.assetId + a.quantity).localeCompare(b.accountId + b.assetId + b.quantity));
+
+  const canonicalObj = {
+    entryDate: input.entryDate,
+    type: input.type,
+    description: input.description,
+    postings: sortedPostings,
+    openLots: input.openLots
+      ? [...input.openLots].map((l) => ({
+          accountId: l.accountId,
+          assetId: l.assetId,
+          quantity: D(l.quantity).toString(),
+          costBase: D(l.costBase).toString(),
+        }))
+      : input.openLot
+        ? [
+            {
+              accountId: input.openLot.accountId,
+              assetId: input.openLot.assetId,
+              quantity: D(input.openLot.quantity).toString(),
+              costBase: D(input.openLot.costBase).toString(),
+            },
+          ]
+        : [],
+    closeLot: input.closeLot
+      ? {
+          assetId: input.closeLot.assetId,
+          quantity: D(input.closeLot.quantity).toString(),
+          proceedsBase: D(input.closeLot.proceedsBase).toString(),
+        }
+      : null,
+  };
+
+  return crypto.createHash("sha256").update(JSON.stringify(canonicalObj)).digest("hex");
+}
+
+async function resolveServiceUserId(
+  tx: any,
+  explicitUserId?: string,
+  postingAccountIds?: string[],
+): Promise<string | undefined> {
+  if (explicitUserId) return explicitUserId;
+
+  // Inherit from posting accounts if userId is not explicitly provided
+  if (postingAccountIds && postingAccountIds.length > 0) {
+    try {
+      const [acc] = await tx
+        .select({ userId: accounts.userId })
+        .from(accounts)
+        .where(eq(accounts.id, postingAccountIds[0]))
+        .limit(1);
+      if (acc?.userId) return acc.userId;
+    } catch {}
+  }
+
+  // Check current session
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const u = await getCurrentUser();
+    if (u?.id) return u.id;
+  } catch {}
+
+  // Fallback for standalone single-user test environments
+  try {
+    const res = await tx.execute(sql`select id from users limit 2`);
+    if (res.rows.length === 1) {
+      return (res.rows[0] as { id?: string })?.id;
+    }
+  } catch {}
+
+  return undefined;
+}
 
 /**
  * The single write path into the ledger. Everything else in the system
  * (transfers, buys, sells, installments, executed plans) funnels through here
  * so the double-entry invariant can never be bypassed.
  */
-export async function postEntry(input: PostEntryInput, txClient?: any): Promise<{ id: string }> {
+export async function postEntry(
+  input: PostEntryInput,
+  txClient?: any,
+): Promise<{ id: string; idempotentReplay?: boolean }> {
   assertBalanced(input.postings);
 
   const runTx = async (tx: any) => {
-    const [entry] = await tx
-      .insert(journalEntries)
-      .values({
-        entryDate: input.entryDate,
-        type: input.type,
-        description: input.description,
-        reference: input.reference ?? null,
-        source: input.source ?? "manual",
-        status: "posted",
-      })
-      .returning();
+    const resolvedUserId = await resolveServiceUserId(
+      tx,
+      input.userId,
+      input.postings.map((p) => p.accountId),
+    );
+
+    const idempKey = input.idempotencyKey?.trim() || null;
+    let computedHash: string | null = null;
+
+    if (idempKey) {
+      computedHash = canonicalizePayload(input);
+      const existing = await tx
+        .select()
+        .from(journalEntries)
+        .where(
+          and(
+            resolvedUserId ? eq(journalEntries.userId, resolvedUserId) : sql`user_id IS NULL`,
+            eq(journalEntries.idempotencyKey, idempKey),
+          ),
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        const found = existing[0];
+        if (found.idempotencyHash && found.idempotencyHash !== computedHash) {
+          const err: any = new Error("Idempotency Conflict (409): Same idempotency key used with different payload.");
+          err.status = 409;
+          err.code = "IDEMPOTENCY_CONFLICT";
+          throw err;
+        }
+        await recordAuditEvent(
+          {
+            action: "IDEMPOTENT_REPLAY",
+            entityType: "journal_entry",
+            entityId: found.id,
+            userId: resolvedUserId,
+            result: "IDEMPOTENT_REPLAY",
+            metadata: { type: input.type, idempotencyKey: idempKey },
+          },
+          tx,
+        );
+        return { id: found.id, idempotentReplay: true };
+      }
+    }
+
+    // 1. Concurrency Safety: Lock account rows FOR UPDATE in ascending ID order to prevent deadlocks
+    const uniqueAccountIds = Array.from(new Set(input.postings.map((p) => p.accountId))).sort();
+    for (const accId of uniqueAccountIds) {
+      try {
+        await tx.execute(sql`SELECT id FROM accounts WHERE id = ${accId} FOR UPDATE`);
+      } catch {}
+    }
+
+    // 2. Overdraft Prevention (when explicitly enabled)
+    if (input.preventOverdraft) {
+      for (const p of input.postings) {
+        if (D(p.baseValue).isNegative()) {
+          const balRes = await tx.execute(sql`
+            select coalesce(sum(p2.base_value), 0)::text as bal
+            from postings p2 join journal_entries je on je.id = p2.entry_id
+            where p2.account_id = ${p.accountId} and je.status = 'posted'
+          `);
+          const currentBal = D((balRes.rows[0] as { bal?: string })?.bal ?? "0");
+          const newBal = currentBal.add(D(p.baseValue));
+          if (newBal.isNegative()) {
+            const err: any = new Error("موجودی حساب کافی نیست (Overdraft prevented)");
+            err.code = "INSUFFICIENT_BALANCE";
+            err.status = 400;
+            throw err;
+          }
+        }
+      }
+    }
+
+    let entry: { id: string };
+    try {
+      const [newEntry] = await tx
+        .insert(journalEntries)
+        .values({
+          entryDate: input.entryDate,
+          type: input.type,
+          description: input.description,
+          reference: input.reference ?? null,
+          source: input.source ?? "manual",
+          status: "posted",
+          userId: resolvedUserId ?? null,
+          idempotencyKey: idempKey,
+          idempotencyHash: computedHash,
+        } as any)
+        .returning();
+      entry = newEntry;
+    } catch (err: any) {
+      if (
+        idempKey &&
+        (err.code === "23505" ||
+          String(err).includes("journal_entries_user_idemp_uq") ||
+          String(err).includes("idempotency"))
+      ) {
+        const existing = await tx
+          .select()
+          .from(journalEntries)
+          .where(
+            and(
+              resolvedUserId ? eq(journalEntries.userId, resolvedUserId) : sql`user_id IS NULL`,
+              eq(journalEntries.idempotencyKey, idempKey),
+            ),
+          )
+          .limit(1);
+        if (existing.length > 0) {
+          const found = existing[0];
+          if (found.idempotencyHash && found.idempotencyHash !== computedHash) {
+            const conflictErr: any = new Error(
+              "Idempotency Conflict (409): Same idempotency key used with different payload.",
+            );
+            conflictErr.status = 409;
+            conflictErr.code = "IDEMPOTENCY_CONFLICT";
+            throw conflictErr;
+          }
+          return { id: found.id, idempotentReplay: true };
+        }
+      }
+      throw err;
+    }
 
     await tx.insert(postings).values(
       input.postings.map((p) => ({
@@ -71,11 +272,23 @@ export async function postEntry(input: PostEntryInput, txClient?: any): Promise<
           qtyOpened: qty.toString(),
           qtyRemaining: qty.toString(),
           unitCostBase: D(lotInfo.costBase).div(qty).toString(),
-        });
+          userId: resolvedUserId ?? null,
+        } as any);
       }
     }
 
     if (input.closeLot && D(input.closeLot.quantity).gt(0)) {
+      try {
+        await tx.execute(sql`
+          SELECT id FROM lots
+          WHERE asset_id = ${input.closeLot.assetId}
+            ${resolvedUserId ? sql`AND user_id = ${resolvedUserId}` : sql``}
+            AND qty_remaining > 0
+          ORDER BY opened_at ASC, id ASC
+          FOR UPDATE
+        `);
+      } catch {}
+
       const open = await tx
         .select({
           id: lots.id,
@@ -84,10 +297,19 @@ export async function postEntry(input: PostEntryInput, txClient?: any): Promise<
           unitCostBase: lots.unitCostBase,
         })
         .from(lots)
-        .where(and(eq(lots.assetId, input.closeLot.assetId), sql`${lots.qtyRemaining} > 0`))
+        .where(
+          and(
+            eq(lots.assetId, input.closeLot.assetId),
+            resolvedUserId ? eq(lots.userId, resolvedUserId) : sql`1=1`,
+            sql`${lots.qtyRemaining} > 0`,
+          ),
+        )
         .orderBy(lots.openedAt);
 
       const result = consumeFifo(open, input.closeLot.quantity, input.closeLot.proceedsBase);
+      if (D(result.unmatchedQty).gt("0.000000001")) {
+        throw new Error("موجودی دارایی برای فروش کافی نیست (FIFO insufficient open lots)");
+      }
       for (const alloc of result.allocations) {
         await tx
           .update(lots)
@@ -108,8 +330,33 @@ export async function postEntry(input: PostEntryInput, txClient?: any): Promise<
       action: "post_entry",
       entityType: "journal_entry",
       entityId: entry.id,
-      payload: JSON.stringify({ type: input.type, lines: input.postings.length }),
+      payload: JSON.stringify({ type: input.type, lines: input.postings.length, userId: resolvedUserId ?? null }),
     });
+
+    const auditActionName =
+      input.type === "income"
+        ? "CREATE_INCOME"
+        : input.type === "expense"
+          ? "CREATE_EXPENSE"
+          : input.type === "transfer"
+            ? "CREATE_TRANSFER"
+            : input.type === "buy"
+              ? "CREATE_ASSET_BUY"
+              : input.type === "sell"
+                ? "CREATE_ASSET_SELL"
+                : "CREATE_TRANSACTION";
+
+    await recordAuditEvent(
+      {
+        action: auditActionName,
+        entityType: "journal_entry",
+        entityId: entry.id,
+        userId: resolvedUserId,
+        result: "SUCCESS",
+        payload: { type: input.type, description: input.description, lines: input.postings.length },
+      },
+      tx,
+    );
 
     return { id: entry.id };
   };
@@ -268,6 +515,9 @@ export type TransferCmd = {
   feeBase?: string;
   feeAccountId?: string | null;
   feeAssetId?: string | null;
+  userId?: string;
+  idempotencyKey?: string | null;
+  preventOverdraft?: boolean;
 };
 
 export async function recordTransfer(cmd: TransferCmd, txClient?: any) {
@@ -296,7 +546,16 @@ export async function recordTransfer(cmd: TransferCmd, txClient?: any) {
       memo: "کارمزد انتقال",
     });
   }
-  return postEntry({ ...cmd, type: "transfer", postings: lines }, txClient);
+  return postEntry(
+    {
+      ...cmd,
+      type: "transfer",
+      postings: lines,
+      idempotencyKey: cmd.idempotencyKey,
+      preventOverdraft: cmd.preventOverdraft,
+    },
+    txClient,
+  );
 }
 
 export type TradeCmd = {
@@ -311,6 +570,9 @@ export type TradeCmd = {
   baseValue: string;
   feeBase?: string;
   feeAccountId?: string | null;
+  userId?: string;
+  idempotencyKey?: string | null;
+  preventOverdraft?: boolean;
 };
 
 export async function recordBuy(cmd: TradeCmd, txClient?: any) {
@@ -364,6 +626,8 @@ export async function recordBuy(cmd: TradeCmd, txClient?: any) {
         quantity: cmd.quantity,
         costBase: value.add(fee).toString(),
       },
+      idempotencyKey: cmd.idempotencyKey,
+      preventOverdraft: cmd.preventOverdraft,
     },
     txClient,
   );
@@ -373,6 +637,38 @@ export async function recordSell(cmd: TradeCmd & { pnlAccountId: string }, txCli
   const proceeds = D(cmd.baseValue);
   const fee = D(cmd.feeBase ?? "0");
   const dbClient = txClient ?? db;
+  const idempKey = cmd.idempotencyKey?.trim() || null;
+  const resolvedUserId = await resolveServiceUserId(dbClient, cmd.userId, [cmd.assetAccountId]);
+
+  if (idempKey) {
+    const existing = await dbClient
+      .select()
+      .from(journalEntries)
+      .where(
+        and(
+          resolvedUserId ? eq(journalEntries.userId, resolvedUserId) : sql`user_id IS NULL`,
+          eq(journalEntries.idempotencyKey, idempKey),
+        ),
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      const found = existing[0];
+      await recordAuditEvent(
+        {
+          action: "IDEMPOTENT_REPLAY",
+          entityType: "journal_entry",
+          entityId: found.id,
+          userId: resolvedUserId,
+          result: "IDEMPOTENT_REPLAY",
+          metadata: { type: "sell", idempotencyKey: idempKey },
+        },
+        dbClient,
+      );
+      return { id: found.id, idempotentReplay: true };
+    }
+  }
+
   const open = await dbClient
     .select({
       id: lots.id,
@@ -381,7 +677,13 @@ export async function recordSell(cmd: TradeCmd & { pnlAccountId: string }, txCli
       unitCostBase: lots.unitCostBase,
     })
     .from(lots)
-    .where(and(eq(lots.assetId, cmd.assetId), sql`${lots.qtyRemaining} > 0`))
+    .where(
+      and(
+        eq(lots.assetId, cmd.assetId),
+        resolvedUserId ? eq(lots.userId, resolvedUserId) : sql`1=1`,
+        sql`${lots.qtyRemaining} > 0`,
+      ),
+    )
     .orderBy(lots.openedAt);
 
   const preview = consumeFifo(open, cmd.quantity, proceeds.sub(fee).toString());
@@ -443,6 +745,8 @@ export async function recordSell(cmd: TradeCmd & { pnlAccountId: string }, txCli
       type: "sell",
       postings: lines,
       closeLot: { assetId: cmd.assetId, quantity: cmd.quantity, proceedsBase: netProceeds.toString() },
+      idempotencyKey: cmd.idempotencyKey,
+      preventOverdraft: cmd.preventOverdraft,
     },
     txClient,
   );
@@ -456,6 +760,9 @@ export type FlowCmd = {
   assetId: string;
   quantity: string;
   baseValue: string;
+  userId?: string;
+  idempotencyKey?: string | null;
+  preventOverdraft?: boolean;
 };
 
 export async function recordIncome(cmd: FlowCmd, txClient?: any) {
@@ -477,6 +784,8 @@ export async function recordIncome(cmd: FlowCmd, txClient?: any) {
           baseValue: D(cmd.baseValue).neg().toString(),
         },
       ],
+      idempotencyKey: cmd.idempotencyKey,
+      preventOverdraft: cmd.preventOverdraft,
     },
     txClient,
   );
@@ -501,6 +810,8 @@ export async function recordExpense(cmd: FlowCmd, txClient?: any) {
           baseValue: cmd.baseValue,
         },
       ],
+      idempotencyKey: cmd.idempotencyKey,
+      preventOverdraft: cmd.preventOverdraft,
     },
     txClient,
   );

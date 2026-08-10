@@ -141,15 +141,32 @@ export async function recordManualPrice(input: RecordPriceInput): Promise<{ id: 
         set: { priceBase: priceDec.toString(), source: sourceName.toLowerCase() },
       });
 
+    invalidateMarketPricesCache(input.assetId);
     return { id: priceRecord.id };
   });
 }
 
+const marketPricesCache = new Map<string, { data: any[]; expiresAt: number }>();
+
+export function invalidateMarketPricesCache(assetId?: string) {
+  if (assetId) {
+    marketPricesCache.delete(`price:${assetId}`);
+  }
+  marketPricesCache.delete("price:all");
+}
+
 /**
- * Query current market quotes for assets
+ * Query current market quotes for assets (with 60s reference cache)
  */
 export async function getMarketPrices(assetId?: string) {
-  return db
+  const cacheKey = `price:${assetId ?? "all"}`;
+  const now = Date.now();
+  const cached = marketPricesCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.data;
+  }
+
+  const rows = await db
     .select({
       id: marketPrices.id,
       assetId: marketPrices.assetId,
@@ -167,6 +184,9 @@ export async function getMarketPrices(assetId?: string) {
     .leftJoin(marketPriceSources, eq(marketPriceSources.id, marketPrices.sourceId))
     .where(assetId ? eq(marketPrices.assetId, assetId) : undefined)
     .orderBy(desc(marketPrices.priceTimestamp), desc(marketPrices.createdAt));
+
+  marketPricesCache.set(cacheKey, { data: rows, expiresAt: now + 60_000 });
+  return rows;
 }
 
 /**

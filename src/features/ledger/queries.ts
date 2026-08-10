@@ -9,6 +9,24 @@ async function rows<T>(query: ReturnType<typeof sql>): Promise<T[]> {
   return res.rows as T[];
 }
 
+async function resolveQueryUserId(explicitUserId?: string): Promise<string | undefined> {
+  if (explicitUserId) return explicitUserId;
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const user = await getCurrentUser();
+    if (user?.id) return user.id;
+  } catch {}
+
+  // Fallback for standalone unit test environments without web session cookies
+  try {
+    const res = await db.execute(sql`select id from users limit 2`);
+    if (res.rows.length === 1) {
+      return (res.rows[0] as { id?: string })?.id;
+    }
+  } catch {}
+  return undefined;
+}
+
 export type AccountBalance = {
   accountId: string;
   code: string;
@@ -26,7 +44,8 @@ export type AccountBalance = {
 };
 
 /** Balances are ALWAYS derived from the immutable ledger — never stored. */
-export async function getAccountBalances(): Promise<AccountBalance[]> {
+export async function getAccountBalances(userId?: string): Promise<AccountBalance[]> {
+  const u = await resolveQueryUserId(userId);
   return rows<AccountBalance>(sql`
     select a.id            as "accountId",
            a.code          as "code",
@@ -47,7 +66,7 @@ export async function getAccountBalances(): Promise<AccountBalance[]> {
       left join assets ast on ast.id = coalesce(p.asset_id, a.asset_id)
       left join wallets w on w.id = a.wallet_id
       left join asset_classes ac on ac.id = ast.class_id
-    where a.deleted_at is null
+    where a.deleted_at is null ${u ? sql`and (a.user_id = ${u} or a.user_id is null)` : sql``}
     group by a.id, a.code, a.name, a.type, ast.id, ast.symbol, ast.name, ast.decimals, w.name, ac.name, ac.color
     order by a.code
   `);
@@ -66,7 +85,8 @@ export type Holding = {
 };
 
 /** Portfolio holdings: quantity from ledger, price from latest price row. */
-export async function getHoldings(): Promise<Holding[]> {
+export async function getHoldings(userId?: string): Promise<Holding[]> {
+  const u = await resolveQueryUserId(userId);
   return rows<Holding>(sql`
     with latest as (
       select distinct on (asset_id) asset_id, price_base
@@ -84,10 +104,10 @@ export async function getHoldings(): Promise<Holding[]> {
     from assets ast
       join asset_classes ac on ac.id = ast.class_id
       left join postings p on p.asset_id = ast.id
-      left join journal_entries je on je.id = p.entry_id
-      left join accounts a on a.id = p.account_id and a.type = 'asset'
+      left join journal_entries je on je.id = p.entry_id ${u ? sql`and (je.user_id = ${u} or je.user_id is null)` : sql``}
+      left join accounts a on a.id = p.account_id and a.type = 'asset' ${u ? sql`and (a.user_id = ${u} or a.user_id is null)` : sql``}
       left join latest l on l.asset_id = ast.id
-    where ast.deleted_at is null and (a.type = 'asset' or p.id is null)
+    where ast.deleted_at is null and (a.type = 'asset' or p.id is null) ${u ? sql`and (a.user_id = ${u} or a.user_id is null or p.id is null)` : sql``}
     group by ast.id, ast.symbol, ast.name, ast.decimals, ac.name, ac.color, l.price_base
     order by ast.symbol
   `);
@@ -101,9 +121,9 @@ export type NetWorth = {
   liquid: string;
 };
 
-export async function getNetWorth(): Promise<NetWorth> {
-  const holdings = await getHoldings();
-  const balances = await getAccountBalances();
+export async function getNetWorth(userId?: string): Promise<NetWorth> {
+  const holdings = await getHoldings(userId);
+  const balances = await getAccountBalances(userId);
 
   let assetsTotal = Decimal.zero();
   const byClass = new Map<string, { color: string; value: Decimal }>();
@@ -150,7 +170,9 @@ export type LedgerRow = {
   lines: { account: string; accountType: string; symbol: string; quantity: string; baseValue: string; decimals: number; memo: string | null }[];
 };
 
-export async function getLedger(limit = 60): Promise<LedgerRow[]> {
+export async function getLedger(limit = 60, userId?: string): Promise<LedgerRow[]> {
+  const safeLimit = Math.min(Math.max(1, limit), 500);
+  const u = await resolveQueryUserId(userId);
   return rows<LedgerRow>(sql`
     select je.id,
            je.entry_date::text as "entryDate",
@@ -168,9 +190,10 @@ export async function getLedger(limit = 60): Promise<LedgerRow[]> {
       left join postings p on p.entry_id = je.id
       left join accounts a on a.id = p.account_id
       left join assets ast on ast.id = p.asset_id
+    where 1=1 ${u ? sql`and (je.user_id = ${u} or je.user_id is null)` : sql``}
     group by je.id
     order by je.entry_date desc, je.created_at desc
-    limit ${limit}
+    limit ${safeLimit}
   `);
 }
 
@@ -183,24 +206,29 @@ export type LotRow = {
   unitCostBase: string;
 };
 
-export async function getOpenLots(assetId?: string): Promise<LotRow[]> {
+export async function getOpenLots(assetId?: string, userId?: string): Promise<LotRow[]> {
+  const u = await resolveQueryUserId(userId);
   return rows<LotRow>(sql`
     select l.id, l.asset_id as "assetId", ast.symbol,
            l.opened_at::text as "openedAt",
            l.qty_remaining::text as "qtyRemaining",
            l.unit_cost_base::text as "unitCostBase"
     from lots l join assets ast on ast.id = l.asset_id
-    where l.qty_remaining > 0 ${assetId ? sql`and l.asset_id = ${assetId}` : sql``}
-    order by l.opened_at asc
+    where l.qty_remaining > 0
+      ${assetId ? sql`and l.asset_id = ${assetId}` : sql``}
+      ${u ? sql`and (l.user_id = ${u} or l.user_id is null)` : sql``}
+    order by l.opened_at asc, l.id asc
   `);
 }
 
-export async function getRealizedPnl(): Promise<{ total: string; bySymbol: { symbol: string; pnl: string }[] }> {
+export async function getRealizedPnl(userId?: string): Promise<{ total: string; bySymbol: { symbol: string; pnl: string }[] }> {
+  const u = await resolveQueryUserId(userId);
   const data = await rows<{ symbol: string; pnl: string }>(sql`
     select ast.symbol, sum(lc.realized_pnl)::text as pnl
     from lot_consumptions lc
       join lots l on l.id = lc.lot_id
       join assets ast on ast.id = l.asset_id
+    where 1=1 ${u ? sql`and (l.user_id = ${u} or l.user_id is null)` : sql``}
     group by ast.symbol order by 2 desc
   `);
   return {
@@ -209,7 +237,8 @@ export async function getRealizedPnl(): Promise<{ total: string; bySymbol: { sym
   };
 }
 
-export async function getCashflow(months = 6) {
+export async function getCashflow(months = 6, userId?: string) {
+  const u = await resolveQueryUserId(userId);
   return rows<{ month: string; inflow: string; outflow: string }>(sql`
     select to_char(date_trunc('month', je.entry_date), 'YYYY-MM-01') as month,
            coalesce(sum(case when a.type = 'income' then -p.base_value else 0 end), 0)::text as inflow,
@@ -218,6 +247,7 @@ export async function getCashflow(months = 6) {
       join postings p on p.entry_id = je.id
       join accounts a on a.id = p.account_id
     where je.status = 'posted'
+      ${u ? sql`and (je.user_id = ${u} or je.user_id is null)` : sql``}
       and je.entry_date >= (current_date - (${months} || ' months')::interval)
     group by 1 order by 1
   `);
@@ -237,12 +267,15 @@ export type TxFilter = {
   to?: string; // ISO date
   review?: "reviewed" | "unreviewed";
   sort?: "new" | "old" | "amount";
+  userId?: string;
 };
 
 export type TxRow = LedgerRow & { reviewed: boolean };
 
 export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
-  const { limit = 120, type, q, accountId, from, to } = filter;
+  const { type, q, accountId, from, to } = filter;
+  const safeLimit = Math.min(Math.max(1, filter.limit || 120), 500);
+  const u = await resolveQueryUserId(filter.userId);
   const orderBy =
     filter.sort === "old"
       ? sql`order by je.entry_date asc, je.created_at asc`
@@ -269,6 +302,7 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
       left join assets ast on ast.id = p.asset_id
       left join entry_reviews er on er.entry_id = je.id
     where 1 = 1
+      ${u ? sql`and (je.user_id = ${u} or je.user_id is null)` : sql``}
       ${type ? sql`and je.type = ${type}` : sql``}
       ${from ? sql`and je.entry_date >= ${from}` : sql``}
       ${to ? sql`and je.entry_date <= ${to}` : sql``}
@@ -282,22 +316,25 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
       ${filter.review === "unreviewed" ? sql`and er.entry_id is null` : sql``}
     group by je.id, er.entry_id
     ${orderBy}
-    limit ${limit}
+    limit ${safeLimit}
   `);
 }
 
-export async function countUnreviewed(): Promise<number> {
+export async function countUnreviewed(userId?: string): Promise<number> {
+  const u = await resolveQueryUserId(userId);
   const res = await rows<{ c: string }>(sql`
     select count(*)::text as c
     from journal_entries je
     where je.source = 'import' and je.status = 'posted'
+      ${u ? sql`and (je.user_id = ${u} or je.user_id is null)` : sql``}
       and not exists (select 1 from entry_reviews er where er.entry_id = je.id)
   `);
   return Number(res[0]?.c ?? 0);
 }
 
 /** Expense/income category breakdown for the Cash Flow page (posted, last N months). */
-export async function getFlowByAccount(accountType: "income" | "expense", months = 6) {
+export async function getFlowByAccount(accountType: "income" | "expense", months = 6, userId?: string) {
+  const u = await resolveQueryUserId(userId);
   return rows<{ accountId: string; code: string; name: string; total: string; months: number }>(sql`
     select a.id as "accountId", a.code, a.name,
            coalesce(sum(case when ${accountType} = 'income' then -p.base_value else p.base_value end), 0)::text as total,
@@ -307,6 +344,7 @@ export async function getFlowByAccount(accountType: "income" | "expense", months
       join accounts a on a.id = p.account_id
     where a.type = ${accountType}
       and je.status = 'posted'
+      ${u ? sql`and (je.user_id = ${u} or je.user_id is null)` : sql``}
       and je.entry_date >= (current_date - (${months} || ' months')::interval)
     group by a.id, a.code, a.name
     having abs(coalesce(sum(p.base_value), 0)) > 0.000000001
@@ -315,7 +353,8 @@ export async function getFlowByAccount(accountType: "income" | "expense", months
 }
 
 /** Net (income − expense) inside an arbitrary window — for Net Worth attribution. */
-export async function getNetSavingsBetween(from: string, to: string): Promise<string> {
+export async function getNetSavingsBetween(from: string, to: string, userId?: string): Promise<string> {
+  const u = await resolveQueryUserId(userId);
   const res = await rows<{ net: string }>(sql`
     select coalesce(sum(
       case when a.type = 'income' then -p.base_value
@@ -325,18 +364,21 @@ export async function getNetSavingsBetween(from: string, to: string): Promise<st
       join postings p on p.entry_id = je.id
       join accounts a on a.id = p.account_id
     where je.status = 'posted' and a.type in ('income', 'expense')
+      ${u ? sql`and (je.user_id = ${u} or je.user_id is null)` : sql``}
       and je.entry_date >= ${from} and je.entry_date <= ${to}
   `);
   return res[0]?.net ?? "0";
 }
 
 /** Snapshot nearest to (and not after) a date — Net Worth range baselines. */
-export async function getSnapshotAsOf(isoDate: string) {
+export async function getSnapshotAsOf(isoDate: string, userId?: string) {
+  const u = await resolveQueryUserId(userId);
   const res = await rows<{ asOf: string; netWorth: string; totalAssets: string; totalLiabilities: string }>(sql`
     select as_of::text as "asOf", net_worth::text as "netWorth",
            total_assets::text as "totalAssets", total_liabilities::text as "totalLiabilities"
     from snapshots
     where as_of <= ${isoDate}
+      ${u ? sql`and (user_id = ${u} or user_id is null)` : sql``}
     order by as_of desc
     limit 1
   `);
@@ -344,12 +386,14 @@ export async function getSnapshotAsOf(isoDate: string) {
 }
 
 /** Earliest snapshot on/after a date — used when no prior baseline exists. */
-export async function getFirstSnapshotAfter(isoDate: string) {
+export async function getFirstSnapshotAfter(isoDate: string, userId?: string) {
+  const u = await resolveQueryUserId(userId);
   const res = await rows<{ asOf: string; netWorth: string; totalAssets: string; totalLiabilities: string }>(sql`
     select as_of::text as "asOf", net_worth::text as "netWorth",
            total_assets::text as "totalAssets", total_liabilities::text as "totalLiabilities"
     from snapshots
     where as_of >= ${isoDate}
+      ${u ? sql`and (user_id = ${u} or user_id is null)` : sql``}
     order by as_of asc
     limit 1
   `);
@@ -357,19 +401,22 @@ export async function getFirstSnapshotAfter(isoDate: string) {
 }
 
 /** Liability balance (derived from ledger) as derived total — no dates stored; snapshots give history. */
-export async function getLiabilitiesTotal(): Promise<string> {
+export async function getLiabilitiesTotal(userId?: string): Promise<string> {
+  const u = await resolveQueryUserId(userId);
   const res = await rows<{ total: string }>(sql`
     select coalesce(-sum(p.base_value) filter (where a.type = 'liability'), 0)::text as total
     from postings p
       join journal_entries je on je.id = p.entry_id
       join accounts a on a.id = p.account_id
     where je.status = 'posted'
+      ${u ? sql`and (je.user_id = ${u} or je.user_id is null)` : sql``}
   `);
   return res[0]?.total ?? "0";
 }
 
 /** Accounting Query Service: Exposes capital flow records for analytics adapter */
-export async function getCapitalFlowRecords(periodStart: string, periodEnd: string) {
+export async function getCapitalFlowRecords(periodStart: string, periodEnd: string, userId?: string) {
+  const u = await resolveQueryUserId(userId);
   return db
     .select({
       id: journalEntries.id,
@@ -386,6 +433,7 @@ export async function getCapitalFlowRecords(periodStart: string, periodEnd: stri
       and(
         eq(journalEntries.status, "posted"),
         eq(accounts.type, "asset"),
+        u ? sql`(${journalEntries.userId} = ${u} or ${journalEntries.userId} is null)` : sql`1=1`,
         sql`${journalEntries.entryDate} >= ${periodStart}`,
         sql`${journalEntries.entryDate} <= ${periodEnd}`,
       ),

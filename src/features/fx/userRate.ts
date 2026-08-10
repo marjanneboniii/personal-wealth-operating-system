@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { userFxSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { D } from "@/domain/decimal";
+import { recordAuditEvent } from "@/lib/audit";
 
 const DEFAULT_RATE = "190000";
 const RATE_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -14,6 +15,17 @@ export type UserFxSnapshot = {
   canUpdate: boolean;
   nextUpdateAt: string | null;
 };
+
+// Safe, User-Isolated TTL Cache (60 seconds)
+const fxRateCache = new Map<string, { snapshot: UserFxSnapshot; expiresAt: number }>();
+
+export function invalidateUserFxRateCache(userId?: string | null) {
+  if (userId) {
+    fxRateCache.delete(`user_fx:${userId}`);
+  } else {
+    fxRateCache.clear();
+  }
+}
 
 export async function getUserFxRate(userId: string | null | undefined): Promise<UserFxSnapshot> {
   const now = new Date();
@@ -30,13 +42,19 @@ export async function getUserFxRate(userId: string | null | undefined): Promise<
     };
   }
 
+  const cacheKey = `user_fx:${userId}`;
+  const cached = fxRateCache.get(cacheKey);
+  if (cached && cached.expiresAt > now.getTime()) {
+    return cached.snapshot;
+  }
+
   try {
     const [row] = await db.select().from(userFxSettings).where(eq(userFxSettings.userId, userId)).limit(1);
     if (row?.currentRate) {
       const last = row.lastUpdatedAt ? new Date(row.lastUpdatedAt) : null;
       const canUpdate = !last || now.getTime() - last.getTime() >= RATE_UPDATE_INTERVAL_MS;
       const next = last && !canUpdate ? new Date(last.getTime() + RATE_UPDATE_INTERVAL_MS).toISOString() : null;
-      return {
+      const snapshot: UserFxSnapshot = {
         rate: row.currentRate.toString(),
         effectiveDate: todayIso,
         source: "user_settings",
@@ -44,6 +62,8 @@ export async function getUserFxRate(userId: string | null | undefined): Promise<
         canUpdate,
         nextUpdateAt: next,
       };
+      fxRateCache.set(cacheKey, { snapshot, expiresAt: now.getTime() + 60_000 });
+      return snapshot;
     }
   } catch {}
 
@@ -51,7 +71,7 @@ export async function getUserFxRate(userId: string | null | undefined): Promise<
   try {
     await db.insert(userFxSettings).values({ userId, currentRate: DEFAULT_RATE }).onConflictDoNothing();
   } catch {}
-  return {
+  const fallbackSnapshot: UserFxSnapshot = {
     rate: DEFAULT_RATE,
     effectiveDate: todayIso,
     source: "default",
@@ -59,6 +79,8 @@ export async function getUserFxRate(userId: string | null | undefined): Promise<
     canUpdate: true,
     nextUpdateAt: null,
   };
+  fxRateCache.set(cacheKey, { snapshot: fallbackSnapshot, expiresAt: now.getTime() + 60_000 });
+  return fallbackSnapshot;
 }
 
 export async function updateUserFxRate(
@@ -93,6 +115,17 @@ export async function updateUserFxRate(
   } else {
     await db.insert(userFxSettings).values({ userId, currentRate: dec.toString(), lastUpdatedAt: now });
   }
+
+  await recordAuditEvent({
+    action: "UPDATE_FX",
+    entityType: "user_fx_settings",
+    userId,
+    before: { rate: existing?.currentRate ?? DEFAULT_RATE },
+    after: { rate: dec.toString() },
+    result: "SUCCESS",
+  });
+
+  invalidateUserFxRateCache(userId);
 
   const snapshot = await getUserFxRate(userId);
   return { ok: true, message: "نرخ ارز با موفقیت به‌روزرسانی شد.", snapshot };

@@ -51,8 +51,9 @@ export function formatMoney(
   currency = "USD",
   digits?: DigitStyle,
 ): string {
-  // Presentation convention: USD always uses Latin digits; IRT/IRR use Persian digits.
-  const resolvedDigits = digits ?? (currency === "USD" ? "en" : (currency === "IRT" || currency === "IRR" ? "fa" : "fa"));
+  // PART 10 & 11: Persian fiat uses Persian digits; foreign fiat & crypto use Latin LTR digits.
+  const isPersianFiat = currency === "IRT" || currency === "IRR" || currency === "تومان" || currency === "ریال";
+  const resolvedDigits = digits ?? (isPersianFiat ? "fa" : "en");
   const symbols: Record<string, string> = {
     USD: "$",
     USDT: "₮",
@@ -60,10 +61,14 @@ export function formatMoney(
     IRR: "ریال",
     EUR: "€",
   };
-  const dp = currency === "IRT" || currency === "IRR" ? 0 : 2;
+  const dp = isPersianFiat ? 0 : 2;
   const n = formatNumber(value, { decimals: dp, digits: resolvedDigits });
   const sym = symbols[currency] ?? currency;
-  return currency === "IRT" || currency === "IRR" ? `${n} ${sym}` : `${sym}${n}`;
+  if (isPersianFiat) {
+    return `${n} ${sym}`;
+  }
+  const isSymbolPrefix = sym === "$" || sym === "€" || sym === "£" || sym === "₮";
+  return isSymbolPrefix ? `${sym}${n}` : `${n} ${sym}`;
 }
 
 export function formatPercent(value: string | number, digits: DigitStyle = "fa"): string {

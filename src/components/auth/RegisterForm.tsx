@@ -93,22 +93,15 @@ export default function RegisterForm() {
 function GoogleButton() {
   const handleGoogle = async () => {
     const clientId = (window as any).__GOOGLE_CLIENT_ID__ || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if ((window as any).google?.accounts?.id && clientId) {
-      (window as any).google.accounts.id.prompt();
+    if (!clientId) {
+      alert("احراز هویت گوگل تنظیم نشده است. (Google authentication is not configured.)");
       return;
     }
-    const email = window.prompt("برای ثبت‌نام آزمایشی با Google، ایمیل خود را وارد کنید:", "user@gmail.com");
-    if (!email) return;
-    const googleId = "mock-" + btoa(email).replace(/[^a-z0-9]/gi, "").slice(0, 16);
-    const name = email.split("@")[0];
-    const res = await fetch("/api/auth/google", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, googleId, name }),
-    });
-    const j = await res.json();
-    if (j.ok) window.location.href = "/";
-    else alert(j.error || "خطا در ثبت‌نام با Google");
+    if ((window as any).google?.accounts?.id) {
+      (window as any).google.accounts.id.prompt();
+    } else {
+      alert("سرویس احراز هویت گوگل در دسترس نیست.");
+    }
   };
   return (
     <button type="button" onClick={handleGoogle} className="btn w-full" style={{ touchAction: "manipulation" }}>

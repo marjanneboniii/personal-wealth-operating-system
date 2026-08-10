@@ -210,6 +210,7 @@ export default function Shell({ children }: { children: ReactNode }) {
       {!online && (
         <div
           role="status"
+          aria-live="polite"
           className="fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-2 px-4 py-1.5 text-[11.5px] font-medium"
           style={{ background: "var(--warning-soft)", color: "var(--warning)" }}
         >
@@ -239,6 +240,7 @@ export default function Shell({ children }: { children: ReactNode }) {
             onClick={toggleCollapse}
             className="icon-btn !min-h-8 !min-w-8"
             aria-label={collapsed ? "باز کردن ناوبری" : "جمع کردن ناوبری"}
+            aria-expanded={!collapsed}
             style={{ touchAction: "manipulation" }}
           >
             <Icon name={collapsed ? "chevronLeft" : "chevronRight"} size={16} />
@@ -255,6 +257,7 @@ export default function Shell({ children }: { children: ReactNode }) {
             }`}
             style={{ borderColor: "var(--border)", color: "var(--text-3)", background: "var(--sunken)", touchAction: "manipulation" }}
             aria-label="مرکز فرمان — جستجو و اقدام سریع"
+            aria-keyshortcuts="Control+K Meta+K"
           >
             <Icon name="search" size={15} />
             {!(collapsed) && (

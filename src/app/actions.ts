@@ -14,6 +14,7 @@ import {
   events,
   goals,
   installments,
+  journalEntries,
   plannedTransactions,
   prices,
   snapshotLines,
@@ -44,13 +45,13 @@ export type ActionResult = { ok: boolean; message: string };
 
 /** Presentation flow confirms creation before writing the reference record. */
 export async function createWalletAction(input: { name: string; kind: string; note?: string }): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -60,7 +61,7 @@ export async function createWalletAction(input: { name: string; kind: string; no
   const allowed = ["bank", "exchange", "hot", "cold", "cash", "fund"];
   const name = input.name.trim();
   if (!name || !allowed.includes(input.kind)) return { ok: false, message: "نام و نوع حساب را بررسی کنید." };
-  await db.insert(wallets).values({ name, kind: input.kind, note: input.note?.trim() || null });
+  await db.insert(wallets).values({ name, kind: input.kind, note: input.note?.trim() || null, userId: user?.id ?? null } as any);
   revalidatePath("/accounts");
   return { ok: true, message: "حساب جدید با موفقیت ایجاد شد." };
 }
@@ -90,12 +91,13 @@ function refreshAll() {
 /** A human reviewed a record — metadata only, ledger stays immutable. */
 export async function markReviewedAction(entryId: string, reviewed: boolean): Promise<ActionResult> {
   // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -103,6 +105,12 @@ export async function markReviewedAction(entryId: string, reviewed: boolean): Pr
   }
 
   try {
+    if (user) {
+      const [je] = await db.select().from(journalEntries).where(eq(journalEntries.id, entryId)).limit(1);
+      if (je?.userId && je.userId !== user.id) {
+        return { ok: false, message: "دسترسی غیرمجاز: این سند متعلق به شما نیست." };
+      }
+    }
     if (reviewed) {
       await db.insert(entryReviews).values({ entryId }).onConflictDoNothing();
     } else {
@@ -154,13 +162,13 @@ const budgetSchema = z.object({
 });
 
 export async function createBudgetAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -176,7 +184,8 @@ export async function createBudgetAction(_p: ActionResult | null, fd: FormData):
       amountBase: D(v.amountBase).toString(),
       periodStart: v.periodStart,
       periodEnd: v.periodEnd,
-    });
+      userId: user?.id ?? null,
+    } as any);
     refreshAll();
     return { ok: true, message: "بودجه ایجاد شد." };
   } catch (e) {
@@ -233,6 +242,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
 
   try {
     const raw = Object.fromEntries(fd) as Record<string, string>;
+    const idempotencyKey = String(raw.idempotencyKey || fd.get("idempotencyKey") || "").trim() || undefined;
     // Support both legacy 'amount' (USD) and new 'irtAmount' (IRT) — IRT is reference, USD is computed via server rate (freeze)
     const input = txSchema.parse(raw);
     // Auth check for ledger writes
@@ -305,6 +315,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           assetId: cashAsset,
           quantity: qty,
           baseValue: amount.toString(),
+          userId: authUser?.id ?? undefined,
+          idempotencyKey,
         };
         if (input.type === "income") entry = await recordIncome(cmd, tx);
         else entry = await recordExpense(cmd, tx);
@@ -323,6 +335,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
             unitPrice: price,
             feeBase: fee,
             feeAccountId: (await tx.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id,
+            userId: authUser?.id ?? undefined,
+            idempotencyKey,
           },
           tx,
         );
@@ -346,6 +360,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           baseValue: amount.toString(),
           feeBase: fee,
           feeAccountId,
+          userId: authUser?.id ?? undefined,
+          idempotencyKey,
         };
         if (input.type === "buy") entry = await recordBuy(common, tx);
         else {
@@ -410,12 +426,13 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
 
 export async function reverseEntryAction(entryId: string): Promise<ActionResult> {
   // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -423,6 +440,12 @@ export async function reverseEntryAction(entryId: string): Promise<ActionResult>
   }
 
   try {
+    if (user) {
+      const [je] = await db.select().from(journalEntries).where(eq(journalEntries.id, entryId)).limit(1);
+      if (je?.userId && je.userId !== user.id) {
+        return { ok: false, message: "دسترسی غیرمجاز: این سند متعلق به شما نیست." };
+      }
+    }
     await reverseEntry(entryId);
     refreshAll();
     return { ok: true, message: "سند معکوس ثبت و سند اصلی ابطال شد." };
@@ -433,12 +456,13 @@ export async function reverseEntryAction(entryId: string): Promise<ActionResult>
 
 export async function executePlanAction(id: string): Promise<ActionResult> {
   // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -446,6 +470,12 @@ export async function executePlanAction(id: string): Promise<ActionResult> {
   }
 
   try {
+    if (user) {
+      const [plan] = await db.select().from(plannedTransactions).where(eq(plannedTransactions.id, id)).limit(1);
+      if (plan?.userId && plan.userId !== user.id) {
+        return { ok: false, message: "دسترسی غیرمجاز: این برنامه متعلق به شما نیست." };
+      }
+    }
     await executePlanned(id);
     refreshAll();
     return { ok: true, message: "برنامه اجرا شد و به دفترکل رفت." };
@@ -456,12 +486,13 @@ export async function executePlanAction(id: string): Promise<ActionResult> {
 
 export async function payInstallmentAction(id: string, cashAccountId: string): Promise<ActionResult> {
   // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -469,6 +500,17 @@ export async function payInstallmentAction(id: string, cashAccountId: string): P
   }
 
   try {
+    if (user) {
+      const [instRow] = await db
+        .select({ inst: installments, debt: debts })
+        .from(installments)
+        .innerJoin(debts, eq(debts.id, installments.debtId))
+        .where(eq(installments.id, id))
+        .limit(1);
+      if (instRow?.debt?.userId && instRow.debt.userId !== user.id) {
+        return { ok: false, message: "دسترسی غیرمجاز: این بدهی متعلق به شما نیست." };
+      }
+    }
     await payInstallment(id, cashAccountId);
     refreshAll();
     return { ok: true, message: "قسط پرداخت و مانده بدهی به‌روزرسانی شد." };
@@ -486,13 +528,13 @@ const goalSchema = z.object({
 });
 
 export async function createGoalAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -507,7 +549,8 @@ export async function createGoalAction(_p: ActionResult | null, fd: FormData): P
       targetDate: v.targetDate || null,
       fundAccountId: v.fundAccountId || null,
       priority: Number(v.priority ?? 2),
-    });
+      userId: user?.id ?? null,
+    } as any);
     refreshAll();
     return { ok: true, message: "هدف مالی ایجاد شد." };
   } catch (e) {
@@ -523,13 +566,13 @@ const eventSchema = z.object({
 });
 
 export async function createEventAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -543,7 +586,8 @@ export async function createEventAction(_p: ActionResult | null, fd: FormData): 
       eventDate: v.eventDate,
       budgetBase: D(v.budgetBase).toString(),
       category: v.category,
-    });
+      userId: user?.id ?? null,
+    } as any);
     refreshAll();
     return { ok: true, message: "رویداد ثبت شد (بدون اثر روی دفترکل)." };
   } catch (e) {
@@ -562,13 +606,13 @@ const planSchema = z.object({
 });
 
 export async function createPlannedAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -585,7 +629,8 @@ export async function createPlannedAction(_p: ActionResult | null, fd: FormData)
       fromAccountId: v.fromAccountId || null,
       toAccountId: v.toAccountId || null,
       recurrence: v.recurrence,
-    });
+      userId: user?.id ?? null,
+    } as any);
     refreshAll();
     return { ok: true, message: "تراکنش برنامه‌ریزی‌شده ثبت شد." };
   } catch (e) {
@@ -624,13 +669,13 @@ export async function updatePriceAction(_p: ActionResult | null, fd: FormData): 
 
 /** Snapshot engine — freezes today's valuation for historical reporting. */
 export async function takeSnapshotAction(): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
+  let user: any = null;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
     const { db: dbCheck } = await import("@/db");
     const { users: usersTbl } = await import("@/db/schema");
     const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
+    user = await getCurrentUser();
     const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
     if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
   } catch (e) {
@@ -638,7 +683,7 @@ export async function takeSnapshotAction(): Promise<ActionResult> {
   }
 
   try {
-    const [nw, holdings] = await Promise.all([getNetWorth(), getHoldings()]);
+    const [nw, holdings] = await Promise.all([getNetWorth(user?.id), getHoldings(user?.id)]);
     const asOf = todayIso();
     const [snap] = await db
       .insert(snapshots)
@@ -648,9 +693,10 @@ export async function takeSnapshotAction(): Promise<ActionResult> {
         totalAssets: D(nw.totalAssets).toFixed(6),
         totalLiabilities: D(nw.totalLiabilities).toFixed(6),
         netWorth: D(nw.netWorth).toFixed(6),
-      })
+        userId: user?.id ?? null,
+      } as any)
       .onConflictDoUpdate({
-        target: snapshots.asOf,
+        target: [snapshots.userId, snapshots.asOf],
         set: {
           totalAssets: D(nw.totalAssets).toFixed(6),
           totalLiabilities: D(nw.totalLiabilities).toFixed(6),
@@ -690,12 +736,17 @@ export async function integrityCheckAction(): Promise<ActionResult> {
     : { ok: false, message: `${count} سند نامتوازن یافت شد!` };
 }
 
-export async function overviewCounts() {
+export async function overviewCounts(userId?: string) {
+  const u = userId ?? (await getCurrentUser())?.id;
   const [a, d, i, g] = await Promise.all([
     db.select({ c: sql<number>`count(*)::int` }).from(assets),
-    db.select({ c: sql<number>`count(*)::int` }).from(debts),
-    db.select({ c: sql<number>`count(*)::int` }).from(installments),
-    db.select({ c: sql<number>`count(*)::int` }).from(goals),
+    db.select({ c: sql<number>`count(*)::int` }).from(debts).where(u ? eq(debts.userId, u) : sql`1=1`),
+    db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(installments)
+      .innerJoin(debts, eq(debts.id, installments.debtId))
+      .where(u ? eq(debts.userId, u) : sql`1=1`),
+    db.select({ c: sql<number>`count(*)::int` }).from(goals).where(u ? eq(goals.userId, u) : sql`1=1`),
   ]);
   return { assets: a[0].c, debts: d[0].c, installments: i[0].c, goals: g[0].c };
 }

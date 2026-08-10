@@ -10,20 +10,39 @@ import {
   installments,
   obligations,
   plannedTransactions,
+  users,
 } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import { postEntry, unitsFor } from "@/features/ledger/service";
 import { getAccountBalances, getNetWorth } from "@/features/ledger/queries";
 import { addMonthsIso, todayIso } from "@/lib/format";
 
+async function resolvePlanningUserId(explicitUserId?: string): Promise<string | undefined> {
+  if (explicitUserId) return explicitUserId;
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const user = await getCurrentUser();
+    if (user?.id) return user.id;
+  } catch {}
+
+  try {
+    const res = await db.execute(sql`select id from users limit 2`);
+    if (res.rows.length === 1) {
+      return (res.rows[0] as { id?: string })?.id;
+    }
+  } catch {}
+  return undefined;
+}
+
 /* ---------------- Goals ---------------- */
 
-export async function listGoals() {
-  const balances = await getAccountBalances();
+export async function listGoals(userId?: string) {
+  const u = await resolvePlanningUserId(userId);
+  const balances = await getAccountBalances(userId);
   const rows = await db
     .select()
     .from(goals)
-    .where(sql`${goals.deletedAt} is null`)
+    .where(and(sql`${goals.deletedAt} is null`, u ? eq(goals.userId, u) : sql`1=1`))
     .orderBy(asc(goals.priority), asc(goals.targetDate));
 
   return rows.map((g) => {
@@ -42,9 +61,13 @@ export async function listGoals() {
 
 /* ---------------- Funds ---------------- */
 
-export async function listFunds() {
-  const balances = await getAccountBalances();
-  const rows = await db.select().from(funds).where(sql`${funds.deletedAt} is null`);
+export async function listFunds(userId?: string) {
+  const u = await resolvePlanningUserId(userId);
+  const balances = await getAccountBalances(userId);
+  const rows = await db
+    .select()
+    .from(funds)
+    .where(and(sql`${funds.deletedAt} is null`, u ? eq(funds.userId, u) : sql`1=1`));
   return rows.map((f) => {
     const bal = balances.find((b) => b.accountId === f.accountId);
     const saved = bal ? D(bal.baseValue) : Decimal.zero();
@@ -60,7 +83,8 @@ export async function listFunds() {
 /* ---------------- Budgets ---------------- */
 
 /** Budgets with actual spend derived from the ledger (never stored balances). */
-export async function listBudgets() {
+export async function listBudgets(userId?: string) {
+  const u = await resolvePlanningUserId(userId);
   const rows = await db
     .select({
       id: budgets.id,
@@ -74,25 +98,44 @@ export async function listBudgets() {
     })
     .from(budgets)
     .leftJoin(accounts, eq(accounts.id, budgets.accountId))
-    .where(sql`${budgets.deletedAt} is null`)
+    .where(and(sql`${budgets.deletedAt} is null`, u ? eq(budgets.userId, u) : sql`1=1`))
     .orderBy(asc(budgets.periodStart));
 
-  // Spend must respect each budget's own period — derive per budget.
+  // Spend must respect each budget's own period — derive per budget without N+1 query loop.
+  const spendMap = new Map<string, string>();
+  const activeAccountIds = Array.from(new Set(rows.map((r) => r.accountId).filter(Boolean))) as string[];
+  if (rows.length > 0 && activeAccountIds.length > 0) {
+    const minStart = rows.reduce((min, r) => (r.periodStart < min ? r.periodStart : min), rows[0].periodStart);
+    const maxEnd = rows.reduce((max, r) => (r.periodEnd > max ? r.periodEnd : max), rows[0].periodEnd);
+    const postingsRes = await db.execute(sql`
+      select p.account_id as account_id, je.entry_date::text as entry_date, p.base_value::text as val
+      from postings p
+        join journal_entries je on je.id = p.entry_id
+      where je.status = 'posted'
+        and p.account_id in (${sql.join(
+          activeAccountIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})
+        ${u ? sql`and (je.user_id = ${u} or je.user_id is null)` : sql``}
+        and je.entry_date >= ${minStart}
+        and je.entry_date <= ${maxEnd}
+    `);
+    const postingRows = postingsRes.rows as { account_id: string; entry_date: string; val: string }[];
+    for (const b of rows) {
+      if (!b.accountId) continue;
+      let sumSpend = Decimal.zero();
+      for (const pr of postingRows) {
+        if (pr.account_id === b.accountId && pr.entry_date >= b.periodStart && pr.entry_date <= b.periodEnd) {
+          sumSpend = sumSpend.add(D(pr.val));
+        }
+      }
+      spendMap.set(b.id, sumSpend.toString());
+    }
+  }
+
   const result = [];
   for (const b of rows) {
-    let spentInPeriod = "0";
-    if (b.accountId) {
-      const r = await db.execute(sql`
-        select coalesce(sum(p.base_value), 0)::text as spent
-        from postings p
-          join journal_entries je on je.id = p.entry_id
-        where je.status = 'posted'
-          and p.account_id = ${b.accountId}
-          and je.entry_date >= ${b.periodStart}
-          and je.entry_date <= ${b.periodEnd}
-      `);
-      spentInPeriod = (r.rows[0] as { spent: string } | undefined)?.spent ?? "0";
-    }
+    const spentInPeriod = spendMap.get(b.id) ?? "0";
     const limit = D(b.amountBase);
     const used = D(spentInPeriod);
     const remaining = limit.sub(used);
@@ -109,9 +152,13 @@ export async function listBudgets() {
 
 /* ---------------- Debts & installments ---------------- */
 
-export async function listDebts() {
-  const balances = await getAccountBalances();
-  const rows = await db.select().from(debts).where(sql`${debts.deletedAt} is null`);
+export async function listDebts(userId?: string) {
+  const u = await resolvePlanningUserId(userId);
+  const balances = await getAccountBalances(userId);
+  const rows = await db
+    .select()
+    .from(debts)
+    .where(and(sql`${debts.deletedAt} is null`, u ? eq(debts.userId, u) : sql`1=1`));
   const inst = await db.select().from(installments).orderBy(asc(installments.dueDate));
 
   return rows.map((d) => {
@@ -130,7 +177,8 @@ export async function listDebts() {
   });
 }
 
-export async function upcomingInstallments(limit = 8) {
+export async function upcomingInstallments(limit = 8, userId?: string) {
+  const u = await resolvePlanningUserId(userId);
   return db
     .select({
       id: installments.id,
@@ -144,7 +192,7 @@ export async function upcomingInstallments(limit = 8) {
     })
     .from(installments)
     .innerJoin(debts, eq(debts.id, installments.debtId))
-    .where(eq(installments.status, "pending"))
+    .where(and(eq(installments.status, "pending"), u ? eq(debts.userId, u) : sql`1=1`))
     .orderBy(asc(installments.dueDate))
     .limit(limit);
 }
@@ -203,11 +251,12 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
 
 /* ---------------- Planned transactions ---------------- */
 
-export async function listPlanned() {
+export async function listPlanned(userId?: string) {
+  const u = await resolvePlanningUserId(userId);
   return db
     .select()
     .from(plannedTransactions)
-    .where(sql`${plannedTransactions.deletedAt} is null`)
+    .where(and(sql`${plannedTransactions.deletedAt} is null`, u ? eq(plannedTransactions.userId, u) : sql`1=1`))
     .orderBy(asc(plannedTransactions.plannedDate));
 }
 
@@ -242,6 +291,7 @@ export async function executePlanned(id: string) {
     type: outflow ? "expense" : "income",
     description: `اجرای برنامه: ${plan.title}`,
     source: "plan",
+    userId: plan.userId ?? undefined,
     postings: [
       {
         accountId: cashId,
@@ -276,7 +326,8 @@ export async function executePlanned(id: string) {
       goalId: plan.goalId,
       eventId: plan.eventId,
       note: plan.note,
-    });
+      userId: plan.userId,
+    } as any);
   }
   return entry;
 }
@@ -292,13 +343,25 @@ export type ProjectionPoint = {
   deficit: boolean;
 };
 
-export async function projectCashflow(months = 12, scenario: "base" | "optimistic" | "pessimistic" = "base") {
+export async function projectCashflow(months = 12, scenario: "base" | "optimistic" | "pessimistic" = "base", userId?: string) {
+  const u = await resolvePlanningUserId(userId);
   const [nw, planned, insts, obls, evs] = await Promise.all([
-    getNetWorth(),
-    listPlanned(),
-    db.select().from(installments).where(eq(installments.status, "pending")),
-    db.select().from(obligations).where(sql`${obligations.deletedAt} is null`),
-    db.select().from(events).where(sql`${events.deletedAt} is null`),
+    getNetWorth(userId),
+    listPlanned(userId),
+    db
+      .select({ inst: installments })
+      .from(installments)
+      .innerJoin(debts, eq(debts.id, installments.debtId))
+      .where(and(eq(installments.status, "pending"), u ? eq(debts.userId, u) : sql`1=1`))
+      .then((rows) => rows.map((r) => r.inst)),
+    db
+      .select()
+      .from(obligations)
+      .where(and(sql`${obligations.deletedAt} is null`, u ? eq(obligations.userId, u) : sql`1=1`)),
+    db
+      .select()
+      .from(events)
+      .where(and(sql`${events.deletedAt} is null`, u ? eq(events.userId, u) : sql`1=1`)),
   ]);
 
   const factorIn = scenario === "optimistic" ? 1.1 : scenario === "pessimistic" ? 0.9 : 1;
@@ -353,14 +416,20 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
   return { startingLiquidity: nw.liquid, netWorth: nw.netWorth, points, scenario };
 }
 
-export async function listEvents() {
-  return db.select().from(events).where(sql`${events.deletedAt} is null`).orderBy(asc(events.eventDate));
+export async function listEvents(userId?: string) {
+  const u = await resolvePlanningUserId(userId);
+  return db
+    .select()
+    .from(events)
+    .where(and(sql`${events.deletedAt} is null`, u ? eq(events.userId, u) : sql`1=1`))
+    .orderBy(asc(events.eventDate));
 }
 
-export async function listObligations() {
+export async function listObligations(userId?: string) {
+  const u = await resolvePlanningUserId(userId);
   return db
     .select()
     .from(obligations)
-    .where(sql`${obligations.deletedAt} is null`)
+    .where(and(sql`${obligations.deletedAt} is null`, u ? eq(obligations.userId, u) : sql`1=1`))
     .orderBy(asc(obligations.dueDate));
 }

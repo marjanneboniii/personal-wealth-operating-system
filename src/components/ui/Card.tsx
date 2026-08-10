@@ -68,6 +68,7 @@ export function SectionLink({ href, label = "مشاهده همه" }: { href: str
   return (
     <Link
       href={href}
+      aria-label={`مشاهده همه ${label}`}
       className="inline-flex items-center gap-1 text-[12px] font-medium transition-colors"
       style={{ color: "var(--brand)" }}
     >
@@ -103,7 +104,7 @@ export function Money({
           ? "num text-[13px]"
           : "num font-semibold";
   return (
-    <span className={`inline-flex items-center gap-1 ${cls}`} dir="ltr" style={color ? { color } : undefined}>
+    <span className={`inline-flex items-center gap-1 ltr-isolate ${cls}`} dir="ltr" style={color ? { color } : undefined}>
       {arrow && n !== 0 && (
         <Icon name={n > 0 ? "trend-up" : "trend-down"} size={size === "xl" ? 20 : 14} strokeWidth={2.2} />
       )}
@@ -134,11 +135,11 @@ export function Delta({
   const abs = formatMoney(Math.abs(n), currency);
   return (
     <span className={`inline-flex flex-wrap items-baseline gap-x-2 ${className}`} style={{ color }}>
-      <span className="num font-semibold" dir="ltr">
+      <span className="num font-semibold ltr-isolate" dir="ltr">
         {arrow} {zero ? formatMoney(0, currency) : `${up ? "+" : "−"}${abs.replace(/^−|-/, "")}`}
       </span>
       {pct != null && Number.isFinite(Number(pct)) && (
-        <span className="num text-[12px] opacity-80" dir="ltr">
+        <span className="num text-[12px] opacity-80 ltr-isolate" dir="ltr">
           ({up ? "+" : "−"}
           {formatPercent(Math.abs(Number(pct)), "en").replace("+", "")})
         </span>
@@ -151,7 +152,7 @@ export function Delta({
 export function Pct({ value }: { value: string | number }) {
   const n = Number(value);
   return (
-    <span className="num" dir="ltr" style={{ color: n >= 0 ? "var(--positive)" : "var(--negative)" }}>
+    <span className="num ltr-isolate" dir="ltr" style={{ color: n >= 0 ? "var(--positive)" : "var(--negative)" }}>
       {formatPercent(value)}
     </span>
   );
@@ -208,9 +209,9 @@ export function Metric({
   );
 }
 
-export function Progress({ value, color = "var(--brand)" }: { value: number; color?: string }) {
+export function Progress({ value, color = "var(--brand)", "aria-label": ariaLabel = "پیشرفت" }: { value: number; color?: string; "aria-label"?: string }) {
   return (
-    <div className="meter" role="progressbar" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}>
+    <div className="meter" role="progressbar" aria-label={ariaLabel} aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}>
       <i style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: color }} />
     </div>
   );
@@ -302,6 +303,7 @@ export function Alert({
       className="rise flex items-start gap-3 rounded-[var(--r-lg)] border p-4"
       style={{ borderColor: `color-mix(in oklab, ${map.c} 25%, transparent)`, background: map.bg }}
       role={tone === "neg" || tone === "warn" ? "alert" : "status"}
+      aria-live={tone === "neg" || tone === "warn" ? "assertive" : "polite"}
     >
       <span className="mt-0.5 shrink-0" style={{ color: map.c }}>
         <Icon name={icon ?? (map.i as Parameters<typeof Icon>[0]["name"])} size={18} />
