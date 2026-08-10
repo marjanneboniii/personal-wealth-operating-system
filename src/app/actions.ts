@@ -34,7 +34,6 @@ import {
 } from "@/features/ledger/service";
 import { executePlanned, payInstallment } from "@/features/planning/service";
 import { completeSetup, getSetupState } from "@/features/setup/service";
-import { createImportJob, executeImportJob } from "@/features/import/service";
 import { recordManualPrice } from "@/features/marketData/service";
 import { createPortfolioSnapshot, getPortfolioValuation } from "@/features/portfolio/service";
 import { getAnalyticsSummary } from "@/features/analytics/service";
@@ -801,61 +800,6 @@ export async function fetchSetupStateAction() {
   return getSetupState();
 }
 
-export async function createImportJobAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult & { jobData?: any }> {
-  // Auth guard — if auth is enabled, require login for writes
-  try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
-    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
-  }
-
-  try {
-    const rawText = String(fd.get("importText") || "");
-    const source = String(fd.get("source") || "csv");
-
-    if (!rawText.trim()) throw new Error("متن یا فایل درون‌ریزی نمی‌تواند خالی باشد.");
-
-    const summary = await createImportJob(rawText, source);
-    refreshAll();
-
-    return {
-      ok: true,
-      message: `پردازش انجام شد: ${summary.rowCount} سطر شناسایی شد (${summary.validCount} سطر معتبر، ${summary.errorCount} سطر خطادار).`,
-      jobData: summary,
-    };
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "خطای پردازش فایل درون‌ریزی" };
-  }
-}
-
-export async function executeImportJobAction(jobId: string): Promise<ActionResult> {
-  // Auth guard — if auth is enabled, require login for writes
-  try {
-    const { getCurrentUser } = await import("@/lib/auth");
-    const { db: dbCheck } = await import("@/db");
-    const { users: usersTbl } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
-    const user = await getCurrentUser();
-    const [hasAuth] = await dbCheck.select().from(usersTbl).where(isNotNull(usersTbl.username)).limit(1);
-    if (hasAuth && !user) return { ok: false, message: "برای این عملیات ابتدا وارد شوید." };
-  } catch (e) {
-    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
-  }
-
-  try {
-    const res = await executeImportJob(jobId);
-    refreshAll();
-    return { ok: res.success, message: res.message };
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "خطای اجرای درون‌ریزی" };
-  }
-}
 
 export async function recordManualPriceAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   // Auth guard — if auth is enabled, require login for writes

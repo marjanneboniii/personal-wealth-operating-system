@@ -171,13 +171,6 @@ export const SECONDARY_ITEMS: NavItem[] = [
     keywords: ["market", "price", "قیمت", "بازار"],
   },
   {
-    href: "/import",
-    label: "درون‌ریزی داده",
-    icon: "import",
-    question: "داده‌هایم را چگونه وارد کنم؟",
-    keywords: ["import", "csv", "درون‌ریزی", "ورود داده"],
-  },
-  {
     href: "/settings",
     label: "تنظیمات",
     icon: "settings",

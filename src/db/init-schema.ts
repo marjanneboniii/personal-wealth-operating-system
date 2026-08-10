@@ -3,6 +3,16 @@ import { db } from "@/db";
 import { migrateLegacyFinancialData } from "@/db/migrate-multiuser";
 
 const STATEMENTS = [
+  // Targeted removal migration. These tables are standalone and have no accounting-core dependencies.
+  `DROP TABLE IF EXISTS external_price_history;`,
+  `DROP TABLE IF EXISTS asset_provider_mappings;`,
+  `DROP TABLE IF EXISTS external_providers;`,
+  `DROP TABLE IF EXISTS wallet_observations;`,
+  `DROP TABLE IF EXISTS user_display_preferences;`,
+  `DROP TABLE IF EXISTS asset_networks;`,
+  `DROP TABLE IF EXISTS asset_token_metadata;`,
+  `DROP TABLE IF EXISTS import_records;`,
+  `DROP TABLE IF EXISTS import_jobs;`,
 `CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -482,26 +492,6 @@ const STATEMENTS = [
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
   );`,
-  `CREATE TABLE IF NOT EXISTS import_jobs (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users(id),
-    source text NOT NULL DEFAULT 'csv',
-    status text NOT NULL DEFAULT 'pending',
-    row_count integer NOT NULL DEFAULT 0,
-    valid_count integer NOT NULL DEFAULT 0,
-    error_count integer NOT NULL DEFAULT 0,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    completed_at timestamptz
-  );`,
-  `CREATE TABLE IF NOT EXISTS import_records (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    import_job_id uuid NOT NULL REFERENCES import_jobs(id) ON DELETE CASCADE,
-    raw_data text NOT NULL,
-    status text NOT NULL DEFAULT 'valid',
-    error_message text,
-    mapped_transaction_id uuid REFERENCES journal_entries(id),
-    created_at timestamptz NOT NULL DEFAULT now()
-  );`,
   `CREATE TABLE IF NOT EXISTS backup_runs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -511,37 +501,6 @@ const STATEMENTS = [
     note text
   );`,
   /* Scenario Engine — isolated tables *//* Asset Registry Extension — Multi-Chain */
-  `CREATE TABLE IF NOT EXISTS asset_networks (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-    network_id uuid NOT NULL REFERENCES networks(id),
-    contract_address text,
-    chain_id integer,
-    decimals integer,
-    token_standard text,
-    is_primary boolean NOT NULL DEFAULT false,
-    is_active boolean NOT NULL DEFAULT true,
-    explorer_url text,
-    logo_uri text,
-    CONSTRAINT asset_networks_uq UNIQUE (asset_id, network_id, contract_address)
-  );`,
-  `CREATE INDEX IF NOT EXISTS asset_networks_asset_idx ON asset_networks(asset_id);`,
-  `CREATE INDEX IF NOT EXISTS asset_networks_network_idx ON asset_networks(network_id);`,
-
-  `CREATE TABLE IF NOT EXISTS asset_token_metadata (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE UNIQUE,
-    underlying_asset_id uuid REFERENCES assets(id),
-    logo_uri text,
-    coingecko_id text,
-    coinmarketcap_id text,
-    website_url text,
-    description text
-  );`,
 
   /* Wallet Identity Layer — Separate from accounting wallets *//* External Asset Discovery — Quarantine *//* Observation Layer — DeBank, Zerion, RPC Read-Only Cache *//* Reconciliation Engine — Reporting Only *//* RWA Domain — Identity, Ownership, Valuation Separation */
   `CREATE TABLE IF NOT EXISTS real_estate_properties (
@@ -704,80 +663,7 @@ const STATEMENTS = [
   );`,
   `CREATE UNIQUE INDEX IF NOT EXISTS exchange_rates_pair_date_unique ON exchange_rates(base_currency, quote_currency, effective_date);`,
 
-  `CREATE TABLE IF NOT EXISTS user_display_preferences (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    deleted_at timestamptz,
-    user_id uuid REFERENCES users(id),
-    display_currency text NOT NULL DEFAULT 'USD'
-  );`,
-  `CREATE INDEX IF NOT EXISTS user_display_preferences_user_idx ON user_display_preferences(user_id);`,
-
   /* External Market Data Provider Layer (Phase 2.7) — reference data only, no ledger FK */
-  `CREATE TABLE IF NOT EXISTS external_providers (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    deleted_at timestamptz,
-    name text NOT NULL UNIQUE,
-    display_name text NOT NULL,
-    provider_type text NOT NULL DEFAULT 'crypto',
-    base_url text,
-    description text
-  );`,
-
-  `CREATE TABLE IF NOT EXISTS asset_provider_mappings (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    deleted_at timestamptz,
-    asset_id uuid NOT NULL REFERENCES assets(id),
-    provider_id uuid NOT NULL REFERENCES external_providers(id),
-    external_symbol text NOT NULL,
-    external_name text,
-    provider_asset_id text,
-    asset_type text NOT NULL DEFAULT 'crypto',
-    logo_url text,
-    supported_markets text,
-    metadata_json text
-  );`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS asset_provider_mappings_pair_unique ON asset_provider_mappings(asset_id, provider_id);`,
-
-  `CREATE TABLE IF NOT EXISTS external_price_history (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    deleted_at timestamptz,
-    asset_id uuid NOT NULL REFERENCES assets(id),
-    provider_id uuid NOT NULL REFERENCES external_providers(id),
-    price numeric(38,18) NOT NULL,
-    currency text NOT NULL DEFAULT 'USD',
-    as_of_date date NOT NULL,
-    "timestamp" timestamptz NOT NULL DEFAULT now(),
-    is_current boolean NOT NULL DEFAULT true,
-    raw_response text
-  );`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS external_price_history_unique ON external_price_history(asset_id, provider_id, as_of_date, currency);`,
-  `CREATE INDEX IF NOT EXISTS external_price_history_asset_idx ON external_price_history(asset_id);`,
-
-  `CREATE TABLE IF NOT EXISTS wallet_observations (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    deleted_at timestamptz,
-    user_id uuid REFERENCES users(id),
-    wallet_id uuid REFERENCES wallets(id),
-    asset_id uuid NOT NULL REFERENCES assets(id),
-    observed_balance numeric(38,18) NOT NULL,
-    recorded_balance numeric(38,18) NOT NULL,
-    discrepancy numeric(38,18) NOT NULL,
-    observation_date date NOT NULL,
-    source text NOT NULL DEFAULT 'manual_observation',
-    notes text
-  );`,
-  `CREATE INDEX IF NOT EXISTS wallet_observations_asset_idx ON wallet_observations(asset_id);`,
-  `CREATE INDEX IF NOT EXISTS wallet_observations_wallet_idx ON wallet_observations(wallet_id);`,
 
   // ───────────── Auth & Per-User FX (new) ─────────────
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS username text UNIQUE;`,
