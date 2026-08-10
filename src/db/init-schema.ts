@@ -524,6 +524,63 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS real_estate_properties_user_idx ON real_estate_properties(user_id);`,
   `CREATE INDEX IF NOT EXISTS real_estate_properties_city_area_idx ON real_estate_properties(city, area);`,
 
+  /* Vehicle module — Catalog (Brand -> Model), immutable valuation snapshots,
+     and the user's own vehicle (kept in the pre-existing vehicle_assets table
+     so existing asset ids, portfolio links and routes stay valid). */
+  `CREATE TABLE IF NOT EXISTS vehicle_brands (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    name text NOT NULL,
+    brand_key text NOT NULL,
+    name_en text,
+    origin text NOT NULL DEFAULT 'imported',
+    allows_custom_model boolean NOT NULL DEFAULT false,
+    is_active boolean NOT NULL DEFAULT true,
+    sort_order integer NOT NULL DEFAULT 0
+  );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS vehicle_brands_key_uq ON vehicle_brands(brand_key);`,
+
+  `CREATE TABLE IF NOT EXISTS vehicle_catalog (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    brand_id uuid NOT NULL REFERENCES vehicle_brands(id) ON DELETE CASCADE,
+    model_name text NOT NULL,
+    model_key text NOT NULL,
+    model_year integer,
+    manufacturer text,
+    category text,
+    description text,
+    is_active boolean NOT NULL DEFAULT true,
+    created_by_user_id uuid REFERENCES users(id)
+  );`,
+  `CREATE INDEX IF NOT EXISTS vehicle_catalog_brand_idx ON vehicle_catalog(brand_id);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS vehicle_catalog_brand_model_uq ON vehicle_catalog(brand_id, model_key);`,
+
+  `CREATE TABLE IF NOT EXISTS vehicle_valuation_snapshots (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    vehicle_catalog_id uuid NOT NULL REFERENCES vehicle_catalog(id) ON DELETE CASCADE,
+    user_vehicle_id uuid,
+    snapshot_date date NOT NULL,
+    current_value_toman numeric(38,18) NOT NULL,
+    usd_rate numeric(38,18) NOT NULL,
+    current_value_usd numeric(38,18) NOT NULL,
+    source text NOT NULL DEFAULT 'manual',
+    note text,
+    created_by_user_id uuid REFERENCES users(id)
+  );`,
+  `CREATE INDEX IF NOT EXISTS vehicle_valuation_catalog_date_idx ON vehicle_valuation_snapshots(vehicle_catalog_id, snapshot_date);`,
+  `CREATE INDEX IF NOT EXISTS vehicle_valuation_user_vehicle_idx ON vehicle_valuation_snapshots(user_vehicle_id);`,
+  /* One snapshot per model per day (market level) and per car per day (vehicle level). */
+  `CREATE UNIQUE INDEX IF NOT EXISTS vehicle_valuation_catalog_date_uq
+     ON vehicle_valuation_snapshots(vehicle_catalog_id, snapshot_date)
+     WHERE user_vehicle_id IS NULL;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS vehicle_valuation_vehicle_date_uq
+     ON vehicle_valuation_snapshots(user_vehicle_id, snapshot_date)
+     WHERE user_vehicle_id IS NOT NULL;`,
+
   `CREATE TABLE IF NOT EXISTS vehicle_assets (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -539,6 +596,18 @@ const STATEMENTS = [
     notes text
   );`,
   `CREATE INDEX IF NOT EXISTS vehicle_assets_user_idx ON vehicle_assets(user_id);`,
+  /* Vehicle investment fields — additive migration on the existing table. */
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS catalog_id uuid REFERENCES vehicle_catalog(id);`,
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS ownership_date date;`,
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS purchase_price_toman numeric(38,18);`,
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS purchase_usd_rate numeric(38,18);`,
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS purchase_value_usd numeric(38,18);`,
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';`,
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS sale_date date;`,
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS sale_price_toman numeric(38,18);`,
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS sale_usd_rate numeric(38,18);`,
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS sale_value_usd numeric(38,18);`,
+  `CREATE INDEX IF NOT EXISTS vehicle_assets_catalog_idx ON vehicle_assets(catalog_id);`,
 
   `CREATE TABLE IF NOT EXISTS rwa_ownership_records (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -821,6 +890,27 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const MAX_ATTEMPTS = 5;
 
+/**
+ * Best-effort hardening statements. They are applied when the database
+ * supports them and silently skipped otherwise — never fatal for boot.
+ *
+ * Vehicle valuation snapshots are IMMUTABLE by contract (application layer)
+ * and, where the engine allows it, by a database trigger as a second line of
+ * defence: a stored snapshot can never be rewritten by an FX-rate change.
+ */
+const OPTIONAL_STATEMENTS = [
+  `CREATE OR REPLACE FUNCTION vehicle_valuation_snapshots_immutable()
+     RETURNS trigger AS $$
+   BEGIN
+     RAISE EXCEPTION 'vehicle_valuation_snapshots is append-only: snapshots are immutable';
+   END;
+   $$ LANGUAGE plpgsql;`,
+  `DROP TRIGGER IF EXISTS vehicle_valuation_snapshots_no_update ON vehicle_valuation_snapshots;`,
+  `CREATE TRIGGER vehicle_valuation_snapshots_no_update
+     BEFORE UPDATE ON vehicle_valuation_snapshots
+     FOR EACH ROW EXECUTE FUNCTION vehicle_valuation_snapshots_immutable();`,
+];
+
 export async function createSchemaIfNotExists() {
   for (const stmt of STATEMENTS) {
     for (let attempt = 1; ; attempt++) {
@@ -836,9 +926,34 @@ export async function createSchemaIfNotExists() {
       }
     }
   }
+  for (const stmt of OPTIONAL_STATEMENTS) {
+    try {
+      await db.execute(sql.raw(stmt));
+    } catch {
+      // Hardening only — the application layer already guarantees immutability.
+    }
+  }
   try {
     await migrateLegacyFinancialData(db);
   } catch (err) {
     console.warn("[db] legacy data migration notice:", err instanceof Error ? err.message : err);
   }
+}
+
+/**
+ * Process-wide memoised schema bootstrap.
+ *
+ * `createSchemaIfNotExists()` is ~90 idempotent round-trips; callers that only
+ * need "make sure my tables exist" (page loads, the vehicle module bootstrap,
+ * server actions) should use this instead so the DDL runs at most once per
+ * process. On failure the cache is cleared so the next caller retries.
+ */
+let schemaOncePromise: Promise<void> | null = null;
+
+export function ensureSchemaOnce(): Promise<void> {
+  schemaOncePromise ??= createSchemaIfNotExists().catch((err) => {
+    schemaOncePromise = null;
+    throw err;
+  });
+  return schemaOncePromise;
 }

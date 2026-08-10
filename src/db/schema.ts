@@ -677,6 +677,110 @@ export const realEstateProperties = pgTable(
   ],
 );
 
+/* ------------------------------------------------------------------ */
+/* Vehicle Catalog — Brand -> Model (standard, selectable, extensible)  */
+/* Users NEVER type a brand/model freely for catalog brands; admins can */
+/* extend the catalog at runtime (dynamic, no schema change needed).    */
+/* ------------------------------------------------------------------ */
+
+export const vehicleBrands = pgTable(
+  "vehicle_brands",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    /** Canonical display name (Persian or Latin), e.g. "ایران‌خودرو" / "BMW" */
+    name: text("name").notNull(),
+    /** Normalised lookup key (lower-cased, trimmed) — duplicate protection */
+    brandKey: text("brand_key").notNull(),
+    /** Optional Latin alias for search, e.g. "Iran Khodro" */
+    nameEn: text("name_en"),
+    /** domestic (مونتاژی/تولید داخل) | imported (وارداتی) */
+    origin: text("origin").notNull().default("imported"),
+    /** Free model entry allowed (brands with a very large model space) */
+    allowsCustomModel: boolean("allows_custom_model").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [uniqueIndex("vehicle_brands_key_uq").on(t.brandKey)],
+);
+
+export const vehicleCatalog = pgTable(
+  "vehicle_catalog",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    brandId: uuid("brand_id")
+      .notNull()
+      .references(() => vehicleBrands.id, { onDelete: "cascade" }),
+    /** Model name as shown to the user, e.g. "تارا اتوماتیک V4" / "iX3" */
+    modelName: text("model_name").notNull(),
+    /** Normalised lookup key within the brand — duplicate protection */
+    modelKey: text("model_key").notNull(),
+    /** Optional catalog model year (general catalog info, NOT the user's car) */
+    modelYear: integer("model_year"),
+    /** Assembler / importer company when different from the brand */
+    manufacturer: text("manufacturer"),
+    /** sedan | suv | crossover | pickup | van | ev | hybrid | other */
+    category: text("category"),
+    description: text("description"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id),
+  },
+  (t) => [
+    index("vehicle_catalog_brand_idx").on(t.brandId),
+    uniqueIndex("vehicle_catalog_brand_model_uq").on(t.brandId, t.modelKey),
+  ],
+);
+
+/**
+ * Vehicle Valuation Snapshots — IMMUTABLE historical valuation records.
+ *
+ * RULES (never violate):
+ *  - A snapshot stores the Toman value AND the USD rate used at that moment.
+ *  - value_usd = value_toman / usd_rate  (computed once, at insert time).
+ *  - An FX-rate change NEVER rewrites a stored snapshot and NEVER changes the
+ *    current value. Only a NEW snapshot changes the current value.
+ *  - Snapshots are INSERT-only. Never UPDATE.
+ *
+ * Scope: catalog-level (market valuation of the model, user_vehicle_id NULL)
+ * or vehicle-level (a specific car of a specific user).
+ */
+export const vehicleValuationSnapshots = pgTable(
+  "vehicle_valuation_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    vehicleCatalogId: uuid("vehicle_catalog_id")
+      .notNull()
+      .references(() => vehicleCatalog.id, { onDelete: "cascade" }),
+    /** NULL => catalog/market level snapshot; set => this user's specific car */
+    userVehicleId: uuid("user_vehicle_id"),
+    snapshotDate: date("snapshot_date").notNull(),
+    currentValueToman: money("current_value_toman").notNull(),
+    usdRate: money("usd_rate").notNull(),
+    currentValueUsd: money("current_value_usd").notNull(),
+    source: text("source").notNull().default("manual"), // manual | market_estimate | appraisal | dataset
+    note: text("note"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id),
+  },
+  (t) => [
+    index("vehicle_valuation_catalog_date_idx").on(t.vehicleCatalogId, t.snapshotDate),
+    index("vehicle_valuation_user_vehicle_idx").on(t.userVehicleId),
+  ],
+);
+
+/**
+ * User Vehicle Asset (`vehicle_assets` — kept for backward compatibility).
+ *
+ * Conceptually this IS the `user_vehicles` entity of the vehicle module:
+ *   User → Vehicle Asset (exactly ONE owner, no shares, no percentages).
+ *
+ * Ownership percentage / ownership type / mortgage / inheritance / co-owners
+ * intentionally DO NOT exist here — they remain available for real-estate
+ * assets through `rwa_ownership_records` only.
+ */
 export const vehicleAssets = pgTable(
   "vehicle_assets",
   {
@@ -688,15 +792,34 @@ export const vehicleAssets = pgTable(
       .references(() => assets.id, { onDelete: "cascade" })
       .unique(),
     userId: uuid("user_id").references(() => users.id),
+    /** Selected from the catalog — free text is not accepted by the vehicle form */
+    catalogId: uuid("catalog_id").references(() => vehicleCatalog.id),
     brand: text("brand").notNull(),
     model: text("model").notNull(),
+    /** Actual manufacturing year of THIS car (Jalali or Gregorian) — required */
     year: integer("year").notNull(),
+    /** Date the user actually became the owner — required, basis of all analysis */
+    ownershipDate: date("ownership_date"),
+    /** Real amount paid by the user, in Toman — required, manual input */
+    purchasePriceToman: money("purchase_price_toman"),
+    /** USD rate at the OWNERSHIP DATE — historical, never recomputed */
+    purchaseUsdRate: money("purchase_usd_rate"),
+    /** purchase_price_toman / purchase_usd_rate — historical, never recomputed */
+    purchaseValueUsd: money("purchase_value_usd"),
     licensePlate: text("license_plate"),
     chassisNumber: text("chassis_number"),
     mileage: integer("mileage"),
+    status: text("status").notNull().default("active"), // active | sold
+    saleDate: date("sale_date"),
+    salePriceToman: money("sale_price_toman"),
+    saleUsdRate: money("sale_usd_rate"),
+    saleValueUsd: money("sale_value_usd"),
     notes: text("notes"),
   },
-  (t) => [index("vehicle_assets_user_idx").on(t.userId)],
+  (t) => [
+    index("vehicle_assets_user_idx").on(t.userId),
+    index("vehicle_assets_catalog_idx").on(t.catalogId),
+  ],
 );
 
 export const rwaOwnershipRecords = pgTable(

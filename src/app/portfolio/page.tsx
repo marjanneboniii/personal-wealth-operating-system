@@ -2,9 +2,14 @@ import { seedIfEmpty } from "@/db/seed";
 import { ensureAuth } from "@/lib/authGuard";
 import { getOpenLots, getRealizedPnl } from "@/features/ledger/queries";
 import { getPortfolioValuation } from "@/features/portfolio/service";
+import {
+  ensureVehicleModuleReady,
+  getVehiclePortfolioSummary,
+} from "@/features/rwa/vehicle/service";
 import { Alert, EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
+import VehiclePortfolioSection from "@/components/portfolio/VehiclePortfolioSection";
 import { D } from "@/domain/decimal";
 import { formatJalaliIso, formatMoney, formatQty } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
@@ -13,18 +18,25 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function PortfolioPage() {
-  await ensureAuth();
+  const user = await ensureAuth();
+  const userId = (user as { id?: string } | null)?.id ?? null;
   await seedIfEmpty();
 
-  const [valuation, lots, pnl, fx] = await Promise.all([
+  const [valuation, lots, pnl, fx, vehicles] = await Promise.all([
     getPortfolioValuation(),
     getOpenLots(),
     getRealizedPnl(),
     getLatestUsdIrtRate(),
+    // «خودروها» is its own portfolio category: real assets valued from their
+    // own immutable snapshots, deliberately kept out of the FIFO ledger.
+    ensureVehicleModuleReady()
+      .then(() => getVehiclePortfolioSummary(userId))
+      .catch(() => null),
   ]);
 
   const toIrt = (usd: string | number) => (fx.rate ? formatMoney(D(usd).mul(fx.rate).toFixed(0), "IRT") : null);
   const unrealized = D(valuation.totalUnrealizedPnl);
+  const hasVehicles = (vehicles?.count ?? 0) > 0;
 
   return (
     <div className="space-y-8">
@@ -52,7 +64,7 @@ export default async function PortfolioPage() {
         />
       </section>
 
-      {valuation.assetValuations.length === 0 ? (
+      {valuation.assetValuations.length === 0 && !hasVehicles ? (
         <div className="card">
           <EmptyState
             icon="portfolio"
@@ -139,6 +151,10 @@ export default async function PortfolioPage() {
             </Alert>
           )}
         </>
+      )}
+
+      {vehicles && hasVehicles && (
+        <VehiclePortfolioSection summary={vehicles} ledgerNetWorthUsd={valuation.totalNetWorth} />
       )}
     </div>
   );

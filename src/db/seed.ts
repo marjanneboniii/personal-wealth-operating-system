@@ -26,7 +26,7 @@ import { postEntry, recordBuy, recordExpense, recordIncome, recordSell } from "@
 import { payInstallment } from "@/features/planning/service";
 import { addMonthsIso, todayIso } from "@/lib/format";
 import { D } from "@/domain/decimal";
-import { createSchemaIfNotExists, rootCauseOf } from "@/db/init-schema";
+import { ensureSchemaOnce, rootCauseOf } from "@/db/init-schema";
 
 let schemaReady: Promise<void> | null = null;
 let seeded: Promise<void> | null = null;
@@ -61,8 +61,8 @@ function logDbFailure(err: unknown): void {
  */
 const loggedFailures = new WeakSet<object>();
 
-function ensureSchema(): Promise<void> {
-  schemaReady ??= createSchemaIfNotExists().catch((err) => {
+export function ensureSchema(): Promise<void> {
+  schemaReady ??= ensureSchemaOnce().catch((err) => {
     schemaReady = null;
     logDbFailure(err);
     throw err;
