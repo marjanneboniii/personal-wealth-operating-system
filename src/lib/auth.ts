@@ -47,16 +47,24 @@ export async function destroySession(token: string): Promise<void> {
 
 export async function getSessionUser(token: string) {
   if (!token) return null;
-  const [row] = await db
-    .select({ user: users, session: sessions })
-    .from(sessions)
-    .innerJoin(users, eq(users.id, sessions.userId))
-    .where(eq(sessions.token, token))
-    .limit(1);
+  let row: { user: typeof users.$inferSelect; session: typeof sessions.$inferSelect } | undefined;
+  try {
+    const rows = await db
+      .select({ user: users, session: sessions })
+      .from(sessions)
+      .innerJoin(users, eq(users.id, sessions.userId))
+      .where(eq(sessions.token, token))
+      .limit(1);
+    row = rows[0];
+  } catch (e) {
+    throw new Error("Authentication/Database error: Access denied");
+  }
   if (!row) return null;
   if (row.session.expiresAt && new Date(row.session.expiresAt) < new Date()) {
     // expired — clean up
-    await db.delete(sessions).where(eq(sessions.token, token));
+    try {
+      await db.delete(sessions).where(eq(sessions.token, token));
+    } catch {}
     return null;
   }
   return row.user;
@@ -68,25 +76,57 @@ export async function getCurrentUser() {
     const token = cookieStore.get(SESSION_COOKIE)?.value;
     if (!token) return null;
     return await getSessionUser(token);
-  } catch {
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      throw e;
+    }
     return null;
   }
 }
 
+export async function getCurrentUserFromRequest(request: Request) {
+  try {
+    const cookieHeader = request.headers.get("cookie");
+    if (cookieHeader) {
+      const match = cookieHeader.match(new RegExp(`(?:^|; )${SESSION_COOKIE}=([^;]+)`));
+      if (match && match[1]) {
+        return await getSessionUser(match[1].trim());
+      }
+    }
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      throw e;
+    }
+  }
+  return await getCurrentUser();
+}
+
+export async function invalidateAllSessions(txDb: any = db): Promise<void> {
+  await txDb.delete(sessions);
+}
+
 export async function setSessionCookie(token: string, expiresAt: Date) {
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    expires: expiresAt,
-    secure: process.env.NODE_ENV === "production",
-  });
+  try {
+    const cookieStore = await cookies();
+    cookieStore.set(SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      expires: expiresAt,
+      secure: process.env.NODE_ENV === "production",
+    });
+  } catch {
+    // Suppress invariant error if called outside Next.js request context
+  }
 }
 
 export async function clearSessionCookie() {
-  const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE);
+  try {
+    const cookieStore = await cookies();
+    cookieStore.delete(SESSION_COOKIE);
+  } catch {
+    // Suppress invariant error if called outside Next.js request context
+  }
 }
 
 export async function requireUser() {

@@ -6,6 +6,7 @@ import { users, userFxSettings } from "@/db/schema";
 import { eq, isNull, or } from "drizzle-orm";
 import { hashPassword, verifyPassword, createSession, setSessionCookie, clearSessionCookie, destroySession, getCurrentUser } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { recordAuditEvent } from "@/lib/audit";
 
 export type AuthResult = { ok: boolean; message: string; redirectTo?: string };
 
@@ -16,6 +17,11 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
   const name = String(formData.get("name") || "").trim() || username;
+
+  const { checkRateLimit } = await import("@/lib/rateLimit");
+  if (!checkRateLimit(`register:${username || "anon"}`, 10, 60).ok) {
+    return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
+  }
 
   if (!username || username.length < 3) return { ok: false, message: "نام کاربری باید حداقل ۳ کاراکتر باشد." };
   if (!/^[a-zA-Z0-9_.\-]+$/.test(username)) return { ok: false, message: "نام کاربری فقط می‌تواند شامل حروف انگلیسی، عدد، _ و - باشد." };
@@ -73,6 +79,11 @@ export async function loginAction(prev: AuthResult | null, formData: FormData): 
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
 
+  const { checkRateLimit } = await import("@/lib/rateLimit");
+  if (!checkRateLimit(`login:${username || "anon"}`, 10, 60).ok) {
+    return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
+  }
+
   if (!username || !password) return { ok: false, message: "نام کاربری و رمز عبور را وارد کنید." };
 
   const [user] = await db
@@ -80,24 +91,59 @@ export async function loginAction(prev: AuthResult | null, formData: FormData): 
     .from(users)
     .where(or(eq(users.username, username), eq(users.email, username)))
     .limit(1);
-  if (!user || !(user as any).passwordHash) return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
+  if (!user || !(user as any).passwordHash) {
+    console.warn("[auth failure] login failed for user:", username);
+    await recordAuditEvent({
+      action: "LOGIN_FAILURE",
+      entityType: "user",
+      result: "FAILURE",
+      metadata: { username },
+    });
+    return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
+  }
   const hash = (user as any).passwordHash as string;
-  if (!verifyPassword(password, hash)) return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
+  if (!verifyPassword(password, hash)) {
+    console.warn("[auth failure] invalid password for user:", username);
+    await recordAuditEvent({
+      action: "LOGIN_FAILURE",
+      entityType: "user",
+      userId: user.id,
+      result: "FAILURE",
+      metadata: { username },
+    });
+    return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
+  }
 
   const { token, expiresAt } = await createSession(user.id);
   await setSessionCookie(token, expiresAt);
+  await recordAuditEvent({
+    action: "LOGIN_SUCCESS",
+    entityType: "user",
+    entityId: user.id,
+    userId: user.id,
+    result: "SUCCESS",
+  });
   return { ok: true, message: "ورود موفق.", redirectTo: "/" };
 }
 
 // ───────────── Logout ─────────────
 
 export async function logoutAction(): Promise<void> {
+  let u: any = null;
   try {
+    u = await getCurrentUser();
     const cookieStore = await cookies();
     const token = cookieStore.get("pwos_session")?.value;
     if (token) await destroySession(token);
   } catch {}
   await clearSessionCookie();
+  await recordAuditEvent({
+    action: "LOGOUT",
+    entityType: "user",
+    entityId: u?.id ?? null,
+    userId: u?.id ?? null,
+    result: "SUCCESS",
+  });
   redirect("/login");
 }
 

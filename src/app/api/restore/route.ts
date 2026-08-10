@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { auditLog } from "@/db/schema";
+import { auditLog, sessions, users } from "@/db/schema";
+import { authorizeOwnerOrAdmin } from "@/lib/authGuard";
+import { clearSessionCookie } from "@/lib/auth";
+import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -63,19 +66,16 @@ const backupPayloadSchema = z.object({
   data: z.record(z.string(), z.array(z.record(z.string(), z.unknown()))),
 });
 
-function checkAuth(request: Request): boolean {
-  const authToken = process.env.PWOS_AUTH_TOKEN;
-  if (!authToken) return true; // Auth optional when env var is omitted
-  const headerToken =
-    request.headers.get("x-pwos-auth") ??
-    request.headers.get("authorization")?.replace("Bearer ", "");
-  return headerToken === authToken;
-}
-
-/** Transactional restore: all-or-nothing, parameterized against SQL injection, schema-version checked. */
+/**
+ * Security-Hardened Transactional Restore Endpoint.
+ * Requires Authenticated Owner or Admin user.
+ * Invalidation rule: deletes all sessions within the transaction and clears the session cookie to force re-login.
+ * Rollback guarantee: Any failure rolls back all table modifications and preserves existing sessions.
+ */
 export async function POST(request: Request) {
-  if (!checkAuth(request)) {
-    return NextResponse.json({ ok: false, error: "دسترسی غیرمجاز" }, { status: 401 });
+  const auth = await authorizeOwnerOrAdmin(request);
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
   }
 
   try {
@@ -121,12 +121,42 @@ export async function POST(request: Request) {
         }
       }
 
+      // 7. Security Hardening: Invalidate all sessions in database upon successful restore
+      await tx.delete(sessions);
+
+      let auditUserId: string | null = null;
+      try {
+        if (auth.user?.id) {
+          const [checkUser] = await tx
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.id, auth.user.id))
+            .limit(1);
+          if (checkUser) auditUserId = checkUser.id;
+        }
+      } catch {}
+
       await tx.insert(auditLog).values({
         action: "restore_database",
         entityType: "database",
         payload: JSON.stringify({ rowCount: inserted, restoredAt: new Date().toISOString() }),
       });
+      await recordAuditEvent(
+        {
+          action: "RESTORE",
+          entityType: "database",
+          userId: auditUserId,
+          result: "SUCCESS",
+          metadata: { rowCount: inserted },
+        },
+        tx,
+      );
     });
+
+    // 10. Clear session cookie to force caller re-login
+    try {
+      await clearSessionCookie();
+    } catch {}
 
     return NextResponse.json({ ok: true, inserted });
   } catch (e) {

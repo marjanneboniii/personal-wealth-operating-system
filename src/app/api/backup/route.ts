@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditLog, backupRuns } from "@/db/schema";
+import { authorizeOwnerOrAdmin } from "@/lib/authGuard";
+import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +48,6 @@ const TABLES = [
   "obligations",
   "funds",
   "users",
-  "sessions",
   "user_fx_settings",
   "user_setup_state",
   "import_jobs",
@@ -60,19 +61,15 @@ const TABLES = [
 
 const ALLOWED_TABLES = new Set(TABLES);
 
-function checkAuth(request: Request): boolean {
-  const authToken = process.env.PWOS_AUTH_TOKEN;
-  if (!authToken) return true;
-  const headerToken =
-    request.headers.get("x-pwos-auth") ??
-    request.headers.get("authorization")?.replace("Bearer ", "");
-  return headerToken === authToken;
-}
-
-/** Full, human-readable, self-hosted backup of the whole wealth database. */
+/**
+ * Security-Hardened Backup Endpoint.
+ * Requires Authenticated Owner or Admin user.
+ * Never exports sensitive session tokens ("sessions" table excluded).
+ */
 export async function GET(request: Request) {
-  if (!checkAuth(request)) {
-    return NextResponse.json({ ok: false, error: "دسترسی غیرمجاز" }, { status: 401 });
+  const auth = await authorizeOwnerOrAdmin(request);
+  if (!auth.ok) {
+    return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
   }
 
   const data: Record<string, unknown[]> = {};
@@ -89,6 +86,13 @@ export async function GET(request: Request) {
     action: "export_backup",
     entityType: "database",
     payload: JSON.stringify({ rowCount, exportedAt: new Date().toISOString() }),
+  });
+  await recordAuditEvent({
+    action: "BACKUP",
+    entityType: "database",
+    userId: auth.user?.id ?? null,
+    result: "SUCCESS",
+    metadata: { rowCount },
   });
 
   const payload = {

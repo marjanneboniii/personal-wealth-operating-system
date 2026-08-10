@@ -177,7 +177,7 @@ export default async function OverviewPage() {
                 <Link
                   key={q.href}
                   href={q.href}
-                  className="card flex w-[62px] flex-col items-center gap-1.5 py-2.5 text-[10.5px] font-medium transition-transform hover:-translate-y-0.5"
+                  className="card interactive-card flex w-[62px] flex-col items-center gap-1.5 py-2.5 text-[10.5px] font-medium transition-all"
                   style={{ color: "var(--text-2)" }}
                 >
                   <span

@@ -1,104 +1,138 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { users, userFxSettings } from "@/db/schema";
-import { eq, or } from "drizzle-orm";
-import { createSession, setSessionCookie } from "@/lib/auth";
+import { eq } from "drizzle-orm";
+import { createSession, setSessionCookie, getCurrentUserFromRequest } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Google login/registration
- * Body: { idToken?: string, email: string, name?: string, googleId: string, picture?: string }
- * If GOOGLE_CLIENT_ID is set, verify idToken via Google tokeninfo endpoint.
- * Otherwise trust payload for demo/testing (still checks email uniqueness).
- * Linking: if email matches existing user without googleId, link it. No duplicate.
+ * Real Google OAuth login/registration endpoint.
+ * Requires a valid Google ID Token verified against Google's tokeninfo endpoint.
+ * Validates aud, iss, sub, email, and email_verified.
+ * Prevents account takeover by requiring active session authentication before linking to an existing email account.
  */
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    let email: string | null = body.email?.trim() || null;
-    let googleId: string | null = body.googleId?.trim() || body.sub?.trim() || null;
-    let name: string | null = body.name?.trim() || body.given_name || null;
-    const idToken: string | null = body.idToken || null;
-
-    // Verify via Google if token provided and client ID configured
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    if (idToken && clientId) {
-      try {
-        const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-        if (!verifyRes.ok) {
-          return NextResponse.json({ ok: false, error: "توکن Google نامعتبر است." }, { status: 401 });
-        }
-        const info = await verifyRes.json();
-        if (info.aud !== clientId) {
-          return NextResponse.json({ ok: false, error: "توکن برای این اپ نیست." }, { status: 401 });
-        }
-        if (info.email_verified !== "true" && info.email_verified !== true) {
-          return NextResponse.json({ ok: false, error: "ایمیل Google تأیید نشده است." }, { status: 401 });
-        }
-        email = (info.email as string) || email;
-        googleId = (info.sub as string) || googleId;
-        name = (info.name as string) || name;
-      } catch (e) {
-        return NextResponse.json({ ok: false, error: "خطا در تأیید توکن Google." }, { status: 401 });
+    if (!clientId || clientId.trim() === "") {
+      return NextResponse.json(
+        { ok: false, error: "Google authentication is not configured." },
+        { status: 503 }
+      );
+    }
+
+    const body = await req.json();
+    const idToken: string | null = body.idToken || body.credential || null;
+
+    if (!idToken) {
+      return NextResponse.json({ ok: false, error: "توکن Google ارائه نشده است." }, { status: 401 });
+    }
+
+    // Verify token via Google tokeninfo endpoint
+    let info: Record<string, unknown>;
+    try {
+      const verifyRes = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
+      );
+      if (!verifyRes.ok) {
+        return NextResponse.json({ ok: false, error: "توکن Google نامعتبر است." }, { status: 401 });
       }
-    } else if (idToken && !clientId) {
-      // Demo mode: decode JWT payload without verification (for dev/test)
-      try {
-        const payload = JSON.parse(Buffer.from(idToken.split(".")[1], "base64url").toString());
-        email = payload.email || email;
-        googleId = payload.sub || googleId;
-        name = payload.name || name;
-      } catch {}
+      info = await verifyRes.json();
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: "خطا در تأیید توکن Google." }, { status: 401 });
     }
 
-    if (!email || !googleId) {
-      return NextResponse.json({ ok: false, error: "اطلاعات Google ناقص است." }, { status: 400 });
+    // Security Hardening: strict validation of aud, iss, sub, email, and email_verified
+    if (info.aud !== clientId) {
+      return NextResponse.json({ ok: false, error: "توکن برای این اپ نیست." }, { status: 401 });
     }
-    email = email.toLowerCase();
 
-    // 1. Check existing by googleId
-    let [existingByGoogle] = await db.select().from(users).where(eq(users.googleId as any, googleId)).limit(1);
+    const iss = String(info.iss || "");
+    if (iss !== "https://accounts.google.com" && iss !== "accounts.google.com") {
+      return NextResponse.json({ ok: false, error: "صادرکننده توکن Google نامعتبر است." }, { status: 401 });
+    }
+
+    if (!info.sub || typeof info.sub !== "string") {
+      return NextResponse.json({ ok: false, error: "شناسه حساب Google نامعتبر است." }, { status: 401 });
+    }
+
+    if (info.email_verified !== "true" && info.email_verified !== true) {
+      return NextResponse.json({ ok: false, error: "ایمیل Google تأیید نشده است." }, { status: 401 });
+    }
+
+    if (!info.email || typeof info.email !== "string") {
+      return NextResponse.json({ ok: false, error: "ایمیل Google نامعتبر است." }, { status: 400 });
+    }
+
+    const email = info.email.toLowerCase().trim();
+    const googleId = info.sub.trim();
+    const name = typeof info.name === "string" && info.name.trim() ? info.name.trim() : email.split("@")[0];
+
+    // Rate limit per email identity
+    if (!checkRateLimit(`google:${email}`, 20, 60).ok) {
+      return NextResponse.json(
+        { ok: false, error: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." },
+        { status: 429 }
+      );
+    }
+
+    // 1. Check existing user by googleId
+    const [existingByGoogle] = await db.select().from(users).where(eq(users.googleId as any, googleId)).limit(1);
     if (existingByGoogle) {
+      // Refresh verified state / timestamp
+      await db
+        .update(users)
+        .set({ emailVerified: true, updatedAt: new Date() } as any)
+        .where(eq(users.id, existingByGoogle.id));
       const { token, expiresAt } = await createSession(existingByGoogle.id);
       await setSessionCookie(token, expiresAt);
+      await recordAuditEvent({
+        action: "OAUTH_LOGIN",
+        entityType: "user",
+        entityId: existingByGoogle.id,
+        userId: existingByGoogle.id,
+        result: "SUCCESS",
+      });
       return NextResponse.json({ ok: true, message: "ورود با Google موفق." });
     }
 
-    // 2. Check existing by email — link Google identity, prevent duplicate
-    let [existingByEmail] = await db.select().from(users).where(eq(users.email as any, email)).limit(1);
+    // 2. Check existing user by email
+    const [existingByEmail] = await db.select().from(users).where(eq(users.email as any, email)).limit(1);
     if (existingByEmail) {
-      // Link Google ID to existing user
-      await db
-        .update(users)
-        .set({ googleId, emailVerified: true, updatedAt: new Date() } as any)
-        .where(eq(users.id, existingByEmail.id));
-      const { token, expiresAt } = await createSession(existingByEmail.id);
-      await setSessionCookie(token, expiresAt);
-      return NextResponse.json({ ok: true, message: "حساب Google به کاربر موجود متصل شد." });
+      // Prevent Account Takeover: DO NOT automatically link to an existing account with matching email.
+      // Require the user to be currently authenticated as that account to link their Google account.
+      const currentUser = await getCurrentUserFromRequest(req);
+      if (currentUser && currentUser.id === existingByEmail.id) {
+        await db
+          .update(users)
+          .set({ googleId, emailVerified: true, updatedAt: new Date() } as any)
+          .where(eq(users.id, existingByEmail.id));
+        const { token, expiresAt } = await createSession(existingByEmail.id);
+        await setSessionCookie(token, expiresAt);
+        await recordAuditEvent({
+          action: "OAUTH_LOGIN",
+          entityType: "user",
+          entityId: existingByEmail.id,
+          userId: existingByEmail.id,
+          result: "SUCCESS",
+        });
+        return NextResponse.json({ ok: true, message: "حساب Google به کاربر موجود متصل شد." });
+      }
+
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "حساب کاربری با این ایمیل وجود دارد. برای اتصال حساب Google، ابتدا با نام کاربری و رمز عبور وارد شوید.",
+        },
+        { status: 409 }
+      );
     }
 
-    // 3. Also check if email matches username? For migration, if legacy user has no email but we create new Google user, that's fine.
-    // Check legacy owner without username: if single legacy exists, claim it with Google identity?
-    // Instead, create new user for Google, but if only one legacy user exists and it has no username/email, we could claim?
-    // For safety, if legacy user count ===1 and that user has no email/username, and total users ===1, we claim that user with Google.
-    const allUsers = await db.select().from(users);
-    const legacyCandidates = allUsers.filter((u: any) => !u.username && !u.email && !u.googleId);
-    if (allUsers.length === 1 && legacyCandidates.length === 1) {
-      const legacy = legacyCandidates[0];
-      await db
-        .update(users)
-        .set({ googleId, email, name: name || legacy.name, emailVerified: true, updatedAt: new Date() } as any)
-        .where(eq(users.id, legacy.id));
-      try {
-        await db.insert(userFxSettings).values({ userId: legacy.id, currentRate: "190000" }).onConflictDoNothing();
-      } catch {}
-      const { token, expiresAt } = await createSession(legacy.id);
-      await setSessionCookie(token, expiresAt);
-      return NextResponse.json({ ok: true, message: "حساب Google به مالک فعلی متصل شد." });
-    }
-
-    // 4. Create new user for Google
+    // 3. Create new user for Google account
     const usernameBase = email.split("@")[0].replace(/[^a-z0-9_]/gi, "_").toLowerCase();
     let username = usernameBase;
     let suffix = 1;
@@ -111,7 +145,7 @@ export async function POST(req: Request) {
     const [newUser] = await db
       .insert(users)
       .values({
-        name: name || username,
+        name,
         username,
         email,
         googleId,
@@ -119,14 +153,23 @@ export async function POST(req: Request) {
         role: "owner",
       } as any)
       .returning();
+
     try {
       await db.insert(userFxSettings).values({ userId: newUser.id, currentRate: "190000" }).onConflictDoNothing();
     } catch {}
+
     const { token, expiresAt } = await createSession(newUser.id);
     await setSessionCookie(token, expiresAt);
+    await recordAuditEvent({
+      action: "OAUTH_LOGIN",
+      entityType: "user",
+      entityId: newUser.id,
+      userId: newUser.id,
+      result: "SUCCESS",
+    });
     return NextResponse.json({ ok: true, message: "ثبت‌نام با Google موفق." });
   } catch (e) {
-    console.error("[google auth]", e);
-    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "خطای سرور" }, { status: 500 });
+    console.warn("[google auth failure] verification failed");
+    return NextResponse.json({ ok: false, error: "خطای سرور در احراز هویت Google." }, { status: 500 });
   }
 }

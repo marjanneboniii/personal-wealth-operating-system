@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { migrateLegacyFinancialData } from "@/db/migrate-multiuser";
 
 const STATEMENTS = [
 `CREATE TABLE IF NOT EXISTS users (
@@ -803,6 +804,60 @@ const STATEMENTS = [
   );`,
   `CREATE INDEX IF NOT EXISTS user_fx_settings_user_idx ON user_fx_settings(user_id);`,
 
+  // ───────────── STAGE 2: Multi-User Financial Data Isolation ─────────────
+  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE lots ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE wallets ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE goals ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE events ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE planned_transactions ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE debts ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE obligations ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE funds ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE snapshots ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+
+  // Convert global unique constraints to user-aware unique constraints
+  `ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_code_key;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS accounts_user_code_uq ON accounts(user_id, code);`,
+  `ALTER TABLE snapshots DROP CONSTRAINT IF EXISTS snapshots_as_of_key;`,
+  `ALTER TABLE snapshots DROP CONSTRAINT IF EXISTS snapshots_asof_uq;`,
+  `DROP INDEX IF EXISTS snapshots_asof_uq;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS snapshots_user_asof_uq ON snapshots(user_id, as_of);`,
+
+  // Create indexes for per-user queries
+  `CREATE INDEX IF NOT EXISTS accounts_user_idx ON accounts(user_id);`,
+  `CREATE INDEX IF NOT EXISTS accounts_user_type_idx ON accounts(user_id, type);`,
+  `CREATE INDEX IF NOT EXISTS entries_user_idx ON journal_entries(user_id);`,
+  `CREATE INDEX IF NOT EXISTS entries_user_date_idx ON journal_entries(user_id, entry_date);`,
+  `CREATE INDEX IF NOT EXISTS lots_user_idx ON lots(user_id);`,
+  `CREATE INDEX IF NOT EXISTS lots_user_asset_idx ON lots(user_id, asset_id);`,
+  `CREATE INDEX IF NOT EXISTS wallets_user_idx ON wallets(user_id);`,
+  `CREATE INDEX IF NOT EXISTS goals_user_idx ON goals(user_id);`,
+  `CREATE INDEX IF NOT EXISTS events_user_idx ON events(user_id);`,
+  `CREATE INDEX IF NOT EXISTS budgets_user_idx ON budgets(user_id);`,
+  `CREATE INDEX IF NOT EXISTS planned_user_idx ON planned_transactions(user_id);`,
+  `CREATE INDEX IF NOT EXISTS debts_user_idx ON debts(user_id);`,
+  `CREATE INDEX IF NOT EXISTS obligations_user_idx ON obligations(user_id);`,
+  `CREATE INDEX IF NOT EXISTS funds_user_idx ON funds(user_id);`,
+  `CREATE INDEX IF NOT EXISTS snapshots_user_idx ON snapshots(user_id);`,
+
+  // ───────────── STAGE 3: Idempotency & Concurrency Safety ─────────────
+  `ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS idempotency_key text;`,
+  `ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS idempotency_hash text;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS journal_entries_user_idemp_uq ON journal_entries(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL;`,
+
+  // ───────────── STAGE 4: Audit Trail, Validation & Data Integrity ─────────────
+  `ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE SET NULL;`,
+  `ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS result text NOT NULL DEFAULT 'SUCCESS';`,
+  `ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS request_id text;`,
+  `ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS before_data text;`,
+  `ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS after_data text;`,
+  `ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS metadata text;`,
+  `CREATE INDEX IF NOT EXISTS audit_log_user_idx ON audit_log(user_id);`,
+  `CREATE INDEX IF NOT EXISTS audit_log_action_idx ON audit_log(action);`,
+  `CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log(created_at);`,
 ];
 
 /**
@@ -880,5 +935,10 @@ export async function createSchemaIfNotExists() {
         await sleep(400 * attempt);
       }
     }
+  }
+  try {
+    await migrateLegacyFinancialData(db);
+  } catch (err) {
+    console.warn("[db] legacy data migration notice:", err instanceof Error ? err.message : err);
   }
 }

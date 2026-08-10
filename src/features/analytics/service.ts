@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   analyticsRuns,
@@ -52,8 +52,12 @@ export async function ensureBenchmarkDefinitions() {
  */
 export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDashboardSummary> {
   const [valuationSummary, rawSnapshots, benchmarks] = await Promise.all([
-    getPortfolioValuation(),
-    db.select().from(portfolioSnapshots).orderBy(desc(portfolioSnapshots.snapshotDate)),
+    getPortfolioValuation(undefined, userId),
+    db
+      .select()
+      .from(portfolioSnapshots)
+      .where(userId ? eq(portfolioSnapshots.userId, userId) : sql`1=1`)
+      .orderBy(desc(portfolioSnapshots.snapshotDate)),
     ensureBenchmarkDefinitions(),
   ]);
 

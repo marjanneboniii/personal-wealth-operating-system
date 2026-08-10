@@ -199,6 +199,19 @@ input[type="radio"] {
   letter-spacing: -0.02em;
 }
 
+/* PART 11, 12, 14, 15: Safe bidirectional text isolation for foreign numbers & Gregorian dates */
+.ltr-isolate {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+}
+
+.rtl-isolate {
+  direction: rtl;
+  unicode-bidi: isolate;
+  display: inline-block;
+}
+
 /* ─────────────────────── Surfaces & text ─────────────────────── */
 
 .card {
@@ -206,6 +219,23 @@ input[type="radio"] {
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.card-hover,
+.interactive-card {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.card-hover:hover,
+.interactive-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1.5px);
+}
+.card-hover:active,
+.interactive-card:active {
+  transform: translateY(0) scale(0.995);
 }
 
 .elev {

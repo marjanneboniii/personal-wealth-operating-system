@@ -29,12 +29,13 @@ import { AssetValuation, PortfolioSummary } from "./types";
  */
 export async function getPortfolioValuation(
   valuationDate = todayIso(),
+  userId?: string,
 ): Promise<PortfolioSummary> {
   const [holdings, openLots, marketQuotes, balances] = await Promise.all([
-    getHoldings(),
-    getOpenLots(),
+    getHoldings(userId),
+    getOpenLots(undefined, userId),
     getMarketPrices(),
-    getAccountBalances(),
+    getAccountBalances(userId),
   ]);
 
   const quoteMap = new Map(marketQuotes.map((q) => [q.assetId, q]));
@@ -126,7 +127,7 @@ export async function createPortfolioSnapshot(
   snapshotDate = todayIso(),
   userId?: string,
 ): Promise<{ id: string }> {
-  const valuation = await getPortfolioValuation(snapshotDate);
+  const valuation = await getPortfolioValuation(snapshotDate, userId);
 
   const [usdCur] = await db.select().from(currencies).where(eq(currencies.code, "USD")).limit(1);
 
@@ -164,12 +165,12 @@ export async function createPortfolioSnapshot(
 /**
  * Fetch detailed asset valuation info for Asset Detail View
  */
-export async function getAssetValuationDetail(assetId: string) {
-  const summary = await getPortfolioValuation();
+export async function getAssetValuationDetail(assetId: string, userId?: string) {
+  const summary = await getPortfolioValuation(undefined, userId);
   const assetVal = summary.assetValuations.find((v) => v.assetId === assetId);
   if (!assetVal) return null;
 
-  const openLots = await getOpenLots(assetId);
+  const openLots = await getOpenLots(assetId, userId);
   return {
     ...assetVal,
     openLots,
