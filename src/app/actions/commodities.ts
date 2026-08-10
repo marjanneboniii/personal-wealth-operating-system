@@ -9,6 +9,27 @@ import {
   calculatePersonalInflationIndex,
   getInflationSummaryReport,
 } from "@/features/commodities/service";
+import { getCurrentUser } from "@/lib/auth";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { isNotNull } from "drizzle-orm";
+
+/**
+ * SECURITY: commodity records are user-supplied data in shared tables.
+ * Require an authenticated session for any commodity operation once auth is
+ * enabled (legacy single-tenant mode keeps working). Identity always comes
+ * from the server-side session — never from the request payload.
+ */
+async function guardCommodities(): Promise<string | null> {
+  try {
+    const user = await getCurrentUser();
+    const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
+    if (row && !user) return "برای این عملیات ابتدا وارد شوید.";
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return e.message;
+  }
+  return null;
+}
 
 const categorySchema = z.object({
   name: z.string().min(1, "Category name is required").max(100, "Category name too long"),
@@ -41,6 +62,8 @@ const inflationReportSchema = z.object({
 });
 
 export async function createCategoryAction(name: string) {
+  const denied = await guardCommodities();
+  if (denied) return { ok: false, message: denied };
   try {
     const parsed = categorySchema.parse({ name });
 
@@ -60,6 +83,8 @@ export async function createCategoryAction(name: string) {
 }
 
 export async function createCommodityItemAction(input: { name: string; categoryId?: string | null; defaultUnit?: string }) {
+  const denied = await guardCommodities();
+  if (denied) return { ok: false, message: denied };
   try {
     const parsed = commodityItemSchema.parse(input);
 
@@ -80,6 +105,8 @@ export async function recordCommodityPriceAction(input: {
   merchantName?: string | null;
   notes?: string | null;
 }) {
+  const denied = await guardCommodities();
+  if (denied) return { ok: false, message: denied };
   try {
     const parsed = priceRecordSchema.parse(input);
 
@@ -101,6 +128,8 @@ export async function recordCommodityPriceAction(input: {
 }
 
 export async function getCommodityPriceTrendsAction(commodityId: string, days: number = 90) {
+  const denied = await guardCommodities();
+  if (denied) return { ok: false, data: [] };
   try {
     const parsed = priceTrendsSchema.parse({ commodityId, days });
     const history = await getCommodityPriceHistory(parsed.commodityId, parsed.days);
@@ -111,6 +140,8 @@ export async function getCommodityPriceTrendsAction(commodityId: string, days: n
 }
 
 export async function getPersonalInflationReportAction(timeRangeMonths: number = 1) {
+  const denied = await guardCommodities();
+  if (denied) return { ok: false, data: null };
   try {
     const parsed = inflationReportSchema.parse({ timeRangeMonths });
 
@@ -128,6 +159,8 @@ export async function getPersonalInflationReportAction(timeRangeMonths: number =
 }
 
 export async function getInflationSummaryReportAction() {
+  const denied = await guardCommodities();
+  if (denied) return { ok: false, data: null };
   try {
     const report = await getInflationSummaryReport();
     return { ok: true, data: report };

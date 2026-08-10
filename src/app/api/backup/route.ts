@@ -66,6 +66,17 @@ const ALLOWED_TABLES = new Set(TABLES);
 export async function GET(request: Request) {
   const auth = await authorizeOwnerOrAdmin(request);
   if (!auth.ok) {
+    // Audit every denied backup attempt (role comes from the server-side
+    // session only — request body/query is never consulted for identity).
+    try {
+      await recordAuditEvent({
+        action: "BACKUP_DENIED",
+        entityType: "database",
+        userId: auth.user?.id ?? null,
+        result: "FAILURE",
+        metadata: { status: auth.status },
+      });
+    } catch {}
     return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
   }
 

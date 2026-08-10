@@ -3,8 +3,15 @@ import { db } from "@/db";
 import { users, userFxSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createSession, setSessionCookie, getCurrentUserFromRequest } from "@/lib/auth";
-import { checkRateLimit } from "@/lib/rateLimit";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 import { recordAuditEvent } from "@/lib/audit";
+
+/**
+ * SECURITY: self-service Google sign-up always receives the low-privilege
+ * role. Privileged roles are backend-assigned only; the request body cannot
+ * influence the role (no `role` field is ever read from the client).
+ */
+const DEFAULT_GOOGLE_ROLE = "user";
 
 export const dynamic = "force-dynamic";
 
@@ -73,8 +80,9 @@ export async function POST(req: Request) {
     const googleId = info.sub.trim();
     const name = typeof info.name === "string" && info.name.trim() ? info.name.trim() : email.split("@")[0];
 
-    // Rate limit per email identity
-    if (!checkRateLimit(`google:${email}`, 20, 60).ok) {
+    // Rate limit per email identity and per client IP
+    const clientIp = getClientIp(req);
+    if (!checkRateLimit(`google:${email}`, 20, 60).ok || !checkRateLimit(`google-ip:${clientIp}`, 30, 60).ok) {
       return NextResponse.json(
         { ok: false, error: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." },
         { status: 429 }
@@ -124,6 +132,19 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, message: "حساب Google به کاربر موجود متصل شد." });
       }
 
+      // Audit the blocked takeover attempt (unauthenticated Google login
+      // presenting the email of an existing account).
+      try {
+        await recordAuditEvent({
+          action: "OAUTH_TAKEOVER_DENIED",
+          entityType: "user",
+          entityId: existingByEmail.id,
+          userId: existingByEmail.id,
+          result: "FAILURE",
+          metadata: { email, googleId },
+        });
+      } catch {}
+
       return NextResponse.json(
         {
           ok: false,
@@ -144,6 +165,8 @@ export async function POST(req: Request) {
       username = `${usernameBase}${suffix++}`;
     }
 
+    // Role is assigned by the backend only — public Google sign-up never
+    // receives owner/admin privileges.
     const [newUser] = await db
       .insert(users)
       .values({
@@ -152,7 +175,7 @@ export async function POST(req: Request) {
         email,
         googleId,
         emailVerified: true,
-        role: "owner",
+        role: DEFAULT_GOOGLE_ROLE,
       } as any)
       .returning();
 

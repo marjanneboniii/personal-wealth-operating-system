@@ -33,36 +33,67 @@ export function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
+/**
+ * Session tokens are stored in the database ONLY as SHA-256 hashes.
+ * The raw token lives exclusively in the HttpOnly cookie. A database leak
+ * therefore does not yield usable session credentials.
+ */
+export function hashSessionToken(token: string): string {
+  return crypto.createHash("sha256").update(String(token)).digest("hex");
+}
+
+async function lookupSessionRow(tokenValue: string) {
+  const rows = await db
+    .select({ user: users, session: sessions })
+    .from(sessions)
+    .innerJoin(users, eq(users.id, sessions.userId))
+    .where(eq(sessions.token, tokenValue))
+    .limit(1);
+  return rows[0];
+}
+
 export async function createSession(userId: string): Promise<{ token: string; expiresAt: Date }> {
   const token = generateToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
-  await db.insert(sessions).values({ userId, token, expiresAt });
+  // Store only the hash — never the raw token.
+  await db.insert(sessions).values({ userId, token: hashSessionToken(token), expiresAt });
   return { token, expiresAt };
 }
 
 export async function destroySession(token: string): Promise<void> {
   if (!token) return;
+  // Delete by hash (current format) and by raw value (legacy rows only).
+  await db.delete(sessions).where(eq(sessions.token, hashSessionToken(token)));
   await db.delete(sessions).where(eq(sessions.token, token));
 }
 
 export async function getSessionUser(token: string) {
   if (!token) return null;
+  const hashed = hashSessionToken(token);
   let row: { user: typeof users.$inferSelect; session: typeof sessions.$inferSelect } | undefined;
   try {
-    const rows = await db
-      .select({ user: users, session: sessions })
-      .from(sessions)
-      .innerJoin(users, eq(users.id, sessions.userId))
-      .where(eq(sessions.token, token))
-      .limit(1);
-    row = rows[0];
+    row = await lookupSessionRow(hashed);
+    if (!row) {
+      // Transitional compatibility: sessions created before hash-at-rest
+      // stored the raw token. If such a legacy row is presented, upgrade it
+      // in place to hash storage on first use. Only pre-existing rows can
+      // ever match the raw path — new sessions are hashed on creation.
+      const legacyRow = await lookupSessionRow(token);
+      if (legacyRow) {
+        try {
+          await db.update(sessions).set({ token: hashed }).where(eq(sessions.token, token));
+        } catch {}
+        row = legacyRow;
+      }
+    }
   } catch (e) {
     throw new Error("Authentication/Database error: Access denied");
   }
   if (!row) return null;
   if (row.session.expiresAt && new Date(row.session.expiresAt) < new Date()) {
-    // expired — clean up
+    // expired — clean up (hash form first, raw form for any legacy row)
     try {
+      await db.delete(sessions).where(eq(sessions.token, hashed));
       await db.delete(sessions).where(eq(sessions.token, token));
     } catch {}
     return null;

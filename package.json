@@ -7,7 +7,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/**/*.test.ts",
+    "test": "node --experimental-test-module-mocks --import tsx --test tests/**/*.test.ts",
     "seed": "tsx src/scripts/seed.ts",
     "db:check": "tsx src/scripts/check-db.ts"
   },
