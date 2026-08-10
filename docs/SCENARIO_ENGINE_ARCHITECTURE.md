@@ -27,7 +27,7 @@
     getProviderName()
   }
   ```
-  Expected future path: External Provider -> MarketData Service -> Storage. In current repo, providers/index.ts, externalService.ts do NOT exist (template repo). Current implementation is purely manual via recordManualPrice, but interface preserved for future.
+  Current implementation is purely manual via recordManualPrice.
 
 **Symbol Mapping:**
 - `assets` table is sole asset identity (symbol UNIQUE). No secondary mapping.

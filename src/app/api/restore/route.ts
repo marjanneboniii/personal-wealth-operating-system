@@ -50,8 +50,6 @@ const ORDER = [
   "funds",
   "users",
   "user_setup_state",
-  "import_jobs",
-  "import_records",
   "settings",
   "notifications",
   "audit_log",
