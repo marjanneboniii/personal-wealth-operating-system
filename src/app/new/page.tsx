@@ -8,7 +8,11 @@ import TransactionForm from "@/components/forms/TransactionForm";
 import { todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { listDebts } from "@/features/planning/service";
-import { ensureCoinGeckoCatalog, listCoinGeckoCatalog } from "@/features/pricing/catalog";
+import {
+  ensureCoinGeckoCatalog,
+  getMarketCatalogStatus,
+  listCoinGeckoCatalog,
+} from "@/features/pricing/catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +63,7 @@ export default async function NewTransactionPage({
     listDebts(userId ?? undefined),
     listCoinGeckoCatalog("", 500),
   ]);
+  const catalogStatus = await getMarketCatalogStatus();
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -72,6 +77,12 @@ export default async function NewTransactionPage({
           logoUrl: asset.logoUrl,
           kind: asset.kind as "crypto" | "tokenized",
         }))}
+        marketCatalogStatus={{
+          total: catalogStatus.total,
+          crypto: catalogStatus.crypto,
+          tokenized: catalogStatus.tokenized,
+          bootstrapOnly: catalogStatus.bootstrapOnly,
+        }}
         debts={debts as any}
         defaultType={defaultType}
         today={todayIso()}
