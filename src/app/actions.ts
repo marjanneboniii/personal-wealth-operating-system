@@ -43,10 +43,8 @@ import {
 } from "@/features/ledger/service";
 import { executePlanned, payInstallment } from "@/features/planning/service";
 import { completeSetup, getSetupState } from "@/features/setup/service";
-import { recordManualPrice } from "@/features/marketData/service";
-import { createPortfolioSnapshot, getPortfolioValuation } from "@/features/portfolio/service";
+import { createPortfolioSnapshot, getCurrentNetWorth, getPortfolioValuation } from "@/features/portfolio/service";
 import { getAnalyticsSummary } from "@/features/analytics/service";
-import { getHoldings, getNetWorth } from "@/features/ledger/queries";
 import { addMonthsIso, todayIso } from "@/lib/format";
 
 export type ActionResult = { ok: boolean; message: string };
@@ -163,7 +161,6 @@ function refreshAll() {
     "/reports",
     "/audit",
     "/accounts",
-    "/market-data",
     "/settings",
   ]) {
     revalidatePath(p);
@@ -899,39 +896,6 @@ export async function createPlannedAction(_p: ActionResult | null, fd: FormData)
   }
 }
 
-export async function updatePriceAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — FAIL-CLOSED: DB/auth errors DENY
-  let user: any = null;
-  try {
-    const ctx = await getAuthContext();
-    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
-    user = ctx.user;
-    if (ctx.hasAuth && user && !isAdminOrOwner(user)) {
-      return { ok: false, message: "دسترسی غیرمجاز: تغییر قیمت‌ها فقط برای مدیر امکان‌پذیر است." };
-    }
-  } catch (e: any) {
-    if (e?.message?.includes("Authentication/Database error")) {
-      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
-    }
-    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
-    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
-  }
-
-  try {
-    const assetId = String(fd.get("assetId"));
-    const price = D(String(fd.get("price"))).toString();
-    const asOf = todayIso();
-    await db
-      .insert(prices)
-      .values({ assetId, asOf, priceBase: price, source: "manual" })
-      .onConflictDoUpdate({ target: [prices.assetId, prices.asOf], set: { priceBase: price } });
-    refreshAll();
-    return { ok: true, message: "قیمت به‌روزرسانی شد." };
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "خطا" };
-  }
-}
-
 /** Snapshot engine — freezes today's valuation for historical reporting. */
 export async function takeSnapshotAction(): Promise<ActionResult> {
   let user: any = null;
@@ -948,7 +912,8 @@ export async function takeSnapshotAction(): Promise<ActionResult> {
   }
 
   try {
-    const [nw, holdings] = await Promise.all([getNetWorth(user?.id), getHoldings(user?.id)]);
+    const nw = await getCurrentNetWorth(user?.id);
+    const holdings = nw.valuation.assetValuations;
     const asOf = todayIso();
     const [snap] = await db
       .insert(snapshots)
@@ -977,8 +942,8 @@ export async function takeSnapshotAction(): Promise<ActionResult> {
           snapshotId: snap.id,
           assetId: h.assetId,
           quantity: D(h.quantity).toString(),
-          priceBase: D(h.price ?? "0").toString(),
-          valueBase: D(h.quantity).mul(h.price ?? "0").toString(),
+          priceBase: D(h.marketPrice).toString(),
+          valueBase: D(h.currentValue).toString(),
         })),
       );
     }
@@ -1084,49 +1049,6 @@ export async function fetchSetupStateAction() {
   return getSetupState();
 }
 
-
-export async function recordManualPriceAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — FAIL-CLOSED
-  let user: any = null;
-  try {
-    const ctx = await getAuthContext();
-    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
-    user = ctx.user;
-    if (ctx.hasAuth && user && !isAdminOrOwner(user)) {
-      return { ok: false, message: "دسترسی غیرمجاز: تغییر قیمت‌ها فقط برای مدیر امکان‌پذیر است." };
-    }
-  } catch (e: any) {
-    if (e?.message?.includes("Authentication/Database error")) {
-      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
-    }
-    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
-    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
-  }
-
-  try {
-    const assetId = String(fd.get("assetId") || "");
-    const price = String(fd.get("price") || "");
-    const currencyId = String(fd.get("currencyId") || "") || undefined;
-    const asOfDate = String(fd.get("asOfDate") || "") || undefined;
-    const sourceName = String(fd.get("sourceName") || "MANUAL");
-
-    if (!assetId) throw new Error("دارایی را انتخاب کنید.");
-    if (!price || Number(price) <= 0) throw new Error("قیمت باید بزرگ‌تر از صفر باشد.");
-
-    await recordManualPrice({
-      assetId,
-      price,
-      currencyId,
-      asOfDate,
-      sourceName,
-    });
-
-    refreshAll();
-    return { ok: true, message: "قیمت بازار با موفقیت ثبت شد (بدون تغییر در دفترکل)." };
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "خطای ثبت قیمت" };
-  }
-}
 
 export async function createPortfolioSnapshotAction(): Promise<ActionResult> {
   // Auth guard — FAIL-CLOSED

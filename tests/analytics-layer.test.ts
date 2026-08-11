@@ -16,9 +16,6 @@ import {
   journalEntries,
   lotConsumptions,
   lots,
-  marketPrices,
-  marketPriceSources,
-  marketSnapshots,
   portfolioRiskMetrics,
   portfolioSnapshots,
   portfolioValuations,
@@ -27,7 +24,6 @@ import {
   wealthPerformanceSnapshots,
 } from "../src/db/schema";
 import { postEntry, recordBuy } from "../src/features/ledger/service";
-import { recordManualPrice } from "../src/features/marketData/service";
 import { createPortfolioSnapshot } from "../src/features/portfolio/service";
 import { calculateGrowth } from "../src/features/analytics/performance";
 import { calculateAttribution } from "../src/features/analytics/attribution";
@@ -53,9 +49,6 @@ async function setupAnalyticsDb() {
   await db.delete(wealthPerformanceSnapshots);
   await db.delete(portfolioValuations);
   await db.delete(portfolioSnapshots);
-  await db.delete(marketSnapshots);
-  await db.delete(marketPrices);
-  await db.delete(marketPriceSources);
   await db.delete(prices);
   await db.delete(lotConsumptions);
   await db.delete(lots);
@@ -277,25 +270,6 @@ test("Test 7 — Changing UI currency preference does NOT modify accounting data
   const postingsAfter = await db.select().from(postings);
   assert.equal(postingsBefore.length, postingsAfter.length);
   assert.equal(D(postingsBefore[0].baseValue).toString(), D(postingsAfter[0].baseValue).toString());
-});
-
-test("Test 8 — Market Data isolation test (updating market prices does NOT change ledger tables)", async () => {
-  const { ethAsset } = await setupAnalyticsDb();
-
-  const entriesBefore = await db.select({ c: sql<number>`count(*)::int` }).from(journalEntries);
-  const postingsBefore = await db.select({ c: sql<number>`count(*)::int` }).from(postings);
-
-  await recordManualPrice({
-    assetId: ethAsset.id,
-    price: "5000",
-    asOfDate: todayIso(),
-  });
-
-  const entriesAfter = await db.select({ c: sql<number>`count(*)::int` }).from(journalEntries);
-  const postingsAfter = await db.select({ c: sql<number>`count(*)::int` }).from(postings);
-
-  assert.equal(entriesBefore[0].c, entriesAfter[0].c);
-  assert.equal(postingsBefore[0].c, postingsAfter[0].c);
 });
 
 test("Test 9 — Benchmark isolation test (creating/updating benchmark data NEVER creates accounts, journal entries, or postings)", async () => {

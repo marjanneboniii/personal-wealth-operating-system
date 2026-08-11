@@ -171,13 +171,6 @@ export const NAV_GROUPS: NavGroup[] = [
 /** Pinned at the bottom of the sidebar, and inside mobile "More". */
 export const SECONDARY_ITEMS: NavItem[] = [
   {
-    href: "/market-data",
-    label: "قیمت‌های بازار",
-    icon: "globe",
-    question: "آخرین قیمت‌ها چیست؟",
-    keywords: ["market", "price", "قیمت", "بازار"],
-  },
-  {
     href: "/settings",
     label: "تنظیمات",
     icon: "settings",

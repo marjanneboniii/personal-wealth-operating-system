@@ -152,16 +152,10 @@ export async function completeSetup(input: SetupInput): Promise<{ ok: boolean; m
     const insertedAccounts = await tx.insert(accounts).values(acctRows).returning();
     const acctMap = Object.fromEntries(insertedAccounts.map((a) => [a.code, a.id]));
 
-    // 7. Store Initial Price Rows for Crypto & Gold if unit prices are specified
-    if (input.cryptoUnitPrice && D(input.cryptoUnitPrice).gt(0) && assetMap.ETH) {
-      await tx.insert(prices).values({
-        assetId: assetMap.ETH,
-        asOf: today,
-        priceBase: D(input.cryptoUnitPrice).toString(),
-        source: "manual",
-      });
-    }
-
+    // 7. Physical gold is a manually valued real asset. The crypto unit price
+    // entered above is purchase/cost information only (used by the opening
+    // journal/FIFO lot below) and is deliberately NOT stored as a current
+    // crypto price. Current ETH price comes only from CoinGecko.
     if (input.goldUnitPrice && D(input.goldUnitPrice).gt(0) && assetMap.GOLD18) {
       await tx.insert(prices).values({
         assetId: assetMap.GOLD18,

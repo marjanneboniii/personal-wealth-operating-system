@@ -8,10 +8,9 @@ import {
   getFirstSnapshotAfter,
   getLiabilitiesTotal,
   getNetSavingsBetween,
-  getNetWorth,
   getSnapshotAsOf,
 } from "@/features/ledger/queries";
-import { getPortfolioValuation } from "@/features/portfolio/service";
+import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { getAnalyticsSummary } from "@/features/analytics/service";
 import { Alert, Delta, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import NetWorthChart from "@/components/charts/NetWorthChart";
@@ -80,13 +79,13 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
   const today = todayIso();
   const from = fromDateFor(range, today);
 
-  const [nw, snaps, valuation, analytics, fx] = await Promise.all([
-    getNetWorth(),
+  const [nw, snaps, analytics, fx] = await Promise.all([
+    getCurrentNetWorth(),
     db.select().from(snapshots).orderBy(desc(snapshots.asOf)).limit(420),
-    getPortfolioValuation(),
     getAnalyticsSummary(),
     getLatestUsdIrtRate(),
   ]);
+  const valuation = nw.valuation;
 
   // Baseline for the chosen range — prefer actual history, else earliest point
   const baseline = (await getSnapshotAsOf(from)) ?? (await getFirstSnapshotAfter(from)) ?? null;
@@ -121,7 +120,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
     <div className="space-y-9">
       <PageHeader
         title="ارزش خالص"
-        subtitle="آیا در حال ثروتمندتر شدن هستم؟ — ارزش خالص = دارایی‌ها − بدهی‌ها، همیشه از دفترکل مشتق می‌شود."
+        subtitle="آیا در حال ثروتمندتر شدن هستم؟ — مقدار و بدهی از Accounting؛ ارزش جاری از Valuation Layer."
         action={<RowAction kind="snapshot" label="ثبت اسنپ‌شات امروز" />}
       />
 
@@ -143,7 +142,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
             <p className="muted mt-2 text-[12px]">
               {fx.rate && (
                 <>
-                  ≈ <span className="num">{formatMoney(D(nw.netWorth).mul(fx.rate).toFixed(0), "IRT")}</span>
+                  ≈ <span className="num">{formatMoney(nw.netWorthToman, "IRT")}</span>
                   <span className="mx-1.5 opacity-50">·</span>
                 </>
               )}

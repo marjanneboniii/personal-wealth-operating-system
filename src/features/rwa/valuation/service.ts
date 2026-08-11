@@ -1,25 +1,45 @@
 /**
- * RWA Valuation Events — Because valuation is events not single price field
- * Example Apartment Purchase 50B, 2027 Appraisal 80B, 2028 Market Estimate 110B are valuation events
- * Architecture: assets -> real_estate_metadata -> ownership -> valuation_events
+ * Tenant-scoped manual valuation events for generic real assets.
+ *
+ * This service is independent from CoinGecko and the retired Market Data
+ * subsystem. It writes only real-asset valuation events after verifying an
+ * active ownership record for the same tenant.
  */
-
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { assets, marketPriceSources, rwaValuationEvents } from "@/db/schema";
+import { assets, rwaOwnershipRecords, rwaValuationEvents } from "@/db/schema";
 import { D } from "@/domain/decimal";
-import { recordManualPrice } from "@/features/marketData/service";
 import type { CreateValuationEventInput, RWAValuationEvent } from "../types";
 
-export async function createValuationEvent(input: CreateValuationEventInput): Promise<{ id: string }> {
-  const [assetRow] = await db.select().from(assets).where(eq(assets.id, input.assetId)).limit(1);
-  if (!assetRow) throw new Error(`Asset not found: ${input.assetId}`);
+async function assertRealAssetOwnership(assetId: string, userId: string | null): Promise<void> {
+  const [owned] = await db
+    .select({ id: rwaOwnershipRecords.id })
+    .from(rwaOwnershipRecords)
+    .where(and(
+      eq(rwaOwnershipRecords.assetId, assetId),
+      eq(rwaOwnershipRecords.isActive, true),
+      userId ? eq(rwaOwnershipRecords.userId, userId) : sql`${rwaOwnershipRecords.userId} is null`,
+    ))
+    .limit(1);
+  if (!owned) throw new Error("دارایی واقعی یافت نشد یا متعلق به شما نیست.");
+}
 
-  // Insert valuation event — isolated table, no FK to ledger
+export async function createValuationEvent(input: CreateValuationEventInput): Promise<{ id: string }> {
+  const userId = input.userId ?? null;
+  const [asset] = await db.select({ id: assets.id }).from(assets).where(eq(assets.id, input.assetId)).limit(1);
+  if (!asset) throw new Error(`Asset not found: ${input.assetId}`);
+  await assertRealAssetOwnership(input.assetId, userId);
+
+  const amounts = [input.priceIRR, input.priceUSD, input.priceBase].filter(Boolean);
+  if (!amounts.length || amounts.every((amount) => D(amount!).lte(0))) {
+    throw new Error("ارزش فعلی دارایی باید بزرگ‌تر از صفر باشد.");
+  }
+
   const [inserted] = await db
     .insert(rwaValuationEvents)
     .values({
       assetId: input.assetId,
+      userId,
       valuationDate: input.valuationDate,
       priceIRR: input.priceIRR ? D(input.priceIRR).toString() : null,
       priceUSD: input.priceUSD ? D(input.priceUSD).toString() : null,
@@ -27,11 +47,15 @@ export async function createValuationEvent(input: CreateValuationEventInput): Pr
       currencyId: input.currencyId ?? null,
       valuationSource: input.valuationSource ?? "manual",
       appraiser: input.appraiser ?? null,
-      sourceId: input.sourceId ?? null,
       note: input.note ?? null,
     })
     .onConflictDoUpdate({
-      target: [rwaValuationEvents.assetId, rwaValuationEvents.valuationDate, rwaValuationEvents.valuationSource],
+      target: [
+        rwaValuationEvents.userId,
+        rwaValuationEvents.assetId,
+        rwaValuationEvents.valuationDate,
+        rwaValuationEvents.valuationSource,
+      ],
       set: {
         priceIRR: input.priceIRR ? D(input.priceIRR).toString() : null,
         priceUSD: input.priceUSD ? D(input.priceUSD).toString() : null,
@@ -43,43 +67,19 @@ export async function createValuationEvent(input: CreateValuationEventInput): Pr
     })
     .returning();
 
-  // Also record into Market Data SSOT for historical tracking via existing service
-  // This ensures manual real estate valuation appears in market_snapshots for portfolio timeline
-  // Uses recordManualPrice which writes to market_prices, market_snapshots, prices — allowed because RWA has market value
-  // For dual IRR/USD, record both if provided
-  try {
-    if (input.priceUSD) {
-      await recordManualPrice({
-        assetId: input.assetId,
-        price: D(input.priceUSD).toString(),
-        asOfDate: input.valuationDate,
-        sourceName: input.valuationSource === "appraisal" ? "APPRAISAL" : "MANUAL",
-        sourceType: "manual",
-      });
-    } else if (input.priceIRR) {
-      // If only IRR provided, still record as manual price in IRR currency — need currencyId lookup for IRT?
-      // For simplicity, record IRR price as priceBase with source MANUAL — will be stored, portfolio may need currencyId
-      await recordManualPrice({
-        assetId: input.assetId,
-        price: D(input.priceIRR).toString(),
-        asOfDate: input.valuationDate,
-        sourceName: input.valuationSource === "appraisal" ? "APPRAISAL" : "MANUAL",
-        sourceType: "manual",
-      });
-    }
-  } catch {
-    // Ignore market data sync errors for RWA — valuation event itself is primary, SSOT sync best effort
-  }
-
   return { id: inserted.id };
 }
 
-export async function getValuationEvents(assetId: string): Promise<RWAValuationEvent[]> {
+export async function getValuationEvents(
+  assetId: string,
+  userId?: string | null,
+): Promise<RWAValuationEvent[]> {
   const rows = await db
     .select({
       id: rwaValuationEvents.id,
       assetId: rwaValuationEvents.assetId,
       assetSymbol: assets.symbol,
+      userId: rwaValuationEvents.userId,
       valuationDate: rwaValuationEvents.valuationDate,
       priceIRR: rwaValuationEvents.priceIRR,
       priceUSD: rwaValuationEvents.priceUSD,
@@ -87,33 +87,37 @@ export async function getValuationEvents(assetId: string): Promise<RWAValuationE
       currencyId: rwaValuationEvents.currencyId,
       valuationSource: rwaValuationEvents.valuationSource,
       appraiser: rwaValuationEvents.appraiser,
-      sourceId: rwaValuationEvents.sourceId,
       note: rwaValuationEvents.note,
       createdAt: rwaValuationEvents.createdAt,
     })
     .from(rwaValuationEvents)
     .innerJoin(assets, eq(assets.id, rwaValuationEvents.assetId))
-    .where(eq(rwaValuationEvents.assetId, assetId))
+    .where(and(
+      eq(rwaValuationEvents.assetId, assetId),
+      userId ? eq(rwaValuationEvents.userId, userId) : sql`${rwaValuationEvents.userId} is null`,
+    ))
     .orderBy(desc(rwaValuationEvents.valuationDate));
 
-  return rows.map((r) => ({
-    id: r.id,
-    assetId: r.assetId,
-    assetSymbol: r.assetSymbol,
-    valuationDate: r.valuationDate,
-    priceIRR: r.priceIRR ? r.priceIRR.toString() : null,
-    priceUSD: r.priceUSD ? r.priceUSD.toString() : null,
-    priceBase: r.priceBase ? r.priceBase.toString() : null,
-    currencyId: r.currencyId,
-    valuationSource: r.valuationSource as any,
-    appraiser: r.appraiser,
-    sourceId: r.sourceId,
-    note: r.note,
-    createdAt: r.createdAt?.toISOString() ?? new Date().toISOString(),
+  return rows.map((row) => ({
+    id: row.id,
+    assetId: row.assetId,
+    assetSymbol: row.assetSymbol,
+    userId: row.userId,
+    valuationDate: row.valuationDate,
+    priceIRR: row.priceIRR?.toString() ?? null,
+    priceUSD: row.priceUSD?.toString() ?? null,
+    priceBase: row.priceBase?.toString() ?? null,
+    currencyId: row.currencyId,
+    valuationSource: row.valuationSource as RWAValuationEvent["valuationSource"],
+    appraiser: row.appraiser,
+    note: row.note,
+    createdAt: row.createdAt?.toISOString() ?? new Date().toISOString(),
   }));
 }
 
-export async function getLatestValuation(assetId: string): Promise<RWAValuationEvent | null> {
-  const events = await getValuationEvents(assetId);
-  return events.length > 0 ? events[0] : null;
+export async function getLatestValuation(
+  assetId: string,
+  userId?: string | null,
+): Promise<RWAValuationEvent | null> {
+  return (await getValuationEvents(assetId, userId))[0] ?? null;
 }

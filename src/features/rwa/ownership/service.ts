@@ -39,7 +39,7 @@ export async function createOwnershipRecord(input: CreateOwnershipInput): Promis
   return { id: inserted.id };
 }
 
-export async function getOwnershipRecords(assetId: string): Promise<RWAOwnershipRecord[]> {
+export async function getOwnershipRecords(assetId: string, userId?: string): Promise<RWAOwnershipRecord[]> {
   const rows = await db
     .select({
       id: rwaOwnershipRecords.id,
@@ -60,7 +60,13 @@ export async function getOwnershipRecords(assetId: string): Promise<RWAOwnership
     })
     .from(rwaOwnershipRecords)
     .innerJoin(assets, eq(assets.id, rwaOwnershipRecords.assetId))
-    .where(eq(rwaOwnershipRecords.assetId, assetId))
+    // Tenant scoping is enforced in SQL. A NULL owner is never shared with an
+    // authenticated tenant.
+    .where(
+      userId
+        ? and(eq(rwaOwnershipRecords.assetId, assetId), eq(rwaOwnershipRecords.userId, userId))
+        : eq(rwaOwnershipRecords.assetId, assetId),
+    )
     .orderBy(desc(rwaOwnershipRecords.acquisitionDate));
 
   return rows.map((r) => ({

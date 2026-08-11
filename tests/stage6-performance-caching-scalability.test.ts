@@ -13,8 +13,6 @@ import {
   journalEntries,
   lots,
   lotConsumptions,
-  marketPrices,
-  marketSnapshots,
   postings,
   prices,
   users,
@@ -41,7 +39,6 @@ import {
 import { getPortfolioValuation } from "../src/features/portfolio/service";
 import { listBudgets } from "../src/features/planning/service";
 import { getUserFxRate, invalidateUserFxRateCache, updateUserFxRate } from "../src/features/fx/userRate";
-import { getMarketPrices, invalidateMarketPricesCache, recordManualPrice } from "../src/features/marketData/service";
 import { runStage3IntegrityAudit } from "../src/features/integrity/service";
 import { getAuditLogs, sanitizeAuditData } from "../src/lib/audit";
 import { D, Decimal } from "../src/domain/decimal";
@@ -58,8 +55,6 @@ async function setupStage6Scenario() {
   await db.delete(accounts);
   await db.delete(wallets);
   await db.delete(prices);
-  await db.delete(marketPrices);
-  await db.delete(marketSnapshots);
   await db.delete(assets);
   await db.delete(assetClasses);
   await db.delete(currencies);
@@ -67,7 +62,6 @@ async function setupStage6Scenario() {
   await db.delete(users);
 
   invalidateUserFxRateCache(null);
-  invalidateMarketPricesCache();
 
   const [usd] = await db.insert(currencies).values({ code: "USD", name: "US Dollar", symbol: "$", decimals: 2, isFiat: true } as any).returning();
   const [irt] = await db.insert(currencies).values({ code: "IRT", name: "Toman", symbol: "T", decimals: 0, isFiat: true } as any).returning();
@@ -213,8 +207,6 @@ test("STAGE 6 (#1-#6, PART 44-46, 104-108) — Golden Dataset Comparison: Exact 
   // Exercise Caching, N+1 query elimination, and Current FX update
   await getUserFxRate(userA.id);
   await getUserFxRate(userA.id); // From cache
-  await getMarketPrices(btc.id);
-  await getMarketPrices(btc.id); // From cache
 
   // Verify Exact Equality (Before === After) across all financial metrics
   const afterHoldings = await getHoldings(userA.id);
@@ -238,7 +230,7 @@ test("STAGE 6 (#1-#6, PART 44-46, 104-108) — Golden Dataset Comparison: Exact 
   assert.equal(parseFloat(afterSnapExp.fxRate), 190000, "Historical Expense FX = 190,000");
 });
 
-test("STAGE 6 (#7-#10, PART 23-34, 70-72, 114) — Safe Caching Strategy: FX & Market Price TTL Cache, Immediate Invalidation, User Isolation", async () => {
+test("STAGE 6 (#7-#10, PART 23-34, 70-72, 114) — Safe Caching Strategy: FX TTL Cache, Immediate Invalidation, User Isolation", async () => {
   const { btc, userA, userB } = await setupStage6Scenario();
 
   // Test User FX Cache
@@ -255,20 +247,6 @@ test("STAGE 6 (#7-#10, PART 23-34, 70-72, 114) — Safe Caching Strategy: FX & M
   const rateAAfter = await getUserFxRate(userA.id);
   assert.equal(parseFloat(rateAAfter.rate), 250000, "Cache invalidated immediately after updateUserFxRate");
 
-  // Test Market Price Cache & Invalidation
-  await recordManualPrice({
-    assetId: btc.id,
-    price: "100000",
-  });
-  const quotes1 = await getMarketPrices(btc.id);
-  assert.equal(parseFloat(quotes1[0].price), 100000);
-
-  await recordManualPrice({
-    assetId: btc.id,
-    price: "105000",
-  });
-  const quotes2 = await getMarketPrices(btc.id);
-  assert.equal(parseFloat(quotes2[0].price), 105000, "Market price cache invalidated immediately after recordManualPrice");
 });
 
 test("STAGE 6 (#11-#14, PART 4, 18, 41) — N+1 Query Elimination: listBudgets aggregates spend in a single batch query without loop N+1", async () => {

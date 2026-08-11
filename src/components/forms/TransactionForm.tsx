@@ -1,7 +1,9 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
-import { useActionState, useEffect, useMemo, useState, useRef } from "react";
+import { useActionState, useEffect, useMemo, useState, useRef, useTransition } from "react";
 import { createTransactionAction, type ActionResult } from "@/app/actions";
+import { registerMarketAssetAction } from "@/app/actions/pricing";
 import { formatMoney, getDualDate } from "@/lib/format";
 import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
@@ -16,6 +18,16 @@ export type AccountOption = {
   type: string;
   symbol: string | null;
   decimals: number;
+  logoUrl?: string | null;
+  coingeckoId?: string | null;
+};
+
+export type MarketAssetOption = {
+  coingeckoId: string;
+  symbol: string;
+  name: string;
+  logoUrl: string;
+  kind: "crypto" | "tokenized";
 };
 
 const TYPES = [
@@ -30,6 +42,7 @@ type TxType = (typeof TYPES)[number]["key"];
 
 type Props = {
   accounts: AccountOption[];
+  marketAssets?: MarketAssetOption[];
   debts?: DebtOption[];
   defaultType?: TxType;
   today: string;
@@ -46,6 +59,7 @@ type Props = {
 
 export default function TransactionForm({
   accounts,
+  marketAssets = [],
   debts = [],
   defaultType = "expense",
   today,
@@ -71,6 +85,10 @@ export default function TransactionForm({
   const [selectedInst, setSelectedInst] = useState<DebtOption["installments"][number] | null>(null);
   const [showExplorer, setShowExplorer] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [accountOptions, setAccountOptions] = useState(accounts);
+  const [assetSearch, setAssetSearch] = useState("");
+  const [catalogMessage, setCatalogMessage] = useState("");
+  const [registering, startRegistration] = useTransition();
 
   const { rate, date: rateDate, source: rateSource } = useLatestRate(initialRate ?? null);
   const effectiveRate = initialRate ?? rate;
@@ -80,16 +98,46 @@ export default function TransactionForm({
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(createTransactionAction, null);
 
   const meta = TYPES.find((t) => t.key === type)!;
-  const cash = accounts.filter((a) => a.type === "asset");
+  const cash = accountOptions.filter((a) => a.type === "asset");
   const primaryOptions = useMemo(() => {
     if (type === "buy" || type === "sell") return cash.filter((a) => !["IRT", "USD"].includes(a.symbol ?? ""));
     return cash;
   }, [type, cash]);
   const counterOptions = useMemo(() => {
-    if (type === "expense") return accounts.filter((a) => a.type === "expense");
-    if (type === "income") return accounts.filter((a) => a.type === "income");
+    if (type === "expense") return accountOptions.filter((a) => a.type === "expense");
+    if (type === "income") return accountOptions.filter((a) => a.type === "income");
     return cash;
-  }, [type, accounts, cash]);
+  }, [type, accountOptions, cash]);
+  const catalogMatches = useMemo(() => {
+    const query = assetSearch.trim().toLowerCase();
+    if (!query) return marketAssets.slice(0, 12);
+    return marketAssets
+      .filter((asset) =>
+        asset.symbol.toLowerCase().includes(query) ||
+        asset.name.toLowerCase().includes(query),
+      )
+      .slice(0, 20);
+  }, [assetSearch, marketAssets]);
+
+  const selectCatalogAsset = (asset: MarketAssetOption) => {
+    const existing = accountOptions.find(
+      (account) => account.coingeckoId === asset.coingeckoId,
+    );
+    if (existing) {
+      setPrimaryAccountId(existing.id);
+      setCatalogMessage(`${asset.symbol} از حساب‌های شما انتخاب شد.`);
+      return;
+    }
+
+    startRegistration(async () => {
+      const response = await registerMarketAssetAction(asset.coingeckoId);
+      setCatalogMessage(response.message);
+      if (!response.ok || !response.account) return;
+      const account: AccountOption = { ...response.account, coingeckoId: asset.coingeckoId };
+      setAccountOptions((current) => [...current, account]);
+      setPrimaryAccountId(account.id);
+    });
+  };
 
   const needsQty = type === "buy" || type === "sell" || type === "transfer";
 
@@ -104,9 +152,9 @@ export default function TransactionForm({
     setEntryDate(today);
     setType("expense");
     setShowExplorer(false);
-    const expAcc = accounts.find((a) => a.type === "expense");
+    const expAcc = accountOptions.find((a) => a.type === "expense");
     if (expAcc) setCounterAccountId(expAcc.id);
-    const cashAcc = accounts.find((a) => a.type === "asset");
+    const cashAcc = accountOptions.find((a) => a.type === "asset");
     if (cashAcc) setPrimaryAccountId(cashAcc.id);
   };
 
@@ -119,9 +167,9 @@ export default function TransactionForm({
     setEntryDate(inst.dueDate);
     setType("expense");
     setShowExplorer(false);
-    const expAcc = accounts.find((a) => a.type === "expense");
+    const expAcc = accountOptions.find((a) => a.type === "expense");
     if (expAcc) setCounterAccountId(expAcc.id);
-    const cashAcc = accounts.find((a) => a.type === "asset");
+    const cashAcc = accountOptions.find((a) => a.type === "asset");
     if (cashAcc) setPrimaryAccountId(cashAcc.id);
   };
 
@@ -257,6 +305,48 @@ export default function TransactionForm({
           </div>
         )}
 
+        {(type === "buy" || type === "sell") && (
+          <div className="space-y-2">
+            <label className="label">انتخاب دارایی از CoinGecko — نام یا نماد را جستجو کنید</label>
+            <input
+              type="search"
+              value={assetSearch}
+              onChange={(event) => setAssetSearch(event.target.value)}
+              className="field"
+              placeholder="BTC، Ethereum، یا دارایی توکنیزه…"
+              autoComplete="off"
+            />
+            <div className="grid max-h-52 gap-1.5 overflow-y-auto rounded-[var(--r-md)] border p-2 sm:grid-cols-2" style={{ borderColor: "var(--border)" }}>
+              {catalogMatches.map((asset) => {
+                const registered = accountOptions.some(
+                  (account) => account.coingeckoId === asset.coingeckoId,
+                );
+                return (
+                  <button
+                    key={asset.coingeckoId}
+                    type="button"
+                    disabled={registering}
+                    onClick={() => selectCatalogAsset(asset)}
+                    className="flex min-h-12 items-center gap-2 rounded-[var(--r-sm)] px-2.5 py-2 text-start hover:bg-[var(--surface-2)] disabled:opacity-60"
+                  >
+                    <img src={asset.logoUrl} alt="" width={28} height={28} className="h-7 w-7 rounded-full" referrerPolicy="no-referrer" />
+                    <span className="min-w-0 flex-1">
+                      <b className="block text-xs" dir="ltr">{asset.symbol}</b>
+                      <small className="muted block truncate">{asset.name}</small>
+                    </span>
+                    <span className="chip">{registered ? "انتخاب" : "ثبت"}</span>
+                  </button>
+                );
+              })}
+              {!catalogMatches.length && <p className="muted p-2 text-xs">دارایی مطابق جستجو یافت نشد.</p>}
+            </div>
+            <p className="muted text-[10.5px]">
+              نماد و لوگو فقط از کاتالوگ server-side CoinGecko ثبت می‌شوند؛ ورود دستی نماد یا قیمت جاری ممکن نیست.
+            </p>
+            {catalogMessage && <p className="text-xs" role="status">{catalogMessage}</p>}
+          </div>
+        )}
+
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label">{meta.primary}</label>
@@ -344,8 +434,8 @@ export default function TransactionForm({
               {effectiveRateDate && <div className="muted text-[10px]">تاریخ نرخ: <span dir="ltr" className="num">{effectiveRateDate}</span> · منبع: {effectiveRateSource ?? "—"}</div>}
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
-              <div><span className="muted">حساب مبدأ:</span> <strong>{accounts.find(a=>a.id===primaryAccountId)?.name ?? "—"}</strong> <span className="chip">{accounts.find(a=>a.id===primaryAccountId)?.code ?? ""}</span></div>
-              <div><span className="muted">حساب مقابل:</span> <strong>{accounts.find(a=>a.id===counterAccountId)?.name ?? "—"}</strong> <span className="chip">{accounts.find(a=>a.id===counterAccountId)?.code ?? ""}</span></div>
+              <div><span className="muted">حساب مبدأ:</span> <strong>{accountOptions.find(a=>a.id===primaryAccountId)?.name ?? "—"}</strong> <span className="chip">{accountOptions.find(a=>a.id===primaryAccountId)?.code ?? ""}</span></div>
+              <div><span className="muted">حساب مقابل:</span> <strong>{accountOptions.find(a=>a.id===counterAccountId)?.name ?? "—"}</strong> <span className="chip">{accountOptions.find(a=>a.id===counterAccountId)?.code ?? ""}</span></div>
             </div>
             <div>
               <span className="muted">تاریخ شمسی / میلادی:</span>

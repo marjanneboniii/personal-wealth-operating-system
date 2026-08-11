@@ -87,9 +87,16 @@ export const assets = pgTable(
     currencyId: uuid("currency_id").references(() => currencies.id),
     decimals: integer("decimals").notNull().default(8),
     priceSource: text("price_source").notNull().default("manual"),
+    /**
+     * Valuation identity only. These columns never participate in journal,
+     * posting, FIFO, cost-basis, or realized-P&L calculations.
+     */
+    pricingMethod: text("pricing_method").notNull().default("manual"), // coingecko | manual | face_value | unsupported
+    coingeckoId: text("coingecko_id").unique(),
+    logoUrl: text("logo_url"),
     isActive: boolean("is_active").notNull().default(true),
   },
-  (t) => [index("assets_class_idx").on(t.classId)],
+  (t) => [index("assets_class_idx").on(t.classId), index("assets_coingecko_idx").on(t.coingeckoId)],
 );
 
 export const wallets = pgTable(
@@ -265,45 +272,7 @@ export const prices = pgTable(
   (t) => [uniqueIndex("prices_asset_date_uq").on(t.assetId, t.asOf)],
 );
 
-export const marketPriceSources = pgTable("market_price_sources", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  name: text("name").notNull().unique(), // MANUAL | COINGECKO | TSETMC | API | IMPORT
-  type: text("type").notNull().default("manual"), // manual | api | import
-  description: text("description"),
-});
 
-export const marketPrices = pgTable(
-  "market_prices",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    assetId: uuid("asset_id")
-      .notNull()
-      .references(() => assets.id),
-    price: money("price").notNull(),
-    currencyId: uuid("currency_id").references(() => currencies.id),
-    priceTimestamp: timestamp("price_timestamp", { withTimezone: true }).notNull().defaultNow(),
-    sourceId: uuid("source_id").references(() => marketPriceSources.id),
-  },
-  (t) => [index("market_prices_asset_idx").on(t.assetId)],
-);
-
-export const marketSnapshots = pgTable(
-  "market_snapshots",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    assetId: uuid("asset_id")
-      .notNull()
-      .references(() => assets.id),
-    snapshotDate: date("snapshot_date").notNull(),
-    price: money("price").notNull(),
-    currencyId: uuid("currency_id").references(() => currencies.id),
-    sourceId: uuid("source_id").references(() => marketPriceSources.id),
-  },
-  (t) => [uniqueIndex("market_snapshots_uq").on(t.assetId, t.snapshotDate, t.sourceId)],
-);
 
 export const portfolioValuations = pgTable(
   "portfolio_valuations",
@@ -950,83 +919,43 @@ export const rwaValuationEvents = pgTable(
     assetId: uuid("asset_id")
       .notNull()
       .references(() => assets.id, { onDelete: "cascade" }),
+    /** Tenant owner copied from the verified ownership record for DB-level isolation. */
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     valuationDate: date("valuation_date").notNull(),
     priceIRR: money("price_irr"),
     priceUSD: money("price_usd"),
-    priceBase: money("price_base"), // generic base if needed
+    priceBase: money("price_base"),
     currencyId: uuid("currency_id").references(() => currencies.id),
-    valuationSource: text("valuation_source").notNull().default("manual"), // manual | appraisal | market_estimate | spot | book_value
+    valuationSource: text("valuation_source").notNull().default("manual"), // manual | appraisal | market_estimate | book_value
     appraiser: text("appraiser"),
-    sourceId: uuid("source_id").references(() => marketPriceSources.id),
     note: text("note"),
   },
   (t) => [
     index("rwa_valuation_asset_date_idx").on(t.assetId, t.valuationDate),
-    uniqueIndex("rwa_valuation_asset_date_source_uq").on(t.assetId, t.valuationDate, t.valuationSource),
+    index("rwa_valuation_user_idx").on(t.userId),
+    uniqueIndex("rwa_valuation_user_asset_date_source_uq").on(t.userId, t.assetId, t.valuationDate, t.valuationSource),
   ],
 );
 
 /* ------------------------------------------------------------------ */
-/* Valuation Engine — Source -> Event -> Engine                         */
+/* CoinGecko asset identity catalog — no prices and no user data.       */
 /* ------------------------------------------------------------------ */
 
-export const valuationSources = pgTable(
-  "valuation_sources",
+export const coingeckoAssetCatalog = pgTable(
+  "coingecko_asset_catalog",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }),
-    assetId: uuid("asset_id")
-      .notNull()
-      .references(() => assets.id, { onDelete: "cascade" })
-      .unique(),
-    sourceType: text("source_type").notNull().default("market_price"), // market_price | spot_price | appraisal | manual | book_value
-    primaryProviderName: text("primary_provider_name").notNull().default("MANUAL"), // COINGECKO, TSETMC, MANUAL, APPRAISAL, etc.
-    backupProviderName: text("backup_provider_name"),
+    coingeckoId: text("coingecko_id").primaryKey(),
+    symbol: text("symbol").notNull(),
+    name: text("name").notNull(),
+    logoUrl: text("logo_url").notNull(),
+    marketCapRank: integer("market_cap_rank"),
+    kind: text("kind").notNull(), // crypto | tokenized
     isActive: boolean("is_active").notNull().default(true),
-    config: text("config"), // JSON config
-  },
-  (t) => [index("valuation_sources_asset_idx").on(t.assetId)],
-);
-
-export const valuationEvents = pgTable(
-  "valuation_events",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    assetId: uuid("asset_id")
-      .notNull()
-      .references(() => assets.id, { onDelete: "cascade" }),
-    valuationDate: date("valuation_date").notNull(),
-    price: money("price").notNull(),
-    currencyId: uuid("currency_id").references(() => currencies.id),
-    sourceType: text("source_type").notNull().default("market_price"),
-    providerName: text("provider_name").notNull().default("MANUAL"),
-    sourceId: uuid("source_id").references(() => marketPriceSources.id),
-    metadata: text("metadata"), // JSON additional
-    note: text("note"),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    index("valuation_events_asset_date_idx").on(t.assetId, t.valuationDate),
-    uniqueIndex("valuation_events_asset_date_provider_uq").on(t.assetId, t.valuationDate, t.providerName),
-  ],
-);
-
-/* Market Data — CoinGecko Mapping                                        */
-/* ------------------------------------------------------------------ */
-
-export const coingeckoAssetMappings = pgTable(
-  "coingecko_asset_mappings",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    internalAssetId: text("internal_asset_id").notNull(), // uuid text for flexibility, references assets.id logically
-    coingeckoId: text("coingecko_id").notNull().unique(),
-    symbol: text("symbol"),
-    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
-  },
-  (t) => [
-    index("coingecko_mappings_asset_idx").on(t.internalAssetId),
-    index("coingecko_mappings_symbol_idx").on(t.symbol),
+    index("coingecko_catalog_symbol_idx").on(t.symbol),
+    index("coingecko_catalog_kind_rank_idx").on(t.kind, t.marketCapRank),
   ],
 );
 

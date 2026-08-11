@@ -48,14 +48,6 @@ export const fa = {
     error: "خطا",
     success: "موفقیت",
   },
-  marketData: {
-    title: "مدیریت قیمت‌های بازار (Market Data Layer)",
-    subtitle: "قیمت‌های بازار ورودی‌های ارزش‌گذاری هستند و هرگز اسناد دفترکل یا مانده حساب‌ها را تغییر نمی‌دهند.",
-    addPrice: "ثبت قیمت جدید بازار",
-    sources: "سورس‌های قیمت",
-    latestQuotes: "آخرین قیمت‌های بازار",
-    snapshots: "تاریخچه اسنپ‌شات‌های قیمت",
-  },
 };
 
 export type Translations = typeof fa;

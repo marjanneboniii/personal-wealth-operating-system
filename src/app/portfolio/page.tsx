@@ -6,7 +6,7 @@ import {
   ensureVehicleModuleReady,
   getVehiclePortfolioSummary,
 } from "@/features/rwa/vehicle/service";
-import { Alert, EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
+import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import VehiclePortfolioSection from "@/components/portfolio/VehiclePortfolioSection";
@@ -42,19 +42,27 @@ export default async function PortfolioPage() {
     <div className="space-y-8">
       <PageHeader
         title="سبد دارایی"
-        subtitle="چه چیزهایی در اختیار دارم؟ — مالکیت و بهای تمام‌شده از دفترکل (FIFO)، ارزش روز از لایه قیمت."
-        action={<SectionLink href="/market-data" label="به‌روزرسانی قیمت‌ها" />}
+        subtitle="چه چیزهایی در اختیار دارم؟ — مالکیت و بهای تمام‌شده از دفترکل (FIFO)، قیمت جاری دارایی‌های بازار از CoinGecko."
+        action={<Link href="/new?type=buy" className="btn btn-primary">ثبت خرید دارایی</Link>}
       />
+
+      {(valuation.priceStatus.stale > 0 || valuation.priceStatus.unavailable > 0) && (
+        <Alert tone="warn" title="بخشی از قیمت‌های جاری قطعی نیست">
+          {valuation.priceStatus.stale > 0 ? `${valuation.priceStatus.stale} قیمت Stale است. ` : ""}
+          {valuation.priceStatus.unavailable > 0 ? `${valuation.priceStatus.unavailable} ارزش‌گذاری Unavailable است و با Cost Basis مشخص نمایش داده می‌شود.` : ""}
+          هیچ fallback دستی برای قیمت جاری Crypto استفاده نشده است.
+        </Alert>
+      )}
 
       {/* KPI strip */}
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش روز سبد" value={formatMoney(valuation.totalNetWorth)} hint={toIrt(valuation.totalNetWorth) ?? undefined} />
+        <Metric label="ارزش روز سبد" value={formatMoney(valuation.totalNetWorth)} hint={formatMoney(valuation.totalNetWorthToman, "IRT")} />
         <Metric label="بهای تمام‌شده" value={formatMoney(valuation.totalCostBasis)} hint="روش FIFO — خوانش مستقیم از دفترکل" />
         <Metric
           label="سود/زیان تحقق‌نیافته"
           value={`${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}`}
           tone={unrealized.gte(0) ? "up" : "down"}
-          hint={`بازده کل: ${valuation.overallRoiPercentage}٪ — نمایشی، در دفترکل ثبت نمی‌شود`}
+          hint={`${formatMoney(valuation.totalUnrealizedPnlToman, "IRT")} · بازده کل: ${valuation.overallRoiPercentage}٪ — نمایشی، در دفترکل ثبت نمی‌شود`}
         />
         <Metric
           label="سود تحقق‌یافته"

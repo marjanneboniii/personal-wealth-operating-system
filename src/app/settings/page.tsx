@@ -142,7 +142,7 @@ export default async function SettingsPage() {
       <Section title="ابزارهای داده">
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
           {[
-            { href: "/market-data", label: "قیمت‌های بازار", icon: "globe" as const, q: "به‌روزرسانی دستی و منابع" },
+            { href: "/portfolio", label: "ارزش‌گذاری سبد", icon: "portfolio" as const, q: "CoinGecko و ارزش‌گذاری دستی دارایی واقعی" },
             { href: "/import", label: "درون‌ریزی داده", icon: "import" as const, q: "CSV / متن خام" },
             { href: "/setup", label: "راه‌اندازی اولیه", icon: "settings" as const, q: "پیکربندی از نو" },
           ].map((l) => (

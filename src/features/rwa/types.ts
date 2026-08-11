@@ -65,6 +65,7 @@ export type RWAValuationEvent = {
   id: string;
   assetId: string;
   assetSymbol?: string;
+  userId: string | null;
   valuationDate: string;
   priceIRR: string | null;
   priceUSD: string | null;
@@ -72,7 +73,6 @@ export type RWAValuationEvent = {
   currencyId: string | null;
   valuationSource: ValuationSource;
   appraiser: string | null;
-  sourceId: string | null;
   note: string | null;
   createdAt: string;
 };
@@ -118,6 +118,7 @@ export type CreateOwnershipInput = {
 
 export type CreateValuationEventInput = {
   assetId: string;
+  userId?: string;
   valuationDate: string;
   priceIRR?: string;
   priceUSD?: string;
@@ -125,6 +126,5 @@ export type CreateValuationEventInput = {
   currencyId?: string;
   valuationSource?: ValuationSource;
   appraiser?: string;
-  sourceId?: string;
   note?: string;
 };

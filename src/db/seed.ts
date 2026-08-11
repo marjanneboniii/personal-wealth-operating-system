@@ -142,13 +142,13 @@ export async function runSeed(): Promise<void> {
   const ast = await db
     .insert(assets)
     .values([
-      { symbol: "USD", name: "دلار (ارز پایه)", classId: classBy.cash, currencyId: curBy.USD, decimals: 2 },
-      { symbol: "IRT", name: "تومان", classId: classBy.cash, currencyId: curBy.IRT, decimals: 0 },
-      { symbol: "USDT", name: "تتر", classId: classBy.stable, networkId: netBy.TRC20, decimals: 6 },
-      { symbol: "BTC", name: "بیت‌کوین", classId: classBy.crypto, networkId: netBy.BTC, decimals: 8 },
-      { symbol: "ETH", name: "اتریوم", classId: classBy.crypto, networkId: netBy.ERC20, decimals: 8 },
-      { symbol: "GOLD18", name: "طلای ۱۸ عیار (گرم)", classId: classBy.gold, decimals: 3 },
-      { symbol: "KIAN", name: "صندوق طلای کیان", classId: classBy.fund, decimals: 0 },
+      { symbol: "USD", name: "دلار (ارز پایه)", classId: classBy.cash, currencyId: curBy.USD, decimals: 2, pricingMethod: "face_value" },
+      { symbol: "IRT", name: "تومان", classId: classBy.cash, currencyId: curBy.IRT, decimals: 0, pricingMethod: "manual" },
+      { symbol: "USDT", name: "تتر", classId: classBy.stable, networkId: netBy.TRC20, decimals: 6, pricingMethod: "coingecko", coingeckoId: "tether" },
+      { symbol: "BTC", name: "بیت‌کوین", classId: classBy.crypto, networkId: netBy.BTC, decimals: 8, pricingMethod: "coingecko", coingeckoId: "bitcoin" },
+      { symbol: "ETH", name: "اتریوم", classId: classBy.crypto, networkId: netBy.ERC20, decimals: 8, pricingMethod: "coingecko", coingeckoId: "ethereum" },
+      { symbol: "GOLD18", name: "طلای ۱۸ عیار (گرم)", classId: classBy.gold, decimals: 3, pricingMethod: "manual" },
+      { symbol: "KIAN", name: "صندوق طلای کیان", classId: classBy.fund, decimals: 0, pricingMethod: "unsupported" },
     ])
     .returning();
   const A = Object.fromEntries(ast.map((a) => [a.symbol, a.id]));

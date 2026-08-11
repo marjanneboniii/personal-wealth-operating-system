@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { getPortfolioValuation } from "@/features/portfolio/service";
 
 /**
  * Financial Integrity — the "can I trust these numbers?" engine.
@@ -31,7 +32,7 @@ async function rows<T>(query: ReturnType<typeof sql>): Promise<T[]> {
 export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
   const ranAt = new Date().toISOString();
 
-  const [unbalanced, incomplete, fifoBad, orphanLinks, stalePrices, duplicates, unreviewed] = await Promise.all([
+  const [unbalanced, incomplete, fifoBad, orphanLinks, valuationCoverage, duplicates, unreviewed] = await Promise.all([
     // 1. Ledger balance — every journal entry must sum to zero
     rows<{ id: string; description: string; entry_date: string }>(sql`
       select je.id, je.description, je.entry_date::text
@@ -69,25 +70,8 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
       where i.status = 'paid' and i.paid_entry_id is null
       limit 10
     `),
-    // 5. Valuation coverage — every held asset needs a price in the last 30 days
-    rows<{ symbol: string; name: string; last_price: string | null }>(sql`
-      with held as (
-        select p.asset_id
-        from postings p
-        join journal_entries je on je.id = p.entry_id
-        join accounts a on a.id = p.account_id
-        where je.status = 'posted' and a.type = 'asset'
-        group by p.asset_id
-        having abs(sum(p.quantity)) > 0.00000001
-      )
-      select ast.symbol, ast.name, max(pr.as_of)::text as last_price
-      from held h
-      join assets ast on ast.id = h.asset_id
-      left join prices pr on pr.asset_id = h.asset_id
-      group by ast.id, ast.symbol, ast.name
-      having max(pr.as_of) is null or max(pr.as_of) < current_date - interval '30 days'
-      limit 10
-    `),
+    // 5. Valuation coverage — CoinGecko freshness/manual valuation status.
+    getPortfolioValuation(),
     // 6. Duplicates — same day, same description, posted twice (last year)
     rows<{ description: string; entry_date: string; c: string }>(sql`
       select je.description, je.entry_date::text, count(*)::text as c
@@ -110,6 +94,9 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
   ]);
 
   const ago = (iso: string | null) => (iso ? iso.slice(0, 10) : "—");
+  const stalePrices = valuationCoverage.assetValuations
+    .filter((row) => row.priceFreshness !== "fresh")
+    .map((row) => ({ symbol: row.symbol, last_price: row.priceObservedAt }));
 
   return [
     {
@@ -171,7 +158,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
     {
       id: "price-coverage",
       title: "پوشش قیمت‌گذاری",
-      description: "ارزش روز دارایی‌ها فقط وقتی معتبر است که قیمت تازه داشته باشند؛ قیمت‌های قدیمی‌تر از ۳۰ روز علامت‌گذاری می‌شوند.",
+      description: "دارایی‌های بازار باید قیمت Fresh/Stale مشخص CoinGecko و دارایی‌های واقعی باید ارزش‌گذاری دستی معتبر داشته باشند.",
       status: stalePrices.length ? "warn" : "pass",
       outcome: stalePrices.length
         ? `${stalePrices.length} دارایی قیمت تازه ندارد — ارزش‌گذاری آن‌ها ممکن است قدیمی باشد.`
@@ -179,7 +166,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
       affected: stalePrices.length,
       samples: stalePrices.map((r) => `${r.symbol} — آخرین قیمت: ${ago(r.last_price)}`),
       severityLabel: stalePrices.length ? "هشدار" : "سالم",
-      action: stalePrices.length ? { href: "/market-data", label: "به‌روزرسانی قیمت‌ها" } : undefined,
+      action: stalePrices.length ? { href: "/portfolio", label: "بررسی وضعیت ارزش‌گذاری" } : undefined,
       ranAt,
     },
     {
