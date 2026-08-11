@@ -19,6 +19,11 @@ export async function migrateLegacyFinancialData(txDb: any = db): Promise<{
     "obligations",
     "funds",
     "snapshots",
+    // RWA ownership-anchored tables (NULL user_id must not mean "shared"):
+    // legacy rows predate auth and belong to the single legacy owner.
+    "real_estate_properties",
+    "vehicle_assets",
+    "rwa_ownership_records",
   ];
 
   let unownedCount = 0;

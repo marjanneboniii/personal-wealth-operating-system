@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/ui/Icon";
+import { purgeClientCaches } from "@/lib/swClient";
 
 type GoogleIdentity = {
   accounts?: {
@@ -72,6 +73,8 @@ export default function GoogleAuthButton({ clientId, label = "ورود با Goog
             if (!result.ok || !data.ok) {
               throw new Error(data.error || "ورود با Google انجام نشد.");
             }
+            // SECURITY (L-03): a new tenant starts with a clean device cache.
+            void purgeClientCaches();
             router.replace("/");
             router.refresh();
           } catch (error) {

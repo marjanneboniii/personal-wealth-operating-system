@@ -95,10 +95,11 @@ test("FINAL — DB Failure: getAuthContext should DENY on DB error (fail-closed)
     // This should throw Authentication/Database error, not return anonymous
     let threw = false;
     try {
-      const { getAuthContext } = await import("../src/app/actions.ts");
+      // getAuthContext is internal; import the module for its side effects only.
+      await import("../src/app/actions");
     } catch {}
-    // Instead test via createTransactionAction which uses getAuthContext internally
-    const { createWalletAction } = await import("../src/app/actions.ts");
+    // Instead test via createWalletAction which uses getAuthContext internally
+    const { createWalletAction } = await import("../src/app/actions");
     // Directly test getCurrentUser path via ledger queries? Use guard behavior
     // For now, verify that getSessionUser throws
     const { getSessionUser } = await import("../src/lib/auth");

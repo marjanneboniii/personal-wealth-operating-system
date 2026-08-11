@@ -643,7 +643,9 @@ export async function payInstallmentAction(id: string, cashAccountId: string): P
       // the current user before the installment payment posts to the ledger.
       await validateAccountOwnership(cashAccountId, user.id);
     }
-    await payInstallment(id, cashAccountId);
+    // SECURITY (M-03): tenant id flows into the service so ownership is also
+    // verified at the DB query level inside the atomic payment transaction.
+    await payInstallment(id, cashAccountId, user?.id ?? undefined);
     refreshAll();
     return { ok: true, message: "قسط پرداخت و مانده بدهی به‌روزرسانی شد." };
   } catch (e) {
@@ -1003,8 +1005,16 @@ export async function integrityCheckAction(): Promise<ActionResult> {
     : { ok: false, message: `${count} سند نامتوازن یافت شد!` };
 }
 
-export async function overviewCounts(userId?: string) {
-  const u = userId ?? (await getCurrentUser())?.id;
+export async function overviewCounts(_userId?: string) {
+  // SECURITY: the session is the ONLY source of tenant identity — a
+  // caller-provided userId is never trusted (it could name another tenant).
+  // Fail-closed in multi-user mode; legacy single-tenant installs (no auth
+  // users) keep the global view because there is exactly one tenant.
+  const { user, hasAuth } = await getAuthContext();
+  if (hasAuth && !user) {
+    throw new Error("Unauthorized: login required");
+  }
+  const u = hasAuth ? (user as { id: string }).id : undefined;
   const [a, d, i, g] = await Promise.all([
     db.select({ c: sql<number>`count(*)::int` }).from(assets),
     db.select({ c: sql<number>`count(*)::int` }).from(debts).where(u ? eq(debts.userId, u) : sql`1=1`),

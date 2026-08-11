@@ -66,8 +66,9 @@ export default async function AssetRegistryPage() {
     propertyTypes,
     fx,
   ] = await Promise.all([
-    listVehicleAssets(),
-    listOwnershipRecords(),
+    // SECURITY: pass the tenant id so reads are scoped at the DB level.
+    listVehicleAssets(userId ?? undefined),
+    listOwnershipRecords(userId ?? undefined),
     db.select().from(commodityCategories),
     db
       .select({ id: commodityItems.id, name: commodityItems.name, unit: commodityItems.defaultUnit, category: commodityCategories.name })

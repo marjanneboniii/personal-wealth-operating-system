@@ -129,16 +129,17 @@ export async function getVehicleAsset(assetId: string): Promise<VehicleAsset | n
   return mapVehicleAsset({ ...rows[0].v, assetSymbol: rows[0].assetSymbol });
 }
 
+// SECURITY (multi-user isolation): tenant scoping is applied at the DB query
+// level (WHERE user_id = :currentUserId), never by post-filtering in memory.
 export async function listVehicleAssets(userId?: string): Promise<VehicleAsset[]> {
   const rows = await db
     .select({ v: vehicleAssets, assetSymbol: assets.symbol })
     .from(vehicleAssets)
     .innerJoin(assets, eq(assets.id, vehicleAssets.assetId))
+    .where(userId ? eq(vehicleAssets.userId, userId) : undefined)
     .orderBy(desc(vehicleAssets.createdAt));
 
-  return rows
-    .filter((r) => (userId ? r.v.userId === userId : true))
-    .map((r) => mapVehicleAsset({ ...r.v, assetSymbol: r.assetSymbol }));
+  return rows.map((r) => mapVehicleAsset({ ...r.v, assetSymbol: r.assetSymbol }));
 }
 
 /* ─────────────────────── user vehicle mapping ─────────────────────── */
@@ -297,9 +298,14 @@ export async function updateVehicleDetails(input: {
     .where(eq(vehicleAssets.id, input.vehicleId));
 }
 
+// SECURITY (multi-user isolation): when a tenant identity exists (multi-user
+// system), ownership must match EXACTLY — a NULL-owned row is NOT shared data,
+// it belongs to the legacy owner only, and must not be mutable by other users.
+// When no identity exists at all (legacy single-tenant installs without auth
+// users) the check is skipped so existing deployments keep working.
 function assertOwnership(row: typeof vehicleAssets.$inferSelect, userId?: string | null) {
   if (!userId) return; // legacy single-tenant mode
-  if (row.userId && row.userId !== userId) {
+  if (row.userId !== userId) {
     throw new Error("دسترسی غیرمجاز: این خودرو متعلق به شما نیست.");
   }
 }
@@ -417,16 +423,17 @@ async function buildDashboardItem(vehicle: UserVehicle, today: string): Promise<
   };
 }
 
+// SECURITY (multi-user isolation): tenant scoping at the DB query level.
+// NULL-owned rows are NOT visible to an identified tenant (NULL ≠ shared).
 export async function listUserVehicles(userId?: string | null): Promise<UserVehicle[]> {
   const rows = await db
     .select({ v: vehicleAssets, symbol: assets.symbol })
     .from(vehicleAssets)
     .innerJoin(assets, eq(assets.id, vehicleAssets.assetId))
+    .where(userId ? eq(vehicleAssets.userId, userId) : undefined)
     .orderBy(desc(vehicleAssets.createdAt));
 
-  return rows
-    .filter((r) => (userId ? r.v.userId === userId || r.v.userId === null : true))
-    .map((r) => mapUserVehicle(r.v, r.symbol));
+  return rows.map((r) => mapUserVehicle(r.v, r.symbol));
 }
 
 export async function getVehicleDashboard(userId?: string | null): Promise<VehicleDashboardItem[]> {

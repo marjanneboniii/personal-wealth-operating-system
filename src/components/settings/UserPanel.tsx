@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Icon from "@/components/ui/Icon";
+import { purgeClientCaches } from "@/lib/swClient";
 
 type User = {
   id: string;
@@ -15,7 +16,13 @@ export default function UserPanel({ user }: { user: User }) {
   const router = useRouter();
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      // SECURITY (L-03): wipe any Service-Worker cached bytes so the next
+      // user of this device never sees the previous tenant's data.
+      await purgeClientCaches();
+    }
     router.push("/login");
     router.refresh();
   };

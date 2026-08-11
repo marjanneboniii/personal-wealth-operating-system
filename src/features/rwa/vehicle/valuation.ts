@@ -13,7 +13,7 @@
  */
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { vehicleValuationSnapshots } from "@/db/schema";
+import { vehicleAssets, vehicleValuationSnapshots } from "@/db/schema";
 import { D } from "@/domain/decimal";
 import { resolveUsdRateForDate, tomanToUsd } from "./fx";
 import { rateStr, tomanStr, usdStr } from "./num";
@@ -67,6 +67,23 @@ export async function recordVehicleValuationSnapshot(
   if (D(usdRate).lte(0)) throw new Error("نرخ دلار معتبر نیست.");
 
   const scopeId = input.userVehicleId ?? null;
+
+  // SECURITY (H-02 / IDOR): a user-scoped vehicle valuation must be anchored to a
+  // vehicle that is owned by the caller — verified at the DB query level
+  // (WHERE id = :vehicleId AND user_id = :currentUserId), not in application logic
+  // after loading another user's record. Without this, guessing a vehicle_id of
+  // another user would let an attacker attach valuation snapshots to that vehicle.
+  if (scopeId && input.createdByUserId) {
+    const [owned] = await db
+      .select({ id: vehicleAssets.id })
+      .from(vehicleAssets)
+      .where(and(eq(vehicleAssets.id, scopeId), eq(vehicleAssets.userId, input.createdByUserId)))
+      .limit(1);
+    if (!owned) {
+      throw new Error("خودرو یافت نشد یا متعلق به شما نیست.");
+    }
+  }
+
   const existing = await db
     .select()
     .from(vehicleValuationSnapshots)

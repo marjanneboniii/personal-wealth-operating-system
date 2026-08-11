@@ -208,56 +208,102 @@ export async function upcomingInstallments(limit = 8, userId?: string) {
     .limit(limit);
 }
 
-export async function payInstallment(installmentId: string, cashAccountId: string) {
-  const row = await db
-    .select({ inst: installments, debt: debts })
-    .from(installments)
-    .innerJoin(debts, eq(debts.id, installments.debtId))
-    .where(eq(installments.id, installmentId))
-    .limit(1);
-  if (!row.length) throw new Error("قسط یافت نشد");
-  const { inst, debt } = row[0];
-  if (inst.status === "paid") return { id: inst.paidEntryId ?? "", alreadyPaid: true };
-  if (!debt.accountId) throw new Error("حساب بدهی تعریف نشده است");
+/**
+ * SECURITY (M-03): atomic installment payment.
+ *
+ * Before the fix the sequence was: read installment -> post ledger entry (own
+ * transaction) -> update the installment row in a SECOND, unrelated write. A
+ * crash between the two moved money while the installment stayed "pending",
+ * and two concurrent payments could both pass the status check and post twice.
+ *
+ * Now the whole flow runs in ONE database transaction:
+ *   BEGIN
+ *     SELECT installment FOR UPDATE         (row lock closes the race)
+ *     validate installment (tenant-scoped)  (WHERE user_id = :currentUserId)
+ *     validate accounting preconditions
+ *     postEntry(tx)                         (existing single write path)
+ *     update installment status + metadata
+ *     settle debt when no pending rows left
+ *   COMMIT (ROLLBACK automatically on any failure)
+ *
+ * The ledger write itself is delegated, unchanged, to the existing postEntry.
+ */
+export async function payInstallment(installmentId: string, cashAccountId: string, userId?: string) {
+  const u = userId ?? (await resolvePlanningUserId(undefined));
+  return db.transaction(async (tx) => {
+    // 1) Validate installment - row lock first so a concurrent payment of the
+    //    same installment serializes behind us and sees the updated status.
+    await tx.execute(sql`SELECT id FROM installments WHERE id = ${installmentId} FOR UPDATE`);
 
-  const amount = D(inst.amountBase);
-  const cashUnits = await unitsFor(cashAccountId, amount.toString());
-  const debtUnits = await unitsFor(debt.accountId, amount.toString());
+    // 2) Validate ownership at the DB query level (never trust caller input):
+    //    the debt owning this installment must belong to the current tenant.
+    const row = await tx
+      .select({ inst: installments, debt: debts })
+      .from(installments)
+      .innerJoin(debts, eq(debts.id, installments.debtId))
+      .where(
+        and(
+          eq(installments.id, installmentId),
+          u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`,
+        ),
+      )
+      .limit(1);
+    if (!row.length) throw new Error("قسط یافت نشد یا متعلق به شما نیست");
+    const { inst, debt } = row[0];
+    if (inst.status === "paid") return { id: inst.paidEntryId ?? "", alreadyPaid: true };
 
-  const entry = await postEntry({
-    entryDate: todayIso(),
-    type: "installment",
-    description: `پرداخت قسط ${inst.seq} — ${debt.title}`,
-    postings: [
+    // 3) Validate accounting preconditions.
+    if (!debt.accountId) throw new Error("حساب بدهی تعریف نشده است");
+
+    const amount = D(inst.amountBase);
+    // Reference reads run INSIDE the transaction (single-connection drivers
+    // hold an exclusive lock during it) — keeps the read set consistent too.
+    const cashUnits = await unitsFor(cashAccountId, amount.toString(), tx);
+    const debtUnits = await unitsFor(debt.accountId, amount.toString(), tx);
+
+    // 4) Post the ledger movement through the EXISTING single write path,
+    //    inside this same transaction so it commits or rolls back atomically.
+    const entry = await postEntry(
       {
-        accountId: cashAccountId,
-        assetId: cashUnits.assetId,
-        quantity: D(cashUnits.quantity).neg().toString(),
-        baseValue: amount.neg().toString(),
+        entryDate: todayIso(),
+        type: "installment",
+        description: `پرداخت قسط ${inst.seq} — ${debt.title}`,
+        userId: u,
+        postings: [
+          {
+            accountId: cashAccountId,
+            assetId: cashUnits.assetId,
+            quantity: D(cashUnits.quantity).neg().toString(),
+            baseValue: amount.neg().toString(),
+          },
+          {
+            accountId: debt.accountId,
+            assetId: debtUnits.assetId,
+            quantity: debtUnits.quantity,
+            baseValue: amount.toString(),
+            memo: "کاهش مانده بدهی",
+          },
+        ],
       },
-      {
-        accountId: debt.accountId,
-        assetId: debtUnits.assetId,
-        quantity: debtUnits.quantity,
-        baseValue: amount.toString(),
-        memo: "کاهش مانده بدهی",
-      },
-    ],
+      tx,
+    );
+
+    // 5) Update installment status + payment metadata (same transaction).
+    await tx
+      .update(installments)
+      .set({ status: "paid", paidAt: todayIso(), paidEntryId: entry.id })
+      .where(eq(installments.id, installmentId));
+
+    // 6) Settle the debt once its last pending installment is paid.
+    const pending = await tx
+      .select({ c: sql<number>`count(*)::int` })
+      .from(installments)
+      .where(and(eq(installments.debtId, debt.id), eq(installments.status, "pending")));
+    if ((pending[0]?.c ?? 0) === 0) {
+      await tx.update(debts).set({ status: "settled" }).where(eq(debts.id, debt.id));
+    }
+    return entry;
   });
-
-  await db
-    .update(installments)
-    .set({ status: "paid", paidAt: todayIso(), paidEntryId: entry.id })
-    .where(eq(installments.id, installmentId));
-
-  const pending = await db
-    .select({ c: sql<number>`count(*)::int` })
-    .from(installments)
-    .where(and(eq(installments.debtId, debt.id), eq(installments.status, "pending")));
-  if ((pending[0]?.c ?? 0) === 0) {
-    await db.update(debts).set({ status: "settled" }).where(eq(debts.id, debt.id));
-  }
-  return entry;
 }
 
 /* ---------------- Planned transactions ---------------- */
