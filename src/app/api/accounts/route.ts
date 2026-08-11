@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts } from "@/db/schema";
+import { accounts, lots, postings } from "@/db/schema";
 import { authenticateApi } from "@/lib/authGuard";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +94,48 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ ok: false, error: "حساب یافت نشد یا متعلق به شما نیست." }, { status: 404 });
   }
 
-  await db.delete(accounts).where(eq(accounts.id, acc.id));
+  // SECURITY (M-02 Accounts): destructive DELETE against bookkeeping history is
+  // blocked. An account referenced by immutable ledger data (postings / FIFO
+  // lots) must never be physically removed — it is soft-archived instead so
+  // historical balances stay intact. Only accounts with ZERO financial usage
+  // may be physically removed (no postings, no lots).
+  const [postingUsage] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(postings)
+    .where(eq(postings.accountId, acc.id));
+  const [lotUsage] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(lots)
+    .where(eq(lots.accountId, acc.id));
 
-  return NextResponse.json({ ok: true, message: "حساب حذف شد." });
+  const inUse = (postingUsage?.count ?? 0) > 0 || (lotUsage?.count ?? 0) > 0;
+
+  if (inUse) {
+    await db
+      .update(accounts)
+      .set({ isActive: false, deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(accounts.id, acc.id));
+    return NextResponse.json({
+      ok: true,
+      archived: true,
+      message: "این حساب دارای سوابق مالی است و حذف فیزیکی آن ممنوع است؛ حساب آرشیو (غیرفعال) شد.",
+    });
+  }
+
+  try {
+    await db.delete(accounts).where(eq(accounts.id, acc.id));
+    return NextResponse.json({ ok: true, archived: false, message: "حساب بدون سابقه مالی حذف شد." });
+  } catch {
+    // FK references from non-ledger children (budgets/goals/planned rows …):
+    // history exists elsewhere, so archive instead of deleting.
+    await db
+      .update(accounts)
+      .set({ isActive: false, deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(accounts.id, acc.id));
+    return NextResponse.json({
+      ok: true,
+      archived: true,
+      message: "به علت داشتن ارتباطات مالی، حساب آرشیو (غیرفعال) شد.",
+    });
+  }
 }

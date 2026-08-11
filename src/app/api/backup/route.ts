@@ -63,6 +63,27 @@ const TABLES = [
 const ALLOWED_TABLES = new Set(TABLES);
 
 /**
+ * SECURITY (M-01): credential secrets/hashes must NEVER leave the server via a
+ * backup. For the `users` table a `SELECT *` is forbidden — only the explicit
+ * column whitelist below is exported. `password_hash` and `pin_hash` are
+ * intentionally ABSENT.
+ */
+const TABLE_COLUMN_WHITELISTS: Record<string, string[]> = {
+  users: [
+    "id",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "name",
+    "role",
+    "username",
+    "email",
+    "google_id",
+    "email_verified",
+  ],
+};
+
+/**
  * Security-Hardened Backup Endpoint.
  * Requires Authenticated Owner or Admin user.
  * Never exports sensitive session tokens ("sessions" table excluded).
@@ -88,7 +109,17 @@ export async function GET(request: Request) {
   let rowCount = 0;
   for (const t of TABLES) {
     if (!ALLOWED_TABLES.has(t)) continue;
-    const res = await db.execute(sql`select * from ${sql.identifier(t)}`);
+    const columnWhitelist = TABLE_COLUMN_WHITELISTS[t];
+    // `sql.identifier(...)` quoting keeps every identifier parameterized —
+    // names themselves only ever come from the fixed constants above.
+    const res = columnWhitelist
+      ? await db.execute(
+          sql`select ${sql.join(
+            columnWhitelist.map((c) => sql.identifier(c)),
+            sql`, `,
+          )} from ${sql.identifier(t)}`,
+        )
+      : await db.execute(sql`select * from ${sql.identifier(t)}`);
     data[t] = res.rows;
     rowCount += res.rows.length;
   }

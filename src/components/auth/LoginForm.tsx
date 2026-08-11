@@ -3,6 +3,7 @@
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { loginAction, type AuthResult } from "@/lib/auth-actions";
+import { purgeClientCaches } from "@/lib/swClient";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
 
 export default function LoginForm({ claimMode, googleClientId }: { claimMode?: boolean; googleClientId?: string }) {
@@ -11,6 +12,8 @@ export default function LoginForm({ claimMode, googleClientId }: { claimMode?: b
 
   useEffect(() => {
     if (state?.ok && state.redirectTo) {
+      // SECURITY (L-03): a new tenant starts with a clean device cache.
+      void purgeClientCaches();
       router.push(state.redirectTo);
       router.refresh();
     }

@@ -509,6 +509,10 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
 
 /* ─────────────────────── reads / dashboard ─────────────────────── */
 
+// SECURITY (multi-user isolation): scoping MUST happen at the DB query level
+// (WHERE user_id = :currentUserId), never via post-filtering in application code.
+// When a `userId` is provided, only rows owned by that tenant are returned;
+// NULL-owned private rows are NOT shared/system data and stay excluded.
 async function loadProperties(userId?: string | null): Promise<RealEstateAsset[]> {
   const rows = await db
     .select({
@@ -518,9 +522,10 @@ async function loadProperties(userId?: string | null): Promise<RealEstateAsset[]
     })
     .from(realEstateProperties)
     .innerJoin(assets, eq(assets.id, realEstateProperties.assetId))
+    .where(userId ? eq(realEstateProperties.userId, userId) : undefined)
     .orderBy(desc(realEstateProperties.createdAt));
 
-  const filtered = userId ? rows.filter((r) => r.p.userId === userId || r.p.userId === null) : rows;
+  const filtered = rows;
 
   const cities = await listCities(true);
   const hoods = await listNeighborhoods(undefined, true);
@@ -640,8 +645,22 @@ export async function recordRealEstateValuation(input: RecordRealEstateValuation
   currentValueUsd: string;
   valuationFxRate: string;
 }> {
-  const [prop] = await db.select().from(realEstateProperties).where(eq(realEstateProperties.id, input.propertyId)).limit(1);
-  if (!prop) throw new Error("ملک یافت نشد.");
+  // SECURITY (H-01): tenancy boundary enforced at the DATABASE query level.
+  // When a user identity is present (multi-user mode), the property is only
+  // loadable if it belongs to that exact user — a cross-user propertyId
+  // simply does not exist for this caller (404 semantics, nothing leaks and
+  // nothing can be mutated). In legacy single-tenant mode there is no
+  // identity to scope by, so the global lookup is kept.
+  const [prop] = await db
+    .select()
+    .from(realEstateProperties)
+    .where(
+      input.userId
+        ? and(eq(realEstateProperties.id, input.propertyId), eq(realEstateProperties.userId, input.userId))
+        : eq(realEstateProperties.id, input.propertyId),
+    )
+    .limit(1);
+  if (!prop) throw new Error("ملک یافت نشد یا متعلق به شما نیست.");
 
   const valuationDate = (input.valuationDate || "").slice(0, 10);
   if (!valuationDate) throw new Error("تاریخ ارزش‌گذاری (شمسی) الزامی است.");

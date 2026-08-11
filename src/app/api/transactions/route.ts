@@ -114,9 +114,21 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ ok: false, error: "سند یافت نشد یا متعلق به شما نیست." }, { status: 404 });
   }
 
-  await db.delete(journalEntries).where(eq(journalEntries.id, je.id));
+  // SECURITY (M-02 Ledger): the General Ledger is IMMUTABLE — physical deletion
+  // of journal_entries/postings is forbidden. The only destructive-looking
+  // operation allowed is the existing, audit-safe reversal mechanism, which
+  // voids the entry and posts an equal-and-opposite reversal entry (FIFO/lots
+  // are unwound by the existing logic — no new reversal system was built here).
+  try {
+    const { reverseEntry } = await import("@/features/ledger/service");
+    await reverseEntry(je.id);
+  } catch (err: any) {
+    const msg = err?.message ?? "خطا در ابطال سند";
+    const status = msg.includes("قبلاً ابطال") ? 409 : msg.includes("فروخته شده") ? 409 : 500;
+    return NextResponse.json({ ok: false, error: msg }, { status });
+  }
 
-  return NextResponse.json({ ok: true, message: "سند با موفقیت حذف شد." });
+  return NextResponse.json({ ok: true, message: "سند با موفقیت ابطال شد (ارزش معکوس ثبت گردید)." });
 }
 
 export async function POST(req: Request) {

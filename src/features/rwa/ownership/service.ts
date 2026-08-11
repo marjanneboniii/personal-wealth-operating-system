@@ -103,12 +103,12 @@ export async function listOwnershipRecords(userId?: string): Promise<RWAOwnershi
     })
     .from(rwaOwnershipRecords)
     .innerJoin(assets, eq(assets.id, rwaOwnershipRecords.assetId))
+    // SECURITY (multi-user isolation): tenant scoping at the DB query level
+    // (WHERE user_id = :currentUserId), never by post-filtering in memory.
+    .where(userId ? eq(rwaOwnershipRecords.userId, userId) : undefined)
     .orderBy(desc(rwaOwnershipRecords.acquisitionDate));
 
-  let filtered = rows;
-  if (userId) filtered = filtered.filter((r) => r.userId === userId);
-
-  return filtered.map((r) => ({
+  return rows.map((r) => ({
     id: r.id,
     assetId: r.assetId,
     assetSymbol: r.assetSymbol,

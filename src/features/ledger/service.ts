@@ -370,12 +370,20 @@ export async function postEntry(
 /** Immutable ledger: corrections are made with a mirrored reversal entry and FIFO lot restoration. */
 export async function reverseEntry(entryId: string): Promise<{ id: string }> {
   return db.transaction(async (tx) => {
+    // SECURITY (M-04): serialize concurrent reversals of the SAME entry.
+    // Lock the journal_entries row FOR UPDATE first; a concurrent reverseEntry()
+    // for this entry waits here until this transaction COMMITs or ROLLBACKs,
+    // so exactly one reversal is ever created. Uses only the existing
+    // transaction/lock primitives — the accounting logic below is unchanged.
+    await tx.execute(sql`SELECT id FROM journal_entries WHERE id = ${entryId} FOR UPDATE`);
+
     const original = await tx
       .select()
       .from(journalEntries)
       .where(eq(journalEntries.id, entryId))
       .limit(1);
     if (!original.length) throw new Error("سند یافت نشد");
+    // Verified while holding the row lock: an already-voided entry is rejected.
     if (original[0].status === "void") throw new Error("این سند قبلاً ابطال شده است");
 
     // 1. Check open lots created by this entry (for buys)
@@ -454,11 +462,18 @@ export async function reverseEntry(entryId: string): Promise<{ id: string }> {
       })),
     );
 
-    // Mark original entry as void
-    await tx
+    // Mark original entry as void. The transition is conditional
+    // (posted -> void): if the row is no longer "posted" the update affects 0
+    // rows and the whole transaction rolls back — so even in the impossible
+    // case of the initial check racing, a double reversal cannot be recorded.
+    const voided = await tx
       .update(journalEntries)
       .set({ status: "void" })
-      .where(eq(journalEntries.id, entryId));
+      .where(and(eq(journalEntries.id, entryId), eq(journalEntries.status, "posted")))
+      .returning();
+    if (!voided.length) {
+      throw new Error("این سند قبلاً ابطال شده است");
+    }
 
     await tx.insert(auditLog).values({
       action: "reverse_entry",
@@ -484,15 +499,20 @@ export async function accountByCode(code: string) {
 export async function unitsFor(
   accountId: string,
   baseAmount: string,
+  txClient?: any,
 ): Promise<{ assetId: string; quantity: string }> {
-  const row = await db
+  // `txClient ?? db`: when the caller already holds a transaction (e.g. the
+  // atomic installment payment), reference reads MUST run inside it — many
+  // drivers (PGlite) hold an exclusive lock during a transaction.
+  const client = txClient ?? db;
+  const row = await client
     .select({ assetId: accounts.assetId })
     .from(accounts)
     .where(eq(accounts.id, accountId))
     .limit(1);
   const assetId = row[0]?.assetId;
   if (!assetId) throw new Error("حساب انتخاب‌شده به هیچ دارایی متصل نیست");
-  const price = await db.execute(
+  const price = await client.execute(
     sql`select price_base::text as p from prices where asset_id = ${assetId} order by as_of desc limit 1`,
   );
   const unit = (price.rows[0] as { p?: string } | undefined)?.p ?? "1";
