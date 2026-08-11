@@ -505,6 +505,48 @@ const STATEMENTS = [
   /* Scenario Engine — isolated tables *//* Asset Registry Extension — Multi-Chain */
 
   /* Wallet Identity Layer — Separate from accounting wallets *//* External Asset Discovery — Quarantine *//* Observation Layer — DeBank, Zerion, RPC Read-Only Cache *//* Reconciliation Engine — Reporting Only *//* RWA Domain — Identity, Ownership, Valuation Separation */
+  /* Real Estate Master Data — extensible reference tables (not hard-coded) */
+  `CREATE TABLE IF NOT EXISTS cities (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    deleted_at timestamptz,
+    name_fa text NOT NULL,
+    name_en text NOT NULL,
+    code text NOT NULL UNIQUE,
+    is_active boolean NOT NULL DEFAULT true,
+    sort_order integer NOT NULL DEFAULT 0
+  );`,
+  `CREATE INDEX IF NOT EXISTS cities_active_idx ON cities(is_active);`,
+
+  `CREATE TABLE IF NOT EXISTS neighborhoods (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    deleted_at timestamptz,
+    city_id uuid NOT NULL REFERENCES cities(id) ON DELETE CASCADE,
+    name_fa text NOT NULL,
+    name_en text NOT NULL,
+    code text NOT NULL,
+    is_active boolean NOT NULL DEFAULT true,
+    sort_order integer NOT NULL DEFAULT 0
+  );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS neighborhoods_city_code_uq ON neighborhoods(city_id, code);`,
+  `CREATE INDEX IF NOT EXISTS neighborhoods_city_active_idx ON neighborhoods(city_id, is_active);`,
+
+  `CREATE TABLE IF NOT EXISTS property_types (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    deleted_at timestamptz,
+    name_fa text NOT NULL,
+    name_en text NOT NULL,
+    code text NOT NULL UNIQUE,
+    is_active boolean NOT NULL DEFAULT true,
+    sort_order integer NOT NULL DEFAULT 0
+  );`,
+  `CREATE INDEX IF NOT EXISTS property_types_active_idx ON property_types(is_active);`,
+
   `CREATE TABLE IF NOT EXISTS real_estate_properties (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -523,6 +565,31 @@ const STATEMENTS = [
   );`,
   `CREATE INDEX IF NOT EXISTS real_estate_properties_user_idx ON real_estate_properties(user_id);`,
   `CREATE INDEX IF NOT EXISTS real_estate_properties_city_area_idx ON real_estate_properties(city, area);`,
+  /* Real estate module — additive migration (master data FKs, financials, ledger link) */
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS city_id uuid REFERENCES cities(id);`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS neighborhood_id uuid REFERENCES neighborhoods(id);`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS property_type_id uuid REFERENCES property_types(id);`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS acquisition_date date;`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS acquisition_date_persian text;`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS valuation_date date;`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS valuation_date_persian text;`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS system_entry_date date;`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS is_historical boolean NOT NULL DEFAULT false;`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS purchase_price_toman numeric(38,18);`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS purchase_fx_rate numeric(38,18);`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS purchase_fx_rate_source text;`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS purchase_fx_rate_date date;`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS purchase_value_usd numeric(38,18);`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS current_value_toman numeric(38,18);`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS valuation_fx_rate numeric(38,18);`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS valuation_fx_rate_source text;`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS valuation_fx_rate_date date;`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS current_value_usd numeric(38,18);`,
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS ledger_entry_id uuid REFERENCES journal_entries(id);`,
+  `CREATE INDEX IF NOT EXISTS real_estate_properties_city_idx ON real_estate_properties(city_id);`,
+  `CREATE INDEX IF NOT EXISTS real_estate_properties_neighborhood_idx ON real_estate_properties(neighborhood_id);`,
+  `CREATE INDEX IF NOT EXISTS real_estate_properties_type_idx ON real_estate_properties(property_type_id);`,
+  `CREATE INDEX IF NOT EXISTS real_estate_properties_ledger_idx ON real_estate_properties(ledger_entry_id);`,
 
   /* Vehicle module — Catalog (Brand -> Model), immutable valuation snapshots,
      and the user's own vehicle (kept in the pre-existing vehicle_assets table

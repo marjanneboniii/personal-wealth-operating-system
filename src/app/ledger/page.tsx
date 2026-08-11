@@ -1,9 +1,10 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { seedIfEmpty } from "@/db/seed";
-import { getAccountBalances, getLedger } from "@/features/ledger/queries";
+import { getAccountBalances, getLedger, getLedgerById } from "@/features/ledger/queries";
 import { PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
@@ -12,7 +13,7 @@ import { D } from "@/domain/decimal";
 import { formatJalaliIso, formatMoney, formatQty } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { eq, inArray } from "drizzle-orm";
-import { debts, entryFxSnapshots, installments } from "@/db/schema";
+import { assets, debts, entryFxSnapshots, installments, realEstateProperties } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +21,17 @@ function shortId(id: string) {
   return "#" + id.replace(/-/g, "").slice(0, 6).toUpperCase();
 }
 
-export default async function LedgerPage() {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function LedgerPage({ searchParams }: { searchParams: SearchParams }) {
   await ensureAuth();
   await seedIfEmpty();
-  const [entries, balances, fx, integrity] = await Promise.all([
+  const sp = await searchParams;
+  // Asset ↔ ledger navigation: ?entry=ID opens that specific entry on top.
+  const focusEntryId = typeof sp.entry === "string" && sp.entry ? sp.entry : null;
+  const [baseEntries, focused, balances, fx, integrity] = await Promise.all([
     getLedger(60),
+    focusEntryId ? getLedgerById(focusEntryId) : Promise.resolve(null),
     getAccountBalances(),
     getLatestUsdIrtRate(),
     // The register certifies itself: live balance check
@@ -41,7 +48,18 @@ export default async function LedgerPage() {
   const bad = Number((integrity.rows[0] as { bad?: string } | undefined)?.bad ?? 0);
   const totalEntries = Number((integrity.rows[0] as { total?: string } | undefined)?.total ?? 0);
 
+  // The requested entry (if any) goes first and is auto-opened.
+  const entries = focused && !baseEntries.some((e) => e.id === focused.id) ? [focused, ...baseEntries] : baseEntries;
   const entryIds = entries.map((e) => e.id);
+  // Asset ↔ ledger navigation back-link: which real-estate property owns this entry?
+  const focusedProperty = focusEntryId
+    ? await db
+        .select({ id: realEstateProperties.id, name: assets.name, symbol: assets.symbol })
+        .from(realEstateProperties)
+        .innerJoin(assets, eq(assets.id, realEstateProperties.assetId))
+        .where(eq(realEstateProperties.ledgerEntryId, focusEntryId))
+        .limit(1)
+    : [];
   const [fxRows, linkedInsts] = entryIds.length
     ? await Promise.all([
         db.select().from(entryFxSnapshots).where(inArray(entryFxSnapshots.entryId, entryIds)),
@@ -151,9 +169,16 @@ export default async function LedgerPage() {
             const fxr = fxByEntry.get(e.id);
             const linked = instByEntry.get(e.id);
             const isVoid = e.status === "void";
+            const isFocused = focusEntryId === e.id;
             const sumIn = e.lines.filter((l) => Number(l.baseValue) > 0).reduce((s, l) => s + Number(l.baseValue), 0);
             return (
-              <details key={e.id} className="card group overflow-hidden">
+              <details
+                key={e.id}
+                id={e.id}
+                className={`card group overflow-hidden ${isFocused ? "ring-1" : ""}`}
+                style={isFocused ? ({ boxShadow: "0 0 0 2px var(--brand)", borderColor: "var(--brand)" } as CSSProperties) : undefined}
+                open={isFocused}
+              >
                 <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-2.5 marker:hidden [&::-webkit-details-marker]:hidden">
                   <span className="num muted hidden w-16 shrink-0 text-[10px] sm:block" dir="ltr">
                     {shortId(e.id)}
@@ -245,6 +270,13 @@ export default async function LedgerPage() {
                     {linked && (
                       <span style={{ color: "var(--positive)" }}>
                         مرتبط با قسط {linked.seq} «{linked.title}» — {linked.creditor}
+                      </span>
+                    )}
+                    {focusedProperty.length > 0 && (
+                      <span>
+                        <Link href="/asset-registry" className="font-medium underline" style={{ color: "var(--brand)" }}>
+                          ← سند تملک ملک «{focusedProperty[0].name}» ({focusedProperty[0].symbol})
+                        </Link>
                       </span>
                     )}
                     {!isVoid && (

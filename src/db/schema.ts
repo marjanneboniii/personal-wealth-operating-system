@@ -646,9 +646,66 @@ export const funds = pgTable(
 
 
 
+/* ------------------------------------------------------------------ */
+/* Real Estate Master Data — Cities, Neighborhoods, Property Types      */
+/* Extensible reference tables (NOT hard-coded): admins can add cities, */
+/* neighborhoods per city, and property types at runtime. Users can    */
+/* only pick ACTIVE entries.                                            */
+/* ------------------------------------------------------------------ */
+
+export const cities = pgTable(
+  "cities",
+  {
+    ...base,
+    nameFa: text("name_fa").notNull(),
+    nameEn: text("name_en").notNull(),
+    /** 3-letter latin code used inside generated symbols, e.g. AHZ */
+    code: text("code").notNull().unique(),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("cities_active_idx").on(t.isActive)],
+);
+
+export const neighborhoods = pgTable(
+  "neighborhoods",
+  {
+    ...base,
+    cityId: uuid("city_id")
+      .notNull()
+      .references(() => cities.id, { onDelete: "cascade" }),
+    nameFa: text("name_fa").notNull(),
+    nameEn: text("name_en").notNull(),
+    /** latin code unique per city, used inside generated symbols, e.g. KPE */
+    code: text("code").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex("neighborhoods_city_code_uq").on(t.cityId, t.code),
+    index("neighborhoods_city_active_idx").on(t.cityId, t.isActive),
+  ],
+);
+
+export const propertyTypes = pgTable(
+  "property_types",
+  {
+    ...base,
+    nameFa: text("name_fa").notNull(),
+    nameEn: text("name_en").notNull(),
+    /** latin code used inside generated symbols, e.g. APT */
+    code: text("code").notNull().unique(),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("property_types_active_idx").on(t.isActive)],
+);
+
 /* RWA Domain — Identity, Ownership, Valuation Separation              */
 /* ------------------------------------------------------------------ */
-// NOTE: No FK to journal_entries, postings, lots — only assets, users, currencies, debts
+// NOTE: The legacy identity columns (property_type/city/area) remain for
+// backward compatibility with rows created by the old free-text form.
+// New rows use the master-data FKs (city_id/neighborhood_id/property_type_id).
 
 export const realEstateProperties = pgTable(
   "real_estate_properties",
@@ -661,19 +718,56 @@ export const realEstateProperties = pgTable(
       .references(() => assets.id, { onDelete: "cascade" })
       .unique(),
     userId: uuid("user_id").references(() => users.id),
-    propertyType: text("property_type").notNull().default("apartment"), // apartment | house | land | commercial
+    /* ── legacy identity (free-text, kept for old rows) ── */
+    propertyType: text("property_type").notNull().default("apartment"),
     city: text("city").notNull().default("Ahvaz"),
-    area: text("area"), // Kianpars, Golestan, Shahrak Daneshgah, Padad, Kianabad, Zeytoon
+    area: text("area"),
+    /* ── master-data identity (new rows) ── */
+    cityId: uuid("city_id").references(() => cities.id),
+    neighborhoodId: uuid("neighborhood_id").references(() => neighborhoods.id),
+    propertyTypeId: uuid("property_type_id").references(() => propertyTypes.id),
     address: text("address"),
     sizeSqm: numeric("size_sqm", { precision: 10, scale: 2 }),
     floor: integer("floor"),
     yearBuilt: integer("year_built"),
     deedNumber: text("deed_number"),
     notes: text("notes"),
+    /* ── timing: acquisition vs system entry ── */
+    /** REAL ownership date — Gregorian/ISO, the accounting date of the entry */
+    acquisitionDate: date("acquisition_date"),
+    /** display/audit copy of the Persian date the user typed, e.g. 1404/05/20 */
+    acquisitionDatePersian: text("acquisition_date_persian"),
+    /** valuation date — Gregorian/ISO */
+    valuationDate: date("valuation_date"),
+    valuationDatePersian: text("valuation_date_persian"),
+    /** when this record was entered into the system (≠ acquisition date) */
+    systemEntryDate: date("system_entry_date"),
+    /** true when the acquisition predates the system entry (prior-period acquisition) */
+    isHistorical: boolean("is_historical").notNull().default(false),
+    /* ── purchase (historical, immutable) ── */
+    purchasePriceToman: money("purchase_price_toman"),
+    /** USD rate of the ACQUISITION date, frozen at insert */
+    purchaseFxRate: money("purchase_fx_rate"),
+    purchaseFxRateSource: text("purchase_fx_rate_source"),
+    purchaseFxRateDate: date("purchase_fx_rate_date"),
+    purchaseValueUsd: money("purchase_value_usd"),
+    /* ── current valuation (updated only by a NEW valuation) ── */
+    currentValueToman: money("current_value_toman"),
+    /** USD rate of the VALUATION date, frozen at insert */
+    valuationFxRate: money("valuation_fx_rate"),
+    valuationFxRateSource: text("valuation_fx_rate_source"),
+    valuationFxRateDate: date("valuation_fx_rate_date"),
+    currentValueUsd: money("current_value_usd"),
+    /* ── ledger link (asset ↔ journal entry navigation) ── */
+    ledgerEntryId: uuid("ledger_entry_id").references(() => journalEntries.id),
   },
   (t) => [
     index("real_estate_properties_user_idx").on(t.userId),
     index("real_estate_properties_city_area_idx").on(t.city, t.area),
+    index("real_estate_properties_city_idx").on(t.cityId),
+    index("real_estate_properties_neighborhood_idx").on(t.neighborhoodId),
+    index("real_estate_properties_type_idx").on(t.propertyTypeId),
+    index("real_estate_properties_ledger_idx").on(t.ledgerEntryId),
   ],
 );
 

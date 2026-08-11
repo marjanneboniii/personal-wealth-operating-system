@@ -180,10 +180,17 @@ export function jalaliToIso(jy: number, jm: number, jd: number): string {
   return `${String(gy).padStart(4, "0")}-${String(gm).padStart(2, "0")}-${String(gd).padStart(2, "0")}`;
 }
 
+/** Persian/Arabic digits → Latin digits. */
+export function toLatinDigits(input: string): string {
+  return (input ?? "")
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+}
+
 /** Parse Jalali string "YYYY/MM/DD" or "YYYY-MM-DD" → {y,m,d} | null */
 export function parseJalaliString(input: string): { y: number; m: number; d: number } | null {
   if (!input) return null;
-  const parts = input.trim().replace(/-/g, "/").split("/").map(Number);
+  const parts = toLatinDigits(input).trim().replace(/-/g, "/").split("/").map(Number);
   if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
   const [y, m, d] = parts;
   if (y < 1200 || y > 1600 || m < 1 || m > 12 || d < 1 || d > 31) return null;
