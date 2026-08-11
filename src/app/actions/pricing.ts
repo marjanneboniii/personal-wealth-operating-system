@@ -5,6 +5,11 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { accounts, assetClasses, assets, coingeckoAssetCatalog, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import {
+  getMarketCatalogStatus,
+  listCoinGeckoCatalog,
+  refreshCoinGeckoCatalog,
+} from "@/features/pricing/catalog";
 
 export type RegisterMarketAssetResult = {
   ok: boolean;
@@ -180,5 +185,110 @@ export async function registerMarketAssetAction(
     };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "ثبت دارایی ناموفق بود." };
+  }
+}
+
+export type MarketCatalogEntry = {
+  coingeckoId: string;
+  symbol: string;
+  name: string;
+  logoUrl: string;
+  kind: "crypto" | "tokenized";
+};
+
+export type SearchMarketCatalogResult = {
+  ok: boolean;
+  assets: MarketCatalogEntry[];
+  /** Whether the catalog only holds the offline bootstrap identities. */
+  bootstrapOnly: boolean;
+  total: number;
+  tokenized: number;
+  message?: string;
+};
+
+function toEntry(row: {
+  coingeckoId: string;
+  symbol: string;
+  name: string;
+  logoUrl: string;
+  kind: string;
+}): MarketCatalogEntry {
+  return {
+    coingeckoId: row.coingeckoId,
+    symbol: row.symbol,
+    name: row.name,
+    logoUrl: row.logoUrl,
+    kind: row.kind === "tokenized" ? "tokenized" : "crypto",
+  };
+}
+
+/**
+ * Server-side search over the full CoinGecko identity catalog (crypto + RWA).
+ * The picker no longer depends on the slice that was shipped with the page,
+ * so every synced identity — not just the first few — is reachable.
+ */
+export async function searchMarketCatalogAction(
+  query: string,
+  kind?: "crypto" | "tokenized",
+): Promise<SearchMarketCatalogResult> {
+  try {
+    await requireRegistrationIdentity();
+    const rows = await listCoinGeckoCatalog(query, 100, kind);
+    const status = await getMarketCatalogStatus();
+    return {
+      ok: true,
+      assets: rows.map(toEntry),
+      bootstrapOnly: status.bootstrapOnly,
+      total: status.total,
+      tokenized: status.tokenized,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      assets: [],
+      bootstrapOnly: true,
+      total: 0,
+      tokenized: 0,
+      message: error instanceof Error ? error.message : "جستجوی کاتالوگ ناموفق بود.",
+    };
+  }
+}
+
+/**
+ * Manual catalog re-sync (top-250 crypto + the RWA category). Read-only with
+ * respect to Accounting: it touches the identity catalog and nothing else.
+ */
+export async function refreshMarketCatalogAction(): Promise<SearchMarketCatalogResult> {
+  try {
+    await requireRegistrationIdentity();
+    const sync = await refreshCoinGeckoCatalog();
+    const status = await getMarketCatalogStatus();
+    const rows = await listCoinGeckoCatalog("", 100);
+    revalidatePath("/new");
+
+    const message =
+      sync.status === "fresh"
+        ? `کاتالوگ به‌روزرسانی شد — ${status.total} دارایی (${status.tokenized} مورد RWA/توکنیزه).`
+        : sync.status === "partial"
+          ? `به‌روزرسانی ناقص بود (${sync.failed.includes("rwa") ? "دستهٔ RWA" : "فهرست رمزارز"} پاسخ نداد) — ${status.total} دارایی در دسترس است.`
+          : "اتصال به CoinGecko برقرار نشد؛ فهرست آفلاین (شامل نمونه‌های RWA) نمایش داده می‌شود. برای فهرست کامل، دسترسی شبکه یا COINGECKO_API_KEY را بررسی کنید.";
+
+    return {
+      ok: sync.status === "fresh" || sync.status === "partial",
+      assets: rows.map(toEntry),
+      bootstrapOnly: status.bootstrapOnly,
+      total: status.total,
+      tokenized: status.tokenized,
+      message,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      assets: [],
+      bootstrapOnly: true,
+      total: 0,
+      tokenized: 0,
+      message: error instanceof Error ? error.message : "به‌روزرسانی کاتالوگ ناموفق بود.",
+    };
   }
 }
