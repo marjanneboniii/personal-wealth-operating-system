@@ -210,6 +210,33 @@ export async function getLedger(limit = 60, userId?: string): Promise<LedgerRow[
   `);
 }
 
+/** Fetch a single ledger entry by id (asset ↔ ledger navigation, e.g. ?entry=ID). */
+export async function getLedgerById(entryId: string, userId?: string): Promise<LedgerRow | null> {
+  const u = await resolveQueryUserId(userId);
+  const result = await rows<LedgerRow>(sql`
+    select je.id,
+           je.entry_date::text as "entryDate",
+           je.type, je.description, je.status, je.source,
+           coalesce(json_agg(json_build_object(
+             'account', a.name,
+             'accountType', a.type,
+             'symbol', ast.symbol,
+             'decimals', ast.decimals,
+             'quantity', p.quantity::text,
+             'baseValue', p.base_value::text,
+             'memo', p.memo
+           ) order by p.base_value desc) filter (where p.id is not null), '[]') as lines
+    from journal_entries je
+      left join postings p on p.entry_id = je.id
+      left join accounts a on a.id = p.account_id
+      left join assets ast on ast.id = p.asset_id
+    where je.id = ${entryId} ${u ? sql`and je.user_id = ${u}` : sql``}
+    group by je.id
+    limit 1
+  `);
+  return result[0] ?? null;
+}
+
 export type LotRow = {
   id: string;
   assetId: string;

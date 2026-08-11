@@ -3,7 +3,16 @@ import { ensureAuth } from "@/lib/authGuard";
 import { ensureSchemaOnce } from "@/db/init-schema";
 import { db } from "@/db";
 import { commodityCategories, commodityItems, commodityPriceRecords } from "@/db/schema";
-import { listRealEstateProperties } from "@/features/rwa/realEstate/service";
+import {
+  ensureRealEstateModuleReady,
+  getRealEstateDashboard,
+  getRealEstatePortfolioSummary,
+} from "@/features/rwa/realEstate/service";
+import {
+  listCities,
+  listNeighborhoods,
+  listPropertyTypes,
+} from "@/features/rwa/realEstate/masterData";
 import {
   ensureVehicleModuleReady,
   getVehicleDashboard,
@@ -27,6 +36,10 @@ export default async function AssetRegistryPage() {
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? null;
 
+  // Real-estate module bootstrap: schema + master-data seed (cities,
+  // neighborhoods, property types) + legacy row migration. Never destructive.
+  await ensureRealEstateModuleReady();
+
   // Vehicle module bootstrap: seed the (dynamic) catalog once and attach
   // legacy vehicle rows to it. Never destructive — existing data is preserved.
   await ensureVehicleModuleReady();
@@ -37,7 +50,6 @@ export default async function AssetRegistryPage() {
   }
 
   const [
-    properties,
     vehicles,
     ownerships,
     categories,
@@ -47,9 +59,13 @@ export default async function AssetRegistryPage() {
     vehicleModels,
     vehicleDashboard,
     vehicleSummary,
+    realEstateDashboard,
+    realEstateSummary,
+    cities,
+    neighborhoods,
+    propertyTypes,
     fx,
   ] = await Promise.all([
-    listRealEstateProperties(),
     listVehicleAssets(),
     listOwnershipRecords(),
     db.select().from(commodityCategories),
@@ -78,6 +94,11 @@ export default async function AssetRegistryPage() {
     listVehicleCatalogModels(),
     getVehicleDashboard(userId),
     getVehiclePortfolioSummary(userId),
+    getRealEstateDashboard(userId),
+    getRealEstatePortfolioSummary(userId),
+    listCities(true), // include inactive so the admin tab can manage them
+    listNeighborhoods(undefined, true),
+    listPropertyTypes(true),
     getLatestUsdIrtRateForUser(userId),
   ]);
 
@@ -88,7 +109,6 @@ export default async function AssetRegistryPage() {
         subtitle="ثبت مرحله‌ای، پیش‌نمایش شفاف و تأیید نهایی برای دارایی‌های واقعی، ارزش‌گذاری و سبد کالای شخصی."
       />
       <RegistryWorkspace
-        properties={properties}
         vehicles={vehicles}
         ownerships={ownerships}
         categories={categories}
@@ -104,6 +124,11 @@ export default async function AssetRegistryPage() {
         vehicleModels={vehicleModels}
         vehicleDashboard={vehicleDashboard}
         vehicleSummary={vehicleSummary}
+        realEstateDashboard={realEstateDashboard}
+        realEstateSummary={realEstateSummary}
+        cities={cities}
+        neighborhoods={neighborhoods}
+        propertyTypes={propertyTypes}
         ownerName={(user as { name?: string } | null)?.name ?? "کاربر فعلی"}
         fxRate={fx.rate}
       />
