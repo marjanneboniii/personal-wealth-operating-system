@@ -50,12 +50,4 @@ export const en: Translations = {
     error: "Error",
     success: "Success",
   },
-  marketData: {
-    title: "Market Data Layer Management",
-    subtitle: "Market quotes are valuation inputs only and never modify ledger entries or account balances.",
-    addPrice: "Record Market Price",
-    sources: "Price Sources",
-    latestQuotes: "Latest Market Quotes",
-    snapshots: "Historical Price Snapshots",
-  },
 };

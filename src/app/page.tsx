@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
-import { desc, sql } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { snapshots } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import {
   countUnreviewed,
   getCashflow,
-  getNetWorth,
   getTransactions,
 } from "@/features/ledger/queries";
 import { projectCashflow, upcomingInstallments } from "@/features/planning/service";
@@ -19,6 +18,7 @@ import { humanizeEntry } from "@/lib/tx";
 import { D } from "@/domain/decimal";
 import { formatMoney, formatShortDate, toJalali } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
+import { getCurrentNetWorth } from "@/features/portfolio/service";
 
 export const dynamic = "force-dynamic";
 
@@ -38,31 +38,19 @@ export default async function OverviewPage() {
   await ensureAuth();
   await seedIfEmpty();
 
-  const [setupState, nw, snaps, tx, insts, flow, projection, unreviewed, stale, fx] = await Promise.all([
+  const [setupState, nw, snaps, tx, insts, flow, projection, unreviewed, fx] = await Promise.all([
     getSetupState(),
-    getNetWorth(),
+    getCurrentNetWorth(),
     db.select().from(snapshots).orderBy(desc(snapshots.asOf)).limit(40),
     getTransactions({ limit: 6 }),
     upcomingInstallments(3),
     getCashflow(6),
     projectCashflow(6),
     countUnreviewed(),
-    db.execute(sql`
-      with held as (
-        select p.asset_id from postings p
-        join journal_entries je on je.id = p.entry_id
-        join accounts a on a.id = p.account_id
-        where je.status = 'posted' and a.type = 'asset'
-        group by p.asset_id having abs(sum(p.quantity)) > 0.00000001
-      )
-      select count(*)::text as c from held h
-      left join prices pr on pr.asset_id = h.asset_id and pr.as_of >= current_date - interval '30 days'
-      where pr.id is null
-    `),
     getLatestUsdIrtRate(),
   ]);
 
-  const staleCount = Number((stale.rows[0] as { c?: string } | undefined)?.c ?? 0);
+  const staleCount = nw.valuation.priceStatus.stale + nw.valuation.priceStatus.unavailable;
   const rate = fx.rate;
   const toIrt = (usd: string | number) => (rate ? D(usd).mul(rate).toFixed(0) : null);
 
@@ -119,8 +107,8 @@ export default async function OverviewPage() {
       tone: "warn",
       text: `${staleCount} دارایی قیمت تازه ندارد`,
       detail: "ارزش‌گذاری این دارایی‌ها ممکن است قدیمی باشد.",
-      href: "/market-data",
-      action: "به‌روزرسانی",
+      href: "/portfolio",
+      action: "بررسی ارزش‌گذاری",
     });
 
   const hasAnything = !D(nw.totalAssets).isZero();
@@ -160,9 +148,9 @@ export default async function OverviewPage() {
                 />
               )}
             </div>
-            {toIrt(nw.netWorth) && (
+            {nw.netWorthToman && (
               <p className="muted mt-2 text-[12.5px]">
-                ≈ <span className="num">{formatMoney(toIrt(nw.netWorth)!, "IRT")}</span>
+                ≈ <span className="num">{formatMoney(nw.netWorthToman, "IRT")}</span>
                 <span className="mx-1.5 opacity-50">·</span>
                 نرخ مرجع <span className="num" dir="ltr">{formatMoney(rate, "IRT")}</span> ≈ $1
               </p>
@@ -195,21 +183,19 @@ export default async function OverviewPage() {
 
         {/* Structure strip — dividers, not cards */}
         <div className="mt-6 grid grid-cols-3 divide-x divide-x-reverse border-t pt-4" style={{ borderColor: "var(--border)" }}>
-          {[
-            { label: "کل دارایی‌ها", value: nw.totalAssets, tone: "var(--text)" },
-            { label: "کل بدهی‌ها", value: D(nw.totalLiabilities).neg().toString(), tone: "var(--text)" },
-            { label: "نقدشونده", value: nw.liquid, tone: "var(--text)" },
-          ].map((m) => (
+            {[
+              { label: "کل دارایی‌ها", value: nw.totalAssets, toman: nw.totalAssetsToman, tone: "var(--text)" },
+              { label: "کل بدهی‌ها", value: D(nw.totalLiabilities).neg().toString(), toman: D(nw.totalLiabilitiesToman).neg().toString(), tone: "var(--text)" },
+              { label: "نقدشونده", value: nw.liquid, toman: nw.liquidToman, tone: "var(--text)" },
+            ].map((m) => (
             <div key={m.label} className="px-4 first:pr-0 last:pl-0" style={{ borderColor: "var(--border)" }}>
               <p className="muted text-[11px]">{m.label}</p>
               <p className="num mt-1 text-[15px] font-bold sm:text-lg" dir="ltr" style={{ color: m.tone }}>
                 {formatMoney(m.value)}
               </p>
-              {rate && (
-                <p className="muted num mt-0.5 hidden text-[10.5px] sm:block">
-                  ≈ {formatMoney(toIrt(D(m.value).abs().toString())!, "IRT")}
-                </p>
-              )}
+              <p className="muted num mt-0.5 hidden text-[10.5px] sm:block">
+                ≈ {formatMoney(D(m.toman).abs().toString(), "IRT")}
+              </p>
             </div>
           ))}
         </div>

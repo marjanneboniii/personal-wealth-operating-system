@@ -20,7 +20,9 @@ const contentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com",
   "style-src 'self' 'unsafe-inline' https://accounts.google.com",
-  "img-src 'self' data: blob:",
+  // CoinGecko catalog logos are public identity metadata; API calls and keys
+  // remain server-side. Only the two documented image CDNs are allowlisted.
+  "img-src 'self' data: blob: https://assets.coingecko.com https://coin-images.coingecko.com",
   "font-src 'self' data:",
   "connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com",
   "frame-src https://accounts.google.com",

@@ -1,144 +1,373 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  assetClasses,
   assets,
   currencies,
   portfolioSnapshots,
   portfolioValuations,
-  users,
+  realEstateProperties,
+  rwaOwnershipRecords,
+  rwaValuationEvents,
 } from "@/db/schema";
 import {
   getAccountBalances,
   getHoldings,
   getOpenLots,
 } from "@/features/ledger/queries";
-import { getMarketPrices } from "@/features/marketData/service";
 import { D, Decimal } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
-import { calculateAssetValue, calculateRoi, calculateUnrealizedPnl } from "./valuation";
+import { getLatestUsdIrtRateForUser } from "@/lib/fx";
+import { calculateMarketValuation, valueCoinGeckoAssets } from "@/features/valuation/service";
+import { calculateRoi, calculateUnrealizedPnl } from "./valuation";
 import { calculateAssetAllocation } from "./allocation";
-import { AssetValuation, PortfolioSummary } from "./types";
+import type { AssetValuation, PortfolioSummary, ValuationBasis } from "./types";
+
+const MARKET_CLASS_CODES = new Set([
+  "crypto",
+  "stable",
+  "stock",
+  "security",
+  "tokenized",
+  "tokenized_stock",
+  "tokenized_security",
+]);
+
+async function resolveValuationUserId(explicitUserId?: string): Promise<string | null> {
+  if (explicitUserId) return explicitUserId;
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    return (await getCurrentUser())?.id ?? null;
+  } catch (error: any) {
+    if (error?.message?.includes("Authentication/Database error")) throw error;
+    return null;
+  }
+}
+
+async function historicalTomanCostByAsset(userId: string | null): Promise<Map<string, string>> {
+  const response = await db.execute(sql`
+    select l.asset_id as "assetId",
+           sum(l.qty_remaining * l.unit_cost_base * fx.fx_rate)::text as "costToman"
+    from lots l
+      join entry_fx_snapshots fx on fx.entry_id = l.open_entry_id
+    where l.qty_remaining > 0 ${userId ? sql`and l.user_id = ${userId}` : sql``}
+    group by l.asset_id
+  `);
+  return new Map((response.rows as Array<{ assetId: string; costToman: string }>).map((row) => [row.assetId, row.costToman]));
+}
 
 /**
- * Service: Calculates complete Portfolio Valuation
+ * Complete current Portfolio Valuation.
  *
- * CRITICAL ARCHITECTURE RULE:
- * This service is READ-ONLY with respect to the Accounting Layer.
- * It reads balances, FIFO lots, and market prices, but NEVER creates journal entries,
- * postings, or modifies ledger records.
+ * Accounting is READ ONLY: holdings, quantities, FIFO lots, cost basis and
+ * balances are consumed through existing query primitives. This service has
+ * no journal/posting/lot/account mutation path.
  */
 export async function getPortfolioValuation(
   valuationDate = todayIso(),
-  userId?: string,
+  explicitUserId?: string,
 ): Promise<PortfolioSummary> {
-  const [holdings, openLots, marketQuotes, balances] = await Promise.all([
-    getHoldings(userId),
-    getOpenLots(undefined, userId),
-    getMarketPrices(),
-    getAccountBalances(userId),
+  const userId = await resolveValuationUserId(explicitUserId);
+  const [holdings, openLots, balances, fx, historicalTomanCosts] = await Promise.all([
+    getHoldings(userId ?? undefined),
+    getOpenLots(undefined, userId ?? undefined),
+    getAccountBalances(userId ?? undefined),
+    getLatestUsdIrtRateForUser(userId),
+    historicalTomanCostByAsset(userId),
   ]);
 
-  const quoteMap = new Map(marketQuotes.map((q) => [q.assetId, q]));
+  // Reading account balances is intentional regression protection: it keeps
+  // the same accounting source available to callers without ever mutating it.
+  void balances;
+
+  const activeHoldings = holdings.filter((holding) => D(holding.quantity).abs().gt("0.00000001"));
+  const assetIds = activeHoldings.map((holding) => holding.assetId);
+
+  const metadataRows = assetIds.length
+    ? await db
+        .select({
+          assetId: assets.id,
+          pricingMethod: assets.pricingMethod,
+          coingeckoId: assets.coingeckoId,
+          logoUrl: assets.logoUrl,
+          classCode: assetClasses.code,
+        })
+        .from(assets)
+        .innerJoin(assetClasses, eq(assetClasses.id, assets.classId))
+        .where(inArray(assets.id, assetIds))
+    : [];
+  const metadata = new Map(metadataRows.map((row) => [row.assetId, row]));
+
+  // Real-asset reads remain tenant-scoped in SQL. NULL-owned rows are never
+  // treated as shared when a tenant is known.
+  const realEstateRows = assetIds.length
+    ? await db
+        .select({
+          assetId: realEstateProperties.assetId,
+          currentValueUsd: realEstateProperties.currentValueUsd,
+          currentValueToman: realEstateProperties.currentValueToman,
+          purchasePriceToman: realEstateProperties.purchasePriceToman,
+          valuationDate: realEstateProperties.valuationDate,
+        })
+        .from(realEstateProperties)
+        .where(and(
+          inArray(realEstateProperties.assetId, assetIds),
+          userId ? eq(realEstateProperties.userId, userId) : sql`1=1`,
+        ))
+    : [];
+  const realEstate = new Map(realEstateRows.map((row) => [row.assetId, row]));
+
+  const genericOwnershipRows = assetIds.length
+    ? await db
+        .select({
+          assetId: rwaOwnershipRecords.assetId,
+          purchaseToman: rwaOwnershipRecords.acquisitionPriceIRR,
+        })
+        .from(rwaOwnershipRecords)
+        .where(and(
+          inArray(rwaOwnershipRecords.assetId, assetIds),
+          eq(rwaOwnershipRecords.isActive, true),
+          userId ? eq(rwaOwnershipRecords.userId, userId) : sql`1=1`,
+        ))
+    : [];
+  const genericPurchaseToman = new Map(genericOwnershipRows.map((row) => [row.assetId, row.purchaseToman?.toString() ?? null]));
+
+  const genericValuationRows = assetIds.length
+    ? await db
+        .select()
+        .from(rwaValuationEvents)
+        .where(and(
+          inArray(rwaValuationEvents.assetId, assetIds),
+          userId ? eq(rwaValuationEvents.userId, userId) : sql`1=1`,
+        ))
+        .orderBy(desc(rwaValuationEvents.valuationDate), desc(rwaValuationEvents.createdAt))
+    : [];
+  const latestGenericValuation = new Map<string, (typeof genericValuationRows)[number]>();
+  for (const row of genericValuationRows) {
+    if (!latestGenericValuation.has(row.assetId)) latestGenericValuation.set(row.assetId, row);
+  }
+
+  const costBasisByAsset = new Map<string, string>();
+  for (const holding of activeHoldings) {
+    const assetLots = openLots.filter((lot) => lot.assetId === holding.assetId);
+    const cost = assetLots.length
+      ? assetLots.reduce((sum, lot) => sum.add(D(lot.qtyRemaining).mul(lot.unitCostBase)), Decimal.zero())
+      : D(holding.costBase);
+    costBasisByAsset.set(holding.assetId, cost.toString());
+  }
+
+  const marketInputs = activeHoldings.flatMap((holding) => {
+    const meta = metadata.get(holding.assetId);
+    if (!meta?.coingeckoId || meta.pricingMethod !== "coingecko") return [];
+    return [{
+      assetId: holding.assetId,
+      symbol: holding.symbol,
+      coingeckoId: meta.coingeckoId,
+      quantity: holding.quantity,
+      costBasisUsd: costBasisByAsset.get(holding.assetId) ?? holding.costBase,
+      currentTomanPerUsd: fx.rate,
+      historicalCostToman: historicalTomanCosts.get(holding.assetId) ?? null,
+    }];
+  });
+  const marketValuations = await valueCoinGeckoAssets(marketInputs);
 
   let totalNetWorth = Decimal.zero();
+  let totalNetWorthToman = Decimal.zero();
   let totalCostBasis = Decimal.zero();
   let totalUnrealizedPnl = Decimal.zero();
-
-  const activeHoldings = holdings.filter((h) => D(h.quantity).abs().gt("0.00000001"));
+  let totalUnrealizedPnlToman = Decimal.zero();
   const assetValuations: AssetValuation[] = [];
 
-  for (const h of activeHoldings) {
-    const qty = D(h.quantity);
-    const quote = quoteMap.get(h.assetId);
-    const mktPrice = quote ? D(quote.price) : D(h.price ?? "0");
+  for (const holding of activeHoldings) {
+    const qty = D(holding.quantity);
+    const costBasis = costBasisByAsset.get(holding.assetId) ?? holding.costBase;
+    const meta = metadata.get(holding.assetId);
+    const market = marketValuations.get(holding.assetId);
+    const property = realEstate.get(holding.assetId);
+    const generic = latestGenericValuation.get(holding.assetId);
+    const isMarketClass = !!meta && MARKET_CLASS_CODES.has(meta.classCode.toLowerCase());
 
-    // Calculate FIFO cost basis for this asset from open lots
-    const assetLots = openLots.filter((l) => l.assetId === h.assetId);
-    let costBasisDec = Decimal.zero();
-    if (assetLots.length > 0) {
-      for (const lot of assetLots) {
-        costBasisDec = costBasisDec.add(D(lot.qtyRemaining).mul(lot.unitCostBase));
+    let marketPrice = "0";
+    let currentValue = costBasis;
+    let currentValueToman = D(costBasis).mul(fx.rate).toFixed(0);
+    let historicalCostToman = historicalTomanCosts.get(holding.assetId) ?? null;
+    let unrealizedPnl = "0";
+    let unrealizedPnlToman = "0";
+    let valuationBasis: ValuationBasis = "cost_basis_fallback";
+    let priceFreshness: AssetValuation["priceFreshness"] = "unavailable";
+    let priceObservedAt: string | null = null;
+    let priceFailureCode: string | undefined;
+
+    if (market) {
+      marketPrice = market.currentPriceUsd ?? "0";
+      currentValue = market.currentValueUsd;
+      currentValueToman = market.currentValueToman;
+      historicalCostToman = market.historicalCostToman;
+      unrealizedPnl = market.unrealizedPnlUsd;
+      unrealizedPnlToman = market.unrealizedPnlToman;
+      valuationBasis = market.currentPriceUsd ? "coingecko" : "cost_basis_fallback";
+      priceFreshness = market.freshness;
+      priceObservedAt = market.observedAt;
+      priceFailureCode = market.failureCode;
+    } else if (holding.symbol === "USD") {
+      marketPrice = "1";
+      currentValue = qty.toString();
+      currentValueToman = qty.mul(fx.rate).toFixed(0);
+      unrealizedPnl = D(currentValue).sub(costBasis).toString();
+      unrealizedPnlToman = historicalCostToman
+        ? D(currentValueToman).sub(historicalCostToman).toFixed(0)
+        : D(unrealizedPnl).mul(fx.rate).toFixed(0);
+      valuationBasis = "face_value";
+      priceFreshness = "fresh";
+    } else if (holding.symbol === "IRT" || holding.symbol === "IRR") {
+      const tomanQuantity = holding.symbol === "IRR" ? qty.div("10") : qty;
+      currentValueToman = tomanQuantity.toFixed(0);
+      currentValue = tomanQuantity.div(fx.rate).toString();
+      marketPrice = qty.isZero() ? "0" : D(currentValue).div(qty).toString();
+      unrealizedPnl = D(currentValue).sub(costBasis).toString();
+      unrealizedPnlToman = historicalCostToman
+        ? D(currentValueToman).sub(historicalCostToman).toFixed(0)
+        : D(unrealizedPnl).mul(fx.rate).toFixed(0);
+      valuationBasis = "face_value";
+      priceFreshness = "fresh";
+    } else if (property?.currentValueUsd && property.currentValueToman) {
+      currentValue = property.currentValueUsd.toString();
+      currentValueToman = D(property.currentValueToman).toFixed(0);
+      marketPrice = qty.isZero() ? "0" : D(currentValue).div(qty).toString();
+      historicalCostToman = property.purchasePriceToman ? D(property.purchasePriceToman).toFixed(0) : null;
+      unrealizedPnl = calculateUnrealizedPnl(currentValue, costBasis);
+      unrealizedPnlToman = historicalCostToman
+        ? D(currentValueToman).sub(historicalCostToman).toFixed(0)
+        : D(unrealizedPnl).mul(fx.rate).toFixed(0);
+      valuationBasis = "manual_real_asset";
+      priceFreshness = "fresh";
+      priceObservedAt = property.valuationDate ? `${property.valuationDate}T00:00:00.000Z` : null;
+    } else if (generic && (generic.priceUSD || generic.priceIRR || generic.priceBase)) {
+      const unitUsd = generic.priceUSD?.toString() ?? generic.priceBase?.toString() ?? null;
+      if (unitUsd) {
+        const calculated = calculateMarketValuation({
+          quantity: qty.toString(),
+          currentPriceUsd: unitUsd,
+          costBasisUsd: costBasis,
+          currentTomanPerUsd: fx.rate,
+          historicalCostToman: genericPurchaseToman.get(holding.assetId) ?? historicalCostToman,
+        });
+        marketPrice = unitUsd;
+        currentValue = calculated.currentValueUsd;
+        currentValueToman = generic.priceIRR
+          ? D(generic.priceIRR).mul(qty).toFixed(0)
+          : calculated.currentValueToman;
+        historicalCostToman = calculated.historicalCostToman;
+        unrealizedPnl = calculated.unrealizedPnlUsd;
+        unrealizedPnlToman = historicalCostToman
+          ? D(currentValueToman).sub(historicalCostToman).toFixed(0)
+          : calculated.unrealizedPnlToman;
+      } else if (generic.priceIRR) {
+        currentValueToman = D(generic.priceIRR).mul(qty).toFixed(0);
+        currentValue = D(currentValueToman).div(fx.rate).toString();
+        marketPrice = D(currentValue).div(qty).toString();
+        historicalCostToman = genericPurchaseToman.get(holding.assetId) ?? historicalCostToman;
+        unrealizedPnl = D(currentValue).sub(costBasis).toString();
+        unrealizedPnlToman = historicalCostToman ? D(currentValueToman).sub(historicalCostToman).toFixed(0) : "0";
       }
-    } else {
-      costBasisDec = D(h.costBase);
+      valuationBasis = "manual_real_asset";
+      priceFreshness = "fresh";
+      priceObservedAt = `${generic.valuationDate}T00:00:00.000Z`;
+    } else if (!isMarketClass && holding.price && D(holding.price).gt(0)) {
+      marketPrice = holding.price;
+      const calculated = calculateMarketValuation({
+        quantity: qty.toString(),
+        currentPriceUsd: marketPrice,
+        costBasisUsd: costBasis,
+        currentTomanPerUsd: fx.rate,
+        historicalCostToman,
+      });
+      currentValue = calculated.currentValueUsd;
+      currentValueToman = calculated.currentValueToman;
+      unrealizedPnl = calculated.unrealizedPnlUsd;
+      unrealizedPnlToman = calculated.unrealizedPnlToman;
+      valuationBasis = meta?.pricingMethod === "face_value" ? "face_value" : "manual_reference";
+      priceFreshness = "fresh";
     }
-    const costBasis = costBasisDec.toString();
-
-    // Current Market Value: Quantity * Market Price if price is available, else fallback to Cost Basis
-    const currentValue = mktPrice.gt(0)
-      ? calculateAssetValue(qty.toString(), mktPrice.toString())
-      : costBasis;
-
-    const unrealizedPnl = calculateUnrealizedPnl(currentValue, costBasis);
-    const roiPercentage = calculateRoi(currentValue, costBasis);
 
     totalNetWorth = totalNetWorth.add(currentValue);
+    totalNetWorthToman = totalNetWorthToman.add(currentValueToman);
     totalCostBasis = totalCostBasis.add(costBasis);
     totalUnrealizedPnl = totalUnrealizedPnl.add(unrealizedPnl);
+    totalUnrealizedPnlToman = totalUnrealizedPnlToman.add(unrealizedPnlToman);
 
     assetValuations.push({
-      assetId: h.assetId,
-      symbol: h.symbol,
-      name: h.name,
-      className: h.className,
-      classColor: h.classColor,
-      decimals: h.decimals,
+      assetId: holding.assetId,
+      symbol: holding.symbol,
+      name: holding.name,
+      logoUrl: meta?.logoUrl ?? null,
+      className: holding.className,
+      classColor: holding.classColor,
+      decimals: holding.decimals,
       quantity: qty.toString(),
-      marketPrice: mktPrice.toString(),
-      marketCurrencyCode: quote?.currencyCode ?? "USD",
+      marketPrice,
+      marketCurrencyCode: "USD",
       currentValue,
+      currentValueToman,
       costBasis,
+      historicalCostToman,
       unrealizedPnl,
-      roiPercentage,
-      sharePercentage: "0", // computed below after total is known
+      unrealizedPnlToman,
+      roiPercentage: calculateRoi(currentValue, costBasis),
+      sharePercentage: "0",
+      valuationBasis,
+      priceFreshness,
+      priceObservedAt,
+      priceFailureCode,
     });
   }
 
-  // Calculate percentage shares and allocation
-  const totalValStr = totalNetWorth.toString();
-  for (const av of assetValuations) {
+  for (const valuation of assetValuations) {
     if (totalNetWorth.gt(0)) {
-      av.sharePercentage = D(av.currentValue).div(totalNetWorth).mul("100").toFixed(2);
+      valuation.sharePercentage = D(valuation.currentValue).div(totalNetWorth).mul("100").toFixed(2);
     }
   }
 
-  const overallRoiPercentage = calculateRoi(totalNetWorth.toString(), totalCostBasis.toString());
-  const allocationByClass = calculateAssetAllocation(assetValuations, totalValStr);
-
+  const totalValue = totalNetWorth.toString();
   return {
-    totalNetWorth: totalValStr,
+    totalNetWorth: totalValue,
+    totalNetWorthToman: totalNetWorthToman.toFixed(0),
     totalCostBasis: totalCostBasis.toString(),
     totalUnrealizedPnl: totalUnrealizedPnl.toString(),
-    overallRoiPercentage,
+    totalUnrealizedPnlToman: totalUnrealizedPnlToman.toFixed(0),
+    overallRoiPercentage: calculateRoi(totalValue, totalCostBasis.toString()),
     assetValuations: assetValuations.sort((a, b) => Number(b.currentValue) - Number(a.currentValue)),
-    allocationByClass,
+    allocationByClass: calculateAssetAllocation(assetValuations, totalValue),
     valuationDate,
     baseCurrencyCode: "USD",
+    currentFxRate: fx.rate,
+    priceStatus: {
+      fresh: assetValuations.filter((row) => row.priceFreshness === "fresh").length,
+      stale: assetValuations.filter((row) => row.priceFreshness === "stale").length,
+      unavailable: assetValuations.filter((row) => row.priceFreshness === "unavailable").length,
+    },
   };
 }
 
 /**
- * Creates a historical wealth snapshot in portfolio_snapshots and portfolio_valuations.
- *
- * CRITICAL RULE: Writes ONLY to portfolio_snapshots and portfolio_valuations.
- * NEVER touches journal_entries or postings.
+ * Persists a user-scoped valuation OUTPUT for historical analytics. It never
+ * writes current prices into accounting or mutates holdings/cost basis.
  */
 export async function createPortfolioSnapshot(
   snapshotDate = todayIso(),
   userId?: string,
 ): Promise<{ id: string }> {
   const valuation = await getPortfolioValuation(snapshotDate, userId);
-
-  const [usdCur] = await db.select().from(currencies).where(eq(currencies.code, "USD")).limit(1);
+  const [usdCurrency] = await db.select().from(currencies).where(eq(currencies.code, "USD")).limit(1);
 
   return db.transaction(async (tx) => {
-    const [snap] = await tx
+    const [snapshot] = await tx
       .insert(portfolioSnapshots)
       .values({
         userId: userId ?? null,
         snapshotDate,
         totalPortfolioValue: valuation.totalNetWorth,
-        baseCurrencyId: usdCur?.id ?? null,
+        baseCurrencyId: usdCurrency?.id ?? null,
       })
       .onConflictDoUpdate({
         target: [portfolioSnapshots.userId, portfolioSnapshots.snapshotDate],
@@ -146,33 +375,73 @@ export async function createPortfolioSnapshot(
       })
       .returning();
 
-    // Store individual asset valuations
-    for (const av of valuation.assetValuations) {
-      await tx.insert(portfolioValuations).values({
-        userId: userId ?? null,
-        assetId: av.assetId,
-        quantity: av.quantity,
-        marketPrice: av.marketPrice,
-        totalValue: av.currentValue,
-        valuationDate: snapshotDate,
-      });
+    for (const asset of valuation.assetValuations) {
+      await tx
+        .insert(portfolioValuations)
+        .values({
+          userId: userId ?? null,
+          assetId: asset.assetId,
+          quantity: asset.quantity,
+          marketPrice: asset.marketPrice,
+          totalValue: asset.currentValue,
+          valuationDate: snapshotDate,
+        })
+        .onConflictDoUpdate({
+          target: [portfolioValuations.userId, portfolioValuations.assetId, portfolioValuations.valuationDate],
+          set: {
+            quantity: asset.quantity,
+            marketPrice: asset.marketPrice,
+            totalValue: asset.currentValue,
+          },
+        });
     }
 
-    return { id: snap.id };
+    return { id: snapshot.id };
   });
 }
 
-/**
- * Fetch detailed asset valuation info for Asset Detail View
- */
 export async function getAssetValuationDetail(assetId: string, userId?: string) {
   const summary = await getPortfolioValuation(undefined, userId);
-  const assetVal = summary.assetValuations.find((v) => v.assetId === assetId);
-  if (!assetVal) return null;
+  const asset = summary.assetValuations.find((valuation) => valuation.assetId === assetId);
+  if (!asset) return null;
+  return { ...asset, openLots: await getOpenLots(assetId, userId) };
+}
 
-  const openLots = await getOpenLots(assetId, userId);
+/**
+ * Current net worth is a Valuation output, not an Accounting mutation:
+ * valued assets come from getPortfolioValuation; liabilities remain derived
+ * read-only from the existing ledger balance primitive.
+ */
+export async function getCurrentNetWorth(userId?: string) {
+  const [valuation, balances] = await Promise.all([
+    getPortfolioValuation(undefined, userId),
+    getAccountBalances(userId),
+  ]);
+  const liabilities = balances
+    .filter((balance) => balance.type === "liability")
+    .reduce((sum, balance) => sum.add(D(balance.baseValue).neg()), Decimal.zero());
+  const liquidAssets = valuation.assetValuations.filter((asset) =>
+    ["نقد و بانک", "Cash", "استیبل‌کوین", "Stablecoin"].includes(asset.className),
+  );
+  const liquid = liquidAssets.reduce((sum, asset) => sum.add(asset.currentValue), Decimal.zero());
+  const liquidToman = liquidAssets.reduce((sum, asset) => sum.add(asset.currentValueToman), Decimal.zero());
+  const liabilitiesToman = liabilities.mul(valuation.currentFxRate);
+
   return {
-    ...assetVal,
-    openLots,
+    totalAssets: valuation.totalNetWorth,
+    totalAssetsToman: valuation.totalNetWorthToman,
+    totalLiabilities: liabilities.toString(),
+    totalLiabilitiesToman: liabilitiesToman.toFixed(0),
+    netWorth: D(valuation.totalNetWorth).sub(liabilities).toString(),
+    netWorthToman: D(valuation.totalNetWorthToman).sub(liabilitiesToman).toFixed(0),
+    liquid: liquid.toString(),
+    liquidToman: liquidToman.toFixed(0),
+    byClass: valuation.allocationByClass.map((group) => ({
+      className: group.className,
+      color: group.color,
+      value: group.value,
+      share: group.percentage,
+    })),
+    valuation,
   };
 }

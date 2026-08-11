@@ -44,7 +44,7 @@ import {
   vehicleValuationSnapshots,
   wallets,
 } from "../src/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { recordIncome, reverseEntry } from "../src/features/ledger/service";
 import { getAccountBalances } from "../src/features/ledger/queries";
 import { payInstallment } from "../src/features/planning/service";
@@ -280,7 +280,7 @@ test("SEC — Multi-user read isolation: properties, vehicles, ownership records
 /* ------------------------------------------------------------------ */
 
 test("SEC/H-01 — recordRealEstateValuation: cross-user valuation REJECTED at DB level; owner accepted", async () => {
-  const { userA, userB, propertyA } = await setupScenario();
+  const { userA, userB, propertyA, propertyB } = await setupScenario();
 
   // USER_B tries to revalue USER_A's property by guessing the id
   await assert.rejects(
@@ -289,6 +289,17 @@ test("SEC/H-01 — recordRealEstateValuation: cross-user valuation REJECTED at D
       userId: userB.id,
       valuationDate: "2026-08-01",
       currentValueToman: "9000000000",
+      valuationFxRate: "60000",
+    }),
+    /متعلق به شما نیست/,
+  );
+  // Symmetric check: USER_A cannot mutate USER_B's property either.
+  await assert.rejects(
+    recordRealEstateValuation({
+      propertyId: propertyB.id,
+      userId: userA.id,
+      valuationDate: "2026-08-01",
+      currentValueToman: "9100000000",
       valuationFxRate: "60000",
     }),
     /متعلق به شما نیست/,
@@ -314,7 +325,7 @@ test("SEC/H-01 — recordRealEstateValuation: cross-user valuation REJECTED at D
 /* ------------------------------------------------------------------ */
 
 test("SEC/H-02 — recordVehicleValuationSnapshot: snapshot on ANOTHER user's vehicle REJECTED; own vehicle accepted", async () => {
-  const { userA, userB, catalog, vehicleA } = await setupScenario();
+  const { userA, userB, catalog, vehicleA, vehicleB } = await setupScenario();
 
   await assert.rejects(
     recordVehicleValuationSnapshot({
@@ -327,11 +338,23 @@ test("SEC/H-02 — recordVehicleValuationSnapshot: snapshot on ANOTHER user's ve
     }),
     /متعلق به شما نیست/,
   );
+  // Symmetric check: USER_A cannot attach a snapshot to USER_B's vehicle.
+  await assert.rejects(
+    recordVehicleValuationSnapshot({
+      catalogId: catalog.id,
+      userVehicleId: vehicleB.id,
+      snapshotDate: "2026-08-01",
+      currentValueToman: "810000000",
+      usdRate: "60000",
+      createdByUserId: userA.id,
+    }),
+    /متعلق به شما نیست/,
+  );
 
   const leaked = await db
     .select()
     .from(vehicleValuationSnapshots)
-    .where(eq(vehicleValuationSnapshots.userVehicleId, vehicleA.id));
+    .where(inArray(vehicleValuationSnapshots.userVehicleId, [vehicleA.id, vehicleB.id]));
   assert.equal(leaked.length, 0, "no snapshot may be attached cross-tenant");
 
   // Owner path keeps working

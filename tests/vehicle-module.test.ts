@@ -446,3 +446,36 @@ test("portfolio summary aggregates snapshot USD values, never today's FX", async
   assert.equal(after.totalCurrentUsd, before.totalCurrentUsd, "FX change must not move portfolio USD totals");
   assert.equal(after.totalCurrentToman, before.totalCurrentToman);
 });
+
+test("real-asset valuation performs zero CoinGecko requests", async () => {
+  await reset();
+  await setFxRate(OWNERSHIP_DATE, "100000");
+  await setFxRate(SNAP_2, "200000");
+  const { model } = await pickModel("ایران‌خودرو");
+  const originalFetch = globalThis.fetch;
+  let coinGeckoRequests = 0;
+  globalThis.fetch = (async () => {
+    coinGeckoRequests++;
+    throw new Error("CoinGecko must not be called for a vehicle");
+  }) as typeof fetch;
+
+  try {
+    const vehicle = await createUserVehicle({
+      catalogId: model.id,
+      manufacturingYear: 1403,
+      ownershipDate: OWNERSHIP_DATE,
+      purchasePriceToman: "8500000000",
+    });
+    await recordVehicleValuationSnapshot({
+      catalogId: model.id,
+      userVehicleId: vehicle.id,
+      snapshotDate: SNAP_2,
+      currentValueToman: "10200000000",
+    });
+    const [item] = await getVehicleDashboard();
+    assert.equal(item.valuation.currentValueToman, "10200000000");
+    assert.equal(coinGeckoRequests, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

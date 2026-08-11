@@ -2,8 +2,7 @@
  * Security Remediation regression tests (Sections 24–29 of the remediation
  * mandate): role escalation, legacy claim gating, cross-user accounting,
  * cross-user journal reversal, backup/restore authorization, fake Google
- * identity rejection, session hash-at-rest, password policy and market-data
- * write gating.
+ * identity rejection, session hash-at-rest, and password policy.
  *
  * The accounting core is verified UNCHANGED here: the legitimate-owner
  * control case proves that after the authorization boundary passes, the
@@ -41,7 +40,7 @@ let accounts: any, assets: any, assetClasses: any, currencies: any,
   prices: any, sessions: any, users: any, userFxSettings: any;
 let createSession: any, hashPassword: any, hashSessionToken: any, getSessionUser: any;
 let registerAction: any, createTransactionAction: any, reverseEntryAction: any,
-  markManyReviewedAction: any, updatePriceAction: any, fetchAnalyticsSummaryAction: any;
+  markManyReviewedAction: any, fetchAnalyticsSummaryAction: any;
 let backupApi: any, restoreApi: any, googleAuthApi: any;
 
 async function loadModules() {
@@ -56,7 +55,7 @@ async function loadModules() {
   ({ registerAction } = await import("../src/lib/auth-actions"));
   ({
     createTransactionAction, reverseEntryAction, markManyReviewedAction,
-    updatePriceAction, fetchAnalyticsSummaryAction,
+    fetchAnalyticsSummaryAction,
   } = await import("../src/app/actions"));
   ({ GET: backupApi } = await import("../src/app/api/backup/route"));
   ({ POST: restoreApi } = await import("../src/app/api/restore/route"));
@@ -538,30 +537,6 @@ test("SEC-REMEDIATION — Session token stored as hash; raw token never persiste
   const { getSessionUser } = await import("../src/lib/auth");
   const sessionUser = await getSessionUser(token);
   assert.equal(sessionUser?.id, u.id);
-});
-
-// ─────────────── 12. Market data write gating ───────────────
-
-test("SEC-REMEDIATION — Market data modification denied for normal users, allowed for owner", async () => {
-  await modulesReady;
-  await cleanAll();
-  const fx = await setupFixture();
-
-  const fd = new FormData();
-  fd.set("assetId", fx.usdCash.id);
-  fd.set("price", "1");
-
-  const { token: tokenA } = await createSession(fx.userA.id);
-  cookieJar.value = tokenA;
-  const denied = await updatePriceAction(null, fd);
-  assert.equal(denied.ok, false);
-  assert.match(denied.message, /غیرمجاز|مدیر/);
-
-  const { token: tokenOwner } = await createSession(fx.ownerU.id);
-  cookieJar.value = tokenOwner;
-  const allowed = await updatePriceAction(null, fd);
-  assert.equal(allowed.ok, true, allowed.message);
-  cookieJar.value = null;
 });
 
 // ─────────────── 9. User-scoped analytics gating ───────────────

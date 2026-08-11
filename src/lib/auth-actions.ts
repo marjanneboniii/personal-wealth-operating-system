@@ -224,7 +224,6 @@ export async function updateFxRateAction(prev: AuthResult | null, formData: Form
   const result = await updateUserFxRate(user.id, rateStr);
   if (result.ok) {
     revalidatePath("/settings");
-    revalidatePath("/market-data");
     revalidatePath("/");
     revalidatePath("/net-worth");
     revalidatePath("/portfolio");

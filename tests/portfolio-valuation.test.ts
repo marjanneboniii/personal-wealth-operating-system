@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { sql, eq } from "drizzle-orm";
+import { afterEach, test } from "node:test";
+import { eq, sql } from "drizzle-orm";
 import { db } from "../src/db";
 import { createSchemaIfNotExists } from "../src/db/init-schema";
 import {
@@ -8,361 +8,225 @@ import {
   assetClasses,
   assets,
   currencies,
+  entryFxSnapshots,
   journalEntries,
   lotConsumptions,
   lots,
-  marketPrices,
-  marketPriceSources,
-  marketSnapshots,
-  portfolioSnapshots,
-  portfolioValuations,
   postings,
-  prices,
+  userFxSettings,
+  users,
 } from "../src/db/schema";
-import { postEntry, recordBuy } from "../src/features/ledger/service";
-import { recordManualPrice } from "../src/features/marketData/service";
-import {
-  createPortfolioSnapshot,
-  getPortfolioValuation,
-} from "../src/features/portfolio/service";
-import { todayIso } from "../src/lib/format";
-import { D } from "../src/domain/decimal";
+import { postEntry, recordBuy, recordSell } from "../src/features/ledger/service";
+import { getAccountBalances, getRealizedPnl } from "../src/features/ledger/queries";
+import { getPortfolioValuation } from "../src/features/portfolio/service";
+import { clearCoinGeckoPriceCache } from "../src/features/pricing/service";
+import { calculateMarketValuation } from "../src/features/valuation/service";
 
-async function setupPortfolioDb() {
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+  clearCoinGeckoPriceCache();
+});
+
+function mockCoinGeckoPrice(price: () => number) {
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ bitcoin: { usd: price(), last_updated_at: 1_786_406_400 } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+}
+
+async function resetDb() {
   await createSchemaIfNotExists();
-
-  await db.delete(portfolioValuations);
-  await db.delete(portfolioSnapshots);
-  await db.delete(marketSnapshots);
-  await db.delete(marketPrices);
-  await db.delete(marketPriceSources);
-  await db.delete(prices);
   await db.delete(lotConsumptions);
   await db.delete(lots);
+  await db.delete(entryFxSnapshots);
   await db.delete(postings);
   await db.delete(journalEntries);
   await db.delete(accounts);
+  await db.delete(userFxSettings);
   await db.delete(assets);
   await db.delete(assetClasses);
   await db.delete(currencies);
+  await db.delete(users);
+}
 
-  const [usd] = await db
-    .insert(currencies)
-    .values({ code: "USD", name: "US Dollar", symbol: "$", decimals: 2, isFiat: true })
-    .returning();
+async function setupBtcHolding() {
+  await resetDb();
+  const [user] = await db.insert(users).values({ name: "Valuation User", username: "valuation-user" }).returning();
+  await db.insert(userFxSettings).values({ userId: user.id, currentRate: "100000" });
+  const [usd] = await db.insert(currencies).values({ code: "USD", name: "US Dollar", symbol: "$" }).returning();
+  const [cashClass] = await db.insert(assetClasses).values({ code: "cash", name: "Cash" }).returning();
+  const [cryptoClass] = await db.insert(assetClasses).values({ code: "crypto", name: "Crypto" }).returning();
+  const [usdAsset] = await db.insert(assets).values({
+    symbol: "USD",
+    name: "US Dollar",
+    classId: cashClass.id,
+    currencyId: usd.id,
+    decimals: 2,
+    pricingMethod: "face_value",
+  }).returning();
+  const [btc] = await db.insert(assets).values({
+    symbol: "BTC",
+    name: "Bitcoin",
+    classId: cryptoClass.id,
+    decimals: 8,
+    pricingMethod: "coingecko",
+    priceSource: "coingecko",
+    coingeckoId: "bitcoin",
+    logoUrl: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
+  }).returning();
 
-  const [cryptoCls] = await db
-    .insert(assetClasses)
-    .values({ code: "crypto", name: "Crypto", color: "#a78bfa" })
-    .returning();
+  const [cash] = await db.insert(accounts).values({ userId: user.id, code: "1010", name: "Cash", type: "asset", assetId: usdAsset.id }).returning();
+  const [btcAccount] = await db.insert(accounts).values({ userId: user.id, code: "1200", name: "BTC", type: "asset", assetId: btc.id }).returning();
+  const [equity] = await db.insert(accounts).values({ userId: user.id, code: "3010", name: "Equity", type: "equity", assetId: usdAsset.id }).returning();
+  const [pnl] = await db.insert(accounts).values({ userId: user.id, code: "4100", name: "Realized P&L", type: "income", assetId: usdAsset.id }).returning();
 
-  const [goldCls] = await db
-    .insert(assetClasses)
-    .values({ code: "gold", name: "Precious Metals", color: "#fbbf24" })
-    .returning();
-
-  const [realEstateCls] = await db
-    .insert(assetClasses)
-    .values({ code: "real_estate", name: "Real Estate", color: "#34d399" })
-    .returning();
-
-  const [stockCls] = await db
-    .insert(assetClasses)
-    .values({ code: "stock", name: "Tokenized Stock", color: "#38bdf8" })
-    .returning();
-
-  // Assets
-  const [ethAsset] = await db
-    .insert(assets)
-    .values({ symbol: "ETH", name: "Ethereum", classId: cryptoCls.id, currencyId: usd.id, decimals: 8 })
-    .returning();
-
-  const [goldAsset] = await db
-    .insert(assets)
-    .values({ symbol: "GOLD18", name: "18k Gold", classId: goldCls.id, currencyId: usd.id, decimals: 3 })
-    .returning();
-
-  const [reAsset] = await db
-    .insert(assets)
-    .values({ symbol: "APT95", name: "Apartment 95m", classId: realEstateCls.id, currencyId: usd.id, decimals: 0 })
-    .returning();
-
-  const [aaplAsset] = await db
-    .insert(assets)
-    .values({ symbol: "AAPL", name: "Apple Token", classId: stockCls.id, currencyId: usd.id, decimals: 2 })
-    .returning();
-
-  const [usdAsset] = await db
-    .insert(assets)
-    .values({ symbol: "USD", name: "USD Cash", classId: cryptoCls.id, currencyId: usd.id, decimals: 2 })
-    .returning();
-
-  // Accounts
-  const [cashAccount] = await db
-    .insert(accounts)
-    .values({ code: "1010", name: "Cash Account", type: "asset", assetId: usdAsset.id })
-    .returning();
-
-  const [ethAccount] = await db
-    .insert(accounts)
-    .values({ code: "1200", name: "ETH Account", type: "asset", assetId: ethAsset.id })
-    .returning();
-
-  const [goldAccount] = await db
-    .insert(accounts)
-    .values({ code: "1300", name: "Gold Account", type: "asset", assetId: goldAsset.id })
-    .returning();
-
-  const [reAccount] = await db
-    .insert(accounts)
-    .values({ code: "1500", name: "Real Estate Account", type: "asset", assetId: reAsset.id })
-    .returning();
-
-  const [aaplAccount] = await db
-    .insert(accounts)
-    .values({ code: "1600", name: "AAPL Account", type: "asset", assetId: aaplAsset.id })
-    .returning();
-
-  const [equityAccount] = await db
-    .insert(accounts)
-    .values({ code: "3010", name: "Opening Equity", type: "equity", assetId: usdAsset.id })
-    .returning();
-
-  // Post opening cash balance ($200,000) credited against Opening Equity
   await postEntry({
-    entryDate: todayIso(),
+    userId: user.id,
+    entryDate: "2026-08-01",
     type: "opening",
-    description: "Initial Cash Opening Balance",
+    description: "Opening cash",
     postings: [
-      {
-        accountId: cashAccount.id,
-        assetId: usdAsset.id,
-        quantity: "200000",
-        baseValue: "200000",
-      },
-      {
-        accountId: equityAccount.id,
-        assetId: usdAsset.id,
-        quantity: "-200000",
-        baseValue: "-200000",
-      },
+      { accountId: cash.id, assetId: usdAsset.id, quantity: "100000", baseValue: "100000" },
+      { accountId: equity.id, assetId: usdAsset.id, quantity: "-100000", baseValue: "-100000" },
     ],
   });
 
-  return {
-    usd,
-    ethAsset,
-    goldAsset,
-    reAsset,
-    aaplAsset,
-    usdAsset,
-    cashAccount,
-    ethAccount,
-    goldAccount,
-    reAccount,
-    aaplAccount,
-  };
-}
-
-test("Test 1 & Test 2 — Portfolio valuation & market price updates NEVER create journal entries", async () => {
-  const { ethAsset, usdAsset, ethAccount, cashAccount } = await setupPortfolioDb();
-
-  // Buy 5 ETH @ $3,000 ($15,000)
-  await recordBuy({
-    entryDate: todayIso(),
-    description: "Buy 5 ETH",
-    assetAccountId: ethAccount.id,
-    cashAccountId: cashAccount.id,
-    assetId: ethAsset.id,
-    quantity: "5",
-    cashAssetId: usdAsset.id,
-    cashQuantity: "15000",
-    baseValue: "15000",
-  });
-
-  const entriesBefore = await db.select({ c: sql<number>`count(*)::int` }).from(journalEntries);
-  const postingsBefore = await db.select({ c: sql<number>`count(*)::int` }).from(postings);
-
-  // 1. Run Portfolio Valuation (200k starting cash - 15k spent + 15k ETH = 200,000)
-  const val1 = await getPortfolioValuation();
-  assert.equal(D(val1.totalNetWorth).toString(), "200000");
-
-  // 2. Update Market Price ($3,000 -> $4,000)
-  await recordManualPrice({
-    assetId: ethAsset.id,
-    price: "4000",
-    asOfDate: todayIso(),
-  });
-
-  // 3. Run Valuation again (185k cash + 20k ETH = 205,000)
-  const val2 = await getPortfolioValuation();
-  assert.equal(D(val2.totalNetWorth).toString(), "205000");
-  assert.equal(D(val2.totalUnrealizedPnl).toString(), "5000"); // 205000 - 200000 = 5000
-
-  const entriesAfter = await db.select({ c: sql<number>`count(*)::int` }).from(journalEntries);
-  const postingsAfter = await db.select({ c: sql<number>`count(*)::int` }).from(postings);
-
-  // ABSOLUTE RULE: Journal entries and postings count MUST remain completely unchanged!
-  assert.equal(entriesBefore[0].c, entriesAfter[0].c);
-  assert.equal(postingsBefore[0].c, postingsAfter[0].c);
-});
-
-test("Test 3 — FIFO cost basis is preserved during valuation calculation", async () => {
-  const { ethAsset, usdAsset, ethAccount, cashAccount } = await setupPortfolioDb();
-
-  // Buy 5 ETH @ $3,000 ($15,000)
-  await recordBuy({
-    entryDate: todayIso(),
-    description: "Buy 5 ETH",
-    assetAccountId: ethAccount.id,
-    cashAccountId: cashAccount.id,
-    assetId: ethAsset.id,
-    quantity: "5",
-    cashAssetId: usdAsset.id,
-    cashQuantity: "15000",
-    baseValue: "15000",
-  });
-
-  const openLotsBefore = await db.select().from(lots).where(eq(lots.assetId, ethAsset.id));
-  assert.equal(D(openLotsBefore[0].qtyRemaining).toString(), "5");
-  assert.equal(D(openLotsBefore[0].unitCostBase).toString(), "3000");
-
-  // Run Portfolio Valuation multiple times
-  await getPortfolioValuation();
-  await getPortfolioValuation();
-
-  const openLotsAfter = await db.select().from(lots).where(eq(lots.assetId, ethAsset.id));
-  assert.equal(D(openLotsAfter[0].qtyRemaining).toString(), "5");
-  assert.equal(D(openLotsAfter[0].unitCostBase).toString(), "3000");
-});
-
-test("Test 4 — Multi-Asset Valuation (Crypto, Gold, Real Estate, Tokenized Stock)", async () => {
-  const {
-    ethAsset,
-    goldAsset,
-    reAsset,
-    aaplAsset,
-    usdAsset,
-    cashAccount,
-    ethAccount,
-    goldAccount,
-    reAccount,
-    aaplAccount,
-  } = await setupPortfolioDb();
-
-  // 1. ETH: 5 ETH @ $3000
-  await recordBuy({
-    entryDate: todayIso(),
-    description: "Buy ETH",
-    assetAccountId: ethAccount.id,
-    cashAccountId: cashAccount.id,
-    assetId: ethAsset.id,
-    quantity: "5",
-    cashAssetId: usdAsset.id,
-    cashQuantity: "15000",
-    baseValue: "15000",
-  });
-  await recordManualPrice({ assetId: ethAsset.id, price: "3000" });
-
-  // 2. Gold: 50g @ $60/g = $3000
-  await recordBuy({
-    entryDate: todayIso(),
-    description: "Buy Gold",
-    assetAccountId: goldAccount.id,
-    cashAccountId: cashAccount.id,
-    assetId: goldAsset.id,
-    quantity: "50",
-    cashAssetId: usdAsset.id,
-    cashQuantity: "3000",
-    baseValue: "3000",
-  });
-  await recordManualPrice({ assetId: goldAsset.id, price: "60" });
-
-  // 3. Real Estate: 1 Apartment (95m2 @ $1000/m2 = $95,000)
-  await recordBuy({
-    entryDate: todayIso(),
-    description: "Buy Apartment",
-    assetAccountId: reAccount.id,
-    cashAccountId: cashAccount.id,
-    assetId: reAsset.id,
+  const buy = await recordBuy({
+    userId: user.id,
+    entryDate: "2026-08-02",
+    description: "Buy 1 BTC",
+    assetAccountId: btcAccount.id,
+    cashAccountId: cash.id,
+    assetId: btc.id,
     quantity: "1",
     cashAssetId: usdAsset.id,
-    cashQuantity: "95000",
-    baseValue: "95000",
+    cashQuantity: "50000",
+    baseValue: "50000",
   });
-  await recordManualPrice({ assetId: reAsset.id, price: "100000" }); // Appreciated to $100,000
-
-  // 4. Tokenized AAPL: 10 AAPL @ $200 = $2000
-  await recordBuy({
-    entryDate: todayIso(),
-    description: "Buy AAPL",
-    assetAccountId: aaplAccount.id,
-    cashAccountId: cashAccount.id,
-    assetId: aaplAsset.id,
-    quantity: "10",
-    cashAssetId: usdAsset.id,
-    cashQuantity: "2000",
-    baseValue: "2000",
+  await db.insert(entryFxSnapshots).values({
+    entryId: buy.id,
+    irtAmount: "5000000000",
+    usdAmount: "50000",
+    fxRate: "100000",
+    rateSource: "test",
+    rateDate: "2026-08-02",
   });
-  await recordManualPrice({ assetId: aaplAsset.id, price: "220" }); // Price $220
 
-  const summary = await getPortfolioValuation();
+  return { user, btc, btcAccount, cash, usdAsset, pnl };
+}
 
-  // Cash remaining: 200,000 - 15000 - 3000 - 95000 - 2000 = 85,000
-  // ETH: 5 * 3000 = 15000
-  // Gold: 50 * 60 = 3000
-  // Real Estate: 1 * 100000 = 100000
-  // AAPL: 10 * 220 = 2200
-  // Total Net Worth = 85000 + 15000 + 3000 + 100000 + 2200 = 205200
-  assert.equal(D(summary.totalNetWorth).toString(), "205200");
-  assert.equal(summary.assetValuations.length, 5); // Cash + ETH + Gold + RE + AAPL
+async function accountingState(userId: string) {
+  const [entryCount, postingCount, lotCount, consumptionCount, balances, realized, openLots] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` }).from(journalEntries),
+    db.select({ count: sql<number>`count(*)::int` }).from(postings),
+    db.select({ count: sql<number>`count(*)::int` }).from(lots),
+    db.select({ count: sql<number>`count(*)::int` }).from(lotConsumptions),
+    getAccountBalances(userId),
+    getRealizedPnl(userId),
+    db.select().from(lots).where(eq(lots.userId, userId)),
+  ]);
+  return { entryCount, postingCount, lotCount, consumptionCount, balances, realized, openLots };
+}
 
-  const reVal = summary.assetValuations.find((v) => v.symbol === "APT95");
-  assert.equal(D(reVal?.currentValue ?? "0").toString(), "100000");
-  assert.equal(D(reVal?.unrealizedPnl ?? "0").toString(), "5000"); // 100000 - 95000
+test("FX-A / FX-B — current Toman value and NAV move; historical accounting is unchanged", async () => {
+  const { user, btc } = await setupBtcHolding();
+  let currentPrice = 100000;
+  mockCoinGeckoPrice(() => currentPrice);
+
+  const beforeAccounting = await accountingState(user.id);
+  const fxA = await getPortfolioValuation("2026-08-11", user.id);
+  const btcA = fxA.assetValuations.find((row) => row.assetId === btc.id)!;
+  assert.equal(btcA.currentValue, "100000");
+  assert.equal(btcA.currentValueToman, "10000000000");
+  assert.equal(btcA.costBasis, "50000");
+  assert.equal(btcA.historicalCostToman, "5000000000");
+  assert.equal(btcA.unrealizedPnlToman, "5000000000");
+  assert.equal(fxA.totalNetWorthToman, "15000000000"); // 50k cash + 100k BTC
+
+  await db.update(userFxSettings).set({ currentRate: "150000", updatedAt: new Date() }).where(eq(userFxSettings.userId, user.id));
+  clearCoinGeckoPriceCache();
+  const fxB = await getPortfolioValuation("2026-08-11", user.id);
+  const btcB = fxB.assetValuations.find((row) => row.assetId === btc.id)!;
+  assert.equal(btcB.currentValue, "100000");
+  assert.equal(btcB.currentValueToman, "15000000000");
+  assert.equal(btcB.costBasis, "50000");
+  assert.equal(btcB.historicalCostToman, "5000000000");
+  assert.equal(btcB.unrealizedPnlToman, "10000000000");
+  assert.equal(fxB.totalNetWorthToman, "22500000000");
+
+  assert.deepEqual(await accountingState(user.id), beforeAccounting);
 });
 
-test("Test 5 & Test 6 — Historical wealth snapshots remain immutable & UI display preferences do NOT modify accounting data", async () => {
-  const { ethAsset, usdAsset, ethAccount, cashAccount } = await setupPortfolioDb();
+test("CoinGecko price change updates current/unrealized value only", async () => {
+  const { user, btc } = await setupBtcHolding();
+  let currentPrice = 100000;
+  mockCoinGeckoPrice(() => currentPrice);
+  const accountingBefore = await accountingState(user.id);
 
-  // Buy ETH
-  await recordBuy({
-    entryDate: todayIso(),
-    description: "Buy ETH",
-    assetAccountId: ethAccount.id,
-    cashAccountId: cashAccount.id,
-    assetId: ethAsset.id,
-    quantity: "5",
+  const first = await getPortfolioValuation("2026-08-11", user.id);
+  currentPrice = 110000;
+  clearCoinGeckoPriceCache();
+  const second = await getPortfolioValuation("2026-08-11", user.id);
+  const btcFirst = first.assetValuations.find((row) => row.assetId === btc.id)!;
+  const btcSecond = second.assetValuations.find((row) => row.assetId === btc.id)!;
+
+  assert.equal(btcFirst.currentValue, "100000");
+  assert.equal(btcSecond.currentValue, "110000");
+  assert.equal(btcFirst.unrealizedPnl, "50000");
+  assert.equal(btcSecond.unrealizedPnl, "60000");
+  assert.equal(btcSecond.costBasis, "50000");
+  assert.deepEqual(await accountingState(user.id), accountingBefore);
+});
+
+test("sale realization remains FIFO/accounting-derived, never CoinGecko-derived", async () => {
+  const { user, btc, btcAccount, cash, usdAsset, pnl } = await setupBtcHolding();
+  await recordSell({
+    userId: user.id,
+    entryDate: "2026-08-10",
+    description: "Sell half BTC",
+    assetAccountId: btcAccount.id,
+    cashAccountId: cash.id,
+    pnlAccountId: pnl.id,
+    assetId: btc.id,
+    quantity: "0.5",
     cashAssetId: usdAsset.id,
-    cashQuantity: "15000",
-    baseValue: "15000",
+    cashQuantity: "55000",
+    baseValue: "55000",
   });
-  await recordManualPrice({ assetId: ethAsset.id, price: "3000" });
+  const realizedBefore = await getRealizedPnl(user.id);
+  assert.equal(realizedBefore.total, "30000"); // 55k proceeds - 25k FIFO cost
 
-  // Create Snapshot for Day 1
-  const snap1 = await createPortfolioSnapshot("2026-01-01");
-  assert.ok(snap1.id);
+  let currentPrice = 110000;
+  mockCoinGeckoPrice(() => currentPrice);
+  await getPortfolioValuation("2026-08-11", user.id);
+  currentPrice = 250000;
+  clearCoinGeckoPriceCache();
+  await getPortfolioValuation("2026-08-11", user.id);
 
-  const [snapRow1] = await db
-    .select()
-    .from(portfolioSnapshots)
-    .where(eq(portfolioSnapshots.id, snap1.id));
-  assert.equal(D(snapRow1.totalPortfolioValue).toString(), "200000");
+  assert.deepEqual(await getRealizedPnl(user.id), realizedBefore);
+});
 
-  // Create Snapshot for Day 2 with higher price
-  await recordManualPrice({ assetId: ethAsset.id, price: "4000", asOfDate: "2026-08-02", timestamp: "2026-08-02T12:00:00Z" });
-  const snap2 = await createPortfolioSnapshot("2026-08-02");
-
-  const [snapRow2] = await db
-    .select()
-    .from(portfolioSnapshots)
-    .where(eq(portfolioSnapshots.id, snap2.id));
-  assert.equal(D(snapRow2.totalPortfolioValue).toString(), "205000");
-
-  // Verify Day 1 snapshot remains completely immutable ($200,000)
-  const [snapRow1Check] = await db
-    .select()
-    .from(portfolioSnapshots)
-    .where(eq(portfolioSnapshots.id, snap1.id));
-  assert.equal(D(snapRow1Check.totalPortfolioValue).toString(), "200000");
+test("pure FX calculation never rewrites USD cost basis", () => {
+  const a = calculateMarketValuation({
+    quantity: "1",
+    currentPriceUsd: "100000",
+    costBasisUsd: "50000",
+    currentTomanPerUsd: "100000",
+    historicalCostToman: "5000000000",
+  });
+  const b = calculateMarketValuation({
+    quantity: "1",
+    currentPriceUsd: "100000",
+    costBasisUsd: "50000",
+    currentTomanPerUsd: "150000",
+    historicalCostToman: "5000000000",
+  });
+  assert.equal(a.currentValueUsd, b.currentValueUsd);
+  assert.equal(a.costBasisUsd, b.costBasisUsd);
+  assert.equal(a.currentValueToman, "10000000000");
+  assert.equal(b.currentValueToman, "15000000000");
+  assert.equal(a.unrealizedPnlToman, "5000000000");
+  assert.equal(b.unrealizedPnlToman, "10000000000");
 });

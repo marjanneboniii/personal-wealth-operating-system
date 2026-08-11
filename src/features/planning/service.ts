@@ -14,7 +14,8 @@ import {
 } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import { postEntry, unitsFor } from "@/features/ledger/service";
-import { getAccountBalances, getNetWorth } from "@/features/ledger/queries";
+import { getAccountBalances } from "@/features/ledger/queries";
+import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { addMonthsIso, todayIso } from "@/lib/format";
 
 async function resolvePlanningUserId(explicitUserId?: string): Promise<string | undefined> {
@@ -403,7 +404,7 @@ export type ProjectionPoint = {
 export async function projectCashflow(months = 12, scenario: "base" | "optimistic" | "pessimistic" = "base", userId?: string) {
   const u = await resolvePlanningUserId(userId);
   const [nw, planned, insts, obls, evs] = await Promise.all([
-    getNetWorth(userId),
+    getCurrentNetWorth(userId),
     listPlanned(userId),
     db
       .select({ inst: installments })

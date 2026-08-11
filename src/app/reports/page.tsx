@@ -5,7 +5,6 @@ import {
   getAccountBalances,
   getCashflow,
   getHoldings,
-  getNetWorth,
   getRealizedPnl,
 } from "@/features/ledger/queries";
 import { listDebts, projectCashflow } from "@/features/planning/service";
@@ -16,6 +15,7 @@ import PdfButton from "@/components/reports/PdfButton";
 import { D, Decimal } from "@/domain/decimal";
 import { formatJalaliIso, formatMoney, jalaliMonthKey, jalaliMonthLabel } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
+import { getCurrentNetWorth } from "@/features/portfolio/service";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export default async function ReportsPage() {
   await ensureAuth();
   await seedIfEmpty();
   const [nw, flow, pnl, balances, holdings, debts, projection, fx] = await Promise.all([
-    getNetWorth(),
+    getCurrentNetWorth(),
     getCashflow(12),
     getRealizedPnl(),
     getAccountBalances(),
@@ -66,7 +66,7 @@ export default async function ReportsPage() {
 
       {/* KPI strip */}
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش خالص" value={formatMoney(nw.netWorth)} hint={toIrt(nw.netWorth) ?? undefined} />
+        <Metric label="ارزش خالص" value={formatMoney(nw.netWorth)} hint={formatMoney(nw.netWorthToman, "IRT")} />
         <Metric label="کل درآمد ثبت‌شده" value={formatMoney(totalIncome.toString())} tone="up" />
         <Metric label="کل هزینه ثبت‌شده" value={formatMoney(totalExpense.toString())} tone="down" />
         <Metric label="نرخ پس‌انداز" value={`${savingsRate}٪`} tone={Number(savingsRate) >= 0 ? "up" : "down"} />

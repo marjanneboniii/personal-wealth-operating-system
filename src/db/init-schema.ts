@@ -3,17 +3,7 @@ import { db } from "@/db";
 import { migrateLegacyFinancialData } from "@/db/migrate-multiuser";
 
 const STATEMENTS = [
-  // Targeted removal migration. These tables are standalone and have no accounting-core dependencies.
-  `DROP TABLE IF EXISTS external_price_history;`,
-  `DROP TABLE IF EXISTS asset_provider_mappings;`,
-  `DROP TABLE IF EXISTS external_providers;`,
-  `DROP TABLE IF EXISTS wallet_observations;`,
-  `DROP TABLE IF EXISTS user_display_preferences;`,
-  `DROP TABLE IF EXISTS asset_networks;`,
-  `DROP TABLE IF EXISTS asset_token_metadata;`,
-  `DROP TABLE IF EXISTS import_records;`,
-  `DROP TABLE IF EXISTS import_jobs;`,
-`CREATE TABLE IF NOT EXISTS users (
+  `CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz,
@@ -89,8 +79,22 @@ const STATEMENTS = [
     currency_id uuid REFERENCES currencies(id),
     decimals integer NOT NULL DEFAULT 8,
     price_source text NOT NULL DEFAULT 'manual',
+    pricing_method text NOT NULL DEFAULT 'manual',
+    coingecko_id text UNIQUE,
+    logo_url text,
     is_active boolean NOT NULL DEFAULT true
   );`,
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS pricing_method text NOT NULL DEFAULT 'manual';`,
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS coingecko_id text;`,
+  `ALTER TABLE assets ADD COLUMN IF NOT EXISTS logo_url text;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS assets_coingecko_uq ON assets(coingecko_id) WHERE coingecko_id IS NOT NULL;`,
+  `CREATE INDEX IF NOT EXISTS assets_coingecko_idx ON assets(coingecko_id);`,
+  // Existing canonical assets receive identity mappings only. Historical
+  // prices, transactions, lots and cost basis are not touched.
+  `UPDATE assets SET pricing_method='coingecko', coingecko_id='bitcoin' WHERE symbol='BTC' AND coingecko_id IS NULL;`,
+  `UPDATE assets SET pricing_method='coingecko', coingecko_id='ethereum' WHERE symbol='ETH' AND coingecko_id IS NULL;`,
+  `UPDATE assets SET pricing_method='coingecko', coingecko_id='tether' WHERE symbol='USDT' AND coingecko_id IS NULL;`,
+  `UPDATE assets SET pricing_method='coingecko', coingecko_id='solana' WHERE symbol='SOL' AND coingecko_id IS NULL;`,
   `CREATE TABLE IF NOT EXISTS wallets (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -178,32 +182,6 @@ const STATEMENTS = [
     price_base numeric(38,18) NOT NULL,
     source text NOT NULL DEFAULT 'manual',
     CONSTRAINT prices_asset_date_uq UNIQUE (asset_id, as_of)
-  );`,
-  `CREATE TABLE IF NOT EXISTS market_price_sources (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    name text NOT NULL UNIQUE,
-    type text NOT NULL DEFAULT 'manual',
-    description text
-  );`,
-  `CREATE TABLE IF NOT EXISTS market_prices (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    asset_id uuid NOT NULL REFERENCES assets(id),
-    price numeric(38,18) NOT NULL,
-    currency_id uuid REFERENCES currencies(id),
-    price_timestamp timestamptz NOT NULL DEFAULT now(),
-    source_id uuid REFERENCES market_price_sources(id)
-  );`,
-  `CREATE TABLE IF NOT EXISTS market_snapshots (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    asset_id uuid NOT NULL REFERENCES assets(id),
-    snapshot_date date NOT NULL,
-    price numeric(38,18) NOT NULL,
-    currency_id uuid REFERENCES currencies(id),
-    source_id uuid REFERENCES market_price_sources(id),
-    CONSTRAINT market_snapshots_uq UNIQUE (asset_id, snapshot_date, source_id)
   );`,
   `CREATE TABLE IF NOT EXISTS portfolio_valuations (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -699,6 +677,7 @@ const STATEMENTS = [
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
     asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
     valuation_date date NOT NULL,
     price_irr numeric(38,18),
     price_usd numeric(38,18),
@@ -706,52 +685,40 @@ const STATEMENTS = [
     currency_id uuid REFERENCES currencies(id),
     valuation_source text NOT NULL DEFAULT 'manual',
     appraiser text,
-    source_id uuid REFERENCES market_price_sources(id),
     note text,
-    CONSTRAINT rwa_valuation_asset_date_source_uq UNIQUE (asset_id, valuation_date, valuation_source)
+    CONSTRAINT rwa_valuation_user_asset_date_source_uq UNIQUE (user_id, asset_id, valuation_date, valuation_source)
   );`,
+  `ALTER TABLE rwa_valuation_events ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE rwa_valuation_events DROP CONSTRAINT IF EXISTS rwa_valuation_events_source_id_fkey;`,
+  `ALTER TABLE rwa_valuation_events DROP CONSTRAINT IF EXISTS rwa_valuation_asset_date_source_uq;`,
+  `DROP INDEX IF EXISTS rwa_valuation_asset_date_source_uq;`,
   `CREATE INDEX IF NOT EXISTS rwa_valuation_asset_date_idx ON rwa_valuation_events(asset_id, valuation_date);`,
+  `CREATE INDEX IF NOT EXISTS rwa_valuation_user_idx ON rwa_valuation_events(user_id);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS rwa_valuation_user_asset_date_source_uq ON rwa_valuation_events(user_id, asset_id, valuation_date, valuation_source);`,
+  // Safely assign only unambiguous legacy valuation rows. Ambiguous/ownerless
+  // rows remain NULL and are not visible to authenticated tenants.
+  `UPDATE rwa_valuation_events v
+     SET user_id = o.user_id
+    FROM rwa_ownership_records o
+   WHERE v.user_id IS NULL
+     AND o.asset_id = v.asset_id
+     AND o.user_id IS NOT NULL
+     AND o.is_active = true
+     AND 1 = (SELECT count(DISTINCT o2.user_id) FROM rwa_ownership_records o2 WHERE o2.asset_id = v.asset_id AND o2.user_id IS NOT NULL);`,
 
-  /* Valuation Engine — Source -> Event -> Engine */
-  `CREATE TABLE IF NOT EXISTS valuation_sources (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE UNIQUE,
-    source_type text NOT NULL DEFAULT 'market_price',
-    primary_provider_name text NOT NULL DEFAULT 'MANUAL',
-    backup_provider_name text,
+  /* CoinGecko identity catalog — current prices are never persisted here. */
+  `CREATE TABLE IF NOT EXISTS coingecko_asset_catalog (
+    coingecko_id text PRIMARY KEY,
+    symbol text NOT NULL,
+    name text NOT NULL,
+    logo_url text NOT NULL,
+    market_cap_rank integer,
+    kind text NOT NULL,
     is_active boolean NOT NULL DEFAULT true,
-    config text
+    synced_at timestamptz NOT NULL DEFAULT now()
   );`,
-  `CREATE INDEX IF NOT EXISTS valuation_sources_asset_idx ON valuation_sources(asset_id);`,
-
-  `CREATE TABLE IF NOT EXISTS valuation_events (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-    valuation_date date NOT NULL,
-    price numeric(38,18) NOT NULL,
-    currency_id uuid REFERENCES currencies(id),
-    source_type text NOT NULL DEFAULT 'market_price',
-    provider_name text NOT NULL DEFAULT 'MANUAL',
-    source_id uuid REFERENCES market_price_sources(id),
-    metadata text,
-    note text,
-    CONSTRAINT valuation_events_asset_date_provider_uq UNIQUE (asset_id, valuation_date, provider_name)
-  );`,
-  `CREATE INDEX IF NOT EXISTS valuation_events_asset_date_idx ON valuation_events(asset_id, valuation_date);`,
-
-  /* Market Data — CoinGecko Mapping */
-  `CREATE TABLE IF NOT EXISTS coingecko_asset_mappings (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    internal_asset_id text NOT NULL,
-    coingecko_id text NOT NULL UNIQUE,
-    symbol text,
-    last_synced_at timestamptz
-  );`,
-  `CREATE INDEX IF NOT EXISTS coingecko_mappings_asset_idx ON coingecko_asset_mappings(internal_asset_id);`,
-  `CREATE INDEX IF NOT EXISTS coingecko_mappings_symbol_idx ON coingecko_asset_mappings(symbol);`,
+  `CREATE INDEX IF NOT EXISTS coingecko_catalog_symbol_idx ON coingecko_asset_catalog(symbol);`,
+  `CREATE INDEX IF NOT EXISTS coingecko_catalog_kind_rank_idx ON coingecko_asset_catalog(kind, market_cap_rank);`,
 
   /* Commodities Domain — Dynamic Price Tracking & Inflation Analytics — Isolated, No FK to Financial Core */
   `CREATE TABLE IF NOT EXISTS commodity_categories (
@@ -894,6 +861,53 @@ const STATEMENTS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS portfolio_valuations_user_asset_date_uq ON portfolio_valuations(user_id, asset_id, valuation_date);`,
   // Role default: change DB default from owner to user (existing rows untouched)
   `ALTER TABLE users ALTER COLUMN role SET DEFAULT 'user';`,
+
+  /*
+   * Legacy Market Data retirement (non-destructive production migration).
+   *
+   * Active names disappear from the runtime schema, but any production rows
+   * are retained under explicit *_archive names. Row counts are emitted as
+   * PostgreSQL NOTICEs before rename. No accounting table is included here.
+   */
+  `DO $$
+   BEGIN
+     IF to_regclass('public.valuation_events') IS NOT NULL THEN
+       ALTER TABLE valuation_events DROP CONSTRAINT IF EXISTS valuation_events_source_id_fkey;
+     END IF;
+   END $$;`,
+  `DO $$
+   DECLARE
+     source_name text;
+     archive_name text;
+     row_count bigint;
+     legacy_names text[] := ARRAY[
+       'market_prices',
+       'market_snapshots',
+       'market_price_sources',
+       'coingecko_asset_mappings',
+       'valuation_sources',
+       'valuation_events',
+       'external_price_history',
+       'asset_provider_mappings',
+       'external_providers',
+       'wallet_observations',
+       'user_display_preferences',
+       'asset_networks',
+       'asset_token_metadata',
+       'import_records',
+       'import_jobs'
+     ];
+   BEGIN
+     FOREACH source_name IN ARRAY legacy_names LOOP
+       archive_name := 'legacy_' || source_name || '_archive';
+       IF to_regclass('public.' || source_name) IS NOT NULL
+          AND to_regclass('public.' || archive_name) IS NULL THEN
+         EXECUTE format('SELECT count(*) FROM %I', source_name) INTO row_count;
+         RAISE NOTICE 'PWOS legacy market retirement: table=%, rows=%, action=archive', source_name, row_count;
+         EXECUTE format('ALTER TABLE %I RENAME TO %I', source_name, archive_name);
+       END IF;
+     END LOOP;
+   END $$;`,
 ];
 
 /**

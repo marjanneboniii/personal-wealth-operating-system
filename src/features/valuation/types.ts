@@ -1,70 +1,39 @@
-/**
- * Valuation Engine — Separate Domain, Do Not Mix Price With Valuation
- * Different assets require different policies: Crypto Market Price, Gold Spot Price, Real Estate Appraisal, Private Equity Manual Valuation
- * Architecture: Asset -> Valuation Source -> Valuation Event -> Valuation Engine
- */
+import type { PriceFreshness } from "@/features/pricing/types";
 
-export type ValuationSourceType = "market_price" | "spot_price" | "appraisal" | "manual" | "book_value";
-export type ValuationProviderName = "COINGECKO" | "ZERION" | "TSETMC" | "MANUAL" | "APPRAISAL" | "DEBANK" | "GOLD_API";
-
-export type ValuationSource = {
-  id: string;
-  assetId: string;
-  assetSymbol?: string;
-  sourceType: ValuationSourceType;
-  primaryProviderName: ValuationProviderName;
-  backupProviderName: string | null;
-  isActive: boolean;
-  config: string | null;
-  createdAt: string;
+export type MarketValuationInput = {
+  quantity: string;
+  currentPriceUsd: string;
+  costBasisUsd: string;
+  currentTomanPerUsd: string;
+  /** Historical Toman cost, if an immutable purchase FX snapshot exists. */
+  historicalCostToman?: string | null;
 };
 
-export type ValuationEvent = {
-  id: string;
-  assetId: string;
-  assetSymbol?: string;
-  valuationDate: string;
-  price: string;
-  currencyId: string | null;
-  currencyCode?: string;
-  sourceType: ValuationSourceType;
-  providerName: ValuationProviderName;
-  sourceId: string | null;
-  metadata: string | null;
-  note: string | null;
-  createdAt: string;
+export type MarketValuationResult = {
+  currentValueUsd: string;
+  currentValueToman: string;
+  costBasisUsd: string;
+  historicalCostToman: string | null;
+  unrealizedPnlUsd: string;
+  unrealizedPnlToman: string;
 };
 
-export type ValuationResult = {
+export type CurrentValuationInput = {
   assetId: string;
-  assetSymbol: string;
-  valuationDate: string;
-  price: string;
-  currencyCode: string;
-  sourceType: ValuationSourceType;
-  providerName: ValuationProviderName;
-  valuationEventId: string | null;
-  isFallback: boolean;
-  fallbackReason?: string;
+  symbol: string;
+  coingeckoId: string;
+  quantity: string;
+  costBasisUsd: string;
+  currentTomanPerUsd: string;
+  historicalCostToman?: string | null;
 };
 
-export type CreateValuationSourceInput = {
+export type CurrentValuationResult = MarketValuationResult & {
   assetId: string;
-  sourceType?: ValuationSourceType;
-  primaryProviderName?: ValuationProviderName;
-  backupProviderName?: string;
-  isActive?: boolean;
-  config?: string;
-};
-
-export type CreateValuationEventInput = {
-  assetId: string;
-  valuationDate: string;
-  price: string;
-  currencyId?: string;
-  sourceType?: ValuationSourceType;
-  providerName?: ValuationProviderName;
-  sourceId?: string;
-  metadata?: string;
-  note?: string;
+  symbol: string;
+  coingeckoId: string;
+  currentPriceUsd: string | null;
+  freshness: PriceFreshness;
+  observedAt: string | null;
+  failureCode?: string;
 };

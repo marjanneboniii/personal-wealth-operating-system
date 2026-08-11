@@ -2,7 +2,7 @@ import { seedIfEmpty } from "@/db/seed";
 import { ensureAuth } from "@/lib/authGuard";
 import { getAccountBalances, getRealizedPnl } from "@/features/ledger/queries";
 import { getPortfolioValuation } from "@/features/portfolio/service";
-import { EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
+import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D, Decimal } from "@/domain/decimal";
 import { formatMoney, formatQty } from "@/lib/format";
@@ -48,8 +48,8 @@ export default async function CryptoPage() {
     <div className="space-y-8">
       <PageHeader
         title="رمزارزها"
-        subtitle="وضعیت دارایی‌های دیجیتال من چیست؟ — ارزش‌گذاری، محل نگهداری و سود تحقق‌یافته."
-        action={<SectionLink href="/market-data" label="به‌روزرسانی قیمت‌ها" />}
+        subtitle="وضعیت دارایی‌های دیجیتال من چیست؟ — مقدار و بهای تمام‌شده از Accounting، قیمت جاری فقط از CoinGecko."
+        action={<Link href="/new?type=buy" className="btn btn-primary">ثبت خرید رمزارز</Link>}
       />
 
       {crypto.length === 0 && stable.length === 0 ? (
@@ -88,7 +88,7 @@ export default async function CryptoPage() {
             />
           </section>
 
-          <Section title="دارایی‌های دیجیتال شما" hint="قیمت از لایه Market Data — مانده از دفترکل">
+          <Section title="دارایی‌های دیجیتال شما" hint="قیمت جاری CoinGecko — مانده از دفترکل">
             <HoldingsTable rows={[...crypto, ...stable]} toIrt={toIrt} />
           </Section>
 

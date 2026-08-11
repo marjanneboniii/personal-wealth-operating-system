@@ -322,7 +322,7 @@ export default function SetupWizardPage() {
                     />
                   </div>
                   <div>
-                    <label className="label">قیمت هر اتریوم ({baseCurrency})</label>
+                    <label className="label">قیمت خرید هر اتریوم ({baseCurrency}) — فقط Cost Basis افتتاحیه</label>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -349,7 +349,7 @@ export default function SetupWizardPage() {
                     />
                   </div>
                   <div>
-                    <label className="label">قیمت هر گرم ({baseCurrency})</label>
+                    <label className="label">قیمت خرید هر گرم ({baseCurrency})</label>
                     <input
                       type="text"
                       inputMode="decimal"

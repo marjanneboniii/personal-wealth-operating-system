@@ -63,7 +63,7 @@ export default async function AccountsPage() {
       <PageHeader
         title="حساب‌ها"
         subtitle="پول من در کدام حساب‌ها است؟ — همه مانده‌ها لحظه‌ای و مشتق از دفترکل هستند، نه ستون ذخیره‌شده."
-        action={<SectionLink href="/market-data" label="قیمت‌های بازار" />}
+        action={<SectionLink href="/portfolio" label="ارزش‌گذاری سبد" />}
       />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-3" style={{ borderColor: "var(--border)" }}>

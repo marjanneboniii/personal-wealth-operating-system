@@ -107,7 +107,7 @@ async function rwaAsset(form: FormData) {
   }
   const classId = klass?.id;
   if (!classId) throw new Error("کلاس دارایی واقعی ایجاد نشد.");
-  const [asset] = await db.insert(assets).values({ name, symbol, classId, decimals: 2, priceSource:"manual" }).onConflictDoUpdate({target: assets.symbol, set:{name}}).returning();
+  const [asset] = await db.insert(assets).values({ name, symbol, classId, decimals: 2, priceSource:"manual", pricingMethod:"manual" }).onConflictDoUpdate({target: assets.symbol, set:{name, pricingMethod:"manual"}}).returning();
   return { asset, kind };
 }
 
@@ -124,10 +124,11 @@ export async function saveRwaAction(_previous: RegistryResult | null, form: Form
     return saveVehicleAction(_previous, form);
   }
   try {
+    const userId = await currentUserId();
     const { asset } = await rwaAsset(form);
-    await createRealEstateProperty({ assetId:asset.id, propertyType: val(form,"propertyType") as any, city:val(form,"city") || "Ahvaz", area:optional(form,"area"), address:optional(form,"address"), sizeSqm:optional(form,"sizeSqm"), floor: optional(form,"floor") ? Number(val(form,"floor")) : undefined, yearBuilt: optional(form,"yearBuilt") ? Number(val(form,"yearBuilt")) : undefined, deedNumber:optional(form,"deedNumber"), notes:optional(form,"notes") });
-    await createOwnershipRecord({assetId:asset.id, ownershipPercentage:val(form,"ownership") || "100", ownershipType:(val(form,"ownershipType") || "full") as any, acquisitionDate:val(form,"acquisitionDate"), acquisitionPriceIRR:optional(form,"acquisitionPrice"), notes:optional(form,"ownershipNotes")});
-    if (optional(form,"valuation")) await createValuationEvent({assetId:asset.id, valuationDate:val(form,"valuationDate"), priceIRR:val(form,"valuation"), valuationSource:(val(form,"valuationSource") || "manual") as any, appraiser:optional(form,"appraiser"), note:optional(form,"valuationNote")});
+    await createRealEstateProperty({ assetId:asset.id, userId:userId ?? undefined, propertyType: val(form,"propertyType") as any, city:val(form,"city") || "Ahvaz", area:optional(form,"area"), address:optional(form,"address"), sizeSqm:optional(form,"sizeSqm"), floor: optional(form,"floor") ? Number(val(form,"floor")) : undefined, yearBuilt: optional(form,"yearBuilt") ? Number(val(form,"yearBuilt")) : undefined, deedNumber:optional(form,"deedNumber"), notes:optional(form,"notes") });
+    await createOwnershipRecord({assetId:asset.id, userId:userId ?? undefined, ownershipPercentage:val(form,"ownership") || "100", ownershipType:(val(form,"ownershipType") || "full") as any, acquisitionDate:val(form,"acquisitionDate"), acquisitionPriceIRR:optional(form,"acquisitionPrice"), notes:optional(form,"ownershipNotes")});
+    if (optional(form,"valuation")) await createValuationEvent({assetId:asset.id, userId:userId ?? undefined, valuationDate:val(form,"valuationDate"), priceIRR:val(form,"valuation"), valuationSource:(val(form,"valuationSource") || "manual") as any, appraiser:optional(form,"appraiser"), note:optional(form,"valuationNote")});
     refresh(); return {ok:true,message:"دارایی واقعی، مالکیت و ارزش‌گذاری با موفقیت ثبت شد."};
   } catch(e) { return {ok:false,message:e instanceof Error ? e.message : "ثبت دارایی ناموفق بود."}; }
 }
