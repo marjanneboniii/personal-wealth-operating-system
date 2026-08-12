@@ -50,7 +50,7 @@ export const assetClasses = pgTable("asset_classes", {
   name: text("name").notNull(),
   color: text("color").notNull().default("#64748b"),
   sortOrder: integer("sort_order").notNull().default(0),
-  parentId: uuid("parent_id"), // self-FK for hierarchy Crypto -> Tokenized -> etc., no DB FK constraint to avoid circular migration issues in init-schema, logical parent
+  parentId: uuid("parent_id"), // self-FK for hierarchy, no DB FK constraint to avoid circular migration issues in init-schema, logical parent
   level: integer("level").notNull().default(0),
   attributesSchema: text("attributes_schema"), // JSON schema for expected metadata keys
 });
@@ -949,7 +949,7 @@ export const coingeckoAssetCatalog = pgTable(
     name: text("name").notNull(),
     logoUrl: text("logo_url").notNull(),
     marketCapRank: integer("market_cap_rank"),
-    kind: text("kind").notNull(), // crypto | tokenized
+    kind: text("kind").notNull(), // crypto
     isActive: boolean("is_active").notNull().default(true),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
   },

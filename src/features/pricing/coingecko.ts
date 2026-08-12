@@ -150,27 +150,11 @@ export class CoinGeckoClient {
         page: "1",
         sparkline: "false",
       }),
-      "crypto",
-    );
-  }
-
-  async fetchRwaAssets(): Promise<CoinGeckoCatalogAsset[]> {
-    return this.fetchAssetPage(
-      new URLSearchParams({
-        vs_currency: "usd",
-        category: "real-world-assets-rwa",
-        order: "market_cap_desc",
-        per_page: "250",
-        page: "1",
-        sparkline: "false",
-      }),
-      "tokenized",
     );
   }
 
   private async fetchAssetPage(
     query: URLSearchParams,
-    kind: CoinGeckoCatalogAsset["kind"],
   ): Promise<CoinGeckoCatalogAsset[]> {
     const data = await this.request("/coins/markets", query);
     if (!Array.isArray(data)) {
@@ -186,7 +170,7 @@ export class CoinGeckoClient {
         typeof row.market_cap_rank === "number" && Number.isInteger(row.market_cap_rank)
           ? row.market_cap_rank
           : null,
-      kind,
+      kind: "crypto",
     }));
   }
 }

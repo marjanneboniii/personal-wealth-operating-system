@@ -75,12 +75,10 @@ export default async function NewTransactionPage({
           symbol: asset.symbol,
           name: asset.name,
           logoUrl: asset.logoUrl,
-          kind: asset.kind as "crypto" | "tokenized",
         }))}
         marketCatalogStatus={{
           total: catalogStatus.total,
           crypto: catalogStatus.crypto,
-          tokenized: catalogStatus.tokenized,
           bootstrapOnly: catalogStatus.bootstrapOnly,
         }}
         debts={debts as any}

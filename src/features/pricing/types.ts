@@ -24,7 +24,7 @@ export type CoinGeckoCatalogAsset = {
   name: string;
   logoUrl: string;
   marketCapRank: number | null;
-  kind: "crypto" | "tokenized";
+  kind: "crypto";
 };
 
 export type MarketAssetIdentity = {

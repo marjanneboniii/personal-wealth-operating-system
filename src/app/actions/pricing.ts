@@ -57,7 +57,7 @@ export async function registerMarketAssetAction(
       .limit(1);
     if (!catalog) throw new Error("دارایی انتخاب‌شده در کاتالوگ CoinGecko ثبت نشده است.");
 
-    const classCode = catalog.kind === "tokenized" ? "tokenized_security" : "crypto";
+    const classCode = "crypto";
     let [assetClass] = await db
       .select()
       .from(assetClasses)
@@ -68,9 +68,9 @@ export async function registerMarketAssetAction(
         .insert(assetClasses)
         .values({
           code: classCode,
-          name: catalog.kind === "tokenized" ? "دارایی توکنیزه" : "رمزارز",
-          color: catalog.kind === "tokenized" ? "#0ea5e9" : "#a78bfa",
-          sortOrder: catalog.kind === "tokenized" ? 4 : 3,
+          name: "رمزارز",
+          color: "#a78bfa",
+          sortOrder: 3,
         })
         .onConflictDoNothing({ target: assetClasses.code })
         .returning();
@@ -193,7 +193,6 @@ export type MarketCatalogEntry = {
   symbol: string;
   name: string;
   logoUrl: string;
-  kind: "crypto" | "tokenized";
 };
 
 export type SearchMarketCatalogResult = {
@@ -202,7 +201,6 @@ export type SearchMarketCatalogResult = {
   /** Whether the catalog only holds the offline bootstrap identities. */
   bootstrapOnly: boolean;
   total: number;
-  tokenized: number;
   message?: string;
 };
 
@@ -211,14 +209,12 @@ function toEntry(row: {
   symbol: string;
   name: string;
   logoUrl: string;
-  kind: string;
 }): MarketCatalogEntry {
   return {
     coingeckoId: row.coingeckoId,
     symbol: row.symbol,
     name: row.name,
     logoUrl: row.logoUrl,
-    kind: row.kind === "tokenized" ? "tokenized" : "crypto",
   };
 }
 
@@ -229,18 +225,16 @@ function toEntry(row: {
  */
 export async function searchMarketCatalogAction(
   query: string,
-  kind?: "crypto" | "tokenized",
 ): Promise<SearchMarketCatalogResult> {
   try {
     await requireRegistrationIdentity();
-    const rows = await listCoinGeckoCatalog(query, 100, kind);
+    const rows = await listCoinGeckoCatalog(query, 100);
     const status = await getMarketCatalogStatus();
     return {
       ok: true,
       assets: rows.map(toEntry),
       bootstrapOnly: status.bootstrapOnly,
       total: status.total,
-      tokenized: status.tokenized,
     };
   } catch (error) {
     return {
@@ -248,15 +242,14 @@ export async function searchMarketCatalogAction(
       assets: [],
       bootstrapOnly: true,
       total: 0,
-      tokenized: 0,
       message: error instanceof Error ? error.message : "جستجوی کاتالوگ ناموفق بود.",
     };
   }
 }
 
 /**
- * Manual catalog re-sync (top-250 crypto + the RWA category). Read-only with
- * respect to Accounting: it touches the identity catalog and nothing else.
+ * Manual catalog re-sync (top-250 crypto). Read-only with respect to
+ * Accounting: it touches the identity catalog and nothing else.
  */
 export async function refreshMarketCatalogAction(): Promise<SearchMarketCatalogResult> {
   try {
@@ -267,18 +260,15 @@ export async function refreshMarketCatalogAction(): Promise<SearchMarketCatalogR
     revalidatePath("/new");
 
     const message =
-      sync.status === "fresh"
-        ? `کاتالوگ به‌روزرسانی شد — ${status.total} دارایی (${status.tokenized} مورد RWA/توکنیزه).`
-        : sync.status === "partial"
-          ? `به‌روزرسانی ناقص بود (${sync.failed.includes("rwa") ? "دستهٔ RWA" : "فهرست رمزارز"} پاسخ نداد) — ${status.total} دارایی در دسترس است.`
-          : "اتصال به CoinGecko برقرار نشد؛ فهرست آفلاین (شامل نمونه‌های RWA) نمایش داده می‌شود. برای فهرست کامل، دسترسی شبکه یا COINGECKO_API_KEY را بررسی کنید.";
+      sync.status === "fresh" || sync.status === "partial"
+        ? `کاتالوگ به‌روزرسانی شد — ${status.total} دارایی.`
+        : "اتصال به CoinGecko برقرار نشد؛ فهرست آفلاین نمایش داده می‌شود. برای فهرست کامل، دسترسی شبکه یا COINGECKO_API_KEY را بررسی کنید.";
 
     return {
       ok: sync.status === "fresh" || sync.status === "partial",
       assets: rows.map(toEntry),
       bootstrapOnly: status.bootstrapOnly,
       total: status.total,
-      tokenized: status.tokenized,
       message,
     };
   } catch (error) {
@@ -287,7 +277,6 @@ export async function refreshMarketCatalogAction(): Promise<SearchMarketCatalogR
       assets: [],
       bootstrapOnly: true,
       total: 0,
-      tokenized: 0,
       message: error instanceof Error ? error.message : "به‌روزرسانی کاتالوگ ناموفق بود.",
     };
   }
