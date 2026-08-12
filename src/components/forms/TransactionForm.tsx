@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useActionState, useEffect, useMemo, useState, useRef, useTransition } from "react";
-import { createTransactionAction, type ActionResult } from "@/app/actions";
+import { createTransactionAction, createCategoryAction, type ActionResult } from "@/app/actions";
 import {
   refreshMarketCatalogAction,
   registerMarketAssetAction,
@@ -39,10 +39,26 @@ export type MarketCatalogStatus = {
   bootstrapOnly: boolean;
 };
 
+/** Hierarchical expense categories (parent → leaf children). */
+export type CategoryChildOption = {
+  id: string;
+  code: string;
+  name: string;
+  nature: string; // cash | non_cash
+  description: string | null;
+};
+export type CategoryGroupOption = {
+  id: string;
+  code: string;
+  name: string;
+  children: CategoryChildOption[];
+};
+
 const TYPES = [
-  { key: "expense", label: "هزینه", primary: "پرداخت از حساب", counter: "دسته هزینه" },
+  { key: "expense", label: "هزینه", primary: "پرداخت از حساب", counter: "حساب معین هزینه" },
   { key: "income", label: "درآمد", primary: "واریز به حساب", counter: "دسته درآمد" },
   { key: "transfer", label: "انتقال", primary: "از حساب", counter: "به حساب" },
+  { key: "debt_repayment", label: "بازپرداخت بدهی", primary: "پرداخت از حساب", counter: "حساب هزینه (در صورت نیاز)" },
   { key: "buy", label: "خرید دارایی", primary: "حساب دارایی خریداری‌شده", counter: "پرداخت از حساب" },
   { key: "sell", label: "فروش دارایی", primary: "حساب دارایی فروخته‌شده", counter: "واریز به حساب" },
 ] as const;
@@ -51,6 +67,7 @@ type TxType = (typeof TYPES)[number]["key"];
 
 type Props = {
   accounts: AccountOption[];
+  categories?: CategoryGroupOption[];
   marketAssets?: MarketAssetOption[];
   marketCatalogStatus?: MarketCatalogStatus;
   debts?: DebtOption[];
@@ -69,6 +86,7 @@ type Props = {
 
 export default function TransactionForm({
   accounts,
+  categories = [],
   marketAssets = [],
   marketCatalogStatus,
   debts = [],
@@ -86,9 +104,20 @@ export default function TransactionForm({
 }: Props) {
   const [type, setType] = useState<TxType>(defaultType);
   const [irtAmount, setIrtAmount] = useState(initialIrtAmount ?? "");
+  /* Hierarchical expense category: parent group → leaf sub-category */
+  const [categoryParentId, setCategoryParentId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [categoryGroups, setCategoryGroups] = useState<CategoryGroupOption[]>(categories);
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [categoryMessage, setCategoryMessage] = useState("");
   const [quantity, setQuantity] = useState("");
   const [primaryAccountId, setPrimaryAccountId] = useState("");
-  const [counterAccountId, setCounterAccountId] = useState("");
+  const [counterAccountId, setCounterAccountId] = useState(() =>
+    defaultType === "expense" || defaultType === "debt_repayment"
+      ? accounts.find((a) => a.type === "expense")?.id ?? ""
+      : "",
+  );
   const [entryDate, setEntryDate] = useState(initialEntryDate ?? today);
   const [description, setDescription] = useState(initialDescription ?? initialTitle ?? "");
   const [fee, setFee] = useState("");
@@ -127,9 +156,59 @@ export default function TransactionForm({
   const counterOptions = useMemo(() => {
     if (type === "expense") return accountOptions.filter((a) => a.type === "expense");
     if (type === "income") return accountOptions.filter((a) => a.type === "income");
+    if (type === "debt_repayment") return accountOptions.filter((a) => a.type === "expense");
     return cash;
   }, [type, accountOptions, cash]);
   const isAssetPicker = type === "buy" || type === "sell";
+
+  /* ── Expense category derivation ── */
+  const selectedParent = categoryGroups.find((g) => g.id === categoryParentId) ?? null;
+  const selectedCategory = selectedParent?.children.find((c) => c.id === categoryId) ?? null;
+  const isNonCashCategory = selectedCategory?.nature === "non_cash";
+  const selectedDebtHasLedgerAccount = !!selectedDebt?.accountId;
+
+  /**
+   * Type switch handler — expense / debt-repayment entries always need a
+   * counter expense account for the double-entry ledger, so it is defaulted
+   * to the first one here (in the event handler, not in an effect), keeping
+   * the category picker as the user's main decision.
+   */
+  const pickType = (key: TxType) => {
+    setType(key);
+    if (key === "expense" || key === "debt_repayment") {
+      const valid = accountOptions.some((a) => a.id === counterAccountId && a.type === "expense");
+      const first = accountOptions.find((a) => a.type === "expense");
+      if (!valid && first) setCounterAccountId(first.id);
+    } else if (key === "income") {
+      const valid = accountOptions.some((a) => a.id === counterAccountId && a.type === "income");
+      const first = accountOptions.find((a) => a.type === "income");
+      if (!valid && first) setCounterAccountId(first.id);
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    if (!categoryParentId || !newCategoryName.trim()) return;
+    const res = await createCategoryAction({ name: newCategoryName.trim(), parentId: categoryParentId });
+    if (!res.ok) {
+      setCategoryMessage(res.message);
+      return;
+    }
+    setCategoryMessage("");
+    setNewCategoryName("");
+    setShowNewCategory(false);
+    // Refresh the tree in place (server revalidated the path for others).
+    setCategoryGroups((current) =>
+      current.map((g) =>
+        g.id === categoryParentId && res.id
+          ? {
+              ...g,
+              children: [...g.children, { id: res.id, code: "", name: newCategoryName.trim(), nature: "cash", description: null }],
+            }
+          : g,
+      ),
+    );
+    if (res.id) setCategoryId(res.id);
+  };
 
   /**
    * The picker queries the FULL server-side catalog instead of filtering the
@@ -210,12 +289,16 @@ export default function TransactionForm({
     const amt = pendingInst ? pendingInst.amountBase : d.outstandingBase;
     const irt = effectiveRate ? D(amt).mul(effectiveRate).toFixed(0) : amt;
     setIrtAmount(irt);
-    setDescription(`پرداخت بدهی — ${d.title} (${d.creditor})`);
+    setDescription(`بازپرداخت بدهی — ${d.title} (${d.creditor})`);
     setEntryDate(today);
-    setType("expense");
+    setType("debt_repayment");
+    setCategoryId("");
+    setCategoryParentId("");
     setShowExplorer(false);
-    const expAcc = accountOptions.find((a) => a.type === "expense");
-    if (expAcc) setCounterAccountId(expAcc.id);
+    if (!d.accountId) {
+      const expAcc = accountOptions.find((a) => a.type === "expense");
+      if (expAcc) setCounterAccountId(expAcc.id);
+    }
     const cashAcc = accountOptions.find((a) => a.type === "asset");
     if (cashAcc) setPrimaryAccountId(cashAcc.id);
   };
@@ -227,10 +310,14 @@ export default function TransactionForm({
     setIrtAmount(irt);
     setDescription(`پرداخت قسط ${inst.seq} — ${d.title}`);
     setEntryDate(inst.dueDate);
-    setType("expense");
+    setType("debt_repayment");
+    setCategoryId("");
+    setCategoryParentId("");
     setShowExplorer(false);
-    const expAcc = accountOptions.find((a) => a.type === "expense");
-    if (expAcc) setCounterAccountId(expAcc.id);
+    if (!d.accountId) {
+      const expAcc = accountOptions.find((a) => a.type === "expense");
+      if (expAcc) setCounterAccountId(expAcc.id);
+    }
     const cashAcc = accountOptions.find((a) => a.type === "asset");
     if (cashAcc) setPrimaryAccountId(cashAcc.id);
   };
@@ -263,7 +350,17 @@ export default function TransactionForm({
   }, [debts, initialDebtId, initialInstallmentId]);
 
   const previewUsd = irtAmount && effectiveRate ? D(irtAmount).div(effectiveRate).toFixed(2) : "";
-  const canPreview = irtAmount && D(irtAmount).gt(0) && description && entryDate && primaryAccountId && counterAccountId;
+  const primaryNeeded = !(type === "expense" && isNonCashCategory);
+  const counterNeeded = !(type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount);
+  const canPreview =
+    irtAmount &&
+    D(irtAmount).gt(0) &&
+    description &&
+    entryDate &&
+    (!primaryNeeded || primaryAccountId) &&
+    (!counterNeeded || counterAccountId) &&
+    (type !== "debt_repayment" || selectedDebt) &&
+    (type !== "expense" || !!categoryId);
 
   const debtStatusAfter = useMemo(() => {
     if (!selectedDebt) return null;
@@ -283,7 +380,7 @@ export default function TransactionForm({
           <button
             key={t.key}
             type="button"
-            onClick={() => setType(t.key)}
+            onClick={() => pickType(t.key)}
             className={`!px-4 !min-h-9 ${type === t.key ? "seg-on" : ""}`}
             aria-pressed={type === t.key}
             style={{ touchAction: "manipulation" }}
@@ -293,14 +390,15 @@ export default function TransactionForm({
         ))}
       </div>
       <input type="hidden" name="type" value={type} />
-      {/* hidden FX + debt linkage */}
+      {/* hidden FX + debt linkage + expense category (leaf) */}
       <input type="hidden" name="irtAmount" value={irtAmount} />
+      <input type="hidden" name="categoryId" value={type === "expense" ? categoryId : ""} />
       <input type="hidden" name="fxRate" value={effectiveRate ?? ""} />
       <input type="hidden" name="fxRateDate" value={effectiveRateDate ?? ""} />
       <input type="hidden" name="debtId" value={selectedDebt?.id ?? ""} />
       <input type="hidden" name="installmentId" value={selectedInst?.id ?? ""} />
-      {/* Explorer toggle for expense */}
-      {type === "expense" && debts.length > 0 && (
+      {/* Explorer toggle — pick a debt/installment (debt repayment flow) */}
+      {(type === "expense" || type === "debt_repayment") && debts.length > 0 && (
         <div>
           <button type="button" onClick={() => setShowExplorer((v) => !v)} className="btn btn-ghost w-full !justify-between" style={{ touchAction: "manipulation" }}>
             <span className="inline-flex items-center gap-1.5">
@@ -432,28 +530,114 @@ export default function TransactionForm({
           </div>
         )}
 
+        {/* Expense category — hierarchical picker, active ONLY for expenses */}
+        {type === "expense" && (
+          <div className="soft space-y-2 rounded-[var(--r-md)] p-3">
+            <label className="label !mb-0">دسته هزینه</label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <select
+                className="field"
+                value={categoryParentId}
+                onChange={(e) => {
+                  setCategoryParentId(e.target.value);
+                  setCategoryId("");
+                }}
+                style={{ touchAction: "manipulation" }}
+              >
+                <option value="" disabled>دسته اصلی…</option>
+                {categoryGroups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+              <select
+                name="categorySelect"
+                className="field"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                disabled={!selectedParent}
+                style={{ touchAction: "manipulation" }}
+              >
+                <option value="" disabled>{selectedParent ? "زیردسته…" : "ابتدا دسته اصلی را انتخاب کنید"}</option>
+                {selectedParent?.children.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.nature === "non_cash" ? " (غیرنقدی)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedCategory?.description && (
+              <p className="muted text-[10.5px] leading-5">{selectedCategory.description}</p>
+            )}
+            {isNonCashCategory && (
+              <p className="rounded-[var(--r-sm)] p-2 text-[11px] leading-5" style={{ background: "var(--surface-2)" }} role="note">
+                <strong>ثبت غیرنقدی (استهلاک/ذخیره):</strong> این دسته خروج وجه نیست؛ هیچ حساب نقدی تغییر نمی‌کند و طرف مقابل به‌صورت خودکار حساب «ذخیره استهلاک و تعمیرات آتی» است. در گزارش هزینه منظور می‌شود ولی از جریان نقدی خارج می‌ماند.
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => setShowNewCategory((v) => !v)} disabled={!selectedParent} className="chip disabled:opacity-40" style={{ touchAction: "manipulation" }}>
+                {showNewCategory ? "بستن" : "+ زیردسته جدید"}
+              </button>
+              <span className="muted text-[10px]">
+                {categoryMessage || "در صورت تکرار یک هزینهٔ متفرقه، برای آن زیردسته مستقل بسازید."}
+              </span>
+            </div>
+            {showNewCategory && selectedParent && (
+              <div className="flex gap-2">
+                <input
+                  className="field"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder={`زیردسته جدید زیر «${selectedParent.name}»`}
+                  style={{ touchAction: "manipulation" }}
+                />
+                <button type="button" onClick={handleCreateCategory} disabled={!newCategoryName.trim()} className="btn btn-soft shrink-0 disabled:opacity-40" style={{ touchAction: "manipulation" }}>
+                  افزودن
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label">{meta.primary}</label>
-            <select name="primaryAccountId" required className="field" value={primaryAccountId} onChange={(e) => setPrimaryAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
-              <option value="" disabled>انتخاب کنید…</option>
-              {primaryOptions.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.code} — {a.name} {a.symbol ? `(${a.symbol})` : ""}
-                </option>
-              ))}
-            </select>
+            {type === "expense" && isNonCashCategory ? (
+              <input type="hidden" name="primaryAccountId" value="" />
+            ) : null}
+            {type === "expense" && isNonCashCategory ? (
+              <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
+                ثبت غیرنقدی — حساب نقدی درگیر نیست؛ طرف مقابل، خودکار «ذخیره استهلاک و تعمیرات آتی» است.
+              </div>
+            ) : (
+              <select name="primaryAccountId" required className="field" value={primaryAccountId} onChange={(e) => setPrimaryAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
+                <option value="" disabled>انتخاب کنید…</option>
+                {primaryOptions.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.code} — {a.name} {a.symbol ? `(${a.symbol})` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
             <label className="label">{meta.counter}</label>
-            <select name="counterAccountId" required className="field" value={counterAccountId} onChange={(e) => setCounterAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
-              <option value="" disabled>انتخاب کنید…</option>
-              {counterOptions.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.code} — {a.name} {a.symbol ? `(${a.symbol})` : ""}
-                </option>
-              ))}
-            </select>
+            {type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount ? (
+              <input type="hidden" name="counterAccountId" value="" />
+            ) : null}
+            {type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount ? (
+              <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
+                بازپرداخت اصل بدهی — مستقیماً از مانده بدهی «{selectedDebt.title}» کسر می‌شود و <strong>هزینه محسوب نمی‌شود</strong>.
+              </div>
+            ) : (
+              <select name="counterAccountId" required className="field" value={counterAccountId} onChange={(e) => setCounterAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
+                <option value="" disabled>انتخاب کنید…</option>
+                {counterOptions.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.code} — {a.name} {a.symbol ? `(${a.symbol})` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -501,6 +685,19 @@ export default function TransactionForm({
           <div className="space-y-2 text-xs leading-6">
             <div><span className="muted">نوع تراکنش:</span> <strong>{TYPES.find(t=>t.key===type)?.label}</strong></div>
             <div><span className="muted">عنوان/شرح:</span> <strong>{description || "—"}</strong></div>
+            {type === "expense" && (
+              <div>
+                <span className="muted">دسته هزینه:</span>{" "}
+                <strong>{selectedParent && selectedCategory ? `${selectedParent.name} › ${selectedCategory.name}` : "—"}</strong>
+                {isNonCashCategory && <span className="chip">غیرنقدی — بدون خروج وجه</span>}
+              </div>
+            )}
+            {type === "debt_repayment" && selectedDebt && (
+              <div>
+                <span className="muted">بدهی:</span> <strong>{selectedDebt.title}</strong>{" "}
+                <span className="chip">{selectedDebtHasLedgerAccount ? "کسر از مانده بدهی — هزینه نیست" : "ثبت با حساب هزینه"}</span>
+              </div>
+            )}
             <div className="soft rounded-xl p-2">
               <div className="muted text-[10px]">مبلغ به تومان و معادل دلاری (با نرخ لحظه‌ای)</div>
               <div className="num font-bold" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</div>

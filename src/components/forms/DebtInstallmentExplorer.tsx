@@ -11,6 +11,8 @@ export type DebtOption = {
   outstandingBase: string;
   interestRate: string;
   status: string;
+  /** liability account of the debt — null for planning-only debts */
+  accountId: string | null;
   installments: Array<{
     id: string;
     seq: number;

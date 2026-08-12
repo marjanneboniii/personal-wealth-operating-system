@@ -79,7 +79,7 @@ export async function getAccountBalances(userId?: string): Promise<AccountBalanc
       left join assets ast on ast.id = coalesce(p.asset_id, a.asset_id)
       left join wallets w on w.id = a.wallet_id
       left join asset_classes ac on ac.id = ast.class_id
-    where a.deleted_at is null ${u ? sql`and (a.user_id = ${u} or (a.user_id is null and a.code in ('1000','2000','3000','3010','4000','4010','4100','4900','5000','5010','5020','5030','5040','5050','5900')))` : sql``}
+    where a.deleted_at is null ${u ? sql`and (a.user_id = ${u} or (a.user_id is null and a.code in ('1000','2000','3000','3010','3200','4000','4010','4100','4900','5000','5010','5020','5030','5040','5050','5900')))` : sql``}
     group by a.id, a.code, a.name, a.type, ast.id, ast.symbol, ast.name, ast.decimals, w.name, ac.name, ac.color
     order by a.code
   `);
@@ -180,6 +180,14 @@ export type LedgerRow = {
   description: string;
   status: string;
   source: string;
+  /** leaf category id (expense classification, reporting only) */
+  categoryId?: string | null;
+  /** leaf category name, e.g. "سوخت خودرو" */
+  categoryName?: string | null;
+  /** parent (top-level) category name, e.g. "خودرو و حمل‌ونقل" */
+  categoryParentName?: string | null;
+  /** true when the category is depreciation/reserve (no cash outflow) */
+  categoryNonCash?: boolean;
   lines: { account: string; accountType: string; symbol: string; quantity: string; baseValue: string; decimals: number; memo: string | null }[];
 };
 
@@ -277,15 +285,26 @@ export async function getRealizedPnl(userId?: string): Promise<{ total: string; 
   };
 }
 
+/**
+ * Monthly cash flow. Outflow counts REAL cash expenses only:
+ *  - debt principal repayments (je.type = 'debt_repayment') are excluded —
+ *    they are not an expense by the transaction-type separation rule;
+ *  - non-cash categories (depreciation / reserves, ec.nature = 'non_cash')
+ *    are excluded — they are expenses in reports but never a cash outflow.
+ */
 export async function getCashflow(months = 6, userId?: string) {
   const u = await resolveQueryUserId(userId);
   return rows<{ month: string; inflow: string; outflow: string }>(sql`
     select to_char(date_trunc('month', je.entry_date), 'YYYY-MM-01') as month,
            coalesce(sum(case when a.type = 'income' then -p.base_value else 0 end), 0)::text as inflow,
-           coalesce(sum(case when a.type = 'expense' then p.base_value else 0 end), 0)::text as outflow
+           coalesce(sum(case when a.type = 'expense'
+                              and je.type not in ('debt_repayment')
+                              and coalesce(ec.nature, 'cash') = 'cash'
+                             then p.base_value else 0 end), 0)::text as outflow
     from journal_entries je
       join postings p on p.entry_id = je.id
       join accounts a on a.id = p.account_id
+      left join expense_categories ec on ec.id = je.category_id
     where je.status = 'posted'
       ${u ? sql`and je.user_id = ${u}` : sql``}
       and je.entry_date >= (current_date - (${months} || ' months')::interval)
@@ -300,9 +319,11 @@ export async function getCashflow(months = 6, userId?: string) {
 
 export type TxFilter = {
   limit?: number;
-  type?: string; // income|expense|transfer|buy|sell|adjustment|installment|debt|opening
+  type?: string; // income|expense|transfer|buy|sell|adjustment|installment|debt|debt_repayment|opening
   q?: string;
   accountId?: string;
+  /** category id (leaf OR parent — a parent matches all of its children) */
+  categoryId?: string;
   from?: string; // ISO date
   to?: string; // ISO date
   review?: "reviewed" | "unreviewed";
@@ -313,7 +334,7 @@ export type TxFilter = {
 export type TxRow = LedgerRow & { reviewed: boolean };
 
 export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
-  const { type, q, accountId, from, to } = filter;
+  const { type, q, accountId, categoryId, from, to } = filter;
   const safeLimit = Math.min(Math.max(1, filter.limit || 120), 500);
   const u = await resolveQueryUserId(filter.userId);
   const orderBy =
@@ -326,6 +347,10 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
     select je.id,
            je.entry_date::text as "entryDate",
            je.type, je.description, je.status, je.source,
+           je.category_id::text as "categoryId",
+           ec.name as "categoryName",
+           epc.name as "categoryParentName",
+           (coalesce(ec.nature, 'cash') = 'non_cash') as "categoryNonCash",
            coalesce(json_agg(json_build_object(
              'account', a.name,
              'accountType', a.type,
@@ -341,6 +366,8 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
       left join accounts a on a.id = p.account_id
       left join assets ast on ast.id = p.asset_id
       left join entry_reviews er on er.entry_id = je.id
+      left join expense_categories ec on ec.id = je.category_id
+      left join expense_categories epc on epc.id = ec.parent_id
     where 1 = 1
       ${u ? sql`and je.user_id = ${u}` : sql``}
       ${type ? sql`and je.type = ${type}` : sql``}
@@ -352,9 +379,14 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
           ? sql`and exists (select 1 from postings p2 where p2.entry_id = je.id and p2.account_id = ${accountId})`
           : sql``
       }
+      ${
+        categoryId
+          ? sql`and (je.category_id = ${categoryId} or je.category_id in (select id from expense_categories where parent_id = ${categoryId}))`
+          : sql``
+      }
       ${filter.review === "reviewed" ? sql`and er.entry_id is not null` : sql``}
       ${filter.review === "unreviewed" ? sql`and er.entry_id is null` : sql``}
-    group by je.id, er.entry_id
+    group by je.id, er.entry_id, ec.name, epc.name, ec.nature
     ${orderBy}
     limit ${safeLimit}
   `);
@@ -372,7 +404,11 @@ export async function countUnreviewed(userId?: string): Promise<number> {
   return Number(res[0]?.c ?? 0);
 }
 
-/** Expense/income category breakdown for the Cash Flow page (posted, last N months). */
+/**
+ * Expense/income account breakdown for the Cash Flow page (posted, last N months).
+ * Debt principal repayments (type 'debt_repayment') are never counted here —
+ * by the transaction-type separation rule they are not income/expense.
+ */
 export async function getFlowByAccount(accountType: "income" | "expense", months = 6, userId?: string) {
   const u = await resolveQueryUserId(userId);
   return rows<{ accountId: string; code: string; name: string; total: string; months: number }>(sql`
@@ -384,6 +420,7 @@ export async function getFlowByAccount(accountType: "income" | "expense", months
       join accounts a on a.id = p.account_id
     where a.type = ${accountType}
       and je.status = 'posted'
+      and je.type not in ('debt_repayment')
       ${u ? sql`and je.user_id = ${u}` : sql``}
       and je.entry_date >= (current_date - (${months} || ' months')::interval)
     group by a.id, a.code, a.name
@@ -392,7 +429,11 @@ export async function getFlowByAccount(accountType: "income" | "expense", months
   `);
 }
 
-/** Net (income − expense) inside an arbitrary window — for Net Worth attribution. */
+/**
+ * Net (income − expense) inside an arbitrary window — for Net Worth attribution.
+ * Debt repayments are excluded (not an expense) and non-cash depreciation /
+ * reserve entries are excluded (no cash movement) — savings is a cash concept.
+ */
 export async function getNetSavingsBetween(from: string, to: string, userId?: string): Promise<string> {
   const u = await resolveQueryUserId(userId);
   const res = await rows<{ net: string }>(sql`
@@ -403,7 +444,10 @@ export async function getNetSavingsBetween(from: string, to: string, userId?: st
     from journal_entries je
       join postings p on p.entry_id = je.id
       join accounts a on a.id = p.account_id
+      left join expense_categories ec on ec.id = je.category_id
     where je.status = 'posted' and a.type in ('income', 'expense')
+      and je.type not in ('debt_repayment')
+      and coalesce(ec.nature, 'cash') = 'cash'
       ${u ? sql`and je.user_id = ${u}` : sql``}
       and je.entry_date >= ${from} and je.entry_date <= ${to}
   `);

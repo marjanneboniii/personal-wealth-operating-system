@@ -49,6 +49,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@electric-sql/pglite", "pg"],
+  // Preview sandboxes serve the dev server through proxied origins.
+  allowedDevOrigins: ["*.e2b.app"],
   async headers() {
     return [
       {

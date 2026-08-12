@@ -22,6 +22,11 @@ export type PostEntryInput = {
   source?: "manual" | "plan" | "import";
   reference?: string | null;
   postings: DraftPosting[];
+  /**
+   * Reporting dimension only: the (leaf) expense category of the entry.
+   * Never participates in the double-entry balance.
+   */
+  categoryId?: string | null;
   /** open a FIFO lot for this asset account (buy / inbound) */
   openLot?: { accountId: string; assetId: string; quantity: string; costBase: string };
   openLots?: Array<{ accountId: string; assetId: string; quantity: string; costBase: string }>;
@@ -46,6 +51,7 @@ export function canonicalizePayload(input: PostEntryInput): string {
     entryDate: input.entryDate,
     type: input.type,
     description: input.description,
+    categoryId: input.categoryId ?? null,
     postings: sortedPostings,
     openLots: input.openLots
       ? [...input.openLots].map((l) => ({
@@ -213,6 +219,7 @@ export async function postEntry(
           userId: resolvedUserId ?? null,
           idempotencyKey: idempKey,
           idempotencyHash: computedHash,
+          categoryId: input.categoryId ?? null,
         } as any)
         .returning();
       entry = newEntry;
@@ -344,7 +351,9 @@ export async function postEntry(
               ? "CREATE_ASSET_BUY"
               : input.type === "sell"
                 ? "CREATE_ASSET_SELL"
-                : "CREATE_TRANSACTION";
+                : input.type === "debt_repayment"
+                  ? "CREATE_DEBT_REPAYMENT"
+                  : "CREATE_TRANSACTION";
 
     await recordAuditEvent(
       {
@@ -780,6 +789,8 @@ export type FlowCmd = {
   assetId: string;
   quantity: string;
   baseValue: string;
+  /** leaf id from the hierarchical expense category tree (reporting only) */
+  categoryId?: string | null;
   userId?: string;
   idempotencyKey?: string | null;
   preventOverdraft?: boolean;

@@ -150,7 +150,7 @@ export default async function DebtsPage() {
                     <div className="flex gap-1.5">
                       {d.nextDue && (
                         <Link
-                          href={`/new?type=expense&installmentId=${d.nextDue.id}&entryDate=${d.nextDue.dueDate}&title=${encodeURIComponent(`قسط ${d.nextDue.seq} — ${d.title}`)}`}
+                          href={`/new?type=debt_repayment&installmentId=${d.nextDue.id}&entryDate=${d.nextDue.dueDate}&title=${encodeURIComponent(`قسط ${d.nextDue.seq} — ${d.title}`)}`}
                           className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[12px]"
                         >
                           پرداخت قسط بعدی

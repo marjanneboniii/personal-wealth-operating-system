@@ -34,6 +34,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { D, Decimal } from "@/domain/decimal";
 import {
+  postEntry,
   recordBuy,
   recordExpense,
   recordIncome,
@@ -41,6 +42,13 @@ import {
   recordTransfer,
   reverseEntry,
 } from "@/features/ledger/service";
+import {
+  addCustomCategory,
+  ensureCategoryCatalog,
+  ensureReserveAccount,
+  getCategoryById,
+  getMiscCategory,
+} from "@/features/categories/service";
 import { executePlanned, payInstallment } from "@/features/planning/service";
 import { completeSetup, getSetupState } from "@/features/setup/service";
 import { createPortfolioSnapshot, getCurrentNetWorth, getPortfolioValuation } from "@/features/portfolio/service";
@@ -309,11 +317,16 @@ async function accountAsset(accountId: string): Promise<string> {
 }
 
 const txSchema = z.object({
-  type: z.enum(["transfer", "buy", "sell", "income", "expense"]),
+  type: z.enum(["transfer", "buy", "sell", "income", "expense", "debt_repayment"]),
   entryDate: z.string().min(8),
   description: z.string().min(2, "شرح را وارد کنید"),
-  primaryAccountId: z.string().uuid("حساب مبدأ را انتخاب کنید"),
-  counterAccountId: z.string().uuid("حساب مقابل را انتخاب کنید"),
+  // Optional at the schema level — each transaction type enforces the exact
+  // accounts it needs below (e.g. non-cash expenses and debt repayments with
+  // a ledger-backed liability do not need all account fields).
+  primaryAccountId: z.string().optional(),
+  counterAccountId: z.string().optional(),
+  /** leaf of the hierarchical expense category tree (expense entries) */
+  categoryId: z.string().optional(),
   amount: z.string().min(1).optional(),
   irtAmount: z.string().optional(),
   fxRate: z.string().optional(),
@@ -323,6 +336,10 @@ const txSchema = z.object({
   quantity: z.string().optional(),
   fee: z.string().optional(),
 });
+
+function isUuid(v: string | undefined): v is string {
+  return !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
 
 export async function createTransactionAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   // Auth guard — FAIL-CLOSED: DB/auth errors DENY, never anonymous
@@ -355,13 +372,13 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
 
     // SECURITY (Authorization boundary): validate ownership of EVERY
     // client-provided account / reference id BEFORE the accounting service is
-    // invoked. System-derived accounts (fee 5040 / PnL 4100 looked up by code
-    // server-side) are shared chart-of-accounts records and never come from
-    // the client. On violation we throw (403 semantics) and NO journal entry,
-    // posting, FIFO lot or balance is created or mutated.
+    // invoked. System-derived accounts (fee 5040 / PnL 4100 / reserve 3200
+    // looked up by code server-side) are shared chart-of-accounts records and
+    // never come from the client. On violation we throw (403 semantics) and
+    // NO journal entry, posting, FIFO lot or balance is created or mutated.
     if (authUser) {
-      await validateAccountOwnership(input.primaryAccountId, authUser.id);
-      await validateAccountOwnership(input.counterAccountId, authUser.id);
+      if (isUuid(input.primaryAccountId)) await validateAccountOwnership(input.primaryAccountId, authUser.id);
+      if (isUuid(input.counterAccountId)) await validateAccountOwnership(input.counterAccountId, authUser.id);
       if (input.installmentId) {
         await assertInstallmentOwnership(input.installmentId, authUser);
       } else if (input.debtId) {
@@ -413,29 +430,153 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       if (debtRow.status === "settled") throw new Error("این بدهی قبلاً تسویه شده است");
       linkedDebt = debtRow;
     }
+    if (input.type === "debt_repayment" && !linkedDebt) {
+      throw new Error("برای بازپرداخت بدهی، ابتدا یک بدهی یا قسط را انتخاب کنید");
+    }
+
+    // Expense category resolution (reporting dimension, never touches the
+    // double-entry balance). Missing category falls back to «متفرقه» — the
+    // designated last-resort category — so legacy callers keep working.
+    let category: { id: string; nature: string } | null = null;
+    if (input.type === "expense") {
+      await ensureCategoryCatalog();
+      if (input.categoryId && isUuid(input.categoryId)) {
+        const found = await getCategoryById(input.categoryId, authUser?.id);
+        if (!found) throw new Error("دسته هزینه انتخاب‌شده معتبر یا فعال نیست");
+        if (found.level !== 1) throw new Error("دسته هزینه باید یک زیردسته (برگ) باشد، نه دسته اصلی");
+        category = found;
+      } else {
+        category = await getMiscCategory();
+      }
+    }
 
     // Wrap ledger write + FX snapshot + debt linkage in one atomic transaction
     const entryId = await db.transaction(async (tx) => {
       let entry: { id: string } | null = null;
 
       if (input.type === "income" || input.type === "expense") {
+        if (!isUuid(input.counterAccountId)) throw new Error("حساب مقابل را انتخاب کنید");
+        const categoryId = category?.id ?? null;
+
+        if (category?.nature === "non_cash") {
+          // Non-cash expense (depreciation / reserve): an expense in reports
+          // but NEVER a cash outflow — the counter leg is the system reserve
+          // (equity) account, so no wallet/account balance moves.
+          const reserve = await ensureReserveAccount(authUser?.id ?? null, tx);
+          if (!reserve.assetId) throw new Error("حساب ذخیره استهلاک به دارایی پایه متصل نیست");
+          const price = await latestPrice(reserve.assetId);
+          const qty = amount.div(price).toString();
+          entry = await postEntry(
+            {
+              entryDate: input.entryDate,
+              type: "expense",
+              description: input.description,
+              categoryId,
+              userId: authUser?.id ?? undefined,
+              idempotencyKey,
+              postings: [
+                {
+                  accountId: reserve.id,
+                  assetId: reserve.assetId,
+                  quantity: D(qty).neg().toString(),
+                  baseValue: amount.neg().toString(),
+                  memo: "ثبت غیرنقدی (استهلاک/ذخیره)",
+                },
+                {
+                  accountId: input.counterAccountId,
+                  assetId: reserve.assetId,
+                  quantity: qty,
+                  baseValue: amount.toString(),
+                },
+              ],
+            },
+            tx,
+          );
+        } else {
+          if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
+          const cashAsset = await accountAsset(input.primaryAccountId);
+          const price = await latestPrice(cashAsset);
+          const qty = amount.div(price).toString();
+          const cmd = {
+            entryDate: input.entryDate,
+            description: input.description,
+            cashAccountId: input.primaryAccountId,
+            categoryAccountId: input.counterAccountId,
+            assetId: cashAsset,
+            quantity: qty,
+            baseValue: amount.toString(),
+            categoryId,
+            userId: authUser?.id ?? undefined,
+            idempotencyKey,
+          };
+          if (input.type === "income") entry = await recordIncome(cmd, tx);
+          else entry = await recordExpense(cmd, tx);
+        }
+      } else if (input.type === "debt_repayment") {
+        // Debt principal repayment — by design NOT an expense:
+        //  - debt WITH a liability account: cash ↓ / liability ↓ (net worth
+        //    effect only, excluded from every expense report);
+        //  - planning-only debt (no liability account yet): the outflow is
+        //    booked against the chosen expense account so money stays
+        //    tracked, but the entry type remains 'debt_repayment' and is
+        //    excluded from expense/cash-flow aggregations.
+        if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
         const cashAsset = await accountAsset(input.primaryAccountId);
         const price = await latestPrice(cashAsset);
         const qty = amount.div(price).toString();
-        const cmd = {
-          entryDate: input.entryDate,
-          description: input.description,
-          cashAccountId: input.primaryAccountId,
-          categoryAccountId: input.counterAccountId,
-          assetId: cashAsset,
-          quantity: qty,
-          baseValue: amount.toString(),
-          userId: authUser?.id ?? undefined,
-          idempotencyKey,
-        };
-        if (input.type === "income") entry = await recordIncome(cmd, tx);
-        else entry = await recordExpense(cmd, tx);
+        const lines = [
+          {
+            accountId: input.primaryAccountId,
+            assetId: cashAsset,
+            quantity: D(qty).neg().toString(),
+            baseValue: amount.neg().toString(),
+          },
+        ];
+        if (linkedDebt?.accountId) {
+          const debtAsset = await accountAsset(linkedDebt.accountId);
+          const debtPrice = await latestPrice(debtAsset);
+          lines.push({
+            accountId: linkedDebt.accountId,
+            assetId: debtAsset,
+            quantity: amount.div(debtPrice).toString(),
+            baseValue: amount.toString(),
+          } as any);
+          entry = await postEntry(
+            {
+              entryDate: input.entryDate,
+              type: "debt_repayment",
+              description: input.description,
+              postings: lines as any,
+              userId: authUser?.id ?? undefined,
+              idempotencyKey,
+            },
+            tx,
+          );
+        } else {
+          if (!isUuid(input.counterAccountId)) {
+            throw new Error("این بدهی حساب بدهی جداگانه ندارد؛ حساب هزینه مقابل را انتخاب کنید");
+          }
+          lines.push({
+            accountId: input.counterAccountId,
+            assetId: cashAsset,
+            quantity: qty,
+            baseValue: amount.toString(),
+          } as any);
+          entry = await postEntry(
+            {
+              entryDate: input.entryDate,
+              type: "debt_repayment",
+              description: input.description,
+              postings: lines as any,
+              userId: authUser?.id ?? undefined,
+              idempotencyKey,
+            },
+            tx,
+          );
+        }
       } else if (input.type === "transfer") {
+        if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
+        if (!isUuid(input.counterAccountId)) throw new Error("حساب مقابل را انتخاب کنید");
         const assetId = await accountAsset(input.primaryAccountId);
         const price = await latestPrice(assetId);
         const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : amount.div(price).toString();
@@ -456,6 +597,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           tx,
         );
       } else {
+        if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
+        if (!isUuid(input.counterAccountId)) throw new Error("حساب مقابل را انتخاب کنید");
         const assetId = await accountAsset(input.primaryAccountId);
         const cashAssetId = await accountAsset(input.counterAccountId);
         const cashPrice = await latestPrice(cashAssetId);
@@ -536,6 +679,39 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
   } catch (e) {
     const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطای ناشناخته";
     return { ok: false, message: msg };
+  }
+}
+
+/**
+ * Extensibility of the category tree: users can add their own sub-category
+ * under any active top-level group. Overlap prevention (duplicate sibling
+ * names) is enforced by the category service.
+ */
+export async function createCategoryAction(input: {
+  name: string;
+  parentId: string;
+}): Promise<ActionResult & { id?: string }> {
+  let user: any = null;
+  try {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
+  }
+
+  try {
+    const created = await addCustomCategory(user?.id ?? null, input);
+    revalidatePath("/new");
+    revalidatePath("/transactions");
+    revalidatePath("/cash-flow");
+    return { ok: true, message: "زیردسته جدید با موفقیت ایجاد شد.", id: created.id };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطا" };
   }
 }
 

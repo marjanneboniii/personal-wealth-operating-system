@@ -24,6 +24,7 @@ import {
 } from "@/db/schema";
 import { postEntry, recordBuy, recordExpense, recordIncome, recordSell } from "@/features/ledger/service";
 import { payInstallment } from "@/features/planning/service";
+import { ensureCategoryCatalog, getCategoryByCode } from "@/features/categories/service";
 import { addMonthsIso, todayIso } from "@/lib/format";
 import { D } from "@/domain/decimal";
 import { ensureSchemaOnce, rootCauseOf } from "@/db/init-schema";
@@ -200,6 +201,7 @@ export async function runSeed(): Promise<void> {
     { code: "2020", name: "اقساط خودرو", type: "liability", assetId: A.IRT },
     { code: "3000", name: "سرمایه", type: "equity" },
     { code: "3010", name: "سرمایه افتتاحیه", type: "equity", assetId: A.USD },
+    { code: "3200", name: "ذخیره استهلاک و تعمیرات آتی", type: "equity", assetId: A.USD },
     { code: "4000", name: "درآمدها", type: "income" },
     { code: "4010", name: "حقوق و دستمزد", type: "income", assetId: A.USD },
     { code: "4100", name: "سود سرمایه‌ای تحقق‌یافته", type: "income", assetId: A.USD },
@@ -271,6 +273,11 @@ export async function runSeed(): Promise<void> {
     });
   }
 
+  /* Expense category catalog ---------------------------------------- */
+  await ensureCategoryCatalog();
+  const catRent = (await getCategoryByCode("HSG-RENT"))?.id ?? null;
+  const catGrocery = (await getCategoryByCode("FOD-GROCERY-HOME"))?.id ?? null;
+
   /* Income & expenses ---------------------------------------------- */
   for (let i = 6; i >= 1; i--) {
     await recordIncome({
@@ -290,6 +297,7 @@ export async function runSeed(): Promise<void> {
       assetId: A.IRT,
       quantity: "90000000",
       baseValue: "900",
+      categoryId: catRent,
     });
     await recordExpense({
       entryDate: m(-i),
@@ -299,6 +307,7 @@ export async function runSeed(): Promise<void> {
       assetId: A.IRT,
       quantity: `${70000000 + i * 1500000}`,
       baseValue: `${700 + i * 15}`,
+      categoryId: catGrocery,
     });
   }
 

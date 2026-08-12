@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { debts, entryFxSnapshots, installments } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { getAccountBalances, getTransactions, type TxRow } from "@/features/ledger/queries";
+import { listCategoryTree } from "@/features/categories/service";
 import { PageHeader } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import TransactionsView, { type ClientTxRow } from "@/components/transactions/TransactionsView";
@@ -22,14 +23,16 @@ function monthShift(iso: string, months: number) {
 }
 
 export default async function TransactionsPage({ searchParams }: { searchParams: SearchParams }) {
-  await ensureAuth();
+  const user = await ensureAuth();
+  const userId = (user as { id?: string } | null)?.id ?? undefined;
   await seedIfEmpty();
   const sp = await searchParams;
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
 
   const q = s("q").trim();
-  const type = ["income", "expense", "transfer", "buy", "sell", "adjustment", "installment", "opening", "debt", "fx"].includes(s("type")) ? s("type") : "";
+  const type = ["income", "expense", "transfer", "buy", "sell", "adjustment", "installment", "opening", "debt", "debt_repayment", "fx"].includes(s("type")) ? s("type") : "";
   const accountId = s("account");
+  const categoryId = s("category");
   const review = s("review") === "reviewed" || s("review") === "unreviewed" ? (s("review") as "reviewed" | "unreviewed") : "";
   const sort = ["new", "old", "amount"].includes(s("sort")) ? s("sort") : "new";
   const range = ["m1", "m3", "m6", "ytd", "all"].includes(s("range")) ? s("range") : "m3";
@@ -38,18 +41,20 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const from =
     range === "m1" ? monthShift(today, -1) : range === "m3" ? monthShift(today, -3) : range === "m6" ? monthShift(today, -6) : range === "ytd" ? `${today.slice(0, 4)}-01-01` : undefined;
 
-  const [rows, accounts, fx] = await Promise.all([
+  const [rows, accounts, fx, categoryTree] = await Promise.all([
     getTransactions({
       limit: 150,
       q: q || undefined,
       type: type || undefined,
       accountId: accountId || undefined,
+      categoryId: categoryId || undefined,
       from,
       review: (review || undefined) as "reviewed" | "unreviewed" | undefined,
       sort: sort as "new" | "old" | "amount",
     }),
     getAccountBalances(),
     getLatestUsdIrtRate(),
+    listCategoryTree(userId),
   ]);
 
   // Attach FX freeze + installment linkage for the detail panel
@@ -81,7 +86,8 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     linkedInstallment: linkedBy.get(r.id) ? { title: linkedBy.get(r.id)!.title, seq: linkedBy.get(r.id)!.seq } : null,
   }));
 
-  // Account filter covers both money accounts and income/expense categories
+  // Account filter covers money accounts; the category filter uses the
+  // hierarchical expense category tree (parent matches all of its children).
   const accountGroups = [
     {
       label: "حساب‌های پول",
@@ -90,14 +96,13 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         .map((a) => ({ id: a.accountId, name: a.name }))
         .slice(0, 40),
     },
-    {
-      label: "دسته‌ها",
-      options: accounts
-        .filter((a) => a.type === "income" || a.type === "expense")
-        .map((a) => ({ id: a.accountId, name: a.name }))
-        .slice(0, 40),
-    },
   ].filter((g) => g.options.length > 0);
+
+  const categoryGroups = categoryTree.map((p) => ({
+    id: p.id,
+    name: p.name,
+    children: p.children.map((c) => ({ id: c.id, name: c.name })),
+  }));
 
   return (
     <div>
@@ -113,8 +118,9 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
       <TransactionsView
         rows={clientRows}
         accountGroups={accountGroups}
+        categoryGroups={categoryGroups}
         rate={String(fx.rate ?? "")}
-        filters={{ q, type, accountId, review, range, sort }}
+        filters={{ q, type, accountId, categoryId, review, range, sort }}
       />
     </div>
   );
