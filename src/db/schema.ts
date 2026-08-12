@@ -115,6 +115,54 @@ export const wallets = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/* Expense categories — Hierarchical (Parent-Child) classification      */
+/*                                                                      */
+/* Reporting dimension of every expense entry. The accounting truth     */
+/* stays in the double-entry ledger (postings to expense accounts);     */
+/* categories add the standard, extensible classification used by all   */
+/* expense reports.                                                     */
+/*                                                                      */
+/*  - System catalog rows have user_id NULL (shared reference data,     */
+/*    like currencies / asset classes).                                 */
+/*  - Users may extend the tree with their own sub-categories           */
+/*    (user_id = owner).                                                */
+/*  - `nature = 'non_cash'` marks depreciation / reserve categories     */
+/*    (e.g. vehicle depreciation): they are expenses in reports but     */
+/*    NEVER a cash outflow, so cash-flow analytics exclude them.        */
+/* ------------------------------------------------------------------ */
+
+export const expenseCategories = pgTable(
+  "expense_categories",
+  {
+    ...base,
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    /** Stable machine code, unique per tenant scope, e.g. "TRN-FUEL". */
+    code: text("code").notNull(),
+    /** Persian display name. */
+    name: text("name").notNull(),
+    /** Optional Latin name for exports / integrations. */
+    nameEn: text("name_en"),
+    /** Self-FK for the hierarchy (parent → child), logical (no DB FK). */
+    parentId: uuid("parent_id"),
+    /** 0 = top-level group, 1 = leaf sub-category. */
+    level: integer("level").notNull().default(0),
+    sortOrder: integer("sort_order").notNull().default(0),
+    /** cash | non_cash — non_cash = depreciation / reserve (no cash outflow). */
+    nature: text("nature").notNull().default("cash"),
+    /** Assignment rule shown to the user (prevents overlapping usage). */
+    description: text("description"),
+    /** System catalog entries are managed by the standard taxonomy. */
+    isSystem: boolean("is_system").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
+  },
+  (t) => [
+    uniqueIndex("expense_categories_user_code_uq").on(t.userId, t.code),
+    index("expense_categories_parent_idx").on(t.parentId),
+    index("expense_categories_user_idx").on(t.userId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /* Chart of accounts                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -159,6 +207,12 @@ export const journalEntries = pgTable(
     source: text("source").notNull().default("manual"), // manual | plan | import
     idempotencyKey: text("idempotency_key"),
     idempotencyHash: text("idempotency_hash"),
+    /**
+     * Reporting dimension: the (leaf) expense category of the entry.
+     * Set for expense entries; NULL for transfers/buys/sells/etc.
+     * Never participates in the double-entry balance — classification only.
+     */
+    categoryId: uuid("category_id").references(() => expenseCategories.id, { onDelete: "set null" }),
   },
   (t) => [
     uniqueIndex("journal_entries_user_idemp_uq").on(t.userId, t.idempotencyKey).where(sql`idempotency_key IS NOT NULL`),
@@ -166,6 +220,7 @@ export const journalEntries = pgTable(
     index("entries_type_idx").on(t.type),
     index("entries_user_idx").on(t.userId),
     index("entries_user_date_idx").on(t.userId, t.entryDate),
+    index("entries_category_idx").on(t.categoryId),
   ],
 );
 

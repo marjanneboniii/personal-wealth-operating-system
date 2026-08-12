@@ -12,6 +12,7 @@ import {
   users,
 } from "@/db/schema";
 import { postEntry } from "@/features/ledger/service";
+import { ensureCategoryCatalog } from "@/features/categories/service";
 import { D, Decimal } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
 
@@ -140,6 +141,9 @@ export async function completeSetup(input: SetupInput): Promise<{ ok: boolean; m
       { code: "2010", name: "وام / بدهی عمومی", type: "liability", assetId: baseAssetId },
       { code: "3000", name: "سرمایه", type: "equity" },
       { code: "3010", name: "سرمایه افتتاحیه", type: "equity", assetId: baseAssetId },
+      // Non-cash reserve: counter account of depreciation / reserve expense
+      // entries (nature = non_cash) so no cash account ever moves.
+      { code: "3200", name: "ذخیره استهلاک و تعمیرات آتی", type: "equity", assetId: baseAssetId },
       { code: "4000", name: "درآمدها", type: "income" },
       { code: "4010", name: "حقوق و درآمد", type: "income", assetId: baseAssetId },
       { code: "4100", name: "سود سرمایه‌ای تحقق‌یافته", type: "income", assetId: baseAssetId },
@@ -151,6 +155,10 @@ export async function completeSetup(input: SetupInput): Promise<{ ok: boolean; m
 
     const insertedAccounts = await tx.insert(accounts).values(acctRows).returning();
     const acctMap = Object.fromEntries(insertedAccounts.map((a) => [a.code, a.id]));
+
+    // Standard hierarchical expense category catalog (reporting dimension).
+    // Idempotent; runs inside the setup transaction.
+    await ensureCategoryCatalog(tx);
 
     // 7. Physical gold is a manually valued real asset. The crypto unit price
     // entered above is purchase/cost information only (used by the opening

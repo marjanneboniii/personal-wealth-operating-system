@@ -850,6 +850,34 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS audit_log_action_idx ON audit_log(action);`,
   `CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log(created_at);`,
 
+  // ───────────── STAGE 5: Hierarchical Expense Category System ─────────────
+  // Standard, extensible classification of expense entries (Parent-Child).
+  // System catalog rows are shared (user_id NULL); users can add their own
+  // sub-categories. Journal entries gain an OPTIONAL category_id reporting
+  // dimension — the double-entry ledger is untouched by classification.
+  `CREATE TABLE IF NOT EXISTS expense_categories (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    deleted_at timestamptz,
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    code text NOT NULL,
+    name text NOT NULL,
+    name_en text,
+    parent_id uuid,
+    level integer NOT NULL DEFAULT 0,
+    sort_order integer NOT NULL DEFAULT 0,
+    nature text NOT NULL DEFAULT 'cash',
+    description text,
+    is_system boolean NOT NULL DEFAULT true,
+    is_active boolean NOT NULL DEFAULT true
+  );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS expense_categories_user_code_uq ON expense_categories(user_id, code);`,
+  `CREATE INDEX IF NOT EXISTS expense_categories_parent_idx ON expense_categories(parent_id);`,
+  `CREATE INDEX IF NOT EXISTS expense_categories_user_idx ON expense_categories(user_id);`,
+  `ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES expense_categories(id) ON DELETE SET NULL;`,
+  `CREATE INDEX IF NOT EXISTS entries_category_idx ON journal_entries(category_id);`,
+
   // ───────────── FINAL SECURITY REMEDIATION: Portfolio Snapshot Isolation & Role Default ─────────────
   // Migrate portfolio_snapshots from single-date unique to (user_id, snapshot_date)
   `ALTER TABLE portfolio_snapshots DROP CONSTRAINT IF EXISTS portfolio_snapshots_snapshot_date_key;`,

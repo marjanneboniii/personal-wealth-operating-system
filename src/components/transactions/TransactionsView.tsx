@@ -14,13 +14,14 @@ export type ClientTxRow = TxRow & {
   linkedInstallment: { title: string; seq: number } | null;
 };
 
-type Filters = { q: string; type: string; accountId: string; review: string; range: string; sort: string };
+type Filters = { q: string; type: string; accountId: string; categoryId: string; review: string; range: string; sort: string };
 
 const TYPE_OPTIONS = [
   { key: "", label: "همه" },
   { key: "expense", label: "هزینه" },
   { key: "income", label: "درآمد" },
   { key: "transfer", label: "انتقال" },
+  { key: "debt_repayment", label: "بازپرداخت بدهی" },
   { key: "buy", label: "خرید" },
   { key: "sell", label: "فروش" },
   { key: "installment", label: "قسط" },
@@ -40,11 +41,13 @@ const SOURCE_LABEL: Record<string, string> = { manual: "دستی", plan: "اجر
 export default function TransactionsView({
   rows,
   accountGroups,
+  categoryGroups = [],
   rate,
   filters,
 }: {
   rows: ClientTxRow[];
   accountGroups: { label: string; options: { id: string; name: string }[] }[];
+  categoryGroups?: { id: string; name: string; children: { id: string; name: string }[] }[];
   rate: string;
   filters: Filters;
 }) {
@@ -131,7 +134,7 @@ export default function TransactionsView({
     URL.revokeObjectURL(a.href);
   };
 
-  const isFiltered = filters.q || filters.type || filters.accountId || filters.review || filters.range !== "m3";
+  const isFiltered = filters.q || filters.type || filters.accountId || filters.categoryId || filters.review || filters.range !== "m3";
 
   return (
     <div className="space-y-3">
@@ -186,10 +189,10 @@ export default function TransactionsView({
           value={filters.accountId}
           onChange={(e) => apply({ accountId: e.target.value })}
           className="field !min-h-9 !w-auto max-w-[150px] !py-1.5 text-[12.5px]"
-          aria-label="فیلتر حساب یا دسته"
+          aria-label="فیلتر حساب"
           style={{ touchAction: "manipulation" }}
         >
-          <option value="">همه حساب‌ها و دسته‌ها</option>
+          <option value="">همه حساب‌ها</option>
           {accountGroups.map((g) => (
             <optgroup key={g.label} label={g.label}>
               {g.options.map((a) => (
@@ -200,6 +203,28 @@ export default function TransactionsView({
             </optgroup>
           ))}
         </select>
+
+        {categoryGroups.length > 0 && (
+          <select
+            value={filters.categoryId}
+            onChange={(e) => apply({ categoryId: e.target.value })}
+            className="field !min-h-9 !w-auto max-w-[170px] !py-1.5 text-[12.5px]"
+            aria-label="فیلتر دسته هزینه"
+            style={{ touchAction: "manipulation" }}
+          >
+            <option value="">همه دسته‌های هزینه</option>
+            {categoryGroups.map((g) => (
+              <optgroup key={g.id} label={g.name}>
+                <option value={g.id}>{g.name} (همه)</option>
+                {g.children.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        )}
 
         <button
           type="button"
@@ -306,9 +331,16 @@ export default function TransactionsView({
                         {!e.reviewed && <span className="badge badge-warn shrink-0">بررسی‌نشده</span>}
                         {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
                       </span>
-                      <span className="muted mt-0.5 flex items-center gap-x-1.5 text-[10.5px]">
+                      <span className="muted mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10.5px]">
                         <span className="sm:hidden">{formatShortDate(e.entryDate)} · </span>
                         <span>{h.typeLabel}</span>
+                        {e.categoryName && (
+                          <span className="badge shrink-0" style={{ background: "var(--surface-2)" }}>
+                            {e.categoryParentName ? `${e.categoryParentName} › ` : ""}
+                            {e.categoryName}
+                            {e.categoryNonCash ? " · غیرنقدی" : ""}
+                          </span>
+                        )}
                         {h.from && h.to && (
                           <span className="hidden truncate sm:inline">
                             &nbsp;· {h.from} ← {h.to}

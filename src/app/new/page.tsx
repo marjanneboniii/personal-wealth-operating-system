@@ -8,6 +8,7 @@ import TransactionForm from "@/components/forms/TransactionForm";
 import { todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { listDebts } from "@/features/planning/service";
+import { ensureCategoryCatalog, listCategoryTree } from "@/features/categories/service";
 import {
   ensureCoinGeckoCatalog,
   getMarketCatalogStatus,
@@ -16,8 +17,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type TxType = "expense" | "income" | "transfer" | "buy" | "sell";
-const VALID: TxType[] = ["expense", "income", "transfer", "buy", "sell"];
+type TxType = "expense" | "income" | "transfer" | "buy" | "sell" | "debt_repayment";
+const VALID: TxType[] = ["expense", "income", "transfer", "buy", "sell", "debt_repayment"];
 
 export default async function NewTransactionPage({
   searchParams,
@@ -32,10 +33,10 @@ export default async function NewTransactionPage({
   const defaultType = VALID.includes(params.type as TxType) ? (params.type as TxType) : "expense";
 
   const sharedAccountingCodes = [
-    "3000", "3010", "4000", "4010", "4100", "4900",
+    "3000", "3010", "3200", "4000", "4010", "4100", "4900",
     "5000", "5010", "5020", "5030", "5040", "5050", "5900",
   ];
-  const [rows, fxSnap, debts, marketAssets] = await Promise.all([
+  const [rows, fxSnap, debts, marketAssets, categoryTree] = await Promise.all([
     db
       .select({
         id: accounts.id,
@@ -62,6 +63,7 @@ export default async function NewTransactionPage({
     getLatestUsdIrtRate(),
     listDebts(userId ?? undefined),
     listCoinGeckoCatalog("", 500),
+    ensureCategoryCatalog().then(() => listCategoryTree(userId ?? undefined)),
   ]);
   const catalogStatus = await getMarketCatalogStatus();
 
@@ -70,6 +72,18 @@ export default async function NewTransactionPage({
       <PageHeader title="ثبت تراکنش" subtitle="هر ثبت یک سند دوطرفه تغییرناپذیر در دفترکل می‌سازد. پیش‌نمایش هوشمند قبل از تأیید نهایی، فقط نمایشی است." />
       <TransactionForm
         accounts={rows.map((r) => ({ ...r, decimals: r.decimals ?? 2 }))}
+        categories={categoryTree.map((p) => ({
+          id: p.id,
+          code: p.code,
+          name: p.name,
+          children: p.children.map((c) => ({
+            id: c.id,
+            code: c.code,
+            name: c.name,
+            nature: c.nature,
+            description: c.description,
+          })),
+        }))}
         marketAssets={marketAssets.map((asset) => ({
           coingeckoId: asset.coingeckoId,
           symbol: asset.symbol,

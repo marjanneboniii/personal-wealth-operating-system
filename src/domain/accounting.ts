@@ -10,10 +10,20 @@ export type EntryType =
   | "expense"
   | "fx"
   | "debt"
+  | "debt_repayment"
   | "installment"
   | "adjustment"
   | "opening";
 
+/**
+ * Transaction-type separation (never conflated):
+ *  - expense        → a real consumption cost (classified by category).
+ *  - debt_repayment → principal repayment of a debt; it decreases a
+ *                     liability (or is tracked separately) and is NOT an
+ *                     expense in reports.
+ *  - transfer       → movement between the user's own accounts; neither
+ *                     income nor expense.
+ */
 export const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
   transfer: "انتقال",
   buy: "خرید دارایی",
@@ -22,6 +32,7 @@ export const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
   expense: "هزینه",
   fx: "تبدیل ارز",
   debt: "ایجاد بدهی",
+  debt_repayment: "بازپرداخت بدهی",
   installment: "پرداخت قسط",
   adjustment: "اصلاحی",
   opening: "افتتاحیه",

@@ -20,6 +20,7 @@ const ORDER = [
   "property_types",
   "wallets",
   "accounts",
+  "expense_categories",
   "journal_entries",
   "real_estate_properties",
   "entry_reviews",

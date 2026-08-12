@@ -20,7 +20,7 @@ export type HumanTx = {
 };
 
 const POSITIVE_TYPES = new Set(["income", "sell"]);
-const NEGATIVE_TYPES = new Set(["expense", "buy", "installment", "debt"]);
+const NEGATIVE_TYPES = new Set(["expense", "buy", "installment", "debt", "debt_repayment"]);
 
 export function humanizeEntry(e: LedgerRow): HumanTx {
   const positives = e.lines.filter((l) => Number(l.baseValue) > 0);
@@ -52,7 +52,7 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
 export function typeBadgeTone(type: string): "pos" | "neg" | "brand" | "neutral" | "warn" | "info" {
   if (type === "income") return "pos";
   if (type === "expense") return "neg";
-  if (type === "transfer" || type === "fx") return "info";
+  if (type === "transfer" || type === "fx" || type === "debt_repayment") return "info";
   if (type === "adjustment") return "warn";
   if (type === "buy" || type === "sell") return "brand";
   return "neutral";
