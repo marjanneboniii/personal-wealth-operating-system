@@ -225,7 +225,6 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
           {state.message}
         </p>
       )}
-      <p className="muted text-[10.5px] leading-5">برای جلوگیری از تغییر هسته مالی، ثبت این فرم از ثبت سند حسابداری جداست؛ پرداخت واقعی قسط همچنان از مسیر تراکنش/پرداخت قسط موجود انجام می‌شود.</p>
     </form>
   );
 }

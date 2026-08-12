@@ -42,7 +42,6 @@ export default async function PortfolioPage() {
     <div className="space-y-8">
       <PageHeader
         title="سبد دارایی"
-        subtitle="چه چیزهایی در اختیار دارم؟ — مالکیت و بهای تمام‌شده از دفترکل (FIFO)، قیمت جاری دارایی‌های بازار از CoinGecko."
         action={<Link href="/new?type=buy" className="btn btn-primary">ثبت خرید دارایی</Link>}
       />
 
@@ -57,18 +56,16 @@ export default async function PortfolioPage() {
       {/* KPI strip */}
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش روز سبد" value={formatMoney(valuation.totalNetWorth)} hint={formatMoney(valuation.totalNetWorthToman, "IRT")} />
-        <Metric label="بهای تمام‌شده" value={formatMoney(valuation.totalCostBasis)} hint="روش FIFO — خوانش مستقیم از دفترکل" />
+        <Metric label="بهای تمام‌شده" value={formatMoney(valuation.totalCostBasis)} />
         <Metric
           label="سود/زیان تحقق‌نیافته"
           value={`${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}`}
           tone={unrealized.gte(0) ? "up" : "down"}
-          hint={`${formatMoney(valuation.totalUnrealizedPnlToman, "IRT")} · بازده کل: ${valuation.overallRoiPercentage}٪ — نمایشی، در دفترکل ثبت نمی‌شود`}
         />
         <Metric
           label="سود تحقق‌یافته"
           value={`${D(pnl.total).gte(0) ? "+" : "−"}${formatMoney(D(pnl.total).abs().toString())}`}
           tone={D(pnl.total).gte(0) ? "up" : "down"}
-          hint={`${lots.length} بسته FIFO باز`}
         />
       </section>
 

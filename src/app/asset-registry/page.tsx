@@ -105,10 +105,7 @@ export default async function AssetRegistryPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="دارایی واقعی و کالا"
-        subtitle="ثبت مرحله‌ای، پیش‌نمایش شفاف و تأیید نهایی برای دارایی‌های واقعی، ارزش‌گذاری و سبد کالای شخصی."
-      />
+      <PageHeader title="دارایی واقعی و کالا" />
       <RegistryWorkspace
         vehicles={vehicles}
         ownerships={ownerships}

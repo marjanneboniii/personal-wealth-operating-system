@@ -50,10 +50,7 @@ export default async function GoalsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="اهداف و صندوق‌ها"
-        subtitle="به اهدافم چقدر نزدیک هستم؟ — پیشرفت هر هدف از مانده واقعی حساب متصل به آن خوانده می‌شود."
-      />
+      <PageHeader title="اهداف و صندوق‌ها" />
 
       {activeGoals.length > 0 && (
         <section className="rise border-b pb-6" style={{ borderColor: "var(--border)" }}>
@@ -74,14 +71,10 @@ export default async function GoalsPage() {
       )}
 
       {/* Goals */}
-      <Section title="اهداف مالی" hint="سکه‌گذاری برای فردا — با اولویت و سررسید">
+      <Section title="اهداف مالی">
         {goals.length === 0 ? (
           <div className="card">
-            <EmptyState
-              icon="goals"
-              title="هنوز هدفی تعریف نشده است"
-              body="هدف یعنی مبلغی برای چیزی که برایتان مهم است — خانه، سفر، امنیت. اولین هدف را پایین همین صفحه بسازید."
-            />
+            <EmptyState icon="goals" title="هنوز هدفی تعریف نشده است" />
           </div>
         ) : (
           <ul className="space-y-2.5">

@@ -81,7 +81,6 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
     <div className="space-y-8">
       <PageHeader
         title="دفترکل"
-        subtitle="مرجع رسمی و تغییرناپذیر حسابداری — دقیقاً چه چیزی در سوابق ثبت شده است؟ هر سند حداقل دو ردیف دارد و مجموع آن صفر است."
         action={
           <Link href="/audit" className="btn btn-soft">
             <Icon name="audit" size={16} />
@@ -101,12 +100,10 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
           {bad ? `${bad} سند نامتوازن` : "دفترکل تراز است"}
         </span>
         <span className="muted num">{totalEntries} سند ثبت‌شده</span>
-        <span className="muted">اصلاح فقط با سند معکوس — حذف و ویرایش ممنوع</span>
-        <span className="muted mr-auto hidden sm:block">مانده‌ها هرگز ذخیره نمی‌شوند؛ همیشه محاسبه می‌شوند</span>
       </div>
 
       {/* ── Trial balance ── */}
-      <Section title="تراز آزمایشی" hint="مانده هر حساب، مشتق مستقیم از مجموع ردیف‌ها">
+      <Section title="تراز آزمایشی">
         <div className="card overflow-x-auto">
           <table className="table">
             <thead>
@@ -295,13 +292,6 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
             );
           })}
         </div>
-        <p className="muted mt-3 text-[10.5px]">
-          نمایش ۶۰ سند اخیر · برای کار با تراکنش‌ها به زبان انسانی، به{" "}
-          <Link href="/transactions" className="underline underline-offset-2" style={{ color: "var(--brand)" }}>
-            تراکنش‌ها
-          </Link>{" "}
-          بروید — دفترکل مرجع حسابداری است.
-        </p>
       </Section>
     </div>
   );

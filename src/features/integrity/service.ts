@@ -102,7 +102,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
     {
       id: "ledger-balance",
       title: "تراز دفترکل",
-      description: "در حسابداری دوطرفه، مجموع بدهکار و بستانکار هر سند باید دقیقاً صفر باشد. این بررسی هر سند را جمع می‌زند.",
+      description: "",
       status: unbalanced.length ? "fail" : "pass",
       outcome: unbalanced.length
         ? `${unbalanced.length} سند نامتوازن پیدا شد — مانده‌های مشتق‌شده قابل اتکا نیستند تا زمانی که اصلاح شوند.`
@@ -130,7 +130,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
     {
       id: "fifo-consistency",
       title: "سازگاری لایه FIFO",
-      description: "بهای تمام‌شده با روش FIFO نگهداری می‌شود: مقدار بازشده هر بسته باید برابر مانده + مصرف‌شده باشد.",
+      description: "",
       status: fifoBad.length ? "fail" : "pass",
       outcome: fifoBad.length
         ? `${fifoBad.length} بسته FIFO ناسازگار است.`
@@ -144,7 +144,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
     {
       id: "installment-linkage",
       title: "پیوند اقساط با دفترکل",
-      description: "هر قسط پرداخت‌شده باید به سند دفترکل متناظر خود اشاره کند تا پرداخت‌ها ردیابی‌پذیر بمانند.",
+      description: "",
       status: orphanLinks.length ? "warn" : "pass",
       outcome: orphanLinks.length
         ? `${orphanLinks.length} قسط «پرداخت‌شده» سند مرتبط ندارد.`
@@ -158,7 +158,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
     {
       id: "price-coverage",
       title: "پوشش قیمت‌گذاری",
-      description: "دارایی‌های بازار باید قیمت Fresh/Stale مشخص CoinGecko و دارایی‌های واقعی باید ارزش‌گذاری دستی معتبر داشته باشند.",
+      description: "",
       status: stalePrices.length ? "warn" : "pass",
       outcome: stalePrices.length
         ? `${stalePrices.length} دارایی قیمت تازه ندارد — ارزش‌گذاری آن‌ها ممکن است قدیمی باشد.`
@@ -172,7 +172,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
     {
       id: "duplicate-records",
       title: "عدم وجود رکورد تکراری",
-      description: "دو سند با تاریخ و شرح یکسان در یک سال اخیر معمولاً نشانه ثبت دوباره یک رویداد مالی است.",
+      description: "",
       status: duplicates.length ? "warn" : "pass",
       outcome: duplicates.length
         ? `${duplicates.length} گروه رکورد مشابه پیدا شد که ارزش بازبینی دارند.`
@@ -186,7 +186,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
     {
       id: "review-coverage",
       title: "بازبینی رکوردهای درون‌ریزی‌شده",
-      description: "رکوردهای درون‌ریزی‌شده باید توسط انسان تأیید شوند تا اشتباهات نگاشت وارد دفترکل نشود.",
+      description: "",
       status: unreviewed.length ? "warn" : "pass",
       outcome: unreviewed.length
         ? `${unreviewed.length} رکورد درون‌ریزی‌شده هنوز بازبینی نشده است.`

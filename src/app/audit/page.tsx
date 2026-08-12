@@ -37,10 +37,7 @@ export default async function AuditPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="حسابرسی و یکپارچگی"
-        subtitle="آیا می‌توانم به این اعداد اعتماد کنم؟ — هفت آزمون مستقیم روی دیتابیس، در لحظه اجرا می‌شوند."
-      />
+      <PageHeader title="حسابرسی و یکپارچگی" />
 
       {/* ═══ FINANCIAL INTEGRITY banner ═══ */}
       <section
@@ -64,11 +61,11 @@ export default async function AuditPage() {
           </span>
           <div>
             <p className="text-[16px] font-bold tracking-tight">
-              {allOk ? "به این اعداد می‌توانید اعتماد کنید" : fails ? `${fails} مشکل جدی نیاز به اقدام دارد` : "قابل اعتماد، با چند نکته"}
+              {allOk ? null : fails ? `${fails} مشکل جدی نیاز به اقدام دارد` : "قابل اعتماد، با چند نکته"}
             </p>
             <p className="sub text-[12px]">
               {allOk
-                ? "هر هفت آزمون در همین لحظه موفق بود. مانده‌ها از یک دفترکل تراز مشتق شده‌اند."
+                ? null
                 : `${checks.filter((c) => c.status === "pass").length} آزمون موفق · ${warnings} هشدار · ${fails} خطا`}
             </p>
           </div>
@@ -92,7 +89,7 @@ export default async function AuditPage() {
       </section>
 
       {/* ═══ Checks ═══ */}
-      <Section title="آزمون‌ها" hint="برای هر آزمون: چه چیزی بررسی می‌شود، نتیجه چیست، و اگر مشکلی باشد چه باید کرد">
+      <Section title="آزمون‌ها">
         <ul className="space-y-2.5">
           {checks.map((c) => {
             const ui = STATUS_UI[c.status];

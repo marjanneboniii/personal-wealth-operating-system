@@ -158,7 +158,7 @@ export default function RealEstateForm({
     <form action={action} className="space-y-4">
       {/* ── Explorer: دارایی واقعی ← ملک ← شهر ← محله ← نوع ملک ── */}
       <div className="grid gap-3 md:grid-cols-3">
-        <Labeled label="شهر" required hint="فقط شهرهای فعال Master Data نمایش داده می‌شوند.">
+        <Labeled label="شهر" required>
           <select
             className="field"
             name="cityId"
@@ -179,7 +179,7 @@ export default function RealEstateForm({
         </Labeled>
 
         <div>
-          <Labeled label="منطقه / محله" required hint="جست‌وجو فقط داخل محله‌های تعریف‌شده شهر است.">
+          <Labeled label="منطقه / محله" required>
             <select
               className="field"
               name="neighborhoodId"
@@ -206,7 +206,7 @@ export default function RealEstateForm({
           )}
         </div>
 
-        <Labeled label="نوع ملک" required hint="از فهرست Master Data انتخاب می‌شود.">
+        <Labeled label="نوع ملک" required>
           <select
             className="field"
             name="propertyTypeId"
@@ -247,10 +247,6 @@ export default function RealEstateForm({
             </span>
           )}
         </div>
-        <p className="muted mt-1.5 text-[10.5px] leading-5">
-          نام و Symbol توسط سیستم تولید می‌شوند؛ اگر در یک محله چند ملک مشابه باشد، شماره ترتیبی به آن‌ها اضافه می‌شود.
-          Symbol پس از ثبت هرگز تغییر نمی‌کند.
-        </p>
       </div>
 
       {/* ── تاریخ‌ها — ورودی شمسی، میلادی خودکار ── */}
@@ -261,7 +257,6 @@ export default function RealEstateForm({
           value={acquisitionIso}
           onChange={setAcquisitionIso}
           required
-          hint="تاریخ واقعی خرید — حتی اگر سال‌ها قبل بوده باشد. مبنای سند افتتاحیه دفترکل همین تاریخ است."
         />
         <JalaliDateInput
           name="valuationDate"
@@ -269,14 +264,13 @@ export default function RealEstateForm({
           value={valuationIso}
           onChange={setValuationIso}
           required
-          hint="تاریخ تعیین ارزش فعلی ملک؛ نرخ دلار همین تاریخ مبنای ارزش دلاری است."
         />
       </div>
 
       {/* ── مبالغ ── */}
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-3">
-          <Labeled label="قیمت خرید (تومان)" required hint="مبلغ واقعی پرداخت‌شده در زمان تملک.">
+          <Labeled label="قیمت خرید (تومان)" required>
             <input
               className="field num"
               name="purchasePriceToman"
@@ -318,7 +312,7 @@ export default function RealEstateForm({
         </div>
 
         <div className="space-y-3">
-          <Labeled label="ارزش فعلی (تومان)" required hint="ارزش روز ملک در تاریخ ارزش‌گذاری.">
+          <Labeled label="ارزش فعلی (تومان)" required>
             <input
               className="field num"
               name="currentValueToman"
@@ -386,11 +380,6 @@ export default function RealEstateForm({
           </Labeled>
         </div>
       </details>
-
-      <Hint>
-        اگر ملک را سال‌ها پیش خریده‌اید، سیستم آن را «تملک تاریخی» ثبت می‌کند: سند افتتاحیه دفترکل با تاریخِ تملکِ واقعی
-        ایجاد می‌شود و هیچ جریان نقدی یا خرج نقدی در تاریخِ امروز ثبت نمی‌شود.
-      </Hint>
 
       <div className="flex flex-wrap gap-2">
         <button className="btn btn-primary" disabled={pending}>

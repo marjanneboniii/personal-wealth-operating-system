@@ -134,7 +134,6 @@ export function GoalForm({ accounts, initialRate, initialRateDate, initialRateSo
         </button>
       )}
       <Feedback state={state} />
-      <p className="muted text-[11px]">این برنامه هنوز تراکنش واقعی نیست — تا قبل از تبدیل به تراکنش، هیچ Journal Entry ایجاد نمی‌کند. معادل دلاری با آخرین نرخ به‌صورت لحظه‌ای نمایش داده می‌شود.</p>
     </form>
   );
 }
@@ -265,8 +264,6 @@ export function PlannedForm({ accounts, initialRate, initialRateDate, initialRat
           </select>
         </div>
       </div>
-      <p className="muted text-[11px]">این برنامه تا زمانی که دکمه «اجرا» زده نشود، هیچ اثری روی دفترکل و ثروت فعلی ندارد.</p>
-
       {showPreview ? (
         <>
           <PlanningPreview title={title} irtAmount={irtAmount} rate={effectiveRate} rateDate={effectiveDate} rateSource={effectiveSource} isoDate={plannedDate} status="pending" priority={direction === "outflow" ? "خروج وجه" : "ورود وجه"} />

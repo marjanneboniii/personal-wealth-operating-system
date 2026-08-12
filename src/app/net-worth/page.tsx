@@ -15,7 +15,6 @@ import { getAnalyticsSummary } from "@/features/analytics/service";
 import { Alert, Delta, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import NetWorthChart from "@/components/charts/NetWorthChart";
 import RowAction from "@/components/RowAction";
-import Icon from "@/components/ui/Icon";
 import { D } from "@/domain/decimal";
 import { formatMoney, formatPercent, todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
@@ -120,7 +119,6 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
     <div className="space-y-9">
       <PageHeader
         title="ارزش خالص"
-        subtitle="آیا در حال ثروتمندتر شدن هستم؟ — مقدار و بدهی از Accounting؛ ارزش جاری از Valuation Layer."
         action={<RowAction kind="snapshot" label="ثبت اسنپ‌شات امروز" />}
       />
 
@@ -166,7 +164,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
       </section>
 
       {/* Composition */}
-      <Section title="ثروت شما از چه تشکیل شده است؟" hint="تقسیم‌بندی انسانی؛ ریشه همان دفترکل است">
+      <Section title="ثروت شما از چه تشکیل شده است؟">
         {buckets.length === 0 ? (
           <EmptyState icon="portfolio" title="دارایی‌ای ثبت نشده است" body="با افزودن دارایی، ترکیب ثروت شما اینجا نمایش داده می‌شود." />
         ) : (
@@ -256,17 +254,10 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
             />
           </div>
         )}
-        <p className="muted mt-3 text-[10.5px]">
-          سود/زیان تحقق‌نیافته فعلی سبد:{" "}
-          <b className="num" dir="ltr" style={{ color: D(valuation.totalUnrealizedPnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
-            {formatMoney(valuation.totalUnrealizedPnl)}
-          </b>{" "}
-          (نمایشی — هرگز وارد دفترکل نمی‌شود)
-        </p>
       </Section>
 
       {/* Intelligence strip */}
-      <Section title="شاخص‌های سلامت ثروت" hint="از لایه تحلیل — محاسبات بدون ورود سرمایه بیرونی">
+      <Section title="شاخص‌های سلامت ثروت">
         {growth.calculationStatus === "missing_data" && growth.missingDataWarning ? (
           <Alert tone="warn" title="داده تاریخی محدود است">
             {growth.missingDataWarning}
@@ -295,13 +286,6 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
             </Alert>
           </div>
         )}
-        <p className="muted mt-4 flex items-center gap-1.5 text-[10.5px]">
-          <Icon name="info" size={13} />
-          نسخه محاسباتی {growth.calculationVersion} · تزریق سرمایه بیرونی به‌عنوان بازده محاسبه نمی‌شود.
-          <Link href="/reports" className="underline underline-offset-2" style={{ color: "var(--brand)" }}>
-            گزارش‌های کامل
-          </Link>
-        </p>
       </Section>
     </div>
   );

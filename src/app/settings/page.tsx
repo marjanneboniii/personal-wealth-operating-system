@@ -45,10 +45,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="تنظیمات"
-        subtitle="سیستم چگونه پیکربندی شده است؟ — داده‌ها کاملاً محلی هستند و هیچ چیزی به بیرون ارسال نمی‌شود."
-      />
+      <PageHeader title="تنظیمات" />
 
       {user && (
         <Section title="حساب کاربری">
@@ -56,7 +53,7 @@ export default async function SettingsPage() {
         </Section>
       )}
 
-      <Section title="نرخ ارز — ارزش‌گذاری جاری" hint="نرخ فقط Current Valuation را تغییر می‌دهد؛ تاریخچه مالی (Historical) برای همیشه منجمد است.">
+      <Section title="نرخ ارز — ارزش‌گذاری جاری">
         {user ? (
           <FxSettings
             currentRate={fx.rate}
@@ -71,9 +68,6 @@ export default async function SettingsPage() {
             body="برای فعال‌کردن ثبت دستی نرخ ارز و جداسازی داده‌ها، از همین‌جا وارد شوید یا حساب بسازید. ورود با Google نیز در همین کارت نمایش داده می‌شود."
           />
         )}
-        <div className="muted mt-3 rounded-[var(--r-md)] p-3 text-[11px] leading-5" style={{ background: "var(--sunken)", border: "1px solid var(--border)" }}>
-          <strong>تفکیک Current vs Historical:</strong> نرخ فعلی فقط ارزش خالص فعلی، موجودی جاری و Unrealized P&L را تغییر می‌دهد. تراکنش‌های ثبت‌شده، Cost Basis، FIFO، Realized P&L و دفترکل با تغییر نرخ فعلی هرگز دوباره محاسبه نمی‌شوند.
-        </div>
       </Section>
 
       <Section title="پیکربندی">
@@ -112,16 +106,13 @@ export default async function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="پشتیبان‌گیری و بازیابی" hint="صاحب داده‌های خود باشید — خروجی کامل JSON، تراکنشی و بدون قفل">
+      <Section title="پشتیبان‌گیری و بازیابی">
         <div className="card p-4 sm:p-5">
           <div className="flex flex-wrap items-center gap-3">
             <a className="btn btn-primary" href="/api/backup" download>
               <Icon name="download" size={16} />
               دانلود پشتیبان کامل
             </a>
-            <span className="muted text-[11.5px]">
-              توصیه عملیاتی: خروجی روزانه + قاعده ۳-۲-۱ + آزمون بازیابی ماهانه.
-            </span>
           </div>
           <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--border)" }}>
             <RestorePanel />
@@ -139,28 +130,6 @@ export default async function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="ابزارهای داده">
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-          {[
-            { href: "/portfolio", label: "ارزش‌گذاری سبد", icon: "portfolio" as const, q: "CoinGecko و ارزش‌گذاری دستی دارایی واقعی" },
-            { href: "/import", label: "درون‌ریزی داده", icon: "import" as const, q: "CSV / متن خام" },
-            { href: "/setup", label: "راه‌اندازی اولیه", icon: "settings" as const, q: "پیکربندی از نو" },
-          ].map((l) => (
-            <Link key={l.href} href={l.href} className="card p-4 transition-transform hover:-translate-y-0.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
-                <Icon name={l.icon} size={17} />
-              </span>
-              <p className="mt-2.5 text-[13px] font-semibold">{l.label}</p>
-              <p className="muted mt-0.5 text-[10.5px]">{l.q}</p>
-            </Link>
-          ))}
-        </div>
-      </Section>
-
-      <p className="muted flex items-center gap-1.5 text-[10.5px]">
-        <Icon name="lock" size={13} />
-        خودمیزبان و خصوصی — بدون تله‌متری، بدون سرویس ابری اجباری. ردپای هر نوشتن در صفحه حسابرسی قابل مشاهده است.
-      </p>
     </div>
   );
 }

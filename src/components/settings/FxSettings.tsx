@@ -53,7 +53,6 @@ export default function FxSettings({ currentRate, lastUpdatedAt, nextUpdateAt, c
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-[14px] font-bold">ثبت و ویرایش دستی نرخ دلار</h3>
-          <p className="muted mt-1 text-[12px] leading-5">این نرخ دستی فقط برای ارزش‌گذاری جاری (Current Valuation) استفاده می‌شود و هرگز تاریخچه مالی، FIFO یا دفترکل را تغییر نمی‌دهد.</p>
         </div>
         <span className="badge badge-brand">هر ۲۴ ساعت یک‌بار</span>
       </div>

@@ -55,7 +55,6 @@ export default async function ReportsPage() {
     <div className="space-y-9">
       <PageHeader
         title="گزارش‌های مالی"
-        subtitle="تصویر کامل عملکرد مالی من چیست؟ — همه گزارش‌ها مستقیم از دفترکل مشتق می‌شوند، نه جدول موازی."
         action={
           <>
             <RowAction kind="snapshot" label="ثبت اسنپ‌شات" />
@@ -73,7 +72,7 @@ export default async function ReportsPage() {
       </section>
 
       {/* Monthly report — printable */}
-      <Section title="گزارش ماهانه" hint="سازمان‌دهی بر اساس ماه‌های شمسی — قابل چاپ با دکمه PDF">
+      <Section title="گزارش ماهانه">
         <div id="monthly-report">
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Metric label="دارایی" value={formatMoney(nw.totalAssets)} />
@@ -140,7 +139,7 @@ export default async function ReportsPage() {
 
       <div className="grid gap-10 lg:grid-cols-2">
         {/* Investment P&L */}
-        <Section title="سود و زیان سرمایه‌گذاری" hint="تحقق‌یافته از FIFO — تحقق‌نیافته فقط نمایشی است">
+        <Section title="سود و زیان سرمایه‌گذاری">
           <div className="grid grid-cols-2 gap-6 border-b pb-5" style={{ borderColor: "var(--border)" }}>
             <Metric
               label="تحقق‌یافته"
@@ -173,7 +172,7 @@ export default async function ReportsPage() {
         </Section>
 
         {/* Debt report */}
-        <Section title="بدهی و بازپرداخت" hint="و برنامه اقساط — مانده از دفترکل" action={<SectionLink href="/debts" label="مدیریت بدهی‌ها" />}>
+        <Section title="بدهی و بازپرداخت" action={<SectionLink href="/debts" label="مدیریت بدهی‌ها" />}>
           <ul className="space-y-4">
             {debts.map((d) => (
               <li key={d.id}>
@@ -229,10 +228,6 @@ export default async function ReportsPage() {
 
       {/* Recovery & exports */}
       <section className="card flex flex-wrap items-center justify-between gap-3 p-4">
-        <div>
-          <p className="text-[13px] font-semibold">صاحب داده‌های خود باشید</p>
-          <p className="muted mt-0.5 text-[11.5px]">نسخه پشتیبان JSON کامل، درون‌ریزی داده و خروجی PDF — همه محلی.</p>
-        </div>
         <div className="flex gap-2">
           <a href="/api/backup" className="btn btn-soft !min-h-9 !px-3.5 !py-1.5 text-[12px]">
             دانلود پشتیبان

@@ -464,9 +464,6 @@ export default function TransactionForm({
                 </p>
               )}
             </div>
-            <p className="muted text-[10.5px]">
-              نماد و لوگو فقط از کاتالوگ server-side CoinGecko ثبت می‌شوند؛ ورود دستی نماد یا قیمت جاری ممکن نیست.
-            </p>
             {catalogMessage && <p className="text-xs" role="status">{catalogMessage}</p>}
           </div>
         )}
@@ -532,17 +529,6 @@ export default function TransactionForm({
             style={{ touchAction: "manipulation" }}
           />
         </div>
-      </div>
-
-      {/* Accounting rule preview — still present */}
-      <div className="card soft p-3 text-[11px] leading-6">
-        <strong>پیش‌نمایش قاعده حسابداری:</strong>{" "}
-        {type === "buy" && "دارایی بدهکار می‌شود، حساب نقدی بستانکار؛ یک بسته FIFO باز می‌شود."}
-        {type === "sell" && "دارایی به بهای تمام‌شده FIFO خارج می‌شود و اختلاف در «سود سرمایه‌ای تحقق‌یافته» ثبت می‌گردد."}
-        {type === "transfer" && "ثروت تغییر نمی‌کند؛ فقط محل نگهداری جابه‌جا می‌شود (کارمزد هزینه است)."}
-        {type === "income" && "حساب نقدی بدهکار و حساب درآمد بستانکار می‌شود."}
-        {type === "expense" && "حساب هزینه بدهکار و حساب نقدی بستانکار می‌شود."}
-        {" "}مجموع ارزش پایه سند همیشه باید صفر باشد.
       </div>
 
       {/* Smart Preview Before Commit */}

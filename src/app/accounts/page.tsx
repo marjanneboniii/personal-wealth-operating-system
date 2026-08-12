@@ -60,11 +60,7 @@ export default async function AccountsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="حساب‌ها"
-        subtitle="پول من در کدام حساب‌ها است؟ — همه مانده‌ها لحظه‌ای و مشتق از دفترکل هستند، نه ستون ذخیره‌شده."
-        action={<SectionLink href="/portfolio" label="ارزش‌گذاری سبد" />}
-      />
+      <PageHeader title="حساب‌ها" />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-3" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش پایه حساب‌های پول" value={formatMoney(totalCash.toString())} hint={toIrt(totalCash.toString()) ?? undefined} />
@@ -77,7 +73,7 @@ export default async function AccountsPage() {
         />
       </section>
 
-      <Section title="پول شما کجاست؟" hint="گروه‌بندی بر اساس کیف‌پول، بانک و صرافی">
+      <Section>
         {byWallet.size === 0 ? (
           <div className="card">
             <EmptyState
@@ -161,7 +157,7 @@ export default async function AccountsPage() {
       )}
 
       {/* Chart of accounts — accounting reference, collapsed */}
-      <Section title="دفتر حساب‌ها" hint="مراجع حسابداری — سود/زیان و سرمایه">
+      <Section title="دفتر حساب‌ها">
         <details className="card group overflow-hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
             <span className="text-[13.5px] font-semibold">نمودار کامل حساب‌ها (Chart of Accounts)</span>

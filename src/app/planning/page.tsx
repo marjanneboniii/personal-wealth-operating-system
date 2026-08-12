@@ -93,10 +93,7 @@ export default async function PlanningPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="پیش‌بینی مالی"
-        subtitle="قدم بعدی که باید بردارم چیست؟ — برنامه‌ها تا لحظه «اجرا» هیچ اثری روی دفترکل ندارند."
-      />
+      <PageHeader title="پیش‌بینی مالی" />
 
       {deficit && (
         <Alert tone="neg" icon="alert" title={`کسری نقدینگی در ${formatShortDate(deficit.month)}`}>
