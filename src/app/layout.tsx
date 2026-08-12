@@ -6,12 +6,20 @@ import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: {
-    default: "سرمایه‌ی من — سیستم‌عامل ثروت شخصی",
-    template: "%s — سرمایه‌ی من",
+    default: "تراز — سیستم‌عامل ثروت شخصی",
+    template: "%s — تراز",
   },
   description: "هسته مالی خصوصی برای مدیریت بلندمدت ثروت، سرمایه‌گذاری، بدهی و برنامه‌های آینده — مبتنی بر حسابداری دوطرفه و دفترکل تغییرناپذیر.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "سرمایه‌ی من" },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "تراز" },
   formatDetection: { telephone: false },
 };
 
