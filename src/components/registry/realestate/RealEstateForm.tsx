@@ -230,13 +230,11 @@ export default function RealEstateForm({
       <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="min-w-0">
-            <div className="muted text-[10.5px] font-medium">نام دارایی (خودکار)</div>
             <div className="mt-0.5 text-[13px] font-bold" style={{ color: "var(--brand)" }}>
               {loadingIdentity ? "…" : identityPreview?.assetName ?? (ptype && city && cityId && neighborhoodId ? "در حال تولید…" : "—")}
             </div>
           </div>
           <div className="min-w-0">
-            <div className="muted text-[10.5px] font-medium">Symbol (خودکار و یکتا)</div>
             <div className="mt-0.5 font-mono text-[12.5px] font-semibold" dir="ltr" style={{ color: "var(--brand)" }}>
               {loadingIdentity ? "…" : identityPreview?.symbol ?? "—"}
             </div>

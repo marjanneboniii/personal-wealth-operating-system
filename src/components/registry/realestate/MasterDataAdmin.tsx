@@ -14,7 +14,7 @@ import {
   updatePropertyTypeAction,
 } from "@/app/actions/realEstate";
 import type { City, Neighborhood, PropertyType } from "@/features/rwa/realEstate/types";
-import { Hint, Labeled, Result, faNum } from "./shared";
+import { Labeled, Result, faNum } from "./shared";
 
 type MasterAction = (previous: RealEstateResult | null, form: FormData) => Promise<RealEstateResult>;
 
@@ -128,11 +128,6 @@ export default function MasterDataAdmin({
 
   return (
     <div className="space-y-6">
-      <Hint>
-        کاربر عادی فقط از گزینه‌های «فعال» استفاده می‌کند. مدیریت داده پایه (افزودن/اصلاح/غیرفعال‌سازی شهر، محله و نوع
-        ملک) فقط برای مدیر است؛ غیرفعال‌کردن، گزینه را از فهرست کاربران پنهان می‌کند ولی تاریخچه ثبت‌شده دست‌نخورده می‌ماند.
-      </Hint>
-
       {/* ── Cities ── */}
       <div className="space-y-3">
         <h4 className="text-[13px] font-semibold">شهرها ({faNum(cities.length)})</h4>

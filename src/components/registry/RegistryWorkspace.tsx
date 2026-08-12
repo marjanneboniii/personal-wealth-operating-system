@@ -180,7 +180,7 @@ export default function RegistryWorkspace({
 
       <div id="vehicle" className="scroll-mt-24">
         {vehicleSummary && (
-          <VehicleModule brands={vehicleBrands} models={vehicleModels} dashboard={vehicleDashboard} summary={vehicleSummary} ownerName={ownerName} fxRate={fxRate} />
+          <VehicleModule brands={vehicleBrands} models={vehicleModels} dashboard={vehicleDashboard} summary={vehicleSummary} ownerName={ownerName} />
         )}
       </div>
     </>

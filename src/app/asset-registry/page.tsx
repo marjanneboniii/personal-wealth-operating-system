@@ -21,7 +21,6 @@ import {
 } from "@/features/rwa/vehicle/service";
 import { listVehicleBrands, listVehicleCatalogModels } from "@/features/rwa/vehicle/catalog";
 import { listOwnershipRecords } from "@/features/rwa/ownership/service";
-import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { PageHeader } from "@/components/ui/Card";
 import RegistryWorkspace from "@/components/registry/RegistryWorkspace";
 
@@ -64,7 +63,6 @@ export default async function AssetRegistryPage() {
     cities,
     neighborhoods,
     propertyTypes,
-    fx,
   ] = await Promise.all([
     // SECURITY: pass the tenant id so reads are scoped at the DB level.
     listVehicleAssets(userId ?? undefined),
@@ -100,7 +98,6 @@ export default async function AssetRegistryPage() {
     listCities(true), // include inactive so the admin tab can manage them
     listNeighborhoods(undefined, true),
     listPropertyTypes(true),
-    getLatestUsdIrtRateForUser(userId),
   ]);
 
   return (
@@ -128,7 +125,6 @@ export default async function AssetRegistryPage() {
         neighborhoods={neighborhoods}
         propertyTypes={propertyTypes}
         ownerName={(user as { name?: string } | null)?.name ?? "کاربر فعلی"}
-        fxRate={fx.rate}
       />
     </div>
   );

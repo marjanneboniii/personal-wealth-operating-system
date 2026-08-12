@@ -64,7 +64,6 @@ export function DualDatePreview({ iso }: DualDatePreviewProps) {
         <span className="muted">میلادی:</span>
         <strong dir="ltr" className="num" style={{ fontFamily: "ui-monospace, monospace" }}>{dual.gregorian}</strong>
       </span>
-      <span className="muted text-[10px]">هر دو تاریخ هم‌زمان و از یک موتور مشترک محاسبه شده‌اند.</span>
     </div>
   );
 }
