@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { VehicleDashboardItem, VehiclePortfolioSummary } from "@/features/rwa/vehicle/dto";
 import type { VehicleBrand, VehicleCatalogModel } from "@/features/rwa/vehicle/types";
-import { formatMoney } from "@/lib/format";
 import CatalogAdmin from "./CatalogAdmin";
 import VehicleCard from "./VehicleCard";
 import VehicleForm from "./VehicleForm";
@@ -24,14 +23,12 @@ export default function VehicleModule({
   dashboard,
   summary,
   ownerName,
-  fxRate,
 }: {
   brands: VehicleBrand[];
   models: VehicleCatalogModel[];
   dashboard: VehicleDashboardItem[];
   summary: VehiclePortfolioSummary;
   ownerName: string;
-  fxRate: string;
 }) {
   const [tab, setTab] = useState<Tab>(dashboard.length ? "vehicles" : "add");
 
@@ -40,10 +37,6 @@ export default function VehicleModule({
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-[15px] font-bold tracking-tight">🚗 دارایی واقعی ← خودرو</h2>
-          <p className="muted mt-1 max-w-3xl text-[11.5px] leading-6">
-            خودرو به‌عنوان یک دارایی شخصی و قابل تحلیل سرمایه‌گذاری: قیمت خرید واقعی، معادل دلاری تاریخی، ارزش فعلی از
-            آخرین Snapshot، سود/زیان تومانی و دلاری و عملکرد در بازه‌های مختلف.
-          </p>
         </div>
         <div className="seg" role="group" aria-label="بخش خودرو">
           <button type="button" onClick={() => setTab("vehicles")} className={tab === "vehicles" ? "seg-on" : ""} aria-pressed={tab === "vehicles"}>
@@ -118,10 +111,6 @@ export default function VehicleModule({
       {tab === "add" && (
         <div className="space-y-3">
           <VehicleForm brands={brands} models={models} ownerName={ownerName} />
-          <p className="muted text-[10.5px] leading-5">
-            نرخ جاری دلار سیستم: <span className="num">{formatMoney(fxRate, "IRT")}</span> — این نرخ فقط برای تاریخ‌هایی
-            استفاده می‌شود که نرخ ثبت‌شده‌ای ندارند و پس از ذخیره، دیگر تغییر نمی‌کند.
-          </p>
         </div>
       )}
 

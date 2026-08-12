@@ -28,9 +28,6 @@ const MARKET_CLASS_CODES = new Set([
   "stable",
   "stock",
   "security",
-  "tokenized",
-  "tokenized_stock",
-  "tokenized_security",
 ]);
 
 async function resolveValuationUserId(explicitUserId?: string): Promise<string | null> {

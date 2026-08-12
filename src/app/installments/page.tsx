@@ -56,10 +56,7 @@ export default async function InstallmentsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="اقساط"
-        subtitle="کدام قسط کی سر می‌رسد؟ — زمان‌بندی کامل بازپرداخت، مرتب بر اساس سررسید."
-      />
+      <PageHeader title="اقساط" />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="معوق" value={String(overdueList.length)} tone={overdueList.length ? "down" : "up"} />
@@ -68,7 +65,7 @@ export default async function InstallmentsPage() {
         <Metric label="پرداخت‌شده" value={String(paid.length)} tone="up" hint={`از ${rows.length} قسط`} />
       </section>
 
-      <Section title="زمان‌بندی اقساط" hint="«پرداخت سریع» بلافاصله سند می‌سازد؛ «باز کردن در فرم» کنترل کامل می‌دهد">
+      <Section title="زمان‌بندی اقساط">
         {rows.length === 0 ? (
           <div className="card">
             <EmptyState

@@ -44,11 +44,6 @@ export default function RealEstateModule({
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-[15px] font-bold tracking-tight">🏠 دارایی واقعی ← ملک (Real Estate)</h2>
-          <p className="muted mt-1 max-w-3xl text-[11.5px] leading-6">
-            شهر، محله و نوع ملک فقط از داده‌های پایه انتخاب می‌شوند؛ نام دارایی و Symbol را سیستم تولید می‌کند. تاریخ
-            تملک به شمسی وارد و معادل میلادی آن خودکار محاسبه می‌شود. معادل دلاری با نرخِ همان تاریخ‌ها (نه نرخ امروز)
-            محاسبه و سند افتتاحیه دفترکل با تاریخ تملکِ واقعی ثبت می‌شود.
-          </p>
         </div>
         <div className="seg" role="group" aria-label="بخش املاک">
           <button type="button" onClick={() => setTab("list")} className={tab === "list" ? "seg-on" : ""} aria-pressed={tab === "list"}>
@@ -199,7 +194,6 @@ export default function RealEstateModule({
           <div className="soft flex flex-wrap items-center gap-2 rounded-[var(--r-md)] p-3 text-[11.5px]">
             <span className="muted">مالک:</span>
             <strong>{ownerName}</strong>
-            <span className="muted">· نام، Symbol، شهر، محله و نوع ملک هرگز به‌صورت متن آزاد وارد نمی‌شوند.</span>
           </div>
           <RealEstateForm cities={cities} neighborhoods={neighborhoods} propertyTypes={propertyTypes} />
         </div>

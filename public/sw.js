@@ -11,14 +11,25 @@
      • On logout/login the client posts {type:"PURGE_CACHES"} → every cache is
        wiped so no residue of the previous tenant survives on the device. */
 
-const VERSION = "pwos-v2"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
+const VERSION = "pwos-v3"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
 const STATIC_CACHE = VERSION + "-static";
+
+// Brand assets (TARAZ) — immutable, cache-first.
+const BRAND_ASSETS = [
+  "/offline",
+  "/icon.svg",
+  "/favicon.svg",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/apple-touch-icon.png",
+  "/manifest.webmanifest",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(STATIC_CACHE)
-      .then((cache) => cache.addAll(["/offline", "/icon.svg", "/manifest.webmanifest"]))
+      .then((cache) => cache.addAll(BRAND_ASSETS))
       .catch(() => {}),
   );
   self.skipWaiting();
@@ -53,8 +64,15 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // nothing cross-origin is cached
 
-  // Next.js build assets: immutable → cache-first
-  if (url.pathname.startsWith("/_next/static") || url.pathname === "/icon.svg") {
+  // Next.js build assets + brand icons: immutable → cache-first
+  if (
+    url.pathname.startsWith("/_next/static") ||
+    url.pathname === "/icon.svg" ||
+    url.pathname === "/favicon.svg" ||
+    url.pathname === "/icon-192.png" ||
+    url.pathname === "/icon-512.png" ||
+    url.pathname === "/apple-touch-icon.png"
+  ) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
         const cached = await cache.match(req);

@@ -103,7 +103,6 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     <div>
       <PageHeader
         title="تراکنش‌ها"
-        subtitle="چه اتفاقی برای پول من افتاده است؟ — جستجو، فیلتر و بازبینی سریع؛ هر ردیف قابل باز شدن است."
         action={
           <Link href="/new" className="btn btn-primary">
             <Icon name="plus" size={16} />

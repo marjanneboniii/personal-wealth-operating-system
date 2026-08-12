@@ -6,6 +6,7 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react
 import Icon, { type IconName } from "@/components/ui/Icon";
 import Sheet from "@/components/ui/Sheet";
 import CommandPalette from "@/components/ui/CommandPalette";
+import BrandMark from "@/components/layout/BrandMark";
 import { NAV_GROUPS, SECONDARY_ITEMS, MOBILE_TABS, QUICK_ACTIONS, isNavActive, type NavItem } from "@/lib/nav";
 
 /* ───────────────────────── Theme ───────────────────────── */
@@ -268,16 +269,27 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         aria-label="ناوبری اصلی"
       >
-        {/* Brand + collapse — حرف «ع» حذف شد، فقط «سرمایه من است» */}
+        {/* Brand + collapse — برند «تراز» */}
         <div className={`flex items-center gap-2 px-4 pb-2 pt-4 ${collapsed ? "justify-center !px-2" : "justify-between"}`}>
-          {!(collapsed) && (
-            <Link href="/" className="flex items-center gap-2.5 rounded-[10px] px-1 py-1" style={{ touchAction: "manipulation" }}>
+          <Link
+            href="/"
+            className={`flex items-center gap-2.5 rounded-[10px] px-1 py-1 ${collapsed ? "justify-center" : ""}`}
+            style={{ touchAction: "manipulation" }}
+            aria-label="تراز — صفحه اصلی"
+          >
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
+              style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+            >
+              <BrandMark size={22} />
+            </span>
+            {!collapsed && (
               <span className="leading-tight">
-                <span className="block text-[14px] font-bold tracking-tight">سرمایه من است</span>
+                <span className="block text-[15px] font-bold tracking-tight">تراز</span>
                 <span className="muted block text-[10px]">سیستم‌عامل ثروت شخصی</span>
               </span>
-            </Link>
-          )}
+            )}
+          </Link>
           <button
             type="button"
             onClick={toggleCollapse}
@@ -359,8 +371,9 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
         className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 backdrop-blur-xl lg:hidden"
         style={{ background: "color-mix(in oklab, var(--bg) 82%, transparent)", borderBottom: "1px solid var(--border)" }}
       >
-        <Link href="/" className="flex items-center gap-2" style={{ touchAction: "manipulation" }}>
-          <span className="text-[15px] font-bold tracking-tight">سرمایه من است</span>
+        <Link href="/" className="flex items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="تراز — صفحه اصلی">
+          <BrandMark size={22} style={{ color: "var(--brand)" }} />
+          <span className="text-[15px] font-bold tracking-tight">تراز</span>
         </Link>
         <div className="flex items-center gap-1">
           <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>

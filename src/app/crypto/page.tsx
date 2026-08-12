@@ -48,7 +48,6 @@ export default async function CryptoPage() {
     <div className="space-y-8">
       <PageHeader
         title="رمزارزها"
-        subtitle="وضعیت دارایی‌های دیجیتال من چیست؟ — مقدار و بهای تمام‌شده از Accounting، قیمت جاری فقط از CoinGecko."
         action={<Link href="/new?type=buy" className="btn btn-primary">ثبت خرید رمزارز</Link>}
       />
 

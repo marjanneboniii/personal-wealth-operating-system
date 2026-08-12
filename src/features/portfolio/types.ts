@@ -3,7 +3,6 @@ import type { PriceFreshness } from "@/features/pricing/types";
 export type AssetClassValuationModel =
   | "crypto"
   | "stock"
-  | "tokenized_security"
   | "commodity"
   | "precious_metal"
   | "etf"

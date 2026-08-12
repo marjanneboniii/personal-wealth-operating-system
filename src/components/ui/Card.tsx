@@ -50,7 +50,7 @@ export function Section({
 }) {
   return (
     <section className={`rise ${className}`}>
-      {(title || action) && (
+      {(title || hint || action) && (
         <header className="mb-3 flex items-end justify-between gap-3">
           <div>
             {title && <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>}

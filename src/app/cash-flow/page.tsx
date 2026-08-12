@@ -12,13 +12,11 @@ export const dynamic = "force-dynamic";
 const FA_MONTHS = ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
 
 function FlowTable({
-  title,
   hint,
   rows,
   total,
   color,
 }: {
-  title: string;
   hint: string;
   rows: { code: string; name: string; total: string }[];
   total: string;
@@ -26,7 +24,7 @@ function FlowTable({
 }) {
   const sum = D(total);
   return (
-    <Section title={title} hint={hint}>
+    <Section hint={hint}>
       {rows.length === 0 ? (
         <EmptyState icon="cashflow" title="داده‌ای در این بازه نیست" body="با ثبت تراکنش‌های درآمد و هزینه، این تحلیل به‌طور خودکار ساخته می‌شود." />
       ) : (
@@ -80,7 +78,6 @@ export default async function CashFlowPage() {
     <div className="space-y-8">
       <PageHeader
         title="جریان نقدی"
-        subtitle="پول از کجا وارد می‌شود و به کجا می‌رود؟ — تحلیل درآمد و هزینه بر اساس دفترکل."
         action={<SectionLink href="/planning" label="پیش‌بینی آینده" />}
       />
 
@@ -123,8 +120,8 @@ export default async function CashFlowPage() {
       </Section>
 
       <div className="grid gap-10 lg:grid-cols-2">
-        <FlowTable title="پول به کجا می‌رود؟" hint="هزینه‌ها بر اساس دسته — ۶ ماه اخیر" rows={expenses} total={expTotal.toString()} color="var(--negative)" />
-        <FlowTable title="پول از کجا می‌آید؟" hint="درآمدها بر اساس منبع — ۶ ماه اخیر" rows={incomes} total={incTotal.toString()} color="var(--positive)" />
+        <FlowTable hint="هزینه‌ها بر اساس دسته — ۶ ماه اخیر" rows={expenses} total={expTotal.toString()} color="var(--negative)" />
+        <FlowTable hint="درآمدها بر اساس منبع — ۶ ماه اخیر" rows={incomes} total={incTotal.toString()} color="var(--positive)" />
       </div>
 
       <p className="muted text-[10.5px]">

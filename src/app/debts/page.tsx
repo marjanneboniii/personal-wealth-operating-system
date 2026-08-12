@@ -31,7 +31,6 @@ export default async function DebtsPage() {
     <div className="space-y-8">
       <PageHeader
         title="بدهی‌ها"
-        subtitle="چه مقدار بدهی دارم؟ — بدهی‌های حسابداری از دفترکل می‌آیند؛ بدهی‌های دستی و برنامه اقساط با تأیید شما اینجا تعریف می‌شوند."
         action={
           <div className="flex flex-wrap items-center gap-3">
             <Link href="#manual-debt" className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[12px]">
@@ -62,9 +61,6 @@ export default async function DebtsPage() {
       <section id="manual-debt" className="scroll-mt-24">
         <Section title="تعریف دستی بدهی" hint="اول پیش‌نمایش را ببینید؛ فقط بعد از تأیید نهایی، بدهی و اقساط در برنامه‌ریزی ذخیره می‌شوند.">
           <Card className="p-4 sm:p-5" title="بدهی جدید">
-            <p className="muted mb-4 text-[11px] leading-5">
-              این مسیر برای تعریف بدهی و برنامه بازپرداخت است و عمداً به هسته حسابداری، سند روزنامه و دفترکل دست نمی‌زند. مبلغ پایه با نرخ فعلی فقط برای نمایش و محاسبات تاریخی برنامه ذخیره می‌شود.
-            </p>
             <DebtForm today={today} initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} />
           </Card>
         </Section>
@@ -172,13 +168,6 @@ export default async function DebtsPage() {
         )}
       </Section>
 
-      <p className="muted text-[10.5px]">
-        اصل مهم: تعریف دستی این صفحه یک «تعهد برنامه‌ریزی» است و تا قبل از پرداخت واقعی سندی در دفترکل ندارد. بدهی‌های دارای حساب حسابداری از{" "}
-        <Link href="/ledger" className="underline underline-offset-2" style={{ color: "var(--brand)" }}>
-          دفترکل
-        </Link>{" "}
-        مشتق می‌شوند؛ بدهی‌های برنامه‌ریزی‌شده فعلاً با اصل ثبت‌شده نمایش داده می‌شوند.
-      </p>
     </div>
   );
 }

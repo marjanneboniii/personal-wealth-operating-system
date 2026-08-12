@@ -5,7 +5,7 @@ import { previewPurchaseUsdAction, saveVehicleAction } from "@/app/actions/regis
 import DualDateInput from "@/components/ui/DualDateInput";
 import { formatMoney, toFaDigits, toJalali, todayIso } from "@/lib/format";
 import type { VehicleBrand, VehicleCatalogModel } from "@/features/rwa/vehicle/types";
-import { Hint, Labeled, Result } from "./shared";
+import { Labeled, Result } from "./shared";
 
 type RateInfo = { usd: string; rate: string; effectiveDate: string; source: string; isExact: boolean } | null;
 
@@ -101,7 +101,6 @@ export default function VehicleForm({
       <div className="soft flex flex-wrap items-center gap-2 rounded-[var(--r-md)] p-3 text-[11.5px]">
         <span className="muted">مالک:</span>
         <strong>{ownerName}</strong>
-        <span className="muted">· هر خودرو دقیقاً به یک شخص متصل است (بدون مالکیت مشاع، درصدی، ارثی یا رهنی).</span>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -146,7 +145,7 @@ export default function VehicleForm({
           hint={
             allowCustom
               ? "برای این برند، نام مدل را وارد کنید؛ پس از ثبت به کاتالوگ اضافه می‌شود و دفعه بعد از فهرست انتخاب می‌شود."
-              : "فقط مدل‌های همین برند نمایش داده می‌شوند؛ ورود دستی نام خودرو مجاز نیست."
+              : undefined
           }
         >
           {allowCustom ? (
@@ -176,7 +175,7 @@ export default function VehicleForm({
           )}
         </Labeled>
 
-        <Labeled label="سال ساخت خودروی شما" required hint="سال ساخت واقعی خودروی شما — مستقل از سال‌های کاتالوگ.">
+        <Labeled label="سال ساخت خودروی شما" required>
           <select className="field num" name="manufacturingYear" defaultValue="" required>
             <option value="">— انتخاب سال —</option>
             <optgroup label="شمسی">
@@ -206,7 +205,6 @@ export default function VehicleForm({
             onChange={setOwnershipDate}
             required
           />
-          <div className="muted mt-1 text-[10px]">مبنای تحلیل سرمایه‌گذاری: مدت مالکیت، بازدهی از زمان خرید و ROI.</div>
         </div>
 
         <div className="space-y-3">
@@ -238,7 +236,7 @@ export default function VehicleForm({
                   {!preview.isExact && " — در صورت نیاز نرخ دقیق آن روز را دستی وارد کنید."}
                 </>
               ) : (
-                "قیمت خرید و تاریخ تملک را وارد کنید تا معادل دلاری با نرخ همان تاریخ محاسبه شود."
+                null
               )}
             </div>
             <input type="hidden" name="purchaseUsdRate" value={digitsOnly(manualRate)} />
@@ -271,10 +269,6 @@ export default function VehicleForm({
           <input type="checkbox" checked={withValuation} onChange={(e) => setWithValuation(e.target.checked)} />
           ثبت «ارزش فعلی» به‌عنوان اولین Snapshot ارزش‌گذاری (اختیاری)
         </label>
-        <p className="muted mt-1 text-[10.5px] leading-5">
-          ارزش فعلی کاملاً مستقل از قیمت خرید است. اگر اکنون ثبت شود، اولین نقطه تاریخچه خواهد بود؛ تغییرات بعدی فقط با
-          Snapshot جدید ثبت می‌شوند.
-        </p>
         {withValuation && (
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             <Labeled label="ارزش فعلی (تومان)">
@@ -289,10 +283,6 @@ export default function VehicleForm({
           </div>
         )}
       </div>
-
-      <Hint>
-        قیمت خرید و معادل دلاری آن اطلاعات تاریخی و تغییرناپذیرند؛ نوسان بعدی نرخ دلار هیچ‌کدام را تغییر نمی‌دهد.
-      </Hint>
 
       <div className="flex flex-wrap gap-2">
         <button className="btn btn-primary" disabled={pending}>

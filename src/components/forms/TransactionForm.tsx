@@ -31,23 +31,13 @@ export type MarketAssetOption = {
   symbol: string;
   name: string;
   logoUrl: string;
-  kind: "crypto" | "tokenized";
 };
 
 export type MarketCatalogStatus = {
   total: number;
   crypto: number;
-  tokenized: number;
   bootstrapOnly: boolean;
 };
-
-type CatalogFilter = "all" | "crypto" | "tokenized";
-
-const CATALOG_FILTERS: Array<{ key: CatalogFilter; label: string }> = [
-  { key: "all", label: "همه" },
-  { key: "crypto", label: "رمزارز" },
-  { key: "tokenized", label: "RWA / توکنیزه" },
-];
 
 const TYPES = [
   { key: "expense", label: "هزینه", primary: "پرداخت از حساب", counter: "دسته هزینه" },
@@ -110,14 +100,12 @@ export default function TransactionForm({
   const [assetSearch, setAssetSearch] = useState("");
   const [catalogMessage, setCatalogMessage] = useState("");
   const [registering, startRegistration] = useTransition();
-  const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>("all");
   const [catalogResults, setCatalogResults] = useState<MarketAssetOption[]>(marketAssets);
   const [catalogSearching, setCatalogSearching] = useState(false);
   const [catalogStatus, setCatalogStatus] = useState<MarketCatalogStatus>(
     marketCatalogStatus ?? {
       total: marketAssets.length,
-      crypto: marketAssets.filter((a) => a.kind === "crypto").length,
-      tokenized: marketAssets.filter((a) => a.kind === "tokenized").length,
+      crypto: marketAssets.length,
       bootstrapOnly: false,
     },
   );
@@ -144,10 +132,9 @@ export default function TransactionForm({
   const isAssetPicker = type === "buy" || type === "sell";
 
   /**
-   * The picker queries the FULL server-side catalog (crypto + CoinGecko's RWA
-   * category) instead of filtering the small slice embedded in the page, so
-   * tokenized real-world assets are reachable even when they are far down the
-   * market-cap ordering.
+   * The picker queries the FULL server-side catalog instead of filtering the
+   * small slice embedded in the page, so every synced crypto identity is
+   * reachable even when it is far down the market-cap ordering.
    */
   useEffect(() => {
     if (!isAssetPicker) return;
@@ -155,10 +142,7 @@ export default function TransactionForm({
     let cancelled = false;
     const handle = window.setTimeout(async () => {
       setCatalogSearching(true);
-      const response = await searchMarketCatalogAction(
-        query,
-        catalogFilter === "all" ? undefined : catalogFilter,
-      );
+      const response = await searchMarketCatalogAction(query);
       if (cancelled) return;
       setCatalogSearching(false);
       if (!response.ok) {
@@ -168,8 +152,7 @@ export default function TransactionForm({
       setCatalogResults(response.assets);
       setCatalogStatus({
         total: response.total,
-        crypto: response.total - response.tokenized,
-        tokenized: response.tokenized,
+        crypto: response.total,
         bootstrapOnly: response.bootstrapOnly,
       });
     }, query ? 250 : 0);
@@ -178,7 +161,7 @@ export default function TransactionForm({
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [assetSearch, catalogFilter, isAssetPicker]);
+  }, [assetSearch, isAssetPicker]);
 
   const catalogMatches = catalogResults;
 
@@ -189,15 +172,11 @@ export default function TransactionForm({
       if (!response.assets.length) return;
       setCatalogStatus({
         total: response.total,
-        crypto: response.total - response.tokenized,
-        tokenized: response.tokenized,
+        crypto: response.total,
         bootstrapOnly: response.bootstrapOnly,
       });
       // Re-run the active query against the freshly synced catalog.
-      const refreshed = await searchMarketCatalogAction(
-        assetSearch.trim(),
-        catalogFilter === "all" ? undefined : catalogFilter,
-      );
+      const refreshed = await searchMarketCatalogAction(assetSearch.trim());
       if (refreshed.ok) setCatalogResults(refreshed.assets);
     });
   };
@@ -396,24 +375,10 @@ export default function TransactionForm({
               value={assetSearch}
               onChange={(event) => setAssetSearch(event.target.value)}
               className="field"
-              placeholder="BTC، Ethereum، PAXG، Ondo، BUIDL…"
+              placeholder="BTC، USDC، PAXG، WBTC…"
               autoComplete="off"
             />
             <div className="flex flex-wrap items-center gap-2">
-              <div className="seg" role="group" aria-label="نوع دارایی">
-                {CATALOG_FILTERS.map((filter) => (
-                  <button
-                    key={filter.key}
-                    type="button"
-                    onClick={() => setCatalogFilter(filter.key)}
-                    className={`!px-3 !min-h-8 !text-[11px] ${catalogFilter === filter.key ? "seg-on" : ""}`}
-                    aria-pressed={catalogFilter === filter.key}
-                    style={{ touchAction: "manipulation" }}
-                  >
-                    {filter.label}
-                  </button>
-                ))}
-              </div>
               <button
                 type="button"
                 onClick={handleCatalogRefresh}
@@ -424,14 +389,14 @@ export default function TransactionForm({
                 {refreshingCatalog ? "در حال به‌روزرسانی…" : "به‌روزرسانی کاتالوگ"}
               </button>
               <span className="muted text-[10.5px]">
-                {catalogStatus.total} دارایی · {catalogStatus.tokenized} مورد RWA/توکنیزه
+                {catalogStatus.total} دارایی
                 {catalogSearching ? " · در حال جستجو…" : ""}
               </span>
             </div>
             {catalogStatus.bootstrapOnly && (
               <p className="soft rounded-[var(--r-md)] p-2 text-[10.5px] leading-5" role="status">
-                اتصال به CoinGecko برقرار نشده است؛ فعلاً فقط فهرست آفلاین (شامل نمونه‌های RWA مانند PAXG، XAUT، BUIDL، ONDO) در دسترس است.
-                برای دریافت کل دستهٔ <span dir="ltr">real-world-assets-rwa</span>، دسترسی شبکهٔ سرور به <span dir="ltr">api.coingecko.com</span> یا مقدار
+                اتصال به CoinGecko برقرار نشده است؛ فعلاً فقط فهرست آفلاین در دسترس است.
+                برای دریافت فهرست کامل، دسترسی شبکهٔ سرور به <span dir="ltr">api.coingecko.com</span> یا مقدار
                 <span dir="ltr"> COINGECKO_API_KEY </span> را بررسی و سپس «به‌روزرسانی کاتالوگ» را بزنید.
               </p>
             )}
@@ -453,7 +418,6 @@ export default function TransactionForm({
                       <b className="block text-xs" dir="ltr">{asset.symbol}</b>
                       <small className="muted block truncate">{asset.name}</small>
                     </span>
-                    {asset.kind === "tokenized" && <span className="chip !text-[9.5px]">RWA</span>}
                     <span className="chip">{registered ? "انتخاب" : "ثبت"}</span>
                   </button>
                 );
@@ -464,9 +428,6 @@ export default function TransactionForm({
                 </p>
               )}
             </div>
-            <p className="muted text-[10.5px]">
-              نماد و لوگو فقط از کاتالوگ server-side CoinGecko ثبت می‌شوند؛ ورود دستی نماد یا قیمت جاری ممکن نیست.
-            </p>
             {catalogMessage && <p className="text-xs" role="status">{catalogMessage}</p>}
           </div>
         )}
@@ -532,17 +493,6 @@ export default function TransactionForm({
             style={{ touchAction: "manipulation" }}
           />
         </div>
-      </div>
-
-      {/* Accounting rule preview — still present */}
-      <div className="card soft p-3 text-[11px] leading-6">
-        <strong>پیش‌نمایش قاعده حسابداری:</strong>{" "}
-        {type === "buy" && "دارایی بدهکار می‌شود، حساب نقدی بستانکار؛ یک بسته FIFO باز می‌شود."}
-        {type === "sell" && "دارایی به بهای تمام‌شده FIFO خارج می‌شود و اختلاف در «سود سرمایه‌ای تحقق‌یافته» ثبت می‌گردد."}
-        {type === "transfer" && "ثروت تغییر نمی‌کند؛ فقط محل نگهداری جابه‌جا می‌شود (کارمزد هزینه است)."}
-        {type === "income" && "حساب نقدی بدهکار و حساب درآمد بستانکار می‌شود."}
-        {type === "expense" && "حساب هزینه بدهکار و حساب نقدی بستانکار می‌شود."}
-        {" "}مجموع ارزش پایه سند همیشه باید صفر باشد.
       </div>
 
       {/* Smart Preview Before Commit */}

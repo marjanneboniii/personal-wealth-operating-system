@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { coingeckoAssetCatalog } from "@/db/schema";
 import { CoinGeckoClient } from "./coingecko";
@@ -19,13 +19,12 @@ export type CatalogSyncResult = {
   synced: number;
   status: CatalogSyncStatus;
   /** Which upstream pages failed, so the UI can explain a partial catalog. */
-  failed: Array<"top" | "rwa">;
+  failed: Array<"top">;
 };
 
 export type CatalogStatus = {
   total: number;
   crypto: number;
-  tokenized: number;
   lastSyncedAt: Date | null;
   /** True while the catalog only holds the offline bootstrap identities. */
   bootstrapOnly: boolean;
@@ -34,9 +33,9 @@ export type CatalogStatus = {
 /**
  * Offline bootstrap only; current prices are NEVER sourced from this list.
  *
- * It exists so the picker is still usable (crypto *and* tokenized RWA) when
- * CoinGecko is unreachable — e.g. blocked egress, no API key + rate limit.
- * Ranks/logos here are identity hints, refreshed on the first successful sync.
+ * It exists so the picker is still usable (crypto) when CoinGecko is
+ * unreachable — e.g. blocked egress, no API key + rate limit. Ranks/logos
+ * here are identity hints, refreshed on the first successful sync.
  */
 const BOOTSTRAP_IDENTITIES: CoinGeckoCatalogAsset[] = [
   // ── Major crypto ────────────────────────────────────────────────────────
@@ -48,43 +47,22 @@ const BOOTSTRAP_IDENTITIES: CoinGeckoCatalogAsset[] = [
   { coingeckoId: "ripple", symbol: "XRP", name: "XRP", logoUrl: "https://coin-images.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png", marketCapRank: 6, kind: "crypto" },
   { coingeckoId: "solana", symbol: "SOL", name: "Solana", logoUrl: "https://coin-images.coingecko.com/coins/images/4128/large/solana.png", marketCapRank: 7, kind: "crypto" },
   { coingeckoId: "tron", symbol: "TRX", name: "TRON", logoUrl: "https://coin-images.coingecko.com/coins/images/1094/large/tron-logo.png", marketCapRank: 8, kind: "crypto" },
+  { coingeckoId: "hyperliquid", symbol: "HYPE", name: "Hyperliquid", logoUrl: "https://coin-images.coingecko.com/coins/images/50882/large/hyperliquid.jpg", marketCapRank: 10, kind: "crypto" },
   { coingeckoId: "dogecoin", symbol: "DOGE", name: "Dogecoin", logoUrl: "https://coin-images.coingecko.com/coins/images/5/large/dogecoin.png", marketCapRank: 11, kind: "crypto" },
-  { coingeckoId: "cardano", symbol: "ADA", name: "Cardano", logoUrl: "https://coin-images.coingecko.com/coins/images/975/large/cardano.png", marketCapRank: 17, kind: "crypto" },
+  { coingeckoId: "usds", symbol: "USDS", name: "USDS", logoUrl: "https://coin-images.coingecko.com/coins/images/39926/large/usds.webp", marketCapRank: 12, kind: "crypto" },
   { coingeckoId: "monero", symbol: "XMR", name: "Monero", logoUrl: "https://coin-images.coingecko.com/coins/images/69/large/monero_logo.png", marketCapRank: 16, kind: "crypto" },
-  { coingeckoId: "dai", symbol: "DAI", name: "Dai", logoUrl: "https://coin-images.coingecko.com/coins/images/9956/large/Badge_Dai.png", marketCapRank: 21, kind: "crypto" },
-  { coingeckoId: "avalanche-2", symbol: "AVAX", name: "Avalanche", logoUrl: "https://coin-images.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png", marketCapRank: 25, kind: "crypto" },
-  { coingeckoId: "polkadot", symbol: "DOT", name: "Polkadot", logoUrl: "https://coin-images.coingecko.com/coins/images/12171/large/polkadot.png", marketCapRank: 30, kind: "crypto" },
+  { coingeckoId: "cardano", symbol: "ADA", name: "Cardano", logoUrl: "https://coin-images.coingecko.com/coins/images/975/large/cardano.png", marketCapRank: 17, kind: "crypto" },
   { coingeckoId: "litecoin", symbol: "LTC", name: "Litecoin", logoUrl: "https://coin-images.coingecko.com/coins/images/2/large/litecoin.png", marketCapRank: 22, kind: "crypto" },
-
-  // ── Tokenized real-world assets (CoinGecko "real-world-assets-rwa") ──────
-  { coingeckoId: "figure-heloc", symbol: "FIGR_HELOC", name: "Figure Heloc", logoUrl: "https://coin-images.coingecko.com/coins/images/68480/large/figure.png", marketCapRank: 9, kind: "tokenized" },
-  { coingeckoId: "chainlink", symbol: "LINK", name: "Chainlink", logoUrl: "https://coin-images.coingecko.com/coins/images/877/large/Chainlink_Logo_500.png", marketCapRank: 19, kind: "tokenized" },
-  { coingeckoId: "stellar", symbol: "XLM", name: "Stellar", logoUrl: "https://coin-images.coingecko.com/coins/images/100/large/fmpFRHHQ_400x400.jpg", marketCapRank: 20, kind: "tokenized" },
-  { coingeckoId: "hashnote-usyc", symbol: "USYC", name: "Circle USYC", logoUrl: "https://coin-images.coingecko.com/coins/images/51054/large/Hashnote_SDYC_200x200.png", marketCapRank: 29, kind: "tokenized" },
-  { coingeckoId: "blackrock-usd-institutional-digital-liquidity-fund", symbol: "BUIDL", name: "BlackRock USD Institutional Digital Liquidity Fund", logoUrl: "https://coin-images.coingecko.com/coins/images/36291/large/blackrock.png", marketCapRank: 33, kind: "tokenized" },
-  { coingeckoId: "tether-gold", symbol: "XAUT", name: "Tether Gold", logoUrl: "https://coin-images.coingecko.com/coins/images/10481/large/logo.png", marketCapRank: 35, kind: "tokenized" },
-  { coingeckoId: "ondo-us-dollar-yield", symbol: "USDY", name: "Ondo US Dollar Yield", logoUrl: "https://coin-images.coingecko.com/coins/images/31700/large/usdy_%281%29.png", marketCapRank: 39, kind: "tokenized" },
-  { coingeckoId: "pax-gold", symbol: "PAXG", name: "PAX Gold", logoUrl: "https://coin-images.coingecko.com/coins/images/9519/large/asset-paxg.png", marketCapRank: 43, kind: "tokenized" },
-  { coingeckoId: "ondo-finance", symbol: "ONDO", name: "Ondo", logoUrl: "https://coin-images.coingecko.com/coins/images/26580/large/ONDO.png", marketCapRank: 46, kind: "tokenized" },
-  { coingeckoId: "blockchain-capital", symbol: "BCAP", name: "Blockchain Capital", logoUrl: "https://coin-images.coingecko.com/coins/images/56040/large/bcap_logo_200.png", marketCapRank: 68, kind: "tokenized" },
-  { coingeckoId: "superstate-short-duration-us-government-securities-fund-ustb", symbol: "USTB", name: "Invesco Short Duration US Government Securities Fund", logoUrl: "https://coin-images.coingecko.com/coins/images/35012/large/Invesco_icon_lg.png", marketCapRank: 69, kind: "tokenized" },
-  { coingeckoId: "eutbl", symbol: "EUTBL", name: "Spiko EU T-Bills Money Market Fund", logoUrl: "https://coin-images.coingecko.com/coins/images/39657/large/EUTBL.png", marketCapRank: 70, kind: "tokenized" },
-  { coingeckoId: "janus-henderson-anemoy-treasury-fund", symbol: "JTRSY", name: "Janus Henderson Anemoy Treasury Fund", logoUrl: "https://coin-images.coingecko.com/coins/images/70445/large/JTRSY.png", marketCapRank: 73, kind: "tokenized" },
-  { coingeckoId: "quant-network", symbol: "QNT", name: "Quant", logoUrl: "https://coin-images.coingecko.com/coins/images/3370/large/5ZOu7brX_400x400.jpg", marketCapRank: 74, kind: "tokenized" },
-  { coingeckoId: "algorand", symbol: "ALGO", name: "Algorand", logoUrl: "https://coin-images.coingecko.com/coins/images/4380/large/download.png", marketCapRank: 79, kind: "tokenized" },
-  { coingeckoId: "janus-henderson-anemoy-aaa-clo-fund", symbol: "JAAA", name: "Janus Henderson Anemoy AAA CLO Fund", logoUrl: "https://coin-images.coingecko.com/coins/images/70446/large/jaaa.png", marketCapRank: 84, kind: "tokenized" },
-  { coingeckoId: "xdce-crowd-sale", symbol: "XDC", name: "XDC Network", logoUrl: "https://coin-images.coingecko.com/coins/images/2912/large/xdc-icon.png", marketCapRank: 94, kind: "tokenized" },
-  { coingeckoId: "injective-protocol", symbol: "INJ", name: "Injective", logoUrl: "https://coin-images.coingecko.com/coins/images/12882/large/Other_200x200.png", marketCapRank: 105, kind: "tokenized" },
-  { coingeckoId: "ousg", symbol: "OUSG", name: "Ondo Short-Term U.S. Government Bond Fund", logoUrl: "https://coin-images.coingecko.com/coins/images/29023/large/OUSG.png", marketCapRank: 111, kind: "tokenized" },
-  { coingeckoId: "kinesis-gold", symbol: "KAU", name: "Kinesis Gold", logoUrl: "https://coin-images.coingecko.com/coins/images/29788/large/kau-currency-ticker.png", marketCapRank: 120, kind: "tokenized" },
-  { coingeckoId: "kinesis-silver", symbol: "KAG", name: "Kinesis Silver", logoUrl: "https://coin-images.coingecko.com/coins/images/29789/large/kag-currency-ticker.png", marketCapRank: 144, kind: "tokenized" },
-  { coingeckoId: "vaneck-treasury-fund", symbol: "VBILL", name: "VanEck Treasury Fund", logoUrl: "https://coin-images.coingecko.com/coins/images/56023/large/vbill_200.png", marketCapRank: 165, kind: "tokenized" },
-  { coingeckoId: "spiko-us-t-bills-money-market-fund", symbol: "USTBL", name: "Spiko US T-Bills Money Market Fund", logoUrl: "https://coin-images.coingecko.com/coins/images/39666/large/USTB.png", marketCapRank: 180, kind: "tokenized" },
-  { coingeckoId: "syrup", symbol: "SYRUP", name: "Maple Finance", logoUrl: "https://coin-images.coingecko.com/coins/images/51232/large/_syrup_token_logo.png", marketCapRank: 175, kind: "tokenized" },
-  { coingeckoId: "goldfinch", symbol: "GFI", name: "Goldfinch", logoUrl: "https://coin-images.coingecko.com/coins/images/19081/large/GFI-asset-logo.png", marketCapRank: null, kind: "tokenized" },
-  { coingeckoId: "centrifuge", symbol: "CFG", name: "Centrifuge", logoUrl: "https://coin-images.coingecko.com/coins/images/15380/large/centrifuge.png", marketCapRank: null, kind: "tokenized" },
-  { coingeckoId: "realio-network", symbol: "RIO", name: "Realio Network", logoUrl: "https://coin-images.coingecko.com/coins/images/17738/large/RIO-Token-Logo.png", marketCapRank: null, kind: "tokenized" },
-  { coingeckoId: "polymesh", symbol: "POLYX", name: "Polymesh", logoUrl: "https://coin-images.coingecko.com/coins/images/23496/large/polymesh.png", marketCapRank: null, kind: "tokenized" },
+  { coingeckoId: "ethena-usde", symbol: "USDE", name: "Ethena USDe", logoUrl: "https://coin-images.coingecko.com/coins/images/33613/large/usde.png", marketCapRank: 24, kind: "crypto" },
+  { coingeckoId: "avalanche-2", symbol: "AVAX", name: "Avalanche", logoUrl: "https://coin-images.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png", marketCapRank: 25, kind: "crypto" },
+  { coingeckoId: "global-dollar", symbol: "USDG", name: "Global Dollar", logoUrl: "https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png", marketCapRank: 28, kind: "crypto" },
+  { coingeckoId: "polkadot", symbol: "DOT", name: "Polkadot", logoUrl: "https://coin-images.coingecko.com/coins/images/12171/large/polkadot.png", marketCapRank: 30, kind: "crypto" },
+  { coingeckoId: "tether-gold", symbol: "XAUT", name: "Tether Gold", logoUrl: "https://coin-images.coingecko.com/coins/images/10481/large/logo.png", marketCapRank: 35, kind: "crypto" },
+  { coingeckoId: "pax-gold", symbol: "PAXG", name: "PAX Gold", logoUrl: "https://coin-images.coingecko.com/coins/images/9519/large/asset-paxg.png", marketCapRank: 42, kind: "crypto" },
+  { coingeckoId: "dai", symbol: "DAI", name: "Dai", logoUrl: "https://coin-images.coingecko.com/coins/images/9956/large/Badge_Dai.png", marketCapRank: 21, kind: "crypto" },
+  // ── Wrapped / stable variants — reachable offline too ───────────────────
+  { coingeckoId: "coinbase-wrapped-btc", symbol: "CBBTC", name: "Coinbase Wrapped BTC", logoUrl: "https://coin-images.coingecko.com/coins/images/40143/large/cbbtc.webp", marketCapRank: null, kind: "crypto" },
+  { coingeckoId: "wrapped-bitcoin", symbol: "WBTC", name: "Wrapped Bitcoin", logoUrl: "https://coin-images.coingecko.com/coins/images/7598/large/WBTCLOGO.png", marketCapRank: null, kind: "crypto" },
 ];
 
 /** Exposed for diagnostics/tests — the offline identity floor of the picker. */
@@ -117,27 +95,29 @@ async function upsertCatalog(rows: CoinGeckoCatalogAsset[], syncedAt: Date): Pro
 }
 
 /**
- * Synchronizes top-250 crypto plus CoinGecko's RWA category. Failure is
- * graceful and PARTIAL-TOLERANT: if only one of the two pages answers, the
- * rows that did arrive are still registered, and previously registered
- * identities remain available. Prices are never taken from this path.
+ * Synchronizes top-250 crypto from CoinGecko. Failure is graceful: rows that
+ * did arrive are still registered, and previously registered identities
+ * remain available. Prices are never taken from this path. Any legacy rows
+ * that are not crypto (old RWA/tokenized identities) are dropped, so they can
+ * never surface in the picker again.
  */
 export async function refreshCoinGeckoCatalog(
   client = new CoinGeckoClient(),
 ): Promise<CatalogSyncResult> {
-  const [top, rwa] = await Promise.allSettled([
-    client.fetchTopAssets(250),
-    client.fetchRwaAssets(),
-  ]);
+  let top: CoinGeckoCatalogAsset[] = [];
+  try {
+    top = await client.fetchTopAssets(250);
+  } catch {
+    top = [];
+  }
 
   const merged = new Map<string, CoinGeckoCatalogAsset>();
-  if (top.status === "fulfilled") for (const row of top.value) merged.set(row.coingeckoId, row);
-  // RWA rows are applied last so the tokenized `kind` wins over plain crypto.
-  if (rwa.status === "fulfilled") for (const row of rwa.value) merged.set(row.coingeckoId, row);
+  for (const row of top) merged.set(row.coingeckoId, row);
 
-  const failed: Array<"top" | "rwa"> = [];
-  if (top.status === "rejected") failed.push("top");
-  if (rwa.status === "rejected") failed.push("rwa");
+  const failed: Array<"top"> = merged.size === 0 ? ["top"] : [];
+
+  // Remove any legacy non-crypto rows (old RWA/tokenized identities).
+  await db.delete(coingeckoAssetCatalog).where(ne(coingeckoAssetCatalog.kind, "crypto"));
 
   if (merged.size > 0) {
     await upsertCatalog([...merged.values()], new Date());
@@ -145,9 +125,9 @@ export async function refreshCoinGeckoCatalog(
     return { synced: merged.size, status: failed.length ? "partial" : "fresh", failed };
   }
 
-  // Nothing came back: lay down the offline floor (crypto AND tokenized RWA)
-  // with an epoch timestamp so the next request retries the network. Rows that
-  // arrived from a previous successful sync are untouched by this upsert.
+  // Nothing came back: lay down the offline floor (crypto) with an epoch
+  // timestamp so the next request retries the network. Rows that arrived from
+  // a previous successful sync are untouched by this upsert.
   globalForCatalog.__pwosCatalogNextRetryAt = Date.now() + RETRY_COOLDOWN_MS;
   const before = await getMarketCatalogStatus();
   if (before.total === 0 || before.bootstrapOnly) {
@@ -159,9 +139,8 @@ export async function refreshCoinGeckoCatalog(
 export async function getMarketCatalogStatus(): Promise<CatalogStatus> {
   const [row] = await db
     .select({
-      total: sql<number>`count(*)::int`,
+      total: sql<number>`count(*) filter (where ${coingeckoAssetCatalog.kind} = 'crypto')::int`,
       crypto: sql<number>`count(*) filter (where ${coingeckoAssetCatalog.kind} = 'crypto')::int`,
-      tokenized: sql<number>`count(*) filter (where ${coingeckoAssetCatalog.kind} = 'tokenized')::int`,
       lastSyncedAt: sql<Date | null>`max(${coingeckoAssetCatalog.syncedAt})`,
     })
     .from(coingeckoAssetCatalog);
@@ -170,7 +149,6 @@ export async function getMarketCatalogStatus(): Promise<CatalogStatus> {
   return {
     total: row?.total ?? 0,
     crypto: row?.crypto ?? 0,
-    tokenized: row?.tokenized ?? 0,
     lastSyncedAt: lastSyncedAt && lastSyncedAt.getTime() > 0 ? lastSyncedAt : null,
     bootstrapOnly: !lastSyncedAt || lastSyncedAt.getTime() === 0,
   };
@@ -194,10 +172,11 @@ export async function ensureCoinGeckoCatalog(): Promise<void> {
 export async function listCoinGeckoCatalog(
   query = "",
   limit = 200,
-  kind?: "crypto" | "tokenized",
 ): Promise<Array<typeof coingeckoAssetCatalog.$inferSelect>> {
   const q = query.trim();
-  const filters = [eq(coingeckoAssetCatalog.isActive, true)];
+  // Only crypto identities are ever offered; legacy non-crypto rows can't
+  // surface in the picker even if they linger in an old database.
+  const filters = [eq(coingeckoAssetCatalog.isActive, true), eq(coingeckoAssetCatalog.kind, "crypto")];
   if (q) {
     filters.push(
       or(
@@ -207,7 +186,6 @@ export async function listCoinGeckoCatalog(
       )!,
     );
   }
-  if (kind) filters.push(eq(coingeckoAssetCatalog.kind, kind));
 
   return db
     .select()
