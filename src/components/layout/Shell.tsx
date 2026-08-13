@@ -220,6 +220,7 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
   // Global keyboard: ⌘K / Ctrl+K → command palette
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (pathname === "/login" || pathname === "/register") return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((o) => !o);
@@ -227,7 +228,7 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [pathname]);
 
   // PWA service worker (production only — dev relies on HMR)
   useEffect(() => {
@@ -245,10 +246,12 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
     t.match ? t.match.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m))) : false,
   );
 
+  const isAuthRoute = pathname === "/login" || pathname === "/register";
+
   return (
     <div
       className="min-h-dvh"
-      style={{ ["--nav-w" as never]: collapsed ? "76px" : "264px" }}
+      style={{ ["--nav-w" as never]: isAuthRoute ? "0px" : collapsed ? "76px" : "264px" }}
     >
       {/* Offline banner — trust first: never lose context */}
       {!online && (
@@ -263,7 +266,8 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
         </div>
       )}
 
-      {/* ───────────── Desktop sidebar ───────────── */}
+      {/* ───────────── Desktop sidebar (hidden on auth routes) ───────────── */}
+      {!isAuthRoute && (
       <aside
         className={`fixed inset-y-0 right-0 z-40 hidden flex-col border-l transition-[width] duration-200 lg:flex ${collapsed ? "nav-collapsed w-[76px]" : "w-[264px]"}`}
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
@@ -365,38 +369,50 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
           </div>
         </div>
       </aside>
+      )}
 
       {/* ───────────── Mobile top bar ───────────── */}
       <header
         className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 backdrop-blur-xl lg:hidden"
-        style={{ background: "color-mix(in oklab, var(--bg) 82%, transparent)", borderBottom: "1px solid var(--border)" }}
+        style={{
+          background: "color-mix(in oklab, var(--bg) 82%, transparent)",
+          borderBottom: "1px solid var(--border)",
+          paddingTop: "max(0.625rem, env(safe-area-inset-top))",
+        }}
       >
-        <Link href="/" className="flex items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="تراز — صفحه اصلی">
+        <Link href={isAuthRoute ? "/login" : "/"} className="flex items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="تراز">
           <BrandMark size={22} style={{ color: "var(--brand)" }} />
           <span className="text-[15px] font-bold tracking-tight">تراز</span>
         </Link>
         <div className="flex items-center gap-1">
-          <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
-            <Icon name="search" size={18} />
-          </button>
-          <AccountLink user={authUser} compact />
+          {!isAuthRoute && (
+            <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
+              <Icon name="search" size={18} />
+            </button>
+          )}
+          {!isAuthRoute && <AccountLink user={authUser} compact />}
           <ThemeToggle />
-          <Link href="/new" className="btn btn-primary !min-h-9 !px-3 !py-1.5 !text-[12px]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>
-            <Icon name="plus" size={15} />
-            ثبت
-          </Link>
+          {!isAuthRoute && (
+            <Link href="/new" className="btn btn-primary !min-h-9 !px-3 !py-1.5 !text-[12px]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>
+              <Icon name="plus" size={15} />
+              ثبت
+            </Link>
+          )}
         </div>
       </header>
 
       {/* ───────────── Content ───────────── */}
       <main
         id="main"
-        className="mx-auto w-full max-w-[1180px] px-4 pb-28 pt-4 transition-[padding] duration-200 sm:px-6 lg:pb-16 lg:pl-10 lg:pr-[var(--nav-w)] lg:pt-7"
+        className={`mx-auto w-full max-w-[1180px] px-4 pt-4 transition-[padding] duration-200 sm:px-6 ${
+          isAuthRoute ? "pb-8 lg:pb-10 lg:px-6 lg:pt-8" : "pb-28 lg:pb-16 lg:pl-10 lg:pr-[var(--nav-w)] lg:pt-7"
+        }`}
       >
         {children}
       </main>
 
-      {/* ───────────── Mobile bottom nav ───────────── */}
+      {/* ───────────── Mobile bottom nav (hidden on auth routes) ───────────── */}
+      {!isAuthRoute && (
       <nav
         className="fixed inset-x-0 bottom-0 z-40 lg:hidden"
         aria-label="ناوبری اصلی موبایل"
@@ -424,9 +440,10 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
           </button>
         </div>
       </nav>
+      )}
 
-      <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} authUser={authUser} />
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      {!isAuthRoute && <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} authUser={authUser} />}
+      {!isAuthRoute && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
     </div>
   );
 }
