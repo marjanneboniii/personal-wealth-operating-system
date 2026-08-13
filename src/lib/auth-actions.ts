@@ -145,44 +145,56 @@ export async function loginAction(prev: AuthResult | null, formData: FormData): 
 
   if (!username || !password) return { ok: false, message: "نام کاربری و رمز عبور را وارد کنید." };
 
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(or(eq(users.username, username), eq(users.email, username)))
-    .limit(1);
-  if (!user || !(user as any).passwordHash) {
-    console.warn("[auth failure] login failed for user:", username);
-    await recordAuditEvent({
-      action: "LOGIN_FAILURE",
-      entityType: "user",
-      result: "FAILURE",
-      metadata: { username },
-    });
-    return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
-  }
-  const hash = (user as any).passwordHash as string;
-  if (!verifyPassword(password, hash)) {
-    console.warn("[auth failure] invalid password for user:", username);
-    await recordAuditEvent({
-      action: "LOGIN_FAILURE",
-      entityType: "user",
-      userId: user.id,
-      result: "FAILURE",
-      metadata: { username },
-    });
-    return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
-  }
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(or(eq(users.username, username), eq(users.email, username)))
+      .limit(1);
+    if (!user || !(user as any).passwordHash) {
+      console.warn("[auth failure] login failed for user:", username);
+      await recordAuditEvent({
+        action: "LOGIN_FAILURE",
+        entityType: "user",
+        result: "FAILURE",
+        metadata: { username },
+      });
+      return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
+    }
+    const hash = (user as any).passwordHash as string;
+    if (!verifyPassword(password, hash)) {
+      console.warn("[auth failure] invalid password for user:", username);
+      await recordAuditEvent({
+        action: "LOGIN_FAILURE",
+        entityType: "user",
+        userId: user.id,
+        result: "FAILURE",
+        metadata: { username },
+      });
+      return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
+    }
 
-  const { token, expiresAt } = await createSession(user.id);
-  await setSessionCookie(token, expiresAt);
-  await recordAuditEvent({
-    action: "LOGIN_SUCCESS",
-    entityType: "user",
-    entityId: user.id,
-    userId: user.id,
-    result: "SUCCESS",
-  });
-  return { ok: true, message: "ورود موفق.", redirectTo: "/" };
+    const { token, expiresAt } = await createSession(user.id);
+    await setSessionCookie(token, expiresAt);
+    await recordAuditEvent({
+      action: "LOGIN_SUCCESS",
+      entityType: "user",
+      entityId: user.id,
+      userId: user.id,
+      result: "SUCCESS",
+    });
+    return { ok: true, message: "ورود موفق.", redirectTo: "/" };
+  } catch (err: any) {
+    // A database outage must surface as a readable message on the form itself.
+    // Throwing here would escalate to the global error boundary and leave the
+    // user with no way back to /login. Credentials are never echoed back.
+    if (err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
+    console.warn("[auth failure] login unavailable:", err instanceof Error ? err.message : String(err));
+    return {
+      ok: false,
+      message: "ارتباط با پایگاه داده برقرار نیست. داده‌های شما امن‌اند — چند لحظه دیگر دوباره تلاش کنید.",
+    };
+  }
 }
 
 // ───────────── Logout ─────────────

@@ -11,8 +11,20 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ next?: string; claim?: string }>;
 }) {
-  await seedIfEmpty();
-  const user = await getCurrentUser();
+  // The auth pages must stay reachable even when the database is unavailable.
+  // Otherwise a stale session cookie plus a sleeping database traps the user:
+  // every route — including /login — throws, so signing in becomes impossible.
+  // Fail-closed semantics are preserved: a session that cannot be verified is
+  // treated as "not signed in", so no financial data is ever exposed here.
+  let user: Awaited<ReturnType<typeof getCurrentUser>> = null;
+  let databaseUnavailable = false;
+  try {
+    await seedIfEmpty();
+    user = await getCurrentUser();
+  } catch {
+    user = null;
+    databaseUnavailable = true;
+  }
   if (user) redirect("/");
 
   const params = await searchParams;
@@ -33,6 +45,16 @@ export default async function LoginPage({
             {isClaim ? "حساب فعلی شما بدون نام کاربری است. لطفاً نام کاربری خود را انتخاب کنید تا مالکیت داده‌ها حفظ شود." : "برای دسترسی به سیستم مدیریت ثروت وارد شوید."}
           </p>
         </div>
+
+        {databaseUnavailable && (
+          <p
+            role="status"
+            className="mb-4 rounded-[var(--r-md)] px-3 py-2 text-[12px] leading-6"
+            style={{ background: "var(--warning-soft)", color: "var(--warning)" }}
+          >
+            ارتباط با پایگاه داده برقرار نیست. داده‌های شما امن‌اند. می‌توانید فرم را کامل کنید؛ اگر ورود ناموفق بود، چند لحظه بعد دوباره تلاش کنید.
+          </p>
+        )}
 
         <LoginForm
           claimMode={isClaim}

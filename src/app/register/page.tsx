@@ -7,8 +7,17 @@ import BrandMark from "@/components/layout/BrandMark";
 export const dynamic = "force-dynamic";
 
 export default async function RegisterPage() {
-  await seedIfEmpty();
-  const user = await getCurrentUser();
+  // Kept reachable even when the database is down — see the note in
+  // src/app/login/page.tsx. An unverifiable session counts as "not signed in".
+  let user: Awaited<ReturnType<typeof getCurrentUser>> = null;
+  let databaseUnavailable = false;
+  try {
+    await seedIfEmpty();
+    user = await getCurrentUser();
+  } catch {
+    user = null;
+    databaseUnavailable = true;
+  }
   if (user) redirect("/");
 
   return (
@@ -24,6 +33,16 @@ export default async function RegisterPage() {
           <h1 className="type-page-title">ایجاد حساب</h1>
           <p className="sub mt-2 text-[13px] leading-6">یک نام کاربری و رمز عبور برای حساب مستقل خود انتخاب کنید.</p>
         </div>
+
+        {databaseUnavailable && (
+          <p
+            role="status"
+            className="mb-4 rounded-[var(--r-md)] px-3 py-2 text-[12px] leading-6"
+            style={{ background: "var(--warning-soft)", color: "var(--warning)" }}
+          >
+            ارتباط با پایگاه داده برقرار نیست. داده‌های شما امن‌اند. می‌توانید فرم را کامل کنید؛ اگر ثبت‌نام ناموفق بود، چند لحظه بعد دوباره تلاش کنید.
+          </p>
+        )}
 
         <RegisterForm googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID} />
 

@@ -40,6 +40,11 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         <Link href="/" className="btn">
           نمای کلی
         </Link>
+        {/* Always offer a route that does not require a working database or a
+            valid session, so a failed session lookup can never trap the user. */}
+        <Link href="/login" className="btn">
+          ورود به حساب
+        </Link>
         <Link href="/settings" className="btn btn-ghost">
           بررسی تنظیمات
         </Link>
