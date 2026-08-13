@@ -23,7 +23,7 @@ export default function UserPanel({ user }: { user: User }) {
       // user of this device never sees the previous tenant's data.
       await purgeClientCaches();
     }
-    router.push("/login");
+    router.push("/");
     router.refresh();
   };
 

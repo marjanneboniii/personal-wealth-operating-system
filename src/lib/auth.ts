@@ -154,7 +154,14 @@ export async function setSessionCookie(token: string, expiresAt: Date) {
 export async function clearSessionCookie() {
   try {
     const cookieStore = await cookies();
-    cookieStore.delete(SESSION_COOKIE);
+    cookieStore.set(SESSION_COOKIE, "", {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(0),
+      maxAge: 0,
+      secure: process.env.NODE_ENV === "production",
+    });
   } catch {
     // Suppress invariant error if called outside Next.js request context
   }

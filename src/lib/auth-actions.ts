@@ -215,7 +215,8 @@ export async function logoutAction(): Promise<void> {
     userId: u?.id ?? null,
     result: "SUCCESS",
   });
-  redirect("/login");
+  revalidatePath("/");
+  redirect("/");
 }
 
 // ───────────── Claim Owner (for migration UI when legacy user has no username) ─────────────

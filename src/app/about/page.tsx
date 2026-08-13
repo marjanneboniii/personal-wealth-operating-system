@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { LandingFooter, LandingHeader } from "@/components/landing/LandingChrome";
 
 export const metadata: Metadata = {
   title: "درباره ما",
@@ -8,6 +9,8 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
+    <div className="landing">
+      <LandingHeader />
     <article className="landing-legal">
       <p className="landing-kicker">تراز</p>
       <h1 className="type-page-title mt-2">درباره ما</h1>
@@ -25,5 +28,7 @@ export default function AboutPage() {
         </Link>
       </p>
     </article>
+      <LandingFooter />
+    </div>
   );
 }

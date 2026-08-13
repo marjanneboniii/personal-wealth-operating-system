@@ -889,6 +889,7 @@ select.field {
 }
 
 .landing-header {
+  width: 100%;
   position: sticky;
   top: 0;
   z-index: 30;
@@ -1039,7 +1040,7 @@ select.field {
 .landing-legal {
   max-width: 40rem;
   margin-inline: auto;
-  padding: 2rem 0 4rem;
+  padding: 2rem 1rem 4rem;
 }
 
 .install-promo {

@@ -4,6 +4,7 @@
   "description": "هسته مالی خصوصی و خودمیزبان برای مدیریت بلندمدت ثروت شخصی و خانوادگی",
   "lang": "fa",
   "dir": "rtl",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
