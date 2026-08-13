@@ -7,7 +7,10 @@ import Icon, { type IconName } from "@/components/ui/Icon";
 import Sheet from "@/components/ui/Sheet";
 import CommandPalette from "@/components/ui/CommandPalette";
 import BrandMark from "@/components/layout/BrandMark";
+import InstallPromotion from "@/components/pwa/InstallPromotion";
 import { NAV_GROUPS, SECONDARY_ITEMS, MOBILE_TABS, QUICK_ACTIONS, isNavActive, type NavItem } from "@/lib/nav";
+
+const MARKETING_PATHS = new Set(["/about", "/privacy", "/terms"]);
 
 /* ───────────────────────── Theme ───────────────────────── */
 
@@ -220,7 +223,8 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
   // Global keyboard: ⌘K / Ctrl+K → command palette
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (pathname === "/login" || pathname === "/register") return;
+      if (pathname === "/login" || pathname === "/register" || pathname === "/about" || pathname === "/privacy" || pathname === "/terms") return;
+      if (pathname === "/" && !authUser) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((o) => !o);
@@ -228,7 +232,7 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [pathname]);
+  }, [pathname, authUser]);
 
   // PWA service worker (production only — dev relies on HMR)
   useEffect(() => {
@@ -247,11 +251,14 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
   );
 
   const isAuthRoute = pathname === "/login" || pathname === "/register";
+  const isMarketing = MARKETING_PATHS.has(pathname);
+  const isLanding = pathname === "/" && !authUser;
+  const isPublicChrome = isAuthRoute || isMarketing || isLanding;
 
   return (
     <div
       className="min-h-dvh"
-      style={{ ["--nav-w" as never]: isAuthRoute ? "0px" : collapsed ? "76px" : "264px" }}
+      style={{ ["--nav-w" as never]: isPublicChrome ? "0px" : collapsed ? "76px" : "264px" }}
     >
       {/* Offline banner — trust first: never lose context */}
       {!online && (
@@ -266,8 +273,8 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
         </div>
       )}
 
-      {/* ───────────── Desktop sidebar (hidden on auth routes) ───────────── */}
-      {!isAuthRoute && (
+      {/* ───────────── Desktop sidebar (hidden on public/marketing/auth) ───────────── */}
+      {!isPublicChrome && (
       <aside
         className={`fixed inset-y-0 right-0 z-40 hidden flex-col border-l transition-[width] duration-200 lg:flex ${collapsed ? "nav-collapsed w-[76px]" : "w-[264px]"}`}
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
@@ -371,7 +378,8 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
       </aside>
       )}
 
-      {/* ───────────── Mobile top bar ───────────── */}
+      {/* ───────────── Mobile top bar (app only) ───────────── */}
+      {!isPublicChrome && (
       <header
         className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 backdrop-blur-xl lg:hidden"
         style={{
@@ -380,26 +388,23 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
           paddingTop: "max(0.625rem, env(safe-area-inset-top))",
         }}
       >
-        <Link href={isAuthRoute ? "/login" : "/"} className="flex items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="تراز">
+        <Link href="/" className="flex items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="تراز">
           <BrandMark size={22} style={{ color: "var(--brand)" }} />
           <span className="text-[15px] font-bold tracking-tight">تراز</span>
         </Link>
         <div className="flex items-center gap-1">
-          {!isAuthRoute && (
-            <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
-              <Icon name="search" size={18} />
-            </button>
-          )}
-          {!isAuthRoute && <AccountLink user={authUser} compact />}
+          <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
+            <Icon name="search" size={18} />
+          </button>
+          <AccountLink user={authUser} compact />
           <ThemeToggle />
-          {!isAuthRoute && (
-            <Link href="/new" className="btn btn-primary !min-h-9 !px-3 !py-1.5 !text-[12px]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>
-              <Icon name="plus" size={15} />
-              ثبت
-            </Link>
-          )}
+          <Link href="/new" className="btn btn-primary !min-h-9 !px-3 !py-1.5 !text-[12px]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>
+            <Icon name="plus" size={15} />
+            ثبت
+          </Link>
         </div>
       </header>
+      )}
 
       {/* ───────────── Content ───────────── */}
       <main
@@ -442,8 +447,8 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
       </nav>
       )}
 
-      {!isAuthRoute && <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} authUser={authUser} />}
-      {!isAuthRoute && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
+      {!isPublicChrome && <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} authUser={authUser} />}
+      {!isPublicChrome && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
     </div>
   );
 }
