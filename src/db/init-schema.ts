@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { migrateLegacyFinancialData } from "@/db/migrate-multiuser";
+import { isMemoryUrl } from "@/db/config";
 
 const STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS users (
@@ -1042,24 +1042,26 @@ export async function createSchemaIfNotExists() {
       // Hardening only — the application layer already guarantees immutability.
     }
   }
-  try {
-    await migrateLegacyFinancialData(db);
-  } catch (err) {
-    console.warn("[db] legacy data migration notice:", err instanceof Error ? err.message : err);
-  }
 }
 
 /**
- * Process-wide memoised schema bootstrap.
+ * Process-wide memoised schema bootstrap for the EMBEDDED database only.
  *
- * `createSchemaIfNotExists()` is ~90 idempotent round-trips; callers that only
- * need "make sure my tables exist" (page loads, the vehicle module bootstrap,
- * server actions) should use this instead so the DDL runs at most once per
- * process. On failure the cache is cleared so the next caller retries.
+ * A real PostgreSQL database is migrated explicitly with `npm run db:migrate`
+ * (see `drizzle/`) — the request lifecycle must never execute DDL or
+ * migrations. Therefore `ensureSchemaOnce()` only ever bootstraps the in-
+ * memory `memory://` database used by local development and tests, and is a
+ * no-op for any real PostgreSQL URL.
+ *
+ * `createSchemaIfNotExists()` remains exported for the development/test
+ * bootstrap path and is what the test suite invokes directly.
  */
 let schemaOncePromise: Promise<void> | null = null;
 
 export function ensureSchemaOnce(): Promise<void> {
+  if (!isMemoryUrl(process.env.DATABASE_URL)) {
+    return Promise.resolve();
+  }
   schemaOncePromise ??= createSchemaIfNotExists().catch((err) => {
     schemaOncePromise = null;
     throw err;

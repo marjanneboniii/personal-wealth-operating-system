@@ -102,10 +102,13 @@ async function main() {
       "select count(*)::int as c from information_schema.tables where table_schema = 'public'",
     );
     const inst = await client.query("select to_regclass('public.institutions') as t");
+    const mig = await client.query("select to_regclass('public.__drizzle_migrations') as t");
     console.log(`✓ Logged in as ${who.rows[0].u} on database ${who.rows[0].d}`);
     console.log(`✓ Public tables: ${tables.rows[0].c} — institutions: ${inst.rows[0].t ?? "MISSING"}`);
     if (!inst.rows[0].t) {
-      console.log("  → Schema is empty; the app creates it automatically on first page load.");
+      console.log("  → Schema is not migrated yet. Run: npm run db:migrate");
+    } else if (!mig.rows[0].t) {
+      console.log("  → Tables exist but there is no migration history. Run: npm run db:migrate to record the baseline.");
     }
   } finally {
     await client.end().catch(() => {});
