@@ -34,7 +34,11 @@ function wasDismissed(): boolean {
   }
 }
 
-export default function InstallPromotion() {
+/**
+ * Listen from Shell on every route (including the public landing) so
+ * `beforeinstallprompt` is not lost before the signed-in banner mounts.
+ */
+export function usePwaInstallState() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [ios, setIos] = useState(false);
   const [hidden, setHidden] = useState(true);
@@ -82,8 +86,20 @@ export default function InstallPromotion() {
     dismiss();
   };
 
-  if (hidden) return null;
+  return { show: !hidden, ios, canPrompt: Boolean(deferred), install, dismiss };
+}
 
+export default function InstallPromotion({
+  ios,
+  canPrompt,
+  onInstall,
+  onDismiss,
+}: {
+  ios: boolean;
+  canPrompt: boolean;
+  onInstall: () => void;
+  onDismiss: () => void;
+}) {
   return (
     <div className="install-promo" role="dialog" aria-labelledby="install-title" aria-describedby="install-body">
       <div className="flex items-start gap-3">
@@ -100,12 +116,12 @@ export default function InstallPromotion() {
               : "برای دسترسی سریع‌تر، اپ را به صفحه اصلی اضافه کنید."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {deferred && (
-              <button type="button" className="btn btn-primary !min-h-12 !px-4 text-[12.5px]" onClick={() => void install()}>
+            {canPrompt && (
+              <button type="button" className="btn btn-primary !min-h-12 !px-4 text-[12.5px]" onClick={onInstall}>
                 افزودن به صفحه اصلی
               </button>
             )}
-            <button type="button" className="btn btn-ghost !min-h-12 !px-4 text-[12.5px]" onClick={dismiss}>
+            <button type="button" className="btn btn-ghost !min-h-12 !px-4 text-[12.5px]" onClick={onDismiss}>
               فعلاً نه
             </button>
           </div>

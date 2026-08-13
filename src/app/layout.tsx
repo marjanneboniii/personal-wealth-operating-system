@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import Shell from "@/components/layout/Shell";
 import { getCurrentUser } from "@/lib/auth";
+import { resolveHomeMode } from "@/lib/publicEntry";
 
 export const metadata: Metadata = {
   title: {
@@ -47,6 +48,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // credential fields to the client. Auth remains enforced by each protected
   // server component through ensureAuth().
   let authUser: { name: string; username: string | null; email: string | null; role: string } | null = null;
+  let publicHome = false;
   try {
     const user = await getCurrentUser();
     if (user) {
@@ -57,8 +59,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         role: user.role,
       };
     }
+    publicHome = (await resolveHomeMode(user)) === "landing";
   } catch {
-    // A protected page will surface the fail-closed auth/database error.
+    // Fail-open to public chrome so a broken session never paints app nav
+    // over the marketing landing. Protected pages still fail closed.
+    publicHome = true;
   }
 
   return (
@@ -74,7 +79,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         >
           پرش به محتوای اصلی
         </a>
-        <Shell authUser={authUser}>{children}</Shell>
+        <Shell authUser={authUser} publicHome={publicHome}>
+          {children}
+        </Shell>
       </body>
     </html>
   );

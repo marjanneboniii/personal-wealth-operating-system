@@ -7,7 +7,7 @@ import Icon, { type IconName } from "@/components/ui/Icon";
 import Sheet from "@/components/ui/Sheet";
 import CommandPalette from "@/components/ui/CommandPalette";
 import BrandMark from "@/components/layout/BrandMark";
-import InstallPromotion from "@/components/pwa/InstallPromotion";
+import InstallPromotion, { usePwaInstallState } from "@/components/pwa/InstallPromotion";
 import { NAV_GROUPS, SECONDARY_ITEMS, MOBILE_TABS, QUICK_ACTIONS, isNavActive, type NavItem } from "@/lib/nav";
 
 const MARKETING_PATHS = new Set(["/about", "/privacy", "/terms"]);
@@ -213,18 +213,27 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
 
 /* ───────────────────────── Shell ───────────────────────── */
 
-export default function Shell({ children, authUser = null }: { children: ReactNode; authUser?: ShellUser | null }) {
+export default function Shell({
+  children,
+  authUser = null,
+  publicHome = false,
+}: {
+  children: ReactNode;
+  authUser?: ShellUser | null;
+  publicHome?: boolean;
+}) {
   const pathname = usePathname();
   const collapsed = useNavCollapsed();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const online = useOnline();
+  const pwa = usePwaInstallState();
 
   // Global keyboard: ⌘K / Ctrl+K → command palette
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (pathname === "/login" || pathname === "/register" || pathname === "/about" || pathname === "/privacy" || pathname === "/terms") return;
-      if (pathname === "/" && !authUser) return;
+      if (pathname === "/" && publicHome) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((o) => !o);
@@ -232,13 +241,15 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [pathname, authUser]);
+  }, [pathname, publicHome]);
 
-  // PWA service worker (production only — dev relies on HMR)
+  // PWA service worker: production always; preview HTTPS too. Skip localhost so HMR stays intact.
   useEffect(() => {
-    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
+    if (!("serviceWorker" in navigator)) return;
+    const host = window.location.hostname;
+    const isLocal = host === "localhost" || host === "127.0.0.1";
+    if (process.env.NODE_ENV !== "production" && isLocal) return;
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
 
   const toggleCollapse = () => {
@@ -252,7 +263,7 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
 
   const isAuthRoute = pathname === "/login" || pathname === "/register";
   const isMarketing = MARKETING_PATHS.has(pathname);
-  const isLanding = pathname === "/" && !authUser;
+  const isLanding = pathname === "/" && publicHome;
   const isPublicChrome = isAuthRoute || isMarketing || isLanding;
 
   return (
@@ -409,15 +420,22 @@ export default function Shell({ children, authUser = null }: { children: ReactNo
       {/* ───────────── Content ───────────── */}
       <main
         id="main"
-        className={`mx-auto w-full max-w-[1180px] px-4 pt-4 transition-[padding] duration-200 sm:px-6 ${
-          isAuthRoute ? "pb-8 lg:pb-10 lg:px-6 lg:pt-8" : "pb-28 lg:pb-16 lg:pl-10 lg:pr-[var(--nav-w)] lg:pt-7"
-        }`}
+        className={
+          isLanding || isMarketing
+            ? "w-full max-w-none p-0"
+            : `mx-auto w-full max-w-[1180px] px-4 pt-4 transition-[padding] duration-200 sm:px-6 ${
+                isAuthRoute ? "pb-8 lg:pb-10 lg:px-6 lg:pt-8" : "pb-28 lg:pb-16 lg:pl-10 lg:pr-[var(--nav-w)] lg:pt-7"
+              }`
+        }
       >
         {children}
+        {!isPublicChrome && pwa.show && (
+          <InstallPromotion ios={pwa.ios} canPrompt={pwa.canPrompt} onInstall={() => void pwa.install()} onDismiss={pwa.dismiss} />
+        )}
       </main>
 
-      {/* ───────────── Mobile bottom nav (hidden on auth routes) ───────────── */}
-      {!isAuthRoute && (
+      {/* ───────────── Mobile bottom nav (app only — never on landing/auth/legal) ───────────── */}
+      {!isPublicChrome && (
       <nav
         className="fixed inset-x-0 bottom-0 z-40 lg:hidden"
         aria-label="ناوبری اصلی موبایل"

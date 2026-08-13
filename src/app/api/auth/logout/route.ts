@@ -12,9 +12,17 @@ export async function POST() {
       // destroySession matches the stored hash (and any legacy raw row).
       await destroySession(token);
     }
-    store.delete("pwos_session");
   } catch {}
-  return NextResponse.json({ ok: true });
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set("pwos_session", "", {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    expires: new Date(0),
+    maxAge: 0,
+    secure: process.env.NODE_ENV === "production",
+  });
+  return res;
 }
 
 export async function GET() {
