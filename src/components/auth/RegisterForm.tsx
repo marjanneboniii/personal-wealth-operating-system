@@ -22,8 +22,9 @@ export default function RegisterForm({ googleClientId }: { googleClientId?: stri
   return (
     <form action={formAction} className="space-y-4" dir="rtl">
       <div>
-        <label className="label">نام کاربری</label>
+        <label className="label" htmlFor="reg-username">نام کاربری</label>
         <input
+          id="reg-username"
           name="username"
           required
           minLength={3}
@@ -38,8 +39,8 @@ export default function RegisterForm({ googleClientId }: { googleClientId?: stri
       </div>
 
       <div>
-        <label className="label">نام نمایشی (اختیاری)</label>
-        <input name="name" placeholder="نام شما" className="field" style={{ touchAction: "manipulation" }} />
+        <label className="label" htmlFor="reg-name">نام نمایشی (اختیاری)</label>
+        <input id="reg-name" name="name" placeholder="نام شما" className="field" style={{ touchAction: "manipulation" }} />
       </div>
 
       <div>
@@ -58,8 +59,9 @@ export default function RegisterForm({ googleClientId }: { googleClientId?: stri
       </div>
 
       <div>
-        <label className="label">تأیید رمز عبور</label>
+        <label className="label" htmlFor="reg-confirm">تأیید رمز عبور</label>
         <input
+          id="reg-confirm"
           name="confirmPassword"
           type="password"
           required

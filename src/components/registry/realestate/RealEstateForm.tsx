@@ -155,9 +155,11 @@ export default function RealEstateForm({
   const ptype = propertyTypes.find((p) => p.id === propertyTypeId && p.isActive);
 
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} className="space-y-6">
+      <section className="space-y-3">
+        <h3 className="type-section-title">اطلاعات اصلی</h3>
       {/* ── Explorer: دارایی واقعی ← ملک ← شهر ← محله ← نوع ملک ── */}
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-1 lg:grid-cols-3">
         <Labeled label="شهر" required>
           <select
             className="field"
@@ -226,6 +228,8 @@ export default function RealEstateForm({
         </Labeled>
       </div>
 
+      </section>
+
       {/* ── نام و Symbol — تولید خودکار ── */}
       <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -247,6 +251,8 @@ export default function RealEstateForm({
         </div>
       </div>
 
+      <section className="space-y-3">
+        <h3 className="type-section-title">مالکیت</h3>
       {/* ── تاریخ‌ها — ورودی شمسی، میلادی خودکار ── */}
       <div className="grid gap-3 md:grid-cols-2">
         <JalaliDateInput
@@ -256,6 +262,11 @@ export default function RealEstateForm({
           onChange={setAcquisitionIso}
           required
         />
+      </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="type-section-title">ارزش‌گذاری</h3>
         <JalaliDateInput
           name="valuationDate"
           label="تاریخ ارزش‌گذاری (شمسی)"
@@ -263,10 +274,9 @@ export default function RealEstateForm({
           onChange={setValuationIso}
           required
         />
-      </div>
 
       {/* ── مبالغ ── */}
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-1 lg:grid-cols-2">
         <div className="space-y-3">
           <Labeled label="قیمت خرید (تومان)" required>
             <input
@@ -351,11 +361,12 @@ export default function RealEstateForm({
           </div>
         </div>
       </div>
+      </section>
 
       {/* ── مشخصات فیزیکی (اختیاری) ── */}
       <details className="rounded-[var(--r-md)] border p-3" style={{ borderColor: "var(--border)" }}>
-        <summary className="cursor-pointer list-none text-[12px] font-medium marker:hidden [&::-webkit-details-marker]:hidden">
-          مشخصات تکمیلی ملک (اختیاری)
+        <summary className="type-section-title cursor-pointer list-none marker:hidden [&::-webkit-details-marker]:hidden">
+          مشخصات تکمیلی
         </summary>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <Labeled label="نشانی">

@@ -8,10 +8,11 @@ type PropsUsd = { usd: string | number; rate: string | null; digits?: "fa" | "en
 export function DualMoneyFromIrt({ irt, rate, digits = "fa" }: PropsIrt) {
   const { irt: irtLabel, usd, rateLabel } = formatDualMoneyFromIrt(irt, rate, "fa");
   return (
-    <span className="inline-flex flex-wrap items-center gap-1.5">
-      <span className="num font-bold" dir="rtl">{irtLabel}</span>
-      <span className="muted text-[10px]">≈</span>
-      <span className="num" dir="ltr" style={{ color: "var(--brand)" }}>{usd}</span>
+    <span className="inline-flex flex-col items-start gap-0.5">
+      <span className="type-financial num" dir="rtl">{irtLabel}</span>
+      <span className="type-caption">
+        معادل تقریبی: <span className="num" dir="ltr" style={{ color: "var(--brand)" }}>{usd}</span>
+      </span>
       <span className="chip text-[10px]">{rateLabel}</span>
     </span>
   );
@@ -20,10 +21,11 @@ export function DualMoneyFromIrt({ irt, rate, digits = "fa" }: PropsIrt) {
 export function DualMoneyFromUsd({ usd, rate, digits = "fa" }: PropsUsd) {
   const { irt, usd: usdLabel, rateLabel } = formatDualMoneyFromUsd(usd, rate, "fa");
   return (
-    <span className="inline-flex flex-wrap items-center gap-1.5">
-      <span className="num font-bold" dir="ltr">{usdLabel}</span>
-      <span className="muted text-[10px]">≈</span>
-      <span className="num" dir="rtl">{irt}</span>
+    <span className="inline-flex flex-col items-start gap-0.5">
+      <span className="type-financial num" dir="ltr">{usdLabel}</span>
+      <span className="type-caption">
+        معادل تقریبی: <span className="num" dir="rtl">{irt}</span>
+      </span>
       <span className="chip text-[10px]">{rateLabel}</span>
     </span>
   );

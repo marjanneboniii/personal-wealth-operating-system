@@ -22,33 +22,39 @@ export default function LoginForm({ claimMode, googleClientId }: { claimMode?: b
   return (
     <form action={formAction} className="space-y-4" dir="rtl">
       <div>
-        <label className="label">نام کاربری یا ایمیل</label>
+        <label className="label" htmlFor="login-username">نام کاربری یا ایمیل</label>
         <input
+          id="login-username"
           name="username"
           required
           autoComplete="username"
-          placeholder="example"
+          enterKeyHint="next"
+          placeholder="نام کاربری یا ایمیل"
           className="field"
           dir="ltr"
+          aria-invalid={state && !state.ok ? true : undefined}
           style={{ touchAction: "manipulation" }}
         />
       </div>
       <div>
-        <label className="label">رمز عبور</label>
+        <label className="label" htmlFor="login-password">رمز عبور</label>
         <input
+          id="login-password"
           name="password"
           type="password"
           required
           autoComplete="current-password"
-          placeholder="••••••••"
+          enterKeyHint="done"
+          placeholder="رمز عبور"
           className="field"
           dir="ltr"
+          aria-invalid={state && !state.ok ? true : undefined}
           style={{ touchAction: "manipulation" }}
         />
       </div>
 
       {state && !state.ok && (
-        <p className="rounded-[var(--r-md)] px-3 py-2 text-[12px] font-medium" style={{ background: "var(--negative-soft)", color: "var(--negative)" }}>
+        <p role="alert" className="rounded-[var(--r-md)] px-3 py-2 text-[12px] font-medium" style={{ background: "var(--negative-soft)", color: "var(--negative)" }}>
           {state.message}
         </p>
       )}

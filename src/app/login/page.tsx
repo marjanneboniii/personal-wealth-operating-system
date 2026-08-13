@@ -19,17 +19,17 @@ export default async function LoginPage({
   const isClaim = params.claim === "1";
 
   return (
-    <div className="mx-auto flex min-h-[70dvh] max-w-md flex-col justify-center px-4 py-8">
-      <div className="card p-6 sm:p-8">
-        <div className="mb-6 text-center">
+    <div className="mx-auto flex min-h-[calc(100dvh-7rem)] max-w-md flex-col justify-center px-1 py-6 sm:px-4">
+      <div className="card p-5 sm:p-8">
+        <div className="mb-5 text-center">
           <span
             className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
             style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
           >
             <BrandMark size={32} />
           </span>
-          <h1 className="text-[22px] font-bold tracking-tight">ورود به حساب</h1>
-          <p className="muted mt-1.5 text-[13px] leading-5">
+          <h1 className="type-page-title">ورود به حساب</h1>
+          <p className="sub mt-2 text-[13px] leading-6">
             {isClaim ? "حساب فعلی شما بدون نام کاربری است. لطفاً نام کاربری خود را انتخاب کنید تا مالکیت داده‌ها حفظ شود." : "برای دسترسی به سیستم مدیریت ثروت وارد شوید."}
           </p>
         </div>
