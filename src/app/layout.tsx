@@ -10,6 +10,12 @@ export const metadata: Metadata = {
     template: "%s — تراز",
   },
   description: "هسته مالی خصوصی برای مدیریت بلندمدت ثروت، سرمایه‌گذاری، بدهی و برنامه‌های آینده — مبتنی بر حسابداری دوطرفه و دفترکل تغییرناپذیر.",
+  openGraph: {
+    title: "تراز — تمام ثروت شما، یک تصویر روشن",
+    description: "سیستم خصوصی مدیریت ثروت شخصی: دارایی‌ها، نقدینگی، تراکنش‌ها و ارزش خالص در یک نگاه.",
+    locale: "fa_IR",
+    type: "website",
+  },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
