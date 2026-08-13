@@ -72,6 +72,12 @@ export function ensureSchema(): Promise<void> {
 }
 
 export async function seedIfEmpty(): Promise<void> {
+  // Demo seeding is strictly a development convenience. In production this
+  // returns immediately, so a misconfigured deploy (APP_MODE=development or
+  // ALLOW_DEMO_SEED=true) can never write demo financial data into a real
+  // database.
+  if (process.env.NODE_ENV === "production") return;
+
   seeded ??= (async () => {
     await ensureSchema();
     const mode = process.env.APP_MODE ?? "personal";

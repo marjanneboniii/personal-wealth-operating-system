@@ -9,7 +9,10 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-test-module-mocks --import tsx --test tests/**/*.test.ts",
     "seed": "tsx src/scripts/seed.ts",
-    "db:check": "tsx src/scripts/check-db.ts"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/scripts/migrate.ts",
+    "db:check": "tsx src/scripts/check-db.ts",
+    "db:legacy-claim": "tsx src/scripts/migrate-multiuser.ts"
   },
   "dependencies": {
     "dotenv": "17.3.1",

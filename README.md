@@ -67,10 +67,11 @@ src/components    Design System، نمودارها، فرم‌ها، پوسته 
 ```bash
 cp .env.example .env        # DATABASE_URL=postgresql://user:pass@host:5432/db
 npm install
-npx drizzle-kit push        # ایجاد جداول
+npm run db:migrate          # ایجاد/به‌روزرسانی اسکیما (مرحله‌ای صریح، خارج از Runtime)
 npm run build && npm start  # اجرای تولیدی
 ```
-اولین بازدید از صفحه اصلی، در صورت خالی بودن دیتابیس، داده نمونه واقع‌گرایانه (حساب‌ها، معاملات، وام، اقساط، اهداف، رویدادها و ۱۲ اسنپ‌شات) را می‌سازد.
+
+برای توسعه محلی بدون PostgreSQL، `DATABASE_URL=memory://` بگذارید؛ در این حالت اسکیما و داده نمونه به‌صورت خودکار در حافظه ساخته می‌شود (در Production این مسیر Fail-Closed است و مجاز نیست). داده نمونه فقط در حالت توسعه (`APP_MODE=development`) به‌صورت خودکار seed می‌شود؛ در Production به‌هیچ‌وجه seed خودکار انجام نمی‌شود.
 
 اگر هنگام اجرا با خطای دیتابیس مواجه شدید (مثل `Failed query: ...`)، علت واقعی را با این دستور پیدا کنید:
 ```bash
