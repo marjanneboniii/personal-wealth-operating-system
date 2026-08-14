@@ -10,16 +10,12 @@ export const metadata: Metadata = {
     default: "تراز — سیستم‌عامل ثروت شخصی",
     template: "%s — تراز",
   },
-  description:
-    "درآمد، هزینه، دارایی، بدهی، سرمایه‌گذاری، بودجه و جریان نقدی خود را در یک سیستم منسجم مدیریت کنید — بفهمید پول‌تان کجا می‌رود و واقعاً چقدر ثروت دارید.",
-  alternates: { canonical: "/" },
+  description: "هسته مالی خصوصی برای مدیریت بلندمدت ثروت، سرمایه‌گذاری، بدهی و برنامه‌های آینده — مبتنی بر حسابداری دوطرفه و دفترکل تغییرناپذیر.",
   openGraph: {
-    title: "تراز — تمام ثروت، درآمد و هزینه‌هایتان در یک نگاه",
-    description:
-      "سیستم‌عامل ثروت شخصی: از هر تراکنش تا تصویر کامل ثروت. دارایی‌ها، بدهی‌ها، جریان نقدی و ارزش خالص در یک سیستم یکپارچه.",
+    title: "تراز — تمام ثروت شما، یک تصویر روشن",
+    description: "سیستم خصوصی مدیریت ثروت شخصی: دارایی‌ها، نقدینگی، تراکنش‌ها و ارزش خالص در یک نگاه.",
     locale: "fa_IR",
     type: "website",
-    siteName: "تراز",
   },
   manifest: "/manifest.webmanifest",
   icons: {
@@ -34,18 +30,6 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false },
 };
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "تراز",
-  alternateName: "Taraz",
-  description:
-    "سیستم‌عامل ثروت شخصی: درآمد، هزینه، دارایی، بدهی، سرمایه‌گذاری، بودجه و جریان نقدی در یک سیستم منسجم — مبتنی بر حسابداری دوطرفه و دفترکل قابل بررسی.",
-  applicationCategory: "FinanceApplication",
-  operatingSystem: "Web, PWA",
-  inLanguage: "fa-IR",
-};
-
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f7f7f5" },
@@ -57,7 +41,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const themeScript = `(function(){try{var t=localStorage.getItem('pwos-theme')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}}());document.documentElement.classList.add('js');`;
+const themeScript = `(function(){try{var t=localStorage.getItem('pwos-theme')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();`;
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // Keep the account affordance visible in the shell without exposing any
@@ -86,10 +70,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang="fa" dir="rtl" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-        {/* Self-hosted Vazirmatn — preload the weights used above the fold */}
-        <link rel="preload" href="/fonts/Vazirmatn-Regular.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
-        <link rel="preload" href="/fonts/Vazirmatn-Bold.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
       </head>
       <body className="antialiased">
         <a
