@@ -780,6 +780,40 @@ select.field {
   user-select: none;
 }
 
+/* Collapsible domain header — پول / دارایی‌ها / بدهی / ثروت / برنامه‌ریزی */
+.nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: calc(100% - 1rem);
+  margin-inline: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text-3);
+  background: transparent;
+  transition: background 0.14s ease, color 0.14s ease;
+  touch-action: manipulation;
+}
+.nav-group-toggle:hover {
+  background: var(--hover);
+  color: var(--text-2);
+}
+.nav-group-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.nav-chevron {
+  opacity: 0.55;
+  transition: transform 0.18s ease;
+}
+.nav-chevron-open {
+  transform: rotate(180deg);
+}
+
 /* Tooltip for collapsed sidebar */
 .nav-tip {
   position: relative;

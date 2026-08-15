@@ -6,7 +6,7 @@ export function LandingHeader() {
   return (
     <header className="landing-header">
       <div className="landing-wrap flex items-center justify-between gap-3 py-3">
-        <Link href="/" className="flex min-h-12 items-center gap-2" aria-label="تراز — صفحه معرفی">
+        <Link href="/" className="flex min-h-12 items-center gap-2" aria-label="وِزان — صفحه معرفی">
           <span
             className="flex h-9 w-9 items-center justify-center rounded-[10px]"
             style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
@@ -14,7 +14,7 @@ export function LandingHeader() {
             <BrandMark size={20} />
           </span>
           <span className="leading-tight">
-            <span className="block text-[15px] font-bold tracking-tight">تراز</span>
+            <span className="block text-[15px] font-bold tracking-tight">وِزان</span>
             <span className="muted hidden text-[10px] sm:block">سیستم‌عامل ثروت شخصی</span>
           </span>
         </Link>
@@ -39,7 +39,7 @@ export function LandingFooter() {
         <div>
           <div className="flex items-center gap-2">
             <BrandMark size={18} style={{ color: "var(--brand)" }} />
-            <span className="font-bold">تراز</span>
+            <span className="font-bold">وِزان</span>
           </div>
           <p className="sub mt-3 max-w-xs text-[13px] leading-6">
             هسته مالی خصوصی برای دیدن و مدیریت ثروت شخصی — دارایی، نقدینگی، تراکنش و ارزش خالص.
@@ -88,7 +88,7 @@ export function LandingFooter() {
         </div>
       </div>
       <div className="landing-wrap border-t py-4 text-[12px]" style={{ borderColor: "var(--border)" }}>
-        <p className="muted">© {new Date().getFullYear()} تراز — سیستم‌عامل ثروت شخصی</p>
+        <p className="muted">© {new Date().getFullYear()} وِزان — سیستم‌عامل ثروت شخصی</p>
       </div>
     </footer>
   );

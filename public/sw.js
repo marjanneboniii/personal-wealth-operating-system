@@ -14,7 +14,7 @@
 const VERSION = "pwos-v3"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
 const STATIC_CACHE = VERSION + "-static";
 
-// Brand assets (TARAZ) — immutable, cache-first.
+// Brand assets (VEZAN) — immutable, cache-first.
 const BRAND_ASSETS = [
   "/offline",
   "/icon.svg",

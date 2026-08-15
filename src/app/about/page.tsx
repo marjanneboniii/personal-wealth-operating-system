@@ -4,7 +4,7 @@ import { LandingFooter, LandingHeader } from "@/components/landing/LandingChrome
 
 export const metadata: Metadata = {
   title: "درباره ما",
-  description: "تراز برای دیدن یکپارچه ثروت شخصی ساخته شده است — دارایی، نقدینگی، تراکنش و ارزش خالص.",
+  description: "وِزان برای دیدن یکپارچه ثروت شخصی ساخته شده است — دارایی، نقدینگی، تراکنش و ارزش خالص.",
 };
 
 export default function AboutPage() {
@@ -12,10 +12,10 @@ export default function AboutPage() {
     <div className="landing">
       <LandingHeader />
     <article className="landing-legal">
-      <p className="landing-kicker">تراز</p>
+      <p className="landing-kicker">وِزان</p>
       <h1 className="type-page-title mt-2">درباره ما</h1>
       <p className="sub mt-4 text-[15px] leading-8">
-        تراز یک سیستم خصوصی مدیریت ثروت شخصی است. هدف آن این است که تصویر دارایی‌ها، بدهی‌ها، نقدینگی و تراکنش‌ها در یک
+        وِزان یک سیستم خصوصی مدیریت ثروت شخصی است. هدف آن این است که تصویر دارایی‌ها، بدهی‌ها، نقدینگی و تراکنش‌ها در یک
         جا جمع شود — روی هسته حسابداری دوطرفه، نه روی یک صفحه تبلیغاتی.
       </p>
       <p className="sub mt-4 text-[15px] leading-8">

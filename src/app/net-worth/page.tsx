@@ -164,7 +164,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
       </section>
 
       {/* Composition */}
-      <Section title="ثروت شما از چه تشکیل شده است؟">
+      <Section id="wealth-composition" title="ثروت شما از چه تشکیل شده است؟">
         {buckets.length === 0 ? (
           <EmptyState icon="portfolio" title="دارایی‌ای ثبت نشده است" body="با افزودن دارایی، ترکیب ثروت شما اینجا نمایش داده می‌شود." />
         ) : (
@@ -199,6 +199,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
 
       {/* Attribution */}
       <Section
+        id="wealth-growth"
         title="چرا ارزش خالص شما تغییر کرد؟"
         hint={baseline ? `از ${baseline.asOf} تا امروز — برآیند اجزاء با تغییر واقعی برابر است` : "برای تحلیل تغییر، به حداقل دو اسنپ‌شات نیاز است"}
       >
@@ -257,7 +258,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
       </Section>
 
       {/* Intelligence strip */}
-      <Section title="شاخص‌های سلامت ثروت">
+      <Section id="wealth-performance" title="شاخص‌های سلامت ثروت">
         {growth.calculationStatus === "missing_data" && growth.missingDataWarning ? (
           <Alert tone="warn" title="داده تاریخی محدود است">
             {growth.missingDataWarning}

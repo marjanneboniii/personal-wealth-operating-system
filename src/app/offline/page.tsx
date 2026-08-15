@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Icon from "@/components/ui/Icon";
 
-export const metadata = { title: "آفلاین — تراز" };
+export const metadata = { title: "آفلاین — وِزان" };
 
 export default function OfflinePage() {
   return (

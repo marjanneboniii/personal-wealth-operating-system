@@ -79,8 +79,11 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
 
   return (
     <div className="space-y-8">
+      {/* UI term: «سوابق مالی» — technical term (Ledger / Journal / Posting)
+          stays intact in routes, services and the accounting columns below. */}
       <PageHeader
-        title="دفترکل"
+        title="سوابق مالی"
+        subtitle="اثر مالی هر تراکنش، دقیقاً همان‌طور که در حسابداری دوطرفه ثبت شده است. این صفحه فقط خواندنی است — اصلاح فقط از مسیر تراکنش و سند معکوس انجام می‌شود."
         action={
           <Link href="/audit" className="btn btn-soft">
             <Icon name="audit" size={16} />
