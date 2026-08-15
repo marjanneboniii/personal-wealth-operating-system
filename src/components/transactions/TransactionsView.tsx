@@ -377,7 +377,7 @@ export default function TransactionsView({
                     <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
                       {/* Postings — the accounting truth of this transaction */}
                       <div>
-                        <p className="muted mb-2 text-[11px] font-semibold">ردیف‌های حسابداری (دفترکل)</p>
+                        <p className="muted mb-2 text-[11px] font-semibold">اثر مالی این تراکنش (سوابق مالی)</p>
                         <table className="table">
                           <thead>
                             <tr>
@@ -486,7 +486,7 @@ export default function TransactionsView({
                                 kind="reverse"
                                 id={e.id}
                                 label="ابطال با سند معکوس"
-                                confirmText="برای اصلاح، دفترکل سند معکوس ثبت می‌کند. سند اصلی حذف نمی‌شود. ادامه می‌دهید؟"
+                                confirmText="برای اصلاح، یک سند معکوس در سوابق مالی ثبت می‌شود. سند اصلی حذف نمی‌شود. ادامه می‌دهید؟"
                               />
                             </div>
                           )}
@@ -503,8 +503,8 @@ export default function TransactionsView({
 
       <p className="muted px-1 text-[10.5px]">
         {rows.length} رکورد · ترتیب: {filters.sort === "old" ? "قدیمی‌ترین" : filters.sort === "amount" ? "بیشترین مبلغ" : "جدیدترین"} · کلید <kbd className="kbd">/</kbd> برای جستجو · جزئیات حسابداری کامل در{" "}
-        <a href="/ledger" className="underline underline-offset-2" style={{ color: "var(--brand)" }}>
-          دفترکل
+        <a href="/financial-records" className="underline underline-offset-2" style={{ color: "var(--brand)" }}>
+          سوابق مالی
         </a>
       </p>
 

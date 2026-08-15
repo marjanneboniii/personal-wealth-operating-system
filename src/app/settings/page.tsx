@@ -106,6 +106,43 @@ export default async function SettingsPage() {
         </div>
       </Section>
 
+      {/* Accounting-grade views: available, but deliberately out of the
+          everyday navigation path (§38). Nothing here is editable. */}
+      <Section title="پیشرفته" hint="نمای حسابداری دقیق — فقط خواندنی">
+        <div className="card overflow-hidden">
+          <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
+            <li>
+              <Link href="/financial-records" className="flex items-center gap-3 px-4 py-3.5" style={{ touchAction: "manipulation" }}>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
+                  <Icon name="ledger" size={18} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium">سوابق مالی</span>
+                  <span className="muted block text-[11px]">اثر مالی هر تراکنش — اسناد، ردیف‌ها، بدهکار و بستانکار</span>
+                </span>
+                <Icon name="chevronLeft" size={16} className="shrink-0 opacity-50" />
+              </Link>
+            </li>
+            <li>
+              <Link href="/audit" className="flex items-center gap-3 px-4 py-3.5" style={{ touchAction: "manipulation" }}>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
+                  <Icon name="audit" size={18} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium">حسابرسی</span>
+                  <span className="muted block text-[11px]">تاریخچه تغییرات: چه کسی، چه چیزی را، کِی تغییر داد</span>
+                </span>
+                <Icon name="chevronLeft" size={16} className="shrink-0 opacity-50" />
+              </Link>
+            </li>
+          </ul>
+        </div>
+        <p className="muted mt-2 flex items-center gap-1.5 text-[11px]">
+          <Icon name="info" size={13} />
+          «سوابق مالی» اثر مالی رویدادهاست و «حسابرسی» تاریخچه تغییرات — این دو یکی نیستند.
+        </p>
+      </Section>
+
       <Section title="پشتیبان‌گیری و بازیابی">
         <div className="card p-4 sm:p-5">
           <div className="flex flex-wrap items-center gap-3">

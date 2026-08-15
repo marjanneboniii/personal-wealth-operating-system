@@ -1,10 +1,24 @@
 import type { IconName } from "@/components/ui/Icon";
 
 /**
- * Information Architecture — single source of truth.
- * Two conceptual layers are kept visually apart:
- *   HUMAN FINANCE LAYER  → تراکنش‌ها (human, simple)
- *   ACCOUNTING TRUTH     → دفترکل + حسابرسی (precise, audited)
+ * VEZAN — Product Information Architecture (single source of truth).
+ *
+ * Navigation is organised by USER INTENT, never by database table:
+ *
+ *   خانه · پول · دارایی‌ها · بدهی · ثروت · برنامه‌ریزی · بینش‌ها · گزارش‌ها · تنظیمات
+ *
+ * Two conceptual layers stay visually apart:
+ *   HUMAN FINANCE LAYER  → تراکنش‌ها، دارایی‌ها، بدهی (human, simple)
+ *   ACCOUNTING TRUTH     → «سوابق مالی» + «حسابرسی» (precise, audited)
+ *
+ * TERMINOLOGY RULE (UI vs TECHNICAL) — never mix the two:
+ *   UI label      →  «سوابق مالی»
+ *   Technical     →  Ledger / General Ledger / Journal Entry / Posting / Debit / Credit
+ * Routes, features and services keep the technical name (`/ledger`,
+ * `src/features/ledger`) so the accounting layer stays traceable in code.
+ *
+ * This module is PRESENTATION ONLY. It performs no data access, derives no
+ * financial value and can never mutate financial state.
  */
 
 export type NavItem = {
@@ -15,44 +29,55 @@ export type NavItem = {
   question: string;
   /** command-palette keywords (fa/en) */
   keywords?: string[];
+  /** nested destinations of a domain — rendered inside the collapsible group */
+  children?: NavItem[];
+  /** keep out of the command palette (anchor duplicates of a parent page) */
+  paletteHidden?: boolean;
 };
 
 export type NavGroup = {
   id: string;
   label: string;
+  /** the domain's own landing destination (used for active-state + header link) */
+  href?: string;
+  icon?: IconName;
   items: NavItem[];
+  /** large domains collapse by default to keep cognitive load low */
+  collapsible?: boolean;
 };
 
 export const NAV_GROUPS: NavGroup[] = [
   {
-    id: "wealth",
-    label: "ثروت",
+    id: "home",
+    label: "خانه",
     items: [
       {
         href: "/",
         label: "نمای کلی",
         icon: "overview",
         question: "وضعیت مالی من چگونه است؟",
-        keywords: ["home", "dashboard", "overview", "خانه", "داشبورد"],
+        keywords: ["home", "dashboard", "overview", "خانه", "داشبورد", "نمای کلی"],
       },
     ],
   },
   {
     id: "money",
     label: "پول",
+    icon: "wallet",
+    collapsible: true,
     items: [
       {
         href: "/transactions",
         label: "تراکنش‌ها",
         icon: "transactions",
-        question: "",
+        question: "چه چیزی ثبت شده است؟",
         keywords: ["transactions", "activity", "تراکنش", "فعالیت"],
       },
       {
         href: "/accounts",
         label: "حساب‌ها",
         icon: "accounts",
-        question: "",
+        question: "پول من کجاست؟",
         keywords: ["accounts", "wallets", "حساب", "کیف", "بانک"],
       },
       {
@@ -62,60 +87,136 @@ export const NAV_GROUPS: NavGroup[] = [
         question: "پول از کجا می‌آید و به کجا می‌رود؟",
         keywords: ["cashflow", "income", "expense", "جریان", "درآمد", "هزینه"],
       },
-      {
-        href: "/ledger",
-        label: "دفترکل",
-        icon: "ledger",
-        question: "دقیقاً چه چیزی در سوابق حسابداری ثبت شده است؟",
-        keywords: ["ledger", "journal", "accounting", "دفتر", "سند", "حسابداری"],
-      },
     ],
   },
   {
     id: "assets",
     label: "دارایی‌ها",
+    icon: "portfolio",
+    collapsible: true,
     items: [
+      {
+        href: "/assets",
+        label: "همه دارایی‌ها",
+        icon: "layers",
+        question: "چه دارایی‌هایی دارم؟",
+        keywords: ["assets", "all assets", "دارایی", "همه دارایی‌ها"],
+      },
+      {
+        href: "/assets/financial",
+        label: "دارایی‌های مالی",
+        icon: "coins",
+        question: "نقد، رمزارز، سهام و صندوق من چقدر است؟",
+        keywords: ["financial assets", "cash", "crypto", "fund", "مالی", "نقد", "رمزارز", "صندوق"],
+        // Reachable from the command palette and from the page itself, but kept
+        // out of the sidebar so the domain stays four items wide.
+        children: [
+          {
+            href: "/crypto",
+            label: "رمزارزها",
+            icon: "crypto",
+            question: "رمزارزهای من کجا نگهداری می‌شوند؟",
+            keywords: ["crypto", "bitcoin", "رمز", "بیت", "تتر", "ارز دیجیتال"],
+          },
+        ],
+      },
+      {
+        href: "/asset-registry",
+        label: "دارایی‌های واقعی",
+        icon: "home",
+        question: "ارزش املاک، خودرو، طلا و کالای من چیست؟",
+        keywords: ["rwa", "real estate", "vehicle", "commodity", "ملک", "خودرو", "طلا", "کالا", "ارزش‌گذاری"],
+      },
       {
         href: "/portfolio",
         label: "سبد دارایی",
-        icon: "portfolio",
-        question: "",
-        keywords: ["portfolio", "holdings", "سبد", "سرمایه"],
+        icon: "pie",
+        question: "دارایی‌ها را چگونه نگه داشته‌ام؟",
+        keywords: ["portfolio", "holdings", "allocation", "سبد", "سرمایه", "ترکیب"],
+      },
+    ],
+  },
+  {
+    id: "debt",
+    label: "بدهی",
+    icon: "debts",
+    collapsible: true,
+    items: [
+      {
+        href: "/debts",
+        label: "بدهی‌ها",
+        icon: "debts",
+        question: "چقدر بدهکارم؟",
+        keywords: ["debt", "liabilities", "بدهی"],
       },
       {
-        href: "/crypto",
-        label: "رمزارزها",
-        icon: "crypto",
-        question: "",
-        keywords: ["crypto", "bitcoin", "رمز", "بیت", "تتر", "ارز دیجیتال"],
+        href: "/debts/loans",
+        label: "وام‌ها",
+        icon: "card",
+        question: "وام‌های من در چه وضعیتی هستند؟",
+        keywords: ["loan", "credit", "وام", "تسهیلات", "لیزینگ"],
       },
+      {
+        href: "/debts/installments",
+        label: "اقساط",
+        icon: "installments",
+        question: "چه زمانی چقدر باید بپردازم؟",
+        keywords: ["installment", "schedule", "قسط", "اقساط", "سررسید"],
+      },
+      {
+        href: "/debts/obligations",
+        label: "تعهدات آینده",
+        icon: "calendar",
+        question: "چه پرداخت‌های دانسته‌ای در راه است؟",
+        keywords: ["obligation", "future", "تعهد", "آینده", "پرداخت آینده"],
+      },
+    ],
+  },
+  {
+    id: "wealth",
+    label: "ثروت",
+    icon: "networth",
+    collapsible: true,
+    items: [
       {
         href: "/net-worth",
         label: "ارزش خالص",
         icon: "networth",
-        question: "",
+        question: "در مجموع چقدر ثروت دارم؟",
         keywords: ["net worth", "wealth", "ارزش خالص", "ثروت"],
       },
       {
-        href: "/asset-registry",
-        label: "دارایی واقعی و کالا",
-        icon: "portfolio",
-        question: "ارزش دارایی واقعی و هزینه کالاهای من چیست؟",
-        keywords: ["rwa", "real estate", "vehicle", "commodity", "ملک", "خودرو", "کالا", "ارزش‌گذاری"],
+        href: "/net-worth#wealth-growth",
+        label: "رشد ثروت",
+        icon: "trend-up",
+        question: "ثروت من چگونه تغییر کرده است؟",
+        keywords: ["growth", "change", "رشد", "تغییر"],
+        paletteHidden: true,
+      },
+      {
+        href: "/net-worth#wealth-composition",
+        label: "ترکیب دارایی‌ها",
+        icon: "pie",
+        question: "ثروت من از چه تشکیل شده است؟",
+        keywords: ["composition", "allocation", "ترکیب"],
+        paletteHidden: true,
+      },
+      {
+        href: "/net-worth#wealth-performance",
+        label: "عملکرد ثروت",
+        icon: "scale",
+        question: "عملکرد ثروت من چگونه بوده است؟",
+        keywords: ["performance", "return", "عملکرد", "بازده"],
+        paletteHidden: true,
       },
     ],
   },
   {
     id: "planning",
     label: "برنامه‌ریزی",
+    icon: "goals",
+    collapsible: true,
     items: [
-      {
-        href: "/planning",
-        label: "پیش‌بینی مالی",
-        icon: "goals",
-        question: "",
-        keywords: ["planning", "forecast", "برنامه", "پیش‌بینی"],
-      },
       {
         href: "/budgets",
         label: "بودجه‌ها",
@@ -127,22 +228,28 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/goals",
         label: "اهداف و صندوق‌ها",
         icon: "goals",
-        question: "",
+        question: "به اهدافم نزدیک می‌شوم؟",
         keywords: ["goals", "funds", "هدف", "صندوق", "پس‌انداز"],
       },
       {
-        href: "/debts",
-        label: "بدهی‌ها",
-        icon: "debts",
-        question: "",
-        keywords: ["debt", "loan", "بدهی", "وام"],
+        href: "/planning",
+        label: "پیش‌بینی مالی",
+        icon: "send",
+        question: "ماه‌های آینده چگونه خواهد بود؟",
+        keywords: ["planning", "forecast", "projection", "برنامه", "پیش‌بینی"],
       },
+    ],
+  },
+  {
+    id: "insights",
+    label: "بینش‌ها",
+    items: [
       {
-        href: "/installments",
-        label: "اقساط",
-        icon: "installments",
-        question: "",
-        keywords: ["installment", "قسط", "اقساط"],
+        href: "/insights",
+        label: "بینش‌ها",
+        icon: "info",
+        question: "سیستم چه چیزی در داده‌های من می‌بیند؟",
+        keywords: ["insights", "health", "alerts", "بینش", "سلامت مالی", "هشدار", "تحلیل"],
       },
     ],
   },
@@ -154,15 +261,8 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/reports",
         label: "گزارش‌های مالی",
         icon: "reports",
-        question: "",
+        question: "گزارش رسمی وضعیت مالی من چیست؟",
         keywords: ["reports", "گزارش"],
-      },
-      {
-        href: "/audit",
-        label: "حسابرسی",
-        icon: "audit",
-        question: "",
-        keywords: ["audit", "integrity", "حسابرسی", "یکپارچگی"],
       },
     ],
   },
@@ -174,19 +274,70 @@ export const SECONDARY_ITEMS: NavItem[] = [
     href: "/settings",
     label: "تنظیمات",
     icon: "settings",
-    question: "",
-    keywords: ["settings", "backup", "تنظیمات", "پشتیبان"],
+    question: "پیکربندی، امنیت و بخش پیشرفته",
+    keywords: ["settings", "backup", "security", "تنظیمات", "پشتیبان", "امنیت"],
   },
 ];
 
-export const ALL_NAV_ITEMS: NavItem[] = [...NAV_GROUPS.flatMap((g) => g.items), ...SECONDARY_ITEMS];
+/**
+ * Advanced / accounting-grade destinations.
+ *
+ * Deliberately de-emphasised for the everyday user (§38): they live under
+ * «تنظیمات → پیشرفته», stay reachable from the command palette, and are NOT
+ * part of the primary sidebar. `/ledger` remains the canonical technical route;
+ * `/financial-records` is the user-facing alias.
+ */
+export const ADVANCED_ITEMS: NavItem[] = [
+  {
+    href: "/financial-records",
+    label: "سوابق مالی",
+    icon: "ledger",
+    question: "دقیقاً چه اثر مالی‌ای ثبت شده است؟",
+    keywords: [
+      "financial records",
+      "ledger",
+      "journal",
+      "posting",
+      "accounting",
+      "سوابق مالی",
+      "دفترکل",
+      "سند",
+      "حسابداری",
+    ],
+  },
+  {
+    href: "/audit",
+    label: "حسابرسی",
+    icon: "audit",
+    question: "چه کسی چه چیزی را کِی تغییر داد؟",
+    keywords: ["audit", "integrity", "history", "حسابرسی", "یکپارچگی", "تاریخچه تغییرات"],
+  },
+];
+
+/** Flattened list of every navigable destination (groups → items → children). */
+export const ALL_NAV_ITEMS: NavItem[] = [
+  ...NAV_GROUPS.flatMap((g) => g.items.flatMap((i) => [i, ...(i.children ?? [])])),
+  ...SECONDARY_ITEMS,
+  ...ADVANCED_ITEMS,
+];
 
 /** Mobile bottom navigation — 5 top-level destinations only. */
 export const MOBILE_TABS: { href: string; label: string; icon: IconName; match?: string[] }[] = [
   { href: "/", label: "خانه", icon: "home", match: ["/"] },
-  { href: "/portfolio", label: "دارایی‌ها", icon: "portfolio", match: ["/portfolio", "/crypto", "/net-worth"] },
-  { href: "/transactions", label: "تراکنش‌ها", icon: "transactions", match: ["/transactions", "/cash-flow", "/ledger"] },
-  { href: "/planning", label: "برنامه‌ریزی", icon: "goals", match: ["/planning", "/budgets", "/goals", "/debts", "/installments"] },
+  {
+    href: "/transactions",
+    label: "پول",
+    icon: "transactions",
+    match: ["/transactions", "/accounts", "/cash-flow"],
+  },
+  {
+    href: "/assets",
+    label: "دارایی‌ها",
+    icon: "portfolio",
+    match: ["/assets", "/portfolio", "/crypto", "/asset-registry"],
+  },
+  { href: "/debts", label: "بدهی", icon: "debts", match: ["/debts", "/installments"] },
+  { href: "/net-worth", label: "ثروت", icon: "networth", match: ["/net-worth"] },
 ];
 
 /** Quick actions surfaced in the command palette and mobile "More". */
@@ -199,7 +350,21 @@ export const QUICK_ACTIONS: { href: string; label: string; icon: IconName; hint:
   { href: "/new", label: "ثبت تراکنش جدید", icon: "plus", hint: "فرم کامل", keywords: ["new", "transaction", "تراکنش", "جدید", "ثبت"] },
 ];
 
+/** Strip a `#anchor` so anchor items resolve against their parent page. */
+function pagePath(href: string): string {
+  const i = href.indexOf("#");
+  return i === -1 ? href : href.slice(0, i);
+}
+
 export function isNavActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(href + "/");
+  const path = pagePath(href);
+  if (path === "/") return pathname === "/";
+  return pathname === path || pathname.startsWith(path + "/");
+}
+
+/** Is any destination inside this domain currently active? */
+export function isGroupActive(pathname: string, group: NavGroup): boolean {
+  return group.items.some(
+    (i) => isNavActive(pathname, i.href) || (i.children ?? []).some((c) => isNavActive(pathname, c.href)),
+  );
 }

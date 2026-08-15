@@ -23,7 +23,9 @@ const COMMANDS: Cmd[] = [
     group: "اقدامات",
     keywords: a.keywords.join(" "),
   })),
-  ...ALL_NAV_ITEMS.map((n) => ({
+  // Anchor duplicates of a parent page (paletteHidden) stay out of the palette
+  // so the same destination is never offered twice.
+  ...ALL_NAV_ITEMS.filter((n) => !n.paletteHidden).map((n) => ({
     href: n.href,
     label: n.label,
     icon: n.icon,
@@ -133,7 +135,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
               setQuery(e.target.value);
               setIndex(0);
             }}
-            placeholder="جستجو یا رفتن به… (مثلاً «تراکنش»، «دفترکل»، «ثبت هزینه»)"
+            placeholder="جستجو یا رفتن به… (مثلاً «تراکنش»، «سوابق مالی»، «ثبت هزینه»)"
             className="h-12 w-full bg-transparent text-[14px] outline-none placeholder:opacity-40"
             role="combobox"
             aria-expanded="true"

@@ -88,10 +88,10 @@ export default function LandingPage() {
 
       <section className="landing-wrap landing-hero">
         <div className="landing-hero-copy">
-          <p className="landing-kicker">تراز · مدیریت خصوصی ثروت</p>
+          <p className="landing-kicker">وِزان · مدیریت خصوصی ثروت</p>
           <h1 className="landing-display">تمام ثروت شما، یک تصویر روشن.</h1>
           <p className="landing-lede">
-            تراز برای دیدن یکپارچه دارایی‌ها، نقدینگی، تراکنش‌ها و ارزش خالص ساخته شده است — تا وضعیت مالی‌تان را آرام‌تر
+            وِزان برای دیدن یکپارچه دارایی‌ها، نقدینگی، تراکنش‌ها و ارزش خالص ساخته شده است — تا وضعیت مالی‌تان را آرام‌تر
             ببینید و دقیق‌تر مدیریت کنید.
           </p>
           <div className="mt-7 flex flex-col gap-2.5 sm:flex-row sm:items-center">
@@ -133,7 +133,7 @@ export default function LandingPage() {
         <h2 id="features-title" className="landing-h2">
           قابلیت‌هایی که همین حالا در محصول هست
         </h2>
-        <p className="landing-support">فقط آنچه واقعاً در تراز پیاده شده معرفی می‌شود.</p>
+        <p className="landing-support">فقط آنچه واقعاً در وِزان پیاده شده معرفی می‌شود.</p>
         <div className="mt-8 grid gap-4 md:grid-cols-2">
           {FEATURES.map((f) => (
             <article key={f.title} className="landing-card">
@@ -208,14 +208,14 @@ export default function LandingPage() {
           درباره ما
         </h2>
         <p className="landing-lede mt-4 max-w-2xl">
-          تراز برای کسانی ساخته شده که می‌خواهند ثروت شخصی‌شان را یکجا ببینند — بدون پراکندگی بین دفتر، فایل و حافظه.
+          وِزان برای کسانی ساخته شده که می‌خواهند ثروت شخصی‌شان را یکجا ببینند — بدون پراکندگی بین دفتر، فایل و حافظه.
           مسئله ساده است: تصویر روشن از دارایی، بدهی، نقدینگی و جریان پول، روی هسته‌ای حسابداری که قابل اتکاست.
         </p>
         <p className="sub mt-4 max-w-2xl text-[14px] leading-7">
           این صفحه معرفی محصول است، نه داستان ساختگی یک شرکت. جزئیات تیم وقتی مستند رسمی وجود داشته باشد اینجا می‌آید.
         </p>
         <Link href="/about" className="mt-5 inline-flex min-h-12 items-center text-[13.5px] font-semibold" style={{ color: "var(--brand)" }}>
-          ادامه درباره تراز
+          ادامه درباره وِزان
         </Link>
       </section>
 

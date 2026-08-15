@@ -7,12 +7,12 @@ import { resolveHomeMode } from "@/lib/publicEntry";
 
 export const metadata: Metadata = {
   title: {
-    default: "تراز — سیستم‌عامل ثروت شخصی",
-    template: "%s — تراز",
+    default: "وِزان — سیستم‌عامل ثروت شخصی",
+    template: "%s — وِزان",
   },
   description: "هسته مالی خصوصی برای مدیریت بلندمدت ثروت، سرمایه‌گذاری، بدهی و برنامه‌های آینده — مبتنی بر حسابداری دوطرفه و دفترکل تغییرناپذیر.",
   openGraph: {
-    title: "تراز — تمام ثروت شما، یک تصویر روشن",
+    title: "وِزان — تمام ثروت شما، یک تصویر روشن",
     description: "سیستم خصوصی مدیریت ثروت شخصی: دارایی‌ها، نقدینگی، تراکنش‌ها و ارزش خالص در یک نگاه.",
     locale: "fa_IR",
     type: "website",
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "تراز" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "وِزان" },
   formatDetection: { telephone: false },
 };
 

@@ -41,15 +41,18 @@ export function Section({
   action,
   children,
   className = "",
+  id,
 }: {
   title?: string;
   hint?: string;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** anchor target, so sidebar sub-items can deep-link to a section */
+  id?: string;
 }) {
   return (
-    <section className={`rise ${className}`}>
+    <section id={id} className={`rise scroll-mt-24 ${className}`}>
       {(title || hint || action) && (
         <header className="mb-3 flex items-end justify-between gap-3">
           <div>

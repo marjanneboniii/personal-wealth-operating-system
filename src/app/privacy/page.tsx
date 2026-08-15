@@ -4,7 +4,7 @@ import { LandingFooter, LandingHeader } from "@/components/landing/LandingChrome
 
 export const metadata: Metadata = {
   title: "حریم خصوصی",
-  description: "نحوه برخورد تراز با حساب کاربری، نشست و داده‌های مالی شما.",
+  description: "نحوه برخورد وِزان با حساب کاربری، نشست و داده‌های مالی شما.",
 };
 
 export default function PrivacyPage() {

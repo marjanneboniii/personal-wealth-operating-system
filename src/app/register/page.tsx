@@ -24,7 +24,7 @@ export default async function RegisterPage() {
     <div className="mx-auto flex min-h-[calc(100dvh-7rem)] max-w-md flex-col justify-center px-1 py-6 sm:px-4">
       <p className="mb-4 text-center">
         <a href="/" className="muted text-[12.5px] font-medium hover:underline">
-          بازگشت به معرفی تراز
+          بازگشت به معرفی وِزان
         </a>
       </p>
       <div className="card p-5 sm:p-8">

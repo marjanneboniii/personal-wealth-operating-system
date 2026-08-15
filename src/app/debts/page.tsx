@@ -31,16 +31,25 @@ export default async function DebtsPage() {
     <div className="space-y-8">
       <PageHeader
         title="بدهی‌ها"
+        subtitle="نمای کامل تعهدات شما. مانده هر بدهی از سوابق مالی مشتق می‌شود و این صفحه آن را تغییر نمی‌دهد."
         action={
           <div className="flex flex-wrap items-center gap-3">
             <Link href="#manual-debt" className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[12px]">
               <Icon name="plus" size={15} />
               ثبت بدهی دستی
             </Link>
-            <SectionLink href="/installments" label="برنامه اقساط" />
+            <SectionLink href="/debts/installments" label="برنامه اقساط" />
           </div>
         }
       />
+
+      {/* Debt is its own domain: بدهی‌ها · وام‌ها · اقساط · تعهدات آینده */}
+      <nav className="seg flex-wrap" aria-label="بخش‌های بدهی">
+        <span className="seg-on">بدهی‌ها</span>
+        <Link href="/debts/loans">وام‌ها</Link>
+        <Link href="/debts/installments">اقساط</Link>
+        <Link href="/debts/obligations">تعهدات آینده</Link>
+      </nav>
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric
@@ -156,7 +165,7 @@ export default async function DebtsPage() {
                           پرداخت قسط بعدی
                         </Link>
                       )}
-                      <Link href="/installments" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[12px]">
+                      <Link href="/debts/installments" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[12px]">
                         همه اقساط
                       </Link>
                     </div>

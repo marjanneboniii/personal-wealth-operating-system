@@ -2,13 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import Sheet from "@/components/ui/Sheet";
 import CommandPalette from "@/components/ui/CommandPalette";
 import BrandMark from "@/components/layout/BrandMark";
 import InstallPromotion, { usePwaInstallState } from "@/components/pwa/InstallPromotion";
-import { NAV_GROUPS, SECONDARY_ITEMS, MOBILE_TABS, QUICK_ACTIONS, isNavActive, type NavItem } from "@/lib/nav";
+import {
+  NAV_GROUPS,
+  SECONDARY_ITEMS,
+  ADVANCED_ITEMS,
+  MOBILE_TABS,
+  QUICK_ACTIONS,
+  isNavActive,
+  isGroupActive,
+  type NavItem,
+  type NavGroup,
+} from "@/lib/nav";
 
 const MARKETING_PATHS = new Set(["/about", "/privacy", "/terms"]);
 
@@ -135,6 +145,131 @@ function SideLink({ item, active, collapsed }: { item: NavItem; active: boolean;
   );
 }
 
+/* ───────────── Collapsible domain group (desktop sidebar) ─────────────
+   Large domains (پول، دارایی‌ها، بدهی، ثروت، برنامه‌ریزی) collapse so the
+   sidebar stays low-noise. The open/closed choice is remembered per device.
+   Purely presentational — navigation never triggers a financial mutation.
+   ──────────────────────────────────────────────────────────────────── */
+
+const GROUP_PREF_KEY = "pwos-nav-groups";
+
+/**
+ * The raw preference string is the external store snapshot. Keeping it a
+ * primitive (not a parsed object) is required: useSyncExternalStore compares
+ * snapshots by identity, so returning a fresh object each call would loop.
+ */
+function getGroupPrefsRaw(): string {
+  try {
+    return localStorage.getItem(GROUP_PREF_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function useGroupPrefs(): Record<string, boolean> {
+  const raw = useSyncExternalStore(subscribeNav, getGroupPrefsRaw, () => "");
+  return useMemo(() => {
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw) as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+  }, [raw]);
+}
+
+function NavGroupBlock({
+  group,
+  pathname,
+  collapsed,
+}: {
+  group: NavGroup;
+  pathname: string;
+  collapsed: boolean;
+}) {
+  const groupActive = isGroupActive(pathname, group);
+  const prefs = useGroupPrefs();
+
+  // Simple groups (خانه، بینش‌ها، گزارش‌ها) render as plain links.
+  if (!group.collapsible) {
+    return (
+      <div role="group" aria-label={group.label}>
+        {!collapsed ? (
+          <div className="nav-group-label">{group.label}</div>
+        ) : (
+          <div className="mx-4 my-2 border-t" style={{ borderColor: "var(--border)" }} />
+        )}
+        <div className="space-y-0.5">
+          {group.items.map((n) => (
+            <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed={collapsed} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // A collapsed rail has no room for group chrome — show the items directly.
+  if (collapsed) {
+    return (
+      <div role="group" aria-label={group.label}>
+        <div className="mx-4 my-2 border-t" style={{ borderColor: "var(--border)" }} />
+        <div className="space-y-0.5">
+          {group.items.map((n) => (
+            <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Default: open when the user is inside the domain, otherwise closed.
+  const open = group.id in prefs ? prefs[group.id] : groupActive;
+  const panelId = `nav-group-${group.id}`;
+
+  const toggle = () => {
+    const next = { ...prefs, [group.id]: !open };
+    try {
+      localStorage.setItem(GROUP_PREF_KEY, JSON.stringify(next));
+    } catch {
+      /* storage unavailable — the sidebar simply keeps its default state */
+    }
+    window.dispatchEvent(new CustomEvent(NAV_EVENT));
+  };
+
+  return (
+    <div role="group" aria-label={group.label}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="nav-group-toggle"
+        style={{ touchAction: "manipulation" }}
+      >
+        {group.icon && (
+          <Icon
+            name={group.icon}
+            size={16}
+            className="shrink-0"
+            style={groupActive ? { color: "var(--brand)" } : undefined}
+          />
+        )}
+        <span className="flex-1 text-right" style={groupActive ? { color: "var(--brand)" } : undefined}>
+          {group.label}
+        </span>
+        <Icon name="chevronDown" size={14} className={`shrink-0 nav-chevron ${open ? "nav-chevron-open" : ""}`} />
+      </button>
+      {open && (
+        <div id={panelId} className="space-y-0.5 pb-1">
+          {group.items.map((n) => (
+            <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed={false} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─────────────────────── Mobile More ───────────────────── */
 
 function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClose: () => void; pathname: string; authUser: ShellUser | null }) {
@@ -202,6 +337,25 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
               >
                 <Icon name={n.icon} size={18} />
                 {n.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        {/* Accounting-grade views stay available but deliberately de-emphasised. */}
+        <div className="nav-group-label">پیشرفته</div>
+        <ul>
+          {ADVANCED_ITEMS.map((n) => (
+            <li key={n.href}>
+              <Link
+                href={n.href}
+                onClick={onClose}
+                className="flex items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
+                style={{ color: "var(--text-2)", touchAction: "manipulation" }}
+              >
+                <Icon name={n.icon} size={18} />
+                <span className="flex-1">{n.label}</span>
+                {isNavActive(pathname, n.href) && <Icon name="check" size={15} />}
               </Link>
             </li>
           ))}
@@ -291,13 +445,13 @@ export default function Shell({
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         aria-label="ناوبری اصلی"
       >
-        {/* Brand + collapse — برند «تراز» */}
+        {/* Brand + collapse — برند «وِزان» */}
         <div className={`flex items-center gap-2 px-4 pb-2 pt-4 ${collapsed ? "justify-center !px-2" : "justify-between"}`}>
           <Link
             href="/"
             className={`flex items-center gap-2.5 rounded-[10px] px-1 py-1 ${collapsed ? "justify-center" : ""}`}
             style={{ touchAction: "manipulation" }}
-            aria-label="تراز — صفحه اصلی"
+            aria-label="وِزان — صفحه اصلی"
           >
             <span
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
@@ -307,7 +461,7 @@ export default function Shell({
             </span>
             {!collapsed && (
               <span className="leading-tight">
-                <span className="block text-[15px] font-bold tracking-tight">تراز</span>
+                <span className="block text-[15px] font-bold tracking-tight">وِزان</span>
                 <span className="muted block text-[10px]">سیستم‌عامل ثروت شخصی</span>
               </span>
             )}
@@ -352,18 +506,7 @@ export default function Shell({
         {/* Groups */}
         <nav className="min-h-0 flex-1 overflow-y-auto pb-2" aria-label="بخش‌های اصلی">
           {NAV_GROUPS.map((g) => (
-            <div key={g.id} role="group" aria-label={g.label}>
-              {!(collapsed) ? (
-                <div className="nav-group-label">{g.label}</div>
-              ) : (
-                <div className="mx-4 my-2 border-t" style={{ borderColor: "var(--border)" }} />
-              )}
-              <div className="space-y-0.5">
-                {g.items.map((n) => (
-                  <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed={collapsed} />
-                ))}
-              </div>
-            </div>
+            <NavGroupBlock key={g.id} group={g} pathname={pathname} collapsed={collapsed} />
           ))}
         </nav>
 
@@ -399,9 +542,9 @@ export default function Shell({
           paddingTop: "max(0.625rem, env(safe-area-inset-top))",
         }}
       >
-        <Link href="/" className="flex items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="تراز">
+        <Link href="/" className="flex items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="وِزان">
           <BrandMark size={22} style={{ color: "var(--brand)" }} />
-          <span className="text-[15px] font-bold tracking-tight">تراز</span>
+          <span className="text-[15px] font-bold tracking-tight">وِزان</span>
         </Link>
         <div className="flex items-center gap-1">
           <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
