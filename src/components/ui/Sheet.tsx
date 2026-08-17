@@ -53,7 +53,7 @@ export default function Sheet({
 
   return (
     <div
-      className="fixed inset-0 z-[80]"
+      className="fixed inset-0 z-[80] flex flex-col justify-end sm:items-center sm:justify-center"
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -77,14 +77,18 @@ export default function Sheet({
       />
       <div
         ref={ref}
-        className={`sheet-in absolute inset-x-0 bottom-0 mx-auto flex max-h-[86dvh] w-full flex-col overflow-hidden rounded-t-[var(--r-xl)] border sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:-translate-y-1/2 sm:rounded-[var(--r-xl)] ${
+        className={`sheet-in relative flex w-full flex-col overflow-hidden rounded-t-[var(--r-xl)] border sm:rounded-[var(--r-xl)] ${
           wide ? "sm:w-[640px]" : "sm:w-[440px]"
         }`}
         style={{
           background: "var(--surface-elev)",
           borderColor: "var(--border)",
           boxShadow: "var(--shadow-lg)",
-          paddingBottom: "max(0px, env(safe-area-inset-bottom))",
+          /* The panel is a flex child of a `fixed inset-0` overlay, so 100% is
+             always the *real* visible viewport — including iOS standalone PWA,
+             where `dvh`/`vh` can overshoot behind the home indicator. The sheet
+             therefore can never extend below the bottom of the screen. */
+          maxHeight: "calc(100% - 1.25rem)",
           touchAction: "pan-y",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch" as any,
@@ -92,9 +96,9 @@ export default function Sheet({
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
       >
-        <div className="mx-auto mt-2 h-1 w-9 rounded-full sm:hidden" style={{ background: "var(--border-strong)" }} />
+        <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full sm:hidden" style={{ background: "var(--border-strong)" }} />
         {title && (
-          <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: "var(--border)" }}>
+          <div className="flex shrink-0 items-center justify-between border-b px-4 py-3" style={{ borderColor: "var(--border)" }}>
             <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
             <button type="button" className="icon-btn !min-h-9 !min-w-9" onClick={onClose} aria-label="بستن" style={{ touchAction: "manipulation" }}>
               <Icon name="x" size={17} />
@@ -103,7 +107,12 @@ export default function Sheet({
         )}
         <div
           className="min-h-0 flex-1 overflow-y-auto"
-          style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" as any }}
+          style={{
+            overscrollBehavior: "contain",
+            WebkitOverflowScrolling: "touch" as any,
+            /* Last row stays reachable above the iOS home indicator. */
+            paddingBottom: "env(safe-area-inset-bottom)",
+          }}
           onTouchMove={(e) => e.stopPropagation()}
         >
           {children}

@@ -275,7 +275,7 @@ function NavGroupBlock({
 function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClose: () => void; pathname: string; authUser: ShellUser | null }) {
   return (
     <Sheet open={open} onClose={onClose} title="بیشتر">
-      <nav className="px-2 pb-4 pt-1" aria-label="همه بخش‌ها">
+      <nav className="px-2 pb-5 pt-1" aria-label="همه بخش‌ها">
         <div className="mb-3 rounded-[var(--r-md)] border p-2" style={{ borderColor: "var(--border)" }}>
           <AccountLink user={authUser} />
           {!authUser && <p className="muted mt-1.5 px-1 text-[10.5px]">ورود برای مدیریت نرخ ارز و مالکیت داده‌ها</p>}
@@ -308,7 +308,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
                     <Link
                       href={n.href}
                       onClick={onClose}
-                      className="flex items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
+                      className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
                       style={
                         active
                           ? { background: "var(--brand-soft)", color: "var(--brand)", fontWeight: 600, touchAction: "manipulation" }
@@ -332,7 +332,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
               <Link
                 href={n.href}
                 onClick={onClose}
-                className="flex items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
+                className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
                 style={{ color: "var(--text-2)", touchAction: "manipulation" }}
               >
                 <Icon name={n.icon} size={18} />
@@ -350,7 +350,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
               <Link
                 href={n.href}
                 onClick={onClose}
-                className="flex items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
+                className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
                 style={{ color: "var(--text-2)", touchAction: "manipulation" }}
               >
                 <Icon name={n.icon} size={18} />
@@ -600,7 +600,15 @@ export default function Shell({
               </Link>
             );
           })}
-          <button type="button" onClick={() => setMoreOpen(true)} aria-label="بیشتر" className={`tab-item ${moreActive ? "tab-active" : ""}`} style={{ touchAction: "manipulation" }}>
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            aria-label="بیشتر"
+            aria-haspopup="dialog"
+            aria-expanded={moreOpen}
+            className={`tab-item ${moreActive ? "tab-active" : ""}`}
+            style={{ touchAction: "manipulation" }}
+          >
             <Icon name="more" size={21} />
             بیشتر
           </button>
