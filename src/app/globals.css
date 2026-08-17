@@ -840,16 +840,27 @@ select.field {
 
 /* ─────────────────────── Mobile bottom nav ─────────────────────── */
 
+/* The row never wraps: columns are set inline from the item count and each
+   cell is allowed to shrink (minmax(0,1fr) + min-width:0), so «بیشتر» stays
+   on the same line instead of dropping below the visible screen. */
+.tab-row {
+  display: grid;
+  align-items: stretch;
+  gap: 2px;
+  padding: 6px 6px 0;
+}
+
 .tab-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: 6px 2px 4px;
+  padding: 6px 1px 4px;
   min-height: 52px;
-  min-width: 48px;
+  min-width: 0;
+  max-width: 100%;
   justify-content: center;
-  font-size: 0.68rem;
+  font-size: clamp(0.6rem, 2.6vw, 0.68rem);
   font-weight: 500;
   color: var(--text-3);
   border-radius: 12px;
@@ -872,6 +883,17 @@ select.field {
 }
 .tab-item:active {
   background: var(--hover);
+}
+.tab-label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+.tab-item svg {
+  flex: none;
 }
 
 /* Stacked composition bar */
