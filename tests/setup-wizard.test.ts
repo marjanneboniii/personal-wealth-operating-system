@@ -136,6 +136,40 @@ test("Phase 2.1 Requirement — Duplicate setup initialization is prevented", as
   );
 });
 
+test("Authenticated tenants complete setup independently with isolated 3010 accounts", async () => {
+  await setupFreshDb();
+  const [userA, userB] = await db
+    .insert(users)
+    .values([
+      { name: "Tenant A", username: "tenant-a", role: "user" },
+      { name: "Tenant B", username: "tenant-b", role: "user" },
+    ] as any)
+    .returning();
+
+  const input = {
+    userName: "Tenant A configured",
+    baseCurrency: "USD",
+    displayCurrency: "IRT",
+    dateCalendar: "jalali" as const,
+    digitStyle: "fa" as const,
+  };
+  await completeSetup(input, userA.id);
+
+  assert.equal((await getSetupState(userA.id)).completed, true);
+  assert.equal((await getSetupState(userB.id)).completed, false);
+  assert.equal((await db.select().from(users)).length, 2, "tenant setup must not create a shadow user");
+
+  const accountsA = await db.select().from(accounts).where(eq(accounts.userId, userA.id));
+  const accountsB = await db.select().from(accounts).where(eq(accounts.userId, userB.id));
+  assert.equal(accountsA.some((a) => a.code === "3010" && a.type === "equity"), true);
+  assert.equal(accountsB.some((a) => a.code === "3010"), false);
+
+  await completeSetup({ ...input, userName: "Tenant B configured" }, userB.id);
+  assert.equal((await getSetupState(userB.id)).completed, true);
+  const afterB = await db.select().from(accounts).where(eq(accounts.userId, userB.id));
+  assert.equal(afterB.some((a) => a.code === "3010" && a.type === "equity"), true);
+});
+
 test("Phase 2.1 Requirement — Setup never creates fake or demo transactions", async () => {
   await setupFreshDb();
 

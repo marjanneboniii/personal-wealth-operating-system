@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { completeSetupAction, type ActionResult } from "@/app/actions";
+import { completeSetupAction, fetchSetupStateAction, type ActionResult } from "@/app/actions";
 import { getTranslations } from "@/i18n";
 import { D } from "@/domain/decimal";
 import { formatMoney } from "@/lib/format";
@@ -12,6 +13,21 @@ const t = getTranslations("fa").setup;
 export default function SetupWizardPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [setupStatus, setSetupStatus] = useState<"loading" | "pending" | "completed">("loading");
+
+  useEffect(() => {
+    let active = true;
+    fetchSetupStateAction()
+      .then((state) => {
+        if (active) setSetupStatus(state.completed ? "completed" : "pending");
+      })
+      .catch(() => {
+        if (active) setSetupStatus("pending");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Step 1 State
   const [userName, setUserName] = useState("مالک خانواده");
@@ -36,6 +52,7 @@ export default function SetupWizardPage() {
     async (prev, fd) => {
       const res = await completeSetupAction(prev, fd);
       if (res.ok) {
+        setSetupStatus("completed");
         setTimeout(() => router.push("/"), 1000);
       }
       return res;
@@ -74,6 +91,36 @@ export default function SetupWizardPage() {
     goldOpeningQty,
     goldUnitPrice,
   ]);
+
+  if (setupStatus === "loading") {
+    return (
+      <div className="mx-auto max-w-2xl py-6">
+        <div className="card p-8 text-center">
+          <p className="muted text-sm" role="status">در حال بررسی وضعیت راه‌اندازی…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (setupStatus === "completed") {
+    return (
+      <div className="mx-auto max-w-2xl py-6">
+        <div className="card rise space-y-4 p-6 text-center">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full text-xl" style={{ background: "var(--positive-soft)", color: "var(--positive)" }}>✓</span>
+          <div>
+            <h1 className="text-xl font-bold">راه‌اندازی اولیه کامل است</h1>
+            <p className="muted mt-2 text-xs leading-6">
+              حساب «سرمایه افتتاحیه» (3010) و نمودار حساب‌های پایه آماده‌اند. برای افزودن هر تعداد حساب بانکی، صندوق، صرافی یا کیف‌پول از بخش حساب‌ها استفاده کنید؛ هر مورد شناسه و کد مستقل دارد.
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Link href="/accounts" className="btn btn-primary">مدیریت حساب‌ها و کیف‌پول‌ها</Link>
+            <Link href="/" className="btn btn-ghost">بازگشت به نمای کلی</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl py-6">

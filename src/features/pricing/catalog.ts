@@ -26,7 +26,11 @@ export type CatalogStatus = {
   total: number;
   crypto: number;
   lastSyncedAt: Date | null;
-  /** True while the catalog only holds the offline bootstrap identities. */
+  /** Number of identities still sourced only from the offline floor. */
+  bootstrapEntries: number;
+  /** True when the usable catalog is effectively the supported offline floor. */
+  usingOfflineFloor: boolean;
+  /** True while every catalog row is an epoch-stamped bootstrap identity. */
   bootstrapOnly: boolean;
 };
 
@@ -85,12 +89,32 @@ async function upsertCatalog(rows: CoinGeckoCatalogAsset[], syncedAt: Date): Pro
           name: row.name,
           logoUrl: row.logoUrl,
           marketCapRank: row.marketCapRank,
-          // An RWA-category membership is more specific than top-150 crypto.
           kind: row.kind,
           isActive: true,
           syncedAt,
         },
       });
+  }
+}
+
+/**
+ * Makes every supported offline identity available without downgrading rows
+ * that were previously refreshed from CoinGecko. This is intentionally
+ * insert-only: a real upstream timestamp/logo always wins over bootstrap
+ * metadata.
+ *
+ * Older installations may already contain the original four-row seed
+ * (BTC/ETH/USDT/SOL) with a recent timestamp. Looking only at freshness would
+ * incorrectly consider that catalog complete for 24 hours. Laying down the
+ * missing floor before the freshness check repairs those installations on the
+ * next visit, even when CoinGecko itself is unreachable.
+ */
+async function ensureOfflineCatalogFloor(): Promise<void> {
+  for (const row of BOOTSTRAP_IDENTITIES) {
+    await db
+      .insert(coingeckoAssetCatalog)
+      .values({ ...row, syncedAt: BOOTSTRAP_SYNCED_AT, isActive: true })
+      .onConflictDoNothing({ target: coingeckoAssetCatalog.coingeckoId });
   }
 }
 
@@ -125,14 +149,12 @@ export async function refreshCoinGeckoCatalog(
     return { synced: merged.size, status: failed.length ? "partial" : "fresh", failed };
   }
 
-  // Nothing came back: lay down the offline floor (crypto) with an epoch
-  // timestamp so the next request retries the network. Rows that arrived from
-  // a previous successful sync are untouched by this upsert.
+  // Nothing came back: lay down every missing offline identity. This also
+  // repairs the legacy four-row catalog instead of preserving the exact bug
+  // that made USDC/PAXG/XAUT/CBBTC/WBTC unreachable while offline.
   globalForCatalog.__pwosCatalogNextRetryAt = Date.now() + RETRY_COOLDOWN_MS;
   const before = await getMarketCatalogStatus();
-  if (before.total === 0 || before.bootstrapOnly) {
-    await upsertCatalog(BOOTSTRAP_IDENTITIES, BOOTSTRAP_SYNCED_AT);
-  }
+  await ensureOfflineCatalogFloor();
   return { synced: 0, status: before.total ? "stale" : "unavailable", failed };
 }
 
@@ -141,6 +163,7 @@ export async function getMarketCatalogStatus(): Promise<CatalogStatus> {
     .select({
       total: sql<number>`count(*) filter (where ${coingeckoAssetCatalog.kind} = 'crypto')::int`,
       crypto: sql<number>`count(*) filter (where ${coingeckoAssetCatalog.kind} = 'crypto')::int`,
+      bootstrapEntries: sql<number>`count(*) filter (where ${coingeckoAssetCatalog.syncedAt} = ${BOOTSTRAP_SYNCED_AT})::int`,
       lastSyncedAt: sql<Date | null>`max(${coingeckoAssetCatalog.syncedAt})`,
     })
     .from(coingeckoAssetCatalog);
@@ -149,16 +172,24 @@ export async function getMarketCatalogStatus(): Promise<CatalogStatus> {
   return {
     total: row?.total ?? 0,
     crypto: row?.crypto ?? 0,
+    bootstrapEntries: row?.bootstrapEntries ?? 0,
+    usingOfflineFloor:
+      (row?.bootstrapEntries ?? 0) > 0 && (row?.total ?? 0) <= BOOTSTRAP_CATALOG_SIZE,
     lastSyncedAt: lastSyncedAt && lastSyncedAt.getTime() > 0 ? lastSyncedAt : null,
     bootstrapOnly: !lastSyncedAt || lastSyncedAt.getTime() === 0,
   };
 }
 
 export async function ensureCoinGeckoCatalog(): Promise<void> {
+  // Completeness and freshness are separate concerns. Always guarantee the
+  // supported offline floor first; then decide whether an upstream refresh is
+  // due. This is what upgrades databases that still hold only the old 4 rows.
+  await ensureOfflineCatalogFloor();
   const status = await getMarketCatalogStatus();
   const isStale =
     status.total === 0 ||
     status.bootstrapOnly ||
+    status.usingOfflineFloor ||
     Date.now() - (status.lastSyncedAt?.getTime() ?? 0) > CATALOG_TTL_MS;
 
   if (!isStale) return;

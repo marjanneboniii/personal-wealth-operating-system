@@ -1,8 +1,9 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
-import { assetClasses, assets, institutions, networks, wallets } from "@/db/schema";
+import { accounts, institutions, networks, wallets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
+import { listMoneyAccountCurrencies } from "@/features/accounts/service";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
@@ -27,7 +28,10 @@ export default async function AccountsPage() {
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? null;
   await seedIfEmpty();
-  const [balances, walletRows, fx, assetRows] = await Promise.all([
+  // Repair old catalogs first, then expose exactly IRT / USD / USDT. Real
+  // assets such as apartment units can never enter this form.
+  const currencyRows = await listMoneyAccountCurrencies();
+  const [balances, walletRows, fx] = await Promise.all([
     getAccountBalances(),
     db
       .select({
@@ -36,10 +40,12 @@ export default async function AccountsPage() {
         kind: wallets.kind,
         institution: institutions.name,
         network: networks.name,
+        accountId: accounts.id,
       })
       .from(wallets)
       .leftJoin(institutions, eq(institutions.id, wallets.institutionId))
       .leftJoin(networks, eq(networks.id, wallets.networkId))
+      .leftJoin(accounts, and(eq(accounts.walletId, wallets.id), sql`${accounts.deletedAt} is null`))
       .where(
         and(
           sql`${wallets.deletedAt} is null`,
@@ -48,32 +54,28 @@ export default async function AccountsPage() {
       )
       .orderBy(asc(wallets.name)),
     getLatestUsdIrtRate(),
-    db
-      .select({
-        id: assets.id,
-        symbol: assets.symbol,
-        name: assets.name,
-        decimals: assets.decimals,
-        className: assetClasses.name,
-        latestPriceUsd: sql<string | null>`(select p.price_base::text from prices p where p.asset_id = ${assets.id} order by p.as_of desc limit 1)`,
-      })
-      .from(assets)
-      .leftJoin(assetClasses, eq(assetClasses.id, assets.classId))
-      .where(and(sql`${assets.deletedAt} is null`, eq(assets.isActive, true)))
-      .orderBy(asc(assets.symbol)),
   ]);
 
   const toIrt = (usd: string | number) => (fx.rate ? formatMoney(D(usd).mul(fx.rate).abs().toFixed(0), "IRT") : null);
 
-  const moneyAccounts = balances.filter((b) => b.type === "asset" && !D(b.quantity).isZero());
+  // A registered wallet remains visible even while its balance is zero. This
+  // is important when users create several bank/fund/wallet containers before
+  // recording their first transaction.
+  const moneyAccounts = balances.filter(
+    (b) => b.type === "asset" && (!!b.walletName || !D(b.quantity).isZero()),
+  );
   const liabilityAccounts = balances.filter((b) => b.type === "liability" && !D(b.baseValue).isZero());
   const totalCash = moneyAccounts.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
   const controlSum = balances.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
 
-  // Group money accounts by wallet
+  // Group by wallet identity, not display name. Two separately registered
+  // accounts may intentionally have the same label and must never be merged.
+  const walletIdByAccount = new Map(
+    walletRows.filter((w) => w.accountId).map((w) => [w.accountId as string, w.id]),
+  );
   const byWallet = new Map<string, typeof moneyAccounts>();
   for (const b of moneyAccounts) {
-    const key = b.walletName ?? "بدون کیف‌پول";
+    const key = walletIdByAccount.get(b.accountId) ?? `account:${b.accountId}`;
     byWallet.set(key, [...(byWallet.get(key) ?? []), b]);
   }
 
@@ -103,18 +105,19 @@ export default async function AccountsPage() {
           </div>
         ) : (
           <div className="space-y-2.5">
-            {[...byWallet.entries()].map(([wallet, rows]) => {
+            {[...byWallet.entries()].map(([walletKey, rows]) => {
               const walletTotal = rows.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
-              const walletMeta = walletRows.find((w) => w.name === wallet);
+              const walletMeta = walletRows.find((w) => w.id === walletKey);
+              const walletName = walletMeta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف‌پول";
               return (
-                <div key={wallet} className="card overflow-hidden">
+                <div key={walletKey} className="card overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--sunken)" }}>
                     <div className="flex items-center gap-2.5">
                       <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "var(--surface)", color: "var(--brand)" }}>
                         <Icon name="wallet" size={15} />
                       </span>
                       <div>
-                        <p className="text-[13.5px] font-semibold">{wallet}</p>
+                        <p className="text-[13.5px] font-semibold">{walletName}</p>
                         <p className="muted text-[10px]">
                           {walletMeta ? WALLET_KIND[walletMeta.kind] ?? walletMeta.kind : "حساب"}
                           {walletMeta?.institution ? ` · ${walletMeta.institution}` : walletMeta?.network ? ` · ${walletMeta.network}` : ""}
@@ -222,16 +225,7 @@ export default async function AccountsPage() {
             </span>
           </summary>
           <div className="border-t p-4" style={{ borderColor: "var(--border)" }}>
-            <MoneyAccountForm
-              assets={assetRows.map((a) => ({
-                id: a.id,
-                symbol: a.symbol,
-                name: a.name,
-                decimals: a.decimals,
-                className: a.className,
-                latestPriceUsd: a.latestPriceUsd,
-              }))}
-            />
+            <MoneyAccountForm currencies={currencyRows} usdIrtRate={fx.rate} />
           </div>
         </details>
       </Section>

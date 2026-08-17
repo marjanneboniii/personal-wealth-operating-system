@@ -233,7 +233,7 @@ export async function searchMarketCatalogAction(
     return {
       ok: true,
       assets: rows.map(toEntry),
-      bootstrapOnly: status.bootstrapOnly,
+      bootstrapOnly: status.usingOfflineFloor,
       total: status.total,
     };
   } catch (error) {
@@ -267,7 +267,7 @@ export async function refreshMarketCatalogAction(): Promise<SearchMarketCatalogR
     return {
       ok: sync.status === "fresh" || sync.status === "partial",
       assets: rows.map(toEntry),
-      bootstrapOnly: status.bootstrapOnly,
+      bootstrapOnly: status.usingOfflineFloor,
       total: status.total,
       message,
     };

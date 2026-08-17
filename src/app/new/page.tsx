@@ -93,7 +93,7 @@ export default async function NewTransactionPage({
         marketCatalogStatus={{
           total: catalogStatus.total,
           crypto: catalogStatus.crypto,
-          bootstrapOnly: catalogStatus.bootstrapOnly,
+          bootstrapOnly: catalogStatus.usingOfflineFloor,
         }}
         debts={debts as any}
         defaultType={defaultType}
