@@ -51,6 +51,7 @@ import {
 } from "@/features/categories/service";
 import { executePlanned, payInstallment } from "@/features/planning/service";
 import { completeSetup, getSetupState } from "@/features/setup/service";
+import { registerMoneyAccount } from "@/features/accounts/service";
 import { createPortfolioSnapshot, getCurrentNetWorth, getPortfolioValuation } from "@/features/portfolio/service";
 import { getAnalyticsSummary } from "@/features/analytics/service";
 import { addMonthsIso, todayIso } from "@/lib/format";
@@ -150,6 +151,57 @@ export async function createWalletAction(input: { name: string; kind: string; no
   await db.insert(wallets).values({ name, kind: input.kind, note: input.note?.trim() || null, userId: user?.id ?? null } as any);
   revalidatePath("/accounts");
   return { ok: true, message: "حساب جدید با موفقیت ایجاد شد." };
+}
+
+const moneyAccountSchema = z.object({
+  name: z.string().trim().min(2, "نام حساب را وارد کنید"),
+  kind: z.enum(["bank", "cash", "exchange", "hot", "cold", "fund"]),
+  assetId: z.string().min(1, "ارز / دارایی حساب را انتخاب کنید"),
+  openingQty: z.string().optional().default(""),
+  openingUnitPriceUsd: z.string().optional().default(""),
+  openingDate: z.string().optional().default(""),
+  note: z.string().optional().default(""),
+});
+
+/**
+ * Registers a user-defined bank account / cash box / wallet together with its
+ * opening balance and links it into the ledger (see
+ * `registerMoneyAccount`). The accounting core is never touched — this action
+ * only guards auth/ownership at the boundary and delegates the write.
+ */
+export async function createMoneyAccountAction(input: unknown): Promise<ActionResult> {
+  let user: any = null;
+  try {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
+  }
+
+  try {
+    const v = moneyAccountSchema.parse(input);
+    await registerMoneyAccount({
+      name: v.name,
+      kind: v.kind,
+      assetId: v.assetId,
+      openingQty: v.openingQty || undefined,
+      openingUnitPriceUsd: v.openingUnitPriceUsd || undefined,
+      openingDate: v.openingDate || undefined,
+      note: v.note || undefined,
+      // SECURITY: tenant identity comes ONLY from the session, never the client.
+      userId: user?.id ?? undefined,
+    });
+    refreshAll();
+    return { ok: true, message: "حساب با موفقیت ایجاد و به دفترکل متصل شد." };
+  } catch (e) {
+    const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطا";
+    return { ok: false, message: msg };
+  }
 }
 
 function refreshAll() {
