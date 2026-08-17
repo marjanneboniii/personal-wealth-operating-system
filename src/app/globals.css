@@ -253,6 +253,19 @@ input[type="radio"] {
   display: inline-block;
 }
 
+/*
+ * Latin/foreign numbers (USD, crypto, percents, account codes) must stay Latin.
+ * `body` sets font-feature-settings: "ss01", which tells Vazirmatn to redraw
+ * Latin digits as Persian digits — including inside these LTR-isolated number
+ * spans. That produces the reported mixed rendering (e.g. ۱۴۵6 instead of 1456).
+ * Turning the feature off here keeps those numbers as plain Latin digits, while
+ * RTL/Persian content elsewhere keeps its Persian digits unchanged.
+ */
+.ltr-isolate,
+[dir="ltr"] {
+  font-feature-settings: normal;
+}
+
 .rtl-isolate {
   direction: rtl;
   unicode-bidi: isolate;
