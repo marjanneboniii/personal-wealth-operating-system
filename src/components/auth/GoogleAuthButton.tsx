@@ -12,6 +12,7 @@ type GoogleIdentity = {
         client_id: string;
         callback: (response: { credential?: string }) => void;
         cancel_on_tap_outside?: boolean;
+        use_fedcm_for_button?: boolean;
       }) => void;
       renderButton: (element: HTMLElement, options: Record<string, unknown>) => void;
     };
@@ -53,6 +54,12 @@ export default function GoogleAuthButton({ clientId, label = "ورود با Goog
       googleId.initialize({
         client_id: clientId,
         cancel_on_tap_outside: true,
+        // Google Identity Services now runs the Sign In With Google button
+        // through the browser's native FedCM dialog. Opting in keeps the
+        // button working when third-party cookies are restricted and avoids
+        // popup-blocker failures (the legacy popup flow silently does
+        // nothing on click in those cases).
+        use_fedcm_for_button: true,
         callback: async (response) => {
           const credential = response?.credential;
           if (!credential) {
