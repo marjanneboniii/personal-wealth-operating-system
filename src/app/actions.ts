@@ -155,9 +155,8 @@ export async function createWalletAction(input: { name: string; kind: string; no
 const moneyAccountSchema = z.object({
   name: z.string().trim().min(2, "نام حساب را وارد کنید"),
   kind: z.enum(["bank", "cash", "exchange", "hot", "cold", "fund"]),
-  assetId: z.string().min(1, "ارز / دارایی حساب را انتخاب کنید"),
+  assetId: z.string().min(1, "ارز حساب را انتخاب کنید"),
   openingQty: z.string().optional().default(""),
-  openingUnitPriceUsd: z.string().optional().default(""),
   openingDate: z.string().optional().default(""),
   note: z.string().optional().default(""),
 });
@@ -189,7 +188,6 @@ export async function createMoneyAccountAction(input: unknown): Promise<ActionRe
       kind: v.kind,
       assetId: v.assetId,
       openingQty: v.openingQty || undefined,
-      openingUnitPriceUsd: v.openingUnitPriceUsd || undefined,
       openingDate: v.openingDate || undefined,
       note: v.note || undefined,
       // SECURITY: tenant identity comes ONLY from the session, never the client.

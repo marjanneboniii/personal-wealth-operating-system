@@ -1,8 +1,9 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
-import { accounts, assetClasses, assets, institutions, networks, wallets } from "@/db/schema";
+import { accounts, institutions, networks, wallets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
+import { listMoneyAccountCurrencies } from "@/features/accounts/service";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
@@ -27,7 +28,10 @@ export default async function AccountsPage() {
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? null;
   await seedIfEmpty();
-  const [balances, walletRows, fx, assetRows] = await Promise.all([
+  // Repair old catalogs first, then expose exactly IRT / USD / USDT. Real
+  // assets such as apartment units can never enter this form.
+  const currencyRows = await listMoneyAccountCurrencies();
+  const [balances, walletRows, fx] = await Promise.all([
     getAccountBalances(),
     db
       .select({
@@ -50,19 +54,6 @@ export default async function AccountsPage() {
       )
       .orderBy(asc(wallets.name)),
     getLatestUsdIrtRate(),
-    db
-      .select({
-        id: assets.id,
-        symbol: assets.symbol,
-        name: assets.name,
-        decimals: assets.decimals,
-        className: assetClasses.name,
-        latestPriceUsd: sql<string | null>`(select p.price_base::text from prices p where p.asset_id = ${assets.id} order by p.as_of desc limit 1)`,
-      })
-      .from(assets)
-      .leftJoin(assetClasses, eq(assetClasses.id, assets.classId))
-      .where(and(sql`${assets.deletedAt} is null`, eq(assets.isActive, true)))
-      .orderBy(asc(assets.symbol)),
   ]);
 
   const toIrt = (usd: string | number) => (fx.rate ? formatMoney(D(usd).mul(fx.rate).abs().toFixed(0), "IRT") : null);
@@ -234,16 +225,7 @@ export default async function AccountsPage() {
             </span>
           </summary>
           <div className="border-t p-4" style={{ borderColor: "var(--border)" }}>
-            <MoneyAccountForm
-              assets={assetRows.map((a) => ({
-                id: a.id,
-                symbol: a.symbol,
-                name: a.name,
-                decimals: a.decimals,
-                className: a.className,
-                latestPriceUsd: a.latestPriceUsd,
-              }))}
-            />
+            <MoneyAccountForm currencies={currencyRows} usdIrtRate={fx.rate} />
           </div>
         </details>
       </Section>

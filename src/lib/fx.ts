@@ -23,11 +23,14 @@ const DEFAULT_RATE = "190000";
  * Get latest USD→IRT rate for a specific user (per-user isolation).
  * Priority: user_fx_settings → exchange_rates → settings.irt_rate → fallback 190000
  */
-export async function getLatestUsdIrtRateForUser(userId: string | null | undefined): Promise<FxSnapshot> {
+export async function getLatestUsdIrtRateForUser(
+  userId: string | null | undefined,
+  dbClient: any = db,
+): Promise<FxSnapshot> {
   // 1. User-specific rate (new per-user system)
   if (userId) {
     try {
-      const [urow] = await db.select().from(userFxSettings).where(eq(userFxSettings.userId, userId)).limit(1);
+      const [urow] = await dbClient.select().from(userFxSettings).where(eq(userFxSettings.userId, userId)).limit(1);
       if (urow?.currentRate) {
         const last = urow.lastUpdatedAt ? new Date(urow.lastUpdatedAt) : null;
         const now = new Date();
@@ -47,7 +50,7 @@ export async function getLatestUsdIrtRateForUser(userId: string | null | undefin
 
   // 2. Global exchange_rates
   try {
-    const [row] = await db
+    const [row] = await dbClient
       .select()
       .from(exchangeRates)
       .where(and(eq(exchangeRates.baseCurrency, "USD"), eq(exchangeRates.quoteCurrency, "IRT")))
@@ -65,7 +68,7 @@ export async function getLatestUsdIrtRateForUser(userId: string | null | undefin
 
   // 3. Legacy settings.irt_rate
   try {
-    const [s] = await db.select().from(settings).where(eq(settings.key, "irt_rate")).limit(1);
+    const [s] = await dbClient.select().from(settings).where(eq(settings.key, "irt_rate")).limit(1);
     if (s?.value) {
       return { rate: s.value, effectiveDate: new Date().toISOString().slice(0, 10), source: "settings" };
     }

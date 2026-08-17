@@ -14,10 +14,14 @@ import {
   lots,
   postings,
   prices,
+  userFxSettings,
   users,
   wallets,
 } from "../src/db/schema";
-import { registerMoneyAccount } from "../src/features/accounts/service";
+import {
+  listMoneyAccountCurrencies,
+  registerMoneyAccount,
+} from "../src/features/accounts/service";
 import { getAccountBalances, getLedger } from "../src/features/ledger/queries";
 import { D } from "../src/domain/decimal";
 
@@ -34,6 +38,7 @@ async function setupFreshDb() {
   await db.delete(assets);
   await db.delete(assetClasses);
   await db.delete(currencies);
+  await db.delete(userFxSettings);
   await db.delete(users);
 }
 
@@ -97,6 +102,11 @@ async function setupFixture(): Promise<Fixture> {
 
   const [userA] = await db.insert(users).values({ name: "User A", role: "owner" } as any).returning();
   const [userB] = await db.insert(users).values({ name: "User B", role: "owner" } as any).returning();
+  // 100,000 toman per USD keeps the opening-value assertions explicit.
+  await db.insert(userFxSettings).values([
+    { userId: userA.id, currentRate: "100000" },
+    { userId: userB.id, currentRate: "100000" },
+  ]);
 
   // Opening-equity account (3010) per tenant, as the setup wizard would create.
   await db.insert(accounts).values([
@@ -113,6 +123,26 @@ async function setupFixture(): Promise<Fixture> {
     btc: { id: btc.id },
   };
 }
+
+test("Money account currency catalog repairs Toman and excludes apartment/real assets", async () => {
+  await setupFreshDb();
+
+  const initial = await listMoneyAccountCurrencies();
+  assert.deepEqual(initial.map((row) => row.symbol), ["IRT", "USD", "USDT"]);
+  assert.equal(initial.find((row) => row.symbol === "IRT")?.name, "تومان");
+
+  const [cashClass] = await db.select().from(assetClasses).where(eq(assetClasses.code, "cash")).limit(1);
+  await db.insert(assets).values({
+    symbol: "APT-101",
+    name: "واحد آپارتمان ۱۰۱",
+    classId: cashClass.id,
+    decimals: 0,
+  } as any);
+
+  const afterRealAsset = await listMoneyAccountCurrencies();
+  assert.deepEqual(afterRealAsset.map((row) => row.symbol), ["IRT", "USD", "USDT"]);
+  assert.equal(afterRealAsset.some((row) => row.name.includes("آپارتمان")), false);
+});
 
 test("Money account: bank account with opening balance is registered, balanced and visible", async () => {
   const fx = await setupFixture();
@@ -146,28 +176,23 @@ test("Money account: bank account with opening balance is registered, balanced a
   assert.equal(D(acc.quantity).toString(), "50000000");
 });
 
-test("Money account: crypto wallet opens a FIFO lot", async () => {
+test("Money account: non-currency assets such as BTC are rejected at the service boundary", async () => {
   const fx = await setupFixture();
 
-  const result = await registerMoneyAccount({
-    name: "کیف سرد بیت‌کوین",
-    kind: "cold",
-    assetId: fx.btc.id,
-    openingQty: "0.35",
-    userId: fx.userA.id,
-  });
+  await assert.rejects(
+    () =>
+      registerMoneyAccount({
+        name: "کیف سرد بیت‌کوین",
+        kind: "cold",
+        assetId: fx.btc.id,
+        openingQty: "0.35",
+        userId: fx.userA.id,
+      }),
+    /فقط می‌تواند تومان.*دلار.*تتر/,
+  );
 
-  assert.equal(result.ok, true);
-  // base value = 0.35 * 95000 = 33250
-  assert.equal(D(result.baseValue!).toString(), "33250");
-
-  const openLots = await db
-    .select({ qtyOpened: lots.qtyOpened, unitCostBase: lots.unitCostBase })
-    .from(lots)
-    .where(eq(lots.accountId, result.accountId!));
-  assert.equal(openLots.length, 1);
-  assert.equal(D(openLots[0].qtyOpened).toString(), "0.35");
-  assert.equal(D(openLots[0].unitCostBase).toString(), "95000");
+  assert.equal((await db.select().from(wallets)).length, 0);
+  assert.equal((await db.select().from(lots)).length, 0);
 });
 
 test("Money account: cash/stable assets do NOT open a FIFO lot", async () => {
@@ -182,6 +207,7 @@ test("Money account: cash/stable assets do NOT open a FIFO lot", async () => {
   });
 
   assert.equal(result.ok, true);
+  assert.equal(D(result.baseValue!).toString(), "8000", "USDT denomination uses a fixed 1 USD face value");
   const openLots = await db
     .select({ id: lots.id })
     .from(lots)

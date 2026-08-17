@@ -6,13 +6,11 @@ import { createMoneyAccountAction } from "@/app/actions";
 import { D } from "@/domain/decimal";
 import { formatMoney } from "@/lib/format";
 
-export type MoneyAssetOption = {
+export type MoneyCurrencyOption = {
   id: string;
-  symbol: string;
+  symbol: "IRT" | "USD" | "USDT";
   name: string;
   decimals: number;
-  className: string | null;
-  latestPriceUsd: string | null;
 };
 
 const KINDS = [
@@ -24,13 +22,18 @@ const KINDS = [
   ["fund", "صندوق / کارگزاری"],
 ] as const;
 
-export default function MoneyAccountForm({ assets }: { assets: MoneyAssetOption[] }) {
+export default function MoneyAccountForm({
+  currencies,
+  usdIrtRate,
+}: {
+  currencies: MoneyCurrencyOption[];
+  usdIrtRate: string;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [kind, setKind] = useState("bank");
   const [assetId, setAssetId] = useState("");
   const [openingQty, setOpeningQty] = useState("");
-  const [openingUnitPriceUsd, setOpeningUnitPriceUsd] = useState("");
   const [openingDate, setOpeningDate] = useState("");
   const [note, setNote] = useState("");
   const [preview, setPreview] = useState(false);
@@ -38,10 +41,13 @@ export default function MoneyAccountForm({ assets }: { assets: MoneyAssetOption[
   const [pending, startTransition] = useTransition();
 
   const kindLabel = KINDS.find(([v]) => v === kind)?.[1];
-  const asset = assets.find((a) => a.id === assetId) ?? null;
-  const effectivePrice = openingUnitPriceUsd ? D(openingUnitPriceUsd) : asset?.latestPriceUsd ? D(asset.latestPriceUsd) : null;
+  const currency = currencies.find((item) => item.id === assetId) ?? null;
   const qty = openingQty ? D(openingQty) : D("0");
-  const previewBaseUsd = effectivePrice && qty.gt(0) ? qty.mul(effectivePrice) : D("0");
+  const rate = D(usdIrtRate || "0");
+  const previewBaseUsd =
+    currency?.symbol === "IRT"
+      ? rate.gt(0) && qty.gt(0) ? qty.div(rate) : D("0")
+      : qty;
 
   function confirm() {
     startTransition(async () => {
@@ -50,7 +56,6 @@ export default function MoneyAccountForm({ assets }: { assets: MoneyAssetOption[
         kind,
         assetId,
         openingQty,
-        openingUnitPriceUsd,
         openingDate,
         note,
       });
@@ -58,7 +63,6 @@ export default function MoneyAccountForm({ assets }: { assets: MoneyAssetOption[
       if (result.ok) {
         setName("");
         setOpeningQty("");
-        setOpeningUnitPriceUsd("");
         setOpeningDate("");
         setNote("");
         setAssetId("");
@@ -94,54 +98,52 @@ export default function MoneyAccountForm({ assets }: { assets: MoneyAssetOption[
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1">
-          <span className="label">ارز / دارایی حساب</span>
+          <span className="label">ارز حساب</span>
           <select className="field" value={assetId} onChange={(e) => setAssetId(e.target.value)}>
             <option value="" disabled>
               انتخاب کنید…
             </option>
-            {assets.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.symbol} — {a.name}
+            {currencies.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.symbol} — {item.name}
               </option>
             ))}
           </select>
+          <span className="muted block text-[10px] leading-5">
+            فقط تومان، دلار آمریکا یا تتر؛ ملک و سایر دارایی‌ها در این بخش نمایش داده نمی‌شوند.
+          </span>
         </label>
         <label className="space-y-1">
-          <span className="label">موجودی اولیه (به واحد همان دارایی)</span>
+          <span className="label">موجودی اولیه به واحد ارز انتخاب‌شده</span>
           <input
             className="field num"
             dir="ltr"
             inputMode="decimal"
             value={openingQty}
             onChange={(e) => setOpeningQty(e.target.value.replace(/[^0-9.]/g, ""))}
-            placeholder={asset ? `مثلاً ${asset.symbol === "IRT" ? "50,000,000 تومان" : "0.00000000"}` : "موجودی"}
+            placeholder={
+              currency?.symbol === "IRT"
+                ? "مثلاً 50000000 تومان"
+                : currency?.symbol === "USD"
+                  ? "مثلاً 10000 دلار"
+                  : currency?.symbol === "USDT"
+                    ? "مثلاً 8000 تتر"
+                    : "موجودی"
+            }
           />
         </label>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="space-y-1">
-          <span className="label">قیمت واحد (دلار) — اختیاری</span>
-          <input
-            className="field num"
-            dir="ltr"
-            inputMode="decimal"
-            value={openingUnitPriceUsd}
-            onChange={(e) => setOpeningUnitPriceUsd(e.target.value.replace(/[^0-9.]/g, ""))}
-            placeholder={asset?.latestPriceUsd ? `آخرین قیمت: ${asset.latestPriceUsd}` : "آخرین قیمت به‌صورت خودکار"}
-          />
-        </label>
-        <label className="space-y-1">
-          <span className="label">تاریخ افتتاحیه (اختیاری)</span>
-          <input
-            className="field num"
-            dir="ltr"
-            type="date"
-            value={openingDate}
-            onChange={(e) => setOpeningDate(e.target.value)}
-          />
-        </label>
-      </div>
+      <label className="block space-y-1 sm:max-w-[calc(50%-0.375rem)]">
+        <span className="label">تاریخ افتتاحیه (اختیاری)</span>
+        <input
+          className="field num"
+          dir="ltr"
+          type="date"
+          value={openingDate}
+          onChange={(e) => setOpeningDate(e.target.value)}
+        />
+      </label>
 
       <label className="block space-y-1">
         <span className="label">یادداشت (اختیاری)</span>
@@ -158,14 +160,19 @@ export default function MoneyAccountForm({ assets }: { assets: MoneyAssetOption[
           <div className="flex flex-wrap items-center gap-2">
             <strong>{name}</strong>
             <span className="chip">{kindLabel}</span>
-            {asset && <span className="chip">{asset.symbol}</span>}
+            {currency && <span className="chip">{currency.symbol} — {currency.name}</span>}
           </div>
           {qty.gt(0) && (
             <div className="mt-2">
-              <p className="muted text-[10px]">ارزش پایه (دلار) — تقریبی:</p>
+              <p className="muted text-[10px]">ارزش پایه دلاری افتتاحیه:</p>
               <p className="num font-bold" dir="ltr">
                 {formatMoney(previewBaseUsd.toString())}
               </p>
+              {currency?.symbol === "IRT" && rate.gt(0) && (
+                <p className="muted mt-1 text-[10px]">
+                  نرخ تبدیل جاری: هر دلار ≈ {formatMoney(usdIrtRate, "IRT")}
+                </p>
+              )}
             </div>
           )}
           {note && <div className="muted mt-1">{note}</div>}

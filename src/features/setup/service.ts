@@ -104,6 +104,10 @@ export async function completeSetup(
           currencyId: curMap[input.baseCurrency] ?? curMap.USD,
           decimals: input.baseCurrency === "IRT" || input.baseCurrency === "IRR" ? 0 : 2,
         },
+        // Account/wallet denominations are always available, regardless of the
+        // accounting base currency selected above.
+        { symbol: "IRT", name: "تومان", classId: clsMap.cash, currencyId: curMap.IRT, decimals: 0 },
+        { symbol: "USD", name: "دلار آمریکا", classId: clsMap.cash, currencyId: curMap.USD, decimals: 2 },
         { symbol: "USDT", name: "تتر", classId: clsMap.stable, decimals: 6 },
         { symbol: "BTC", name: "بیت‌کوین", classId: clsMap.crypto, decimals: 8 },
         { symbol: "ETH", name: "اتریوم", classId: clsMap.crypto, decimals: 8 },
