@@ -590,13 +590,16 @@ export default function Shell({
           touchAction: "manipulation",
         }}
       >
-        <div className="grid grid-cols-5 px-1.5 pt-1.5">
+        {/* One row, always. The column count follows the real item count
+            (tabs + «بیشتر»); a hard-coded 5 made the sixth item wrap onto a
+            second row that fell below the bottom of the screen on iOS PWA. */}
+        <div className="tab-row" style={{ gridTemplateColumns: `repeat(${MOBILE_TABS.length + 1}, minmax(0, 1fr))` }}>
           {MOBILE_TABS.map((t) => {
             const active = t.match!.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m)));
             return (
               <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`tab-item ${active ? "tab-active" : ""}`} style={{ touchAction: "manipulation" }}>
-                <Icon name={t.icon as IconName} size={21} strokeWidth={active ? 2 : 1.7} />
-                {t.label}
+                <Icon name={t.icon as IconName} size={20} strokeWidth={active ? 2 : 1.7} />
+                <span className="tab-label">{t.label}</span>
               </Link>
             );
           })}
@@ -609,8 +612,8 @@ export default function Shell({
             className={`tab-item ${moreActive ? "tab-active" : ""}`}
             style={{ touchAction: "manipulation" }}
           >
-            <Icon name="more" size={21} />
-            بیشتر
+            <Icon name="more" size={20} />
+            <span className="tab-label">بیشتر</span>
           </button>
         </div>
       </nav>
