@@ -38,6 +38,19 @@ function marketRow(id: string, symbol: string, name: string, rank: number | null
   };
 }
 
+function storedCatalogRow(id: string, symbol: string, name: string, rank: number, syncedAt: Date) {
+  return {
+    coingeckoId: id,
+    symbol,
+    name,
+    logoUrl: `https://coin-images.coingecko.com/coins/images/1/large/${id}.png`,
+    marketCapRank: rank,
+    kind: "crypto",
+    isActive: true,
+    syncedAt,
+  };
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -77,6 +90,24 @@ test("offline bootstrap covers the full requested crypto list", async () => {
   for (const expected of REQUESTED_CRYPTO) {
     assert.ok(symbols.includes(expected), `requested crypto missing from offline catalog: ${expected}`);
     assert.equal(rows.find((r) => r.symbol === expected)?.kind, "crypto");
+  }
+});
+
+test("a failed sync upgrades the legacy four-row catalog to the complete offline floor", async () => {
+  const recent = new Date();
+  await db.insert(coingeckoAssetCatalog).values([
+    storedCatalogRow("bitcoin", "BTC", "Bitcoin", 1, recent),
+    storedCatalogRow("ethereum", "ETH", "Ethereum", 2, recent),
+    storedCatalogRow("tether", "USDT", "Tether", 3, recent),
+    storedCatalogRow("solana", "SOL", "Solana", 7, recent),
+  ]);
+
+  const result = await refreshCoinGeckoCatalog(clientFor({}));
+  assert.equal(result.status, "stale");
+  const symbols = (await listCoinGeckoCatalog("", 500)).map((row) => row.symbol);
+  assert.equal(symbols.length, BOOTSTRAP_CATALOG_SIZE);
+  for (const expected of REQUESTED_CRYPTO) {
+    assert.ok(symbols.includes(expected), `legacy catalog was not repaired for ${expected}`);
   }
 });
 

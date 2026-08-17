@@ -271,6 +271,13 @@ export const NAV_GROUPS: NavGroup[] = [
 /** Pinned at the bottom of the sidebar, and inside mobile "More". */
 export const SECONDARY_ITEMS: NavItem[] = [
   {
+    href: "/setup",
+    label: "راه‌اندازی اولیه",
+    icon: "check",
+    question: "ارز پایه و حساب‌های اولیه را چگونه آماده کنم؟",
+    keywords: ["setup", "onboarding", "opening balance", "راه‌اندازی", "شروع", "سرمایه افتتاحیه", "3010"],
+  },
+  {
     href: "/settings",
     label: "تنظیمات",
     icon: "settings",

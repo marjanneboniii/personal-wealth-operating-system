@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createMoneyAccountAction } from "@/app/actions";
 import { D } from "@/domain/decimal";
 import { formatMoney } from "@/lib/format";
@@ -24,6 +25,7 @@ const KINDS = [
 ] as const;
 
 export default function MoneyAccountForm({ assets }: { assets: MoneyAssetOption[] }) {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [kind, setKind] = useState("bank");
   const [assetId, setAssetId] = useState("");
@@ -61,6 +63,7 @@ export default function MoneyAccountForm({ assets }: { assets: MoneyAssetOption[
         setNote("");
         setAssetId("");
         setPreview(false);
+        router.refresh();
       }
     });
   }

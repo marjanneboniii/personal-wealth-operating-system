@@ -24,7 +24,7 @@
  *     are user-scoped. (This is the isolated interpretation of "don't store the
  *     bank name globally".)
  */
-import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, assetClasses, assets, wallets } from "@/db/schema";
 import { postEntry } from "@/features/ledger/service";
@@ -79,6 +79,78 @@ async function findBaseAssetId(tx: any): Promise<string> {
   const [any] = await tx.select({ id: assets.id }).from(assets).where(isNull(assets.deletedAt)).limit(1);
   if (!any?.id) throw new Error("هیچ دارایی پایه‌ای یافت نشد؛ ابتدا راه‌اندازی اولیه را کامل کنید.");
   return any.id;
+}
+
+/**
+ * Finds or provisions the bookkeeping prerequisite used to balance an opening
+ * balance. Provisioning this chart-of-accounts row does not write a journal,
+ * posting, balance, or FIFO lot; it merely removes the circular requirement
+ * that a user must already have completed a hidden setup wizard before adding
+ * their first bank account.
+ *
+ * Authenticated tenants receive their own 3010 so opening balances can never
+ * collide across users. A legacy shared 3010 remains valid only in the
+ * original unauthenticated single-tenant mode.
+ */
+async function ensureOpeningEquityAccount(
+  tx: any,
+  userId?: string,
+): Promise<{ id: string; assetId: string | null }> {
+  const ownership = userId
+    ? eq(accounts.userId, userId)
+    : isNull(accounts.userId);
+
+  const lookup = async () =>
+    tx
+      .select({
+        id: accounts.id,
+        type: accounts.type,
+        assetId: accounts.assetId,
+        userId: accounts.userId,
+        isActive: accounts.isActive,
+        deletedAt: accounts.deletedAt,
+      })
+      .from(accounts)
+      .where(and(eq(accounts.code, OPENING_EQUITY_CODE), ownership))
+      .limit(1);
+
+  let [equity] = await lookup();
+  if (equity) {
+    if (equity.type !== "equity") {
+      throw new Error("کد 3010 قبلاً برای حسابی غیر از سرمایه افتتاحیه استفاده شده است.");
+    }
+    if (!equity.isActive || equity.deletedAt) {
+      [equity] = await tx
+        .update(accounts)
+        .set({ isActive: true, deletedAt: null, updatedAt: new Date() })
+        .where(eq(accounts.id, equity.id))
+        .returning({ id: accounts.id, assetId: accounts.assetId });
+    }
+    return { id: equity.id, assetId: equity.assetId };
+  }
+
+  const baseAssetId = await findBaseAssetId(tx);
+  const [created] = await tx
+    .insert(accounts)
+    .values({
+      userId: userId ?? null,
+      code: OPENING_EQUITY_CODE,
+      name: "سرمایه افتتاحیه",
+      type: "equity",
+      assetId: baseAssetId,
+      isActive: true,
+    })
+    // For authenticated tenants this resolves a concurrent first-account
+    // registration through accounts_user_code_uq without aborting the TX.
+    .onConflictDoNothing()
+    .returning({ id: accounts.id, assetId: accounts.assetId });
+
+  if (created) return created;
+  [equity] = await lookup();
+  if (!equity || equity.type !== "equity") {
+    throw new Error("ایجاد حساب «سرمایه افتتاحیه» (3010) ناموفق بود.");
+  }
+  return { id: equity.id, assetId: equity.assetId };
 }
 
 /**
@@ -138,10 +210,7 @@ export async function registerMoneyAccount(
     if (openingQty.isNegative()) throw new Error("موجودی اولیه نمی‌تواند منفی باشد.");
     const baseValue = openingQty.mul(unitPriceUsd);
 
-    // 4. Tenant-unique account code.
-    const code = await nextAssetCode(tx, input.userId);
-
-    // 5. Wallet (user-owned container; shared `institutions` is NOT touched).
+    // 4. Wallet (user-owned container; shared `institutions` is NOT touched).
     const [wallet] = await tx
       .insert(wallets)
       .values({
@@ -155,38 +224,38 @@ export async function registerMoneyAccount(
       })
       .returning();
 
-    // 6. Ledger account (asset type) linked to the wallet.
-    const [account] = await tx
-      .insert(accounts)
-      .values({
-        userId: input.userId ?? null,
-        code,
-        name,
-        type: "asset",
-        assetId: input.assetId,
-        walletId: wallet.id,
-        isActive: true,
-      })
-      .returning();
+    // 5. Ledger account (asset type) linked to the wallet. The insert is
+    // conflict-tolerant so two simultaneous registrations for the same tenant
+    // cannot accidentally receive the same code. The loser recomputes after
+    // the winner commits; every wallet therefore remains a distinct account.
+    let account: typeof accounts.$inferSelect | undefined;
+    let code = "";
+    for (let attempt = 0; attempt < 8 && !account; attempt++) {
+      code = await nextAssetCode(tx, input.userId);
+      [account] = await tx
+        .insert(accounts)
+        .values({
+          userId: input.userId ?? null,
+          code,
+          name,
+          type: "asset",
+          assetId: input.assetId,
+          walletId: wallet.id,
+          isActive: true,
+        })
+        .onConflictDoNothing()
+        .returning();
+    }
+    if (!account) throw new Error("ایجاد کد یکتای حساب ناموفق بود؛ دوباره تلاش کنید.");
 
-    // 7. Opening entry — strictly through postEntry (core write path).
+    // 6. Opening entry — strictly through postEntry (core write path).
     let entryId: string | undefined;
     if (baseValue.gt(0)) {
-      const equity = await tx
-        .select({ id: accounts.id, assetId: accounts.assetId })
-        .from(accounts)
-        .where(
-          and(
-            eq(accounts.code, OPENING_EQUITY_CODE),
-            input.userId ? or(eq(accounts.userId, input.userId), isNull(accounts.userId)) : sql`1=1`,
-          ),
-        )
-        .orderBy(asc(accounts.userId))
-        .limit(1);
-      if (!equity[0]) {
-        throw new Error("حساب «سرمایه افتتاحیه» (3010) یافت نشد؛ ابتدا راه‌اندازی اولیه را کامل کنید.");
-      }
-      const equityAssetId = equity[0].assetId ?? (await findBaseAssetId(tx));
+      // The chart prerequisite is safe to provision lazily: it creates only
+      // account metadata. The actual opening balance still goes exclusively
+      // through the unchanged postEntry/FIFO path below.
+      const equity = await ensureOpeningEquityAccount(tx, input.userId);
+      const equityAssetId = equity.assetId ?? (await findBaseAssetId(tx));
       const qtyStr = openingQty.toString();
       const baseStr = baseValue.toString();
       const isLotTracked = LOT_TRACKED_CLASSES.has(asset.classCode ?? "");
@@ -207,7 +276,7 @@ export async function registerMoneyAccount(
               memo: "موجودی اولیه",
             },
             {
-              accountId: equity[0].id,
+              accountId: equity.id,
               assetId: equityAssetId,
               quantity: D(baseStr).neg().toString(),
               baseValue: D(baseStr).neg().toString(),

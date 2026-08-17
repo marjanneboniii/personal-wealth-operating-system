@@ -258,6 +258,36 @@ test("Money account: per-user account code uniqueness", async () => {
   assert.equal(a1.accountCode, b1.accountCode);
 });
 
+test("Money account: multiple wallets, even with the same label, stay independent", async () => {
+  const fx = await setupFixture();
+
+  const first = await registerMoneyAccount({
+    name: "حساب پس‌انداز",
+    kind: "bank",
+    assetId: fx.irt.id,
+    openingQty: "1000000",
+    userId: fx.userA.id,
+  });
+  const second = await registerMoneyAccount({
+    name: "حساب پس‌انداز",
+    kind: "fund",
+    assetId: fx.irt.id,
+    openingQty: "2000000",
+    userId: fx.userA.id,
+  });
+
+  assert.notEqual(first.walletId, second.walletId);
+  assert.notEqual(first.accountId, second.accountId);
+  assert.notEqual(first.accountCode, second.accountCode);
+
+  const balances = await getAccountBalances(fx.userA.id);
+  assert.equal(balances.filter((b) => b.name === "حساب پس‌انداز").length, 2);
+  const total = balances
+    .filter((b) => b.name === "حساب پس‌انداز")
+    .reduce((sum, row) => sum.add(row.quantity), D("0"));
+  assert.equal(total.toString(), "3000000");
+});
+
 test("Money account: zero-balance account is created without an opening entry", async () => {
   const fx = await setupFixture();
 
@@ -276,7 +306,7 @@ test("Money account: zero-balance account is created without an opening entry", 
   assert.equal(D(acc.quantity).isZero(), true);
 });
 
-test("Money account: missing opening-equity account fails with a clear error", async () => {
+test("Money account: missing opening-equity metadata is provisioned without bypassing the ledger", async () => {
   await setupFreshDb();
 
   const [cashClass] = await db
@@ -290,15 +320,23 @@ test("Money account: missing opening-equity account fails with a clear error", a
   await db.insert(prices).values([{ assetId: irtAsset.id, asOf: "2026-01-01", priceBase: "0.00001", source: "manual" }]);
   const [userA] = await db.insert(users).values({ name: "User A", role: "owner" } as any).returning();
 
-  await assert.rejects(
-    () =>
-      registerMoneyAccount({
-        name: "بانک بدون سرمایه",
-        kind: "bank",
-        assetId: irtAsset.id,
-        openingQty: "1000",
-        userId: userA.id,
-      }),
-    /سرمایه افتتاحیه/,
-  );
+  const result = await registerMoneyAccount({
+    name: "بانک بدون راه‌اندازی قبلی",
+    kind: "bank",
+    assetId: irtAsset.id,
+    openingQty: "1000",
+    userId: userA.id,
+  });
+  assert.equal(result.ok, true);
+
+  const equity = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.userId, userA.id));
+  assert.equal(equity.some((a) => a.code === "3010" && a.type === "equity"), true);
+
+  const entryRows = await db.select().from(journalEntries);
+  assert.equal(entryRows.length, 1, "opening balance still uses exactly one journal entry");
+  const sumRes = await db.execute(sql`select coalesce(sum(base_value), 0)::text as s from postings`);
+  assert.equal(D((sumRes.rows[0] as any).s).isZero(), true, "double-entry control sum remains zero");
 });

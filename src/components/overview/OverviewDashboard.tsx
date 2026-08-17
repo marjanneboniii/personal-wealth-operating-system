@@ -35,11 +35,11 @@ function daysUntil(iso: string) {
 }
 
 export default async function OverviewDashboard() {
-  await ensureAuth();
+  const user = await ensureAuth();
   await seedIfEmpty();
 
   const [setupState, nw, snaps, tx, insts, flow, projection, unreviewed, fx] = await Promise.all([
-    getSetupState(),
+    getSetupState((user as { id?: string } | null)?.id),
     getCurrentNetWorth(),
     db.select().from(snapshots).orderBy(desc(snapshots.asOf)).limit(40),
     getTransactions({ limit: 6 }),

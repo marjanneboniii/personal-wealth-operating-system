@@ -24,7 +24,6 @@ import {
 } from "@/db/schema";
 import { getLatestUsdIrtRateForUser, getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentUser } from "@/lib/auth";
-import { isAdminOrOwner } from "@/lib/authGuard";
 import { validateAccountOwnership } from "@/lib/validation";
 import {
   assertDebtOwnership,
@@ -1242,13 +1241,14 @@ const setupSchema = z.object({
 });
 
 export async function completeSetupAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — FAIL-CLOSED
+  // Auth guard — FAIL-CLOSED. Every authenticated user may initialize their
+  // own tenant-scoped chart; this is not a global admin operation and never
+  // grants a role or access to another user's data.
+  let setupUser: any = null;
   try {
     const ctx = await getAuthContext();
     if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
-    if (ctx.hasAuth && ctx.user && !isAdminOrOwner(ctx.user)) {
-      return { ok: false, message: "دسترسی غیرمجاز: راه‌اندازی اولیه فقط برای مدیر امکان‌پذیر است." };
-    }
+    setupUser = ctx.user;
   } catch (e: any) {
     if (e?.message?.includes("Authentication/Database error")) {
       return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
@@ -1260,7 +1260,7 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
   try {
     const raw = Object.fromEntries(fd) as Record<string, string>;
     const input = setupSchema.parse(raw);
-    await completeSetup(input);
+    await completeSetup(input, setupUser?.id);
     refreshAll();
     return { ok: true, message: "راه‌اندازی اولیه با موفقیت انجام شد." };
   } catch (e) {
@@ -1274,7 +1274,7 @@ export async function fetchSetupStateAction() {
   // an anonymous caller in multi-user mode.
   const { user, hasAuth } = await getAuthContext();
   if (hasAuth && !user) throw new Error("Unauthorized: login required");
-  return getSetupState();
+  return getSetupState(user?.id);
 }
 
 
