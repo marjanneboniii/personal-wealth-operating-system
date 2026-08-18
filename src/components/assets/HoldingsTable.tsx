@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, formatMoney, formatPct, formatQty } from "@/lib/format";
 import type { AssetValuation } from "@/features/portfolio/types";
 
 /**
@@ -54,7 +54,7 @@ export default function HoldingsTable({
                   </div>
                 </td>
                 <td className="td-num" dir="ltr">
-                  {formatQty(a.quantity, a.decimals, "en")}
+                  {formatQty(a.quantity, a.decimals)}
                 </td>
                 <td className="td-num" dir="ltr">
                   <div className="text-[12.5px] font-medium">
@@ -84,11 +84,11 @@ export default function HoldingsTable({
                     {formatMoney(pnl.abs().toString())}
                   </div>
                   <div className="num text-[10px]">
-                    {D(a.roiPercentage).gte(0) ? "↑" : "↓"} {formatQty(D(a.roiPercentage).abs().toString(), 2, "en")}٪
+                    {D(a.roiPercentage).gte(0) ? "↑" : "↓"} {formatQty(D(a.roiPercentage).abs().toString(), 2)}٪
                   </div>
                 </td>
                 <td className="td-num hidden sm:table-cell" dir="ltr">
-                  <span className="num text-[12px]">{a.sharePercentage}٪</span>
+                  <span className="num text-[12px]">{formatPct(a.sharePercentage, 2)}</span>
                 </td>
               </tr>
             );

@@ -401,7 +401,7 @@ export default function TransactionsView({
                                   )}
                                 </td>
                                 <td className="td-num" dir="ltr">
-                                  {l.symbol && l.symbol !== "USD" && l.symbol !== "IRT" ? `${formatQty(l.quantity, l.decimals, "en")} ${l.symbol}` : "—"}
+                                  {l.symbol && l.symbol !== "USD" && l.symbol !== "IRT" ? `${formatQty(l.quantity, l.decimals)} ${l.symbol}` : "—"}
                                 </td>
                                 <td className="td-num font-semibold" dir="ltr" style={{ color: Number(l.baseValue) >= 0 ? "var(--positive)" : "var(--negative)" }}>
                                   {Number(l.baseValue) >= 0 ? "+" : "−"}

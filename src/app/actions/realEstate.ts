@@ -12,6 +12,7 @@ import {
   previewRealEstateIdentity,
   recordRealEstateValuation,
 } from "@/features/rwa/realEstate/service";
+import { formatMoney } from "@/lib/format";
 import { tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { resolveUsdRateForDate } from "@/features/rwa/vehicle/fx";
 import {
@@ -187,7 +188,7 @@ export async function recordRealEstateValuationAction(_previous: RealEstateResul
     refresh();
     return {
       ok: true,
-      message: `ارزش‌گذاری جدید ثبت شد: ${Number(result.currentValueToman).toLocaleString("fa-IR")} تومان با نرخ دلار ${Number(result.valuationFxRate).toLocaleString("fa-IR")} (≈ ${Number(result.currentValueUsd).toLocaleString("fa-IR")} دلار). سند دفترکل تغییری نکرد.`,
+      message: `ارزش‌گذاری جدید ثبت شد: ${formatMoney(result.currentValueToman, "IRT")} با نرخ دلار ${formatMoney(result.valuationFxRate, "IRT")} (≈ ${formatMoney(result.currentValueUsd, "USD")}). سند دفترکل تغییری نکرد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت ارزش‌گذاری ناموفق بود." };

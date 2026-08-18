@@ -144,7 +144,7 @@ export function Delta({
       {pct != null && Number.isFinite(Number(pct)) && (
         <span className="num text-[12px] opacity-80 ltr-isolate" dir="ltr">
           ({up ? "+" : "−"}
-          {formatPercent(Math.abs(Number(pct)), "en").replace("+", "")})
+          {formatPercent(Math.abs(Number(pct))).replace("+", "")})
         </span>
       )}
       {suffix && <span className="muted text-[11px]">{suffix}</span>}

@@ -18,6 +18,7 @@ import {
   listVehicleBrands,
 } from "@/features/rwa/vehicle/catalog";
 import { recordVehicleValuationSnapshot } from "@/features/rwa/vehicle/valuation";
+import { formatMoney } from "@/lib/format";
 import { resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { createOwnershipRecord } from "@/features/rwa/ownership/service";
 import { createValuationEvent } from "@/features/rwa/valuation/service";
@@ -237,7 +238,7 @@ export async function recordVehicleValuationAction(_previous: RegistryResult | n
     refresh();
     return {
       ok: true,
-      message: `ارزش‌گذاری جدید ثبت شد: ${Number(snapshot.currentValueToman).toLocaleString("fa-IR")} تومان با نرخ دلار ${Number(snapshot.usdRate).toLocaleString("fa-IR")} (≈ ${Number(snapshot.currentValueUsd).toLocaleString("fa-IR")} دلار).`,
+      message: `ارزش‌گذاری جدید ثبت شد: ${formatMoney(snapshot.currentValueToman, "IRT")} با نرخ دلار ${formatMoney(snapshot.usdRate, "IRT")} (≈ ${formatMoney(snapshot.currentValueUsd, "USD")}).`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت ارزش‌گذاری ناموفق بود." };

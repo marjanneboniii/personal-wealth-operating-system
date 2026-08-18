@@ -89,6 +89,15 @@ export function formatPercent(value: string | number, digits: DigitStyle = "fa")
   return `${sign}${n}٪`;
 }
 
+/**
+ * Plain Persian percent — no forced sign, adjustable decimals.
+ * e.g. formatPct("12.5", 1) → "۱۲٫۵٪". Used by tables, charts and KPIs so
+ * every percent in the UI follows the same Persian-digit standard.
+ */
+export function formatPct(value: string | number, decimals = 1): string {
+  return `${formatNumber(value, { decimals })}٪`;
+}
+
 const FA_MONTHS = [
   "فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور",
   "مهر","آبان","آذر","دی","بهمن","اسفند",

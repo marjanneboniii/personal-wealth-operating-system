@@ -6,7 +6,7 @@ import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatNumber, formatPct } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +50,8 @@ export default async function AssetsPage() {
   const totalValue = D(valuation.totalNetWorth);
   const unrealized = D(valuation.totalUnrealizedPnl);
 
-  const share = (v: Decimal) => (totalValue.isZero() ? "0.0" : v.div(totalValue).mul(100).toFixed(1));
+  const share = (v: Decimal) =>
+    formatNumber(totalValue.isZero() ? "0.0" : v.div(totalValue).mul(100).toFixed(1), { decimals: 1 });
 
   const families: { label: string; icon: IconName; href: string; count: number; value: string; hint: string }[] = [
     {
@@ -170,7 +171,7 @@ export default async function AssetsPage() {
                     {formatMoney(c.value)}
                   </span>
                   <span className="num muted w-10 text-[10.5px]" dir="ltr">
-                    {Number(c.percentage).toFixed(1)}٪
+                    {formatPct(Number(c.percentage), 1)}
                   </span>
                 </span>
               </li>

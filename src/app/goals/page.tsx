@@ -7,7 +7,7 @@ import { listEvents, listFunds, listGoals, listObligations } from "@/features/pl
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { EventForm, GoalForm } from "@/components/forms/QuickForms";
-import { formatDualDate, formatMoney } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -102,7 +102,7 @@ export default async function GoalsPage() {
                   <Progress value={g.progress} color={done ? "var(--positive)" : "var(--brand)"} />
                   <div className="muted mt-2 flex justify-between text-[11px]">
                     <span className="num" dir="ltr">
-                      {g.progress.toFixed(0)}٪
+                      {formatPct(g.progress, 0)}
                     </span>
                     <span>
                       {done ? "تبریک — به این هدف رسیدید" : `${formatMoney(g.remainingBase)} مانده`}

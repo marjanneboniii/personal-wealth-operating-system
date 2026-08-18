@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { formatMoney, formatShortDate } from "@/lib/format";
+import { formatMoney, formatPct, formatShortDate } from "@/lib/format";
 
 export type SeriesPoint = { date: string; value: number };
 
@@ -58,7 +58,7 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
           <div className="muted text-[11px]">
             {formatShortDate(points[active].date)} ·{" "}
             <span style={{ color: changePct >= 0 ? "var(--positive)" : "var(--negative)" }}>
-              {changePct >= 0 ? "↑" : "↓"} <span dir="ltr">{Math.abs(changePct).toFixed(1)}٪</span> در این بازه
+              {changePct >= 0 ? "↑" : "↓"} <span dir="ltr">{formatPct(Math.abs(changePct), 1)}</span> در این بازه
             </span>
           </div>
         </div>
@@ -169,7 +169,7 @@ export function Donut({
             {formatMoney(shown ? shown.value : total)}
           </div>
           <div className="muted num text-[10px]" dir="ltr">
-            {shown ? `${((shown.value / total) * 100).toFixed(1)}٪` : `${data.length} بخش`}
+            {shown ? formatPct(((shown.value / total) * 100), 1) : `${data.length} بخش`}
           </div>
         </div>
       </div>
@@ -189,7 +189,7 @@ export function Donut({
                 {d.label}
               </span>
               <span className="num muted" dir="ltr">
-                {((d.value / total) * 100).toFixed(1)}٪ · {formatMoney(d.value)}
+                {formatPct(((d.value / total) * 100), 1)} · {formatMoney(d.value)}
               </span>
             </button>
           </li>

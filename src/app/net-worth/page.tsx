@@ -16,7 +16,7 @@ import { Alert, Delta, EmptyState, Metric, PageHeader, Section } from "@/compone
 import NetWorthChart from "@/components/charts/NetWorthChart";
 import RowAction from "@/components/RowAction";
 import { D } from "@/domain/decimal";
-import { formatMoney, formatPercent, todayIso } from "@/lib/format";
+import { formatMoney, formatPct, formatPercent, todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -187,7 +187,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                       {formatMoney(b.value)}
                     </span>
                     <span className="num muted w-10 text-[10.5px]" dir="ltr">
-                      {((b.value / totalAssets) * 100).toFixed(1)}٪
+                      {formatPct(((b.value / totalAssets) * 100), 1)}
                     </span>
                   </span>
                 </li>
@@ -267,7 +267,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
           <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
             <Metric
               label="بازده تعدیل‌شده"
-              value={formatPercent(growth.adjustedWealthReturnPercentage, "en")}
+              value={formatPercent(growth.adjustedWealthReturnPercentage)}
               tone={D(growth.adjustedWealthReturnPercentage).gte(0) ? "up" : "down"}
             />
             <Metric
@@ -276,8 +276,8 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
               tone={D(growth.netInvestmentReturn).gte(0) ? "up" : "down"}
               hint="بدون احتساب واریز/برداشت‌ها"
             />
-            <Metric label="بیشترین افت از سقف" value={`−${risk.maxDrawdownPercentage}٪`} tone={Number(risk.maxDrawdownPercentage) > 15 ? "down" : "neutral"} />
-            <Metric label="ریسک رمزارز" value={`${risk.cryptoExposurePercentage}٪`} hint={`بزرگ‌ترین دارایی: ${risk.largestAssetSymbol}`} />
+            <Metric label="بیشترین افت از سقف" value={`−${formatPct(risk.maxDrawdownPercentage, 2)}`} tone={Number(risk.maxDrawdownPercentage) > 15 ? "down" : "neutral"} />
+            <Metric label="ریسک رمزارز" value={`${formatPct(risk.cryptoExposurePercentage, 2)}`} hint={`بزرگ‌ترین دارایی: ${risk.largestAssetSymbol}`} />
           </div>
         )}
         {risk.concentrationWarning && (

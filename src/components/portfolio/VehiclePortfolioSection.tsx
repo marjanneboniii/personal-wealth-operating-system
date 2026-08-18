@@ -13,7 +13,7 @@
 import Link from "next/link";
 import { Section } from "@/components/ui/Card";
 import { D } from "@/domain/decimal";
-import { formatDualDate, formatMoney, formatNumber, toFaDigits } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct, toFaDigits } from "@/lib/format";
 import type { VehiclePortfolioSummary } from "@/features/rwa/vehicle/dto";
 
 function Signed({
@@ -45,7 +45,7 @@ function SignedPct({ value }: { value: string | null }) {
   return (
     <span className="num" style={{ color }} dir="ltr">
       {sign}
-      {formatNumber(n.abs().toString(), { decimals: 2, digits: "en" })}٪
+      {formatPct(n.abs().toString(), 2)}
     </span>
   );
 }

@@ -16,7 +16,7 @@ import { AreaChart, BarsChart } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
 import { humanizeEntry } from "@/lib/tx";
 import { D } from "@/domain/decimal";
-import { formatMoney, formatShortDate, toJalali } from "@/lib/format";
+import { formatMoney, formatPct, formatShortDate, toJalali } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -244,7 +244,7 @@ export default async function OverviewDashboard() {
                         </span>
                         <span className="flex shrink-0 items-baseline gap-2">
                           <span className="num muted text-[11px]" dir="ltr">
-                            {Number(c.share).toFixed(1)}٪
+                            {formatPct(Number(c.share), 1)}
                           </span>
                           <span className="num text-[13px] font-semibold" dir="ltr">
                             {formatMoney(c.value)}

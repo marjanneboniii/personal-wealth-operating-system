@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { D } from "@/domain/decimal";
-import { formatDate, formatMoney, formatNumber, toFaDigits } from "@/lib/format";
+import { formatDate, formatMoney, formatNumber, formatPct, toFaDigits } from "@/lib/format";
 import type { RegistryResult } from "@/app/actions/registry";
 
 /* ─────────────────────────── money display ─────────────────────────── */
@@ -62,7 +62,7 @@ export function DeltaPct({ value }: { value: string | number | null | undefined 
   return (
     <span className="num" style={{ color }} dir="ltr">
       {sign}
-      {formatNumber(D(value).abs().toString(), { decimals: 2, digits: "en" })}٪
+      {formatPct(D(value).abs().toString(), 2)}
     </span>
   );
 }

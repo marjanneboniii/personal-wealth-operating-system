@@ -7,7 +7,7 @@ import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatPct } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -137,7 +137,7 @@ export default async function FinancialAssetsPage() {
                   </p>
                   <p className="muted num text-[10.5px]" dir="ltr">
                     {b.rows.length} دارایی ·{" "}
-                    {totalValue.isZero() ? "0.0" : b.value.div(totalValue).mul(100).toFixed(1)}٪
+                    {formatPct(totalValue.isZero() ? "0.0" : b.value.div(totalValue).mul(100).toFixed(1), 1)}
                   </p>
                 </li>
               ))}

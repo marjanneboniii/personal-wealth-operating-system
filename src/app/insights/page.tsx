@@ -8,7 +8,7 @@ import { listDebts, projectCashflow } from "@/features/planning/service";
 import { Alert, EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatShortDate, todayIso } from "@/lib/format";
+import { formatMoney, formatNumber, formatPct, formatShortDate, todayIso } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -134,7 +134,7 @@ export default async function InsightsPage() {
       tone: "warn",
       icon: "scale",
       title: "نسبت بدهی به دارایی بالاست",
-      body: `بدهی‌های شما ${debtRatio.toFixed(1)}٪ از کل دارایی‌ها را تشکیل می‌دهند. کاهش این نسبت، انعطاف مالی شما را بیشتر می‌کند.`,
+      body: `بدهی‌های شما ${formatPct(debtRatio.toFixed(1), 1)} از کل دارایی‌ها را تشکیل می‌دهند. کاهش این نسبت، انعطاف مالی شما را بیشتر می‌کند.`,
       href: "/debts",
       action: "مدیریت بدهی",
     });
@@ -145,7 +145,7 @@ export default async function InsightsPage() {
       tone: "warn",
       icon: "wallet",
       title: "ذخیره نقدی کمتر از سه ماه است",
-      body: `با میانگین هزینه ماهانه فعلی، نقدینگی شما حدود ${runwayMonths.toFixed(1)} ماه دوام می‌آورد.`,
+      body: `با میانگین هزینه ماهانه فعلی، نقدینگی شما حدود ${formatNumber(runwayMonths.toFixed(1), { decimals: 1 })} ماه دوام می‌آورد.`,
       href: "/accounts",
       action: "بررسی حساب‌ها",
     });
@@ -156,7 +156,7 @@ export default async function InsightsPage() {
       tone: "warn",
       icon: "pie",
       title: "تمرکز دارایی بالاست",
-      body: `${Number(topClass.share).toFixed(1)}٪ از دارایی‌های شما در «${topClass.className}» است. تمرکز زیاد، نوسان ثروت را بیشتر می‌کند.`,
+      body: `${formatPct(Number(topClass.share), 1)} از دارایی‌های شما در «${topClass.className}» است. تمرکز زیاد، نوسان ثروت را بیشتر می‌کند.`,
       href: "/portfolio",
       action: "بررسی سبد",
     });
@@ -167,7 +167,7 @@ export default async function InsightsPage() {
       tone: "warn",
       icon: "trend-up",
       title: "هزینه‌های ماه اخیر جهش داشته است",
-      body: `هزینه ماه گذشته نسبت به ماه پیش از آن ${spendDelta.toFixed(0)}٪ بیشتر شده است.`,
+      body: `هزینه ماه گذشته نسبت به ماه پیش از آن ${formatPct(spendDelta.toFixed(0), 0)} بیشتر شده است.`,
       href: "/cash-flow",
       action: "تحلیل جریان نقدی",
     });
@@ -189,7 +189,7 @@ export default async function InsightsPage() {
       tone: "pos",
       icon: "trend-up",
       title: "نرخ پس‌انداز شما سالم است",
-      body: `در بازه اخیر ${savingsRate.toFixed(1)}٪ از درآمدتان باقی مانده است.`,
+      body: `در بازه اخیر ${formatPct(savingsRate.toFixed(1), 1)} از درآمدتان باقی مانده است.`,
       href: "/net-worth",
       action: "دیدن رشد ثروت",
     });
@@ -207,25 +207,25 @@ export default async function InsightsPage() {
         <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
           <Metric
             label="نسبت بدهی به دارایی"
-            value={`${debtRatio.toFixed(1)}٪`}
+            value={`${formatPct(debtRatio.toFixed(1), 1)}`}
             tone={debtRatio.gt("50") ? "down" : debtRatio.gt("30") ? "neutral" : "up"}
             hint={formatMoney(totalLiabilities.toString())}
           />
           <Metric
             label="نرخ پس‌انداز"
-            value={`${savingsRate.toFixed(1)}٪`}
+            value={`${formatPct(savingsRate.toFixed(1), 1)}`}
             tone={savingsRate.gte("15") ? "up" : savingsRate.gte("0") ? "neutral" : "down"}
             hint="بازه ۶ ماه اخیر"
           />
           <Metric
             label="دوام نقدینگی"
-            value={runwayMonths ? `${runwayMonths.toFixed(1)} ماه` : "—"}
+            value={runwayMonths ? `${formatNumber(runwayMonths.toFixed(1), { decimals: 1 })} ماه` : "—"}
             tone={runwayMonths ? (runwayMonths.gte("6") ? "up" : runwayMonths.gte("3") ? "neutral" : "down") : "neutral"}
             hint={avgOutflow.isZero() ? "هزینه ثبت‌شده‌ای نیست" : `میانگین هزینه ${formatMoney(avgOutflow.toString())}`}
           />
           <Metric
             label="سهم دارایی نقدشونده"
-            value={`${liquidShare.toFixed(1)}٪`}
+            value={`${formatPct(liquidShare.toFixed(1), 1)}`}
             tone={liquidShare.gte("15") ? "up" : "neutral"}
             hint={formatMoney(liquid.toString())}
           />
@@ -282,7 +282,7 @@ export default async function InsightsPage() {
                     </span>
                     <span className="flex shrink-0 items-baseline gap-2">
                       <span className="num muted text-[10.5px]" dir="ltr">
-                        {shareNum.toFixed(1)}٪
+                        {formatPct(shareNum, 1)}
                       </span>
                       <span className="num font-bold" dir="ltr">
                         {formatMoney(c.total)}
@@ -316,7 +316,7 @@ export default async function InsightsPage() {
                     {formatMoney(c.value)}
                   </span>
                   <span className="num muted w-10 text-[10.5px]" dir="ltr">
-                    {Number(c.share).toFixed(1)}٪
+                    {formatPct(Number(c.share), 1)}
                   </span>
                 </span>
               </li>

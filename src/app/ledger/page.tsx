@@ -225,7 +225,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                           <tr key={i}>
                             <td className="pr-3 font-medium">{l.account}</td>
                             <td className="td-num" dir="ltr">
-                              {formatQty(l.quantity, l.decimals, "en")} {currencyLabel(l.symbol)}
+                              {formatQty(l.quantity, l.decimals)} {currencyLabel(l.symbol)}
                             </td>
                             <td className="td-num font-semibold" dir="ltr" style={{ color: v > 0 ? "var(--positive)" : undefined }}>
                               {v > 0 ? formatMoney(v) : ""}
