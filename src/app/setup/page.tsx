@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { completeSetupAction, fetchSetupStateAction, type ActionResult } from "@/app/actions";
 import { getTranslations } from "@/i18n";
 import { D } from "@/domain/decimal";
-import { formatMoney } from "@/lib/format";
+import { currencyLabel, formatMoney, formatQty } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
 
 const t = getTranslations("fa").setup;
@@ -403,7 +403,7 @@ export default function SetupWizardPage() {
 
               {/* فقط حساب بانکی الزامی است؛ بقیه موجودی‌ها کاملاً اختیاری هستند. */}
               <div>
-                <label className="label">{t.cashAmount} ({bankAssetSymbol})</label>
+                <label className="label">{t.cashAmount} ({currencyLabel(bankAssetSymbol)})</label>
                 <AmountInput
                   type="text"
                   inputMode="decimal"
@@ -420,7 +420,7 @@ export default function SetupWizardPage() {
                   </p>
                 )}
                 <p className="muted mt-1 text-[10px] leading-5">
-                  مبلغ را به واحد {bankAssetSymbol} همین حساب وارد کنید. اگر موجودی ندارید خالی بگذارید.
+                  مبلغ را به واحد {currencyLabel(bankAssetSymbol)} همین حساب وارد کنید. اگر موجودی ندارید خالی بگذارید.
                 </p>
               </div>
 
@@ -433,7 +433,7 @@ export default function SetupWizardPage() {
 
                 <div className="mt-3 space-y-3">
                   <div>
-                    <label className="label">موجودی صندوق نقد ({cashAssetSymbol}) — اختیاری</label>
+                    <label className="label">موجودی صندوق نقد ({currencyLabel(cashAssetSymbol)}) — اختیاری</label>
                     <AmountInput
                       type="text"
                       inputMode="decimal"
@@ -465,7 +465,7 @@ export default function SetupWizardPage() {
                       />
                     </div>
                     <div>
-                      <label className="label">قیمت خرید هر اتریوم ({baseCurrency}) — فقط Cost Basis افتتاحیه</label>
+                      <label className="label">قیمت خرید هر اتریوم ({currencyLabel(baseCurrency)}) — فقط Cost Basis افتتاحیه</label>
                       <AmountInput
                         type="text"
                         inputMode="decimal"
@@ -493,7 +493,7 @@ export default function SetupWizardPage() {
                       />
                     </div>
                     <div>
-                      <label className="label">قیمت خرید هر گرم ({baseCurrency})</label>
+                      <label className="label">قیمت خرید هر گرم ({currencyLabel(baseCurrency)})</label>
                       <AmountInput
                         type="text"
                         inputMode="decimal"
@@ -563,7 +563,7 @@ export default function SetupWizardPage() {
 
                   {D(previewData.ethQty).gt(0) && (
                     <div className="flex justify-between py-2">
-                      <span>بدهکار: کیف رمزارز ({previewData.ethQty} ETH)</span>
+                      <span>بدهکار: کیف رمزارز ({formatQty(previewData.ethQty, 8)} ETH)</span>
                       <span className="num font-bold" dir="ltr">
                         {formatMoney(previewData.ethVal, "USD")}
                       </span>
@@ -572,7 +572,7 @@ export default function SetupWizardPage() {
 
                   {D(previewData.goldQty).gt(0) && (
                     <div className="flex justify-between py-2">
-                      <span>بدهکار: طلای ۱۸ عیار ({previewData.goldQty} گرم)</span>
+                      <span>بدهکار: طلای ۱۸ عیار ({formatQty(previewData.goldQty, 2)} گرم)</span>
                       <span className="num font-bold" dir="ltr">
                         {formatMoney(previewData.goldVal, "USD")}
                       </span>

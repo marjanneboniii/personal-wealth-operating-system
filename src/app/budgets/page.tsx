@@ -8,7 +8,7 @@ import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import BudgetForm from "@/components/forms/BudgetForm";
 import { D } from "@/domain/decimal";
-import { formatDualDate, formatMoney } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +86,7 @@ export default async function BudgetsPage() {
                     <span className="num" dir="ltr" style={{ color: over ? "var(--negative)" : "var(--positive)" }}>
                       {over
                         ? `${formatMoney(D(b.remainingBase).abs().toString())} بیشتر از سقف`
-                        : `${formatMoney(b.remainingBase)} مانده · ${b.usage.toFixed(0)}٪ مصرف شده`}
+                        : `${formatMoney(b.remainingBase)} مانده · ${formatPct(b.usage, 0)} مصرف شده`}
                     </span>
                   </div>
                 </li>

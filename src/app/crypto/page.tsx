@@ -5,7 +5,7 @@ import { getPortfolioValuation } from "@/features/portfolio/service";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, formatMoney, formatPct, formatQty } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -104,7 +104,7 @@ export default async function CryptoPage() {
                           <span className="font-medium">{wallet}</span>
                           <span className="flex shrink-0 items-baseline gap-2">
                             <span className="num muted text-[10.5px]" dir="ltr">
-                              {share.toFixed(1)}٪
+                              {formatPct(share, 1)}
                             </span>
                             <span className="num font-bold" dir="ltr">
                               {formatMoney(value)}

@@ -130,7 +130,7 @@ export default async function PortfolioPage() {
                         </td>
                         <td className="num text-[11.5px]">{formatDualDate(l.openedAt)}</td>
                         <td className="td-num" dir="ltr">
-                          {formatQty(l.qtyRemaining, 8, "en")}
+                          {formatQty(l.qtyRemaining, 8)}
                         </td>
                         <td className="td-num" dir="ltr">
                           {formatMoney(l.unitCostBase)}

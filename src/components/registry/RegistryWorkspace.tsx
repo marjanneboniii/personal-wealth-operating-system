@@ -3,6 +3,7 @@ import { useActionState, useState } from "react";
 import { saveCommodityAction, updateCommodityItemAction, updateCommodityPriceAction, type RegistryResult } from "@/app/actions/registry";
 import { PreviewCard } from "@/components/ui/SmartPreview";
 import AmountInput from "@/components/ui/AmountInput";
+import { formatMoney } from "@/lib/format";
 import VehicleModule from "@/components/registry/vehicle/VehicleModule";
 import RealEstateModule from "@/components/registry/realestate/RealEstateModule";
 const today = new Date().toISOString().slice(0, 10);
@@ -183,7 +184,7 @@ export default function RegistryWorkspace({
             {prices.slice(0, 8).map((x: any) => (
               <div key={x.id} className="border-t pt-2" style={{ borderColor: "var(--border)" }}>
                 <span className="text-xs">
-                  <b>{x.item}</b> · {Number(x.unitPrice).toLocaleString("fa-IR")} تومان
+                  <b>{x.item}</b> · {formatMoney(x.unitPrice, "IRT")}
                 </span>
                 <InlineEdit price={x} />
               </div>

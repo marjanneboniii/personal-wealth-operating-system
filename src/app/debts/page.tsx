@@ -5,7 +5,7 @@ import { listDebts } from "@/features/planning/service";
 import { EmptyState, Card, Metric, PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
 import DebtForm from "@/components/forms/DebtForm";
 import Icon from "@/components/ui/Icon";
-import { formatDualDate, formatMoney, todayIso } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct, formatQty, todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -106,7 +106,7 @@ export default async function DebtsPage() {
                         {late && <span className="badge badge-neg">قسط معوق</span>}
                       </p>
                       <p className="muted mt-1 text-[11.5px]">
-                        {d.creditor} · شروع {formatDualDate(d.startDate)} · نرخ سود <span className="num" dir="ltr">{Number(d.interestRate)}٪</span>
+                        {d.creditor} · شروع {formatDualDate(d.startDate)} · نرخ سود <span className="num" dir="ltr">{formatQty(d.interestRate, 2)}٪</span>
                       </p>
                     </div>
                     <div className="text-left">
@@ -130,7 +130,7 @@ export default async function DebtsPage() {
                           قسط پرداخت شده
                         </span>
                         <span className="num" dir="ltr">
-                          {progress.toFixed(0)}٪
+                          {formatPct(progress, 0)}
                         </span>
                       </div>
                       <Progress value={progress} color={settled ? "var(--positive)" : "var(--brand)"} />

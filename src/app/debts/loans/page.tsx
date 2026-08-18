@@ -5,7 +5,7 @@ import { listDebts } from "@/features/planning/service";
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { D } from "@/domain/decimal";
-import { formatDualDate, formatMoney, todayIso } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct, formatQty, todayIso } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +97,7 @@ export default async function LoansPage() {
                         <p className="muted mt-1 text-[11.5px]">
                           {d.creditor} · شروع {formatDualDate(d.startDate)} · نرخ سود{" "}
                           <span className="num" dir="ltr">
-                            {Number(d.interestRate)}٪
+                            {formatQty(d.interestRate, 2)}٪
                           </span>
                         </p>
                       </div>
@@ -122,7 +122,7 @@ export default async function LoansPage() {
                             قسط پرداخت شده
                           </span>
                           <span className="num" dir="ltr">
-                            {progress.toFixed(0)}٪
+                            {formatPct(progress, 0)}
                           </span>
                         </div>
                         <Progress value={progress} color={isSettled ? "var(--positive)" : "var(--brand)"} />

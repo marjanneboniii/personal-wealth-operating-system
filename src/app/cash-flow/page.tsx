@@ -7,7 +7,7 @@ import { MISC_PARENT_CODE } from "@/features/categories/catalog";
 import { Metric, PageHeader, Section, SectionLink, EmptyState } from "@/components/ui/Card";
 import { BarsChart } from "@/components/charts/Charts";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, toJalali } from "@/lib/format";
+import { formatMoney, formatPct, toJalali } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +40,7 @@ function FlowTable({
                   <span className="min-w-0 truncate font-medium">{r.name}</span>
                   <span className="flex shrink-0 items-baseline gap-2">
                     <span className="num muted text-[10.5px]" dir="ltr">
-                      {share.toFixed(1)}٪
+                      {formatPct(share, 1)}
                     </span>
                     <span className="num font-bold" dir="ltr">
                       {formatMoney(r.total)}
@@ -101,7 +101,7 @@ function CategoryBreakdown({ rows }: { rows: CategoryFlowRow[] }) {
                 <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
                   <span className="min-w-0 truncate font-semibold">{g.name}</span>
                   <span className="flex shrink-0 items-baseline gap-2">
-                    <span className="num muted text-[10.5px]" dir="ltr">{share.toFixed(1)}٪</span>
+                    <span className="num muted text-[10.5px]" dir="ltr">{formatPct(share, 1)}</span>
                     <span className="num font-bold" dir="ltr">{formatMoney(g.total.toString())}</span>
                   </span>
                 </div>
@@ -163,7 +163,7 @@ export default async function CashFlowPage() {
           label="خالص این ماه"
           value={`${netMonth.gte(0) ? "+" : "−"}${formatMoney(netMonth.abs().toString())}`}
           tone={netMonth.gte(0) ? "up" : "down"}
-          hint={savingsRate != null ? `${savingsRate}٪ نرخ پس‌انداز` : undefined}
+          hint={savingsRate != null ? `${formatPct(savingsRate, 0)} نرخ پس‌انداز` : undefined}
         />
         <Metric
           label="خالص ۱۲ ماه"

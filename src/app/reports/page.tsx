@@ -13,7 +13,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatDualDate, formatMoney, jalaliMonthKey, jalaliMonthLabel } from "@/lib/format";
+import { currencyLabel, formatDualDate, formatMoney, formatPct, jalaliMonthKey, jalaliMonthLabel } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -68,7 +68,7 @@ export default async function ReportsPage() {
         <Metric label="ارزش خالص" value={formatMoney(nw.netWorth)} hint={formatMoney(nw.netWorthToman, "IRT")} />
         <Metric label="کل درآمد ثبت‌شده" value={formatMoney(totalIncome.toString())} tone="up" />
         <Metric label="کل هزینه ثبت‌شده" value={formatMoney(totalExpense.toString())} tone="down" />
-        <Metric label="نرخ پس‌انداز" value={`${savingsRate}٪`} tone={Number(savingsRate) >= 0 ? "up" : "down"} />
+        <Metric label="نرخ پس‌انداز" value={`${formatPct(savingsRate, 1)}`} tone={Number(savingsRate) >= 0 ? "up" : "down"} />
       </section>
 
       {/* Monthly report — printable */}
@@ -119,7 +119,7 @@ export default async function ReportsPage() {
                         {formatMoney(D(m.net).abs().toString())}
                       </td>
                       <td className="td-num hidden sm:table-cell num" dir="ltr" style={{ color: diff && diff.gt(0) ? "var(--negative)" : "var(--positive)" }}>
-                        {diff ? `${diff.gte(0) ? "+" : "−"}${diff.abs().toFixed(1)}٪` : "—"}
+                        {diff ? `${diff.gte(0) ? "+" : "−"}${formatPct(diff.abs().toString(), 1)}` : "—"}
                       </td>
                     </tr>
                   );

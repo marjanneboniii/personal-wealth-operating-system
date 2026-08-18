@@ -667,7 +667,7 @@ export default function TransactionForm({
               placeholder="0"
               style={{ touchAction: "manipulation" }}
             />
-            {fee && effectiveRate && <p className="muted mt-1 text-[10px]">کارمزد دلاری ≈ {D(fee).div(effectiveRate).toFixed(2)} $</p>}
+            {fee && effectiveRate && <p className="muted mt-1 text-[10px]">کارمزد دلاری ≈ {formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD")}</p>}
           </div>
           <div className="flex items-end">
             <div className="muted text-[11px] leading-5">

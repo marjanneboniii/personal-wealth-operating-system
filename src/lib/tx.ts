@@ -1,5 +1,6 @@
 import { ENTRY_TYPE_LABELS, type EntryType } from "@/domain/accounting";
 import type { LedgerRow } from "@/features/ledger/queries";
+import { formatQty } from "@/lib/format";
 
 /**
  * Human rendering of a ledger entry.
@@ -36,7 +37,7 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
   const to = positives[0]?.account ?? null;
 
   const qtyLeg = positives[0] ?? e.lines[0];
-  const qtyLabel = qtyLeg && qtyLeg.symbol && qtyLeg.symbol !== "USD" && qtyLeg.symbol !== "IRT" ? `${Number(qtyLeg.quantity).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${qtyLeg.symbol}` : null;
+  const qtyLabel = qtyLeg && qtyLeg.symbol && qtyLeg.symbol !== "USD" && qtyLeg.symbol !== "IRT" ? `${formatQty(qtyLeg.quantity, qtyLeg.decimals ?? 8)} ${qtyLeg.symbol}` : null;
 
   return {
     amount: amount.toFixed(2),
