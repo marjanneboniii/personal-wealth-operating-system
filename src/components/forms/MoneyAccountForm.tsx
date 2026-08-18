@@ -101,7 +101,7 @@ export default function MoneyAccountForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1">
-          <span className="label">ارز حساب</span>
+          <span className="label">واحد حساب (Denomination)</span>
           <select className="field" value={assetId} onChange={(e) => setAssetId(e.target.value)}>
             <option value="" disabled>
               انتخاب کنید…
@@ -113,8 +113,9 @@ export default function MoneyAccountForm({
             ))}
           </select>
           <span className="muted block text-[10px] leading-5">
-            فقط تومان، دلار آمریکا یا تتر؛ ملک و سایر دارایی‌ها در این بخش نمایش داده نمی‌شوند.
+            واحدی که موجودی این حساب در آن نگهداری می‌شود. ارز دفترکل برای همه حساب‌ها USD است و قابل تغییر نیست.
           </span>
+          <span className="chip mt-1 inline-block">ارز دفترکل: USD (فقط خواندنی)</span>
         </label>
         <label className="space-y-1">
           <span className="label">موجودی اولیه به واحد ارز انتخاب‌شده</span>

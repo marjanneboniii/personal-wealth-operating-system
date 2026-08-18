@@ -36,6 +36,7 @@ import {
   postEntry,
   recordBuy,
   recordExpense,
+  recordFx,
   recordIncome,
   recordSell,
   recordTransfer,
@@ -627,24 +628,56 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
         if (!isUuid(input.counterAccountId)) throw new Error("حساب مقابل را انتخاب کنید");
         const assetId = await accountAsset(input.primaryAccountId);
-        const price = await latestPrice(assetId);
-        const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : amount.div(price).toString();
-        entry = await recordTransfer(
-          {
-            entryDate: input.entryDate,
-            description: input.description,
-            fromAccountId: input.primaryAccountId,
-            toAccountId: input.counterAccountId,
-            assetId,
-            quantity: qty,
-            unitPrice: price,
-            feeBase: fee,
-            feeAccountId: (await tx.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id,
-            userId: authUser?.id ?? undefined,
-            idempotencyKey,
-          },
-          tx,
-        );
+        const destAssetId = await accountAsset(input.counterAccountId);
+        if (assetId !== destAssetId) {
+          const [fromAst] = await tx.select({ symbol: assets.symbol }).from(assets).where(eq(assets.id, assetId)).limit(1);
+          const [toAst] = await tx.select({ symbol: assets.symbol }).from(assets).where(eq(assets.id, destAssetId)).limit(1);
+          const { resolveFxBookLegs } = await import("@/features/ledger/service");
+          const legs = resolveFxBookLegs({
+            fromSymbol: fromAst?.symbol ?? "",
+            toSymbol: toAst?.symbol ?? "",
+            rateIrtPerUsd: serverRate.toString(),
+            irtAmount: irtAmountStr,
+          });
+          entry = await recordFx(
+            {
+              entryDate: input.entryDate,
+              description: input.description,
+              fromAccountId: input.primaryAccountId,
+              toAccountId: input.counterAccountId,
+              fromAssetId: assetId,
+              toAssetId: destAssetId,
+              fromQuantity: legs.fromQuantity,
+              toQuantity: legs.toQuantity,
+              bookValue: legs.bookValue,
+              rateIrtPerUsd: serverRate.toString(),
+              feeBase: fee,
+              feeAccountId: (await tx.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id,
+              userId: authUser?.id ?? undefined,
+              idempotencyKey,
+            },
+            tx,
+          );
+        } else {
+          const price = await latestPrice(assetId);
+          const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : amount.div(price).toString();
+          entry = await recordTransfer(
+            {
+              entryDate: input.entryDate,
+              description: input.description,
+              fromAccountId: input.primaryAccountId,
+              toAccountId: input.counterAccountId,
+              assetId,
+              quantity: qty,
+              unitPrice: price,
+              feeBase: fee,
+              feeAccountId: (await tx.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id,
+              userId: authUser?.id ?? undefined,
+              idempotencyKey,
+            },
+            tx,
+          );
+        }
       } else {
         if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
         if (!isUuid(input.counterAccountId)) throw new Error("حساب مقابل را انتخاب کنید");
