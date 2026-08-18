@@ -120,6 +120,10 @@ const STATEMENTS = [
     wallet_id uuid REFERENCES wallets(id),
     is_active boolean NOT NULL DEFAULT true
   );`,
+  // Parent/header Chart-of-Accounts rows (1000, 2000, 3000, 4000, 5000) carry
+  // no instrument or wallet, so asset_id/wallet_id must remain nullable.
+  `ALTER TABLE accounts ALTER COLUMN asset_id DROP NOT NULL;`,
+  `ALTER TABLE accounts ALTER COLUMN wallet_id DROP NOT NULL;`,
   `CREATE TABLE IF NOT EXISTS journal_entries (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),

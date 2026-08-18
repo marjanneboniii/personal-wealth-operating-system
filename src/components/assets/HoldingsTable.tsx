@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { D } from "@/domain/decimal";
-import { formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, formatMoney, formatQty } from "@/lib/format";
 import type { AssetValuation } from "@/features/portfolio/types";
 
 /**
@@ -42,7 +42,7 @@ export default function HoldingsTable({
                     )}
                     <div className="min-w-0">
                       <div className="text-[13px] font-bold tracking-tight" dir="ltr">
-                        {a.symbol}
+                        {currencyLabel(a.symbol)}
                       </div>
                       <div className="muted truncate text-[10.5px]">{a.name}</div>
                       <div className="mt-0.5 text-[9px]">

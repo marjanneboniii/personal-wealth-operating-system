@@ -102,7 +102,7 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
               />
             </div>
             <div>
-              <label className="label">اصل بدهی به تومان (IRT)</label>
+              <label className="label">اصل بدهی به تومان</label>
               <AmountInput
                 value={principalIrt}
                 onChange={(event) => setPrincipalIrt(event.target.value.replace(/[^0-9]/g, ""))}

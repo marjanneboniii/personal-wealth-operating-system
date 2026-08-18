@@ -152,7 +152,7 @@ export default async function OverviewDashboard() {
               <p className="muted mt-2 text-[12.5px]">
                 ≈ <span className="num">{formatMoney(nw.netWorthToman, "IRT")}</span>
                 <span className="mx-1.5 opacity-50">·</span>
-                نرخ مرجع <span className="num" dir="ltr">{formatMoney(rate, "IRT")}</span> ≈ $1
+                نرخ مرجع <span className="num" dir="ltr">{formatMoney(rate, "IRT")}</span> ≈ ۱ دلار
               </p>
             )}
           </div>

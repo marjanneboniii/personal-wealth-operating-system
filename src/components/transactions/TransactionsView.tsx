@@ -7,7 +7,7 @@ import RowAction from "@/components/RowAction";
 import { markManyReviewedAction, markReviewedAction } from "@/app/actions";
 import { humanizeEntry, typeBadgeTone } from "@/lib/tx";
 import type { TxRow } from "@/features/ledger/queries";
-import { formatJalaliIso, formatMoney, formatQty, formatShortDate } from "@/lib/format";
+import { currencyLabel, formatJalaliIso, formatMoney, formatQty, formatShortDate } from "@/lib/format";
 
 export type ClientTxRow = TxRow & {
   fx: { irtAmount: string; usdAmount: string; fxRate: string; rateSource: string; rateDate: string } | null;
@@ -396,7 +396,7 @@ export default function TransactionsView({
                                   </span>
                                   {l.quantity && Math.abs(Number(l.quantity)) > 0 && (
                                     <span className="muted num mr-1 text-[10px]" dir="ltr">
-                                      {formatQty(l.quantity, l.decimals)} {l.symbol}
+                                      {formatQty(l.quantity, l.decimals)} {currencyLabel(l.symbol)}
                                     </span>
                                   )}
                                 </td>

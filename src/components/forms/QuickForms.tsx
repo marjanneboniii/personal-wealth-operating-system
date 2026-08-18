@@ -48,7 +48,7 @@ function PlanningPreview({ title, description, irtAmount, rate, rateDate, rateSo
         <div className="soft rounded-xl p-2">
           <div className="muted text-[10px]">مبلغ به تومان و معادل دلاری (نرخ لحظه‌ای)</div>
           <div className="num font-bold" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</div>
-          <div className="num" dir="ltr" style={{ color: "var(--brand)" }}>{usd ? formatMoney(usd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {rate ? formatMoney(rate, "IRT") + " ≈ $1" : "ثبت نشده"}</span></div>
+          <div className="num" dir="ltr" style={{ color: "var(--brand)" }}>{usd ? formatMoney(usd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {rate ? formatMoney(rate, "IRT") + " ≈ ۱ دلار" : "ثبت نشده"}</span></div>
           {rateDate && <div className="muted text-[10px]">تاریخ نرخ: <span dir="auto" className="num">{rateDate}</span> · منبع: {rateSource ?? "—"}</div>}
         </div>
         <div className="flex flex-wrap gap-3">
@@ -86,7 +86,7 @@ export function GoalForm({ accounts, initialRate, initialRateDate, initialRateSo
           <input name="name" required className="field" placeholder="مثلاً خرید خانه" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
-          <label className="label">مبلغ هدف به تومان (IRT) — مرجع</label>
+          <label className="label">مبلغ هدف به تومان — مرجع</label>
           <AmountInput
             value={irtAmount}
             onChange={(e) => setIrtAmount(e.target.value.replace(/[^0-9]/g, ""))}
@@ -162,7 +162,7 @@ export function EventForm({ initialRate, initialRateDate, initialRateSource }: {
           <input name="name" required className="field" placeholder="سفر، مراسم، هدیه…" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
-          <label className="label">بودجه به تومان (IRT)</label>
+          <label className="label">بودجه به تومان</label>
           <AmountInput value={irtAmount} onChange={(e) => setIrtAmount(e.target.value.replace(/[^0-9]/g, ""))} placeholder="مثلاً 30000000" className="field num" dir="ltr" unit="toman" />
           <input type="hidden" name="budgetBase" value={irtAmount} />
           <div className="mt-2"><SmartAmountPreview irtAmount={irtAmount} rate={effectiveRate} rateDate={effectiveDate} rateSource={effectiveSource} /></div>
@@ -220,7 +220,7 @@ export function PlannedForm({ accounts, initialRate, initialRateDate, initialRat
           <input name="title" required className="field" placeholder="مثلاً شارژ صندوق اضطراری" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
         <div>
-          <label className="label">مبلغ به تومان (IRT)</label>
+          <label className="label">مبلغ به تومان</label>
           <AmountInput value={irtAmount} onChange={(e) => setIrtAmount(e.target.value.replace(/[^0-9]/g, ""))} placeholder="مثلاً 4000000" className="field num" dir="ltr" unit="toman" />
           <input type="hidden" name="amountBase" value={irtAmount} />
           <div className="mt-2"><SmartAmountPreview irtAmount={irtAmount} rate={effectiveRate} rateDate={effectiveDate} rateSource={effectiveSource} /></div>

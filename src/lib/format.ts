@@ -46,29 +46,41 @@ export function formatQty(
   return digits === "en" ? out.replace(/٬/g, ",").replace(/٫/g, ".") : toFaDigits(out);
 }
 
+/**
+ * Persian display label for currency/asset codes. Money rendered for the user
+ * NEVER shows a Latin ticker or a currency sign ($ / € / ₮) — it uses the
+ * Persian word instead. Unknown codes (e.g. crypto tickers) pass through.
+ */
+export const CURRENCY_LABELS: Record<string, string> = {
+  USD: "دلار",
+  USDT: "تتر",
+  IRT: "تومان",
+  IRR: "ریال",
+  EUR: "یورو",
+};
+
+export function currencyLabel(currency: string | null | undefined): string {
+  if (!currency) return "";
+  return CURRENCY_LABELS[currency] ?? currency;
+}
+
 export function formatMoney(
   value: string | number,
   currency = "USD",
-  digits?: DigitStyle,
+  _digits?: DigitStyle,
 ): string {
-  // PART 10 & 11: Persian fiat uses Persian digits; foreign fiat & crypto use Latin LTR digits.
-  const isPersianFiat = currency === "IRT" || currency === "IRR" || currency === "تومان" || currency === "ریال";
-  const resolvedDigits = digits ?? (isPersianFiat ? "fa" : "en");
-  const symbols: Record<string, string> = {
-    USD: "$",
-    USDT: "₮",
-    IRT: "تومان",
-    IRR: "ریال",
-    EUR: "€",
-  };
-  const dp = isPersianFiat ? 0 : 2;
-  const n = formatNumber(value, { decimals: dp, digits: resolvedDigits });
-  const sym = symbols[currency] ?? currency;
-  if (isPersianFiat) {
-    return `${n} ${sym}`;
-  }
-  const isSymbolPrefix = sym === "$" || sym === "€" || sym === "£" || sym === "₮";
-  return isSymbolPrefix ? `${sym}${n}` : `${n} ${sym}`;
+  const label = currencyLabel(currency);
+  const isZeroDecimals = label === "تومان" || label === "ریال";
+  const dp = isZeroDecimals ? 0 : 2;
+  // All financial amounts are rendered for the user in Persian digits with a
+  // Persian thousand separator. Trailing zeros are trimmed so whole amounts
+  // read naturally (۱۵٬۹۵۷ دلار instead of ۱۵٬۹۵۷٫۰۰ دلار).
+  const raw = D(value ?? 0)
+    .toFixed(dp)
+    .replace(/(\.\d*?)0+$/, "$1")
+    .replace(/\.$/, "");
+  const n = toFaDigits(groupThousands(raw));
+  return `${n} ${label}`;
 }
 
 export function formatPercent(value: string | number, digits: DigitStyle = "fa"): string {
@@ -247,37 +259,37 @@ export function usdToIrt(usdAmount: string | number, usdToIrtRate: string | numb
   return D(usdAmount).mul(usdToIrtRate).toFixed(0);
 }
 
-export function formatDualMoneyFromIrt(irtAmount: string | number, usdToIrtRate: string | number | null, digits: DigitStyle = "fa"): { irt: string; usd: string; rateLabel: string } {
+export function formatDualMoneyFromIrt(irtAmount: string | number, usdToIrtRate: string | number | null, _digits: DigitStyle = "fa"): { irt: string; usd: string; rateLabel: string } {
   const irtStr = D(irtAmount).toFixed(0);
   if (!usdToIrtRate || D(usdToIrtRate).lte(0)) {
     return {
-      irt: formatMoney(irtStr, "IRT", digits),
+      irt: formatMoney(irtStr, "IRT"),
       usd: "—",
       rateLabel: "نرخ ثبت نشده",
     };
   }
   const usd = irtToUsd(irtStr, usdToIrtRate);
   return {
-    irt: formatMoney(irtStr, "IRT", digits),
-    usd: formatMoney(usd, "USD", "en"),
-    rateLabel: `نرخ: ${formatMoney(usdToIrtRate, "IRT", digits)} ≈ $1`,
+    irt: formatMoney(irtStr, "IRT"),
+    usd: formatMoney(usd, "USD"),
+    rateLabel: `نرخ: ${formatMoney(usdToIrtRate, "IRT")} ≈ ۱ دلار`,
   };
 }
 
-export function formatDualMoneyFromUsd(usdAmount: string | number, usdToIrtRate: string | number | null, digits: DigitStyle = "fa"): { irt: string; usd: string; rateLabel: string } {
+export function formatDualMoneyFromUsd(usdAmount: string | number, usdToIrtRate: string | number | null, _digits: DigitStyle = "fa"): { irt: string; usd: string; rateLabel: string } {
   const usdStr = D(usdAmount).toFixed(2);
   if (!usdToIrtRate || D(usdToIrtRate).lte(0)) {
     return {
       irt: "—",
-      usd: formatMoney(usdStr, "USD", "en"),
+      usd: formatMoney(usdStr, "USD"),
       rateLabel: "نرخ ثبت نشده",
     };
   }
   const irt = usdToIrt(usdStr, usdToIrtRate);
   return {
-    irt: formatMoney(irt, "IRT", digits),
-    usd: formatMoney(usdStr, "USD", "en"),
-    rateLabel: `نرخ: ${formatMoney(usdToIrtRate, "IRT", digits)} ≈ $1`,
+    irt: formatMoney(irt, "IRT"),
+    usd: formatMoney(usdStr, "USD"),
+    rateLabel: `نرخ: ${formatMoney(usdToIrtRate, "IRT")} ≈ ۱ دلار`,
   };
 }
 

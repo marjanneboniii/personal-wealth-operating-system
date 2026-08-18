@@ -11,7 +11,7 @@ import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import VehiclePortfolioSection from "@/components/portfolio/VehiclePortfolioSection";
 import { D } from "@/domain/decimal";
-import { formatDualDate, formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, formatDualDate, formatMoney, formatQty } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -126,7 +126,7 @@ export default async function PortfolioPage() {
                     {lots.map((l) => (
                       <tr key={l.id}>
                         <td className="font-bold" dir="ltr">
-                          {l.symbol}
+                          {currencyLabel(l.symbol)}
                         </td>
                         <td className="num text-[11.5px]">{formatDualDate(l.openedAt)}</td>
                         <td className="td-num" dir="ltr">
@@ -148,7 +148,7 @@ export default async function PortfolioPage() {
               <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
                 {pnl.bySymbol.map((p) => (
                   <span key={p.symbol} className="num text-[11.5px]" dir="ltr" style={{ color: D(p.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
-                    {p.symbol}: {D(p.pnl).gte(0) ? "+" : "−"}
+                    {currencyLabel(p.symbol)}: {D(p.pnl).gte(0) ? "+" : "−"}
                     {formatMoney(D(p.pnl).abs().toString())}
                   </span>
                 ))}

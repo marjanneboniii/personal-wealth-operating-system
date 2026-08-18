@@ -10,7 +10,7 @@ import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import { ACCOUNT_TYPE_LABELS, ENTRY_TYPE_LABELS, type AccountType, type EntryType } from "@/domain/accounting";
 import { D } from "@/domain/decimal";
-import { formatDualDate, formatJalaliIso, formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, formatDualDate, formatJalaliIso, formatMoney, formatQty } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { eq, inArray } from "drizzle-orm";
 import { assets, debts, entryFxSnapshots, installments, realEstateProperties } from "@/db/schema";
@@ -135,7 +135,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                       <span className="badge badge-neutral">{ACCOUNT_TYPE_LABELS[b.type as AccountType]}</span>
                     </td>
                     <td className="td-num" dir="ltr">
-                      {formatQty(b.quantity, b.assetDecimals)} {b.symbol ?? ""}
+                      {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}
                     </td>
                     <td className="td-num font-semibold" dir="ltr">
                       {v > 0 ? formatMoney(v) : "—"}
@@ -225,7 +225,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                           <tr key={i}>
                             <td className="pr-3 font-medium">{l.account}</td>
                             <td className="td-num" dir="ltr">
-                              {formatQty(l.quantity, l.decimals, "en")} {l.symbol}
+                              {formatQty(l.quantity, l.decimals, "en")} {currencyLabel(l.symbol)}
                             </td>
                             <td className="td-num font-semibold" dir="ltr" style={{ color: v > 0 ? "var(--positive)" : undefined }}>
                               {v > 0 ? formatMoney(v) : ""}

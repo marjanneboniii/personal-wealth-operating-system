@@ -13,7 +13,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import { D, Decimal } from "@/domain/decimal";
-import { formatDualDate, formatMoney, jalaliMonthKey, jalaliMonthLabel } from "@/lib/format";
+import { currencyLabel, formatDualDate, formatMoney, jalaliMonthKey, jalaliMonthLabel } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -156,7 +156,7 @@ export default async function ReportsPage() {
             {pnl.bySymbol.map((s) => (
               <li key={s.symbol} className="flex items-center justify-between py-2 text-[12.5px]">
                 <span className="font-bold" dir="ltr">
-                  {s.symbol}
+                  {currencyLabel(s.symbol)}
                 </span>
                 <span className="num" dir="ltr" style={{ color: D(s.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
                   {D(s.pnl).gte(0) ? "+" : "−"}
