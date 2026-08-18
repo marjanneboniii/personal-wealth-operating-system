@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { createBudgetAction, type ActionResult } from "@/app/actions";
 import SubmitButton from "@/components/ui/SubmitButton";
 import DualDateInput from "@/components/ui/DualDateInput";
+import AmountInput from "@/components/ui/AmountInput";
 
 export default function BudgetForm({ accounts }: { accounts: { id: string; code: string; name: string }[] }) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(createBudgetAction, null);
@@ -26,7 +27,7 @@ export default function BudgetForm({ accounts }: { accounts: { id: string; code:
       </div>
       <div>
         <label className="label" htmlFor="b-amount">سقف (ارز پایه — دلار)</label>
-        <input id="b-amount" name="amountBase" className="field num" dir="ltr" inputMode="decimal" placeholder="500" required />
+        <AmountInput id="b-amount" name="amountBase" className="field num" dir="ltr" inputMode="decimal" placeholder="500" unit="usd" required />
       </div>
       <DualDateInput name="periodStart" label="شروع دوره" required />
       <DualDateInput name="periodEnd" label="پایان دوره" required />

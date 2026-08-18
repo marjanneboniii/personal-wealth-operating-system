@@ -11,6 +11,7 @@ import {
 import { formatMoney, getDualDate } from "@/lib/format";
 import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
+import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
 import DebtInstallmentExplorer, { type DebtOption } from "./DebtInstallmentExplorer";
 import { D } from "@/domain/decimal";
@@ -429,7 +430,7 @@ export default function TransactionForm({
       <div className="card space-y-3 p-4">
         <div>
           <label className="label">مبلغ به تومان (IRT) — مرجع برنامه‌ریزی</label>
-          <input
+          <AmountInput
             name="irtAmountInput"
             inputMode="numeric"
             required
@@ -438,6 +439,7 @@ export default function TransactionForm({
             placeholder="مثال: 25000000"
             className="field num !text-2xl !font-bold"
             dir="ltr"
+            unit="toman"
             style={{ touchAction: "manipulation" }}
           />
           <div className="mt-2">
@@ -646,13 +648,14 @@ export default function TransactionForm({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label">کارمزد (اختیاری) — به تومان</label>
-            <input
+            <AmountInput
               name="fee"
               value={fee}
               onChange={(e) => setFee(e.target.value.replace(/[^0-9]/g, ""))}
               inputMode="numeric"
               className="field num"
               dir="ltr"
+              unit="toman"
               placeholder="0"
               style={{ touchAction: "manipulation" }}
             />

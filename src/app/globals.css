@@ -311,6 +311,15 @@ input[type="radio"] {
   color: var(--text-3);
 }
 
+/* Real-time "amount in words" hint — shared by every money input (AmountInput). */
+.amount-words {
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  line-height: 1.55;
+  color: var(--text-3);
+  font-weight: 400;
+}
+
 .sub {
   color: var(--text-2);
 }

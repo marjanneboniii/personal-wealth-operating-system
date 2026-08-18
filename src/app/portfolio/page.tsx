@@ -11,7 +11,7 @@ import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import VehiclePortfolioSection from "@/components/portfolio/VehiclePortfolioSection";
 import { D } from "@/domain/decimal";
-import { formatJalaliIso, formatMoney, formatQty } from "@/lib/format";
+import { formatDualDate, formatMoney, formatQty } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -128,7 +128,7 @@ export default async function PortfolioPage() {
                         <td className="font-bold" dir="ltr">
                           {l.symbol}
                         </td>
-                        <td className="num text-[11.5px]">{formatJalaliIso(l.openedAt)}</td>
+                        <td className="num text-[11.5px]">{formatDualDate(l.openedAt)}</td>
                         <td className="td-num" dir="ltr">
                           {formatQty(l.qtyRemaining, 8, "en")}
                         </td>

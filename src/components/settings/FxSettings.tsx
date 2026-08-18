@@ -5,7 +5,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { updateFxRateAction, type AuthResult } from "@/lib/auth-actions";
-import { formatMoney, formatJalaliIso } from "@/lib/format";
+import { formatMoney, formatJalaliIso, formatDualDate } from "@/lib/format";
 import Icon from "@/components/ui/Icon";
 
 type Props = {
@@ -71,7 +71,7 @@ export default function FxSettings({ currentRate, lastUpdatedAt, nextUpdateAt, c
               {lastUpdatedAt ? `${formatJalaliIso(lastUpdatedAt.slice(0, 10))} — ${new Date(lastUpdatedAt).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" })}` : "هنوز به‌روزرسانی نشده"}
             </p>
             {nextUpdateAt && !localCanUpdate && (
-              <p className="muted text-[11px]">به‌روزرسانی بعدی: {countdown ? `حدود ${countdown} دیگر` : formatJalaliIso(nextUpdateAt.slice(0, 10))}</p>
+              <p className="muted text-[11px]">به‌روزرسانی بعدی: {countdown ? `حدود ${countdown} دیگر` : formatDualDate(nextUpdateAt.slice(0, 10))}</p>
             )}
             {localCanUpdate && <p className="pos text-[11px]">اکنون می‌توانید نرخ را به‌روزرسانی کنید.</p>}
           </div>

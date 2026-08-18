@@ -5,7 +5,7 @@ import { listDebts } from "@/features/planning/service";
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { D } from "@/domain/decimal";
-import { formatJalaliIso, formatMoney, todayIso } from "@/lib/format";
+import { formatDualDate, formatMoney, todayIso } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -95,7 +95,7 @@ export default async function LoansPage() {
                           {late && <span className="badge badge-neg">قسط معوق</span>}
                         </p>
                         <p className="muted mt-1 text-[11.5px]">
-                          {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود{" "}
+                          {d.creditor} · شروع {formatDualDate(d.startDate)} · نرخ سود{" "}
                           <span className="num" dir="ltr">
                             {Number(d.interestRate)}٪
                           </span>
@@ -133,7 +133,7 @@ export default async function LoansPage() {
                       <p className="text-[12px]" style={{ color: late ? "var(--negative)" : "var(--text-2)" }}>
                         {d.nextDue ? (
                           <>
-                            قسط بعدی: <b className="num">{formatMoney(d.nextDue.amountBase)}</b> · {formatJalaliIso(d.nextDue.dueDate)}
+                            قسط بعدی: <b className="num">{formatMoney(d.nextDue.amountBase)}</b> · {formatDualDate(d.nextDue.dueDate)}
                           </>
                         ) : isSettled ? (
                           "همه اقساط پرداخت شدند."

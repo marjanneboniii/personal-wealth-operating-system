@@ -7,7 +7,7 @@ import { listEvents, listFunds, listGoals, listObligations } from "@/features/pl
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { EventForm, GoalForm } from "@/components/forms/QuickForms";
-import { formatJalaliIso, formatMoney } from "@/lib/format";
+import { formatDualDate, formatMoney } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -93,7 +93,7 @@ export default async function GoalsPage() {
                       <span className="badge badge-neutral">
                         اولویت {g.priority === 1 ? "بالا" : g.priority === 2 ? "متوسط" : "پایین"}
                       </span>
-                      {g.targetDate && <span className="muted num text-[10.5px]">تا {formatJalaliIso(g.targetDate)}</span>}
+                      {g.targetDate && <span className="muted num text-[10.5px]">تا {formatDualDate(g.targetDate)}</span>}
                     </p>
                     <span className="num text-[13px]" dir="ltr">
                       <b className="text-[15px]">{formatMoney(g.savedBase)}</b> <span className="muted">از {formatMoney(g.targetBase)}</span>
@@ -176,7 +176,7 @@ export default async function GoalsPage() {
                           <span className="badge badge-info">{x.recurrence === "monthly" ? "ماهانه" : "سالانه"}</span>
                         )}
                       </p>
-                      <p className="muted num mt-0.5 text-[10.5px]">{formatJalaliIso(x.date)}</p>
+                      <p className="muted num mt-0.5 text-[10.5px]">{formatDualDate(x.date)}</p>
                     </div>
                     <span className="num shrink-0 text-[13px] font-bold" dir="ltr">
                       {formatMoney(x.amount)}

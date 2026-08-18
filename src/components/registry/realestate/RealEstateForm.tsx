@@ -7,6 +7,7 @@ import {
   saveRealEstateAction,
 } from "@/app/actions/realEstate";
 import JalaliDateInput from "@/components/ui/JalaliDateInput";
+import AmountInput from "@/components/ui/AmountInput";
 import { formatMoney, toFaDigits } from "@/lib/format";
 import type { City, Neighborhood, PropertyType } from "@/features/rwa/realEstate/types";
 import { Hint, Labeled, Result } from "./shared";
@@ -279,7 +280,7 @@ export default function RealEstateForm({
       <div className="grid gap-3 md:grid-cols-1 lg:grid-cols-2">
         <div className="space-y-3">
           <Labeled label="قیمت خرید (تومان)" required>
-            <input
+            <AmountInput
               className="field num"
               name="purchasePriceToman"
               inputMode="numeric"
@@ -287,6 +288,7 @@ export default function RealEstateForm({
               value={purchasePrice}
               onChange={(e) => setPurchasePrice(e.target.value)}
               placeholder="4500000000"
+              unit="toman"
               required
             />
           </Labeled>
@@ -321,7 +323,7 @@ export default function RealEstateForm({
 
         <div className="space-y-3">
           <Labeled label="ارزش فعلی (تومان)" required>
-            <input
+            <AmountInput
               className="field num"
               name="currentValueToman"
               inputMode="numeric"
@@ -329,6 +331,7 @@ export default function RealEstateForm({
               value={currentValue}
               onChange={(e) => setCurrentValue(e.target.value)}
               placeholder="7000000000"
+              unit="toman"
               required
             />
           </Labeled>

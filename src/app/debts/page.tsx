@@ -5,7 +5,7 @@ import { listDebts } from "@/features/planning/service";
 import { EmptyState, Card, Metric, PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
 import DebtForm from "@/components/forms/DebtForm";
 import Icon from "@/components/ui/Icon";
-import { formatJalaliIso, formatMoney, todayIso } from "@/lib/format";
+import { formatDualDate, formatMoney, todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +59,7 @@ export default async function DebtsPage() {
           hint={totalOutstanding === 0 ? "بدهی‌ای ندارید" : `${active.length} بدهی فعال`}
         />
         <Metric label="اقساط معوق" value={String(overdue.length)} tone={overdue.length ? "down" : "up"} />
-        <Metric label="قسط بعدی" value={nextPayment ? formatMoney(nextPayment.amountBase) : "—"} hint={nextPayment ? `${nextPayment.title} · ${formatJalaliIso(nextPayment.dueDate)}` : "قسطی در انتظار نیست"} />
+        <Metric label="قسط بعدی" value={nextPayment ? formatMoney(nextPayment.amountBase) : "—"} hint={nextPayment ? `${nextPayment.title} · ${formatDualDate(nextPayment.dueDate)}` : "قسطی در انتظار نیست"} />
         <Metric
           label="تسویه‌شده"
           value={String(debts.filter((d) => d.status === "settled").length)}
@@ -106,7 +106,7 @@ export default async function DebtsPage() {
                         {late && <span className="badge badge-neg">قسط معوق</span>}
                       </p>
                       <p className="muted mt-1 text-[11.5px]">
-                        {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود <span className="num" dir="ltr">{Number(d.interestRate)}٪</span>
+                        {d.creditor} · شروع {formatDualDate(d.startDate)} · نرخ سود <span className="num" dir="ltr">{Number(d.interestRate)}٪</span>
                       </p>
                     </div>
                     <div className="text-left">

@@ -13,7 +13,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import { D, Decimal } from "@/domain/decimal";
-import { formatJalaliIso, formatMoney, jalaliMonthKey, jalaliMonthLabel } from "@/lib/format";
+import { formatDualDate, formatMoney, jalaliMonthKey, jalaliMonthLabel } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -185,7 +185,7 @@ export default async function ReportsPage() {
                 <Progress value={d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0} color={d.status === "settled" ? "var(--positive)" : "var(--warning)"} />
                 <p className="muted num mt-1.5 text-[10.5px]" dir="ltr">
                   {d.paidCount} / {d.totalCount} قسط
-                  {d.nextDue && <span dir="rtl"> · قسط بعدی {formatJalaliIso(d.nextDue.dueDate)}</span>}
+                  {d.nextDue && <span dir="rtl"> · قسط بعدی {formatDualDate(d.nextDue.dueDate)}</span>}
                 </p>
               </li>
             ))}

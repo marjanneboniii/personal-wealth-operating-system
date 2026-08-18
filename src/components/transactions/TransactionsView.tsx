@@ -436,7 +436,7 @@ export default function TransactionsView({
                             <div className="flex justify-between gap-2">
                               <dt className="muted">تاریخ</dt>
                               <dd className="num text-left">
-                                {formatJalaliIso(e.entryDate)} <span className="muted text-[10px]">({e.entryDate})</span>
+                                {formatJalaliIso(e.entryDate)} <span className="muted text-[10px]" dir="ltr">({e.entryDate})</span>
                               </dd>
                             </div>
                             <div className="flex justify-between gap-2">

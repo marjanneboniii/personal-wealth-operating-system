@@ -13,7 +13,7 @@
 import Link from "next/link";
 import { Section } from "@/components/ui/Card";
 import { D } from "@/domain/decimal";
-import { formatJalaliIso, formatMoney, formatNumber, toFaDigits } from "@/lib/format";
+import { formatDualDate, formatMoney, formatNumber, toFaDigits } from "@/lib/format";
 import type { VehiclePortfolioSummary } from "@/features/rwa/vehicle/dto";
 
 function Signed({
@@ -158,7 +158,7 @@ export default function VehiclePortfolioSection({
                     <SignedPct value={v.roiToman} />
                   </td>
                   <td className="td-num num text-[11.5px]">
-                    {v.lastValuationDate ? formatJalaliIso(v.lastValuationDate) : <span className="muted">—</span>}
+                    {v.lastValuationDate ? formatDualDate(v.lastValuationDate) : <span className="muted">—</span>}
                   </td>
                 </tr>
               ))}
