@@ -8,7 +8,7 @@ import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import BudgetForm from "@/components/forms/BudgetForm";
 import { D } from "@/domain/decimal";
-import { formatJalaliIso, formatMoney } from "@/lib/format";
+import { formatDualDate, formatMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -81,7 +81,7 @@ export default async function BudgetsPage() {
                   </div>
                   <div className="muted mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                     <span className="num">
-                      {formatJalaliIso(b.periodStart)} ← {formatJalaliIso(b.periodEnd)}
+                      {formatDualDate(b.periodStart)} ← {formatDualDate(b.periodEnd)}
                     </span>
                     <span className="num" dir="ltr" style={{ color: over ? "var(--negative)" : "var(--positive)" }}>
                       {over

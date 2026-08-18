@@ -7,6 +7,7 @@ import { completeSetupAction, fetchSetupStateAction, type ActionResult } from "@
 import { getTranslations } from "@/i18n";
 import { D } from "@/domain/decimal";
 import { formatMoney } from "@/lib/format";
+import AmountInput from "@/components/ui/AmountInput";
 
 const t = getTranslations("fa").setup;
 
@@ -59,6 +60,9 @@ export default function SetupWizardPage() {
     },
     null,
   );
+
+  // Unit label for the real-time amount-in-words hints (follows the base currency).
+  const baseUnit = baseCurrency === "IRR" ? "rial" : baseCurrency === "EUR" ? "eur" : "usd";
 
   // Calculate opening balance preview
   const previewData = useMemo(() => {
@@ -276,20 +280,22 @@ export default function SetupWizardPage() {
               </div>
 
               <div>
-                <label className="label">{t.cashWallet}</label>
+                <label className="label">
+                  {t.cashWallet} <span className="muted">(اختیاری)</span>
+                </label>
                 <input
                   type="text"
-                  required
                   value={cashWalletName}
                   onChange={(e) => setCashWalletName(e.target.value)}
                   className="field"
+                  placeholder="خالی بگذارید تا بعداً از ماژول حساب‌ها اضافه کنید"
                 />
               </div>
 
               <div className="card soft p-3 text-[11px] leading-6">
                 <strong>نمودار حساب‌های پیش‌فرض ایجادشده:</strong>
                 <ul className="mt-1 list-disc space-y-0.5 pr-4">
-                  <li>دارایی‌ها: حساب بانکی، صندوق نقد، کیف رمزارز (ETH)، حساب طلا (GOLD18)</li>
+                  <li>حساب بانکی (الزامی) — صندوق نقد فقط در صورت تمایل یا داشتن موجودی ایجاد می‌شود</li>
                   <li>بدهی‌ها: وام و بدهی عمومی</li>
                   <li>سرمایه: حساب سرمایه افتتاحیه (Opening Balance Equity - 3010)</li>
                   <li>درآمدها و هزینه‌ها: دسته‌ها و هزینه‌های استاندارد خانوار</li>
@@ -325,90 +331,107 @@ export default function SetupWizardPage() {
 
               <p className="muted text-[11px] leading-5">{t.openingBalanceHelp}</p>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="label">{t.cashAmount} ({baseCurrency})</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={bankOpeningBalance}
-                    onChange={(e) => setBankOpeningBalance(e.target.value.replace(/[^\d.]/g, ""))}
-                    placeholder="0.00"
-                    className="field num"
-                    dir="ltr"
-                  />
-                </div>
-
-                <div>
-                  <label className="label">موجودی صندوق نقد ({baseCurrency})</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={cashOpeningBalance}
-                    onChange={(e) => setCashOpeningBalance(e.target.value.replace(/[^\d.]/g, ""))}
-                    placeholder="0.00"
-                    className="field num"
-                    dir="ltr"
-                  />
-                </div>
+              {/* فقط حساب بانکی الزامی است؛ بقیه موجودی‌ها کاملاً اختیاری هستند. */}
+              <div>
+                <label className="label">{t.cashAmount} ({baseCurrency})</label>
+                <AmountInput
+                  type="text"
+                  inputMode="decimal"
+                  value={bankOpeningBalance}
+                  onChange={(e) => setBankOpeningBalance(e.target.value.replace(/[^\d.]/g, ""))}
+                  placeholder="0.00"
+                  className="field num"
+                  dir="ltr"
+                  unit={baseUnit}
+                />
+                <p className="muted mt-1 text-[10px] leading-5">
+                  اگر موجودی ندارید خالی بگذارید؛ سیستم با مانده صفر شروع می‌شود.
+                </p>
               </div>
 
-              <div className="card soft space-y-3 p-3">
-                <h3 className="text-xs font-semibold">موجودی رمزارز و طلا (اختیاری)</h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="label">مقدار اتریوم (ETH)</label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={cryptoOpeningQty}
-                      onChange={(e) => setCryptoOpeningQty(e.target.value.replace(/[^\d.]/g, ""))}
-                      placeholder="0.0000"
-                      className="field num"
-                      dir="ltr"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">قیمت خرید هر اتریوم ({baseCurrency}) — فقط Cost Basis افتتاحیه</label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={cryptoUnitPrice}
-                      onChange={(e) => setCryptoUnitPrice(e.target.value.replace(/[^\d.]/g, ""))}
-                      placeholder="3000"
-                      className="field num"
-                      dir="ltr"
-                    />
-                  </div>
-                </div>
+              {/* موجودی‌های اختیاری — صندوق نقد، رمزارز و طلا (بعداً هم از ماژول حساب‌ها قابل افزودن است) */}
+              <details className="card soft rounded-[var(--r-md)] p-3">
+                <summary className="cursor-pointer list-none text-xs font-semibold marker:hidden [&::-webkit-details-marker]:hidden">
+                  موجودی‌های اختیاری — صندوق نقد، رمزارز و طلا
+                  <span className="chip mr-2 text-[10px]">اختیاری</span>
+                </summary>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="mt-3 space-y-3">
                   <div>
-                    <label className="label">طلا (گرم ۱۸ عیار)</label>
-                    <input
+                    <label className="label">موجودی صندوق نقد ({baseCurrency}) — اختیاری</label>
+                    <AmountInput
                       type="text"
                       inputMode="decimal"
-                      value={goldOpeningQty}
-                      onChange={(e) => setGoldOpeningQty(e.target.value.replace(/[^\d.]/g, ""))}
+                      value={cashOpeningBalance}
+                      onChange={(e) => setCashOpeningBalance(e.target.value.replace(/[^\d.]/g, ""))}
                       placeholder="0.00"
                       className="field num"
                       dir="ltr"
+                      unit={baseUnit}
                     />
                   </div>
-                  <div>
-                    <label className="label">قیمت خرید هر گرم ({baseCurrency})</label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={goldUnitPrice}
-                      onChange={(e) => setGoldUnitPrice(e.target.value.replace(/[^\d.]/g, ""))}
-                      placeholder="60"
-                      className="field num"
-                      dir="ltr"
-                    />
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="label">مقدار اتریوم (ETH)</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={cryptoOpeningQty}
+                        onChange={(e) => setCryptoOpeningQty(e.target.value.replace(/[^\d.]/g, ""))}
+                        placeholder="0.0000"
+                        className="field num"
+                        dir="ltr"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">قیمت خرید هر اتریوم ({baseCurrency}) — فقط Cost Basis افتتاحیه</label>
+                      <AmountInput
+                        type="text"
+                        inputMode="decimal"
+                        value={cryptoUnitPrice}
+                        onChange={(e) => setCryptoUnitPrice(e.target.value.replace(/[^\d.]/g, ""))}
+                        placeholder="3000"
+                        className="field num"
+                        dir="ltr"
+                        unit={baseUnit}
+                      />
+                    </div>
                   </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="label">طلا (گرم ۱۸ عیار)</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={goldOpeningQty}
+                        onChange={(e) => setGoldOpeningQty(e.target.value.replace(/[^\d.]/g, ""))}
+                        placeholder="0.00"
+                        className="field num"
+                        dir="ltr"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">قیمت خرید هر گرم ({baseCurrency})</label>
+                      <AmountInput
+                        type="text"
+                        inputMode="decimal"
+                        value={goldUnitPrice}
+                        onChange={(e) => setGoldUnitPrice(e.target.value.replace(/[^\d.]/g, ""))}
+                        placeholder="60"
+                        className="field num"
+                        dir="ltr"
+                        unit={baseUnit}
+                      />
+                    </div>
+                  </div>
+
+                  <p className="muted text-[10px] leading-5">
+                    لازم نیست این موارد را الان وارد کنید؛ می‌توانید بعداً از ماژول «حساب‌ها» (صندوق نقد) یا ثبت خرید رمزارز/دارایی، آن‌ها را اضافه کنید.
+                  </p>
                 </div>
-              </div>
+              </details>
 
               <div className="flex gap-2">
                 <button

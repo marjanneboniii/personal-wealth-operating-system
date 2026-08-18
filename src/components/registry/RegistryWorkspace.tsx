@@ -2,6 +2,7 @@
 import { useActionState, useState } from "react";
 import { saveCommodityAction, updateCommodityItemAction, updateCommodityPriceAction, type RegistryResult } from "@/app/actions/registry";
 import { PreviewCard } from "@/components/ui/SmartPreview";
+import AmountInput from "@/components/ui/AmountInput";
 import VehicleModule from "@/components/registry/vehicle/VehicleModule";
 import RealEstateModule from "@/components/registry/realestate/RealEstateModule";
 const today = new Date().toISOString().slice(0, 10);
@@ -48,7 +49,7 @@ function CommodityForm({ categories, items }: { categories: any[]; items: any[] 
           </>
         )}
         <Field n="unit" l="واحد" d="عدد" />
-        <Field n="unitPrice" l="قیمت هر واحد (تومان)" type="number" />
+        <Field n="unitPrice" l="قیمت هر واحد (تومان)" type="number" unit="toman" />
         <Field n="quantity" l="تعداد / وزن" type="number" d="1" />
         <Field n="purchasedAt" l="تاریخ خرید" type="date" d={today} />
         <Field n="merchant" l="فروشگاه / فروشنده" />
@@ -74,11 +75,24 @@ function CommodityForm({ categories, items }: { categories: any[]; items: any[] 
     </form>
   );
 }
-function Field({ n, l, type = "text", d, p }: { n: string; l: string; type?: string; d?: string; p?: string }) {
+function Field({ n, l, type = "text", d, p, unit }: { n: string; l: string; type?: string; d?: string; p?: string; unit?: string }) {
   return (
     <div>
       <label className="label">{l}</label>
-      <input name={n} type={type} defaultValue={d} placeholder={p} className="field" required={["itemName", "unitPrice"].includes(n)} />
+      {unit ? (
+        <AmountInput
+          name={n}
+          type={type}
+          inputMode={type === "number" ? "numeric" : undefined}
+          defaultValue={d}
+          placeholder={p}
+          className="field"
+          unit={unit}
+          required={["itemName", "unitPrice"].includes(n)}
+        />
+      ) : (
+        <input name={n} type={type} defaultValue={d} placeholder={p} className="field" required={["itemName", "unitPrice"].includes(n)} />
+      )}
     </div>
   );
 }
@@ -101,7 +115,7 @@ function InlineEdit({ item, price }: { item?: any; price?: any }) {
         </>
       ) : (
         <>
-          <input name="unitPrice" defaultValue={price.unitPrice} className="field !w-24 !py-1" />
+          <AmountInput name="unitPrice" defaultValue={price.unitPrice} className="field !w-24 !py-1" unit="toman" hintClassName="!mt-1 !text-[10px]" />
           <input name="quantity" defaultValue={price.quantity} className="field !w-16 !py-1" />
           <input name="merchant" defaultValue={price.merchant || ""} className="field !w-24 !py-1" />
         </>

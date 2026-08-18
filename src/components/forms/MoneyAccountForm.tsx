@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createMoneyAccountAction } from "@/app/actions";
 import { D } from "@/domain/decimal";
 import { formatMoney } from "@/lib/format";
+import AmountInput from "@/components/ui/AmountInput";
 
 export type MoneyCurrencyOption = {
   id: string;
@@ -42,6 +43,8 @@ export default function MoneyAccountForm({
 
   const kindLabel = KINDS.find(([v]) => v === kind)?.[1];
   const currency = currencies.find((item) => item.id === assetId) ?? null;
+  const openingUnit =
+    currency?.symbol === "IRT" ? "toman" : currency?.symbol === "USD" ? "usd" : currency?.symbol === "USDT" ? "usdt" : "none";
   const qty = openingQty ? D(openingQty) : D("0");
   const rate = D(usdIrtRate || "0");
   const previewBaseUsd =
@@ -115,12 +118,13 @@ export default function MoneyAccountForm({
         </label>
         <label className="space-y-1">
           <span className="label">موجودی اولیه به واحد ارز انتخاب‌شده</span>
-          <input
+          <AmountInput
             className="field num"
             dir="ltr"
             inputMode="decimal"
             value={openingQty}
             onChange={(e) => setOpeningQty(e.target.value.replace(/[^0-9.]/g, ""))}
+            unit={openingUnit}
             placeholder={
               currency?.symbol === "IRT"
                 ? "مثلاً 50000000 تومان"

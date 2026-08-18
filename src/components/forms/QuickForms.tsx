@@ -9,6 +9,7 @@ import {
 } from "@/app/actions";
 import { SmartAmountPreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
+import AmountInput from "@/components/ui/AmountInput";
 import { formatMoney, getDualDate } from "@/lib/format";
 import { D } from "@/domain/decimal";
 
@@ -86,12 +87,13 @@ export function GoalForm({ accounts, initialRate, initialRateDate, initialRateSo
         </div>
         <div>
           <label className="label">مبلغ هدف به تومان (IRT) — مرجع</label>
-          <input
+          <AmountInput
             value={irtAmount}
             onChange={(e) => setIrtAmount(e.target.value.replace(/[^0-9]/g, ""))}
             placeholder="مثلاً 1200000000"
             className="field num"
             dir="ltr"
+            unit="toman"
           />
           <input type="hidden" name="targetBase" value={irtAmount} />
           <div className="mt-2"><SmartAmountPreview irtAmount={irtAmount} rate={effectiveRate} rateDate={effectiveDate} rateSource={effectiveSource} /></div>
@@ -161,7 +163,7 @@ export function EventForm({ initialRate, initialRateDate, initialRateSource }: {
         </div>
         <div>
           <label className="label">بودجه به تومان (IRT)</label>
-          <input value={irtAmount} onChange={(e) => setIrtAmount(e.target.value.replace(/[^0-9]/g, ""))} placeholder="مثلاً 30000000" className="field num" dir="ltr" />
+          <AmountInput value={irtAmount} onChange={(e) => setIrtAmount(e.target.value.replace(/[^0-9]/g, ""))} placeholder="مثلاً 30000000" className="field num" dir="ltr" unit="toman" />
           <input type="hidden" name="budgetBase" value={irtAmount} />
           <div className="mt-2"><SmartAmountPreview irtAmount={irtAmount} rate={effectiveRate} rateDate={effectiveDate} rateSource={effectiveSource} /></div>
         </div>
@@ -219,7 +221,7 @@ export function PlannedForm({ accounts, initialRate, initialRateDate, initialRat
         </div>
         <div>
           <label className="label">مبلغ به تومان (IRT)</label>
-          <input value={irtAmount} onChange={(e) => setIrtAmount(e.target.value.replace(/[^0-9]/g, ""))} placeholder="مثلاً 4000000" className="field num" dir="ltr" />
+          <AmountInput value={irtAmount} onChange={(e) => setIrtAmount(e.target.value.replace(/[^0-9]/g, ""))} placeholder="مثلاً 4000000" className="field num" dir="ltr" unit="toman" />
           <input type="hidden" name="amountBase" value={irtAmount} />
           <div className="mt-2"><SmartAmountPreview irtAmount={irtAmount} rate={effectiveRate} rateDate={effectiveDate} rateSource={effectiveSource} /></div>
         </div>

@@ -189,3 +189,39 @@ test("Phase 2.1 Requirement — Setup never creates fake or demo transactions", 
   const activeHoldings = holdings.filter((h) => D(h.quantity).gt(0));
   assert.equal(activeHoldings.length, 0);
 });
+
+test("Only the bank account is mandatory — cash box is created only when requested or funded", async () => {
+  await setupFreshDb();
+
+  // Bank only: no cash wallet name, no cash opening balance.
+  await completeSetup({
+    userName: "Bank Only",
+    baseCurrency: "USD",
+    displayCurrency: "IRT",
+    dateCalendar: "jalali",
+    digitStyle: "fa",
+    bankAccountName: "بانک ملت — جاری",
+    bankOpeningBalance: "5000",
+  });
+
+  let chart = await db.select().from(accounts);
+  assert.equal(chart.some((a) => a.code === "1010"), true, "bank account must exist");
+  assert.equal(chart.some((a) => a.code === "1020"), false, "cash account must NOT exist when not requested");
+  assert.equal(chart.some((a) => a.code === "1200"), true, "ETH container stays available for the buy flow");
+  assert.equal(chart.some((a) => a.code === "1300"), true, "gold container stays available for the asset flow");
+
+  // Funding the cash box (even without naming it) provisions the account.
+  await setupFreshDb();
+  await completeSetup({
+    userName: "Cash Funded",
+    baseCurrency: "USD",
+    displayCurrency: "IRT",
+    dateCalendar: "jalali",
+    digitStyle: "fa",
+    bankAccountName: "بانک ملت — جاری",
+    cashOpeningBalance: "2500",
+  });
+
+  chart = await db.select().from(accounts);
+  assert.equal(chart.some((a) => a.code === "1020"), true, "cash account must be provisioned when funded");
+});

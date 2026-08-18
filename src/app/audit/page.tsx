@@ -7,7 +7,7 @@ import { seedIfEmpty } from "@/db/seed";
 import { runIntegrityChecks, summarize, type CheckStatus } from "@/features/integrity/service";
 import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
-import { formatJalaliIso } from "@/lib/format";
+import { formatDualDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -128,7 +128,7 @@ export default async function AuditPage() {
                     )}
                     <div className="muted mt-2 flex flex-wrap items-center gap-x-3 text-[10px]">
                       <span>
-                        اجرا: <span className="num">{formatJalaliIso(c.ranAt.slice(0, 10))}</span> · هم‌اکنون
+                        اجرا: <span className="num">{formatDualDate(c.ranAt.slice(0, 10))}</span> · هم‌اکنون
                       </span>
                     </div>
                   </div>

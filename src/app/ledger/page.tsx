@@ -10,7 +10,7 @@ import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import { ACCOUNT_TYPE_LABELS, ENTRY_TYPE_LABELS, type AccountType, type EntryType } from "@/domain/accounting";
 import { D } from "@/domain/decimal";
-import { formatJalaliIso, formatMoney, formatQty } from "@/lib/format";
+import { formatDualDate, formatJalaliIso, formatMoney, formatQty } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { eq, inArray } from "drizzle-orm";
 import { assets, debts, entryFxSnapshots, installments, realEstateProperties } from "@/db/schema";
@@ -187,14 +187,14 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                     <span className="num text-[11px] font-medium" style={{ color: "var(--text-2)" }}>
                       {formatJalaliIso(e.entryDate)}
                     </span>
-                    <span className="num text-[9px]">{e.entryDate}</span>
+                    <span className="num text-[9px]" dir="ltr">{e.entryDate}</span>
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate text-[12.5px] font-medium ${isVoid ? "line-through" : ""}`}>
                       {e.description}
                     </span>
                     <span className="muted mt-0.5 flex items-center gap-1.5 text-[10px] sm:hidden">
-                      {formatJalaliIso(e.entryDate)} · {shortId(e.id)}
+                      {formatDualDate(e.entryDate)} · {shortId(e.id)}
                     </span>
                   </span>
                   <span className="badge badge-neutral hidden shrink-0 sm:inline-flex">{ENTRY_TYPE_LABELS[e.type as EntryType] ?? e.type}</span>

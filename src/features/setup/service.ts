@@ -159,10 +159,20 @@ export async function completeSetup(
 
     // 6. Chart of Accounts Creation
     const baseAssetId = assetMap[input.baseCurrency] ?? assetMap.USD;
+    // Only the bank account is mandatory during onboarding. A cash box is
+    // provisioned only when the user explicitly names it or funds it; otherwise
+    // they can add one later from the Accounts module. The ETH / gold accounts
+    // stay as zero-balance containers because the buy/sell asset flows need a
+    // destination account — they are invisible until actually funded.
+    const wantsCashWallet = Boolean(
+      input.cashWalletName?.trim() || (input.cashOpeningBalance && D(input.cashOpeningBalance).gt(0)),
+    );
     const acctRows = [
       { code: "1000", name: "دارایی‌ها", type: "asset" },
       { code: "1010", name: input.bankAccountName?.trim() || "حساب بانکی اصلی", type: "asset", assetId: baseAssetId },
-      { code: "1020", name: input.cashWalletName?.trim() || "صندوق نقد", type: "asset", assetId: baseAssetId },
+      ...(wantsCashWallet
+        ? [{ code: "1020", name: input.cashWalletName?.trim() || "صندوق نقد", type: "asset", assetId: baseAssetId }]
+        : []),
       { code: "1200", name: "کیف رمزارز (ETH)", type: "asset", assetId: assetMap.ETH },
       { code: "1300", name: "طلای ۱۸ عیار", type: "asset", assetId: assetMap.GOLD18 },
       { code: "2000", name: "بدهی‌ها", type: "liability" },
@@ -201,7 +211,7 @@ export async function completeSetup(
       insertedAccounts = await tx.insert(accounts).values(ownedAcctRows).returning();
     }
     const acctMap = Object.fromEntries(insertedAccounts.map((a) => [a.code, a.id]));
-    if (!acctMap["3010"] || !acctMap["1010"] || !acctMap["1020"]) {
+    if (!acctMap["3010"] || !acctMap["1010"]) {
       throw new Error("ایجاد نمودار حساب‌های اولیه کامل نشد.");
     }
 

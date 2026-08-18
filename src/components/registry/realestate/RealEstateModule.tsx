@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { formatJalaliIso } from "@/lib/format";
+import { formatDualDate } from "@/lib/format";
 import type { RealEstateDashboardItem, RealEstatePortfolioSummary } from "@/features/rwa/realEstate/service";
 import type { City, Neighborhood, PropertyType } from "@/features/rwa/realEstate/types";
 import MasterDataAdmin from "./MasterDataAdmin";
@@ -140,8 +140,8 @@ export default function RealEstateModule({
                           <td>{item.propertyTypeNameFa ?? item.propertyType ?? "—"}</td>
                           <td>{item.cityNameFa ?? item.cityNameEn ?? "—"}</td>
                           <td>{item.neighborhoodNameFa ?? item.area ?? "—"}</td>
-                          <td className="num whitespace-nowrap">{item.acquisitionDate ? formatJalaliIso(item.acquisitionDate) : "—"}</td>
-                          <td className="num whitespace-nowrap">{item.valuationDate ? formatJalaliIso(item.valuationDate) : "—"}</td>
+                          <td className="num whitespace-nowrap">{item.acquisitionDate ? formatDualDate(item.acquisitionDate) : "—"}</td>
+                          <td className="num whitespace-nowrap">{item.valuationDate ? formatDualDate(item.valuationDate) : "—"}</td>
                           <td className="td-num">
                             <Toman value={item.purchasePriceToman} />
                           </td>

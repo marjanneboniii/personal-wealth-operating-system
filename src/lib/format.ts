@@ -209,6 +209,17 @@ export function formatGregorianIso(iso: string): string {
   return iso.slice(0, 10);
 }
 
+/**
+ * Standard dual-date text: Jalali primary (Persian digits) followed by the
+ * Gregorian date in a fully standard, Latin ISO "YYYY-MM-DD" form. The Latin
+ * segment is wrapped in Unicode first-strong-isolate marks so it always
+ * renders left-to-right, even inside plain RTL strings.
+ */
+export function formatDualDate(iso: string): string {
+  if (!iso) return "—";
+  return `${formatJalaliIso(iso)} (\u2068${formatGregorianIso(iso)}\u2069)`;
+}
+
 /** Returns both representations for dual display */
 export function getDualDate(iso: string): { iso: string; jalali: string; gregorian: string; jalaliDigits: string } {
   if (!iso) return { iso: "", jalali: "—", gregorian: "—", jalaliDigits: "—" };

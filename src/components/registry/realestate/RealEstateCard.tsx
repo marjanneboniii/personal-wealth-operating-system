@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { recordRealEstateValuationAction } from "@/app/actions/realEstate";
 import JalaliDateInput from "@/components/ui/JalaliDateInput";
+import AmountInput from "@/components/ui/AmountInput";
 import { formatJalaliIso } from "@/lib/format";
 import type { RealEstateDashboardItem } from "@/features/rwa/realEstate/service";
 import { DeltaPct, DeltaToman, DeltaUsd, DetailRow, FxRateInfo, Hint, JDate, Labeled, Result, Toman, Usd, faNum } from "./shared";
@@ -151,7 +152,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
           <div className="grid gap-3 md:grid-cols-3">
             <JalaliDateInput name="valuationDate" label="تاریخ ارزش‌گذاری (شمسی)" required />
             <Labeled label="ارزش فعلی (تومان)" required>
-              <input className="field num" name="currentValueToman" inputMode="numeric" dir="ltr" placeholder="7500000000" required />
+              <AmountInput className="field num" name="currentValueToman" inputMode="numeric" dir="ltr" placeholder="7500000000" unit="toman" required />
             </Labeled>
             <Labeled label="نرخ دلار (اختیاری)" hint="خالی بماند: نرخ همان تاریخ از موتور نرخ ارز خوانده می‌شود.">
               <input className="field num" name="valuationFxRate" inputMode="numeric" dir="ltr" placeholder="190000" />

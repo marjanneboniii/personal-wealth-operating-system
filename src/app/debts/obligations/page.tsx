@@ -4,7 +4,7 @@ import { seedIfEmpty } from "@/db/seed";
 import { listEvents, listObligations, upcomingInstallments } from "@/features/planning/service";
 import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import { formatJalaliIso, formatMoney, todayIso } from "@/lib/format";
+import { formatDualDate, formatMoney, todayIso } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -165,7 +165,7 @@ export default async function ObligationsPage() {
                         {r.detail && <span className="muted text-[10px]">{r.detail}</span>}
                       </td>
                       <td>
-                        <span className="num block text-[12px]">{formatJalaliIso(r.date)}</span>
+                        <span className="num block text-[12px]">{formatDualDate(r.date)}</span>
                         <span className="muted num text-[9.5px]">
                           {d < 0 ? `${Math.abs(d)} روز گذشته` : d === 0 ? "امروز" : `${d} روز دیگر`}
                         </span>

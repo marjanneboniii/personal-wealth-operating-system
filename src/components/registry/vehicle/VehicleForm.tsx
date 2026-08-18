@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { previewPurchaseUsdAction, saveVehicleAction } from "@/app/actions/registry";
 import DualDateInput from "@/components/ui/DualDateInput";
+import AmountInput from "@/components/ui/AmountInput";
 import { formatMoney, toFaDigits, toJalali, todayIso } from "@/lib/format";
 import type { VehicleBrand, VehicleCatalogModel } from "@/features/rwa/vehicle/types";
 import { Labeled, Result } from "./shared";
@@ -209,7 +210,7 @@ export default function VehicleForm({
 
         <div className="space-y-3">
           <Labeled label="قیمت خرید (تومان)" required hint="مبلغ واقعی پرداخت‌شده توسط شما — از کاتالوگ گرفته نمی‌شود.">
-            <input
+            <AmountInput
               className="field num"
               name="purchasePriceToman"
               inputMode="numeric"
@@ -217,6 +218,7 @@ export default function VehicleForm({
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="3500000000"
+              unit="toman"
               required
             />
           </Labeled>
@@ -272,7 +274,7 @@ export default function VehicleForm({
         {withValuation && (
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             <Labeled label="ارزش فعلی (تومان)">
-              <input className="field num" name="initialValuation" inputMode="numeric" dir="ltr" placeholder="4200000000" />
+              <AmountInput className="field num" name="initialValuation" inputMode="numeric" dir="ltr" placeholder="4200000000" unit="toman" />
             </Labeled>
             <Labeled label="تاریخ ارزش‌گذاری">
               <input className="field num" type="date" name="initialValuationDate" defaultValue={today} dir="ltr" />

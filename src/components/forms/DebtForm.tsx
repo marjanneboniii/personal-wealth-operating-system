@@ -4,8 +4,9 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createDebtAction, type ActionResult } from "@/app/actions";
 import { D } from "@/domain/decimal";
-import { addMonthsIso, formatJalaliIso, formatMoney } from "@/lib/format";
+import { addMonthsIso, formatDualDate, formatJalaliIso, formatMoney } from "@/lib/format";
 import DualDateInput from "@/components/ui/DualDateInput";
+import AmountInput from "@/components/ui/AmountInput";
 import { PreviewCard, SmartAmountPreview } from "@/components/ui/SmartPreview";
 
 type Props = {
@@ -102,12 +103,13 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
             </div>
             <div>
               <label className="label">اصل بدهی به تومان (IRT)</label>
-              <input
+              <AmountInput
                 value={principalIrt}
                 onChange={(event) => setPrincipalIrt(event.target.value.replace(/[^0-9]/g, ""))}
                 className="field num !text-lg !font-bold"
                 inputMode="numeric"
                 dir="ltr"
+                unit="toman"
                 placeholder="مثلاً 800000000"
               />
               <div className="mt-2">
@@ -155,12 +157,13 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
               </div>
               <div>
                 <label className="label">مبلغ هر قسط به تومان (اختیاری)</label>
-                <input
+                <AmountInput
                   value={installmentIrt}
                   onChange={(event) => setInstallmentIrt(event.target.value.replace(/[^0-9]/g, ""))}
                   className="field num"
                   inputMode="numeric"
                   dir="ltr"
+                  unit="toman"
                   placeholder={count ? `محاسبه خودکار: ${formatMoney(D(principalIrt || "0").div(String(count)).toFixed(0), "IRT")}` : "وقتی تعداد اقساط بیشتر از صفر باشد"}
                   disabled={!count}
                 />
@@ -194,13 +197,13 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
             {count > 0 && firstDueDate && (
               <div className="soft rounded-[var(--r-md)] p-3">
                 <div className="font-semibold">برنامه اقساط</div>
-                <div className="muted mt-1">{count} قسط × <span className="num" dir="ltr">{formatMoney(effectiveInstallmentIrt, "IRT")}</span> · شروع از {formatJalaliIso(firstDueDate)}</div>
+                <div className="muted mt-1">{count} قسط × <span className="num" dir="ltr">{formatMoney(effectiveInstallmentIrt, "IRT")}</span> · شروع از {formatDualDate(firstDueDate)}</div>
                 <ul className="mt-2 grid gap-x-4 gap-y-1 text-[11px] sm:grid-cols-2">
                   {Array.from({ length: Math.min(count, 4) }, (_, index) => {
                     const due = addMonthsIso(firstDueDate, index);
                     return <li key={due} className="flex justify-between gap-2"><span>قسط {index + 1}</span><span className="num" dir="ltr">{formatJalaliIso(due)} · {due}</span></li>;
                   })}
-                  {count > 4 && <li className="muted sm:col-span-2">… و {count - 4} قسط دیگر تا {formatJalaliIso(addMonthsIso(firstDueDate, count - 1))}</li>}
+                  {count > 4 && <li className="muted sm:col-span-2">… و {count - 4} قسط دیگر تا {formatDualDate(addMonthsIso(firstDueDate, count - 1))}</li>}
                 </ul>
               </div>
             )}

@@ -9,6 +9,7 @@ import {
 import { compareDates, type SnapshotPoint } from "@/features/rwa/vehicle/analytics";
 import type { VehicleDashboardItem } from "@/features/rwa/vehicle/dto";
 import { formatMoney, todayIso } from "@/lib/format";
+import AmountInput from "@/components/ui/AmountInput";
 import VehicleChart from "./VehicleChart";
 import {
   DeltaPct,
@@ -362,7 +363,7 @@ function ValuationForm({ item }: { item: VehicleDashboardItem }) {
 
       <div className="grid gap-3 md:grid-cols-3">
         <Labeled label="ارزش فعلی (تومان)" required>
-          <input className="field num" name="currentValueToman" inputMode="numeric" dir="ltr" placeholder="5300000000" required />
+          <AmountInput className="field num" name="currentValueToman" inputMode="numeric" dir="ltr" placeholder="5300000000" unit="toman" required />
         </Labeled>
         <Labeled label="تاریخ ارزش‌گذاری" required>
           <input className="field num" type="date" name="snapshotDate" defaultValue={todayIso()} dir="ltr" required />
@@ -427,7 +428,7 @@ function ManagePanel({ item }: { item: VehicleDashboardItem }) {
               <input className="field num" type="date" name="saleDate" defaultValue={todayIso()} dir="ltr" required />
             </Labeled>
             <Labeled label="قیمت واقعی فروش (تومان)" required>
-              <input className="field num" name="salePriceToman" inputMode="numeric" dir="ltr" required />
+              <AmountInput className="field num" name="salePriceToman" inputMode="numeric" dir="ltr" unit="toman" required />
             </Labeled>
           </div>
           <Labeled label="نرخ دلار فروش (اختیاری)">
