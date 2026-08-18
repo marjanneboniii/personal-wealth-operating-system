@@ -157,7 +157,8 @@ export async function POST(req: Request) {
     await validateAccountOwnership(counterAccountId, auth.user.id);
 
     const assetId = body.assetId || (await accountAsset(primaryAccountId));
-    const { recordIncome, recordExpense, recordTransfer } = await import("@/features/ledger/service");
+    const { recordIncome, recordExpense, recordFx, recordTransfer, resolveFxBookLegs } = await import("@/features/ledger/service");
+    const { assets } = await import("@/db/schema");
     let res: { id: string; idempotentReplay?: boolean };
 
     if (type === "income") {
@@ -185,17 +186,59 @@ export async function POST(req: Request) {
         idempotencyKey,
       });
     } else if (type === "transfer") {
-      res = await recordTransfer({
-        entryDate,
-        description,
-        fromAccountId: primaryAccountId,
-        toAccountId: counterAccountId,
-        assetId,
-        quantity: validValue,
-        unitPrice: "1",
-        userId: auth.user.id,
-        idempotencyKey,
-      });
+      const destAssetId = await accountAsset(counterAccountId);
+      if (destAssetId !== assetId) {
+        const { getLatestUsdIrtRateForUser } = await import("@/lib/fx");
+        const snap = await getLatestUsdIrtRateForUser(auth.user.id);
+        if (!snap.rate || Number(snap.rate) <= 0) {
+          return NextResponse.json({ ok: false, error: "نرخ تبدیل نامعتبر است." }, { status: 400 });
+        }
+        const [fromAst] = await db.select({ symbol: assets.symbol }).from(assets).where(eq(assets.id, assetId)).limit(1);
+        const [toAst] = await db.select({ symbol: assets.symbol }).from(assets).where(eq(assets.id, destAssetId)).limit(1);
+        let legs;
+        try {
+          legs = resolveFxBookLegs({
+            fromSymbol: fromAst?.symbol ?? "",
+            toSymbol: toAst?.symbol ?? "",
+            rateIrtPerUsd: snap.rate,
+            fromQuantity: body.fromQuantity,
+            toQuantity: body.toQuantity,
+            irtAmount: body.irtAmount,
+            claimedBookValue: body.bookValue,
+          });
+        } catch (e: any) {
+          return NextResponse.json(
+            { ok: false, error: e?.message || "پارامترهای تبدیل ارز ناقص است.", code: "CROSS_CURRENCY_USE_FX" },
+            { status: 400 },
+          );
+        }
+        res = await recordFx({
+          entryDate,
+          description,
+          fromAccountId: primaryAccountId,
+          toAccountId: counterAccountId,
+          fromAssetId: assetId,
+          toAssetId: destAssetId,
+          fromQuantity: legs.fromQuantity,
+          toQuantity: legs.toQuantity,
+          bookValue: legs.bookValue,
+          rateIrtPerUsd: snap.rate,
+          userId: auth.user.id,
+          idempotencyKey,
+        });
+      } else {
+        res = await recordTransfer({
+          entryDate,
+          description,
+          fromAccountId: primaryAccountId,
+          toAccountId: counterAccountId,
+          assetId,
+          quantity: validValue,
+          unitPrice: "1",
+          userId: auth.user.id,
+          idempotencyKey,
+        });
+      }
     } else {
       return NextResponse.json({ ok: false, error: "نوع تراکنش در این وب‌سرویس پشتیبانی نمی‌شود." }, { status: 400 });
     }

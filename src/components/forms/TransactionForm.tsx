@@ -350,6 +350,14 @@ export default function TransactionForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debts, initialDebtId, initialInstallmentId]);
 
+  const primaryAccount = accountOptions.find((a) => a.id === primaryAccountId);
+  const counterAccount = accountOptions.find((a) => a.id === counterAccountId);
+  const isCrossCurrencyTransfer =
+    type === "transfer" &&
+    !!primaryAccount?.symbol &&
+    !!counterAccount?.symbol &&
+    primaryAccount.symbol !== counterAccount.symbol;
+
   const previewUsd = irtAmount && effectiveRate ? D(irtAmount).div(effectiveRate).toFixed(2) : "";
   const primaryNeeded = !(type === "expense" && isNonCashCategory);
   const counterNeeded = !(type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount);

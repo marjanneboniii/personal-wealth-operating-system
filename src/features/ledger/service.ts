@@ -549,7 +549,83 @@ export type TransferCmd = {
   preventOverdraft?: boolean;
 };
 
+export class CrossCurrencyTransferError extends Error {
+  code = "CROSS_CURRENCY_USE_FX";
+  status = 400;
+  constructor() {
+    super("انتقال بین حساب‌های با واحد متفاوت باید با تبدیل ارز (recordFx) ثبت شود، نه انتقال ساده.");
+    this.name = "CrossCurrencyTransferError";
+  }
+}
+
+const USD_FACE = new Set(["USD", "USDT"]);
+
+/** Server-side native qty + USD book value. Client amounts are verified, never trusted as book currency. */
+export function resolveFxBookLegs(input: {
+  fromSymbol: string;
+  toSymbol: string;
+  rateIrtPerUsd: string;
+  fromQuantity?: string;
+  toQuantity?: string;
+  irtAmount?: string;
+  claimedBookValue?: string;
+}): { fromQuantity: string; toQuantity: string; bookValue: string } {
+  const rate = D(input.rateIrtPerUsd);
+  if (!rate.gt(0)) throw new Error("نرخ تبدیل نامعتبر است.");
+  const from = (input.fromSymbol || "").toUpperCase();
+  const to = (input.toSymbol || "").toUpperCase();
+  if (!from || !to || from === to) throw new Error("واحد مبدأ و مقصد تبدیل ارز نامعتبر است.");
+
+  const irtHint = input.irtAmount && D(input.irtAmount).gt(0) ? D(input.irtAmount) : null;
+  let fromQty = input.fromQuantity && D(input.fromQuantity).gt(0) ? D(input.fromQuantity) : null;
+  let toQty = input.toQuantity && D(input.toQuantity).gt(0) ? D(input.toQuantity) : null;
+  if (!fromQty && from === "IRT" && irtHint) fromQty = irtHint;
+  if (!toQty && to === "IRT" && irtHint) toQty = irtHint;
+
+  if (!fromQty && toQty) {
+    fromQty = from === "IRT" ? toQty.mul(rate) : toQty;
+  }
+  if (!toQty && fromQty) {
+    toQty = to === "IRT" ? fromQty.mul(rate) : from === "IRT" ? fromQty.div(rate) : fromQty;
+  }
+  if (!fromQty || !toQty) throw new Error("fromQuantity و toQuantity برای تبدیل ارز الزامی هستند.");
+
+  let book: Decimal;
+  if (USD_FACE.has(from)) book = fromQty;
+  else if (USD_FACE.has(to)) book = toQty;
+  else if (from === "IRT") book = fromQty.div(rate);
+  else if (to === "IRT") book = toQty.div(rate);
+  else throw new Error("واحد بومی برای محاسبه ارزش دفتری USD پشتیبانی نمی‌شود.");
+
+  if (!book.gt(0)) throw new Error("ارزش دفتری باید بزرگ‌تر از صفر باشد.");
+  if (input.claimedBookValue && D(input.claimedBookValue).gt(0)) {
+    if (D(input.claimedBookValue).sub(book).abs().gt("0.02")) {
+      throw new Error("bookValue ارسالی با نرخ سرور سازگار نیست.");
+    }
+  }
+  return { fromQuantity: fromQty.toString(), toQuantity: toQty.toString(), bookValue: book.toString() };
+}
+
+async function accountAssetId(accountId: string, client: any): Promise<string | null> {
+  const row = await client
+    .select({ assetId: accounts.assetId })
+    .from(accounts)
+    .where(eq(accounts.id, accountId))
+    .limit(1);
+  return row[0]?.assetId ?? null;
+}
+
 export async function recordTransfer(cmd: TransferCmd, txClient?: any) {
+  const client = txClient ?? db;
+  const fromAsset = await accountAssetId(cmd.fromAccountId, client);
+  const toAsset = await accountAssetId(cmd.toAccountId, client);
+  if (fromAsset && toAsset && fromAsset !== toAsset) {
+    throw new CrossCurrencyTransferError();
+  }
+  if (fromAsset && fromAsset !== cmd.assetId) {
+    throw new Error("دارایی انتقال با واحد بومی حساب مبدأ یکسان نیست.");
+  }
+
   const value = D(cmd.quantity).mul(cmd.unitPrice);
   const fee = D(cmd.feeBase ?? "0");
   const lines: DraftPosting[] = [
@@ -580,6 +656,109 @@ export async function recordTransfer(cmd: TransferCmd, txClient?: any) {
       ...cmd,
       type: "transfer",
       postings: lines,
+      idempotencyKey: cmd.idempotencyKey,
+      preventOverdraft: cmd.preventOverdraft,
+    },
+    txClient,
+  );
+}
+
+export type FxCmd = {
+  entryDate: string;
+  description: string;
+  fromAccountId: string;
+  toAccountId: string;
+  fromAssetId: string;
+  toAssetId: string;
+  fromQuantity: string;
+  toQuantity: string;
+  /** Functional / book amount in USD. Both legs use this as |base_value|. */
+  bookValue: string;
+  /** Optional IRT per 1 USD — when set, native amounts must match within tolerance. */
+  rateIrtPerUsd?: string;
+  feeBase?: string;
+  feeAccountId?: string | null;
+  feeAssetId?: string | null;
+  userId?: string;
+  idempotencyKey?: string | null;
+  preventOverdraft?: boolean;
+};
+
+const FX_QTY_TOLERANCE = D("0.02");
+
+/**
+ * Cross-denomination cash conversion (e.g. Bank IRT → Cash USD).
+ * Native quantities stay on each account's assetId. Book value is USD only.
+ * Does not open or consume FIFO lots. Does not change assertBalanced.
+ */
+export async function recordFx(cmd: FxCmd, txClient?: any) {
+  if (cmd.fromAssetId === cmd.toAssetId) {
+    throw new Error("تبدیل ارز فقط بین دو واحد بومی متفاوت مجاز است. برای واحد یکسان از انتقال استفاده کنید.");
+  }
+  const client = txClient ?? db;
+  const fromAsset = await accountAssetId(cmd.fromAccountId, client);
+  const toAsset = await accountAssetId(cmd.toAccountId, client);
+  if (fromAsset !== cmd.fromAssetId || toAsset !== cmd.toAssetId) {
+    throw new Error("واحد بومی حساب با دارایی پستینگ تبدیل ارز مطابقت ندارد.");
+  }
+
+  const book = D(cmd.bookValue);
+  const fromQty = D(cmd.fromQuantity);
+  const toQty = D(cmd.toQuantity);
+  if (!book.gt(0) || !fromQty.gt(0) || !toQty.gt(0)) {
+    throw new Error("مقادیر تبدیل ارز باید بزرگ‌تر از صفر باشند.");
+  }
+
+  if (cmd.rateIrtPerUsd) {
+    const rate = D(cmd.rateIrtPerUsd);
+    if (!rate.gt(0)) throw new Error("نرخ تبدیل نامعتبر است.");
+    const fromAsUsd = fromQty.div(rate);
+    const toAsUsd = toQty.div(rate);
+    const fromMatchesTo = fromAsUsd.sub(toQty).abs().lte(FX_QTY_TOLERANCE);
+    const toMatchesFrom = toAsUsd.sub(fromQty).abs().lte(FX_QTY_TOLERANCE);
+    if (!fromMatchesTo && !toMatchesFrom) {
+      throw new Error("مقادیر بومی با نرخ تبدیل سازگار نیستند.");
+    }
+    const impliedBook = fromMatchesTo ? toQty : fromQty;
+    if (book.sub(impliedBook).abs().gt(FX_QTY_TOLERANCE) && book.sub(fromAsUsd).abs().gt(FX_QTY_TOLERANCE)) {
+      throw new Error("ارزش دفتری USD با نرخ و مقادیر بومی سازگار نیست.");
+    }
+  }
+
+  const fee = D(cmd.feeBase ?? "0");
+  const lines: DraftPosting[] = [
+    {
+      accountId: cmd.fromAccountId,
+      assetId: cmd.fromAssetId,
+      quantity: fromQty.neg().toString(),
+      baseValue: book.add(fee).neg().toString(),
+      memo: "خروج واحد بومی (تبدیل ارز)",
+    },
+    {
+      accountId: cmd.toAccountId,
+      assetId: cmd.toAssetId,
+      quantity: toQty.toString(),
+      baseValue: book.toString(),
+      memo: "ورود واحد بومی (تبدیل ارز)",
+    },
+  ];
+  if (fee.gt(0) && cmd.feeAccountId) {
+    lines.push({
+      accountId: cmd.feeAccountId,
+      assetId: cmd.feeAssetId ?? cmd.fromAssetId,
+      quantity: fee.toString(),
+      baseValue: fee.toString(),
+      memo: "کارمزد تبدیل ارز",
+    });
+  }
+
+  return postEntry(
+    {
+      entryDate: cmd.entryDate,
+      description: cmd.description,
+      type: "fx",
+      postings: lines,
+      userId: cmd.userId,
       idempotencyKey: cmd.idempotencyKey,
       preventOverdraft: cmd.preventOverdraft,
     },
