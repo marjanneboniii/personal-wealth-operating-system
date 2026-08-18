@@ -237,6 +237,122 @@ test("Opening IRT bank balance is stored as native IRT and converted to USD book
   );
 });
 
+const HEADER_CODES = ["1000", "2000", "3000", "4000", "5000"] as const;
+
+test("Header CoA accounts stay asset-less; money accounts keep their denomination", async () => {
+  await setupFreshDb();
+  await completeSetup({
+    userName: "سرفصل",
+    baseCurrency: "USD",
+    displayCurrency: "IRT",
+    dateCalendar: "jalali",
+    digitStyle: "fa",
+    bankAccountName: "بانک IRT",
+    bankAssetSymbol: "IRT",
+    cashWalletName: "صندوق USD",
+    cashAssetSymbol: "USD",
+    bankOpeningBalance: "1000",
+    cashOpeningBalance: "50",
+  });
+
+  const chart = await db.select().from(accounts);
+  for (const code of HEADER_CODES) {
+    const header = chart.find((a) => a.code === code);
+    assert.ok(header, `header ${code} must exist`);
+    assert.equal(header.assetId, null, `${code} is a parent account and must have asset_id NULL`);
+    assert.equal(header.walletId, null, `${code} is a parent account and must have wallet_id NULL`);
+  }
+
+  const bank = chart.find((a) => a.code === "1010");
+  const cash = chart.find((a) => a.code === "1020");
+  assert.ok(bank?.assetId, "bank leaf must have a denomination");
+  assert.ok(cash?.assetId, "cash leaf must have a denomination");
+  assert.notEqual(bank.assetId, cash.assetId, "IRT bank and USD cash must not share the same asset");
+
+  const entries = await db.select().from(journalEntries);
+  assert.equal(entries.length, 1);
+  const lines = await db.select().from(postings).where(eq(postings.entryId, entries[0].id));
+  assert.equal(lines.reduce((s, p) => s.add(p.baseValue), D("0")).toString(), "0");
+});
+
+test("Legacy NOT NULL on accounts.asset_id is repaired and setup then succeeds", async () => {
+  await setupFreshDb();
+  await db.execute(sql`ALTER TABLE accounts ALTER COLUMN asset_id SET NOT NULL`);
+  await db.execute(sql`ALTER TABLE accounts ALTER COLUMN wallet_id SET NOT NULL`);
+
+  const [driftedUser] = await db
+    .insert(users)
+    .values({ name: "Drifted", username: "drifted-not-null", role: "user" } as any)
+    .returning();
+
+  await assert.rejects(
+    () =>
+      completeSetup(
+        {
+          userName: "Drifted",
+          baseCurrency: "USD",
+          displayCurrency: "IRT",
+          dateCalendar: "jalali",
+          digitStyle: "fa",
+        },
+        driftedUser.id,
+      ),
+    (err: Error) => /NOT NULL|asset_id/.test(err.message),
+  );
+
+  // Same statements as drizzle/0002 + 0003 — constraint-only, no data rewrite.
+  await db.execute(sql`ALTER TABLE accounts ALTER COLUMN asset_id DROP NOT NULL`);
+  await db.execute(sql`ALTER TABLE accounts ALTER COLUMN wallet_id DROP NOT NULL`);
+
+  const result = await completeSetup(
+    {
+      userName: "Drifted",
+      baseCurrency: "USD",
+      displayCurrency: "IRT",
+      dateCalendar: "jalali",
+      digitStyle: "fa",
+      bankAccountName: "Main",
+      bankAssetSymbol: "USD",
+      bankOpeningBalance: "10",
+    },
+    driftedUser.id,
+  );
+  assert.equal(result.ok, true);
+
+  const chart = await db.select().from(accounts).where(eq(accounts.userId, driftedUser.id));
+  const header = chart.find((a) => a.code === "1000");
+  const bank = chart.find((a) => a.code === "1010");
+  assert.equal(header?.name, "دارایی‌ها");
+  assert.equal(header?.assetId, null);
+  assert.ok(bank?.assetId);
+});
+
+test("Authenticated setup does not require ON CONFLICT (user_id, code)", async () => {
+  await setupFreshDb();
+  await db.execute(sql`DROP INDEX IF EXISTS accounts_user_code_uq`);
+
+  const [user] = await db
+    .insert(users)
+    .values({ name: "No UQ", username: "no-uq-index", role: "user" } as any)
+    .returning();
+
+  const result = await completeSetup(
+    {
+      userName: "No UQ",
+      baseCurrency: "USD",
+      displayCurrency: "IRT",
+      dateCalendar: "jalali",
+      digitStyle: "fa",
+    },
+    user.id,
+  );
+  assert.equal(result.ok, true);
+  const chart = await db.select().from(accounts).where(eq(accounts.userId, user.id));
+  assert.equal(chart.some((a) => a.code === "1000" && a.assetId === null), true);
+  assert.equal(chart.some((a) => a.code === "3010"), true);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS accounts_user_code_uq ON accounts(user_id, code)`);
+});
+
 test("Opening USD bank balance stays 1:1 in book USD", async () => {
   await setupFreshDb();
 

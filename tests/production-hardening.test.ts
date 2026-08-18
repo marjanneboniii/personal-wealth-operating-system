@@ -219,4 +219,15 @@ test("migration files apply cleanly to a fresh database and include the hardenin
   // The append-only analytics rule exists.
   const rule = await migrationDb.execute(sql`select rulename from pg_rules where tablename = 'analytics_runs' and rulename = 'prevent_update_analytics_runs'`);
   assert.equal((rule.rows as unknown[]).length, 1, "expected the append-only analytics rule to be created");
+
+  const nullability = await migrationDb.execute(sql`
+    select column_name, is_nullable
+    from information_schema.columns
+    where table_name = 'accounts' and column_name in ('asset_id', 'wallet_id')
+  `);
+  const byCol = Object.fromEntries(
+    (nullability.rows as { column_name: string; is_nullable: string }[]).map((r) => [r.column_name, r.is_nullable]),
+  );
+  assert.equal(byCol.asset_id, "YES", "header CoA accounts require nullable asset_id");
+  assert.equal(byCol.wallet_id, "YES", "header CoA accounts require nullable wallet_id");
 });

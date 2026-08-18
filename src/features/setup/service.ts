@@ -16,6 +16,7 @@ import { ensureCategoryCatalog } from "@/features/categories/service";
 import { D, Decimal } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
+import { rootCauseOf } from "@/db/init-schema";
 
 /** Native units a cash/bank account may hold. Book currency stays USD. */
 export const SETUP_MONEY_SYMBOLS = ["IRT", "USD", "USDT"] as const;
@@ -43,6 +44,27 @@ export type SetupInput = {
   goldOpeningQty?: string; // in grams
   goldUnitPrice?: string; // Price per gram in base currency
 };
+
+/**
+ * Translate the two known Chart-of-Accounts insert failures into an
+ * operator-facing message. The accounting core is not involved — this is
+ * only the setup write of header/leaf account *metadata*.
+ */
+function rethrowChartInsertError(err: unknown): never {
+  const root = rootCauseOf(err);
+  if (root.code === "23502" && /asset_id|wallet_id/.test(root.message)) {
+    throw new Error(
+      "حساب‌های سرفصل (مثل ۱۰۰۰ دارایی‌ها) باید بدون asset_id/wallet_id ذخیره شوند. " +
+        "ستون مربوطه در پایگاه‌داده به اشتباه NOT NULL است. migration را اجرا کنید: npm run db:migrate",
+    );
+  }
+  if (root.code === "42P10") {
+    throw new Error(
+      "ایندکس یکتای (user_id, code) روی جدول accounts یافت نشد. migration را اجرا کنید: npm run db:migrate",
+    );
+  }
+  throw err instanceof Error ? err : new Error(root.message);
+}
 
 function resolveMoneyDenomination(explicit: string | undefined, fallback: string): SetupMoneySymbol {
   const candidate = (explicit || fallback || "USD").toUpperCase();
@@ -266,19 +288,35 @@ export async function completeSetup(
     if (userId) {
       // A user may have added a wallet before opening this now-visible wizard.
       // Keep any existing baseline code (notably lazily provisioned 3010) and
-      // fill only the missing chart rows.
+      // fill only the missing chart rows. Look up first so we do not depend
+      // on ON CONFLICT (user_id, code) — that target is missing on some
+      // legacy databases and produces the same "Failed query: insert into
+      // accounts" wrapper as a NOT NULL violation on header rows.
       for (const row of ownedAcctRows) {
-        await tx
-          .insert(accounts)
-          .values(row)
-          .onConflictDoNothing({ target: [accounts.userId, accounts.code] });
+        const [existing] = await tx
+          .select({ id: accounts.id })
+          .from(accounts)
+          .where(and(eq(accounts.userId, userId), eq(accounts.code, row.code)))
+          .limit(1);
+        if (existing) continue;
+        try {
+          await tx.insert(accounts).values(row);
+        } catch (err) {
+          const root = rootCauseOf(err);
+          if (root.code === "23505") continue;
+          rethrowChartInsertError(err);
+        }
       }
       insertedAccounts = await tx
         .select()
         .from(accounts)
         .where(and(eq(accounts.userId, userId), inArray(accounts.code, acctRows.map((row) => row.code))));
     } else {
-      insertedAccounts = await tx.insert(accounts).values(ownedAcctRows).returning();
+      try {
+        insertedAccounts = await tx.insert(accounts).values(ownedAcctRows).returning();
+      } catch (err) {
+        rethrowChartInsertError(err);
+      }
     }
     const acctMap = Object.fromEntries(insertedAccounts.map((a) => [a.code, a.id]));
     if (!acctMap["3010"] || !acctMap["1010"]) {

@@ -175,6 +175,9 @@ export const accounts = pgTable(
     name: text("name").notNull(),
     type: text("type").notNull(), // asset | liability | equity | income | expense
     parentId: uuid("parent_id"),
+    // Header/parent CoA rows (1000/2000/3000/4000/5000) are grouping
+    // accounts: they MUST remain nullable. Only leaf money/asset accounts
+    // carry a denomination (asset_id) or wallet link.
     assetId: uuid("asset_id").references(() => assets.id),
     walletId: uuid("wallet_id").references(() => wallets.id),
     isActive: boolean("is_active").notNull().default(true),
