@@ -26,10 +26,13 @@ export const en: Translations = {
 
     step3Title: "Step 3: Opening Balance Setup",
     step3Desc: "Enter existing wealth. Opening balances are posted via balanced double-entry journal entry.",
-    openingBalanceHelp: "Opening balances are credited against Opening Balance Equity according to accounting rules.",
+    openingBalanceHelp: "Opening balances are credited against Opening Balance Equity. Each amount is in that account's native unit; the book currency is USD.",
     cashAmount: "Cash & Bank Balance",
     cryptoAmount: "Crypto Amount (e.g., ETH)",
     goldAmount: "Gold Amount (grams)",
+    accountDenominationLabel: "Account Unit (Denomination)",
+    bookCurrencyChip: "Book currency: USD (read-only)",
+    bookValueApprox: "Book equivalent",
 
     step4Title: "Step 4: Preview & Confirm",
     step4Desc: "Review configuration and opening journal entry preview before finalizing setup.",

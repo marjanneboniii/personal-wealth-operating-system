@@ -15,6 +15,12 @@ import { postEntry } from "@/features/ledger/service";
 import { ensureCategoryCatalog } from "@/features/categories/service";
 import { D, Decimal } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
+import { getLatestUsdIrtRateForUser } from "@/lib/fx";
+
+/** Native units a cash/bank account may hold. Book currency stays USD. */
+export const SETUP_MONEY_SYMBOLS = ["IRT", "USD", "USDT"] as const;
+export type SetupMoneySymbol = (typeof SETUP_MONEY_SYMBOLS)[number];
+const SETUP_MONEY_SYMBOL_SET = new Set<string>(SETUP_MONEY_SYMBOLS);
 
 export type SetupInput = {
   userName: string;
@@ -24,13 +30,70 @@ export type SetupInput = {
   digitStyle: "fa" | "en";
   bankAccountName?: string;
   cashWalletName?: string;
-  bankOpeningBalance?: string; // in base currency or asset quantity
+  /** Native denomination of the bank account (IRT | USD | USDT). */
+  bankAssetSymbol?: string;
+  /** Native denomination of the cash wallet (IRT | USD | USDT). */
+  cashAssetSymbol?: string;
+  /** Native quantity in the bank account's own unit — never book USD. */
+  bankOpeningBalance?: string;
+  /** Native quantity in the cash account's own unit — never book USD. */
   cashOpeningBalance?: string;
   cryptoOpeningQty?: string;
   cryptoUnitPrice?: string; // Price in base currency
   goldOpeningQty?: string; // in grams
   goldUnitPrice?: string; // Price per gram in base currency
 };
+
+function resolveMoneyDenomination(explicit: string | undefined, fallback: string): SetupMoneySymbol {
+  const candidate = (explicit || fallback || "USD").toUpperCase();
+  if (SETUP_MONEY_SYMBOL_SET.has(candidate)) return candidate as SetupMoneySymbol;
+  return "USD";
+}
+
+/**
+ * Server-authoritative conversion: read the persisted account's assetId,
+ * interpret `nativeQty` in that unit, and compute USD `base_value`.
+ * Client labels / claimed book values are ignored.
+ * Mirrors `registerMoneyAccount` (IRT ÷ current USD→IRT rate; USD/USDT = 1).
+ */
+async function bookUsdFromAccountNative(
+  tx: any,
+  accountId: string,
+  nativeQtyInput: string,
+  userId: string | undefined,
+): Promise<{ assetId: string; quantity: string; baseValue: string; symbol: string }> {
+  const qty = D(nativeQtyInput);
+  if (qty.isNegative()) throw new Error("موجودی اولیه نمی‌تواند منفی باشد.");
+
+  const [row] = await tx
+    .select({
+      assetId: accounts.assetId,
+      symbol: assets.symbol,
+    })
+    .from(accounts)
+    .innerJoin(assets, eq(assets.id, accounts.assetId))
+    .where(eq(accounts.id, accountId))
+    .limit(1);
+
+  if (!row?.assetId || !row.symbol) {
+    throw new Error("حساب انتخاب‌شده واحد بومی (assetId) ندارد.");
+  }
+
+  let unitPriceUsd = D("1");
+  if (row.symbol === "IRT") {
+    const fx = await getLatestUsdIrtRateForUser(userId, tx);
+    const usdIrtRate = D(fx.rate);
+    if (usdIrtRate.lte(0)) throw new Error("نرخ تبدیل دلار به تومان معتبر نیست.");
+    unitPriceUsd = D("1").div(usdIrtRate);
+  }
+
+  return {
+    assetId: row.assetId,
+    symbol: row.symbol,
+    quantity: qty.toString(),
+    baseValue: qty.mul(unitPriceUsd).toString(),
+  };
+}
 
 export async function getSetupState(userId?: string) {
   const rows = await db
@@ -159,6 +222,13 @@ export async function completeSetup(
 
     // 6. Chart of Accounts Creation
     const baseAssetId = assetMap[input.baseCurrency] ?? assetMap.USD;
+    // Book / functional currency is always USD. Account denomination
+    // (native holding unit) is independent and lives on accounts.assetId.
+    const bookAssetId = assetMap.USD ?? baseAssetId;
+    const bankDenom = resolveMoneyDenomination(input.bankAssetSymbol, input.baseCurrency);
+    const cashDenom = resolveMoneyDenomination(input.cashAssetSymbol, input.baseCurrency);
+    const bankAssetId = assetMap[bankDenom] ?? bookAssetId;
+    const cashAssetId = assetMap[cashDenom] ?? bookAssetId;
     // Only the bank account is mandatory during onboarding. A cash box is
     // provisioned only when the user explicitly names it or funds it; otherwise
     // they can add one later from the Accounts module. The ETH / gold accounts
@@ -169,16 +239,16 @@ export async function completeSetup(
     );
     const acctRows = [
       { code: "1000", name: "دارایی‌ها", type: "asset" },
-      { code: "1010", name: input.bankAccountName?.trim() || "حساب بانکی اصلی", type: "asset", assetId: baseAssetId },
+      { code: "1010", name: input.bankAccountName?.trim() || "حساب بانکی اصلی", type: "asset", assetId: bankAssetId },
       ...(wantsCashWallet
-        ? [{ code: "1020", name: input.cashWalletName?.trim() || "صندوق نقد", type: "asset", assetId: baseAssetId }]
+        ? [{ code: "1020", name: input.cashWalletName?.trim() || "صندوق نقد", type: "asset", assetId: cashAssetId }]
         : []),
       { code: "1200", name: "کیف رمزارز (ETH)", type: "asset", assetId: assetMap.ETH },
       { code: "1300", name: "طلای ۱۸ عیار", type: "asset", assetId: assetMap.GOLD18 },
       { code: "2000", name: "بدهی‌ها", type: "liability" },
       { code: "2010", name: "وام / بدهی عمومی", type: "liability", assetId: baseAssetId },
       { code: "3000", name: "سرمایه", type: "equity" },
-      { code: "3010", name: "سرمایه افتتاحیه", type: "equity", assetId: baseAssetId },
+      { code: "3010", name: "سرمایه افتتاحیه", type: "equity", assetId: bookAssetId },
       // Non-cash reserve: counter account of depreciation / reserve expense
       // entries (nature = non_cash) so no cash account ever moves.
       { code: "3200", name: "ذخیره استهلاک و تعمیرات آتی", type: "equity", assetId: baseAssetId },
@@ -236,33 +306,37 @@ export async function completeSetup(
     }
 
     // 8. Opening Balances Entry Creation
+    // Cash/bank quantities are native units of accounts.assetId. Server
+    // computes USD base_value. Do not trust client currency labels.
+    // Cash/bank openings never open FIFO lots.
     const draftPostings = [];
     let totalOpeningEquityBase = Decimal.zero();
 
-    // Bank Opening Balance
+    // Bank Opening Balance — interpret in the persisted account denomination.
     if (input.bankOpeningBalance && D(input.bankOpeningBalance).gt(0)) {
-      const bankVal = D(input.bankOpeningBalance);
+      const bank = await bookUsdFromAccountNative(tx, acctMap["1010"], input.bankOpeningBalance, user.id);
       draftPostings.push({
         accountId: acctMap["1010"],
-        assetId: baseAssetId,
-        quantity: bankVal.toString(),
-        baseValue: bankVal.toString(),
+        assetId: bank.assetId,
+        quantity: bank.quantity,
+        baseValue: bank.baseValue,
         memo: "موجودی اولیه بانک",
       });
-      totalOpeningEquityBase = totalOpeningEquityBase.add(bankVal);
+      totalOpeningEquityBase = totalOpeningEquityBase.add(bank.baseValue);
     }
 
-    // Cash Opening Balance
+    // Cash Opening Balance — interpret in the persisted account denomination.
     if (input.cashOpeningBalance && D(input.cashOpeningBalance).gt(0)) {
-      const cashVal = D(input.cashOpeningBalance);
+      if (!acctMap["1020"]) throw new Error("حساب صندوق نقد برای ثبت موجودی اولیه ایجاد نشده است.");
+      const cash = await bookUsdFromAccountNative(tx, acctMap["1020"], input.cashOpeningBalance, user.id);
       draftPostings.push({
         accountId: acctMap["1020"],
-        assetId: baseAssetId,
-        quantity: cashVal.toString(),
-        baseValue: cashVal.toString(),
+        assetId: cash.assetId,
+        quantity: cash.quantity,
+        baseValue: cash.baseValue,
         memo: "موجودی اولیه نقد",
       });
-      totalOpeningEquityBase = totalOpeningEquityBase.add(cashVal);
+      totalOpeningEquityBase = totalOpeningEquityBase.add(cash.baseValue);
     }
 
     // Crypto Opening Balance
@@ -309,11 +383,16 @@ export async function completeSetup(
       };
     }
 
-    // Balance against Opening Balance Equity Account (3010)
+    // Balance against Opening Balance Equity (3010) in book USD.
     if (draftPostings.length > 0) {
+      const [equity] = await tx
+        .select({ assetId: accounts.assetId })
+        .from(accounts)
+        .where(eq(accounts.id, acctMap["3010"]))
+        .limit(1);
       draftPostings.push({
         accountId: acctMap["3010"],
-        assetId: baseAssetId,
+        assetId: equity?.assetId ?? bookAssetId,
         quantity: totalOpeningEquityBase.neg().toString(),
         baseValue: totalOpeningEquityBase.neg().toString(),
         memo: "موازنه سرمایه افتتاحیه",

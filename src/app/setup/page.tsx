@@ -11,16 +11,37 @@ import AmountInput from "@/components/ui/AmountInput";
 
 const t = getTranslations("fa").setup;
 
+type MoneySymbol = "IRT" | "USD" | "USDT";
+
+const MONEY_DENOMS: { symbol: MoneySymbol; label: string }[] = [
+  { symbol: "IRT", label: "IRT — تومان" },
+  { symbol: "USD", label: "USD — دلار آمریکا" },
+  { symbol: "USDT", label: "USDT — تتر" },
+];
+
+function amountUnit(symbol: MoneySymbol) {
+  return symbol === "IRT" ? "toman" : symbol === "USDT" ? "usdt" : "usd";
+}
+
+function nativeToBookUsd(qty: ReturnType<typeof D>, symbol: MoneySymbol, rate: ReturnType<typeof D>) {
+  if (!qty.gt(0)) return D("0");
+  if (symbol === "IRT") return rate.gt(0) ? qty.div(rate) : D("0");
+  return qty;
+}
+
 export default function SetupWizardPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [setupStatus, setSetupStatus] = useState<"loading" | "pending" | "completed">("loading");
+  const [usdIrtRate, setUsdIrtRate] = useState("190000");
 
   useEffect(() => {
     let active = true;
     fetchSetupStateAction()
       .then((state) => {
-        if (active) setSetupStatus(state.completed ? "completed" : "pending");
+        if (!active) return;
+        setSetupStatus(state.completed ? "completed" : "pending");
+        if (state.usdIrtRate) setUsdIrtRate(state.usdIrtRate);
       })
       .catch(() => {
         if (active) setSetupStatus("pending");
@@ -37,11 +58,13 @@ export default function SetupWizardPage() {
   const [dateCalendar, setDateCalendar] = useState<"jalali" | "gregorian">("jalali");
   const [digitStyle, setDigitStyle] = useState<"fa" | "en">("fa");
 
-  // Step 2 State
+  // Step 2 State — names + native denomination (independent of book USD)
   const [bankAccountName, setBankAccountName] = useState("بانک ملت — جاری");
   const [cashWalletName, setCashWalletName] = useState("صندوق خانگی");
+  const [bankAssetSymbol, setBankAssetSymbol] = useState<MoneySymbol>("IRT");
+  const [cashAssetSymbol, setCashAssetSymbol] = useState<MoneySymbol>("IRT");
 
-  // Step 3 State
+  // Step 3 State — amounts are native units of the selected denomination
   const [bankOpeningBalance, setBankOpeningBalance] = useState("");
   const [cashOpeningBalance, setCashOpeningBalance] = useState("");
   const [cryptoOpeningQty, setCryptoOpeningQty] = useState("");
@@ -61,13 +84,18 @@ export default function SetupWizardPage() {
     null,
   );
 
-  // Unit label for the real-time amount-in-words hints (follows the base currency).
+  // Unit label for crypto/gold cost basis (book currency remains USD).
   const baseUnit = baseCurrency === "IRT" ? "toman" : baseCurrency === "IRR" ? "rial" : baseCurrency === "EUR" ? "eur" : "usd";
+  const bankUnit = amountUnit(bankAssetSymbol);
+  const cashUnit = amountUnit(cashAssetSymbol);
+  const fxRate = D(usdIrtRate || "0");
 
-  // Calculate opening balance preview
+  // Preview: native qty per account + server-style USD book value (non-authoritative).
   const previewData = useMemo(() => {
-    const bankVal = D(bankOpeningBalance || "0");
-    const cashVal = D(cashOpeningBalance || "0");
+    const bankQty = D(bankOpeningBalance || "0");
+    const cashQty = D(cashOpeningBalance || "0");
+    const bankBook = nativeToBookUsd(bankQty, bankAssetSymbol, fxRate);
+    const cashBook = nativeToBookUsd(cashQty, cashAssetSymbol, fxRate);
     const ethQty = D(cryptoOpeningQty || "0");
     const ethPrice = D(cryptoUnitPrice || "0");
     const ethVal = ethQty.mul(ethPrice);
@@ -75,21 +103,26 @@ export default function SetupWizardPage() {
     const goldPrice = D(goldUnitPrice || "0");
     const goldVal = goldQty.mul(goldPrice);
 
-    const totalEquity = bankVal.add(cashVal).add(ethVal).add(goldVal);
+    const totalEquity = bankBook.add(cashBook).add(ethVal).add(goldVal);
 
     return {
-      bankVal: bankVal.toString(),
-      cashVal: cashVal.toString(),
+      bankQty: bankQty.toString(),
+      cashQty: cashQty.toString(),
+      bankBook: bankBook.toString(),
+      cashBook: cashBook.toString(),
       ethQty: ethQty.toString(),
       ethVal: ethVal.toString(),
       goldQty: goldQty.toString(),
       goldVal: goldVal.toString(),
       totalEquity: totalEquity.toString(),
-      hasItems: totalEquity.gt(0),
+      hasItems: totalEquity.gt(0) || bankQty.gt(0) || cashQty.gt(0) || ethQty.gt(0) || goldQty.gt(0),
     };
   }, [
     bankOpeningBalance,
     cashOpeningBalance,
+    bankAssetSymbol,
+    cashAssetSymbol,
+    usdIrtRate,
     cryptoOpeningQty,
     cryptoUnitPrice,
     goldOpeningQty,
@@ -167,6 +200,8 @@ export default function SetupWizardPage() {
           <input type="hidden" name="digitStyle" value={digitStyle} />
           <input type="hidden" name="bankAccountName" value={bankAccountName} />
           <input type="hidden" name="cashWalletName" value={cashWalletName} />
+          <input type="hidden" name="bankAssetSymbol" value={bankAssetSymbol} />
+          <input type="hidden" name="cashAssetSymbol" value={cashAssetSymbol} />
           <input type="hidden" name="bankOpeningBalance" value={bankOpeningBalance} />
           <input type="hidden" name="cashOpeningBalance" value={cashOpeningBalance} />
           <input type="hidden" name="cryptoOpeningQty" value={cryptoOpeningQty} />
@@ -269,28 +304,61 @@ export default function SetupWizardPage() {
                 <p className="muted text-xs">{t.step2Desc}</p>
               </div>
 
-              <div>
-                <label className="label">{t.mainBankAccount}</label>
-                <input
-                  type="text"
-                  required
-                  value={bankAccountName}
-                  onChange={(e) => setBankAccountName(e.target.value)}
-                  className="field"
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label">{t.mainBankAccount}</label>
+                  <input
+                    type="text"
+                    required
+                    value={bankAccountName}
+                    onChange={(e) => setBankAccountName(e.target.value)}
+                    className="field"
+                  />
+                </div>
+                <div>
+                  <label className="label">{t.accountDenominationLabel}</label>
+                  <select
+                    value={bankAssetSymbol}
+                    onChange={(e) => setBankAssetSymbol(e.target.value as MoneySymbol)}
+                    className="field"
+                  >
+                    {MONEY_DENOMS.map((item) => (
+                      <option key={item.symbol} value={item.symbol}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="chip mt-1 inline-block">{t.bookCurrencyChip}</span>
+                </div>
               </div>
 
-              <div>
-                <label className="label">
-                  {t.cashWallet} <span className="muted">(اختیاری)</span>
-                </label>
-                <input
-                  type="text"
-                  value={cashWalletName}
-                  onChange={(e) => setCashWalletName(e.target.value)}
-                  className="field"
-                  placeholder="خالی بگذارید تا بعداً از ماژول حساب‌ها اضافه کنید"
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label">
+                    {t.cashWallet} <span className="muted">(اختیاری)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={cashWalletName}
+                    onChange={(e) => setCashWalletName(e.target.value)}
+                    className="field"
+                    placeholder="خالی بگذارید تا بعداً از ماژول حساب‌ها اضافه کنید"
+                  />
+                </div>
+                <div>
+                  <label className="label">{t.accountDenominationLabel}</label>
+                  <select
+                    value={cashAssetSymbol}
+                    onChange={(e) => setCashAssetSymbol(e.target.value as MoneySymbol)}
+                    className="field"
+                  >
+                    {MONEY_DENOMS.map((item) => (
+                      <option key={item.symbol} value={item.symbol}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="card soft p-3 text-[11px] leading-6">
@@ -331,22 +399,28 @@ export default function SetupWizardPage() {
               </div>
 
               <p className="muted text-[11px] leading-5">{t.openingBalanceHelp}</p>
+              <span className="chip inline-block">{t.bookCurrencyChip}</span>
 
               {/* فقط حساب بانکی الزامی است؛ بقیه موجودی‌ها کاملاً اختیاری هستند. */}
               <div>
-                <label className="label">{t.cashAmount} ({baseCurrency})</label>
+                <label className="label">{t.cashAmount} ({bankAssetSymbol})</label>
                 <AmountInput
                   type="text"
                   inputMode="decimal"
                   value={bankOpeningBalance}
                   onChange={(e) => setBankOpeningBalance(e.target.value.replace(/[^\d.]/g, ""))}
-                  placeholder="0.00"
+                  placeholder={bankAssetSymbol === "IRT" ? "مثلاً 35000000" : "0.00"}
                   className="field num"
                   dir="ltr"
-                  unit={baseUnit}
+                  unit={bankUnit}
                 />
+                {D(previewData.bankQty).gt(0) && (
+                  <p className="mt-1 text-[11px] leading-5" style={{ color: "var(--brand)" }}>
+                    {t.bookValueApprox}: ≈ {formatMoney(previewData.bankBook, "USD")}
+                  </p>
+                )}
                 <p className="muted mt-1 text-[10px] leading-5">
-                  اگر موجودی ندارید خالی بگذارید؛ سیستم با مانده صفر شروع می‌شود.
+                  مبلغ را به واحد {bankAssetSymbol} همین حساب وارد کنید. اگر موجودی ندارید خالی بگذارید.
                 </p>
               </div>
 
@@ -359,17 +433,22 @@ export default function SetupWizardPage() {
 
                 <div className="mt-3 space-y-3">
                   <div>
-                    <label className="label">موجودی صندوق نقد ({baseCurrency}) — اختیاری</label>
+                    <label className="label">موجودی صندوق نقد ({cashAssetSymbol}) — اختیاری</label>
                     <AmountInput
                       type="text"
                       inputMode="decimal"
                       value={cashOpeningBalance}
                       onChange={(e) => setCashOpeningBalance(e.target.value.replace(/[^\d.]/g, ""))}
-                      placeholder="0.00"
+                      placeholder={cashAssetSymbol === "IRT" ? "مثلاً 5000000" : "0.00"}
                       className="field num"
                       dir="ltr"
-                      unit={baseUnit}
+                      unit={cashUnit}
                     />
+                    {D(previewData.cashQty).gt(0) && (
+                      <p className="mt-1 text-[11px] leading-5" style={{ color: "var(--brand)" }}>
+                        {t.bookValueApprox}: ≈ {formatMoney(previewData.cashBook, "USD")}
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -464,20 +543,20 @@ export default function SetupWizardPage() {
               <div className="soft rounded-[var(--r-md)] p-4 space-y-3">
                 <h3 className="text-xs font-bold">{t.previewTitle}</h3>
                 <div className="divide-y text-xs" style={{ borderColor: "var(--border)" }}>
-                  {D(previewData.bankVal).gt(0) && (
-                    <div className="flex justify-between py-2">
-                      <span>بدهکار: {bankAccountName}</span>
+                  {D(previewData.bankQty).gt(0) && (
+                    <div className="flex justify-between gap-3 py-2">
+                      <span>بدهکار: {bankAccountName} ({formatMoney(previewData.bankQty, bankAssetSymbol)})</span>
                       <span className="num font-bold" dir="ltr">
-                        {formatMoney(previewData.bankVal, baseCurrency)}
+                        {formatMoney(previewData.bankBook, "USD")}
                       </span>
                     </div>
                   )}
 
-                  {D(previewData.cashVal).gt(0) && (
-                    <div className="flex justify-between py-2">
-                      <span>بدهکار: {cashWalletName}</span>
+                  {D(previewData.cashQty).gt(0) && (
+                    <div className="flex justify-between gap-3 py-2">
+                      <span>بدهکار: {cashWalletName} ({formatMoney(previewData.cashQty, cashAssetSymbol)})</span>
                       <span className="num font-bold" dir="ltr">
-                        {formatMoney(previewData.cashVal, baseCurrency)}
+                        {formatMoney(previewData.cashBook, "USD")}
                       </span>
                     </div>
                   )}
@@ -486,7 +565,7 @@ export default function SetupWizardPage() {
                     <div className="flex justify-between py-2">
                       <span>بدهکار: کیف رمزارز ({previewData.ethQty} ETH)</span>
                       <span className="num font-bold" dir="ltr">
-                        {formatMoney(previewData.ethVal, baseCurrency)}
+                        {formatMoney(previewData.ethVal, "USD")}
                       </span>
                     </div>
                   )}
@@ -495,7 +574,7 @@ export default function SetupWizardPage() {
                     <div className="flex justify-between py-2">
                       <span>بدهکار: طلای ۱۸ عیار ({previewData.goldQty} گرم)</span>
                       <span className="num font-bold" dir="ltr">
-                        {formatMoney(previewData.goldVal, baseCurrency)}
+                        {formatMoney(previewData.goldVal, "USD")}
                       </span>
                     </div>
                   )}

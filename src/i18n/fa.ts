@@ -24,10 +24,13 @@ export const fa = {
 
     step3Title: "مرحله ۳: ثبت موجودی اولیه (Opening Balances)",
     step3Desc: "ثروت موجود خود را وارد کنید. موجودی اولیه طبق قواعد حسابداری دوطرفه در دفترکل ثبت می‌شود.",
-    openingBalanceHelp: "موجودی اولیه با سند افتتاحیه متوازن در حساب سرمایه افتتاحیه (Opening Balance Equity) ثبت می‌شود.",
+    openingBalanceHelp: "موجودی اولیه با سند افتتاحیه متوازن در حساب سرمایه افتتاحیه (Opening Balance Equity) ثبت می‌شود. مبلغ هر حساب در واحد بومی همان حساب وارد می‌شود؛ ارز دفترکل USD است.",
     cashAmount: "موجودی نقد و بانک",
     cryptoAmount: "مقدار رمزارز (مثلاً ETH)",
     goldAmount: "مقدار طلا (گرم)",
+    accountDenominationLabel: "واحد حساب (Denomination)",
+    bookCurrencyChip: "ارز دفترکل: USD (فقط خواندنی)",
+    bookValueApprox: "معادل دفتری",
 
     step4Title: "مرحله ۴: پیش‌نمایش و تایید",
     step4Desc: "خلاصه پیکربندی و سند افتتاحیه قبل از ثبت نهایی",
