@@ -51,6 +51,7 @@ import {
 } from "@/features/categories/service";
 import { executePlanned, payInstallment } from "@/features/planning/service";
 import { completeSetup, getSetupState } from "@/features/setup/service";
+import { rootCauseOf } from "@/db/init-schema";
 import { registerMoneyAccount } from "@/features/accounts/service";
 import { createPortfolioSnapshot, getCurrentNetWorth, getPortfolioValuation } from "@/features/portfolio/service";
 import { getAnalyticsSummary } from "@/features/analytics/service";
@@ -1297,8 +1298,9 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
     refreshAll();
     return { ok: true, message: "راه‌اندازی اولیه با موفقیت انجام شد." };
   } catch (e) {
-    const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطای راه‌اندازی";
-    return { ok: false, message: msg };
+    if (e instanceof z.ZodError) return { ok: false, message: e.issues[0].message };
+    const root = rootCauseOf(e);
+    return { ok: false, message: root.message || (e instanceof Error ? e.message : "خطای راه‌اندازی") };
   }
 }
 
