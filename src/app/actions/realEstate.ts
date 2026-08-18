@@ -187,7 +187,7 @@ export async function recordRealEstateValuationAction(_previous: RealEstateResul
     refresh();
     return {
       ok: true,
-      message: `ارزش‌گذاری جدید ثبت شد: ${Number(result.currentValueToman).toLocaleString("fa-IR")} تومان با نرخ دلار ${Number(result.valuationFxRate).toLocaleString("fa-IR")} (≈ ${Number(result.currentValueUsd).toLocaleString("en-US")} دلار). سند دفترکل تغییری نکرد.`,
+      message: `ارزش‌گذاری جدید ثبت شد: ${Number(result.currentValueToman).toLocaleString("fa-IR")} تومان با نرخ دلار ${Number(result.valuationFxRate).toLocaleString("fa-IR")} (≈ ${Number(result.currentValueUsd).toLocaleString("fa-IR")} دلار). سند دفترکل تغییری نکرد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت ارزش‌گذاری ناموفق بود." };

@@ -62,7 +62,7 @@ export default function FxSettings({ currentRate, lastUpdatedAt, nextUpdateAt, c
           <div>
             <p className="muted text-[11px]">نرخ فعلی</p>
             <p className="num text-[22px] font-bold" dir="ltr">
-              {formatMoney(currentRate, "IRT")} <span className="muted text-[12px]">≈ $1</span>
+              {formatMoney(currentRate, "IRT")} <span className="muted text-[12px]">≈ ۱ دلار</span>
             </p>
           </div>
           <div className="text-left">

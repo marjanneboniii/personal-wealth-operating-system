@@ -14,9 +14,9 @@ const t = getTranslations("fa").setup;
 type MoneySymbol = "IRT" | "USD" | "USDT";
 
 const MONEY_DENOMS: { symbol: MoneySymbol; label: string }[] = [
-  { symbol: "IRT", label: "IRT — تومان" },
-  { symbol: "USD", label: "USD — دلار آمریکا" },
-  { symbol: "USDT", label: "USDT — تتر" },
+  { symbol: "IRT", label: "تومان" },
+  { symbol: "USD", label: "دلار" },
+  { symbol: "USDT", label: "تتر" },
 ];
 
 function amountUnit(symbol: MoneySymbol) {
@@ -237,10 +237,10 @@ export default function SetupWizardPage() {
                     onChange={(e) => setBaseCurrency(e.target.value)}
                     className="field"
                   >
-                    <option value="USD">USD ($ — دلار آمریکا)</option>
-                    <option value="EUR">EUR (€ — یورو)</option>
-                    <option value="IRT">IRT (تومان)</option>
-                    <option value="IRR">IRR (ریال)</option>
+                    <option value="USD">دلار</option>
+                    <option value="EUR">یورو</option>
+                    <option value="IRT">تومان</option>
+                    <option value="IRR">ریال</option>
                   </select>
                   <p className="muted mt-1 text-[10px]">{t.accountingCurrencyHelp}</p>
                 </div>
@@ -252,9 +252,9 @@ export default function SetupWizardPage() {
                     onChange={(e) => setDisplayCurrency(e.target.value)}
                     className="field"
                   >
-                    <option value="IRT">IRT (تومان)</option>
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
+                    <option value="IRT">تومان</option>
+                    <option value="USD">دلار</option>
+                    <option value="EUR">یورو</option>
                   </select>
                   <p className="muted mt-1 text-[10px]">{t.displayCurrencyHelp}</p>
                 </div>

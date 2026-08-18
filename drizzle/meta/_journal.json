@@ -15,6 +15,13 @@
       "when": 1786589647941,
       "tag": "0001_production_schema_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787000000000,
+      "tag": "0002_accounts_header_nullable",
+      "breakpoints": true
     }
   ]
 }

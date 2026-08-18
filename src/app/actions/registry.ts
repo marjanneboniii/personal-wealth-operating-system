@@ -237,7 +237,7 @@ export async function recordVehicleValuationAction(_previous: RegistryResult | n
     refresh();
     return {
       ok: true,
-      message: `ارزش‌گذاری جدید ثبت شد: ${Number(snapshot.currentValueToman).toLocaleString("fa-IR")} تومان با نرخ دلار ${Number(snapshot.usdRate).toLocaleString("fa-IR")} (≈ ${Number(snapshot.currentValueUsd).toLocaleString("en-US")} دلار).`,
+      message: `ارزش‌گذاری جدید ثبت شد: ${Number(snapshot.currentValueToman).toLocaleString("fa-IR")} تومان با نرخ دلار ${Number(snapshot.usdRate).toLocaleString("fa-IR")} (≈ ${Number(snapshot.currentValueUsd).toLocaleString("fa-IR")} دلار).`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت ارزش‌گذاری ناموفق بود." };

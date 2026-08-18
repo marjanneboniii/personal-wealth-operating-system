@@ -108,14 +108,14 @@ export default function MoneyAccountForm({
             </option>
             {currencies.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.symbol} — {item.name}
+                {item.name}
               </option>
             ))}
           </select>
           <span className="muted block text-[10px] leading-5">
-            واحدی که موجودی این حساب در آن نگهداری می‌شود. ارز دفترکل برای همه حساب‌ها USD است و قابل تغییر نیست.
+            واحدی که موجودی این حساب در آن نگهداری می‌شود. ارز دفترکل برای همه حساب‌ها دلار است و قابل تغییر نیست.
           </span>
-          <span className="chip mt-1 inline-block">ارز دفترکل: USD (فقط خواندنی)</span>
+          <span className="chip mt-1 inline-block">ارز دفترکل: دلار (فقط خواندنی)</span>
         </label>
         <label className="space-y-1">
           <span className="label">موجودی اولیه به واحد ارز انتخاب‌شده</span>
@@ -165,7 +165,7 @@ export default function MoneyAccountForm({
           <div className="flex flex-wrap items-center gap-2">
             <strong>{name}</strong>
             <span className="chip">{kindLabel}</span>
-            {currency && <span className="chip">{currency.symbol} — {currency.name}</span>}
+            {currency && <span className="chip">{currency.name}</span>}
           </div>
           {qty.gt(0) && (
             <div className="mt-2">

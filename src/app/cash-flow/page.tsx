@@ -201,7 +201,7 @@ export default async function CashFlowPage() {
       <CategoryBreakdown rows={categoryFlows} />
 
       <p className="muted text-[10.5px]">
-        نرمال‌سازی ارز: {fx.rate ? <>هر $1 ≈ <span className="num">{formatMoney(fx.rate, "IRT")}</span></> : "ثبت نشده"} · منبع داده: دفترکل دوطرفه — همان حقیقت حسابداری.
+        نرمال‌سازی ارز: {fx.rate ? <>هر ۱ دلار ≈ <span className="num">{formatMoney(fx.rate, "IRT")}</span></> : "ثبت نشده"} · منبع داده: دفترکل دوطرفه — همان حقیقت حسابداری.
       </p>
     </div>
   );

@@ -8,7 +8,7 @@ import {
   registerMarketAssetAction,
   searchMarketCatalogAction,
 } from "@/app/actions/pricing";
-import { formatMoney, getDualDate } from "@/lib/format";
+import { currencyLabel, formatMoney, getDualDate } from "@/lib/format";
 import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
@@ -437,7 +437,7 @@ export default function TransactionForm({
 
       <div className="card space-y-3 p-4">
         <div>
-          <label className="label">مبلغ به تومان (IRT) — مرجع برنامه‌ریزی</label>
+          <label className="label">مبلغ به تومان — مرجع برنامه‌ریزی</label>
           <AmountInput
             name="irtAmountInput"
             inputMode="numeric"
@@ -623,7 +623,7 @@ export default function TransactionForm({
                 <option value="" disabled>انتخاب کنید…</option>
                 {primaryOptions.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.code} — {a.name} {a.symbol ? `(${a.symbol})` : ""}
+                    {a.code} — {a.name} {a.symbol ? `(${currencyLabel(a.symbol)})` : ""}
                   </option>
                 ))}
               </select>
@@ -643,7 +643,7 @@ export default function TransactionForm({
                 <option value="" disabled>انتخاب کنید…</option>
                 {counterOptions.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.code} — {a.name} {a.symbol ? `(${a.symbol})` : ""}
+                    {a.code} — {a.name} {a.symbol ? `(${currencyLabel(a.symbol)})` : ""}
                   </option>
                 ))}
               </select>
@@ -712,7 +712,7 @@ export default function TransactionForm({
             <div className="soft rounded-xl p-2">
               <div className="muted text-[10px]">مبلغ به تومان و معادل دلاری (با نرخ لحظه‌ای)</div>
               <div className="num font-bold" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</div>
-              <div className="num" dir="ltr" style={{ color:"var(--brand)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {effectiveRate ? formatMoney(effectiveRate, "IRT")+" ≈ $1" : "ثبت نشده"}</span></div>
+              <div className="num" dir="ltr" style={{ color:"var(--brand)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {effectiveRate ? formatMoney(effectiveRate, "IRT")+" ≈ ۱ دلار" : "ثبت نشده"}</span></div>
               {effectiveRateDate && <div className="muted text-[10px]">تاریخ نرخ: <span dir="ltr" className="num">{effectiveRateDate}</span> · منبع: {effectiveRateSource ?? "—"}</div>}
             </div>
             <div className="grid sm:grid-cols-2 gap-2">

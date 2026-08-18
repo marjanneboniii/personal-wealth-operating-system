@@ -10,7 +10,7 @@ import Icon from "@/components/ui/Icon";
 import MoneyAccountForm from "@/components/forms/MoneyAccountForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, formatMoney, formatQty } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -137,7 +137,7 @@ export default async function AccountsPage() {
                         <div className="min-w-0">
                           <p className="truncate text-[12.5px] font-medium">{b.name}</p>
                           <p className="muted num text-[10px]" dir="ltr">
-                            {b.code} · {formatQty(b.quantity, b.assetDecimals)} {b.symbol ?? ""}
+                            {b.code} · {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}
                           </p>
                         </div>
                         <div className="shrink-0 text-left">
