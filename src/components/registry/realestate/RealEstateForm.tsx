@@ -295,7 +295,7 @@ export default function RealEstateForm({
           <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="text-[11px] font-medium">معادل دلاری قیمت خرید (نرخ تاریخ تملک)</span>
-              <strong className="num text-[13.5px]" dir="ltr" style={{ color: "var(--brand)" }}>
+              <strong className="num text-[13.5px]" dir="rtl" style={{ color: "var(--brand)" }}>
                 {canPreviewPurchase && loadingPurchase ? "…" : purchaseUsdPreview ? formatMoney(purchaseUsdPreview.usd, "USD") : "—"}
               </strong>
             </div>
@@ -338,7 +338,7 @@ export default function RealEstateForm({
           <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="text-[11px] font-medium">معادل دلاری ارزش فعلی (نرخ تاریخ ارزش‌گذاری)</span>
-              <strong className="num text-[13.5px]" dir="ltr" style={{ color: "var(--brand)" }}>
+              <strong className="num text-[13.5px]" dir="rtl" style={{ color: "var(--brand)" }}>
                 {canPreviewValuation && loadingValuation ? "…" : valuationUsdPreview ? formatMoney(valuationUsdPreview.usd, "USD") : "—"}
               </strong>
             </div>

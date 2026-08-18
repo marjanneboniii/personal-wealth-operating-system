@@ -41,7 +41,7 @@ export default function HoldingsTable({
                       <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: a.classColor }} />
                     )}
                     <div className="min-w-0">
-                      <div className="text-[13px] font-bold tracking-tight" dir="ltr">
+                      <div className="text-[13px] font-bold tracking-tight" dir="rtl">
                         {currencyLabel(a.symbol)}
                       </div>
                       <div className="muted truncate text-[10.5px]">{a.name}</div>
@@ -53,10 +53,10 @@ export default function HoldingsTable({
                     </div>
                   </div>
                 </td>
-                <td className="td-num" dir="ltr">
+                <td className="td-num" dir="rtl">
                   {formatQty(a.quantity, a.decimals)}
                 </td>
-                <td className="td-num" dir="ltr">
+                <td className="td-num" dir="rtl">
                   <div className="text-[12.5px] font-medium">
                     {a.priceFreshness === "unavailable" && a.valuationBasis === "cost_basis_fallback"
                       ? "در دسترس نیست"
@@ -68,17 +68,17 @@ export default function HoldingsTable({
                     </div>
                   )}
                 </td>
-                <td className="td-num hidden lg:table-cell" dir="ltr">
+                <td className="td-num hidden lg:table-cell" dir="rtl">
                   <div className="text-[12px]">{formatMoney(a.costBasis)}</div>
                   <div className="muted text-[9.5px]">FIFO</div>
                 </td>
-                <td className="td-num" dir="ltr">
+                <td className="td-num" dir="rtl">
                   <div className="num text-[13px] font-bold">{formatMoney(a.currentValue)}</div>
                   <div className="muted num text-[9.5px]" dir="rtl">
                     ≈ {formatMoney(a.currentValueToman, "IRT")}
                   </div>
                 </td>
-                <td className="td-num hidden sm:table-cell" dir="ltr" style={{ color: pnl.isNegative() ? "var(--negative)" : "var(--positive)" }}>
+                <td className="td-num hidden sm:table-cell" dir="rtl" style={{ color: pnl.isNegative() ? "var(--negative)" : "var(--positive)" }}>
                   <div className="text-[12.5px] font-semibold">
                     {pnl.gte(0) ? "+" : "−"}
                     {formatMoney(pnl.abs().toString())}
@@ -87,7 +87,7 @@ export default function HoldingsTable({
                     {D(a.roiPercentage).gte(0) ? "↑" : "↓"} {formatQty(D(a.roiPercentage).abs().toString(), 2)}٪
                   </div>
                 </td>
-                <td className="td-num hidden sm:table-cell" dir="ltr">
+                <td className="td-num hidden sm:table-cell" dir="rtl">
                   <span className="num text-[12px]">{formatPct(a.sharePercentage, 2)}</span>
                 </td>
               </tr>

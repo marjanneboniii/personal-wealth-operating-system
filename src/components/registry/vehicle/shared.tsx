@@ -19,7 +19,7 @@ export function Toman({ value, className = "" }: { value: string | number | null
 export function Usd({ value, className = "" }: { value: string | number | null | undefined; className?: string }) {
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   return (
-    <span className={`num ltr-isolate ${className}`} dir="ltr">
+    <span className={`num rtl-isolate ${className}`} dir="rtl">
       {formatMoney(value, "USD")}
     </span>
   );
@@ -49,7 +49,7 @@ export function DeltaUsd({ value }: { value: string | number | null | undefined 
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   const { color, sign } = toneOf(value);
   return (
-    <span className="num ltr-isolate" style={{ color }} dir="ltr">
+    <span className="num rtl-isolate" style={{ color }} dir="rtl">
       {sign}
       {formatMoney(D(value).abs().toString(), "USD")}
     </span>
@@ -60,7 +60,7 @@ export function DeltaPct({ value }: { value: string | number | null | undefined 
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   const { color, sign } = toneOf(value);
   return (
-    <span className="num" style={{ color }} dir="ltr">
+    <span className="num" style={{ color }} dir="rtl">
       {sign}
       {formatPct(D(value).abs().toString(), 2)}
     </span>

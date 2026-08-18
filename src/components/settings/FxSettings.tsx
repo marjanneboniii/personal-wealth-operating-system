@@ -61,7 +61,7 @@ export default function FxSettings({ currentRate, lastUpdatedAt, nextUpdateAt, c
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
             <p className="muted text-[11px]">نرخ فعلی</p>
-            <p className="num text-[22px] font-bold" dir="ltr">
+            <p className="num text-[22px] font-bold" dir="rtl">
               {formatMoney(currentRate, "IRT")} <span className="muted text-[12px]">≈ ۱ دلار</span>
             </p>
           </div>

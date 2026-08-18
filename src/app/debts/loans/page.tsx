@@ -5,7 +5,7 @@ import { listDebts } from "@/features/planning/service";
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { D } from "@/domain/decimal";
-import { formatDualDate, formatMoney, formatPct, formatQty, todayIso } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct, formatQty, todayIso, faCount } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -96,17 +96,17 @@ export default async function LoansPage() {
                         </p>
                         <p className="muted mt-1 text-[11.5px]">
                           {d.creditor} · شروع {formatDualDate(d.startDate)} · نرخ سود{" "}
-                          <span className="num" dir="ltr">
+                          <span className="num" dir="rtl">
                             {formatQty(d.interestRate, 2)}٪
                           </span>
                         </p>
                       </div>
                       <div className="text-left">
                         <p className="muted text-[10.5px]">مانده قابل پرداخت</p>
-                        <p className="num text-xl font-bold" dir="ltr" style={{ color: isSettled ? "var(--positive)" : "var(--negative)" }}>
+                        <p className="num text-xl font-bold" dir="rtl" style={{ color: isSettled ? "var(--positive)" : "var(--negative)" }}>
                           {formatMoney(isSettled ? 0 : d.outstandingBase)}
                         </p>
-                        <p className="muted num mt-0.5 text-[10.5px]" dir="ltr">
+                        <p className="muted num mt-0.5 text-[10.5px]" dir="rtl">
                           بازپرداخت‌شده: {formatMoney(repaid.toString())}
                         </p>
                       </div>
@@ -116,12 +116,12 @@ export default async function LoansPage() {
                       <div className="mt-4">
                         <div className="mb-1.5 flex items-center justify-between text-[11px]">
                           <span className="muted">
-                            <span className="num" dir="ltr">
-                              {d.paidCount} از {d.totalCount}
+                            <span className="num" dir="rtl">
+                              {faCount(d.paidCount)} از {faCount(d.totalCount)}
                             </span>{" "}
                             قسط پرداخت شده
                           </span>
-                          <span className="num" dir="ltr">
+                          <span className="num" dir="rtl">
                             {formatPct(progress, 0)}
                           </span>
                         </div>

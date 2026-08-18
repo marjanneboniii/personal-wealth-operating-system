@@ -88,7 +88,7 @@ export default function VehicleChart({
                 {" · "}
                 <span style={{ color: changePct >= 0 ? "var(--positive)" : "var(--negative)" }}>
                   {changePct >= 0 ? "↑" : "↓"}{" "}
-                  <span dir="ltr">{formatPct(Math.abs(changePct), 2)}</span> در کل بازه نمودار
+                  <span dir="rtl">{formatPct(Math.abs(changePct), 2)}</span> در کل بازه نمودار
                 </span>
               </>
             )}

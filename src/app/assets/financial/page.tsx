@@ -132,10 +132,10 @@ export default async function FinancialAssetsPage() {
                     </span>
                     <span className="text-[12.5px] font-semibold">{b.name}</span>
                   </span>
-                  <p className="num mt-2.5 text-lg font-bold" dir="ltr">
+                  <p className="num mt-2.5 text-lg font-bold" dir="rtl">
                     {formatMoney(b.value.toString())}
                   </p>
-                  <p className="muted num text-[10.5px]" dir="ltr">
+                  <p className="muted num text-[10.5px]" dir="rtl">
                     {b.rows.length} دارایی ·{" "}
                     {formatPct(totalValue.isZero() ? "0.0" : b.value.div(totalValue).mul(100).toFixed(1), 1)}
                   </p>

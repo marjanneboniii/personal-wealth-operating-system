@@ -352,7 +352,7 @@ export default function TransactionsView({
                     <span className="shrink-0 text-left">
                       <span
                         className="num block text-[13.5px] font-bold"
-                        dir="ltr"
+                        dir="rtl"
                         style={{ color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)" }}
                       >
                         {h.sign > 0 ? "+" : h.sign < 0 ? "−" : ""}
@@ -395,15 +395,15 @@ export default function TransactionsView({
                                     {Number(l.baseValue) >= 0 ? "بدهکار" : "بستانکار"}
                                   </span>
                                   {l.quantity && Math.abs(Number(l.quantity)) > 0 && (
-                                    <span className="muted num mr-1 text-[10px]" dir="ltr">
+                                    <span className="muted num mr-1 text-[10px]" dir="rtl">
                                       {formatQty(l.quantity, l.decimals)} {currencyLabel(l.symbol)}
                                     </span>
                                   )}
                                 </td>
-                                <td className="td-num" dir="ltr">
-                                  {l.symbol && l.symbol !== "USD" && l.symbol !== "IRT" ? `${formatQty(l.quantity, l.decimals)} ${l.symbol}` : "—"}
+                                <td className="td-num" dir="rtl">
+                                  {l.symbol && l.symbol !== "USD" && l.symbol !== "IRT" ? `${formatQty(l.quantity, l.decimals)} ${currencyLabel(l.symbol)}` : "—"}
                                 </td>
-                                <td className="td-num font-semibold" dir="ltr" style={{ color: Number(l.baseValue) >= 0 ? "var(--positive)" : "var(--negative)" }}>
+                                <td className="td-num font-semibold" dir="rtl" style={{ color: Number(l.baseValue) >= 0 ? "var(--positive)" : "var(--negative)" }}>
                                   {Number(l.baseValue) >= 0 ? "+" : "−"}
                                   {formatMoney(Math.abs(Number(l.baseValue)))}
                                 </td>
@@ -414,10 +414,10 @@ export default function TransactionsView({
                         {e.fx && (
                           <p className="muted mt-3 text-[10.5px] leading-5">
                             مبلغ تاریخی منجمد: <b className="num">{formatMoney(e.fx.irtAmount, "IRT")}</b> ≈{" "}
-                            <b className="num" dir="ltr">
+                            <b className="num" dir="rtl">
                               {formatMoney(e.fx.usdAmount)}
                             </b>{" "}
-                            · نرخ زمان ثبت: <span className="num" dir="ltr">{formatMoney(e.fx.fxRate, "IRT")}</span>
+                            · نرخ زمان ثبت: <span className="num" dir="rtl">{formatMoney(e.fx.fxRate, "IRT")}</span>
                             <span className="mx-1">·</span>منبع: {e.fx.rateSource}
                           </p>
                         )}

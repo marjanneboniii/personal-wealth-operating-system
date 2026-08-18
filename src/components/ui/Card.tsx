@@ -107,7 +107,7 @@ export function Money({
           ? "num text-[13px]"
           : "num font-semibold";
   return (
-    <span className={`inline-flex items-center gap-1 ltr-isolate ${cls}`} dir="ltr" style={color ? { color } : undefined}>
+    <span className={`inline-flex items-center gap-1 rtl-isolate ${cls}`} dir="rtl" style={color ? { color } : undefined}>
       {arrow && n !== 0 && (
         <Icon name={n > 0 ? "trend-up" : "trend-down"} size={size === "xl" ? 20 : 14} strokeWidth={2.2} />
       )}
@@ -138,11 +138,11 @@ export function Delta({
   const abs = formatMoney(Math.abs(n), currency);
   return (
     <span className={`inline-flex flex-wrap items-baseline gap-x-2 ${className}`} style={{ color }}>
-      <span className="num font-semibold ltr-isolate" dir="ltr">
+      <span className="num font-semibold rtl-isolate" dir="rtl">
         {arrow} {zero ? formatMoney(0, currency) : `${up ? "+" : "−"}${abs.replace(/^−|-/, "")}`}
       </span>
       {pct != null && Number.isFinite(Number(pct)) && (
-        <span className="num text-[12px] opacity-80 ltr-isolate" dir="ltr">
+        <span className="num text-[12px] opacity-80 rtl-isolate" dir="rtl">
           ({up ? "+" : "−"}
           {formatPercent(Math.abs(Number(pct))).replace("+", "")})
         </span>
@@ -155,7 +155,7 @@ export function Delta({
 export function Pct({ value }: { value: string | number }) {
   const n = Number(value);
   return (
-    <span className="num ltr-isolate" dir="ltr" style={{ color: n >= 0 ? "var(--positive)" : "var(--negative)" }}>
+    <span className="num rtl-isolate" dir="rtl" style={{ color: n >= 0 ? "var(--positive)" : "var(--negative)" }}>
       {formatPercent(value)}
     </span>
   );

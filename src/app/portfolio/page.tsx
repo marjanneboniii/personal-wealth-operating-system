@@ -125,14 +125,14 @@ export default async function PortfolioPage() {
                   <tbody>
                     {lots.map((l) => (
                       <tr key={l.id}>
-                        <td className="font-bold" dir="ltr">
+                        <td className="font-bold" dir="rtl">
                           {currencyLabel(l.symbol)}
                         </td>
                         <td className="num text-[11.5px]">{formatDualDate(l.openedAt)}</td>
-                        <td className="td-num" dir="ltr">
+                        <td className="td-num" dir="rtl">
                           {formatQty(l.qtyRemaining, 8)}
                         </td>
-                        <td className="td-num" dir="ltr">
+                        <td className="td-num" dir="rtl">
                           {formatMoney(l.unitCostBase)}
                         </td>
                       </tr>
@@ -147,9 +147,9 @@ export default async function PortfolioPage() {
             <Alert tone="info" icon="info" title="سود/زیان تحقق‌یافته بر اساس دارایی">
               <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
                 {pnl.bySymbol.map((p) => (
-                  <span key={p.symbol} className="num text-[11.5px]" dir="ltr" style={{ color: D(p.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
-                    {currencyLabel(p.symbol)}: {D(p.pnl).gte(0) ? "+" : "−"}
-                    {formatMoney(D(p.pnl).abs().toString())}
+                  <span key={p.symbol} className="num text-[11.5px]" dir="rtl" style={{ color: D(p.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
+                    {D(p.pnl).gte(0) ? "+" : "−"}
+                    {formatMoney(D(p.pnl).abs().toString(), p.symbol)}
                   </span>
                 ))}
               </div>

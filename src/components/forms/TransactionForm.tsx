@@ -8,7 +8,7 @@ import {
   registerMarketAssetAction,
   searchMarketCatalogAction,
 } from "@/app/actions/pricing";
-import { currencyLabel, formatMoney, getDualDate } from "@/lib/format";
+import { currencyLabel, formatMoney, getDualDate, faCount } from "@/lib/format";
 import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
@@ -376,7 +376,7 @@ export default function TransactionForm({
     if (selectedInst) {
       const remaining = selectedDebt.installments.filter((i) => i.status === "pending").length - 1;
       if (remaining <= 0) return "پرداخت کامل — بدهی تسویه می‌شود";
-      return `پرداخت بخشی — ${remaining} قسط باقی می‌ماند`;
+      return `پرداخت بخشی — ${faCount(remaining)} قسط باقی می‌ماند`;
     }
     return D(selectedDebt.outstandingBase).lte(previewUsd || "0") ? "پرداخت کامل" : "پرداخت بخشی از مانده";
   }, [selectedDebt, selectedInst, previewUsd]);
@@ -523,7 +523,7 @@ export default function TransactionForm({
                   >
                     <img src={asset.logoUrl} alt="" width={28} height={28} className="h-7 w-7 rounded-full" referrerPolicy="no-referrer" />
                     <span className="min-w-0 flex-1">
-                      <b className="block text-xs" dir="ltr">{asset.symbol}</b>
+                      <b className="block text-xs" dir="ltr">{currencyLabel(asset.symbol)}</b>
                       <small className="muted block truncate">{asset.name}</small>
                     </span>
                     <span className="chip">{registered ? "انتخاب" : "ثبت"}</span>
@@ -712,7 +712,7 @@ export default function TransactionForm({
             <div className="soft rounded-xl p-2">
               <div className="muted text-[10px]">مبلغ به تومان و معادل دلاری (با نرخ لحظه‌ای)</div>
               <div className="num font-bold" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</div>
-              <div className="num" dir="ltr" style={{ color:"var(--brand)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {effectiveRate ? formatMoney(effectiveRate, "IRT")+" ≈ ۱ دلار" : "ثبت نشده"}</span></div>
+              <div className="num" dir="rtl" style={{ color:"var(--brand)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {effectiveRate ? formatMoney(effectiveRate, "IRT")+" ≈ ۱ دلار" : "ثبت نشده"}</span></div>
               {effectiveRateDate && <div className="muted text-[10px]">تاریخ نرخ: <span dir="ltr" className="num">{effectiveRateDate}</span> · منبع: {effectiveRateSource ?? "—"}</div>}
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
@@ -727,12 +727,12 @@ export default function TransactionForm({
               </div>
             </div>
             {needsQty && <div><span className="muted">مقدار دارایی:</span> <strong dir="ltr" className="num">{quantity || "محاسبه خودکار از مبلغ"}</strong></div>}
-            {fee && <div><span className="muted">کارمزد:</span> <strong dir="ltr" className="num">{formatMoney(fee, "IRT")}</strong> ≈ {effectiveRate ? formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD") : "—"}</div>}
+            {fee && <div><span className="muted">کارمزد:</span> <strong dir="rtl" className="num">{formatMoney(fee, "IRT")}</strong> ≈ {effectiveRate ? formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD") : "—"}</div>}
             {(selectedDebt || selectedInst) && (
               <div className="soft rounded-xl p-2 border" style={{ borderColor:"var(--border)" }}>
                 <div className="font-bold">مرجع بدهی/قسط</div>
                 <div>بدهی: <strong>{selectedDebt?.title}</strong> — {selectedDebt?.creditor}</div>
-                {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید {getDualDate(selectedInst.dueDate).jalali} / <span dir="ltr">{selectedInst.dueDate}</span> — مبلغ <span dir="ltr">{formatMoney(selectedInst.amountBase,"USD")}</span></div>}
+                {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید {getDualDate(selectedInst.dueDate).jalali} / <span dir="ltr">{selectedInst.dueDate}</span> — مبلغ <span dir="rtl">{formatMoney(selectedInst.amountBase,"USD")}</span></div>}
                 <div>وضعیت پس از پرداخت: <strong style={{ color:"var(--brand)" }}>{debtStatusAfter}</strong></div>
                 <div className="muted text-[10px]">شناسه مرجع در سند حسابداری ذخیره و قابل پیگیری از هر دو سمت خواهد بود.</div>
               </div>

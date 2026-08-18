@@ -39,10 +39,10 @@ function FlowTable({
                 <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
                   <span className="min-w-0 truncate font-medium">{r.name}</span>
                   <span className="flex shrink-0 items-baseline gap-2">
-                    <span className="num muted text-[10.5px]" dir="ltr">
+                    <span className="num muted text-[10.5px]" dir="rtl">
                       {formatPct(share, 1)}
                     </span>
-                    <span className="num font-bold" dir="ltr">
+                    <span className="num font-bold" dir="rtl">
                       {formatMoney(r.total)}
                     </span>
                   </span>
@@ -101,8 +101,8 @@ function CategoryBreakdown({ rows }: { rows: CategoryFlowRow[] }) {
                 <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
                   <span className="min-w-0 truncate font-semibold">{g.name}</span>
                   <span className="flex shrink-0 items-baseline gap-2">
-                    <span className="num muted text-[10.5px]" dir="ltr">{formatPct(share, 1)}</span>
-                    <span className="num font-bold" dir="ltr">{formatMoney(g.total.toString())}</span>
+                    <span className="num muted text-[10.5px]" dir="rtl">{formatPct(share, 1)}</span>
+                    <span className="num font-bold" dir="rtl">{formatMoney(g.total.toString())}</span>
                   </span>
                 </div>
                 <div className="meter"><i style={{ width: `${Math.min(100, share)}%`, background: "var(--negative)" }} /></div>
@@ -116,7 +116,7 @@ function CategoryBreakdown({ rows }: { rows: CategoryFlowRow[] }) {
                           • {l.name}
                           {l.nature === "non_cash" && <span className="badge ms-1.5">غیرنقدی — بدون خروج وجه</span>}
                         </span>
-                        <span className="num shrink-0" dir="ltr">{formatMoney(l.total)}</span>
+                        <span className="num shrink-0" dir="rtl">{formatMoney(l.total)}</span>
                       </li>
                     ))}
                 </ul>

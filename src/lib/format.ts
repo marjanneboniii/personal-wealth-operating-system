@@ -8,6 +8,14 @@ export function toFaDigits(input: string): string {
   return input.replace(/[0-9]/g, (d) => FA_DIGITS[Number(d)]);
 }
 
+/**
+ * Persian-digit rendering for UI counts & durations shown to the user
+ * (e.g. «۳ قسط»، «۵ روز دیگر»، «۱۲ از ۲۰») — same numeric standard as money.
+ */
+export function faCount(n: number | string): string {
+  return toFaDigits(String(n));
+}
+
 export function groupThousands(fixed: string): string {
   const neg = fixed.startsWith("-");
   const body = neg ? fixed.slice(1) : fixed;
@@ -61,8 +69,19 @@ export const CURRENCY_LABELS: Record<string, string> = {
 
 export function currencyLabel(currency: string | null | undefined): string {
   if (!currency) return "";
-  return CURRENCY_LABELS[currency] ?? currency;
+  const code = String(currency).trim().toUpperCase();
+  return CURRENCY_LABELS[code] ?? String(currency);
 }
+
+/*
+ * Unicode bidi isolates (RLI … PDI). Every money string produced by
+ * formatMoney is wrapped in them so its visual order is ALWAYS
+ * «عدد فارسی → فاصله → نام فارسی ارز» — number first, currency word after —
+ * no matter the direction (dir="ltr"/dir="rtl") of the surrounding container.
+ * This is the single source of truth for money display in the whole UI.
+ */
+const RLI = "\u2067"; // RIGHT-TO-LEFT ISOLATE (invisible)
+const PDI = "\u2069"; // POP DIRECTIONAL ISOLATE (invisible)
 
 export function formatMoney(
   value: string | number,
@@ -80,7 +99,10 @@ export function formatMoney(
     .replace(/(\.\d*?)0+$/, "$1")
     .replace(/\.$/, "");
   const n = toFaDigits(groupThousands(raw));
-  return `${n} ${label}`;
+  // Order is ALWAYS: number → space → Persian currency word (IRT→تومان,
+  // USD→دلار, USDT→تتر). The currency unit NEVER precedes the number and no
+  // raw ticker ($, USD, USDT, IRT) is ever shown to the user.
+  return `${RLI}${n} ${label}${PDI}`;
 }
 
 export function formatPercent(value: string | number, digits: DigitStyle = "fa"): string {

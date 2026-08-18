@@ -5,7 +5,7 @@ import { listDebts } from "@/features/planning/service";
 import { EmptyState, Card, Metric, PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
 import DebtForm from "@/components/forms/DebtForm";
 import Icon from "@/components/ui/Icon";
-import { formatDualDate, formatMoney, formatPct, formatQty, todayIso } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct, formatQty, todayIso, faCount } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -106,15 +106,15 @@ export default async function DebtsPage() {
                         {late && <span className="badge badge-neg">قسط معوق</span>}
                       </p>
                       <p className="muted mt-1 text-[11.5px]">
-                        {d.creditor} · شروع {formatDualDate(d.startDate)} · نرخ سود <span className="num" dir="ltr">{formatQty(d.interestRate, 2)}٪</span>
+                        {d.creditor} · شروع {formatDualDate(d.startDate)} · نرخ سود <span className="num" dir="rtl">{formatQty(d.interestRate, 2)}٪</span>
                       </p>
                     </div>
                     <div className="text-left">
                       <p className="muted text-[10.5px]">مانده قابل پرداخت</p>
-                      <p className="num text-xl font-bold" dir="ltr" style={{ color: settled ? "var(--positive)" : "var(--negative)" }}>
+                      <p className="num text-xl font-bold" dir="rtl" style={{ color: settled ? "var(--positive)" : "var(--negative)" }}>
                         {formatMoney(settled ? 0 : d.outstandingBase)}
                       </p>
-                      <p className="muted num mt-0.5 text-[10.5px]" dir="ltr">
+                      <p className="muted num mt-0.5 text-[10.5px]" dir="rtl">
                         اصل: {formatMoney(d.principalBase)}
                       </p>
                     </div>
@@ -124,12 +124,12 @@ export default async function DebtsPage() {
                     <div className="mt-4">
                       <div className="mb-1.5 flex items-center justify-between text-[11px]">
                         <span className="muted">
-                          <span className="num" dir="ltr">
-                            {d.paidCount} از {d.totalCount}
+                          <span className="num" dir="rtl">
+                            {faCount(d.paidCount)} از {faCount(d.totalCount)}
                           </span>{" "}
                           قسط پرداخت شده
                         </span>
-                        <span className="num" dir="ltr">
+                        <span className="num" dir="rtl">
                           {formatPct(progress, 0)}
                         </span>
                       </div>
@@ -143,11 +143,11 @@ export default async function DebtsPage() {
                         <>
                           قسط بعدی: <b className="num">{formatMoney(d.nextDue.amountBase)}</b> ·{" "}
                           {dDays != null && dDays < 0 ? (
-                            <b>{Math.abs(dDays)} روز گذشته</b>
+                            <b>{faCount(Math.abs(dDays))} روز گذشته</b>
                           ) : dDays === 0 ? (
                             <b>امروز</b>
                           ) : (
-                            <span className="num">{dDays} روز دیگر</span>
+                            <span className="num">{faCount(dDays ?? 0)} روز دیگر</span>
                           )}
                         </>
                       ) : settled ? (

@@ -56,7 +56,7 @@ export default async function GoalsPage() {
         <section className="rise border-b pb-6" style={{ borderColor: "var(--border)" }}>
           <div className="mb-2 flex items-baseline justify-between">
             <p className="muted text-[12px] font-medium">پیشرفت مجموع اهداف فعال</p>
-            <p className="num text-[13px] font-bold" dir="ltr">
+            <p className="num text-[13px] font-bold" dir="rtl">
               {formatMoney(totalSaved)} <span className="muted font-normal">از</span> {formatMoney(totalTarget)}
             </p>
           </div>
@@ -95,13 +95,13 @@ export default async function GoalsPage() {
                       </span>
                       {g.targetDate && <span className="muted num text-[10.5px]">تا {formatDualDate(g.targetDate)}</span>}
                     </p>
-                    <span className="num text-[13px]" dir="ltr">
+                    <span className="num text-[13px]" dir="rtl">
                       <b className="text-[15px]">{formatMoney(g.savedBase)}</b> <span className="muted">از {formatMoney(g.targetBase)}</span>
                     </span>
                   </div>
                   <Progress value={g.progress} color={done ? "var(--positive)" : "var(--brand)"} />
                   <div className="muted mt-2 flex justify-between text-[11px]">
-                    <span className="num" dir="ltr">
+                    <span className="num" dir="rtl">
                       {formatPct(g.progress, 0)}
                     </span>
                     <span>
@@ -129,7 +129,7 @@ export default async function GoalsPage() {
                       {f.name}
                       <span className="badge badge-neutral mr-2">{FUND_KIND[f.kind] ?? f.kind}</span>
                     </span>
-                    <span className="num" dir="ltr">
+                    <span className="num" dir="rtl">
                       <b>{formatMoney(f.savedBase)}</b> <span className="muted text-[11px]">از {formatMoney(f.targetBase)}</span>
                     </span>
                   </div>
@@ -178,7 +178,7 @@ export default async function GoalsPage() {
                       </p>
                       <p className="muted num mt-0.5 text-[10.5px]">{formatDualDate(x.date)}</p>
                     </div>
-                    <span className="num shrink-0 text-[13px] font-bold" dir="ltr">
+                    <span className="num shrink-0 text-[13px] font-bold" dir="rtl">
                       {formatMoney(x.amount)}
                     </span>
                   </li>

@@ -6,7 +6,7 @@ import { accounts, assets, debts, installments } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import RowAction from "@/components/RowAction";
-import { formatDualDate, formatMoney, todayIso } from "@/lib/format";
+import { formatDualDate, formatMoney, todayIso, faCount } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -60,9 +60,9 @@ export default async function InstallmentsPage() {
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="معوق" value={String(overdueList.length)} tone={overdueList.length ? "down" : "up"} />
-        <Metric label="در ۳۰ روز آینده" value={String(next30.length)} hint={next30.length ? formatMoney(next30.reduce((s, r) => s + Number(r.amountBase), 0)) : undefined} />
+        <Metric label="در ۳۰ روز آینده" value={faCount(next30.length)} hint={next30.length ? formatMoney(next30.reduce((s, r) => s + Number(r.amountBase), 0)) : undefined} />
         <Metric label="مانده اقساط" value={formatMoney(remainingTotal)} />
-        <Metric label="پرداخت‌شده" value={String(paid.length)} tone="up" hint={`از ${rows.length} قسط`} />
+        <Metric label="پرداخت‌شده" value={faCount(paid.length)} tone="up" hint={`از ${faCount(rows.length)} قسط`} />
       </section>
 
       <Section title="زمان‌بندی اقساط">
@@ -123,13 +123,13 @@ export default async function InstallmentsPage() {
                           {r.status === "paid" && r.paidAt
                             ? `پرداخت در ${formatDualDate(r.paidAt)}`
                             : d < 0
-                              ? `${Math.abs(d)} روز گذشته`
+                              ? `${faCount(Math.abs(d))} روز گذشته`
                               : d === 0
                                 ? "امروز"
-                                : `${d} روز دیگر`}
+                                : `${faCount(d)} روز دیگر`}
                         </span>
                       </td>
-                      <td className="td-num font-bold" dir="ltr">
+                      <td className="td-num font-bold" dir="rtl">
                         {formatMoney(r.amountBase)}
                       </td>
                       <td className="text-left">

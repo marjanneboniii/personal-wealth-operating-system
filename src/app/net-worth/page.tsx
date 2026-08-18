@@ -128,7 +128,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
           <div>
             <p className="muted text-[12px] font-medium">ارزش خالص فعلی</p>
             <div className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-2">
-              <span className="display-num text-[38px] font-bold leading-none tracking-tight sm:text-[50px]" dir="ltr">
+              <span className="display-num text-[38px] font-bold leading-none tracking-tight sm:text-[50px]" dir="rtl">
                 {formatMoney(nw.netWorth)}
               </span>
               {baseline ? (
@@ -183,10 +183,10 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                     <span className="muted text-[10px]">{b.members.map((m) => m.name).join("، ")}</span>
                   </span>
                   <span className="flex shrink-0 items-baseline gap-2">
-                    <span className="num text-[13px] font-bold" dir="ltr">
+                    <span className="num text-[13px] font-bold" dir="rtl">
                       {formatMoney(b.value)}
                     </span>
-                    <span className="num muted w-10 text-[10.5px]" dir="ltr">
+                    <span className="num muted w-10 text-[10.5px]" dir="rtl">
                       {formatPct(((b.value / totalAssets) * 100), 1)}
                     </span>
                   </span>
@@ -229,7 +229,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                 </div>
                 <span
                   className="num shrink-0 text-[15px] font-bold"
-                  dir="ltr"
+                  dir="rtl"
                   style={{ color: D(r.value).gt(0) ? "var(--positive)" : D(r.value).lt(0) ? "var(--negative)" : "var(--text-2)" }}
                 >
                   {D(r.value).gt(0) ? "+" : D(r.value).lt(0) ? "−" : ""}
@@ -239,7 +239,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
             ))}
             <li className="flex items-center justify-between gap-4 py-3.5">
               <p className="text-[13.5px] font-bold">مجموع تغییر در این بازه</p>
-              <span className="num text-[15px] font-bold" dir="ltr">
+              <span className="num text-[15px] font-bold" dir="rtl">
                 {deltaAbs.gte(0) ? "+" : "−"}
                 {formatMoney(deltaAbs.abs().toString())}
               </span>
