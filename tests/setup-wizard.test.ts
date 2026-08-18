@@ -5,11 +5,13 @@ import { db } from "../src/db";
 import { createSchemaIfNotExists } from "../src/db/init-schema";
 import {
   accounts,
+  exchangeRates,
   journalEntries,
   lotConsumptions,
   lots,
   postings,
   settings,
+  userFxSettings,
   userSetupState,
   users,
 } from "../src/db/schema";
@@ -25,6 +27,8 @@ async function setupFreshDb() {
   await db.delete(postings);
   await db.delete(journalEntries);
   await db.delete(userSetupState);
+  await db.delete(userFxSettings);
+  await db.delete(exchangeRates);
   await db.delete(settings);
   await db.delete(users);
   await db.delete(accounts);
@@ -188,6 +192,119 @@ test("Phase 2.1 Requirement — Setup never creates fake or demo transactions", 
   const holdings = await getHoldings();
   const activeHoldings = holdings.filter((h) => D(h.quantity).gt(0));
   assert.equal(activeHoldings.length, 0);
+});
+
+test("Opening IRT bank balance is stored as native IRT and converted to USD book value", async () => {
+  await setupFreshDb();
+  await db.insert(settings).values({ key: "irt_rate", value: "188000" });
+
+  const result = await completeSetup({
+    userName: "کاربر تومان",
+    baseCurrency: "USD",
+    displayCurrency: "IRT",
+    dateCalendar: "jalali",
+    digitStyle: "fa",
+    bankAccountName: "Main Bank",
+    bankAssetSymbol: "IRT",
+    bankOpeningBalance: "35000000",
+  });
+  assert.equal(result.ok, true);
+
+  const balances = await getAccountBalances();
+  const bank = balances.find((b) => b.name === "Main Bank");
+  const equity = balances.find((b) => b.code === "3010");
+  const expectedUsd = D("35000000").div("188000");
+
+  assert.equal(bank?.symbol, "IRT");
+  assert.equal(D(bank?.quantity ?? "0").toString(), "35000000");
+  assert.ok(D(bank?.baseValue ?? "0").sub(expectedUsd).abs().lt("0.000001"), `bank book ${bank?.baseValue} vs ${expectedUsd}`);
+  assert.ok(expectedUsd.gt("186") && expectedUsd.lt("187"), `expected ≈ 186.170 USD, got ${expectedUsd}`);
+  assert.ok(D(equity?.baseValue ?? "0").sub(expectedUsd.neg()).abs().lt("0.000001"));
+
+  const entries = await db.select().from(journalEntries);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].type, "opening");
+  const lines = await db.select().from(postings).where(eq(postings.entryId, entries[0].id));
+  const sumBase = lines.reduce((s, p) => s.add(p.baseValue), D("0"));
+  assert.equal(sumBase.toString(), "0");
+  assert.equal(lines.some((p) => p.accountId === bank?.accountId && D(p.baseValue).toString() === "35000000"), false);
+
+  const moneyLots = await db.select().from(lots);
+  assert.equal(
+    moneyLots.filter((l) => l.accountId === bank?.accountId).length,
+    0,
+    "cash/bank opening must not open FIFO lots",
+  );
+});
+
+test("Opening USD bank balance stays 1:1 in book USD", async () => {
+  await setupFreshDb();
+
+  const result = await completeSetup({
+    userName: "USD Holder",
+    baseCurrency: "USD",
+    displayCurrency: "IRT",
+    dateCalendar: "jalali",
+    digitStyle: "fa",
+    bankAccountName: "USD Cash",
+    bankAssetSymbol: "USD",
+    bankOpeningBalance: "35000",
+  });
+  assert.equal(result.ok, true);
+
+  const balances = await getAccountBalances();
+  const bank = balances.find((b) => b.name === "USD Cash");
+  const equity = balances.find((b) => b.code === "3010");
+  assert.equal(bank?.symbol, "USD");
+  assert.equal(D(bank?.quantity ?? "0").toString(), "35000");
+  assert.equal(D(bank?.baseValue ?? "0").toString(), "35000");
+  assert.equal(D(equity?.baseValue ?? "0").toString(), "-35000");
+
+  const lotRows = await db.select().from(lots);
+  assert.equal(lotRows.length, 0);
+});
+
+test("Mixed IRT + USD opening balances keep native units and a balanced USD book", async () => {
+  await setupFreshDb();
+  await db.insert(settings).values({ key: "irt_rate", value: "188000" });
+
+  const result = await completeSetup({
+    userName: "Mixed",
+    baseCurrency: "USD",
+    displayCurrency: "IRT",
+    dateCalendar: "jalali",
+    digitStyle: "fa",
+    bankAccountName: "Bank IRT",
+    bankAssetSymbol: "IRT",
+    bankOpeningBalance: "35000000",
+    cashWalletName: "Cash USD",
+    cashAssetSymbol: "USD",
+    cashOpeningBalance: "5000",
+  });
+  assert.equal(result.ok, true);
+
+  const balances = await getAccountBalances();
+  const bank = balances.find((b) => b.name === "Bank IRT");
+  const cash = balances.find((b) => b.name === "Cash USD");
+  const equity = balances.find((b) => b.code === "3010");
+  const bankUsd = D("35000000").div("188000");
+
+  assert.equal(bank?.symbol, "IRT");
+  assert.equal(cash?.symbol, "USD");
+  assert.equal(D(bank?.quantity ?? "0").toString(), "35000000");
+  assert.equal(D(cash?.quantity ?? "0").toString(), "5000");
+  assert.ok(D(bank?.baseValue ?? "0").sub(bankUsd).abs().lt("0.000001"), `bank book ${bank?.baseValue} vs ${bankUsd}`);
+  assert.equal(D(cash?.baseValue ?? "0").toString(), "5000");
+  assert.ok(D(equity?.baseValue ?? "0").sub(bankUsd.add("5000").neg()).abs().lt("0.000001"));
+
+  const entries = await db.select().from(journalEntries);
+  assert.equal(entries.length, 1);
+  const lines = await db.select().from(postings).where(eq(postings.entryId, entries[0].id));
+  assert.equal(lines.length, 3);
+  assert.equal(lines.reduce((s, p) => s.add(p.baseValue), D("0")).toString(), "0");
+
+  const lotRows = await db.select().from(lots);
+  assert.equal(lotRows.length, 0, "mixed cash/bank opening must not touch FIFO");
 });
 
 test("Only the bank account is mandatory — cash box is created only when requested or funded", async () => {

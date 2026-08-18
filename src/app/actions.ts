@@ -1263,6 +1263,8 @@ const setupSchema = z.object({
   digitStyle: z.enum(["fa", "en"]).default("fa"),
   bankAccountName: z.string().optional(),
   cashWalletName: z.string().optional(),
+  bankAssetSymbol: z.enum(["IRT", "USD", "USDT"]).optional(),
+  cashAssetSymbol: z.enum(["IRT", "USD", "USDT"]).optional(),
   bankOpeningBalance: z.string().optional(),
   cashOpeningBalance: z.string().optional(),
   cryptoOpeningQty: z.string().optional(),
@@ -1305,7 +1307,9 @@ export async function fetchSetupStateAction() {
   // an anonymous caller in multi-user mode.
   const { user, hasAuth } = await getAuthContext();
   if (hasAuth && !user) throw new Error("Unauthorized: login required");
-  return getSetupState(user?.id);
+  const state = await getSetupState(user?.id);
+  const fx = user ? await getLatestUsdIrtRateForUser(user.id) : await getLatestUsdIrtRate();
+  return { ...state, usdIrtRate: fx.rate };
 }
 
 
