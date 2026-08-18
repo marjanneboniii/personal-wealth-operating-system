@@ -62,7 +62,7 @@ export default function SetupWizardPage() {
   );
 
   // Unit label for the real-time amount-in-words hints (follows the base currency).
-  const baseUnit = baseCurrency === "IRR" ? "rial" : baseCurrency === "EUR" ? "eur" : "usd";
+  const baseUnit = baseCurrency === "IRT" ? "toman" : baseCurrency === "IRR" ? "rial" : baseCurrency === "EUR" ? "eur" : "usd";
 
   // Calculate opening balance preview
   const previewData = useMemo(() => {
@@ -204,6 +204,7 @@ export default function SetupWizardPage() {
                   >
                     <option value="USD">USD ($ — دلار آمریکا)</option>
                     <option value="EUR">EUR (€ — یورو)</option>
+                    <option value="IRT">IRT (تومان)</option>
                     <option value="IRR">IRR (ریال)</option>
                   </select>
                   <p className="muted mt-1 text-[10px]">{t.accountingCurrencyHelp}</p>
