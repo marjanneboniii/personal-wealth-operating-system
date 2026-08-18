@@ -16,7 +16,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import { EventForm, GoalForm, PlannedForm } from "@/components/forms/QuickForms";
 import RowAction from "@/components/RowAction";
 import Icon from "@/components/ui/Icon";
-import { formatMoney, formatShortDate, getDualDate, toJalali } from "@/lib/format";
+import { formatMoney, formatShortDate, getDualDate, toJalali, faCount } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -140,11 +140,11 @@ export default async function PlanningPage() {
                     <p className="muted mt-0.5 text-[11px]">
                       {q.extra} · {dual.jalali} ·{" "}
                       <span style={{ color: d < 0 ? "var(--negative)" : undefined }} className="num">
-                        {d < 0 ? `${Math.abs(d)} روز گذشته` : d === 0 ? "امروز" : `${d} روز دیگر`}
+                        {d < 0 ? `${faCount(Math.abs(d))} روز گذشته` : d === 0 ? "امروز" : `${faCount(d)} روز دیگر`}
                       </span>
                     </p>
                   </div>
-                  <span className="num shrink-0 text-[13.5px] font-bold" dir="ltr">
+                  <span className="num shrink-0 text-[13.5px] font-bold" dir="rtl">
                     {formatMoney(q.amount)}
                   </span>
                   {q.kind === "installment" && (

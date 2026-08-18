@@ -6,7 +6,7 @@ import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatNumber, formatPct } from "@/lib/format";
+import { formatMoney, formatNumber, formatPct, faCount } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -127,11 +127,11 @@ export default async function AssetsPage() {
                   </span>
                 </span>
                 <span className="mt-3.5 flex items-end justify-between gap-2">
-                  <span className="num text-lg font-bold" dir="ltr">
+                  <span className="num text-lg font-bold" dir="rtl">
                     {formatMoney(f.value)}
                   </span>
-                  <span className="muted num text-[10.5px]" dir="ltr">
-                    {f.count} مورد
+                  <span className="muted num text-[10.5px]" dir="rtl">
+                    {faCount(f.count)} مورد
                   </span>
                 </span>
               </Link>
@@ -167,10 +167,10 @@ export default async function AssetsPage() {
                   <span className="truncate">{c.className}</span>
                 </span>
                 <span className="flex shrink-0 items-baseline gap-2">
-                  <span className="num text-[13px] font-bold" dir="ltr">
+                  <span className="num text-[13px] font-bold" dir="rtl">
                     {formatMoney(c.value)}
                   </span>
-                  <span className="num muted w-10 text-[10.5px]" dir="ltr">
+                  <span className="num muted w-10 text-[10.5px]" dir="rtl">
                     {formatPct(Number(c.percentage), 1)}
                   </span>
                 </span>
@@ -183,7 +183,7 @@ export default async function AssetsPage() {
       {all.length > 0 && (
         <Section
           title="فهرست کامل دارایی‌ها"
-          hint={`${all.length} دارایی · ${share(financialValue)}٪ مالی، ${share(realValue)}٪ واقعی`}
+          hint={`${faCount(all.length)} دارایی · ${faCount(share(financialValue))}٪ مالی، ${faCount(share(realValue))}٪ واقعی`}
         >
           <HoldingsTable rows={all} toIrt={toIrt} />
         </Section>

@@ -103,10 +103,10 @@ export default async function CryptoPage() {
                         <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
                           <span className="font-medium">{wallet}</span>
                           <span className="flex shrink-0 items-baseline gap-2">
-                            <span className="num muted text-[10.5px]" dir="ltr">
+                            <span className="num muted text-[10.5px]" dir="rtl">
                               {formatPct(share, 1)}
                             </span>
-                            <span className="num font-bold" dir="ltr">
+                            <span className="num font-bold" dir="rtl">
                               {formatMoney(value)}
                             </span>
                           </span>
@@ -126,7 +126,7 @@ export default async function CryptoPage() {
             {balances
               .filter((b) => b.type === "asset" && b.symbol && cryptoSymbols.has(b.symbol) && Math.abs(Number(b.quantity)) > 0.000001)
               .map((b) => (
-                <span key={b.accountId} className="num mx-1" dir="ltr">
+                <span key={b.accountId} className="num mx-1" dir="rtl">
                   {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}
                 </span>
               ))}

@@ -170,7 +170,7 @@ export default function MoneyAccountForm({
           {qty.gt(0) && (
             <div className="mt-2">
               <p className="muted text-[10px]">ارزش پایه دلاری افتتاحیه:</p>
-              <p className="num font-bold" dir="ltr">
+              <p className="num font-bold" dir="rtl">
                 {formatMoney(previewBaseUsd.toString())}
               </p>
               {currency?.symbol === "IRT" && rate.gt(0) && (

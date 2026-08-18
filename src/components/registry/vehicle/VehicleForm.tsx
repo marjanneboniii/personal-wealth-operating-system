@@ -226,7 +226,7 @@ export default function VehicleForm({
           <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="text-[11px] font-medium">معادل دلاری قیمت خرید (محاسبه خودکار)</span>
-              <strong className="num text-[13.5px]" dir="ltr" style={{ color: "var(--brand)" }}>
+              <strong className="num text-[13.5px]" dir="rtl" style={{ color: "var(--brand)" }}>
                 {canPreview && rateLoading ? "…" : preview ? formatMoney(preview.usd, "USD") : "—"}
               </strong>
             </div>

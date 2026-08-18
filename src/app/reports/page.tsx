@@ -13,7 +13,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatDualDate, formatMoney, formatPct, jalaliMonthKey, jalaliMonthLabel } from "@/lib/format";
+import { currencyLabel, formatDualDate, formatMoney, formatPct, jalaliMonthKey, jalaliMonthLabel, faCount } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -108,17 +108,17 @@ export default async function ReportsPage() {
                   return (
                     <tr key={m.month}>
                       <td className="font-medium">{m.jalaliLabel}</td>
-                      <td className="td-num" dir="ltr" style={{ color: "var(--positive)" }}>
+                      <td className="td-num" dir="rtl" style={{ color: "var(--positive)" }}>
                         {formatMoney(m.inflow)}
                       </td>
-                      <td className="td-num" dir="ltr" style={{ color: "var(--negative)" }}>
+                      <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
                         {formatMoney(m.outflow)}
                       </td>
-                      <td className="td-num font-bold" dir="ltr" style={{ color: D(m.net).gte(0) ? "var(--positive)" : "var(--negative)" }}>
+                      <td className="td-num font-bold" dir="rtl" style={{ color: D(m.net).gte(0) ? "var(--positive)" : "var(--negative)" }}>
                         {D(m.net).gte(0) ? "+" : "−"}
                         {formatMoney(D(m.net).abs().toString())}
                       </td>
-                      <td className="td-num hidden sm:table-cell num" dir="ltr" style={{ color: diff && diff.gt(0) ? "var(--negative)" : "var(--positive)" }}>
+                      <td className="td-num hidden sm:table-cell num" dir="rtl" style={{ color: diff && diff.gt(0) ? "var(--negative)" : "var(--positive)" }}>
                         {diff ? `${diff.gte(0) ? "+" : "−"}${formatPct(diff.abs().toString(), 1)}` : "—"}
                       </td>
                     </tr>
@@ -155,12 +155,12 @@ export default async function ReportsPage() {
           <ul className="mt-3 divide-y" style={{ borderColor: "var(--border)" }}>
             {pnl.bySymbol.map((s) => (
               <li key={s.symbol} className="flex items-center justify-between py-2 text-[12.5px]">
-                <span className="font-bold" dir="ltr">
+                <span className="font-bold" dir="rtl">
                   {currencyLabel(s.symbol)}
                 </span>
-                <span className="num" dir="ltr" style={{ color: D(s.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
+                <span className="num" dir="rtl" style={{ color: D(s.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
                   {D(s.pnl).gte(0) ? "+" : "−"}
-                  {formatMoney(D(s.pnl).abs().toString())}
+                  {formatMoney(D(s.pnl).abs().toString(), s.symbol)}
                 </span>
               </li>
             ))}
@@ -178,13 +178,13 @@ export default async function ReportsPage() {
               <li key={d.id}>
                 <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[13px]">
                   <span className="font-medium">{d.title}</span>
-                  <span className="num font-bold" dir="ltr" style={{ color: d.status === "settled" ? "var(--positive)" : "var(--negative)" }}>
+                  <span className="num font-bold" dir="rtl" style={{ color: d.status === "settled" ? "var(--positive)" : "var(--negative)" }}>
                     {formatMoney(d.status === "settled" ? 0 : d.outstandingBase)}
                   </span>
                 </div>
                 <Progress value={d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0} color={d.status === "settled" ? "var(--positive)" : "var(--warning)"} />
-                <p className="muted num mt-1.5 text-[10.5px]" dir="ltr">
-                  {d.paidCount} / {d.totalCount} قسط
+                <p className="muted num mt-1.5 text-[10.5px]" dir="rtl">
+                  {faCount(d.paidCount)} / {faCount(d.totalCount)} قسط
                   {d.nextDue && <span dir="rtl"> · قسط بعدی {formatDualDate(d.nextDue.dueDate)}</span>}
                 </p>
               </li>
@@ -210,13 +210,13 @@ export default async function ReportsPage() {
               {projection.points.map((p) => (
                 <tr key={p.month}>
                   <td>{jalaliMonthLabel(jalaliMonthKey(p.month))}</td>
-                  <td className="td-num" dir="ltr" style={{ color: "var(--positive)" }}>
+                  <td className="td-num" dir="rtl" style={{ color: "var(--positive)" }}>
                     {formatMoney(p.inflow)}
                   </td>
-                  <td className="td-num" dir="ltr" style={{ color: "var(--negative)" }}>
+                  <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
                     {formatMoney(p.outflow)}
                   </td>
-                  <td className="td-num font-bold" dir="ltr" style={{ color: p.deficit ? "var(--negative)" : undefined }}>
+                  <td className="td-num font-bold" dir="rtl" style={{ color: p.deficit ? "var(--negative)" : undefined }}>
                     {formatMoney(p.cumulative)}
                   </td>
                 </tr>

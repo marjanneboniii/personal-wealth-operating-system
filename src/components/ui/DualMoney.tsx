@@ -22,7 +22,7 @@ export function DualMoneyFromUsd({ usd, rate, digits = "fa" }: PropsUsd) {
   const { irt, usd: usdLabel, rateLabel } = formatDualMoneyFromUsd(usd, rate, "fa");
   return (
     <span className="inline-flex flex-col items-start gap-0.5">
-      <span className="type-financial num" dir="ltr">{usdLabel}</span>
+      <span className="type-financial num" dir="rtl">{usdLabel}</span>
       <span className="type-caption">
         معادل تقریبی: <span className="num" dir="rtl">{irt}</span>
       </span>

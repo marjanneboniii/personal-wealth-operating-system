@@ -43,7 +43,7 @@ export function FxRateInfo({
 }) {
   if (!rate) return <span className="muted">—</span>;
   return (
-    <span className="num" dir="ltr">
+    <span className="num" dir="rtl">
       {formatMoney(rate, "IRT")}
       <span className="muted text-[9.5px]">
         {" "}

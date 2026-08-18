@@ -22,7 +22,7 @@ export function SmartAmountPreview({ irtAmount, rate, rateDate, rateSource }: Sm
   if (!hasRate) {
     return (
       <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-6 border border-amber-200">
-        <div>مبلغ: <strong className="num" dir="ltr">{formatMoney(irtAmount, "IRT")}</strong></div>
+        <div>مبلغ: <strong className="num" dir="rtl">{formatMoney(irtAmount, "IRT")}</strong></div>
         <div className="muted">نرخ دلار ثبت نشده — معادل دلاری قابل محاسبه نیست. لطفاً ابتدا نرخ دلار را در تنظیمات ثبت کنید.</div>
       </div>
     );

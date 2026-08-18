@@ -546,7 +546,7 @@ export default function SetupWizardPage() {
                   {D(previewData.bankQty).gt(0) && (
                     <div className="flex justify-between gap-3 py-2">
                       <span>بدهکار: {bankAccountName} ({formatMoney(previewData.bankQty, bankAssetSymbol)})</span>
-                      <span className="num font-bold" dir="ltr">
+                      <span className="num font-bold" dir="rtl">
                         {formatMoney(previewData.bankBook, "USD")}
                       </span>
                     </div>
@@ -555,7 +555,7 @@ export default function SetupWizardPage() {
                   {D(previewData.cashQty).gt(0) && (
                     <div className="flex justify-between gap-3 py-2">
                       <span>بدهکار: {cashWalletName} ({formatMoney(previewData.cashQty, cashAssetSymbol)})</span>
-                      <span className="num font-bold" dir="ltr">
+                      <span className="num font-bold" dir="rtl">
                         {formatMoney(previewData.cashBook, "USD")}
                       </span>
                     </div>
@@ -564,7 +564,7 @@ export default function SetupWizardPage() {
                   {D(previewData.ethQty).gt(0) && (
                     <div className="flex justify-between py-2">
                       <span>بدهکار: کیف رمزارز ({formatQty(previewData.ethQty, 8)} ETH)</span>
-                      <span className="num font-bold" dir="ltr">
+                      <span className="num font-bold" dir="rtl">
                         {formatMoney(previewData.ethVal, "USD")}
                       </span>
                     </div>
@@ -573,7 +573,7 @@ export default function SetupWizardPage() {
                   {D(previewData.goldQty).gt(0) && (
                     <div className="flex justify-between py-2">
                       <span>بدهکار: طلای ۱۸ عیار ({formatQty(previewData.goldQty, 2)} گرم)</span>
-                      <span className="num font-bold" dir="ltr">
+                      <span className="num font-bold" dir="rtl">
                         {formatMoney(previewData.goldVal, "USD")}
                       </span>
                     </div>
@@ -582,7 +582,7 @@ export default function SetupWizardPage() {
                   {previewData.hasItems ? (
                     <div className="flex justify-between py-2 font-bold" style={{ color: "var(--negative)" }}>
                       <span>بستانکار: سرمایه افتتاحیه (Opening Equity - 3010)</span>
-                      <span className="num" dir="ltr">
+                      <span className="num" dir="rtl">
                         −{formatMoney(previewData.totalEquity, baseCurrency)}
                       </span>
                     </div>

@@ -69,7 +69,7 @@ export default async function BudgetsPage() {
                       {over && <span className="badge badge-neg">خارج از چارچوب</span>}
                       {almost && <span className="badge badge-warn">نزدیک به سقف</span>}
                     </div>
-                    <p className="num text-[13px]" dir="ltr">
+                    <p className="num text-[13px]" dir="rtl">
                       <b className="text-[15px]" style={{ color }}>
                         {formatMoney(b.spentBase)}
                       </b>{" "}
@@ -83,7 +83,7 @@ export default async function BudgetsPage() {
                     <span className="num">
                       {formatDualDate(b.periodStart)} ← {formatDualDate(b.periodEnd)}
                     </span>
-                    <span className="num" dir="ltr" style={{ color: over ? "var(--negative)" : "var(--positive)" }}>
+                    <span className="num" dir="rtl" style={{ color: over ? "var(--negative)" : "var(--positive)" }}>
                       {over
                         ? `${formatMoney(D(b.remainingBase).abs().toString())} بیشتر از سقف`
                         : `${formatMoney(b.remainingBase)} مانده · ${formatPct(b.usage, 0)} مصرف شده`}

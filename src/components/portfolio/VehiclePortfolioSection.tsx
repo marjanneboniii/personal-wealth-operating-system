@@ -29,7 +29,7 @@ function Signed({
   const color = zero ? "var(--text-3)" : n.gt(0) ? "var(--positive)" : "var(--negative)";
   const sign = zero ? "" : n.gt(0) ? "+" : "−";
   return (
-    <span className="num" style={{ color }} dir={currency === "IRT" ? "rtl" : "ltr"}>
+    <span className="num" style={{ color }} dir="rtl">
       {sign}
       {formatMoney(n.abs().toString(), currency)}
     </span>
@@ -43,7 +43,7 @@ function SignedPct({ value }: { value: string | null }) {
   const color = zero ? "var(--text-3)" : n.gt(0) ? "var(--positive)" : "var(--negative)";
   const sign = zero ? "" : n.gt(0) ? "+" : "−";
   return (
-    <span className="num" style={{ color }} dir="ltr">
+    <span className="num" style={{ color }} dir="rtl">
       {sign}
       {formatPct(n.abs().toString(), 2)}
     </span>
@@ -81,7 +81,7 @@ export default function VehiclePortfolioSection({
             <div className="num mt-1 text-lg font-bold tracking-tight" dir="rtl">
               {formatMoney(summary.totalCurrentToman, "IRT")}
             </div>
-            <div className="muted num mt-0.5 text-[11px]" dir="ltr">
+            <div className="muted num mt-0.5 text-[11px]" dir="rtl">
               {formatMoney(summary.totalCurrentUsd, "USD")}
             </div>
           </div>
@@ -91,7 +91,7 @@ export default function VehiclePortfolioSection({
             <div className="num mt-1 text-lg font-bold tracking-tight" dir="rtl">
               {formatMoney(summary.totalPurchaseToman, "IRT")}
             </div>
-            <div className="muted num mt-0.5 text-[11px]" dir="ltr">
+            <div className="muted num mt-0.5 text-[11px]" dir="rtl">
               {formatMoney(summary.totalPurchaseUsd, "USD")} — با نرخ دلارِ روز خرید
             </div>
           </div>
@@ -151,7 +151,7 @@ export default function VehiclePortfolioSection({
                   <td className="td-num num" dir="rtl">
                     {v.currentValueToman ? formatMoney(v.currentValueToman, "IRT") : <span className="muted">ثبت نشده</span>}
                   </td>
-                  <td className="td-num num" dir="ltr">
+                  <td className="td-num num" dir="rtl">
                     {v.currentValueUsd ? formatMoney(v.currentValueUsd, "USD") : <span className="muted">—</span>}
                   </td>
                   <td className="td-num">
@@ -190,7 +190,7 @@ export default function VehiclePortfolioSection({
             style={{ borderColor: "var(--border)" }}
           >
             <span className="muted text-[11.5px]">ارزش کل: سبد سرمایه‌گذاری + خودروها</span>
-            <span className="num text-[13.5px] font-bold" dir="ltr">
+            <span className="num text-[13.5px] font-bold" dir="rtl">
               {formatMoney(D(ledgerNetWorthUsd).add(summary.totalCurrentUsd).toFixed(2), "USD")}
             </span>
           </div>

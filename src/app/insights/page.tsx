@@ -8,7 +8,7 @@ import { listDebts, projectCashflow } from "@/features/planning/service";
 import { Alert, EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatNumber, formatPct, formatShortDate, todayIso } from "@/lib/format";
+import { formatMoney, formatNumber, formatPct, formatShortDate, todayIso, faCount } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -122,7 +122,7 @@ export default async function InsightsPage() {
     insights.push({
       tone: "neg",
       icon: "clock",
-      title: `${overdue.length} قسط سررسید گذشته دارید`,
+      title: `${faCount(overdue.length)} قسط سررسید گذشته دارید`,
       body: `مجموع ${formatMoney(Decimal.sum(overdue.map((i) => i.amountBase)).toString())} در انتظار پرداخت است.`,
       href: "/debts/installments",
       action: "مشاهده اقساط",
@@ -281,10 +281,10 @@ export default async function InsightsPage() {
                       {c.parentName && <span className="muted mr-1.5 text-[10px]">· {c.parentName}</span>}
                     </span>
                     <span className="flex shrink-0 items-baseline gap-2">
-                      <span className="num muted text-[10.5px]" dir="ltr">
+                      <span className="num muted text-[10.5px]" dir="rtl">
                         {formatPct(shareNum, 1)}
                       </span>
-                      <span className="num font-bold" dir="ltr">
+                      <span className="num font-bold" dir="rtl">
                         {formatMoney(c.total)}
                       </span>
                     </span>
@@ -312,10 +312,10 @@ export default async function InsightsPage() {
                   <span className="truncate">{c.className}</span>
                 </span>
                 <span className="flex shrink-0 items-baseline gap-2">
-                  <span className="num text-[13px] font-bold" dir="ltr">
+                  <span className="num text-[13px] font-bold" dir="rtl">
                     {formatMoney(c.value)}
                   </span>
-                  <span className="num muted w-10 text-[10.5px]" dir="ltr">
+                  <span className="num muted w-10 text-[10.5px]" dir="rtl">
                     {formatPct(Number(c.share), 1)}
                   </span>
                 </span>

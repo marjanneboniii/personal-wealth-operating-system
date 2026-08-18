@@ -125,7 +125,7 @@ export default async function AccountsPage() {
                       </div>
                     </div>
                     <div className="text-left">
-                      <p className="num text-[14px] font-bold" dir="ltr">
+                      <p className="num text-[14px] font-bold" dir="rtl">
                         {formatMoney(walletTotal.toString())}
                       </p>
                       {toIrt(walletTotal.toString()) && <p className="muted num text-[9.5px]">≈ {toIrt(walletTotal.toString())}</p>}
@@ -136,12 +136,13 @@ export default async function AccountsPage() {
                       <li key={b.accountId} className="flex items-center justify-between gap-3 px-4 py-2.5">
                         <div className="min-w-0">
                           <p className="truncate text-[12.5px] font-medium">{b.name}</p>
-                          <p className="muted num text-[10px]" dir="ltr">
-                            {b.code} · {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}
+                          <p className="muted num text-[10px]">
+                            <span className="ltr-isolate" dir="ltr">{b.code}</span> ·{" "}
+                            <span dir="rtl">{formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}</span>
                           </p>
                         </div>
                         <div className="shrink-0 text-left">
-                          <p className="num text-[12.5px] font-bold" dir="ltr">
+                          <p className="num text-[12.5px] font-bold" dir="rtl">
                             {formatMoney(b.baseValue)}
                           </p>
                           {toIrt(b.baseValue) && <p className="muted num text-[9.5px]">≈ {toIrt(b.baseValue)}</p>}
@@ -168,7 +169,7 @@ export default async function AccountsPage() {
                       {b.code}
                     </p>
                   </div>
-                  <p className="num text-[13px] font-bold" dir="ltr" style={{ color: "var(--negative)" }}>
+                  <p className="num text-[13px] font-bold" dir="rtl" style={{ color: "var(--negative)" }}>
                     {formatMoney(D(b.baseValue).abs().toString())}
                   </p>
                 </li>
@@ -202,7 +203,7 @@ export default async function AccountsPage() {
                             <span className="muted num ml-1.5">{b.code}</span>
                             {b.name}
                           </span>
-                          <span className="num" dir="ltr">
+                          <span className="num" dir="rtl">
                             {formatMoney(D(b.baseValue).abs().toString())}
                           </span>
                         </li>

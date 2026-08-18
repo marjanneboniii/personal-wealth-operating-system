@@ -16,7 +16,7 @@ import { AreaChart, BarsChart } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
 import { humanizeEntry } from "@/lib/tx";
 import { D } from "@/domain/decimal";
-import { formatMoney, formatPct, formatShortDate, toJalali } from "@/lib/format";
+import { formatMoney, formatPct, formatShortDate, toJalali, faCount } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -86,7 +86,7 @@ export default async function OverviewDashboard() {
     attention.push({
       icon: "clock",
       tone: d < 0 ? "neg" : "info",
-      text: d < 0 ? `قسط ${soonInst.seq} «${soonInst.debtTitle}» سررسید گذشته است` : `قسط ${soonInst.seq} «${soonInst.debtTitle}» ${d === 0 ? "امروز" : `${d} روز دیگر`} سر می‌رسد`,
+      text: d < 0 ? `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» سررسید گذشته است` : `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${d === 0 ? "امروز" : `${faCount(d)} روز دیگر`} سر می‌رسد`,
       detail: `${formatMoney(soonInst.amountBase)} — ${soonInst.creditor}`,
       href: "/installments",
       action: "مشاهده اقساط",
@@ -136,7 +136,7 @@ export default async function OverviewDashboard() {
           <div className="min-w-0">
             <p className="muted text-[12px] font-medium">ارزش خالص دارایی</p>
             <div className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-2">
-              <span className="display-num text-[40px] font-bold leading-none tracking-tight sm:text-[52px]" dir="ltr">
+              <span className="display-num text-[40px] font-bold leading-none tracking-tight sm:text-[52px]" dir="rtl">
                 {formatMoney(nw.netWorth)}
               </span>
               {lastSnap && (
@@ -152,7 +152,7 @@ export default async function OverviewDashboard() {
               <p className="muted mt-2 text-[12.5px]">
                 ≈ <span className="num">{formatMoney(nw.netWorthToman, "IRT")}</span>
                 <span className="mx-1.5 opacity-50">·</span>
-                نرخ مرجع <span className="num" dir="ltr">{formatMoney(rate, "IRT")}</span> ≈ ۱ دلار
+                نرخ مرجع <span className="num" dir="rtl">{formatMoney(rate, "IRT")}</span> ≈ ۱ دلار
               </p>
             )}
           </div>
@@ -190,7 +190,7 @@ export default async function OverviewDashboard() {
             ].map((m) => (
             <div key={m.label} className="px-4 first:pr-0 last:pl-0" style={{ borderColor: "var(--border)" }}>
               <p className="muted text-[11px]">{m.label}</p>
-              <p className="num mt-1 text-[15px] font-bold sm:text-lg" dir="ltr" style={{ color: m.tone }}>
+              <p className="num mt-1 text-[15px] font-bold sm:text-lg" dir="rtl" style={{ color: m.tone }}>
                 {formatMoney(m.value)}
               </p>
               <p className="muted num mt-0.5 hidden text-[10.5px] sm:block">
@@ -243,10 +243,10 @@ export default async function OverviewDashboard() {
                           <span className="truncate">{c.className}</span>
                         </span>
                         <span className="flex shrink-0 items-baseline gap-2">
-                          <span className="num muted text-[11px]" dir="ltr">
+                          <span className="num muted text-[11px]" dir="rtl">
                             {formatPct(Number(c.share), 1)}
                           </span>
-                          <span className="num text-[13px] font-semibold" dir="ltr">
+                          <span className="num text-[13px] font-semibold" dir="rtl">
                             {formatMoney(c.value)}
                           </span>
                         </span>
@@ -262,19 +262,19 @@ export default async function OverviewDashboard() {
               <div className="mb-4 grid grid-cols-3 gap-2">
                 <div>
                   <p className="muted text-[10.5px]">درآمد</p>
-                  <p className="num mt-0.5 text-[15px] font-bold" dir="ltr" style={{ color: "var(--positive)" }}>
+                  <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: "var(--positive)" }}>
                     {formatMoney(monthFlow?.inflow ?? 0)}
                   </p>
                 </div>
                 <div>
                   <p className="muted text-[10.5px]">هزینه</p>
-                  <p className="num mt-0.5 text-[15px] font-bold" dir="ltr" style={{ color: "var(--negative)" }}>
+                  <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: "var(--negative)" }}>
                     {formatMoney(monthFlow?.outflow ?? 0)}
                   </p>
                 </div>
                 <div>
                   <p className="muted text-[10.5px]">خالص</p>
-                  <p className="num mt-0.5 text-[15px] font-bold" dir="ltr" style={{ color: netMonth >= 0 ? "var(--positive)" : "var(--negative)" }}>
+                  <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: netMonth >= 0 ? "var(--positive)" : "var(--negative)" }}>
                     {netMonth >= 0 ? "+" : "−"}
                     {formatMoney(Math.abs(netMonth))}
                   </p>
@@ -348,7 +348,7 @@ export default async function OverviewDashboard() {
                     <div className="shrink-0 text-left">
                       <span
                         className="num text-[13.5px] font-bold"
-                        dir="ltr"
+                        dir="rtl"
                         style={{
                           color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)",
                         }}

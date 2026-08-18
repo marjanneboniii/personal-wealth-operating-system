@@ -52,13 +52,13 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
     <div>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
         <div aria-live="polite">
-          <div className="num text-lg font-bold tracking-tight" dir="ltr">
+          <div className="num text-lg font-bold tracking-tight" dir="rtl">
             {formatMoney(points[active].value)}
           </div>
           <div className="muted text-[11px]">
             {formatShortDate(points[active].date)} ·{" "}
             <span style={{ color: changePct >= 0 ? "var(--positive)" : "var(--negative)" }}>
-              {changePct >= 0 ? "↑" : "↓"} <span dir="ltr">{formatPct(Math.abs(changePct), 1)}</span> در این بازه
+              {changePct >= 0 ? "↑" : "↓"} <span dir="rtl">{formatPct(Math.abs(changePct), 1)}</span> در این بازه
             </span>
           </div>
         </div>
@@ -165,10 +165,10 @@ export function Donut({
         </svg>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
           <div className="muted text-[10px]">{shown ? shown.label : (centerLabel ?? "مجموع")}</div>
-          <div className="num text-[15px] font-bold" dir="ltr">
+          <div className="num text-[15px] font-bold" dir="rtl">
             {formatMoney(shown ? shown.value : total)}
           </div>
-          <div className="muted num text-[10px]" dir="ltr">
+          <div className="muted num text-[10px]" dir="rtl">
             {shown ? formatPct(((shown.value / total) * 100), 1) : `${data.length} بخش`}
           </div>
         </div>
@@ -188,7 +188,7 @@ export function Donut({
                 <i className="inline-block h-2.5 w-2.5 rounded-[4px]" style={{ background: d.color }} />
                 {d.label}
               </span>
-              <span className="num muted" dir="ltr">
+              <span className="num muted" dir="rtl">
                 {formatPct(((d.value / total) * 100), 1)} · {formatMoney(d.value)}
               </span>
             </button>
@@ -216,16 +216,16 @@ export function BarsChart({
       <div className="mb-2 flex h-5 items-center gap-4 text-[10.5px]" aria-live="polite">
         <span className="flex items-center gap-1.5" style={{ color: "var(--positive)" }}>
           <i className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--positive)" }} />
-          ورودی {cur && <b className="num" dir="ltr">{formatMoney(cur.positive)}</b>}
+          ورودی {cur && <b className="num" dir="rtl">{formatMoney(cur.positive)}</b>}
         </span>
         <span className="flex items-center gap-1.5" style={{ color: "var(--negative)" }}>
           <i className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--negative)" }} />
-          خروجی {cur && <b className="num" dir="ltr">{formatMoney(cur.negative)}</b>}
+          خروجی {cur && <b className="num" dir="rtl">{formatMoney(cur.negative)}</b>}
         </span>
         {cur && (
           <span className="muted">
             {cur.label} — خالص:{" "}
-            <b className="num" dir="ltr" style={{ color: cur.positive - cur.negative >= 0 ? "var(--positive)" : "var(--negative)" }}>
+            <b className="num" dir="rtl" style={{ color: cur.positive - cur.negative >= 0 ? "var(--positive)" : "var(--negative)" }}>
               {formatMoney(cur.positive - cur.negative)}
             </b>
           </span>
