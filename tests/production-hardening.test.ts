@@ -177,9 +177,18 @@ test("drizzle migrations exist and never rewrite accounting data", () => {
   assert.ok(existsSync(initial), "initial migration must exist");
   assert.ok(existsSync(hardening), "hardening migration must exist");
 
+  const later = [
+    join(root, "drizzle/0002_accounts_header_nullable.sql"),
+    join(root, "drizzle/0003_accounts_coa_constraints.sql"),
+    join(root, "drizzle/0004_accounts_code_unique_drop.sql"),
+  ];
+  for (const file of later) {
+    assert.ok(existsSync(file), `${file} must exist`);
+  }
+
   const stripComments = (sql: string) => sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
 
-  for (const file of [initial, hardening]) {
+  for (const file of [initial, hardening, ...later]) {
     const text = stripComments(readFileSync(file, "utf8"));
     // Migrations must not mutate accounting tables or recalculate anything.
     assert.equal(/update\s+(journal_entries|postings|lots|lot_consumptions|accounts|transactions)\b/i.test(text), false, `${file} must not rewrite accounting tables`);
@@ -187,6 +196,10 @@ test("drizzle migrations exist and never rewrite accounting data", () => {
       assert.equal(text.toLowerCase().includes(forbidden), false, `${file} must not contain "${forbidden}"`);
     }
   }
+
+  const dropUnique = readFileSync(join(root, "drizzle/0004_accounts_code_unique_drop.sql"), "utf8");
+  assert.ok(dropUnique.includes("accounts_code_unique"), "0004 must drop the leftover drizzle UNIQUE(code) name");
+  assert.ok(dropUnique.includes("accounts_user_code_uq"), "0004 must restore per-tenant uniqueness");
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
