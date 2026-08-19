@@ -46,6 +46,9 @@ test("no active runtime reference to the retired Market Data architecture remain
 });
 
 test("CoinGecko pricing has no Accounting mutation dependency and manual current Crypto action is absent", () => {
+  // The pricing CORE stays database-free: it can never touch the ledger, and
+  // has no direct DB/schema or mutation primitive. Persistence is delegated to
+  // a dedicated last-known-price adapter (covered below).
   const pricing = ["coingecko.ts", "service.ts"]
     .map((file) => readFileSync(join(root, "src/features/pricing", file), "utf8"))
     .join("\n");
@@ -57,7 +60,23 @@ test("CoinGecko pricing has no Accounting mutation dependency and manual current
     '.update(',
     '.delete(',
   ]) {
-    assert.equal(pricing.includes(dependency), false, `pricing must not import/use ${dependency}`);
+    assert.equal(pricing.includes(dependency), false, `pricing core must not import/use ${dependency}`);
+  }
+
+  // The persistence adapter is the ONLY pricing file allowed to touch the
+  // database, and it must limit itself to the market price cache — never an
+  // accounting table.
+  const adapter = readFileSync(join(root, "src/features/pricing/lastKnownPrice.ts"), "utf8");
+  assert.equal(adapter.includes("coingeckoPriceCache"), true, "adapter must use the price cache table");
+  for (const accountingTable of ["postings", "journalEntries", "lots", "accounts", "assets"]) {
+    assert.equal(
+      adapter.includes(accountingTable),
+      false,
+      `pricing adapter must not import/use accounting table ${accountingTable}`,
+    );
+  }
+  for (const dependency of ['@/features/ledger', '@/domain/fifo']) {
+    assert.equal(adapter.includes(dependency), false, `pricing adapter must not import/use ${dependency}`);
   }
 
   const actions = readFileSync(join(root, "src/app/actions.ts"), "utf8");

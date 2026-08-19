@@ -1017,6 +1017,31 @@ export const coingeckoAssetCatalog = pgTable(
   ],
 );
 
+/**
+ * Last-known CoinGecko market price per supported coin.
+ *
+ * This is an additive price resilience cache, distinct from the identity
+ * catalog: it stores ONLY market-level public price data (USD quote +
+ * observed-at timestamp), keyed by CoinGecko id, never user or accounting
+ * data. When a live CoinGecko request fails or is rate-limited, the valuation
+ * layer falls back to the most recently persisted quote and reports the
+ * freshness as "stale" instead of "unavailable". The migration is additive
+ * (CREATE TABLE IF NOT EXISTS); if it has not been applied yet, the pricing
+ * path simply degrades to the current no-fallback behaviour.
+ */
+export const coingeckoPriceCache = pgTable(
+  "coingecko_price_cache",
+  {
+    coingeckoId: text("coingecko_id").primaryKey(),
+    priceUsd: text("price_usd").notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("coingecko_price_cache_updated_idx").on(t.updatedAt),
+  ],
+);
+
 /* ------------------------------------------------------------------ */
 /* Commodities Domain — Dynamic Price Tracking & Inflation Analytics    */
 /* ------------------------------------------------------------------ */
