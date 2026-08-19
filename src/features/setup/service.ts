@@ -63,6 +63,14 @@ function rethrowChartInsertError(err: unknown): never {
       "ایندکس یکتای (user_id, code) روی جدول accounts یافت نشد. migration را اجرا کنید: npm run db:migrate",
     );
   }
+  if (root.code === "23505" && /accounts_code_unique|accounts_code_key/.test(root.message)) {
+    const wrapped = new Error(
+      "قید یکتای سراسری روی accounts.code (accounts_code_unique) با معماری چندکاربره سازگار نیست. " +
+        "هر کاربر باید بتواند کد ۱۰۰۰ را داشته باشد. migration را اجرا کنید: npm run db:migrate",
+    );
+    (wrapped as Error & { cause?: unknown }).cause = err;
+    throw wrapped;
+  }
   throw err instanceof Error ? err : new Error(root.message);
 }
 

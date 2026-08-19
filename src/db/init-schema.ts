@@ -112,7 +112,7 @@ const STATEMENTS = [
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz,
     deleted_at timestamptz,
-    code text NOT NULL UNIQUE,
+    code text NOT NULL,
     name text NOT NULL,
     type text NOT NULL,
     parent_id uuid,
@@ -813,8 +813,14 @@ const STATEMENTS = [
   `ALTER TABLE funds ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
   `ALTER TABLE snapshots ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
 
-  // Convert global unique constraints to user-aware unique constraints
+  // Convert leftover global UNIQUE(code) to per-tenant UNIQUE(user_id, code).
+  // Production Neon names the drizzle `.unique()` leftover `accounts_code_unique`;
+  // raw SQL `code text UNIQUE` names it `accounts_code_key`. Drop both forms
+  // (constraint and standalone index) so a second tenant can insert 1000.
   `ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_code_key;`,
+  `ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_code_unique;`,
+  `DROP INDEX IF EXISTS accounts_code_key;`,
+  `DROP INDEX IF EXISTS accounts_code_unique;`,
   `CREATE UNIQUE INDEX IF NOT EXISTS accounts_user_code_uq ON accounts(user_id, code);`,
   `ALTER TABLE snapshots DROP CONSTRAINT IF EXISTS snapshots_as_of_key;`,
   `ALTER TABLE snapshots DROP CONSTRAINT IF EXISTS snapshots_asof_uq;`,
