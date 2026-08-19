@@ -28,9 +28,14 @@ import { ensureCategoryCatalog, getCategoryByCode } from "@/features/categories/
 import { addMonthsIso, todayIso } from "@/lib/format";
 import { D } from "@/domain/decimal";
 import { ensureSchemaOnce, rootCauseOf } from "@/db/init-schema";
+import { requireSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
 
 let schemaReady: Promise<void> | null = null;
 let seeded: Promise<void> | null = null;
+
+const SEED_USDT = requireSupportedCryptoBySymbol("USDT");
+const SEED_BTC = requireSupportedCryptoBySymbol("BTC");
+const SEED_ETH = requireSupportedCryptoBySymbol("ETH");
 
 /**
  * The browser overlay only shows Drizzle's generic "Failed query: …" wrapper.
@@ -151,9 +156,39 @@ export async function runSeed(): Promise<void> {
     .values([
       { symbol: "USD", name: "دلار (ارز پایه)", classId: classBy.cash, currencyId: curBy.USD, decimals: 2, pricingMethod: "face_value" },
       { symbol: "IRT", name: "تومان", classId: classBy.cash, currencyId: curBy.IRT, decimals: 0, pricingMethod: "manual" },
-      { symbol: "USDT", name: "تتر", classId: classBy.stable, networkId: netBy.TRC20, decimals: 6, pricingMethod: "coingecko", coingeckoId: "tether" },
-      { symbol: "BTC", name: "بیت‌کوین", classId: classBy.crypto, networkId: netBy.BTC, decimals: 8, pricingMethod: "coingecko", coingeckoId: "bitcoin" },
-      { symbol: "ETH", name: "اتریوم", classId: classBy.crypto, networkId: netBy.ERC20, decimals: 8, pricingMethod: "coingecko", coingeckoId: "ethereum" },
+      {
+        symbol: SEED_USDT.symbol,
+        name: "تتر",
+        classId: classBy.stable,
+        networkId: netBy.TRC20,
+        decimals: 6,
+        pricingMethod: "coingecko",
+        priceSource: "coingecko",
+        coingeckoId: SEED_USDT.coingeckoId,
+        logoUrl: SEED_USDT.logoUrl,
+      },
+      {
+        symbol: SEED_BTC.symbol,
+        name: "بیت‌کوین",
+        classId: classBy.crypto,
+        networkId: netBy.BTC,
+        decimals: 8,
+        pricingMethod: "coingecko",
+        priceSource: "coingecko",
+        coingeckoId: SEED_BTC.coingeckoId,
+        logoUrl: SEED_BTC.logoUrl,
+      },
+      {
+        symbol: SEED_ETH.symbol,
+        name: "اتریوم",
+        classId: classBy.crypto,
+        networkId: netBy.ERC20,
+        decimals: 8,
+        pricingMethod: "coingecko",
+        priceSource: "coingecko",
+        coingeckoId: SEED_ETH.coingeckoId,
+        logoUrl: SEED_ETH.logoUrl,
+      },
       { symbol: "GOLD18", name: "طلای ۱۸ عیار (گرم)", classId: classBy.gold, decimals: 3, pricingMethod: "manual" },
       { symbol: "KIAN", name: "صندوق طلای کیان", classId: classBy.fund, decimals: 0, pricingMethod: "unsupported" },
     ])

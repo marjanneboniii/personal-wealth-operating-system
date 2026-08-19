@@ -25,8 +25,11 @@ import {
   ensureCoinGeckoCatalog,
   getMarketCatalogStatus,
   listCoinGeckoCatalog,
+  listPricedCoinGeckoCatalog,
   refreshCoinGeckoCatalog,
 } from "../src/features/pricing/catalog";
+import { clearCoinGeckoPriceCache } from "../src/features/pricing/service";
+import { SUPPORTED_CRYPTO_ASSETS } from "../src/features/pricing/supportedAssets";
 
 function marketRow(id: string, symbol: string, name: string, rank: number | null) {
   return {
@@ -68,9 +71,10 @@ function clientFor(handlers: { top?: () => Response }) {
   return new CoinGeckoClient({ fetchImpl, apiKey: null });
 }
 
-const REQUESTED_CRYPTO = ["USDC", "BNB", "USDG", "USDE", "XAUT", "PAXG", "USDS", "HYPE", "CBBTC", "WBTC"];
+const REQUESTED_CRYPTO = SUPPORTED_CRYPTO_ASSETS.map((asset) => asset.symbol);
 
 beforeEach(async () => {
+  clearCoinGeckoPriceCache();
   await createSchemaIfNotExists();
   await db.delete(coingeckoAssetCatalog);
 });
@@ -91,6 +95,32 @@ test("offline bootstrap covers the full requested crypto list", async () => {
     assert.ok(symbols.includes(expected), `requested crypto missing from offline catalog: ${expected}`);
     assert.equal(rows.find((r) => r.symbol === expected)?.kind, "crypto");
   }
+});
+
+test("unsupported DOT, DAI and ADA stay hidden even if old rows or upstream results contain them", async () => {
+  await db.insert(coingeckoAssetCatalog).values([
+    storedCatalogRow("polkadot", "DOT", "Polkadot", 30, new Date()),
+    storedCatalogRow("dai", "DAI", "Dai", 21, new Date()),
+    storedCatalogRow("cardano", "ADA", "Cardano", 17, new Date()),
+  ]);
+
+  assert.deepEqual(await listCoinGeckoCatalog("", 500), []);
+  assert.equal((await getMarketCatalogStatus()).total, 0);
+
+  await refreshCoinGeckoCatalog(
+    clientFor({
+      top: () => jsonResponse([
+        marketRow("bitcoin", "btc", "Bitcoin", 1),
+        marketRow("polkadot", "dot", "Polkadot", 30),
+        marketRow("dai", "dai", "Dai", 21),
+        marketRow("cardano", "ada", "Cardano", 17),
+      ]),
+    }),
+  );
+
+  const visible = await listCoinGeckoCatalog("", 500);
+  assert.deepEqual(visible.map((row) => row.symbol), ["BTC"]);
+  assert.equal((await getMarketCatalogStatus()).total, 1);
 });
 
 test("a failed sync upgrades the legacy four-row catalog to the complete offline floor", async () => {
@@ -131,15 +161,16 @@ test("a bootstrap-only catalog keeps retrying instead of being cached for 24h", 
   });
   const result = await refreshCoinGeckoCatalog(recovered);
   assert.equal(calls, 1);
-  assert.equal(result.status, "fresh");
+  assert.equal(result.status, "partial");
 
   const status = await getMarketCatalogStatus();
   assert.equal(status.bootstrapOnly, false);
   assert.ok(status.lastSyncedAt instanceof Date);
 
-  // Now that the catalog is genuinely fresh, ensure() performs no extra call.
+  // A partially refreshed catalog observes the retry cooldown instead of
+  // re-hitting CoinGecko on every request.
   await ensureCoinGeckoCatalog();
-  assert.equal(calls, 1, "a fresh catalog must not re-hit CoinGecko");
+  assert.equal(calls, 1, "a partial catalog must observe the retry cooldown");
 });
 
 test("legacy non-crypto rows are dropped and never surface in the picker", async () => {
@@ -185,6 +216,40 @@ test("search reaches assets by symbol, name and CoinGecko id", async () => {
   assert.equal((await listCoinGeckoCatalog("Hyperliquid"))[0]?.symbol, "HYPE");
   assert.equal((await listCoinGeckoCatalog("pax-gold"))[0]?.symbol, "PAXG");
   assert.equal((await listCoinGeckoCatalog("BTC"))[0]?.symbol, "BTC");
+});
+
+test("priced picker rows expose current USD price and graceful unavailable state", async () => {
+  await refreshCoinGeckoCatalog(
+    clientFor({
+      top: () => jsonResponse([
+        marketRow("bitcoin", "btc", "Bitcoin", 1),
+        marketRow("hyperliquid", "hype", "Hyperliquid", 10),
+      ]),
+    }),
+  );
+
+  const priced = await listPricedCoinGeckoCatalog("", 50, {
+    now: 10_000,
+    client: new CoinGeckoClient({
+      apiKey: null,
+      fetchImpl: async () => jsonResponse({
+        bitcoin: { usd: 64000, last_updated_at: 1_786_406_400 },
+        hyperliquid: { usd: 58, last_updated_at: 1_786_406_400 },
+      }),
+    }),
+  });
+  assert.equal(priced.find((row) => row.symbol === "BTC")?.priceUsd, "64000");
+  assert.equal(priced.find((row) => row.symbol === "BTC")?.priceFreshness, "fresh");
+  assert.equal(priced.find((row) => row.symbol === "BTC")?.displayName, "بیت‌کوین");
+
+  clearCoinGeckoPriceCache();
+  const unavailable = await listPricedCoinGeckoCatalog("HYPE", 50, {
+    now: 20_000,
+    client: new CoinGeckoClient({ apiKey: null, fetchImpl: async () => jsonResponse({}, 429) }),
+  });
+  assert.equal(unavailable[0]?.priceUsd, null);
+  assert.equal(unavailable[0]?.priceFreshness, "unavailable");
+  assert.equal(unavailable[0]?.priceFailureCode, "rate_limited");
 });
 
 test("catalog sync never writes prices — identity columns only", async () => {

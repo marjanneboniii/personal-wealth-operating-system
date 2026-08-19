@@ -130,6 +130,10 @@ test("Money account currency catalog repairs Toman and excludes apartment/real a
   const initial = await listMoneyAccountCurrencies();
   assert.deepEqual(initial.map((row) => row.symbol), ["IRT", "USD", "USDT"]);
   assert.equal(initial.find((row) => row.symbol === "IRT")?.name, "تومان");
+  const [usdtMetadata] = await db.select().from(assets).where(eq(assets.symbol, "USDT")).limit(1);
+  assert.equal(usdtMetadata.coingeckoId, "tether");
+  assert.equal(usdtMetadata.pricingMethod, "coingecko");
+  assert.equal(usdtMetadata.priceSource, "coingecko");
 
   const [cashClass] = await db.select().from(assetClasses).where(eq(assetClasses.code, "cash")).limit(1);
   await db.insert(assets).values({

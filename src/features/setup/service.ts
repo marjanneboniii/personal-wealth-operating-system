@@ -17,11 +17,15 @@ import { D, Decimal } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { rootCauseOf } from "@/db/init-schema";
+import { requireSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
 
 /** Native units a cash/bank account may hold. Book currency stays USD. */
 export const SETUP_MONEY_SYMBOLS = ["IRT", "USD", "USDT"] as const;
 export type SetupMoneySymbol = (typeof SETUP_MONEY_SYMBOLS)[number];
 const SETUP_MONEY_SYMBOL_SET = new Set<string>(SETUP_MONEY_SYMBOLS);
+const SETUP_USDT = requireSupportedCryptoBySymbol("USDT");
+const SETUP_BTC = requireSupportedCryptoBySymbol("BTC");
+const SETUP_ETH = requireSupportedCryptoBySymbol("ETH");
 
 export type SetupInput = {
   userName: string;
@@ -84,7 +88,8 @@ function resolveMoneyDenomination(explicit: string | undefined, fallback: string
  * Server-authoritative conversion: read the persisted account's assetId,
  * interpret `nativeQty` in that unit, and compute USD `base_value`.
  * Client labels / claimed book values are ignored.
- * Mirrors `registerMoneyAccount` (IRT ÷ current USD→IRT rate; USD/USDT = 1).
+ * Mirrors `registerMoneyAccount` for opening book value (IRT ÷ current
+ * USD→IRT rate; USD/USDT = 1). Live USDT valuation remains CoinGecko-based.
  */
 async function bookUsdFromAccountNative(
   tx: any,
@@ -201,13 +206,59 @@ export async function completeSetup(
         // accounting base currency selected above.
         { symbol: "IRT", name: "تومان", classId: clsMap.cash, currencyId: curMap.IRT, decimals: 0 },
         { symbol: "USD", name: "دلار آمریکا", classId: clsMap.cash, currencyId: curMap.USD, decimals: 2 },
-        { symbol: "USDT", name: "تتر", classId: clsMap.stable, decimals: 6 },
-        { symbol: "BTC", name: "بیت‌کوین", classId: clsMap.crypto, decimals: 8 },
-        { symbol: "ETH", name: "اتریوم", classId: clsMap.crypto, decimals: 8 },
+        {
+          symbol: SETUP_USDT.symbol,
+          name: "تتر",
+          classId: clsMap.stable,
+          decimals: 6,
+          pricingMethod: "coingecko",
+          priceSource: "coingecko",
+          coingeckoId: SETUP_USDT.coingeckoId,
+          logoUrl: SETUP_USDT.logoUrl,
+        },
+        {
+          symbol: SETUP_BTC.symbol,
+          name: "بیت‌کوین",
+          classId: clsMap.crypto,
+          decimals: 8,
+          pricingMethod: "coingecko",
+          priceSource: "coingecko",
+          coingeckoId: SETUP_BTC.coingeckoId,
+          logoUrl: SETUP_BTC.logoUrl,
+        },
+        {
+          symbol: SETUP_ETH.symbol,
+          name: "اتریوم",
+          classId: clsMap.crypto,
+          decimals: 8,
+          pricingMethod: "coingecko",
+          priceSource: "coingecko",
+          coingeckoId: SETUP_ETH.coingeckoId,
+          logoUrl: SETUP_ETH.logoUrl,
+        },
         { symbol: "GOLD18", name: "طلای ۱۸ عیار (گرم)", classId: clsMap.gold, decimals: 3 },
       ].map((asset) => [asset.symbol, asset]),
     );
     await tx.insert(assets).values([...requiredAssets.values()]).onConflictDoNothing();
+
+    // Older setup/runtime paths could leave these shared asset identities with
+    // default manual pricing. Reconcile pricing metadata only; never touch an
+    // account, journal, posting, quantity, lot, cost basis or snapshot.
+    for (const identity of [SETUP_USDT, SETUP_BTC, SETUP_ETH]) {
+      await tx
+        .update(assets)
+        .set({
+          pricingMethod: "coingecko",
+          priceSource: "coingecko",
+          coingeckoId: identity.coingeckoId,
+          logoUrl: identity.logoUrl,
+          isActive: true,
+          deletedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(assets.symbol, identity.symbol));
+    }
+
     const astList = await tx.select().from(assets);
     const assetMap = Object.fromEntries(astList.map((a) => [a.symbol, a.id]));
 

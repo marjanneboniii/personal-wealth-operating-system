@@ -1,8 +1,15 @@
-import { and, asc, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { coingeckoAssetCatalog } from "@/db/schema";
 import { CoinGeckoClient } from "./coingecko";
-import type { CoinGeckoCatalogAsset } from "./types";
+import { getCurrentUsdPrices } from "./service";
+import {
+  getSupportedCryptoByCoinGeckoId,
+  isSupportedCoinGeckoId,
+  SUPPORTED_COINGECKO_IDS,
+  SUPPORTED_CRYPTO_ASSETS,
+} from "./supportedAssets";
+import type { CoinGeckoCatalogAsset, PriceFailureCode, PriceFreshness } from "./types";
 
 const CATALOG_TTL_MS = 24 * 60 * 60 * 1000;
 /** A failed sync must not silently lock the catalog for a whole day. */
@@ -41,33 +48,14 @@ export type CatalogStatus = {
  * unreachable — e.g. blocked egress, no API key + rate limit. Ranks/logos
  * here are identity hints, refreshed on the first successful sync.
  */
-const BOOTSTRAP_IDENTITIES: CoinGeckoCatalogAsset[] = [
-  // ── Major crypto ────────────────────────────────────────────────────────
-  { coingeckoId: "bitcoin", symbol: "BTC", name: "Bitcoin", logoUrl: "https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png", marketCapRank: 1, kind: "crypto" },
-  { coingeckoId: "ethereum", symbol: "ETH", name: "Ethereum", logoUrl: "https://coin-images.coingecko.com/coins/images/279/large/ethereum.png", marketCapRank: 2, kind: "crypto" },
-  { coingeckoId: "tether", symbol: "USDT", name: "Tether", logoUrl: "https://coin-images.coingecko.com/coins/images/325/large/Tether.png", marketCapRank: 3, kind: "crypto" },
-  { coingeckoId: "binancecoin", symbol: "BNB", name: "BNB", logoUrl: "https://coin-images.coingecko.com/coins/images/825/large/bnb-icon2_2x.png", marketCapRank: 4, kind: "crypto" },
-  { coingeckoId: "usd-coin", symbol: "USDC", name: "USDC", logoUrl: "https://coin-images.coingecko.com/coins/images/6319/large/USDC.png", marketCapRank: 5, kind: "crypto" },
-  { coingeckoId: "ripple", symbol: "XRP", name: "XRP", logoUrl: "https://coin-images.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png", marketCapRank: 6, kind: "crypto" },
-  { coingeckoId: "solana", symbol: "SOL", name: "Solana", logoUrl: "https://coin-images.coingecko.com/coins/images/4128/large/solana.png", marketCapRank: 7, kind: "crypto" },
-  { coingeckoId: "tron", symbol: "TRX", name: "TRON", logoUrl: "https://coin-images.coingecko.com/coins/images/1094/large/tron-logo.png", marketCapRank: 8, kind: "crypto" },
-  { coingeckoId: "hyperliquid", symbol: "HYPE", name: "Hyperliquid", logoUrl: "https://coin-images.coingecko.com/coins/images/50882/large/hyperliquid.jpg", marketCapRank: 10, kind: "crypto" },
-  { coingeckoId: "dogecoin", symbol: "DOGE", name: "Dogecoin", logoUrl: "https://coin-images.coingecko.com/coins/images/5/large/dogecoin.png", marketCapRank: 11, kind: "crypto" },
-  { coingeckoId: "usds", symbol: "USDS", name: "USDS", logoUrl: "https://coin-images.coingecko.com/coins/images/39926/large/usds.webp", marketCapRank: 12, kind: "crypto" },
-  { coingeckoId: "monero", symbol: "XMR", name: "Monero", logoUrl: "https://coin-images.coingecko.com/coins/images/69/large/monero_logo.png", marketCapRank: 16, kind: "crypto" },
-  { coingeckoId: "cardano", symbol: "ADA", name: "Cardano", logoUrl: "https://coin-images.coingecko.com/coins/images/975/large/cardano.png", marketCapRank: 17, kind: "crypto" },
-  { coingeckoId: "litecoin", symbol: "LTC", name: "Litecoin", logoUrl: "https://coin-images.coingecko.com/coins/images/2/large/litecoin.png", marketCapRank: 22, kind: "crypto" },
-  { coingeckoId: "ethena-usde", symbol: "USDE", name: "Ethena USDe", logoUrl: "https://coin-images.coingecko.com/coins/images/33613/large/usde.png", marketCapRank: 24, kind: "crypto" },
-  { coingeckoId: "avalanche-2", symbol: "AVAX", name: "Avalanche", logoUrl: "https://coin-images.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png", marketCapRank: 25, kind: "crypto" },
-  { coingeckoId: "global-dollar", symbol: "USDG", name: "Global Dollar", logoUrl: "https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png", marketCapRank: 28, kind: "crypto" },
-  { coingeckoId: "polkadot", symbol: "DOT", name: "Polkadot", logoUrl: "https://coin-images.coingecko.com/coins/images/12171/large/polkadot.png", marketCapRank: 30, kind: "crypto" },
-  { coingeckoId: "tether-gold", symbol: "XAUT", name: "Tether Gold", logoUrl: "https://coin-images.coingecko.com/coins/images/10481/large/logo.png", marketCapRank: 35, kind: "crypto" },
-  { coingeckoId: "pax-gold", symbol: "PAXG", name: "PAX Gold", logoUrl: "https://coin-images.coingecko.com/coins/images/9519/large/asset-paxg.png", marketCapRank: 42, kind: "crypto" },
-  { coingeckoId: "dai", symbol: "DAI", name: "Dai", logoUrl: "https://coin-images.coingecko.com/coins/images/9956/large/Badge_Dai.png", marketCapRank: 21, kind: "crypto" },
-  // ── Wrapped / stable variants — reachable offline too ───────────────────
-  { coingeckoId: "coinbase-wrapped-btc", symbol: "CBBTC", name: "Coinbase Wrapped BTC", logoUrl: "https://coin-images.coingecko.com/coins/images/40143/large/cbbtc.webp", marketCapRank: null, kind: "crypto" },
-  { coingeckoId: "wrapped-bitcoin", symbol: "WBTC", name: "Wrapped Bitcoin", logoUrl: "https://coin-images.coingecko.com/coins/images/7598/large/WBTCLOGO.png", marketCapRank: null, kind: "crypto" },
-];
+const BOOTSTRAP_IDENTITIES: CoinGeckoCatalogAsset[] = SUPPORTED_CRYPTO_ASSETS.map((asset) => ({
+  coingeckoId: asset.coingeckoId,
+  symbol: asset.symbol,
+  name: asset.name,
+  logoUrl: asset.logoUrl,
+  marketCapRank: asset.marketCapRank,
+  kind: "crypto",
+}));
 
 /** Exposed for diagnostics/tests — the offline identity floor of the picker. */
 export const BOOTSTRAP_CATALOG_SIZE = BOOTSTRAP_IDENTITIES.length;
@@ -99,8 +87,8 @@ async function upsertCatalog(rows: CoinGeckoCatalogAsset[], syncedAt: Date): Pro
 
 /**
  * Makes every supported offline identity available without downgrading rows
- * that were previously refreshed from CoinGecko. This is intentionally
- * insert-only: a real upstream timestamp/logo always wins over bootstrap
+ * that were previously refreshed from CoinGecko. Conflicts only reactivate the
+ * supported identity: a real upstream timestamp/logo always wins over bootstrap
  * metadata.
  *
  * Older installations may already contain the original four-row seed
@@ -114,23 +102,28 @@ async function ensureOfflineCatalogFloor(): Promise<void> {
     await db
       .insert(coingeckoAssetCatalog)
       .values({ ...row, syncedAt: BOOTSTRAP_SYNCED_AT, isActive: true })
-      .onConflictDoNothing({ target: coingeckoAssetCatalog.coingeckoId });
+      .onConflictDoUpdate({
+        target: coingeckoAssetCatalog.coingeckoId,
+        set: { isActive: true },
+      });
   }
 }
 
 /**
- * Synchronizes top-250 crypto from CoinGecko. Failure is graceful: rows that
- * did arrive are still registered, and previously registered identities
- * remain available. Prices are never taken from this path. Any legacy rows
- * that are not crypto (old RWA/tokenized identities) are dropped, so they can
- * never surface in the picker again.
+ * Synchronizes the supported identities found in CoinGecko's top-250 response.
+ * Failure is graceful: rows that did arrive are still registered, and the
+ * offline allowlist remains available. Prices are never taken from this path.
+ * Legacy non-crypto rows are dropped; unsupported crypto rows may remain for
+ * history but are filtered from every picker/status query.
  */
 export async function refreshCoinGeckoCatalog(
   client = new CoinGeckoClient(),
 ): Promise<CatalogSyncResult> {
   let top: CoinGeckoCatalogAsset[] = [];
   try {
-    top = await client.fetchTopAssets(250);
+    top = (await client.fetchTopAssets(250)).filter((asset) =>
+      isSupportedCoinGeckoId(asset.coingeckoId),
+    );
   } catch {
     top = [];
   }
@@ -145,8 +138,14 @@ export async function refreshCoinGeckoCatalog(
 
   if (merged.size > 0) {
     await upsertCatalog([...merged.values()], new Date());
-    globalForCatalog.__pwosCatalogNextRetryAt = failed.length ? Date.now() + RETRY_COOLDOWN_MS : undefined;
-    return { synced: merged.size, status: failed.length ? "partial" : "fresh", failed };
+    const complete = merged.size === SUPPORTED_CRYPTO_ASSETS.length;
+    // Some supported identities can temporarily fall outside /coins/markets'
+    // first page. Keep their offline identities, but do not retry on every
+    // request while the catalog is only partially refreshed.
+    globalForCatalog.__pwosCatalogNextRetryAt = complete
+      ? undefined
+      : Date.now() + RETRY_COOLDOWN_MS;
+    return { synced: merged.size, status: complete ? "fresh" : "partial", failed };
   }
 
   // Nothing came back: lay down every missing offline identity. This also
@@ -166,7 +165,12 @@ export async function getMarketCatalogStatus(): Promise<CatalogStatus> {
       bootstrapEntries: sql<number>`count(*) filter (where ${coingeckoAssetCatalog.syncedAt} = ${BOOTSTRAP_SYNCED_AT})::int`,
       lastSyncedAt: sql<Date | null>`max(${coingeckoAssetCatalog.syncedAt})`,
     })
-    .from(coingeckoAssetCatalog);
+    .from(coingeckoAssetCatalog)
+    .where(and(
+      eq(coingeckoAssetCatalog.isActive, true),
+      eq(coingeckoAssetCatalog.kind, "crypto"),
+      inArray(coingeckoAssetCatalog.coingeckoId, SUPPORTED_COINGECKO_IDS),
+    ));
 
   const lastSyncedAt = row?.lastSyncedAt ? new Date(row.lastSyncedAt) : null;
   return {
@@ -205,9 +209,13 @@ export async function listCoinGeckoCatalog(
   limit = 200,
 ): Promise<Array<typeof coingeckoAssetCatalog.$inferSelect>> {
   const q = query.trim();
-  // Only crypto identities are ever offered; legacy non-crypto rows can't
-  // surface in the picker even if they linger in an old database.
-  const filters = [eq(coingeckoAssetCatalog.isActive, true), eq(coingeckoAssetCatalog.kind, "crypto")];
+  // The allowlist is enforced at read time too, so old DOT/DAI/ADA or other
+  // legacy rows can never reappear even if they still exist for history.
+  const filters = [
+    eq(coingeckoAssetCatalog.isActive, true),
+    eq(coingeckoAssetCatalog.kind, "crypto"),
+    inArray(coingeckoAssetCatalog.coingeckoId, SUPPORTED_COINGECKO_IDS),
+  ];
   if (q) {
     filters.push(
       or(
@@ -226,11 +234,55 @@ export async function listCoinGeckoCatalog(
     .limit(Math.min(Math.max(limit, 1), 500));
 }
 
+export type PricedCoinGeckoCatalogEntry = typeof coingeckoAssetCatalog.$inferSelect & {
+  displayName: string;
+  priceUsd: string | null;
+  priceFreshness: PriceFreshness;
+  priceFailureCode?: PriceFailureCode;
+  priceObservedAt: string | null;
+};
+
+/**
+ * Returns picker identities with one batched, failure-safe current-price read.
+ * A CoinGecko outage is represented in each row; it never rejects the picker.
+ */
+export async function listPricedCoinGeckoCatalog(
+  query = "",
+  limit = 200,
+  options: { client?: CoinGeckoClient; now?: number } = {},
+): Promise<PricedCoinGeckoCatalogEntry[]> {
+  const rows = await listCoinGeckoCatalog(query, limit);
+  const quotes = await getCurrentUsdPrices(rows.map((row) => ({
+    assetId: row.coingeckoId,
+    coingeckoId: row.coingeckoId,
+    symbol: row.symbol,
+    name: row.name,
+    logoUrl: row.logoUrl,
+  })), options);
+
+  return rows.map((row) => {
+    const supported = getSupportedCryptoByCoinGeckoId(row.coingeckoId);
+    const quote = quotes.get(row.coingeckoId);
+    return {
+      ...row,
+      displayName: supported?.displayName ?? row.name,
+      priceUsd: quote?.priceUsd ?? null,
+      priceFreshness: quote?.freshness ?? "unavailable",
+      priceFailureCode: quote?.failureCode,
+      priceObservedAt: quote?.observedAt ?? null,
+    };
+  });
+}
+
 /** Newest-first sync timestamps, used by diagnostics screens. */
 export async function latestCatalogSyncAt(): Promise<Date | null> {
   const [row] = await db
     .select({ syncedAt: coingeckoAssetCatalog.syncedAt })
     .from(coingeckoAssetCatalog)
+    .where(and(
+      eq(coingeckoAssetCatalog.isActive, true),
+      inArray(coingeckoAssetCatalog.coingeckoId, SUPPORTED_COINGECKO_IDS),
+    ))
     .orderBy(desc(coingeckoAssetCatalog.syncedAt))
     .limit(1);
   return row?.syncedAt ?? null;

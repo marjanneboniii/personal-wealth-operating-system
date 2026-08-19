@@ -12,7 +12,7 @@ import { ensureCategoryCatalog, listCategoryTree } from "@/features/categories/s
 import {
   ensureCoinGeckoCatalog,
   getMarketCatalogStatus,
-  listCoinGeckoCatalog,
+  listPricedCoinGeckoCatalog,
 } from "@/features/pricing/catalog";
 
 export const dynamic = "force-dynamic";
@@ -62,7 +62,7 @@ export default async function NewTransactionPage({
       .orderBy(asc(accounts.code)),
     getLatestUsdIrtRate(),
     listDebts(userId ?? undefined),
-    listCoinGeckoCatalog("", 500),
+    listPricedCoinGeckoCatalog("", 500),
     ensureCategoryCatalog().then(() => listCategoryTree(userId ?? undefined)),
   ]);
   const catalogStatus = await getMarketCatalogStatus();
@@ -88,7 +88,12 @@ export default async function NewTransactionPage({
           coingeckoId: asset.coingeckoId,
           symbol: asset.symbol,
           name: asset.name,
+          displayName: asset.displayName,
           logoUrl: asset.logoUrl,
+          priceUsd: asset.priceUsd,
+          priceFreshness: asset.priceFreshness,
+          priceFailureCode: asset.priceFailureCode,
+          priceObservedAt: asset.priceObservedAt,
         }))}
         marketCatalogStatus={{
           total: catalogStatus.total,
