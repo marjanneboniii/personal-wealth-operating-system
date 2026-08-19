@@ -5,6 +5,7 @@ import { db } from "../src/db";
 import { createSchemaIfNotExists } from "../src/db/init-schema";
 import {
   accounts,
+  assets,
   exchangeRates,
   journalEntries,
   lotConsumptions,
@@ -58,6 +59,17 @@ test("Phase 2.1 Requirement — Fresh user can complete setup wizard successfull
   });
 
   assert.equal(result.ok, true);
+
+  const cryptoMetadata = await db.select().from(assets).where(sql`symbol in ('BTC', 'ETH', 'USDT')`);
+  assert.deepEqual(
+    Object.fromEntries(cryptoMetadata.map((asset) => [asset.symbol, [asset.coingeckoId, asset.pricingMethod, asset.priceSource]])),
+    {
+      BTC: ["bitcoin", "coingecko", "coingecko"],
+      ETH: ["ethereum", "coingecko", "coingecko"],
+      USDT: ["tether", "coingecko", "coingecko"],
+    },
+    "setup must persist the fixed CoinGecko identity without touching opening accounting",
+  );
 
   // 1. Verify setup state completed
   state = await getSetupState();

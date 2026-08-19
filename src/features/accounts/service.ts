@@ -32,6 +32,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { D } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
+import { requireSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
 
 export const WALLET_KINDS = ["bank", "cash", "exchange", "hot", "cold", "fund"] as const;
 export type WalletKind = (typeof WALLET_KINDS)[number];
@@ -44,6 +45,7 @@ export type WalletKind = (typeof WALLET_KINDS)[number];
  */
 export const MONEY_ACCOUNT_CURRENCY_SYMBOLS = ["IRT", "USD", "USDT"] as const;
 export type MoneyAccountCurrencySymbol = (typeof MONEY_ACCOUNT_CURRENCY_SYMBOLS)[number];
+const MONEY_ACCOUNT_USDT = requireSupportedCryptoBySymbol("USDT");
 const MONEY_ACCOUNT_CURRENCY_SET = new Set<string>(MONEY_ACCOUNT_CURRENCY_SYMBOLS);
 
 /** Account code of the opening-equity account that balances opening entries. */
@@ -132,16 +134,29 @@ export async function ensureMoneyAccountCurrencyCatalog(txClient?: any): Promise
           pricingMethod: "face_value",
         },
         {
-          symbol: "USDT",
+          symbol: MONEY_ACCOUNT_USDT.symbol,
           name: "تتر",
           classId: classByCode.stable,
           decimals: 6,
-          pricingMethod: "face_value",
+          pricingMethod: "coingecko",
+          priceSource: "coingecko",
+          coingeckoId: MONEY_ACCOUNT_USDT.coingeckoId,
+          logoUrl: MONEY_ACCOUNT_USDT.logoUrl,
         },
       ])
       .onConflictDoUpdate({
         target: assets.symbol,
-        set: { isActive: true, deletedAt: null, updatedAt: new Date() },
+        set: {
+          isActive: true,
+          deletedAt: null,
+          updatedAt: new Date(),
+          // Reconcile pricing identity only; quantities, accounts, postings,
+          // FIFO lots and all accounting values remain untouched.
+          pricingMethod: sql`excluded.pricing_method`,
+          priceSource: sql`excluded.price_source`,
+          coingeckoId: sql`excluded.coingecko_id`,
+          logoUrl: sql`coalesce(excluded.logo_url, ${assets.logoUrl})`,
+        },
       });
   };
 
@@ -304,7 +319,8 @@ export async function registerMoneyAccount(
     }
 
     // 2. Historical USD value is deterministic and not client-editable:
-    // USD/USDT = 1 USD; IRT uses the current tenant-specific USD→IRT rate.
+    // Opening book value: USD/USDT = 1 USD; IRT uses the tenant FX rate.
+    // This accounting input does not replace USDT's live CoinGecko valuation.
     let unitPriceUsd = D("1");
     if (asset.symbol === "IRT") {
       const fx = await getLatestUsdIrtRateForUser(input.userId, tx);

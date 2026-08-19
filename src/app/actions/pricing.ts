@@ -7,9 +7,12 @@ import { accounts, assetClasses, assets, coingeckoAssetCatalog, users } from "@/
 import { getCurrentUser } from "@/lib/auth";
 import {
   getMarketCatalogStatus,
-  listCoinGeckoCatalog,
+  listPricedCoinGeckoCatalog,
   refreshCoinGeckoCatalog,
+  type PricedCoinGeckoCatalogEntry,
 } from "@/features/pricing/catalog";
+import { getSupportedCryptoByCoinGeckoId } from "@/features/pricing/supportedAssets";
+import type { PriceFailureCode, PriceFreshness } from "@/features/pricing/types";
 
 export type RegisterMarketAssetResult = {
   ok: boolean;
@@ -46,13 +49,17 @@ export async function registerMarketAssetAction(
 ): Promise<RegisterMarketAssetResult> {
   try {
     const user = await requireRegistrationIdentity();
-    const normalizedId = coingeckoId.trim();
+    const normalizedId = coingeckoId.trim().toLowerCase();
+    const supported = getSupportedCryptoByCoinGeckoId(normalizedId);
+    if (!supported) throw new Error("این رمزارز در فهرست پشتیبانی‌شدهٔ برنامه نیست.");
+
     const [catalog] = await db
       .select()
       .from(coingeckoAssetCatalog)
       .where(and(
         eq(coingeckoAssetCatalog.coingeckoId, normalizedId),
         eq(coingeckoAssetCatalog.isActive, true),
+        eq(coingeckoAssetCatalog.kind, "crypto"),
       ))
       .limit(1);
     if (!catalog) throw new Error("دارایی انتخاب‌شده در کاتالوگ CoinGecko ثبت نشده است.");
@@ -80,54 +87,42 @@ export async function registerMarketAssetAction(
     }
     if (!assetClass) throw new Error("کلاس دارایی قابل ایجاد نیست.");
 
-    let [asset] = await db.select().from(assets).where(eq(assets.coingeckoId, normalizedId)).limit(1);
-    if (!asset) {
-      const [symbolCollision] = await db.select().from(assets).where(eq(assets.symbol, catalog.symbol)).limit(1);
-      if (symbolCollision?.coingeckoId && symbolCollision.coingeckoId !== normalizedId) {
-        throw new Error("این نماد قبلاً به یک شناسه متفاوت CoinGecko متصل شده است.");
-      }
-      if (symbolCollision) {
-        [asset] = await db
-          .update(assets)
-          .set({
-            name: catalog.name,
-            classId: assetClass.id,
-            pricingMethod: "coingecko",
-            priceSource: "coingecko",
-            coingeckoId: normalizedId,
-            logoUrl: catalog.logoUrl,
-            isActive: true,
-            updatedAt: new Date(),
-          })
-          .where(eq(assets.id, symbolCollision.id))
-          .returning();
-      } else {
-        [asset] = await db
-          .insert(assets)
-          .values({
-            symbol: catalog.symbol,
-            name: catalog.name,
-            classId: assetClass.id,
-            decimals: 8,
-            pricingMethod: "coingecko",
-            priceSource: "coingecko",
-            coingeckoId: normalizedId,
-            logoUrl: catalog.logoUrl,
-          })
-          .returning();
-      }
-    } else if (asset.logoUrl !== catalog.logoUrl || asset.pricingMethod !== "coingecko") {
+    const [idOwner] = await db.select().from(assets).where(eq(assets.coingeckoId, normalizedId)).limit(1);
+    const [symbolAsset] = await db.select().from(assets).where(eq(assets.symbol, supported.symbol)).limit(1);
+    if (idOwner && idOwner.symbol !== supported.symbol) {
+      throw new Error("شناسه CoinGecko این دارایی به نماد دیگری متصل است؛ ثبت برای جلوگیری از Mapping اشتباه متوقف شد.");
+    }
+
+    let asset = symbolAsset ?? idOwner;
+    if (asset) {
       [asset] = await db
         .update(assets)
         .set({
-          name: catalog.name,
-          logoUrl: catalog.logoUrl,
+          name: supported.name,
+          classId: assetClass.id,
           pricingMethod: "coingecko",
           priceSource: "coingecko",
+          coingeckoId: supported.coingeckoId,
+          logoUrl: catalog.logoUrl || supported.logoUrl,
           isActive: true,
+          deletedAt: null,
           updatedAt: new Date(),
         })
         .where(eq(assets.id, asset.id))
+        .returning();
+    } else {
+      [asset] = await db
+        .insert(assets)
+        .values({
+          symbol: supported.symbol,
+          name: supported.name,
+          classId: assetClass.id,
+          decimals: 8,
+          pricingMethod: "coingecko",
+          priceSource: "coingecko",
+          coingeckoId: supported.coingeckoId,
+          logoUrl: catalog.logoUrl || supported.logoUrl,
+        })
         .returning();
     }
     if (!asset) throw new Error("ثبت شناسه دارایی ناموفق بود.");
@@ -142,7 +137,7 @@ export async function registerMarketAssetAction(
       .limit(1);
 
     if (!account) {
-      const codeBase = `MKT-${catalog.symbol}-${catalog.coingeckoId}`
+      const codeBase = `MKT-${supported.symbol}-${supported.coingeckoId}`
         .toUpperCase()
         .replace(/[^A-Z0-9-]/g, "-")
         .slice(0, 48);
@@ -151,7 +146,7 @@ export async function registerMarketAssetAction(
         .values({
           userId: user?.id ?? null,
           code: codeBase,
-          name: `${catalog.name} (${catalog.symbol})`,
+          name: `${supported.displayName} (${supported.symbol})`,
           type: "asset",
           assetId: asset.id,
           isActive: true,
@@ -172,7 +167,7 @@ export async function registerMarketAssetAction(
     revalidatePath("/portfolio");
     return {
       ok: true,
-      message: `${catalog.symbol} با لوگوی CoinGecko ثبت شد؛ اکنون خرید یا فروش را تکمیل کنید.`,
+      message: `${supported.displayName} (${supported.symbol}) با قیمت‌گذاری CoinGecko ثبت شد؛ اکنون خرید یا فروش را تکمیل کنید.`,
       account: {
         id: account.id,
         code: account.code,
@@ -192,7 +187,12 @@ export type MarketCatalogEntry = {
   coingeckoId: string;
   symbol: string;
   name: string;
+  displayName: string;
   logoUrl: string;
+  priceUsd: string | null;
+  priceFreshness: PriceFreshness;
+  priceFailureCode?: PriceFailureCode;
+  priceObservedAt: string | null;
 };
 
 export type SearchMarketCatalogResult = {
@@ -204,31 +204,30 @@ export type SearchMarketCatalogResult = {
   message?: string;
 };
 
-function toEntry(row: {
-  coingeckoId: string;
-  symbol: string;
-  name: string;
-  logoUrl: string;
-}): MarketCatalogEntry {
+function toEntry(row: PricedCoinGeckoCatalogEntry): MarketCatalogEntry {
   return {
     coingeckoId: row.coingeckoId,
     symbol: row.symbol,
     name: row.name,
+    displayName: row.displayName,
     logoUrl: row.logoUrl,
+    priceUsd: row.priceUsd,
+    priceFreshness: row.priceFreshness,
+    priceFailureCode: row.priceFailureCode,
+    priceObservedAt: row.priceObservedAt,
   };
 }
 
 /**
- * Server-side search over the full CoinGecko identity catalog (crypto + RWA).
- * The picker no longer depends on the slice that was shipped with the page,
- * so every synced identity — not just the first few — is reachable.
+ * Server-side search over the explicit supported-crypto allowlist. Results are
+ * enriched with one failure-safe CoinGecko price batch for direct UI display.
  */
 export async function searchMarketCatalogAction(
   query: string,
 ): Promise<SearchMarketCatalogResult> {
   try {
     await requireRegistrationIdentity();
-    const rows = await listCoinGeckoCatalog(query, 100);
+    const rows = await listPricedCoinGeckoCatalog(query, 100);
     const status = await getMarketCatalogStatus();
     return {
       ok: true,
@@ -256,7 +255,7 @@ export async function refreshMarketCatalogAction(): Promise<SearchMarketCatalogR
     await requireRegistrationIdentity();
     const sync = await refreshCoinGeckoCatalog();
     const status = await getMarketCatalogStatus();
-    const rows = await listCoinGeckoCatalog("", 100);
+    const rows = await listPricedCoinGeckoCatalog("", 100);
     revalidatePath("/new");
 
     const message =

@@ -15,6 +15,7 @@ import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
 import DebtInstallmentExplorer, { type DebtOption } from "./DebtInstallmentExplorer";
 import { D } from "@/domain/decimal";
+import type { PriceFailureCode, PriceFreshness } from "@/features/pricing/types";
 
 export type AccountOption = {
   id: string;
@@ -31,7 +32,12 @@ export type MarketAssetOption = {
   coingeckoId: string;
   symbol: string;
   name: string;
+  displayName: string;
   logoUrl: string;
+  priceUsd: string | null;
+  priceFreshness: PriceFreshness;
+  priceFailureCode?: PriceFailureCode;
+  priceObservedAt: string | null;
 };
 
 export type MarketCatalogStatus = {
@@ -39,6 +45,25 @@ export type MarketCatalogStatus = {
   crypto: number;
   bootstrapOnly: boolean;
 };
+
+function priceFailureLabel(code?: PriceFailureCode): string {
+  switch (code) {
+    case "rate_limited":
+      return "محدودیت درخواست CoinGecko";
+    case "timeout":
+      return "پاسخ CoinGecko بیش از حد طول کشید";
+    case "network_failure":
+      return "ارتباط سرور با CoinGecko برقرار نشد";
+    case "asset_not_found":
+      return "قیمت این شناسه در CoinGecko یافت نشد";
+    case "invalid_response":
+      return "پاسخ قیمت CoinGecko نامعتبر بود";
+    case "upstream_error":
+      return "سرویس CoinGecko موقتاً در دسترس نیست";
+    default:
+      return "قیمت فعلاً در دسترس نیست";
+  }
+}
 
 /** Hierarchical expense categories (parent → leaf children). */
 export type CategoryChildOption = {
@@ -523,8 +548,25 @@ export default function TransactionForm({
                   >
                     <img src={asset.logoUrl} alt="" width={28} height={28} className="h-7 w-7 rounded-full" referrerPolicy="no-referrer" />
                     <span className="min-w-0 flex-1">
-                      <b className="block text-xs" dir="ltr">{currencyLabel(asset.symbol)}</b>
-                      <small className="muted block truncate">{asset.name}</small>
+                      <b className="block truncate text-xs">
+                        {asset.displayName} <span dir="ltr">({asset.symbol})</span>
+                      </b>
+                      <small className="muted block truncate" dir="ltr">{asset.name}</small>
+                      <small className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[9.5px]">
+                        {asset.priceUsd ? (
+                          <span className="num font-semibold" dir="rtl">{formatMoney(asset.priceUsd, "USD")}</span>
+                        ) : (
+                          <span style={{ color: "var(--negative)" }}>{priceFailureLabel(asset.priceFailureCode)}</span>
+                        )}
+                        <span
+                          className="chip"
+                          style={asset.priceFreshness === "fresh"
+                            ? undefined
+                            : { color: asset.priceFreshness === "stale" ? "var(--warning)" : "var(--negative)" }}
+                        >
+                          {asset.priceFreshness === "fresh" ? "Fresh" : asset.priceFreshness === "stale" ? "Stale" : "Unavailable"}
+                        </span>
+                      </small>
                     </span>
                     <span className="chip">{registered ? "انتخاب" : "ثبت"}</span>
                   </button>
