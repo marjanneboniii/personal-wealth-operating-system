@@ -249,6 +249,57 @@ async function main() {
         `select count(*)::int as rows, count(distinct user_id)::int as users from public.accounts`,
       );
       console.log(`\n  accounts rows: ${counts[0].rows} across ${counts[0].users} user(s) (data-presence hint).`);
+
+      /* ── Pre-flight markers: does prod match the state after 0000–0003? ── */
+      console.log("\n━━ 8. Pre-flight markers for baselining 0000–0003 " + "━".repeat(13));
+      const nullab = await q<{ column_name: string; is_nullable: string }>(
+        `select column_name, is_nullable from information_schema.columns
+          where table_schema = 'public' and table_name = 'accounts'
+            and column_name in ('user_id', 'code', 'asset_id', 'wallet_id')
+          order by column_name`,
+      );
+      for (const c of nullab)
+        console.log(`  accounts.${c.column_name.padEnd(9)} nullable: ${c.is_nullable === "YES" ? "YES" : "NO"}`);
+      console.log("    (0002/0003 expect asset_id, wallet_id = YES)");
+
+      const fks = await q<{ conname: string; def: string }>(
+        `select conname, pg_get_constraintdef(oid, true) as def
+           from pg_constraint
+          where conrelid = 'public.accounts'::regclass and contype = 'f'
+          order by conname`,
+      );
+      console.log(`  FKs on accounts (${fks.length}) — 0000 declares 3 (user_id, asset_id, wallet_id):`);
+      for (const f of fks) console.log(`    - ${f.conname}: ${f.def}`);
+
+      const rules = await q<{ rulename: string }>(
+        `select rulename from pg_rules
+          where tablename in ('analytics_runs','wealth_performance_snapshots','asset_performance_analysis',
+                              'portfolio_risk_metrics','benchmark_results')
+            and rulename like 'prevent_%'
+          order by rulename`,
+      );
+      console.log(`  0001 immutability rules present: ${rules.length}/10`);
+      for (const r of rules) console.log(`    - ${r.rulename}`);
+      if (rules.length < 10)
+        console.log("    ⚠ some 0001 guards missing — informational; they are idempotent CREATE OR REPLACE,");
+
+      const trig = await q<{ tgname: string }>(
+        `select tgname from pg_trigger
+          where tgname = 'vehicle_valuation_snapshots_no_update' and not tgisinternal`,
+      );
+      console.log(`  0001 trigger vehicle_valuation_snapshots_no_update: ${trig.length > 0 ? "present ✓" : "MISSING ⚠"}`);
+
+      const dups = await q<{ code: string; users: number; rows: number }>(
+        `select code, count(distinct user_id)::int as users, count(*)::int as rows
+           from public.accounts group by code having count(distinct user_id) > 1 order by code`,
+      );
+      if (dups.length === 0) {
+        console.log("  Cross-user duplicate codes: NONE → UNIQUE(code) could theoretically be re-added.");
+      } else {
+        console.log(`  Cross-user duplicate codes: ${dups.length} → re-adding UNIQUE(code) would FAIL;`);
+        console.log("    the only rollback for dropping it is a Neon restore point. Duplicate codes:");
+        for (const d of dups.slice(0, 10)) console.log(`    - code=${d.code} (${d.users} users, ${d.rows} rows)`);
+      }
     } else {
       console.log("\n  (accounts does not exist — skipping sections 5–7.)");
     }
