@@ -299,11 +299,34 @@ export async function completeSetup(
           .where(and(eq(accounts.userId, userId), eq(accounts.code, row.code)))
           .limit(1);
         if (existing) continue;
+        // Wrap each insert in a SAVEPOINT (drizzle nested tx.transaction).
+        // A duplicate-key failure (23505) must NOT abort the whole setup
+        // transaction: continuing to run the next statement on an aborted
+        // transaction would surface the misleading "current transaction is
+        // aborted" error and hide the real cause (the duplicate). Rolling back
+        // to the savepoint leaves the outer transaction fully usable, so the
+        // subsequent account rows and the opening entry still commit.
         try {
-          await tx.insert(accounts).values(row);
+          await tx.transaction(async (sp) => {
+            await sp.insert(accounts).values(row);
+          });
         } catch (err) {
           const root = rootCauseOf(err);
-          if (root.code === "23505") continue;
+          if (root.code === "23505") {
+            // Savepoint already rolled back; the outer transaction is usable.
+            // A duplicate only legitimately means this tenant already owns the
+            // row (e.g. a concurrent provisioning race). Re-check — if it is
+            // really present for this user, skip; otherwise it is a real
+            // cross-tenant conflict (legacy global UNIQUE(code)) and must not
+            // be silently ignored.
+            const [now] = await tx
+              .select({ id: accounts.id })
+              .from(accounts)
+              .where(and(eq(accounts.userId, userId), eq(accounts.code, row.code)))
+              .limit(1);
+            if (now) continue;
+            rethrowChartInsertError(err);
+          }
           rethrowChartInsertError(err);
         }
       }
