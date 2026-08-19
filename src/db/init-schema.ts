@@ -724,6 +724,20 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS coingecko_catalog_symbol_idx ON coingecko_asset_catalog(symbol);`,
   `CREATE INDEX IF NOT EXISTS coingecko_catalog_kind_rank_idx ON coingecko_asset_catalog(kind, market_cap_rank);`,
 
+  /*
+   * Last-known CoinGecko market price cache (additive price resilience).
+   * Market-level public price data only — no user or accounting rows. Used by
+   * the valuation/picker layer to show a "stale" last-known price instead of
+   * "unavailable" when the live CoinGecko request fails or is rate-limited.
+   */
+  `CREATE TABLE IF NOT EXISTS coingecko_price_cache (
+    coingecko_id text PRIMARY KEY,
+    price_usd text NOT NULL,
+    observed_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );`,
+  `CREATE INDEX IF NOT EXISTS coingecko_price_cache_updated_idx ON coingecko_price_cache(updated_at);`,
+
   /* Commodities Domain — Dynamic Price Tracking & Inflation Analytics — Isolated, No FK to Financial Core */
   `CREATE TABLE IF NOT EXISTS commodity_categories (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

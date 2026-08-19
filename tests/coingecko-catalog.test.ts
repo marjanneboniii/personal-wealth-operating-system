@@ -234,7 +234,8 @@ test("priced picker rows expose current USD price and graceful unavailable state
       apiKey: null,
       fetchImpl: async () => jsonResponse({
         bitcoin: { usd: 64000, last_updated_at: 1_786_406_400 },
-        hyperliquid: { usd: 58, last_updated_at: 1_786_406_400 },
+        // hyperliquid is intentionally NOT priced in this batch, so it has no
+        // persisted last-known price and must stay unavailable on a later outage.
       }),
     }),
   });
@@ -242,9 +243,21 @@ test("priced picker rows expose current USD price and graceful unavailable state
   assert.equal(priced.find((row) => row.symbol === "BTC")?.priceFreshness, "fresh");
   assert.equal(priced.find((row) => row.symbol === "BTC")?.displayName, "بیت‌کوین");
 
+  // Last-known price survives an outage: BTC falls back to its persisted quote,
+  // reported as Stale instead of Unavailable.
+  clearCoinGeckoPriceCache();
+  const stale = await listPricedCoinGeckoCatalog("BTC", 50, {
+    now: 20_000,
+    client: new CoinGeckoClient({ apiKey: null, fetchImpl: async () => jsonResponse({}, 429) }),
+  });
+  assert.equal(stale[0]?.priceUsd, "64000");
+  assert.equal(stale[0]?.priceFreshness, "stale");
+  assert.equal(stale[0]?.priceFailureCode, "rate_limited");
+
+  // A coin with NO last-known price stays gracefully unavailable (never a guess).
   clearCoinGeckoPriceCache();
   const unavailable = await listPricedCoinGeckoCatalog("HYPE", 50, {
-    now: 20_000,
+    now: 30_000,
     client: new CoinGeckoClient({ apiKey: null, fetchImpl: async () => jsonResponse({}, 429) }),
   });
   assert.equal(unavailable[0]?.priceUsd, null);
