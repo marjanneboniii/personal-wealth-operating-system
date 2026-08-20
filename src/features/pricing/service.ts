@@ -7,7 +7,12 @@
  */
 import { persistLastKnownPrices, readLastKnownPrices } from "./lastKnownPrice";
 import { CoinGeckoClient, CoinGeckoRequestError } from "./coingecko";
+import { PublicSpotQuoteClient } from "./publicSpotQuotes";
 import type { CoinGeckoPricePoint, MarketAssetIdentity, PriceFailureCode } from "./types";
+
+export type LiveQuoteClient = {
+  fetchUsdPrices(ids: string[]): Promise<Map<string, { priceUsd: string; observedAt: string }>>;
+};
 
 const FRESH_TTL_MS = 60_000;
 
@@ -75,10 +80,17 @@ async function applyLastKnownFallback(
 
 export async function getCurrentUsdPrices(
   assets: MarketAssetIdentity[],
-  options: { client?: CoinGeckoClient; now?: number } = {},
+  options: {
+    client?: CoinGeckoClient;
+    now?: number;
+    /** Secondary live quotes. Pass `null` to disable (tests). */
+    spotQuotes?: LiveQuoteClient | null;
+  } = {},
 ): Promise<Map<string, CoinGeckoPricePoint>> {
   const now = options.now ?? Date.now();
   const client = options.client ?? new CoinGeckoClient();
+  const spotQuotes =
+    options.spotQuotes === undefined ? new PublicSpotQuoteClient() : options.spotQuotes;
   const uniqueIds = [...new Set(assets.map((asset) => asset.coingeckoId).filter(Boolean))];
   const result = new Map<string, CoinGeckoPricePoint>();
   const needsRefresh: string[] = [];
@@ -100,67 +112,64 @@ export async function getCurrentUsdPrices(
 
   if (needsRefresh.length === 0) return result;
 
+  const fetched = new Map<string, { priceUsd: string; observedAt: string }>();
+  let liveFailure: PriceFailureCode = "asset_not_found";
+
   try {
-    const fetched = await client.fetchUsdPrices(needsRefresh);
-    const fetchedAt = new Date(now).toISOString();
-    // Persist the freshly fetched quotes as the new last-known prices.
-    await persistLastKnownPrices(fetched);
-
-    const missing: string[] = [];
-    for (const id of needsRefresh) {
-      const point = fetched.get(id);
-      if (point) {
-        const cached: CachedPrice = {
-          ...point,
-          fetchedAt,
-          expiresAt: now + FRESH_TTL_MS,
-        };
-        publicPriceCache.set(id, cached);
-        result.set(id, {
-          coingeckoId: id,
-          priceUsd: point.priceUsd,
-          observedAt: point.observedAt,
-          fetchedAt,
-          freshness: "fresh",
-        });
-        continue;
-      }
-
-      const stale = publicPriceCache.get(id);
-      if (stale) {
-        result.set(id, {
-          coingeckoId: id,
-          priceUsd: stale.priceUsd,
-          observedAt: stale.observedAt,
-          fetchedAt: stale.fetchedAt,
-          freshness: "stale",
-          failureCode: "asset_not_found",
-        });
-      } else {
-        missing.push(id);
-      }
-    }
-    await applyLastKnownFallback(missing, fetchedAt, "asset_not_found", result);
+    const fromCoinGecko = await client.fetchUsdPrices(needsRefresh);
+    for (const [id, point] of fromCoinGecko) fetched.set(id, point);
   } catch (error) {
-    const code = failureCode(error);
-    const missing: string[] = [];
-    for (const id of needsRefresh) {
-      const stale = publicPriceCache.get(id);
-      if (stale) {
-        result.set(id, {
-          coingeckoId: id,
-          priceUsd: stale.priceUsd,
-          observedAt: stale.observedAt,
-          fetchedAt: stale.fetchedAt,
-          freshness: "stale",
-          failureCode: code,
-        });
-      } else {
-        missing.push(id);
-      }
-    }
-    await applyLastKnownFallback(missing, null, code, result);
+    liveFailure = failureCode(error);
   }
+
+  const stillMissing = needsRefresh.filter((id) => !fetched.has(id));
+  if (stillMissing.length > 0 && spotQuotes) {
+    try {
+      const fromSpot = await spotQuotes.fetchUsdPrices(stillMissing);
+      for (const [id, point] of fromSpot) fetched.set(id, point);
+    } catch {
+      // Spot quotes are best-effort; last-known / unavailable handles the rest.
+    }
+  }
+
+  const fetchedAt = new Date(now).toISOString();
+  await persistLastKnownPrices(fetched);
+
+  const missing: string[] = [];
+  for (const id of needsRefresh) {
+    const point = fetched.get(id);
+    if (point) {
+      const cached: CachedPrice = {
+        ...point,
+        fetchedAt,
+        expiresAt: now + FRESH_TTL_MS,
+      };
+      publicPriceCache.set(id, cached);
+      result.set(id, {
+        coingeckoId: id,
+        priceUsd: point.priceUsd,
+        observedAt: point.observedAt,
+        fetchedAt,
+        freshness: "fresh",
+      });
+      continue;
+    }
+
+    const stale = publicPriceCache.get(id);
+    if (stale) {
+      result.set(id, {
+        coingeckoId: id,
+        priceUsd: stale.priceUsd,
+        observedAt: stale.observedAt,
+        fetchedAt: stale.fetchedAt,
+        freshness: "stale",
+        failureCode: liveFailure,
+      });
+    } else {
+      missing.push(id);
+    }
+  }
+  await applyLastKnownFallback(missing, fetchedAt, liveFailure, result);
 
   return result;
 }

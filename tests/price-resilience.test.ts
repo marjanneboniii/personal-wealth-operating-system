@@ -55,6 +55,7 @@ test("successful quote is persisted as the last-known price", async () => {
   const result = await getCurrentUsdPrices([identity], {
     now: 10_000,
     client: freshClient(100_000, 1_786_406_400),
+    spotQuotes: null,
   });
   assert.equal(result.get("bitcoin")?.priceUsd, "100000");
   assert.equal(result.get("bitcoin")?.freshness, "fresh");
@@ -68,6 +69,7 @@ test("outage after a successful quote falls back to the last-known price as Stal
   await getCurrentUsdPrices([identity], {
     now: 10_000,
     client: freshClient(100_000, 1_786_406_400),
+    spotQuotes: null,
   });
 
   // Simulate a fresh server instance: no in-memory cache, DB is the only source.
@@ -75,6 +77,7 @@ test("outage after a successful quote falls back to the last-known price as Stal
   const result = await getCurrentUsdPrices([identity], {
     now: 99_999,
     client: failingClient(429),
+    spotQuotes: null,
   });
 
   const point = result.get("bitcoin");
@@ -83,11 +86,28 @@ test("outage after a successful quote falls back to the last-known price as Stal
   assert.equal(point?.failureCode, "rate_limited");
 });
 
+test("live spot quote after CoinGecko outage is persisted as last-known", async () => {
+  const result = await getCurrentUsdPrices([identity], {
+    now: 30_000,
+    client: failingClient(429),
+    spotQuotes: {
+      fetchUsdPrices: async () =>
+        new Map([["bitcoin", { priceUsd: "98765", observedAt: "2026-08-20T00:00:00.000Z" }]]),
+    },
+  });
+  assert.equal(result.get("bitcoin")?.priceUsd, "98765");
+  assert.equal(result.get("bitcoin")?.freshness, "fresh");
+  const [row] = await db.select().from(coingeckoPriceCache);
+  assert.equal(row?.coingeckoId, "bitcoin");
+  assert.equal(row?.priceUsd, "98765");
+});
+
 test("coin with no last-known price stays Unavailable on outage (never a guess)", async () => {
   clearCoinGeckoPriceCache();
   const result = await getCurrentUsdPrices([identity], {
     now: 20_000,
     client: failingClient(503),
+    spotQuotes: null,
   });
   const point = result.get("bitcoin");
   assert.equal(point?.priceUsd, null);
