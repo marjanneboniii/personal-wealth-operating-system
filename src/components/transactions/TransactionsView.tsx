@@ -306,8 +306,8 @@ export default function TransactionsView({
                     onChange={(ev) => toggleSelect(e.id, ev)}
                     onClick={(ev) => ev.stopPropagation()}
                     aria-label={`انتخاب «${e.description}»`}
-                    className="hidden h-4 w-4 shrink-0 cursor-pointer accent-[#4c4edb] sm:block"
-                    style={{ touchAction: "manipulation" }}
+                    className="hidden h-4 w-4 shrink-0 cursor-pointer sm:block"
+                    style={{ accentColor: "var(--brand)", touchAction: "manipulation" }}
                   />
 
                   {/* Main row button — isolated, no nested clickable inside */}
@@ -315,7 +315,7 @@ export default function TransactionsView({
                     type="button"
                     onClick={() => setExpanded(open ? null : e.id)}
                     aria-expanded={open}
-                    className="flex min-w-0 flex-1 items-center gap-3 rounded-[10px] py-0.5 text-right"
+                    className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-[10px] py-0.5 text-right"
                     style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" } as any}
                   >
                     <span className="muted hidden w-[74px] shrink-0 flex-col leading-tight sm:flex" dir="rtl">
@@ -335,7 +335,7 @@ export default function TransactionsView({
                         <span className="sm:hidden">{formatShortDate(e.entryDate)} · </span>
                         <span>{h.typeLabel}</span>
                         {e.categoryName && (
-                          <span className="badge shrink-0" style={{ background: "var(--surface-2)" }}>
+                          <span className="badge shrink-0" style={{ background: "var(--sunken)" }}>
                             {e.categoryParentName ? `${e.categoryParentName} › ` : ""}
                             {e.categoryName}
                             {e.categoryNonCash ? " · غیرنقدی" : ""}

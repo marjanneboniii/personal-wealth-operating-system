@@ -324,6 +324,21 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M6.5 9.5h.2M10 9.5h.2M13.5 9.5h.2M17 9.5h.2M6.5 12.5h.2M10 12.5h.2M13.5 12.5h.2M17 12.5h.2M8 15.5h8" />
     </>
   ),
+  /* Safari-like compass — used only as a semantic install-guide glyph. */
+  safari: (
+    <>
+      <circle cx="12" cy="12" r="8.2" />
+      <path d="M14.9 9.1 10.6 10.6 9.1 14.9 13.4 13.4z" />
+      <circle cx="12" cy="12" r="1.15" fill="currentColor" stroke="none" />
+    </>
+  ),
+  share: (
+    <>
+      <path d="M12 14V4.8" />
+      <path d="m8.2 8.2 3.8-3.7 3.8 3.7" />
+      <path d="M6.2 12.5v6.2h11.6v-6.2" />
+    </>
+  ),
 };
 
 export type IconName = keyof typeof PATHS;

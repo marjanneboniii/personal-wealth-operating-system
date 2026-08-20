@@ -126,6 +126,9 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         className="pop-in absolute inset-x-3 top-[12dvh] mx-auto flex max-h-[66dvh] w-full max-w-xl flex-col overflow-hidden rounded-[var(--r-xl)] border sm:inset-x-0"
         style={{ background: "var(--surface-elev)", borderColor: "var(--border-strong)", boxShadow: "var(--shadow-lg)" }}
       >
+        <h2 id="cmdk-title" className="sr-only">
+          مرکز فرمان
+        </h2>
         <div className="flex items-center gap-2 border-b px-4" style={{ borderColor: "var(--border)" }}>
           <Icon name="search" size={17} className="shrink-0 opacity-50" />
           <input

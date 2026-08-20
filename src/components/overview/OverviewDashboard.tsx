@@ -69,16 +69,16 @@ export default async function OverviewDashboard() {
   const netMonth = monthFlow ? Number(monthFlow.inflow) - Number(monthFlow.outflow) : 0;
   const nextDeficit = projection.points.find((p) => p.deficit);
 
-  // Attention items — only what genuinely needs a human
-  const attention: { icon: "alert" | "clock" | "refresh" | "check"; tone: "warn" | "neg" | "info"; text: string; detail: string; href: string; action: string }[] = [];
+  // Attention items — only what genuinely needs a human decision
+  const attention: { icon: "alert" | "clock" | "refresh" | "check"; tone: "warn" | "neg" | "info" | "pos"; text: string; detail: string; href: string; action: string }[] = [];
   if (unreviewed > 0)
     attention.push({
       icon: "check",
       tone: "warn",
-      text: `${unreviewed} رکورد درون‌ریزی‌شده در انتظار بازبینی است`,
+      text: `${unreviewed} تراکنش بررسی‌نشده`,
       detail: "قبل از اعتماد به گزارش‌ها، این رکوردها را تأیید کنید.",
       href: "/transactions?review=unreviewed",
-      action: "بازبینی",
+      action: "بررسی",
     });
   const soonInst = insts.find((i) => daysUntil(i.dueDate) <= 14);
   if (soonInst) {
@@ -89,7 +89,7 @@ export default async function OverviewDashboard() {
       text: d < 0 ? `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» سررسید گذشته است` : `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${d === 0 ? "امروز" : `${faCount(d)} روز دیگر`} سر می‌رسد`,
       detail: `${formatMoney(soonInst.amountBase)} — ${soonInst.creditor}`,
       href: "/installments",
-      action: "مشاهده اقساط",
+      action: "مشاهده",
     });
   }
   if (nextDeficit)
@@ -108,7 +108,7 @@ export default async function OverviewDashboard() {
       text: `${staleCount} دارایی قیمت تازه ندارد`,
       detail: "ارزش‌گذاری این دارایی‌ها ممکن است قدیمی باشد.",
       href: "/portfolio",
-      action: "بررسی ارزش‌گذاری",
+      action: "تحلیل",
     });
 
   const hasAnything = !D(nw.totalAssets).isZero();
@@ -131,7 +131,7 @@ export default async function OverviewDashboard() {
       )}
 
       {/* ═══ HERO — وضعیت مالی من چگونه است؟ ═══ */}
-      <section className="rise pt-1">
+      <section className="pt-1">
         <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-6">
           <div className="min-w-0">
             <p className="muted text-[12px] font-medium">ارزش خالص دارایی</p>
@@ -165,7 +165,7 @@ export default async function OverviewDashboard() {
                 <Link
                   key={q.href}
                   href={q.href}
-                  className="card interactive-card flex w-[62px] flex-col items-center gap-1.5 py-2.5 text-[10.5px] font-medium transition-all"
+                  className="card interactive-card flex min-h-12 w-[62px] flex-col items-center gap-1.5 py-2.5 text-[10.5px] font-medium"
                   style={{ color: "var(--text-2)" }}
                 >
                   <span
@@ -294,33 +294,16 @@ export default async function OverviewDashboard() {
             </Section>
           </div>
 
-          {/* ═══ ATTENTION ═══ */}
-          {attention.length > 0 && (
-            <Section title="نیازمند توجه شما" hint="فقط مواردی که واقعاً به تصمیم شما نیاز دارند">
-              <ul className="divide-y border-t border-b" style={{ borderColor: "var(--border)" }}>
-                {attention.map((a, i) => (
-                  <li key={i} className="flex items-center gap-3 py-3">
-                    <span
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-                      style={{
-                        background: a.tone === "neg" ? "var(--negative-soft)" : a.tone === "warn" ? "var(--warning-soft)" : "var(--info-soft)",
-                        color: a.tone === "neg" ? "var(--negative)" : a.tone === "warn" ? "var(--warning)" : "var(--info)",
-                      }}
-                    >
-                      <Icon name={a.icon} size={15} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium">{a.text}</p>
-                      <p className="muted truncate text-[11px]">{a.detail}</p>
-                    </div>
-                    <Link href={a.href} className="btn btn-ghost !min-h-8 !px-3 !py-1 shrink-0 text-[11.5px]">
-                      {a.action}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          )}
+          <Section title="ثروت شما چگونه تغییر کرده است؟" action={<SectionLink href="/net-worth" label="تحلیل ارزش خالص" />}>
+            <p className="sr-only">
+              {deltaPct
+                ? `ارزش خالص نسبت به آخرین اسنپ‌شات ${deltaPct} درصد ${Number(deltaAbs) >= 0 ? "افزایش" : "کاهش"} یافته است.`
+                : "تاریخچه کافی برای توصیف روند ارزش خالص وجود ندارد."}
+            </p>
+            <div className="card p-4 sm:p-5">
+              <AreaChart data={series} />
+            </div>
+          </Section>
 
           {/* ═══ ACTIVITY ═══ */}
           <Section title="فعالیت اخیر" action={<SectionLink href="/transactions" label="همه تراکنش‌ها" />}>

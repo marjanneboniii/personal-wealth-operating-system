@@ -19,7 +19,7 @@ export function Card({
   action?: ReactNode;
 }) {
   return (
-    <section className={`card rise p-4 sm:p-5 ${className}`}>
+    <section className={`card p-4 sm:p-5 ${className}`}>
       {(title || action) && (
         <header className="mb-3 flex items-center justify-between gap-2">
           {title && <h2 className="text-sm font-semibold tracking-tight">{title}</h2>}
@@ -52,7 +52,7 @@ export function Section({
   id?: string;
 }) {
   return (
-    <section id={id} className={`rise scroll-mt-24 ${className}`}>
+    <section id={id} className={`scroll-mt-24 ${className}`}>
       {(title || hint || action) && (
         <header className="mb-3 flex items-end justify-between gap-3">
           <div>
@@ -303,7 +303,7 @@ export function Alert({
   }[tone];
   return (
     <div
-      className="rise flex items-start gap-3 rounded-[var(--r-lg)] border p-4"
+      className="flex items-start gap-3 rounded-[var(--r-lg)] border p-4"
       style={{ borderColor: `color-mix(in oklab, ${map.c} 25%, transparent)`, background: map.bg }}
       role={tone === "neg" || tone === "warn" ? "alert" : "status"}
       aria-live={tone === "neg" || tone === "warn" ? "assertive" : "polite"}

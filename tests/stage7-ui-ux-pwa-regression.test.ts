@@ -110,12 +110,28 @@ test("STAGE 7 — PWA Manifest & Service Worker Integrity: RTL, standalone displ
   assert.equal(manifest.display, "standalone", "PWA display is standalone app");
   assert.ok(Array.isArray(manifest.icons) && manifest.icons.length > 0, "PWA icons configured");
   assert.ok(Array.isArray(manifest.shortcuts) && manifest.shortcuts.length >= 3, "PWA quick action shortcuts configured");
+  assert.ok(manifest.icons.some((i: { purpose?: string }) => String(i.purpose).includes("maskable")));
 
   const swContent = fs.readFileSync(swPath, "utf-8");
   assert.ok(
     swContent.includes("req.method !== \"GET\"") || swContent.includes("No API mutations are ever cached"),
     "Service Worker strictly forbids caching API mutations",
   );
+  assert.ok(swContent.includes("/api/"), "API paths are explicitly excluded from caching");
+  assert.ok(swContent.includes("PURGE_CACHES"), "tenant purge remains functional");
+  assert.ok(!/cache\.put\(req.*navigate/i.test(swContent), "navigations are never written to Cache Storage");
+});
+
+test("STAGE 7 — iOS install guide and offline shell remain production-ready", () => {
+  const guide = fs.readFileSync(path.resolve(process.cwd(), "src/components/pwa/IosInstallGuide.tsx"), "utf-8");
+  assert.ok(guide.includes("نصب وزان روی آیفون"));
+  assert.ok(guide.includes("متوجه شدم"));
+  assert.ok(guide.includes("aria-modal"));
+  assert.ok(guide.includes("CriOS|FxiOS|EdgiOS"));
+
+  const offline = fs.readFileSync(path.resolve(process.cwd(), "src/app/offline/page.tsx"), "utf-8");
+  assert.ok(offline.includes("اطلاعات مالی شما عمداً در حافظه آفلاین ذخیره نشده است"));
+  assert.ok(offline.includes("تلاش دوباره"));
 });
 
 test("STAGE 7 — UI & Accessibility Invariance: Shell, Card, and CommandPalette include required ARIA accessibility attributes", () => {

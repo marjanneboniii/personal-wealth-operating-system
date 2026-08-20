@@ -51,7 +51,7 @@ export default async function DebtsPage() {
         <Link href="/debts/obligations">تعهدات آینده</Link>
       </nav>
 
-      <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
+      <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric
           label="مانده کل بدهی"
           value={formatMoney(totalOutstanding)}

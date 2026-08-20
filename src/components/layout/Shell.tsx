@@ -380,6 +380,7 @@ export default function Shell({
   const collapsed = useNavCollapsed();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
   const online = useOnline();
   const pwa = usePwaInstallState();
 
@@ -411,9 +412,9 @@ export default function Shell({
     window.dispatchEvent(new CustomEvent(NAV_EVENT));
   };
 
-  const moreActive = !MOBILE_TABS.some((t) =>
-    t.match ? t.match.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m))) : false,
-  );
+  const moreActive = ![MOBILE_TABS[0], MOBILE_TABS[1], MOBILE_TABS.find((t) => t.href === "/net-worth")]
+    .filter(Boolean)
+    .some((t) => t!.match?.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m))));
 
   const isAuthRoute = pathname === "/login" || pathname === "/register";
   const isMarketing = MARKETING_PATHS.has(pathname);
@@ -434,7 +435,7 @@ export default function Shell({
           style={{ background: "var(--warning-soft)", color: "var(--warning)" }}
         >
           <Icon name="alert" size={14} />
-          اتصال اینترنت قطع است — داده‌های ذخیره‌شده نمایش داده می‌شود و تغییرات پس از اتصال ثبت می‌شوند.
+          اتصال اینترنت برقرار نیست — اطلاعات مالی شما عمداً در حافظه آفلاین ذخیره نشده است.
         </div>
       )}
 
@@ -572,8 +573,14 @@ export default function Shell({
         }
       >
         {children}
-        {!isPublicChrome && pwa.show && (
-          <InstallPromotion ios={pwa.ios} canPrompt={pwa.canPrompt} onInstall={() => void pwa.install()} onDismiss={pwa.dismiss} />
+        {pwa.show && !isAuthRoute && !isMarketing && (isLanding ? pwa.canPrompt : !isPublicChrome) && (
+          <InstallPromotion
+            ios={pwa.ios}
+            canPrompt={pwa.canPrompt}
+            onInstall={() => void pwa.install()}
+            onDismiss={pwa.dismiss}
+            publicPlacement={isLanding}
+          />
         )}
       </main>
 
@@ -620,6 +627,29 @@ export default function Shell({
       )}
 
       {!isPublicChrome && <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} authUser={authUser} />}
+      {!isPublicChrome && (
+        <Sheet open={quickOpen} onClose={() => setQuickOpen(false)} title="ثبت تراکنش">
+          <nav className="grid grid-cols-1 gap-1 px-3 py-3" aria-label="اقدامات سریع">
+            {QUICK_ACTIONS.filter((a) => a.href.startsWith("/new?type=")).map((a) => (
+              <Link
+                key={a.href}
+                href={a.href}
+                onClick={() => setQuickOpen(false)}
+                className="flex min-h-12 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[14px] font-medium"
+                style={{ color: "var(--text)", touchAction: "manipulation" }}
+              >
+                <span
+                  className="flex h-9 w-9 items-center justify-center rounded-[10px]"
+                  style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+                >
+                  <Icon name={a.icon} size={16} />
+                </span>
+                {a.label}
+              </Link>
+            ))}
+          </nav>
+        </Sheet>
+      )}
       {!isPublicChrome && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
     </div>
   );
