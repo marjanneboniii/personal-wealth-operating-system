@@ -65,7 +65,7 @@ export default async function ReportsPage() {
 
       {/* KPI strip */}
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش خالص" value={formatMoney(nw.netWorth)} hint={formatMoney(nw.netWorthToman, "IRT")} />
+        <Metric label="ارزش خالص" value={formatMoney(nw.netWorthToman, "IRT")} hint={formatMoney(nw.netWorth)} />
         <Metric label="کل درآمد ثبت‌شده" value={formatMoney(totalIncome.toString())} tone="up" />
         <Metric label="کل هزینه ثبت‌شده" value={formatMoney(totalExpense.toString())} tone="down" />
         <Metric label="نرخ پس‌انداز" value={`${formatPct(savingsRate, 1)}`} tone={Number(savingsRate) >= 0 ? "up" : "down"} />

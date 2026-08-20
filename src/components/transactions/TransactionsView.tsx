@@ -356,9 +356,9 @@ export default function TransactionsView({
                         style={{ color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)" }}
                       >
                         {h.sign > 0 ? "+" : h.sign < 0 ? "−" : ""}
-                        {formatMoney(h.amount)}
+                        {rate ? toIrt(h.amount) : formatMoney(h.amount)}
                       </span>
-                      {rate && <span className="muted num block text-[9.5px]">≈ {toIrt(h.amount)}</span>}
+                      {rate && <span className="muted num block text-[9.5px]">≈ {formatMoney(h.amount)}</span>}
                     </span>
 
                     <span className={`muted shrink-0 transition-transform ${open ? "rotate-180" : ""}`}>

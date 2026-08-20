@@ -55,7 +55,7 @@ export default async function PortfolioPage() {
 
       {/* KPI strip */}
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش روز سبد" value={formatMoney(valuation.totalNetWorth)} hint={formatMoney(valuation.totalNetWorthToman, "IRT")} />
+        <Metric label="ارزش روز سبد" value={formatMoney(valuation.totalNetWorthToman, "IRT")} hint={formatMoney(valuation.totalNetWorth)} />
         <Metric label="بهای تمام‌شده" value={formatMoney(valuation.totalCostBasis)} />
         <Metric
           label="سود/زیان تحقق‌نیافته"

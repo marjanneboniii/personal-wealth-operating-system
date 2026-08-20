@@ -139,7 +139,7 @@ export default async function OverviewDashboard() {
             <p className="muted text-[12px] font-medium">ارزش خالص دارایی</p>
             <div className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-2">
               <span className="display-num text-[40px] font-bold leading-none tracking-tight sm:text-[52px]" dir="rtl">
-                {formatMoney(nw.netWorth)}
+                {nw.netWorthToman ? formatMoney(nw.netWorthToman, "IRT") : formatMoney(nw.netWorth)}
               </span>
               {lastSnap && (
                 <Delta
@@ -152,7 +152,7 @@ export default async function OverviewDashboard() {
             </div>
             {nw.netWorthToman && (
               <p className="muted mt-2 text-[12.5px]">
-                ≈ <span className="num">{formatMoney(nw.netWorthToman, "IRT")}</span>
+                ≈ <span className="num">{formatMoney(nw.netWorth)}</span>
                 <span className="mx-1.5 opacity-50">·</span>
                 نرخ مرجع <span className="num" dir="rtl">{formatMoney(rate, "IRT")}</span> ≈ ۱ دلار
               </p>
@@ -193,10 +193,10 @@ export default async function OverviewDashboard() {
             <div key={m.label} className="px-4 first:pr-0 last:pl-0" style={{ borderColor: "var(--border)" }}>
               <p className="muted text-[11px]">{m.label}</p>
               <p className="num mt-1 text-[15px] font-bold sm:text-lg" dir="rtl" style={{ color: m.tone }}>
-                {formatMoney(m.value)}
+                {formatMoney(D(m.toman).abs().toString(), "IRT")}
               </p>
               <p className="muted num mt-0.5 hidden text-[10.5px] sm:block">
-                ≈ {formatMoney(D(m.toman).abs().toString(), "IRT")}
+                ≈ {formatMoney(m.value)}
               </p>
             </div>
           ))}
@@ -339,10 +339,10 @@ export default async function OverviewDashboard() {
                         }}
                       >
                         {h.sign > 0 ? "+" : h.sign < 0 ? "−" : ""}
-                        {formatMoney(h.amount)}
+                        {rate ? formatMoney(toIrt(h.amount)!, "IRT") : formatMoney(h.amount)}
                       </span>
                       {rate && (
-                        <p className="muted num text-[10px]">≈ {formatMoney(toIrt(h.amount)!, "IRT")}</p>
+                        <p className="muted num text-[10px]">≈ {formatMoney(h.amount)}</p>
                       )}
                     </div>
                   </li>

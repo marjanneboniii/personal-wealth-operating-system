@@ -134,7 +134,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
             <p className="muted text-[12px] font-medium">ارزش خالص فعلی</p>
             <div className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-2">
               <span className="display-num text-[38px] font-bold leading-none tracking-tight sm:text-[50px]" dir="rtl">
-                {formatMoney(nw.netWorth)}
+                {fx.rate ? formatMoney(nw.netWorthToman, "IRT") : formatMoney(nw.netWorth)}
               </span>
               {baseline ? (
                 <Delta value={deltaAbs.toString()} pct={deltaPct} className="text-[15px]" />
@@ -145,7 +145,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
             <p className="muted mt-2 text-[12px]">
               {fx.rate && (
                 <>
-                  ≈ <span className="num">{formatMoney(nw.netWorthToman, "IRT")}</span>
+                  ≈ <span className="num">{formatMoney(nw.netWorth)}</span>
                   <span className="mx-1.5 opacity-50">·</span>
                 </>
               )}
