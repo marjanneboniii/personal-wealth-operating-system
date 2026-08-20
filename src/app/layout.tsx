@@ -7,12 +7,12 @@ import { resolveHomeMode } from "@/lib/publicEntry";
 
 export const metadata: Metadata = {
   title: {
-    default: "وِزان — سیستم‌عامل ثروت شخصی",
-    template: "%s — وِزان",
+    default: "توازن — سیستم‌عامل ثروت شخصی",
+    template: "%s — توازن",
   },
   description: "سیستم‌عامل ثروت شخصی — ارزش خالص، دارایی‌ها، بدهی‌ها و نقدینگی را در یک نمای روشن ببینید.",
   openGraph: {
-    title: "وِزان — تمام ثروت شما، یک تصویر روشن",
+    title: "توازن — تمام ثروت شما، یک تصویر روشن",
     description: "سیستم‌عامل ثروت شخصی: ارزش خالص، دارایی‌ها، بدهی‌ها و نقدینگی در یک نمای روشن.",
     locale: "fa_IR",
     type: "website",
@@ -26,14 +26,14 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "وِزان" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "توازن" },
   formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f7f5" },
-    { media: "(prefers-color-scheme: dark)", color: "#0c0e12" },
+    { media: "(prefers-color-scheme: light)", color: "#F7F5F0" },
+    { media: "(prefers-color-scheme: dark)", color: "#10121A" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -75,7 +75,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:right-3 focus:top-3 focus:z-[100] focus:rounded-lg focus:px-3 focus:py-2 focus:text-[13px]"
-          style={{ background: "var(--brand)", color: "var(--on-brand)" }}
+          style={{ background: "var(--color-accent)", color: "var(--color-primary)" }}
         >
           پرش به محتوای اصلی
         </a>

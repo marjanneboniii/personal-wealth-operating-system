@@ -4,7 +4,7 @@ import { LandingFooter, LandingHeader } from "@/components/landing/LandingChrome
 
 export const metadata: Metadata = {
   title: "شرایط استفاده",
-  description: "شرایط استفاده از وِزان به‌عنوان سیستم مدیریت ثروت شخصی.",
+  description: "شرایط استفاده از توازن به‌عنوان سیستم مدیریت ثروت شخصی.",
 };
 
 export default function TermsPage() {
@@ -14,7 +14,7 @@ export default function TermsPage() {
       <article className="landing-legal">
         <h1 className="type-page-title">شرایط استفاده</h1>
         <p className="sub mt-4 text-[15px] leading-8">
-          وِزان ابزاری برای ثبت و مشاهده وضعیت مالی شخصی است، نه مشاور سرمایه‌گذاری و نه مؤسسه مالی. شما مسئول صحت
+          توازن ابزاری برای ثبت و مشاهده وضعیت مالی شخصی است، نه مشاور سرمایه‌گذاری و نه مؤسسه مالی. شما مسئول صحت
           اطلاعاتی هستید که وارد می‌کنید و تصمیم‌هایی که بر اساس آن می‌گیرید.
         </p>
         <p className="sub mt-4 text-[15px] leading-8">

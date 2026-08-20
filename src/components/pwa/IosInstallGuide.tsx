@@ -158,10 +158,10 @@ export function IosInstallGuide({
           </span>
 
           <h2 id={titleId} className="text-[18px] font-bold tracking-tight">
-            نصب وزان روی آیفون
+            نصب توازن روی آیفون
           </h2>
           <p id={descId} className="sub mx-auto mt-2 max-w-sm text-[13.5px] leading-7">
-            برای تجربه بهتر، وزان را به صفحه اصلی گوشی اضافه کنید.
+            برای تجربه بهتر، توازن را به صفحه اصلی گوشی اضافه کنید.
           </p>
 
           <ol className="mt-6 space-y-3 text-right">

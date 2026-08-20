@@ -1,5 +1,5 @@
 import Link from "next/link";
-import BrandMark from "@/components/layout/BrandMark";
+import BrandMark, { BrandWordmark } from "@/components/layout/BrandMark";
 import ThemeToggleButton from "@/components/landing/ThemeToggleButton";
 import { DownloadIosButton } from "@/components/pwa/IosInstallGuide";
 
@@ -7,16 +7,11 @@ export function LandingHeader() {
   return (
     <header className="landing-header">
       <div className="landing-wrap landing-header-inner">
-        <Link href="/" className="landing-brand" aria-label="وِزان — سیستم‌عامل ثروت شخصی">
-          <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
-            style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
-          >
-            <BrandMark size={20} />
-          </span>
+        <Link href="/" className="landing-brand" aria-label="توازن — سیستم‌عامل ثروت شخصی">
+          <BrandMark size={28} style={{ color: "var(--color-accent)" }} />
           <span className="min-w-0 leading-tight">
-            <span className="block text-[15px] font-bold tracking-tight">وِزان</span>
-            <span className="muted hidden text-[10px] sm:block">سیستم‌عامل ثروت شخصی</span>
+            <BrandWordmark className="block text-[16px] text-[color:var(--on-primary)]" />
+            <span className="landing-on-primary-muted hidden text-[10px] sm:block">سیستم‌عامل ثروت شخصی</span>
           </span>
         </Link>
         <nav className="landing-header-nav" aria-label="ورود به محصول">
@@ -41,9 +36,9 @@ export function LandingFooter() {
     <footer className="landing-footer">
       <div className="landing-wrap flex flex-col gap-5 py-8 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <BrandMark size={18} style={{ color: "var(--brand)" }} />
-            <span className="font-bold">وِزان</span>
+          <div className="flex items-center gap-2" style={{ color: "var(--color-accent)" }}>
+            <BrandMark size={22} />
+            <BrandWordmark className="text-[15px] text-[color:var(--on-primary)]" />
           </div>
           <p className="sub mt-2 max-w-xs text-[13px] leading-6">سیستم‌عامل ثروت شخصی — آرام، خصوصی، دقیق.</p>
         </div>
@@ -62,8 +57,8 @@ export function LandingFooter() {
           </Link>
         </nav>
       </div>
-      <div className="landing-wrap border-t py-4 text-[12px]" style={{ borderColor: "var(--border)" }}>
-        <p className="muted">© {new Date().getFullYear()} وِزان — سیستم‌عامل ثروت شخصی</p>
+      <div className="landing-wrap border-t py-4 text-[12px]">
+        <p className="muted">© {new Date().getFullYear()} توازن — سیستم‌عامل ثروت شخصی</p>
       </div>
     </footer>
   );

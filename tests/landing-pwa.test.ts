@@ -113,8 +113,8 @@ test("Landing — product preview uses static Toman samples with Persian digits"
 test("Landing — iOS install guide opens, closes, and uses the exact Persian copy", () => {
   const guide = read("src/components/pwa/IosInstallGuide.tsx");
   assert.match(guide, /\"use client\"/);
-  assert.match(guide, /نصب وزان روی آیفون/);
-  assert.match(guide, /برای تجربه بهتر، وزان را به صفحه اصلی گوشی اضافه کنید/);
+  assert.match(guide, /نصب توازن روی آیفون/);
+  assert.match(guide, /برای تجربه بهتر، توازن را به صفحه اصلی گوشی اضافه کنید/);
   assert.match(guide, /در Safari روی دکمه Share بزنید/);
   assert.match(guide, /از منو گزینه «Add to Home Screen» را انتخاب کنید/);
   assert.match(guide, /در مرحله آخر روی «Add» بزنید/);
@@ -195,7 +195,7 @@ test("PWA — manifest RTL standalone icons shortcuts; SW never caches API or pr
 
 test("Offline page — honest copy, retry, no cached financial data", () => {
   const offline = read("src/app/offline/page.tsx");
-  assert.match(offline, /وِزان/);
+  assert.match(offline, /توازن/);
   assert.match(offline, /اتصال اینترنت برقرار نیست/);
   assert.match(offline, /اطلاعات مالی شما عمداً در حافظه آفلاین ذخیره نشده است/);
   assert.match(offline, /تلاش دوباره/);
@@ -248,6 +248,24 @@ test("Landing/PWA changes do not import ledger or accounting services", () => {
     assert.doesNotMatch(src, /@\/domain\/accounting/);
     assert.doesNotMatch(src, /recordIncome|recordExpense|postEntry/);
   }
+});
+
+test("Tavazon brand tokens — navy, gold, modules, and wordmark", () => {
+  const css = read("src/app/globals.css");
+  const mark = read("src/components/layout/BrandMark.tsx");
+  const chrome = read("src/components/landing/LandingChrome.tsx");
+
+  assert.match(css, /--color-primary:\s*#0f2440/i);
+  assert.match(css, /--color-accent:\s*#c9962d/i);
+  assert.match(css, /--color-module-expenses:\s*#c1602c/i);
+  assert.match(css, /--color-module-commitments:\s*#b7791f/i);
+  assert.match(css, /--color-module-wealth:\s*#0f8f6e/i);
+  assert.match(css, /--bg-page:\s*#f7f5f0/i);
+  assert.match(css, /\.brand-wordmark/);
+  assert.match(css, /font-weight: 900/);
+  assert.match(mark, /توازن/);
+  assert.match(chrome, /توازن/);
+  assert.doesNotMatch(chrome, /وِزان/);
 });
 
 test("Application currency system is unchanged — تومان، دلار، تتر remain", () => {
