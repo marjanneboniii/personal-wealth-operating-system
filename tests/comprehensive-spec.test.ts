@@ -45,7 +45,7 @@ async function cleanAll() {
 async function setupBasicLedger() {
   const [usdCur] = await db.insert(currencies).values({ code: "USD", name: "US Dollar", symbol: "$", decimals: 2 }).returning();
   const [irtCur] = await db.insert(currencies).values({ code: "IRT", name: "Toman", symbol: "تومان", decimals: 0 }).returning();
-  const [cls] = await db.insert(assetClasses).values({ code: "cash", name: "Cash", color: "#38bdf8" }).returning();
+  const [cls] = await db.insert(assetClasses).values({ code: "cash", name: "Cash", color: "#6e6ff0" }).returning();
   const [usdAsset] = await db.insert(assets).values({ symbol: "USD", name: "USD Cash", classId: cls.id, currencyId: usdCur.id, decimals: 2 }).returning();
   const [irtAsset] = await db.insert(assets).values({ symbol: "IRT", name: "Toman", classId: cls.id, currencyId: irtCur.id, decimals: 0 }).returning();
   await db.insert(prices).values([

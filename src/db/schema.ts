@@ -48,7 +48,7 @@ export const assetClasses = pgTable("asset_classes", {
   ...base,
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
-  color: text("color").notNull().default("#64748b"),
+  color: text("color").notNull().default("#8b8da6"),
   sortOrder: integer("sort_order").notNull().default(0),
   parentId: uuid("parent_id"), // self-FK for hierarchy, no DB FK constraint to avoid circular migration issues in init-schema, logical parent
   level: integer("level").notNull().default(0),

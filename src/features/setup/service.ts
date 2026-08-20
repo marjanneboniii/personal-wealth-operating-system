@@ -183,10 +183,10 @@ export async function completeSetup(
     await tx
       .insert(assetClasses)
       .values([
-        { code: "cash", name: "نقد و بانک", color: "#38bdf8", sortOrder: 1 },
-        { code: "stable", name: "استیبل‌کوین", color: "#34d399", sortOrder: 2 },
-        { code: "crypto", name: "رمزارز", color: "#a78bfa", sortOrder: 3 },
-        { code: "gold", name: "طلا", color: "#fbbf24", sortOrder: 4 },
+        { code: "cash", name: "نقد و بانک", color: "#6e6ff0", sortOrder: 1 },
+        { code: "stable", name: "استیبل‌کوین", color: "#9ea1f6", sortOrder: 2 },
+        { code: "crypto", name: "رمزارز", color: "#c9cafa", sortOrder: 3 },
+        { code: "gold", name: "طلا", color: "#363850", sortOrder: 4 },
       ])
       .onConflictDoNothing();
     const clsList = await tx.select().from(assetClasses);

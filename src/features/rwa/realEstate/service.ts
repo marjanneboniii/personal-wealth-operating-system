@@ -66,7 +66,7 @@ async function ensureRwaAssetClassId(tx: any = db): Promise<string> {
   if (!klass) {
     [klass] = await tx
       .insert(assetClasses)
-      .values({ code: "RWA", name: "دارایی واقعی", color: "#0f766e", sortOrder: 90 })
+      .values({ code: "RWA", name: "دارایی واقعی", color: "#12131c", sortOrder: 90 })
       .onConflictDoNothing()
       .returning();
     if (!klass) [klass] = await tx.select().from(assetClasses).where(eq(assetClasses.code, "RWA")).limit(1);

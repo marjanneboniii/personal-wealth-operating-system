@@ -65,7 +65,7 @@ async function cleanAll() {
 
 async function setupTwoUsersWithAccounts() {
   const [usd] = await db.insert(currencies).values({ code: "USD", name: "USD", symbol: "$", decimals: 2, isFiat: true } as any).returning();
-  const [cashClass] = await db.insert(assetClasses).values({ code: "cash", name: "Cash", color: "#38bdf8", sortOrder: 1 } as any).returning();
+  const [cashClass] = await db.insert(assetClasses).values({ code: "cash", name: "Cash", color: "#6e6ff0", sortOrder: 1 } as any).returning();
   const [usdAsset] = await db.insert(assets).values({ symbol: "USD_CASH", name: "USD Cash", classId: cashClass.id, currencyId: usd.id } as any).returning();
   const [userA] = await db.insert(users).values({ name: "User A", username: "userA_final", passwordHash: hashPassword("Passw0rd1"), role: "user" } as any).returning();
   const [userB] = await db.insert(users).values({ name: "User B", username: "userB_final", passwordHash: hashPassword("Passw0rd1"), role: "user" } as any).returning();

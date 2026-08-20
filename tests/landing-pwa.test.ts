@@ -271,17 +271,19 @@ test("Landing/PWA changes do not import ledger or accounting services", () => {
   }
 });
 
-test("Tavazon brand tokens — navy, gold, modules, and wordmark", () => {
+test("Tavazon brand tokens — ink, violet accent, modules, and wordmark", () => {
   const css = read("src/app/globals.css");
   const mark = read("src/components/layout/BrandMark.tsx");
   const chrome = read("src/components/landing/LandingChrome.tsx");
 
-  assert.match(css, /--color-primary:\s*#0f2440/i);
-  assert.match(css, /--color-accent:\s*#c9962d/i);
-  assert.match(css, /--color-module-expenses:\s*#c1602c/i);
-  assert.match(css, /--color-module-commitments:\s*#b7791f/i);
-  assert.match(css, /--color-module-wealth:\s*#0f8f6e/i);
-  assert.match(css, /--bg-page:\s*#f7f5f0/i);
+  assert.match(css, /--color-primary:\s*#12131c/i);
+  assert.match(css, /--color-accent:\s*#6e6ff0/i);
+  assert.match(css, /--color-module-expenses:\s*#363850/i);
+  assert.match(css, /--color-module-commitments:\s*#e5484d/i);
+  assert.match(css, /--color-module-wealth:\s*#6e6ff0/i);
+  assert.match(css, /--bg-page:\s*#f7f7fb/i);
+  assert.match(css, /--color-danger:\s*#e5484d/i);
+  assert.match(css, /--color-positive:\s*#2ead6b/i);
   assert.match(css, /\.brand-wordmark/);
   assert.match(css, /font-weight: 900/);
   assert.match(mark, /توازن/);

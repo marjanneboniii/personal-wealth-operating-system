@@ -211,13 +211,13 @@ export default function LandingPage() {
             فروخته نمی‌شود. توازن نیازی به اتصال مستقیم حساب بانکی ندارد — شما همیشه کنترل کامل روی داده‌های خود دارید.
           </p>
           <p className="landing-support landing-trust-links">
-            <Link href="/privacy" className="font-medium" style={{ color: "var(--color-primary)" }}>
+            <Link href="/privacy" className="font-medium" style={{ color: "var(--color-accent)" }}>
               حریم خصوصی
             </Link>
             <span className="muted" aria-hidden="true">
               ·
             </span>
-            <Link href="/about" className="font-medium" style={{ color: "var(--color-primary)" }}>
+            <Link href="/about" className="font-medium" style={{ color: "var(--color-accent)" }}>
               درباره توازن
             </Link>
           </p>

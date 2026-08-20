@@ -120,11 +120,11 @@ export async function runSeed(): Promise<void> {
   const classes = await db
     .insert(assetClasses)
     .values([
-      { code: "cash", name: "نقد و بانک", color: "#38bdf8", sortOrder: 1 },
-      { code: "stable", name: "استیبل‌کوین", color: "#34d399", sortOrder: 2 },
-      { code: "crypto", name: "رمزارز", color: "#a78bfa", sortOrder: 3 },
-      { code: "gold", name: "طلا", color: "#fbbf24", sortOrder: 4 },
-      { code: "fund", name: "صندوق سرمایه‌گذاری", color: "#f472b6", sortOrder: 5 },
+      { code: "cash", name: "نقد و بانک", color: "#6e6ff0", sortOrder: 1 },
+      { code: "stable", name: "استیبل‌کوین", color: "#9ea1f6", sortOrder: 2 },
+      { code: "crypto", name: "رمزارز", color: "#c9cafa", sortOrder: 3 },
+      { code: "gold", name: "طلا", color: "#363850", sortOrder: 4 },
+      { code: "fund", name: "صندوق سرمایه‌گذاری", color: "#8b8da6", sortOrder: 5 },
     ])
     .returning();
   const classBy = Object.fromEntries(classes.map((c) => [c.code, c.id]));

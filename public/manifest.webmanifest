@@ -9,8 +9,8 @@
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
-  "background_color": "#f7f7f5",
-  "theme_color": "#f7f7f5",
+  "background_color": "#F7F7FB",
+  "theme_color": "#F7F7FB",
   "orientation": "any",
   "categories": ["finance", "productivity"],
   "icons": [

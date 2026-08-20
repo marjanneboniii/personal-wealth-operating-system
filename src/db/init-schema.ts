@@ -30,7 +30,7 @@ const STATEMENTS = [
     deleted_at timestamptz,
     code text NOT NULL UNIQUE,
     name text NOT NULL,
-    color text NOT NULL DEFAULT '#64748b',
+    color text NOT NULL DEFAULT '#8b8da6',
     sort_order integer NOT NULL DEFAULT 0,
     parent_id uuid,
     level integer NOT NULL DEFAULT 0,

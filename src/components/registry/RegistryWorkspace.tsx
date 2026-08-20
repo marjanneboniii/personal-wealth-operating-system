@@ -9,7 +9,7 @@ import RealEstateModule from "@/components/registry/realestate/RealEstateModule"
 const today = new Date().toISOString().slice(0, 10);
 function Result({ state }: { state: RegistryResult | null }) {
   return state ? (
-    <p className="text-xs rounded-[var(--r-md)] p-3" style={{ background: state.ok ? "var(--brand-soft)" : "#fff1f2", color: state.ok ? "var(--brand)" : "#be123c" }}>
+    <p className="text-xs rounded-[var(--r-md)] p-3" style={{ background: state.ok ? "var(--brand-soft)" : "var(--negative-soft)", color: state.ok ? "var(--brand)" : "var(--negative)" }}>
       {state.message}
     </p>
   ) : null;

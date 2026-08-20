@@ -103,7 +103,7 @@ async function rwaAsset(form: FormData) {
   if (!name || !symbol) throw new Error("نام و نماد دارایی الزامی است.");
   let [klass] = await db.select().from(assetClasses).where(eq(assetClasses.code, "RWA")).limit(1);
   if (!klass) {
-    [klass] = await db.insert(assetClasses).values({ code:"RWA", name:"دارایی واقعی", color:"#0f766e", sortOrder:90 }).onConflictDoNothing().returning();
+    [klass] = await db.insert(assetClasses).values({ code:"RWA", name:"دارایی واقعی", color:"#12131c", sortOrder:90 }).onConflictDoNothing().returning();
     if (!klass) [klass] = await db.select().from(assetClasses).where(eq(assetClasses.code, "RWA")).limit(1);
   }
   const classId = klass?.id;
