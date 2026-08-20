@@ -11,7 +11,7 @@
      • On logout/login the client posts {type:"PURGE_CACHES"} → every cache is
        wiped so no residue of the previous tenant survives on the device. */
 
-const VERSION = "pwos-v3"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
+const VERSION = "pwos-v4"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
 const STATIC_CACHE = VERSION + "-static";
 
 // Brand assets (VEZAN) — immutable, cache-first.
@@ -60,18 +60,23 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  if (req.method !== "GET") return;
+  if (req.method !== "GET") return; // No API mutations are ever cached
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // nothing cross-origin is cached
 
-  // Next.js build assets + brand icons: immutable → cache-first
+  // Never cache API responses — financial truth is always network-only.
+  if (url.pathname.startsWith("/api/")) return;
+
+  // Next.js build assets + brand icons + self-hosted fonts: immutable → cache-first
   if (
     url.pathname.startsWith("/_next/static") ||
+    url.pathname.startsWith("/fonts/") ||
     url.pathname === "/icon.svg" ||
     url.pathname === "/favicon.svg" ||
     url.pathname === "/icon-192.png" ||
     url.pathname === "/icon-512.png" ||
-    url.pathname === "/apple-touch-icon.png"
+    url.pathname === "/apple-touch-icon.png" ||
+    url.pathname === "/manifest.webmanifest"
   ) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
@@ -101,5 +106,5 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // /api GETs (backup etc.): network only — never serve stale financial truth
+  // Remaining GETs (including /api if they reached here): network only.
 });

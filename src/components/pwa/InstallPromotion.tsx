@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/ui/Icon";
+import { IosInstallGuide, isIosSafari, isStandalone } from "@/components/pwa/IosInstallGuide";
 
 const DISMISS_KEY = "pwos-install-dismissed";
 
@@ -9,22 +10,6 @@ type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
-
-function isStandalone(): boolean {
-  if (typeof window === "undefined") return false;
-  const mq = window.matchMedia?.("(display-mode: standalone)")?.matches;
-  const iosStandalone = "standalone" in window.navigator && Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
-  return Boolean(mq || iosStandalone);
-}
-
-function isIosSafari(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  const iOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const webkit = /WebKit/.test(ua);
-  const criOS = /CriOS|FxiOS|EdgiOS/.test(ua);
-  return iOS && webkit && !criOS;
-}
 
 function wasDismissed(): boolean {
   try {
@@ -37,6 +22,10 @@ function wasDismissed(): boolean {
 /**
  * Listen from Shell on every route (including the public landing) so
  * `beforeinstallprompt` is not lost before the signed-in banner mounts.
+ *
+ * iOS Safari has no beforeinstallprompt — the iPhone / iPad / iPod path
+ * (including iPadOS desktop-mode) opens IosInstallGuide instead.
+ * CriOS / FxiOS / EdgiOS are never treated as Safari.
  */
 export function usePwaInstallState() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
@@ -94,39 +83,65 @@ export default function InstallPromotion({
   canPrompt,
   onInstall,
   onDismiss,
+  publicPlacement = false,
 }: {
   ios: boolean;
   canPrompt: boolean;
   onInstall: () => void;
   onDismiss: () => void;
+  publicPlacement?: boolean;
 }) {
+  const [guideOpen, setGuideOpen] = useState(false);
+
   return (
-    <div className="install-promo" role="dialog" aria-labelledby="install-title" aria-describedby="install-body">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
-          <Icon name="download" size={16} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p id="install-title" className="text-[13.5px] font-semibold">
-            این داشبورد را همیشه همراه خود داشته باشید
-          </p>
-          <p id="install-body" className="sub mt-1 text-[12.5px] leading-6">
-            {ios
-              ? "برای نصب روی iPhone: دکمه Share را بزنید، سپس Add to Home Screen را انتخاب کنید."
-              : "برای دسترسی سریع‌تر، اپ را به صفحه اصلی اضافه کنید."}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {canPrompt && (
-              <button type="button" className="btn btn-primary !min-h-12 !px-4 text-[12.5px]" onClick={onInstall}>
-                افزودن به صفحه اصلی
+    <>
+      <div
+        className={`install-promo ${publicPlacement ? "install-promo-public" : ""}`}
+        role="dialog"
+        aria-labelledby="install-title"
+        aria-describedby="install-body"
+      >
+        <div className="flex items-start gap-3">
+          <span
+            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
+            style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+          >
+            <Icon name="download" size={16} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p id="install-title" className="text-[13.5px] font-semibold">
+              وِزان را به صفحه اصلی اضافه کنید
+            </p>
+            <p id="install-body" className="sub mt-1 text-[12.5px] leading-6">
+              {ios
+                ? "برای نصب روی iPhone: دکمه Share را بزنید، سپس Add to Home Screen را انتخاب کنید."
+                : "دسترسی سریع‌تر به وضعیت مالی شما"}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {ios && (
+                <button
+                  type="button"
+                  className="btn btn-primary !min-h-12 !px-4 text-[12.5px]"
+                  onClick={() => setGuideOpen(true)}
+                  aria-haspopup="dialog"
+                  aria-expanded={guideOpen}
+                >
+                  Download iOS
+                </button>
+              )}
+              {canPrompt && (
+                <button type="button" className="btn btn-primary !min-h-12 !px-4 text-[12.5px]" onClick={onInstall}>
+                  افزودن به صفحه اصلی
+                </button>
+              )}
+              <button type="button" className="btn btn-ghost !min-h-12 !px-4 text-[12.5px]" onClick={onDismiss}>
+                فعلاً نه
               </button>
-            )}
-            <button type="button" className="btn btn-ghost !min-h-12 !px-4 text-[12.5px]" onClick={onDismiss}>
-              فعلاً نه
-            </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      <IosInstallGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
+    </>
   );
 }

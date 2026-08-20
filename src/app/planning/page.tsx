@@ -101,7 +101,7 @@ export default async function PlanningPage() {
         </Alert>
       )}
 
-      <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
+      <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="نقدینگی فعلی" value={formatMoney(projection.startingLiquidity)} />
         <Metric label="خروجی برنامه‌ریزی‌شده" value={formatMoney(totalPlannedOut)} tone="down" hint={`${pending.length} برنامه در انتظار`} />
         <Metric

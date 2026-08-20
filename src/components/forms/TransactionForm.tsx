@@ -408,7 +408,7 @@ export default function TransactionForm({
 
   return (
     <form action={formAction} className="space-y-4" style={{ touchAction: "manipulation" }}>
-      {/* Type selector */}
+      <p className="text-[13px] font-semibold">چه اتفاقی افتاد؟</p>
       <div className="seg max-w-full overflow-x-auto" role="group" aria-label="نوع تراکنش" style={{ touchAction: "pan-x" }}>
         {TYPES.map((t) => (
           <button
@@ -544,7 +544,7 @@ export default function TransactionForm({
                     type="button"
                     disabled={registering}
                     onClick={() => selectCatalogAsset(asset)}
-                    className="flex min-h-12 items-center gap-2 rounded-[var(--r-sm)] px-2.5 py-2 text-start hover:bg-[var(--surface-2)] disabled:opacity-60"
+                    className="flex min-h-12 items-center gap-2 rounded-[var(--r-sm)] px-2.5 py-2 text-start hover:bg-[var(--hover)] disabled:opacity-60"
                   >
                     <img src={asset.logoUrl} alt="" width={28} height={28} className="h-7 w-7 rounded-full" referrerPolicy="no-referrer" />
                     <span className="min-w-0 flex-1">
@@ -621,7 +621,7 @@ export default function TransactionForm({
               <p className="muted text-[10.5px] leading-5">{selectedCategory.description}</p>
             )}
             {isNonCashCategory && (
-              <p className="rounded-[var(--r-sm)] p-2 text-[11px] leading-5" style={{ background: "var(--surface-2)" }} role="note">
+              <p className="rounded-[var(--r-sm)] p-2 text-[11px] leading-5" style={{ background: "var(--sunken)" }} role="note">
                 <strong>ثبت غیرنقدی (استهلاک/ذخیره):</strong> این دسته خروج وجه نیست؛ هیچ حساب نقدی تغییر نمی‌کند و طرف مقابل به‌صورت خودکار حساب «ذخیره استهلاک و تعمیرات آتی» است. در گزارش هزینه منظور می‌شود ولی از جریان نقدی خارج می‌ماند.
               </p>
             )}
@@ -695,28 +695,30 @@ export default function TransactionForm({
 
         {/* Dual Date Engine — shared single source of truth */}
         <DualDateInput name="entryDate" value={entryDate} onChange={setEntryDate} label="تاریخ سند" required />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="label">کارمزد (اختیاری) — به تومان</label>
-            <AmountInput
-              name="fee"
-              value={fee}
-              onChange={(e) => setFee(e.target.value.replace(/[^0-9]/g, ""))}
-              inputMode="numeric"
-              className="field num"
-              dir="ltr"
-              unit="toman"
-              placeholder="0"
-              style={{ touchAction: "manipulation" }}
-            />
-            {fee && effectiveRate && <p className="muted mt-1 text-[10px]">کارمزد دلاری ≈ {formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD")}</p>}
-          </div>
-          <div className="flex items-end">
-            <div className="muted text-[11px] leading-5">
-              کارمزد نیز با همین نرخ تبدیل و در همان سند ثبت می‌شود.
+        <details className="rounded-[var(--r-md)] border px-3 py-1" style={{ borderColor: "var(--border)" }}>
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[13px] font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+            جزئیات بیشتر
+            <Icon name="chevronDown" size={15} className="muted" />
+          </summary>
+          <div className="grid gap-3 border-t pb-3 pt-3 sm:grid-cols-2" style={{ borderColor: "var(--border)" }}>
+            <div>
+              <label className="label">کارمزد (اختیاری) — به تومان</label>
+              <AmountInput
+                name="fee"
+                value={fee}
+                onChange={(e) => setFee(e.target.value.replace(/[^0-9]/g, ""))}
+                inputMode="numeric"
+                className="field num"
+                dir="ltr"
+                unit="toman"
+                placeholder="0"
+                style={{ touchAction: "manipulation" }}
+              />
+              {fee && effectiveRate && <p className="muted mt-1 text-[10px]">کارمزد دلاری ≈ {formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD")}</p>}
             </div>
+            <p className="muted self-end text-[11px] leading-5">کارمزد نیز با همین نرخ تبدیل و در همان سند ثبت می‌شود.</p>
           </div>
-        </div>
+        </details>
 
         <div>
           <label className="label">شرح</label>

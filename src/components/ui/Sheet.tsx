@@ -56,7 +56,8 @@ export default function Sheet({
       className="fixed inset-0 z-[80] flex flex-col justify-end sm:items-center sm:justify-center"
       role="dialog"
       aria-modal="true"
-      aria-label={title}
+      aria-labelledby={title ? "sheet-title" : undefined}
+      aria-label={title ? undefined : "گفتگو"}
       style={{ touchAction: "manipulation" }}
     >
       {/* Overlay — pointer events isolated, does not capture touches meant for sheet */}
@@ -99,7 +100,9 @@ export default function Sheet({
         <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full sm:hidden" style={{ background: "var(--border-strong)" }} />
         {title && (
           <div className="flex shrink-0 items-center justify-between border-b px-4 py-3" style={{ borderColor: "var(--border)" }}>
-            <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
+            <h2 id="sheet-title" className="text-[15px] font-semibold tracking-tight">
+              {title}
+            </h2>
             <button type="button" className="icon-btn !min-h-9 !min-w-9" onClick={onClose} aria-label="بستن" style={{ touchAction: "manipulation" }}>
               <Icon name="x" size={17} />
             </button>
