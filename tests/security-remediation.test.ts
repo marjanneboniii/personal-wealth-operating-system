@@ -104,7 +104,7 @@ async function setupFixture() {
     .returning();
   const [cashClass] = await db
     .insert(assetClasses)
-    .values({ code: "cash", name: "Cash", color: "#38bdf8", sortOrder: 1 } as any)
+    .values({ code: "cash", name: "Cash", color: "#6e6ff0", sortOrder: 1 } as any)
     .returning();
   const [usdCash] = await db
     .insert(assets)

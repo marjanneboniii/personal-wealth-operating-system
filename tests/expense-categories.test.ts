@@ -61,7 +61,7 @@ async function fixture() {
     .insert(currencies)
     .values({ code: "USD", name: "دلار آمریکا", symbol: "$", decimals: 2, isFiat: true })
     .returning();
-  const [cls] = await db.insert(assetClasses).values({ code: "cash", name: "نقد و بانک", color: "#38bdf8" }).returning();
+  const [cls] = await db.insert(assetClasses).values({ code: "cash", name: "نقد و بانک", color: "#6e6ff0" }).returning();
   const [usd] = await db
     .insert(assets)
     .values({ symbol: "USD", name: "دلار", classId: cls.id, currencyId: cur.id, decimals: 2 })

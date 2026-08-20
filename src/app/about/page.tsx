@@ -12,7 +12,7 @@ export default function AboutPage() {
     <div className="landing">
       <LandingHeader />
     <article className="landing-legal">
-      <p className="landing-kicker" style={{ color: "var(--color-primary)" }}>توازن</p>
+      <p className="landing-kicker" style={{ color: "var(--color-accent)" }}>توازن</p>
       <h1 className="type-page-title mt-2">درباره ما</h1>
       <p className="sub mt-4 text-[15px] leading-8">
         توازن یک سیستم خصوصی مدیریت ثروت شخصی است. هدف آن این است که تصویر دارایی‌ها، بدهی‌ها، نقدینگی و تراکنش‌ها در یک

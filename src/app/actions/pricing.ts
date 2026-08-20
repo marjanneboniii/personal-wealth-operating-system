@@ -76,7 +76,7 @@ export async function registerMarketAssetAction(
         .values({
           code: classCode,
           name: "رمزارز",
-          color: "#a78bfa",
+          color: "#c9cafa",
           sortOrder: 3,
         })
         .onConflictDoNothing({ target: assetClasses.code })

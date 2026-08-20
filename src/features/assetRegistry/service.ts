@@ -19,7 +19,7 @@ export async function createAssetClass(input: CreateAssetClassInput): Promise<{ 
     .values({
       code: input.code,
       name: input.name,
-      color: input.color ?? "#64748b",
+      color: input.color ?? "#8b8da6",
       sortOrder: input.sortOrder ?? 0,
       parentId: input.parentId ?? null,
       level: input.level ?? (input.parentId ? 1 : 0),

@@ -66,7 +66,7 @@ async function setupAnalyticsDb() {
 
   const [cryptoCls] = await db
     .insert(assetClasses)
-    .values({ code: "crypto", name: "Crypto", color: "#a78bfa" })
+    .values({ code: "crypto", name: "Crypto", color: "#c9cafa" })
     .returning();
 
   const [ethAsset] = await db

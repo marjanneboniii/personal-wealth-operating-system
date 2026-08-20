@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200" fill="none">
-  <rect x="48" y="8" width="64" height="64" rx="14" fill="#0F2440"/>
-  <g stroke="#C9962D" stroke-width="2.4" stroke-linecap="round" transform="translate(48 8)">
+  <rect x="48" y="8" width="64" height="64" rx="14" fill="#12131C"/>
+  <g stroke="#6E6FF0" stroke-width="2.4" stroke-linecap="round" transform="translate(48 8)">
     <circle cx="14" cy="22" r="7"/>
     <circle cx="50" cy="22" r="7"/>
     <line x1="14" y1="22" x2="50" y2="22"/>
   </g>
-  <path d="M80 32.5 L70.5 58 H89.5 Z" fill="#C9962D"/>
+  <path d="M80 32.5 L70.5 58 H89.5 Z" fill="#6E6FF0"/>
   <text
     x="80"
     y="118"
@@ -13,6 +13,6 @@
     font-family="Vazirmatn, Tahoma, sans-serif"
     font-weight="900"
     font-size="36"
-    fill="#0F2440"
+    fill="#12131C"
   >توازن</text>
 </svg>

@@ -4,7 +4,7 @@
    PWOS Design System — «توازن» / Calm Ledger
    Premium financial OS. RTL-first. Editorial. Quiet confidence.
    Principles:
-     • Brand is navy (#0F2440) + gold (#C9962D) — never used as P/L color.
+     • Brand is ink (#12131C) + violet accent (#6E6FF0) — never used as P/L color.
      • Color carries MEANING — green = positive movement, red = negative.
      • Module colors: expenses / commitments / wealth.
      • Numbers are first-class citizens — tabular numerals everywhere.
@@ -49,79 +49,85 @@
 
 /* ─────────────────────────── Tokens ─────────────────────────── */
 
+/* Rabby-inspired palette (2026): single violet brand accent, cold neutrals.
+   --color-primary = ink (dark brand surfaces), --color-accent = brand action. */
 :root {
-  /* Brand — navy + gold; never used for financial positive/negative */
-  --color-primary: #0f2440;
-  --color-primary-hover: #1a3a63;
-  --color-accent: #c9962d;
-  --color-accent-hover: #b3831f;
-  --on-primary: #f2f0e9;
+  /* Brand — ink surfaces + single violet accent; never used for financial direction */
+  --color-primary: #12131C;
+  --color-primary-hover: #1e2030;
+  --color-accent: #6e6ff0;
+  --color-accent-hover: #5a5bd9;
+  --color-accent-active: #4a4bc0;
+  --on-primary: #f7f7fb;
 
-  --brand: var(--color-primary);
-  --brand-strong: var(--color-primary-hover);
-  --brand-soft: rgba(15, 36, 64, 0.08);
-  --brand-softer: rgba(15, 36, 64, 0.05);
-  --on-brand: var(--on-primary);
-  --primary: var(--color-primary);
-  --primary-hover: var(--color-primary-hover);
-  --primary-active: #0b1b30;
+  --brand: var(--color-accent);
+  --brand-strong: var(--color-accent-hover);
+  --brand-soft: rgba(110, 111, 240, 0.09);
+  --brand-softer: rgba(110, 111, 240, 0.05);
+  --on-brand: #ffffff;
+  --primary: var(--color-accent);
+  --primary-hover: var(--color-accent-hover);
+  --primary-active: var(--color-accent-active);
   --primary-soft: var(--brand-soft);
 
-  /* Surfaces */
-  --bg-page: #f7f5f0;
+  /* Surfaces — cold-neutral, never warm gray */
+  --bg-page: #f7f7fb;
   --bg-surface: #ffffff;
   --bg: var(--bg-page);
   --surface: var(--bg-surface);
   --surface-elev: var(--bg-surface);
-  --sunken: #efece4;
-  --hover: rgba(27, 30, 36, 0.045);
+  --sunken: #efeff6;
+  --hover: rgba(18, 19, 28, 0.045);
 
   /* Text */
-  --text: #1b1e24;
-  --text-2: #5f5d55;
-  --text-3: #8a877c;
+  --text: #12131c;
+  --text-2: #363850;
+  --text-3: #8b8da6;
   --text-primary: var(--text);
   --text-secondary: var(--text-2);
   --text-muted: var(--text-3);
 
   /* Borders */
-  --border: #e4e0d6;
-  --border-strong: #cfc9ba;
+  --border: #e4e4ee;
+  --border-strong: #cdcfe2;
 
   --background: var(--bg);
   --surface-elevated: var(--surface-elev);
   --danger: var(--negative);
   --success: var(--positive);
 
-  /* Modules */
-  --color-module-expenses: #c1602c;
-  --color-module-expenses-bg: #fbeae0;
-  --color-module-commitments: #b7791f;
-  --color-module-commitments-bg: #faeeda;
-  --color-module-wealth: #0f8f6e;
-  --color-module-wealth-bg: #e1f5ee;
+  /* Modules — minimal palette: wealth = accent, debt = danger, expenses/cash = charcoal */
+  --color-module-expenses: #363850;
+  --color-module-expenses-bg: #ebebf2;
+  --color-module-commitments: #e5484d;
+  --color-module-commitments-bg: #fdecec;
+  --color-module-wealth: #6e6ff0;
+  --color-module-wealth-bg: #ececfd;
 
-  /* Semantic — meaning, not decoration */
-  --color-success: #0f8f6e;
-  --color-success-bg: #e1f5ee;
-  --color-warning: #b7791f;
-  --color-warning-bg: #faeeda;
-  --color-danger: #c0392b;
-  --color-danger-bg: #fcebeb;
+  /* Semantic — meaning, not decoration.
+     Palette has one brand hue: warning maps to danger per palette rules. */
+  --color-positive: #2ead6b;
+  --color-success: var(--color-positive);
+  --color-success-bg: #e7f6ef;
+  --color-danger: #e5484d;
+  --color-danger-tint: #fdecec;
+  --color-warning: var(--color-danger);
+  --color-warning-bg: var(--color-danger-tint);
+  --color-danger-bg: var(--color-danger-tint);
   --positive: var(--color-success);
   --positive-soft: var(--color-success-bg);
   --negative: var(--color-danger);
   --negative-soft: var(--color-danger-bg);
   --warning: var(--color-warning);
   --warning-soft: var(--color-warning-bg);
-  --info: #1a3a63;
-  --info-soft: rgba(15, 36, 64, 0.08);
+  --info: var(--color-accent);
+  --info-soft: rgba(110, 111, 240, 0.09);
 
-  /* Asset-class identity — composition charts only, never financial direction */
-  --asset-cash: var(--color-module-expenses);
-  --asset-investment: var(--color-primary);
-  --asset-crypto: var(--color-module-wealth);
-  --asset-other: var(--color-module-commitments);
+  /* Asset-class identity — mono-hue accent scale + neutrals (composition charts only) */
+  --asset-cash: #9ea1f6;
+  --asset-investment: #6e6ff0;
+  --asset-crypto: #363850;
+  --asset-other: #c9cafa;
 
   /* Radius scale */
   --r-sm: 8px;
@@ -131,52 +137,69 @@
 
   /* Shadows — dialogs/sheets only; cards have none */
   --shadow-sm: none;
-  --shadow-md: 0 2px 6px rgba(15, 36, 64, 0.08), 0 12px 28px -16px rgba(15, 36, 64, 0.22);
-  --shadow-lg: 0 4px 12px rgba(15, 36, 64, 0.1), 0 24px 56px -24px rgba(15, 36, 64, 0.32);
+  --shadow-md: 0 2px 6px rgba(18, 19, 28, 0.08), 0 12px 28px -16px rgba(18, 19, 28, 0.22);
+  --shadow-lg: 0 4px 12px rgba(18, 19, 28, 0.1), 0 24px 56px -24px rgba(18, 19, 28, 0.32);
 
-  --ring: 0 0 0 3px rgba(201, 150, 45, 0.35);
+  --ring: 0 0 0 3px rgba(110, 111, 240, 0.28);
   --nav-w: 264px;
 }
 
+/* Dark mode — PROPOSED values for the new palette (pending owner sign-off):
+   same contrast logic as light theme, brand brightened for dark surfaces. */
 .dark {
-  --bg: #0c0e12;
-  --surface: #12151c;
-  --surface-elev: #171b24;
-  --sunken: #0e1118;
-  --hover: rgba(233, 236, 241, 0.05);
+  --bg: #0e0f16;
+  --surface: #15161f;
+  --surface-elev: #1a1c28;
+  --sunken: #101119;
+  --hover: rgba(235, 236, 246, 0.05);
 
-  --text: #e9ecf1;
-  --text-2: #a4adbb;
-  --text-3: #6e7787;
+  --text: #edeef7;
+  --text-2: #a8aac0;
+  --text-3: #70728c;
 
-  --border: rgba(233, 236, 241, 0.09);
-  --border-strong: rgba(233, 236, 241, 0.18);
+  --border: rgba(235, 236, 246, 0.1);
+  --border-strong: rgba(235, 236, 246, 0.2);
 
-  --brand: #8d8ff2;
-  --brand-strong: #a3a5f6;
-  --brand-soft: rgba(141, 143, 242, 0.14);
-  --brand-softer: rgba(141, 143, 242, 0.08);
-  --on-brand: #101322;
+  --brand: #8b8cf5;
+  --brand-strong: #a0a1f8;
+  --brand-soft: rgba(139, 140, 245, 0.14);
+  --brand-softer: rgba(139, 140, 245, 0.08);
+  --on-brand: #12131c;
 
-  --positive: #3ecf8e;
-  --positive-soft: rgba(62, 207, 142, 0.12);
-  --negative: #f2705f;
-  --negative-soft: rgba(242, 112, 95, 0.12);
-  --warning: #f0b04a;
-  --warning-soft: rgba(240, 176, 74, 0.12);
-  --info: #6ba0f0;
-  --info-soft: rgba(107, 160, 240, 0.12);
+  --color-positive: #46c98a;
+  --color-success: var(--color-positive);
+  --color-success-bg: rgba(70, 201, 138, 0.12);
+  --color-danger: #f0716e;
+  --color-danger-tint: rgba(240, 113, 110, 0.12);
+  --color-warning: var(--color-danger);
+  --color-warning-bg: var(--color-danger-tint);
+  --color-danger-bg: var(--color-danger-tint);
+  --positive: var(--color-success);
+  --positive-soft: var(--color-success-bg);
+  --negative: var(--color-danger);
+  --negative-soft: var(--color-danger-bg);
+  --warning: var(--color-warning);
+  --warning-soft: var(--color-warning-bg);
+  --info: #8b8cf5;
+  --info-soft: rgba(139, 140, 245, 0.12);
 
-  --asset-cash: #6ba0f0;
-  --asset-investment: #9b8af0;
-  --asset-crypto: #4ecfb0;
-  --asset-other: #e0b05c;
+  --color-module-expenses: #a8aac0;
+  --color-module-expenses-bg: rgba(168, 170, 192, 0.12);
+  --color-module-commitments: #f0716e;
+  --color-module-commitments-bg: rgba(240, 113, 110, 0.12);
+  --color-module-wealth: #8b8cf5;
+  --color-module-wealth-bg: rgba(139, 140, 245, 0.14);
+
+  --asset-cash: #a2a4f7;
+  --asset-investment: #8b8cf5;
+  --asset-crypto: #a8aac0;
+  --asset-other: #6e7191;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4), 0 16px 36px -16px rgba(0, 0, 0, 0.55);
   --shadow-lg: 0 4px 14px rgba(0, 0, 0, 0.5), 0 28px 64px -24px rgba(0, 0, 0, 0.65);
 
-  --ring: 0 0 0 3px rgba(141, 143, 242, 0.3);
+  --ring: 0 0 0 3px rgba(139, 140, 245, 0.3);
 }
 
 /* ─────────────────────────── Base ─────────────────────────── */
@@ -1072,7 +1095,7 @@ select.field {
   z-index: 30;
   background: var(--color-primary);
   color: var(--on-primary);
-  border-bottom: 1px solid rgba(242, 240, 233, 0.12);
+  border-bottom: 1px solid rgba(237, 238, 247, 0.12);
   padding-top: env(safe-area-inset-top);
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
@@ -1109,11 +1132,11 @@ select.field {
 .landing-header .btn:not(.btn-primary) {
   background: transparent;
   color: var(--on-primary);
-  border-color: rgba(242, 240, 233, 0.28);
+  border-color: rgba(237, 238, 247, 0.28);
 }
 .landing-header .btn-ghost:hover,
 .landing-header .btn:not(.btn-primary):hover {
-  background: rgba(242, 240, 233, 0.08);
+  background: rgba(237, 238, 247, 0.08);
   color: var(--on-primary);
 }
 
@@ -1160,7 +1183,7 @@ select.field {
   max-width: 34rem;
   font-size: 0.92rem;
   line-height: 1.8;
-  color: rgba(242, 240, 233, 0.82);
+  color: rgba(237, 238, 247, 0.82);
   text-wrap: pretty;
 }
 
@@ -1174,11 +1197,11 @@ select.field {
 .landing-hero .btn:not(.btn-primary) {
   background: transparent;
   color: var(--on-primary);
-  border-color: rgba(242, 240, 233, 0.28);
+  border-color: rgba(237, 238, 247, 0.28);
 }
 .landing-hero .btn-ghost {
   border-color: transparent;
-  color: rgba(242, 240, 233, 0.88);
+  color: rgba(237, 238, 247, 0.88);
 }
 
 .landing-cta-cluster {
@@ -1197,6 +1220,13 @@ select.field {
 
 .landing-cta-cluster-center {
   justify-content: center;
+}
+
+.landing-hero-note {
+  margin-top: 0.85rem;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: rgba(237, 238, 247, 0.7);
 }
 
 .landing-band {
@@ -1265,7 +1295,7 @@ select.field {
   justify-content: center;
   border-radius: 10px;
   background: var(--brand-soft);
-  color: var(--color-primary);
+  color: var(--brand);
 }
 
 .landing-icon-wealth {
@@ -1335,7 +1365,7 @@ select.field {
 }
 
 .landing-on-primary-muted {
-  color: rgba(242, 240, 233, 0.7);
+  color: rgba(237, 238, 247, 0.7);
 }
 
 .landing-preview {
@@ -1426,13 +1456,13 @@ select.field {
 
 .landing-footer .sub,
 .landing-footer .muted {
-  color: rgba(242, 240, 233, 0.72);
+  color: rgba(237, 238, 247, 0.72);
 }
 .landing-footer a.sub {
-  color: rgba(242, 240, 233, 0.82);
+  color: rgba(237, 238, 247, 0.82);
 }
 .landing-footer .border-t {
-  border-color: rgba(242, 240, 233, 0.14) !important;
+  border-color: rgba(237, 238, 247, 0.14) !important;
 }
 
 .landing-legal {

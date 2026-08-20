@@ -99,8 +99,8 @@ export async function ensureMoneyAccountCurrencyCatalog(txClient?: any): Promise
     await tx
       .insert(assetClasses)
       .values([
-        { code: "cash", name: "نقد و بانک", color: "#38bdf8", sortOrder: 1 },
-        { code: "stable", name: "استیبل‌کوین", color: "#34d399", sortOrder: 2 },
+        { code: "cash", name: "نقد و بانک", color: "#6e6ff0", sortOrder: 1 },
+        { code: "stable", name: "استیبل‌کوین", color: "#9ea1f6", sortOrder: 2 },
       ])
       .onConflictDoNothing();
 
