@@ -57,14 +57,20 @@ export default function HoldingsTable({
                   {formatQty(a.quantity, a.decimals)}
                 </td>
                 <td className="td-num" dir="rtl">
-                  <div className="text-[12.5px] font-medium">
-                    {a.priceFreshness === "unavailable" && a.valuationBasis === "cost_basis_fallback"
-                      ? "در دسترس نیست"
-                      : formatMoney(a.marketPrice)}
-                  </div>
-                  {a.marketPrice !== "0" && toIrt(a.marketPrice) && (
-                    <div className="muted num text-[9.5px]" dir="rtl">
-                      ≈ {toIrt(a.marketPrice)}
+                  {a.marketPrice !== "0" && toIrt(a.marketPrice) ? (
+                    <>
+                      <div className="text-[12.5px] font-medium">
+                        {toIrt(a.marketPrice)}
+                      </div>
+                      <div className="muted num text-[9.5px]" dir="rtl">
+                        ≈ {formatMoney(a.marketPrice)}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-[12.5px] font-medium">
+                      {a.priceFreshness === "unavailable" && a.valuationBasis === "cost_basis_fallback"
+                        ? "در دسترس نیست"
+                        : formatMoney(a.marketPrice)}
                     </div>
                   )}
                 </td>
@@ -73,9 +79,9 @@ export default function HoldingsTable({
                   <div className="muted text-[9.5px]">FIFO</div>
                 </td>
                 <td className="td-num" dir="rtl">
-                  <div className="num text-[13px] font-bold">{formatMoney(a.currentValue)}</div>
+                  <div className="num text-[13px] font-bold">{formatMoney(a.currentValueToman, "IRT")}</div>
                   <div className="muted num text-[9.5px]" dir="rtl">
-                    ≈ {formatMoney(a.currentValueToman, "IRT")}
+                    ≈ {formatMoney(a.currentValue)}
                   </div>
                 </td>
                 <td className="td-num hidden sm:table-cell" dir="rtl" style={{ color: pnl.isNegative() ? "var(--negative)" : "var(--positive)" }}>

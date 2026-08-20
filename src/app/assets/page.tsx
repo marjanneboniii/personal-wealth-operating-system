@@ -94,7 +94,7 @@ export default async function AssetsPage() {
       />
 
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش کل دارایی‌ها" value={formatMoney(totalValue.toString())} hint={toIrt(totalValue.toString()) ?? undefined} />
+        <Metric label="ارزش کل دارایی‌ها" value={toIrt(totalValue.toString()) ?? formatMoney(totalValue.toString())} hint={fx.rate ? formatMoney(totalValue.toString()) : undefined} />
         <Metric label="تعداد دارایی" value={String(all.length)} hint={`${financial.length} مالی · ${real.length} واقعی`} />
         <Metric
           label="سود/زیان محقق‌نشده"

@@ -101,7 +101,7 @@ export default async function FinancialAssetsPage() {
       />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش روز" value={formatMoney(totalValue.toString())} hint={toIrt(totalValue.toString()) ?? undefined} />
+        <Metric label="ارزش روز" value={toIrt(totalValue.toString()) ?? formatMoney(totalValue.toString())} hint={fx.rate ? formatMoney(totalValue.toString()) : undefined} />
         <Metric label="بهای تمام‌شده" value={formatMoney(totalCost.toString())} />
         <Metric label="سود/زیان محقق‌نشده" value={formatMoney(unrealized.toString())} tone={unrealized.gte(0) ? "up" : "down"} />
         <Metric label="سود/زیان محقق‌شده" value={formatMoney(realized.toString())} tone={realized.gte(0) ? "up" : "down"} hint="از فروش‌های ثبت‌شده (FIFO)" />

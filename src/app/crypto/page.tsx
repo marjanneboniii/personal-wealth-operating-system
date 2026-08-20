@@ -69,8 +69,8 @@ export default async function CryptoPage() {
           <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
             <Metric
               label="ارزش رمزارزها"
-              value={formatMoney(cryptoValue.toString())}
-              hint={toIrt(cryptoValue.toString()) ?? undefined}
+              value={toIrt(cryptoValue.toString()) ?? formatMoney(cryptoValue.toString())}
+              hint={fx.rate ? formatMoney(cryptoValue.toString()) : undefined}
             />
             <Metric label="استیبل‌کوین‌ها" value={formatMoney(stableValue.toString())} hint={stable.map((s) => currencyLabel(s.symbol)).join(" · ") || undefined} />
             <Metric

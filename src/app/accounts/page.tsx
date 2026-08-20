@@ -84,7 +84,7 @@ export default async function AccountsPage() {
       <PageHeader title="حساب‌ها" />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-3" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش پایه حساب‌های پول" value={formatMoney(totalCash.toString())} hint={toIrt(totalCash.toString()) ?? undefined} />
+        <Metric label="ارزش پایه حساب‌های پول" value={toIrt(totalCash.toString()) ?? formatMoney(totalCash.toString())} hint={fx.rate ? formatMoney(totalCash.toString()) : undefined} />
         <Metric label="حساب‌های فعال" value={String(moneyAccounts.length + liabilityAccounts.length)} hint={`${byWallet.size} کیف‌پول / نهاد`} />
         <Metric
           label="جمع کنترلی دفتر"
@@ -126,9 +126,9 @@ export default async function AccountsPage() {
                     </div>
                     <div className="text-left">
                       <p className="num text-[14px] font-bold" dir="rtl">
-                        {formatMoney(walletTotal.toString())}
+                        {toIrt(walletTotal.toString()) ?? formatMoney(walletTotal.toString())}
                       </p>
-                      {toIrt(walletTotal.toString()) && <p className="muted num text-[9.5px]">≈ {toIrt(walletTotal.toString())}</p>}
+                      {toIrt(walletTotal.toString()) && <p className="muted num text-[9.5px]">≈ {formatMoney(walletTotal.toString())}</p>}
                     </div>
                   </div>
                   <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -143,9 +143,9 @@ export default async function AccountsPage() {
                         </div>
                         <div className="shrink-0 text-left">
                           <p className="num text-[12.5px] font-bold" dir="rtl">
-                            {formatMoney(b.baseValue)}
+                            {toIrt(b.baseValue) ?? formatMoney(b.baseValue)}
                           </p>
-                          {toIrt(b.baseValue) && <p className="muted num text-[9.5px]">≈ {toIrt(b.baseValue)}</p>}
+                          {toIrt(b.baseValue) && <p className="muted num text-[9.5px]">≈ {formatMoney(b.baseValue)}</p>}
                         </div>
                       </li>
                     ))}
