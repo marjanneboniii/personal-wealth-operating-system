@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Icon from "@/components/ui/Icon";
 
-export const metadata = { title: "آفلاین — وِزان" };
+export const metadata = { title: "آفلاین — توازن" };
 
 export default function OfflinePage() {
   return (
@@ -12,7 +12,7 @@ export default function OfflinePage() {
       >
         <Icon name="info" size={26} />
       </span>
-      <p className="text-[15px] font-bold tracking-tight">وِزان</p>
+      <p className="brand-wordmark text-[15px] tracking-tight">توازن</p>
       <h1 className="mt-3 text-xl font-bold tracking-tight">اتصال اینترنت برقرار نیست.</h1>
       <p className="muted mt-3 max-w-sm text-[13.5px] leading-7">
         اطلاعات مالی شما عمداً در حافظه آفلاین ذخیره نشده است.

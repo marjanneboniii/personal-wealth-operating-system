@@ -110,7 +110,7 @@ export default function InstallPromotion({
           </span>
           <div className="min-w-0 flex-1">
             <p id="install-title" className="text-[13.5px] font-semibold">
-              وِزان را به صفحه اصلی اضافه کنید
+              توازن را به صفحه اصلی اضافه کنید
             </p>
             <p id="install-body" className="sub mt-1 text-[12.5px] leading-6">
               {ios
@@ -126,7 +126,7 @@ export default function InstallPromotion({
                   aria-haspopup="dialog"
                   aria-expanded={guideOpen}
                 >
-                  Download iOS
+                  نصب روی آیفون
                 </button>
               )}
               {canPrompt && (

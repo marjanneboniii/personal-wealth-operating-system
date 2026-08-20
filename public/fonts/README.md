@@ -1,6 +1,6 @@
 # Bundled fonts
 
-`Vazirmatn-{Regular,Medium,SemiBold,Bold}.woff2` — Vazirmatn v33.003 by
+`Vazirmatn-{Regular,Medium,SemiBold,Bold,Black}.woff2` — Vazirmatn v33.003 by
 Saber Rastikerdar, SIL Open Font License 1.1
 (<https://github.com/rastikerdar/vazirmatn>, files identical to the official
 npm package `vazirmatn@33.0.3` → `fonts/webfonts/`).

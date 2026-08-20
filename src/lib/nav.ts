@@ -1,7 +1,7 @@
 import type { IconName } from "@/components/ui/Icon";
 
 /**
- * VEZAN — Product Information Architecture (single source of truth).
+ * توازن — Product Information Architecture (single source of truth).
  *
  * Navigation is organised by USER INTENT, never by database table:
  *
@@ -35,6 +35,8 @@ export type NavItem = {
   paletteHidden?: boolean;
 };
 
+export type NavModule = "expenses" | "commitments" | "wealth";
+
 export type NavGroup = {
   id: string;
   label: string;
@@ -44,6 +46,8 @@ export type NavGroup = {
   items: NavItem[];
   /** large domains collapse by default to keep cognitive load low */
   collapsible?: boolean;
+  /** brand module color for nav + summaries */
+  module?: NavModule;
 };
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -64,6 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: "money",
     label: "پول",
     icon: "wallet",
+    module: "expenses",
     collapsible: true,
     items: [
       {
@@ -93,6 +98,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: "assets",
     label: "دارایی‌ها",
     icon: "portfolio",
+    module: "wealth",
     collapsible: true,
     items: [
       {
@@ -140,6 +146,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: "debt",
     label: "بدهی",
     icon: "debts",
+    module: "commitments",
     collapsible: true,
     items: [
       {
@@ -176,6 +183,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: "wealth",
     label: "ثروت",
     icon: "networth",
+    module: "wealth",
     collapsible: true,
     items: [
       {
@@ -329,22 +337,24 @@ export const ALL_NAV_ITEMS: NavItem[] = [
 ];
 
 /** Mobile bottom navigation — 5 top-level destinations only. */
-export const MOBILE_TABS: { href: string; label: string; icon: IconName; match?: string[] }[] = [
+export const MOBILE_TABS: { href: string; label: string; icon: IconName; match?: string[]; module?: NavModule }[] = [
   { href: "/", label: "خانه", icon: "home", match: ["/"] },
   {
     href: "/transactions",
     label: "پول",
     icon: "transactions",
+    module: "expenses",
     match: ["/transactions", "/accounts", "/cash-flow"],
   },
   {
     href: "/assets",
     label: "دارایی‌ها",
     icon: "portfolio",
+    module: "wealth",
     match: ["/assets", "/portfolio", "/crypto", "/asset-registry"],
   },
-  { href: "/debts", label: "بدهی", icon: "debts", match: ["/debts", "/installments"] },
-  { href: "/net-worth", label: "ثروت", icon: "networth", match: ["/net-worth"] },
+  { href: "/debts", label: "بدهی", icon: "debts", module: "commitments", match: ["/debts", "/installments"] },
+  { href: "/net-worth", label: "ثروت", icon: "networth", module: "wealth", match: ["/net-worth"] },
 ];
 
 /** Quick actions surfaced in the command palette and mobile "More". */

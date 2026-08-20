@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { seedIfEmpty } from "@/db/seed";
 import RegisterForm from "@/components/auth/RegisterForm";
-import BrandMark from "@/components/layout/BrandMark";
+import BrandMark, { BrandWordmark } from "@/components/layout/BrandMark";
 
 export const dynamic = "force-dynamic";
 
@@ -25,17 +25,15 @@ export default async function RegisterPage() {
     <div className="mx-auto flex min-h-[calc(100dvh-7rem)] max-w-md flex-col justify-center px-1 py-6 sm:px-4">
       <p className="mb-4 text-center">
         <Link href="/" className="muted text-[12.5px] font-medium hover:underline">
-          بازگشت به معرفی وِزان
+          بازگشت به معرفی توازن
         </Link>
       </p>
       <div className="card p-5 sm:p-8">
         <div className="mb-5 text-center">
-          <span
-            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
-            style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
-          >
-            <BrandMark size={32} />
+          <span className="mx-auto mb-3 inline-flex">
+            <BrandMark size={56} framed />
           </span>
+          <BrandWordmark className="mb-3 block text-[18px]" />
           <h1 className="type-page-title">ایجاد حساب</h1>
           <p className="sub mt-2 text-[13px] leading-6">یک نام کاربری و رمز عبور برای حساب مستقل خود انتخاب کنید.</p>
         </div>

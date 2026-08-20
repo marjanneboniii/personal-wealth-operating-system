@@ -3,48 +3,77 @@ import { LandingFooter, LandingHeader } from "@/components/landing/LandingChrome
 import { DownloadIosButton } from "@/components/pwa/IosInstallGuide";
 import Icon, { type IconName } from "@/components/ui/Icon";
 
-const BENEFITS: { icon: IconName; title: string; body: string }[] = [
-  { icon: "networth", title: "ارزش خالص", body: "دارایی‌ها منهای بدهی‌ها، در یک عدد روشن." },
-  { icon: "portfolio", title: "دارایی‌ها", body: "ترکیب سبد را یکجا ببینید." },
-  { icon: "wallet", title: "نقدینگی", body: "آنچه نقدشونده است، جدا از کل ثروت." },
-  { icon: "transactions", title: "تراکنش‌ها", body: "درآمد، هزینه، انتقال و معاملات." },
+/**
+ * Static demo amounts for the public landing preview only.
+ * Hardcoded Toman samples — not user data, not API, not ledger, not FX.
+ */
+const PREVIEW_SAMPLE = {
+  netWorth: "۱۸۴٬۲۴۰٬۰۰۰ تومان",
+  assets: "۲۴۱٬۸۰۰٬۰۰۰ تومان",
+  debts: "۵۷٬۵۶۰٬۰۰۰ تومان",
+  liquidity: "۴۲٬۳۰۰٬۰۰۰ تومان",
+} as const;
+
+const OUTCOMES: { icon: IconName; title: string; body: string; tone: "wealth" | "commitments" | "expenses" }[] = [
+  { icon: "networth", title: "ارزش خالص", body: "ارزش واقعی ثروت شما پس از کسر بدهی‌ها.", tone: "wealth" },
+  { icon: "portfolio", title: "دارایی‌ها", body: "تمام دارایی‌های شما، در یک تصویر واحد.", tone: "wealth" },
+  { icon: "debts", title: "بدهی‌ها", body: "تمام تعهدات مالی شما، شفاف و در کنار دارایی‌ها.", tone: "commitments" },
+  { icon: "wallet", title: "نقدینگی", body: "آنچه امروز برای استفاده در دسترس شماست.", tone: "expenses" },
 ];
+
+function CtaCluster({ align = "start" }: { align?: "start" | "center" }) {
+  return (
+    <div className={align === "center" ? "landing-cta-cluster landing-cta-cluster-center" : "landing-cta-cluster"}>
+      <Link href="/register" className="btn btn-primary !min-h-12 w-full sm:w-auto sm:px-6">
+        ایجاد حساب
+      </Link>
+      <Link href="/login" className="btn !min-h-12 w-full sm:w-auto sm:px-6">
+        ورود
+      </Link>
+      <DownloadIosButton className="!min-h-12 w-full sm:w-auto sm:px-5" variant="ghost" />
+    </div>
+  );
+}
 
 function ProductPreview() {
   return (
-    <div className="landing-preview" aria-hidden="true">
+    <figure
+      className="landing-preview"
+      aria-label="نمونه نمایشی از ارزش خالص، دارایی‌ها، بدهی‌ها و نقدینگی به تومان"
+    >
       <div className="landing-preview-chrome">
-        <span />
-        <span />
-        <span />
+        <div className="landing-preview-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        <p className="landing-preview-badge">نمونه نمایشی</p>
       </div>
       <div className="landing-preview-body">
         <p className="muted text-[11px] font-medium">ارزش خالص</p>
-        <p className="display-num mt-1 text-[28px] font-bold tracking-tight sm:text-[32px]" dir="ltr">
-          —
-        </p>
-        <div className="mt-4 grid grid-cols-3 gap-3 border-t pt-3.5" style={{ borderColor: "var(--border)" }}>
-          {[
-            { label: "دارایی‌ها" },
-            { label: "بدهی‌ها" },
-            { label: "نقد" },
-          ].map((m) => (
-            <div key={m.label}>
-              <p className="muted text-[10.5px]">{m.label}</p>
-              <p className="display-num mt-1 text-[15px] font-semibold" dir="ltr">
-                —
-              </p>
-            </div>
-          ))}
+        <p className="display-num landing-preview-hero-amount">{PREVIEW_SAMPLE.netWorth}</p>
+        <div className="landing-preview-metrics">
+          <div>
+            <p className="muted text-[10.5px]">دارایی‌ها</p>
+            <p className="display-num landing-preview-amount">{PREVIEW_SAMPLE.assets}</p>
+          </div>
+          <div>
+            <p className="muted text-[10.5px]">بدهی‌ها</p>
+            <p className="display-num landing-preview-amount">{PREVIEW_SAMPLE.debts}</p>
+          </div>
+          <div>
+            <p className="muted text-[10.5px]">نقدینگی</p>
+            <p className="display-num landing-preview-amount">{PREVIEW_SAMPLE.liquidity}</p>
+          </div>
         </div>
-        <div className="comp-bar mt-4">
-          <span style={{ width: "42%", background: "var(--asset-cash)" }} />
-          <span style={{ width: "28%", background: "var(--asset-investment)" }} />
-          <span style={{ width: "18%", background: "var(--asset-crypto)" }} />
-          <span style={{ width: "12%", background: "var(--asset-other)" }} />
+        <div className="comp-bar mt-4" aria-hidden="true">
+          <span style={{ width: "42%", background: "var(--color-module-wealth)" }} />
+          <span style={{ width: "28%", background: "var(--color-module-expenses)" }} />
+          <span style={{ width: "18%", background: "var(--color-primary)" }} />
+          <span style={{ width: "12%", background: "var(--color-module-commitments)" }} />
         </div>
       </div>
-    </div>
+    </figure>
   );
 }
 
@@ -53,82 +82,74 @@ export default function LandingPage() {
     <div className="landing">
       <LandingHeader />
 
-      <section className="landing-wrap landing-hero">
-        <div className="landing-hero-copy">
-          <p className="landing-kicker">وِزان · مدیریت خصوصی ثروت</p>
-          <h1 className="landing-display">تمام ثروت شما، یک تصویر روشن.</h1>
-          <p className="landing-lede">دارایی‌ها، بدهی‌ها، نقدینگی و ارزش خالص شما در یک تصویر آرام و روشن.</p>
-          <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:items-center">
-            <Link href="/login" className="btn btn-primary !min-h-12 w-full sm:w-auto sm:px-6">
-              ورود به سیستم
-            </Link>
-            <Link href="/register" className="btn !min-h-12 w-full sm:w-auto sm:px-6">
-              ایجاد حساب
-            </Link>
-            <DownloadIosButton className="!min-h-12 w-full sm:w-auto sm:px-5" variant="ghost" />
+      <div className="landing-hero-band">
+        <section className="landing-wrap landing-hero">
+          <div className="landing-hero-copy">
+            <p className="landing-kicker">سیستم‌عامل ثروت شخصی</p>
+            <h1 className="landing-display">تمام ثروت شما، یک تصویر روشن.</h1>
+            <p className="landing-lede">
+              دارایی‌ها، بدهی‌ها، نقدینگی و ارزش خالص خود را در یک نمای روشن ببینید و با اطمینان بیشتری
+              تصمیم بگیرید.
+            </p>
+            <CtaCluster />
+          </div>
+          <ProductPreview />
+        </section>
+      </div>
+
+      <section className="landing-band-surface">
+        <div className="landing-wrap landing-section" aria-labelledby="outcomes-title">
+          <h2 id="outcomes-title" className="landing-h2">
+            آنچه در یک نگاه می‌بینید
+          </h2>
+          <div className="landing-outcomes">
+            {OUTCOMES.map((item) => (
+              <article key={item.title} className="landing-benefit">
+                <span className={`landing-icon landing-icon-${item.tone}`}>
+                  <Icon name={item.icon} size={18} />
+                </span>
+                <div>
+                  <h3 className="text-[15px] font-semibold">{item.title}</h3>
+                  <p className="sub mt-0.5 text-[13px] leading-6">{item.body}</p>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
-        <ProductPreview />
       </section>
 
-      <section className="landing-wrap landing-section" aria-labelledby="benefits-title">
-        <h2 id="benefits-title" className="landing-h2">
-          آنچه در یک نگاه می‌بینید
-        </h2>
-        <div className="mt-2">
-          {BENEFITS.map((item) => (
-            <article key={item.title} className="landing-benefit">
-              <span className="landing-icon">
-                <Icon name={item.icon} size={18} />
-              </span>
-              <div>
-                <h3 className="text-[15px] font-semibold">{item.title}</h3>
-                <p className="sub mt-0.5 text-[13px] leading-6">{item.body}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="landing-wrap landing-section" aria-labelledby="trust-title">
-        <h2 id="trust-title" className="sr-only">
-          اعتماد
-        </h2>
-        <div className="landing-trust">
-          <span>خصوصی</span>
-          <span>قابل کنترل</span>
-          <span>قابل بازبینی</span>
-          <span>بدون ادعاهای امنیتی اثبات‌نشده</span>
-        </div>
-        <p className="landing-support">
-          جزئیات در{" "}
-          <Link href="/privacy" className="font-medium" style={{ color: "var(--brand)" }}>
-            حریم خصوصی
-          </Link>{" "}
-          و{" "}
-          <Link href="/about" className="font-medium" style={{ color: "var(--brand)" }}>
-            درباره وِزان
-          </Link>
-          .
-        </p>
-      </section>
-
-      <section className="landing-wrap landing-section" aria-labelledby="final-cta-title">
-        <div className="landing-cta-final">
-          <h2 id="final-cta-title" className="landing-h2">
-            تصویر مالی‌تان را یکجا ببینید.
+      <section className="landing-band">
+        <div className="landing-wrap landing-section" aria-labelledby="trust-title">
+          <h2 id="trust-title" className="landing-h2">
+            خصوصی، شفاف، تحت کنترل شما.
           </h2>
-          <p className="landing-support mx-auto">ورود کنید یا حساب بسازید. روی آیفون می‌توانید وزان را به صفحه اصلی اضافه کنید.</p>
-          <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
-            <Link href="/login" className="btn btn-primary !min-h-12 sm:px-6">
-              ورود به سیستم
+          <p className="landing-support">
+            اطلاعات مالی شما برای خودتان است؛ توازن کمک می‌کند وضعیت مالی‌تان را روشن‌تر ببینید و بهتر مدیریت کنید.
+          </p>
+          <p className="landing-support landing-trust-links">
+            <Link href="/privacy" className="font-medium" style={{ color: "var(--color-primary)" }}>
+              حریم خصوصی
             </Link>
-            <Link href="/register" className="btn !min-h-12 sm:px-6">
-              ایجاد حساب
+            <span className="muted" aria-hidden="true">
+              ·
+            </span>
+            <Link href="/about" className="font-medium" style={{ color: "var(--color-primary)" }}>
+              درباره توازن
             </Link>
-            <DownloadIosButton className="!min-h-12 sm:px-5" variant="default">
-              Download iOS
-            </DownloadIosButton>
+          </p>
+        </div>
+      </section>
+
+      <section className="landing-band-surface">
+        <div className="landing-wrap landing-section" aria-labelledby="final-cta-title">
+          <div className="landing-cta-final">
+            <h2 id="final-cta-title" className="landing-h2">
+              تصویر مالی‌تان را یکجا ببینید.
+            </h2>
+            <p className="landing-support mx-auto">
+              ارزش خالص، دارایی‌ها، بدهی‌ها و نقدینگی خود را در یک نمای روشن مدیریت کنید.
+            </p>
+            <CtaCluster align="center" />
           </div>
         </div>
       </section>

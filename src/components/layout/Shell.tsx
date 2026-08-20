@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } fr
 import Icon, { type IconName } from "@/components/ui/Icon";
 import Sheet from "@/components/ui/Sheet";
 import CommandPalette from "@/components/ui/CommandPalette";
-import BrandMark from "@/components/layout/BrandMark";
+import BrandMark, { BrandWordmark } from "@/components/layout/BrandMark";
 import InstallPromotion, { usePwaInstallState } from "@/components/pwa/InstallPromotion";
 import {
   NAV_GROUPS,
@@ -190,10 +190,12 @@ function NavGroupBlock({
   const groupActive = isGroupActive(pathname, group);
   const prefs = useGroupPrefs();
 
+  const moduleClass = group.module ? `nav-module nav-module-${group.module}` : "";
+
   // Simple groups (خانه، بینش‌ها، گزارش‌ها) render as plain links.
   if (!group.collapsible) {
     return (
-      <div role="group" aria-label={group.label}>
+      <div role="group" aria-label={group.label} className={moduleClass}>
         {!collapsed ? (
           <div className="nav-group-label">{group.label}</div>
         ) : (
@@ -211,7 +213,7 @@ function NavGroupBlock({
   // A collapsed rail has no room for group chrome — show the items directly.
   if (collapsed) {
     return (
-      <div role="group" aria-label={group.label}>
+      <div role="group" aria-label={group.label} className={moduleClass}>
         <div className="mx-4 my-2 border-t" style={{ borderColor: "var(--border)" }} />
         <div className="space-y-0.5">
           {group.items.map((n) => (
@@ -237,13 +239,13 @@ function NavGroupBlock({
   };
 
   return (
-    <div role="group" aria-label={group.label}>
+    <div role="group" aria-label={group.label} className={moduleClass}>
       <button
         type="button"
         onClick={toggle}
         aria-expanded={open}
         aria-controls={panelId}
-        className="nav-group-toggle"
+        className={`nav-group-toggle ${groupActive ? "is-active" : ""}`}
         style={{ touchAction: "manipulation" }}
       >
         {group.icon && (
@@ -251,10 +253,9 @@ function NavGroupBlock({
             name={group.icon}
             size={16}
             className="shrink-0"
-            style={groupActive ? { color: "var(--brand)" } : undefined}
           />
         )}
-        <span className="flex-1 text-right" style={groupActive ? { color: "var(--brand)" } : undefined}>
+        <span className="flex-1 text-right">
           {group.label}
         </span>
         <Icon name="chevronDown" size={14} className={`shrink-0 nav-chevron ${open ? "nav-chevron-open" : ""}`} />
@@ -303,6 +304,12 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
             <ul>
               {g.items.map((n) => {
                 const active = isNavActive(pathname, n.href);
+                const activeColor = g.module
+                  ? `var(--color-module-${g.module})`
+                  : "var(--brand)";
+                const activeBg = g.module
+                  ? `var(--color-module-${g.module}-bg)`
+                  : "var(--brand-soft)";
                 return (
                   <li key={n.href}>
                     <Link
@@ -311,7 +318,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
                       className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
                       style={
                         active
-                          ? { background: "var(--brand-soft)", color: "var(--brand)", fontWeight: 600, touchAction: "manipulation" }
+                          ? { background: activeBg, color: activeColor, fontWeight: 600, touchAction: "manipulation" }
                           : { color: "var(--text-2)", touchAction: "manipulation" }
                       }
                     >
@@ -446,23 +453,18 @@ export default function Shell({
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         aria-label="ناوبری اصلی"
       >
-        {/* Brand + collapse — برند «وِزان» */}
+        {/* Brand + collapse — برند «توازن» */}
         <div className={`flex items-center gap-2 px-4 pb-2 pt-4 ${collapsed ? "justify-center !px-2" : "justify-between"}`}>
           <Link
             href="/"
             className={`flex items-center gap-2.5 rounded-[10px] px-1 py-1 ${collapsed ? "justify-center" : ""}`}
             style={{ touchAction: "manipulation" }}
-            aria-label="وِزان — صفحه اصلی"
+            aria-label="توازن — صفحه اصلی"
           >
-            <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
-              style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
-            >
-              <BrandMark size={22} />
-            </span>
+            <BrandMark size={36} framed />
             {!collapsed && (
               <span className="leading-tight">
-                <span className="block text-[15px] font-bold tracking-tight">وِزان</span>
+                <BrandWordmark className="block text-[15px]" />
                 <span className="muted block text-[10px]">سیستم‌عامل ثروت شخصی</span>
               </span>
             )}
@@ -543,9 +545,9 @@ export default function Shell({
           paddingTop: "max(0.625rem, env(safe-area-inset-top))",
         }}
       >
-        <Link href="/" className="flex items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="وِزان">
-          <BrandMark size={22} style={{ color: "var(--brand)" }} />
-          <span className="text-[15px] font-bold tracking-tight">وِزان</span>
+        <Link href="/" className="flex items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="توازن">
+          <BrandMark size={28} framed />
+          <BrandWordmark className="text-[15px]" />
         </Link>
         <div className="flex items-center gap-1">
           <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
@@ -604,7 +606,7 @@ export default function Shell({
           {MOBILE_TABS.map((t) => {
             const active = t.match!.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m)));
             return (
-              <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`tab-item ${active ? "tab-active" : ""}`} style={{ touchAction: "manipulation" }}>
+              <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`tab-item ${active ? "tab-active" : ""} ${t.module ? `tab-module-${t.module}` : ""}`} style={{ touchAction: "manipulation" }}>
                 <Icon name={t.icon as IconName} size={20} strokeWidth={active ? 2 : 1.7} />
                 <span className="tab-label">{t.label}</span>
               </Link>

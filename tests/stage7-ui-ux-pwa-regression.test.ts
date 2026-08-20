@@ -124,7 +124,7 @@ test("STAGE 7 — PWA Manifest & Service Worker Integrity: RTL, standalone displ
 
 test("STAGE 7 — iOS install guide and offline shell remain production-ready", () => {
   const guide = fs.readFileSync(path.resolve(process.cwd(), "src/components/pwa/IosInstallGuide.tsx"), "utf-8");
-  assert.ok(guide.includes("نصب وزان روی آیفون"));
+  assert.ok(guide.includes("نصب توازن روی آیفون"));
   assert.ok(guide.includes("متوجه شدم"));
   assert.ok(guide.includes("aria-modal"));
   assert.ok(guide.includes("CriOS|FxiOS|EdgiOS"));
