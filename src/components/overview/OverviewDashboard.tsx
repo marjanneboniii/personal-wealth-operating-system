@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
-import { desc } from "drizzle-orm";
-import { db } from "@/db";
-import { snapshots } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import {
   countUnreviewed,
   getCashflow,
+  getSnapshotSeries,
   getTransactions,
 } from "@/features/ledger/queries";
 import { projectCashflow, upcomingInstallments } from "@/features/planning/service";
@@ -38,10 +36,14 @@ export default async function OverviewDashboard() {
   const user = await ensureAuth();
   await seedIfEmpty();
 
+  const userId = (user as { id?: string } | null)?.id;
+
   const [setupState, nw, snaps, tx, insts, flow, projection, unreviewed, fx] = await Promise.all([
-    getSetupState((user as { id?: string } | null)?.id),
-    getCurrentNetWorth(),
-    db.select().from(snapshots).orderBy(desc(snapshots.asOf)).limit(40),
+    getSetupState(userId),
+    getCurrentNetWorth(userId),
+    // Net-worth history is per user: the delta badge and the chart must never
+    // read another account's snapshots.
+    getSnapshotSeries(40, userId),
     getTransactions({ limit: 6 }),
     upcomingInstallments(3),
     getCashflow(6),

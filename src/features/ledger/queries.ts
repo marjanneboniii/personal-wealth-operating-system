@@ -40,6 +40,21 @@ async function resolveQueryUserId(explicitUserId?: string): Promise<string | und
   return undefined;
 }
 
+/**
+ * True when the database holds more than one identity (real multi-tenant
+ * deployment). Used only to keep tenant-scoped reads fail-closed; it never
+ * influences ledger, FIFO or valuation logic.
+ */
+async function hasMultipleUsers(): Promise<boolean> {
+  try {
+    const res = await db.execute(sql`select id from users limit 2`);
+    return res.rows.length > 1;
+  } catch {
+    // Unknown state -> assume multi-tenant and stay fail-closed.
+    return true;
+  }
+}
+
 export type AccountBalance = {
   accountId: string;
   code: string;
@@ -454,9 +469,36 @@ export async function getNetSavingsBetween(from: string, to: string, userId?: st
   return res[0]?.net ?? "0";
 }
 
+/**
+ * Net-worth snapshot history (newest first) for the CURRENT tenant only.
+ *
+ * Read-only: this touches the `snapshots` history table exclusively — the
+ * ledger, FIFO lots and every accounting primitive stay untouched. Isolation
+ * is enforced in SQL (`where user_id = :currentUserId`), never by filtering
+ * in application code, so one user's history can never reach another user's
+ * dashboard, delta badge or chart.
+ */
+export async function getSnapshotSeries(limit = 40, userId?: string) {
+  const u = await resolveQueryUserId(userId);
+  // Fail-closed: in a multi-tenant database an unresolved identity must never
+  // fall back to a global (cross-user) read of the history table.
+  if (!u && (await hasMultipleUsers())) return [];
+  return rows<{ asOf: string; netWorth: string; totalAssets: string; totalLiabilities: string; baseCurrency: string }>(sql`
+    select as_of::text as "asOf", net_worth::text as "netWorth",
+           total_assets::text as "totalAssets", total_liabilities::text as "totalLiabilities",
+           base_currency as "baseCurrency"
+    from snapshots
+    where 1=1
+      ${u ? sql`and user_id = ${u}` : sql``}
+    order by as_of desc
+    limit ${limit}
+  `);
+}
+
 /** Snapshot nearest to (and not after) a date — Net Worth range baselines. */
 export async function getSnapshotAsOf(isoDate: string, userId?: string) {
   const u = await resolveQueryUserId(userId);
+  if (!u && (await hasMultipleUsers())) return null;
   const res = await rows<{ asOf: string; netWorth: string; totalAssets: string; totalLiabilities: string }>(sql`
     select as_of::text as "asOf", net_worth::text as "netWorth",
            total_assets::text as "totalAssets", total_liabilities::text as "totalLiabilities"
@@ -472,6 +514,7 @@ export async function getSnapshotAsOf(isoDate: string, userId?: string) {
 /** Earliest snapshot on/after a date — used when no prior baseline exists. */
 export async function getFirstSnapshotAfter(isoDate: string, userId?: string) {
   const u = await resolveQueryUserId(userId);
+  if (!u && (await hasMultipleUsers())) return null;
   const res = await rows<{ asOf: string; netWorth: string; totalAssets: string; totalLiabilities: string }>(sql`
     select as_of::text as "asOf", net_worth::text as "netWorth",
            total_assets::text as "totalAssets", total_liabilities::text as "totalLiabilities"

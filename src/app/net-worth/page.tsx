@@ -1,14 +1,12 @@
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
-import { desc } from "drizzle-orm";
-import { db } from "@/db";
-import { snapshots } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import {
   getFirstSnapshotAfter,
   getLiabilitiesTotal,
   getNetSavingsBetween,
   getSnapshotAsOf,
+  getSnapshotSeries,
 } from "@/features/ledger/queries";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { getAnalyticsSummary } from "@/features/analytics/service";
@@ -77,22 +75,25 @@ function bucketize(byClass: { className: string; color: string; value: string; s
 }
 
 export default async function NetWorthPage({ searchParams }: { searchParams: SearchParams }) {
-  await ensureAuth();
+  const user = await ensureAuth();
   await seedIfEmpty();
+  const userId = (user as { id?: string } | null)?.id;
   const sp = await searchParams;
   const range = RANGES.some((r) => r.key === sp.range) ? (sp.range as string) : "6M";
   const today = todayIso();
   const from = fromDateFor(range, today);
 
   const [nw, snaps, analytics, fx] = await Promise.all([
-    getCurrentNetWorth(),
-    db.select().from(snapshots).orderBy(desc(snapshots.asOf)).limit(420),
+    getCurrentNetWorth(userId),
+    // Snapshot history is tenant-scoped — never read another account's rows.
+    getSnapshotSeries(420, userId),
     getAnalyticsSummary(),
     getLatestUsdIrtRate(),
   ]);
 
-  const baseline = (await getSnapshotAsOf(from)) ?? (await getFirstSnapshotAfter(from)) ?? null;
-  const liabilitiesNow = await getLiabilitiesTotal();
+  const baseline =
+    (await getSnapshotAsOf(from, userId)) ?? (await getFirstSnapshotAfter(from, userId)) ?? null;
+  const liabilitiesNow = await getLiabilitiesTotal(userId);
 
   const nwNow = D(nw.netWorth);
   const deltaAbs = baseline ? nwNow.sub(baseline.netWorth) : D("0");
@@ -108,7 +109,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
   }
   series.push({ date: today, value: Number(nw.netWorth) });
 
-  const savings = baseline ? D(await getNetSavingsBetween(baseline.asOf, today)) : D("0");
+  const savings = baseline ? D(await getNetSavingsBetween(baseline.asOf, today, userId)) : D("0");
   const debtReduction = baseline ? D(baseline.totalLiabilities).sub(liabilitiesNow) : D("0");
   const marketAndRevaluation = deltaAbs.sub(savings).sub(debtReduction);
 
