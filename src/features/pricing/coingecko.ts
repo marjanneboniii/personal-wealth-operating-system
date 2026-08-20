@@ -7,9 +7,17 @@
  */
 import type { CoinGeckoCatalogAsset, PriceFailureCode } from "./types";
 
-const DEFAULT_TIMEOUT_MS = 4_000;
+const DEFAULT_TIMEOUT_MS = 8_000;
 const PUBLIC_BASE_URL = "https://api.coingecko.com/api/v3";
 const PRO_BASE_URL = "https://pro-api.coingecko.com/api/v3";
+
+type CoinGeckoPlan = "demo" | "pro";
+
+function resolvePlan(apiKey: string | null, explicit?: string | null): CoinGeckoPlan {
+  if (!apiKey) return "demo";
+  const plan = (explicit ?? process.env.COINGECKO_API_PLAN ?? "demo").trim().toLowerCase();
+  return plan === "pro" ? "pro" : "demo";
+}
 
 export class CoinGeckoRequestError extends Error {
   constructor(
@@ -26,6 +34,8 @@ export type CoinGeckoClientOptions = {
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
   apiKey?: string | null;
+  /** Free Demo keys must hit api.coingecko.com; Pro keys use pro-api. */
+  plan?: CoinGeckoPlan;
   baseUrl?: string;
 };
 
@@ -57,20 +67,24 @@ export class CoinGeckoClient {
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
   private readonly apiKey: string | null;
+  private readonly plan: CoinGeckoPlan;
   private readonly baseUrl: string;
 
   constructor(options: CoinGeckoClientOptions = {}) {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.apiKey = options.apiKey === undefined ? process.env.COINGECKO_API_KEY ?? null : options.apiKey;
-    this.baseUrl = options.baseUrl ?? (this.apiKey ? PRO_BASE_URL : PUBLIC_BASE_URL);
+    this.plan = resolvePlan(this.apiKey, options.plan);
+    this.baseUrl = options.baseUrl ?? (this.plan === "pro" && this.apiKey ? PRO_BASE_URL : PUBLIC_BASE_URL);
   }
 
   private async request(path: string, query: URLSearchParams): Promise<unknown> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (this.apiKey) headers["x-cg-pro-api-key"] = this.apiKey;
+    if (this.apiKey) {
+      headers[this.plan === "pro" ? "x-cg-pro-api-key" : "x-cg-demo-api-key"] = this.apiKey;
+    }
 
     try {
       const response = await this.fetchImpl(`${this.baseUrl}${path}?${query.toString()}`, {

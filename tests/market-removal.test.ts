@@ -49,7 +49,7 @@ test("CoinGecko pricing has no Accounting mutation dependency and manual current
   // The pricing CORE stays database-free: it can never touch the ledger, and
   // has no direct DB/schema or mutation primitive. Persistence is delegated to
   // a dedicated last-known-price adapter (covered below).
-  const pricing = ["coingecko.ts", "service.ts"]
+  const pricing = ["coingecko.ts", "service.ts", "publicSpotQuotes.ts"]
     .map((file) => readFileSync(join(root, "src/features/pricing", file), "utf8"))
     .join("\n");
   for (const dependency of [

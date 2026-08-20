@@ -29,15 +29,15 @@ test("CoinGecko current price is Fresh, then explicitly Stale after a failed ref
   };
   const client = new CoinGeckoClient({ fetchImpl, apiKey: null });
 
-  const fresh = await getCurrentUsdPrices([identity], { client, now: 1_000_000 });
+  const fresh = await getCurrentUsdPrices([identity], { client, now: 1_000_000, spotQuotes: null });
   assert.equal(fresh.get("bitcoin")?.priceUsd, "100000");
   assert.equal(fresh.get("bitcoin")?.freshness, "fresh");
 
-  const cached = await getCurrentUsdPrices([identity], { client, now: 1_030_000 });
+  const cached = await getCurrentUsdPrices([identity], { client, now: 1_030_000, spotQuotes: null });
   assert.equal(cached.get("bitcoin")?.freshness, "fresh");
   assert.equal(calls, 1, "market-level TTL cache avoids duplicate API calls");
 
-  const stale = await getCurrentUsdPrices([identity], { client, now: 1_061_000 });
+  const stale = await getCurrentUsdPrices([identity], { client, now: 1_061_000, spotQuotes: null });
   assert.equal(stale.get("bitcoin")?.priceUsd, "100000");
   assert.equal(stale.get("bitcoin")?.freshness, "stale");
   assert.equal(stale.get("bitcoin")?.failureCode, "upstream_error");
@@ -45,7 +45,7 @@ test("CoinGecko current price is Fresh, then explicitly Stale after a failed ref
 
 test("CoinGecko outage without cache is Unavailable, never a manual fallback", async () => {
   const client = new CoinGeckoClient({ fetchImpl: async () => response({}, 429), apiKey: null });
-  const result = await getCurrentUsdPrices([identity], { client, now: 2_000_000 });
+  const result = await getCurrentUsdPrices([identity], { client, now: 2_000_000, spotQuotes: null });
   assert.equal(result.get("bitcoin")?.priceUsd, null);
   assert.equal(result.get("bitcoin")?.freshness, "unavailable");
   assert.equal(result.get("bitcoin")?.failureCode, "rate_limited");
@@ -77,7 +77,11 @@ test("timeout/network/invalid response/asset-not-found states are classified", a
   );
 
   const missingClient = new CoinGeckoClient({ fetchImpl: async () => response({}), apiKey: null });
-  const missing = await getCurrentUsdPrices([identity], { client: missingClient, now: 3_000_000 });
+  const missing = await getCurrentUsdPrices([identity], {
+    client: missingClient,
+    now: 3_000_000,
+    spotQuotes: null,
+  });
   assert.equal(missing.get("bitcoin")?.freshness, "unavailable");
   assert.equal(missing.get("bitcoin")?.failureCode, "asset_not_found");
 });
@@ -97,6 +101,34 @@ test("API key is sent only in a server request header and never returned", async
   const result = await client.fetchUsdPrices(["bitcoin"]);
   assert.equal(result.get("bitcoin")?.priceUsd, "100000");
   assert.equal(capturedUrl.includes("server-secret"), false);
-  assert.equal((capturedHeaders as Record<string, string>)["x-cg-pro-api-key"], "server-secret");
+  assert.equal((capturedHeaders as Record<string, string>)["x-cg-demo-api-key"], "server-secret");
   assert.equal(JSON.stringify([...result.entries()]).includes("server-secret"), false);
+});
+
+test("Pro plan key uses the Pro header and host", async () => {
+  let capturedUrl = "";
+  let capturedHeaders: HeadersInit | undefined;
+  const client = new CoinGeckoClient({
+    apiKey: "pro-secret",
+    plan: "pro",
+    fetchImpl: async (input, init) => {
+      capturedUrl = String(input);
+      capturedHeaders = init?.headers;
+      return response({ bitcoin: { usd: 100000 } });
+    },
+  });
+  await client.fetchUsdPrices(["bitcoin"]);
+  assert.equal(capturedUrl.startsWith("https://pro-api.coingecko.com/"), true);
+  assert.equal((capturedHeaders as Record<string, string>)["x-cg-pro-api-key"], "pro-secret");
+});
+
+test("public spot quotes fill a CoinGecko outage with a live market price", async () => {
+  const client = new CoinGeckoClient({ fetchImpl: async () => response({}, 429), apiKey: null });
+  const spotQuotes = {
+    fetchUsdPrices: async () =>
+      new Map([["bitcoin", { priceUsd: "101234.5", observedAt: "2026-08-20T00:00:00.000Z" }]]),
+  };
+  const result = await getCurrentUsdPrices([identity], { client, now: 4_000_000, spotQuotes });
+  assert.equal(result.get("bitcoin")?.priceUsd, "101234.5");
+  assert.equal(result.get("bitcoin")?.freshness, "fresh");
 });
