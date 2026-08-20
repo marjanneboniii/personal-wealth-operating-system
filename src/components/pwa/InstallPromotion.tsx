@@ -126,7 +126,7 @@ export default function InstallPromotion({
                   aria-haspopup="dialog"
                   aria-expanded={guideOpen}
                 >
-                  Download iOS
+                  نصب روی آیفون
                 </button>
               )}
               {canPrompt && (

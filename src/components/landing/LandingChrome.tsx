@@ -6,24 +6,26 @@ import { DownloadIosButton } from "@/components/pwa/IosInstallGuide";
 export function LandingHeader() {
   return (
     <header className="landing-header">
-      <div className="landing-wrap flex items-center justify-between gap-3 py-3">
-        <Link href="/" className="flex min-h-12 items-center gap-2" aria-label="وِزان — صفحه معرفی">
+      <div className="landing-wrap landing-header-inner">
+        <Link href="/" className="landing-brand" aria-label="وِزان — سیستم‌عامل ثروت شخصی">
           <span
-            className="flex h-9 w-9 items-center justify-center rounded-[10px]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
             style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
           >
             <BrandMark size={20} />
           </span>
-          <span className="leading-tight">
+          <span className="min-w-0 leading-tight">
             <span className="block text-[15px] font-bold tracking-tight">وِزان</span>
             <span className="muted hidden text-[10px] sm:block">سیستم‌عامل ثروت شخصی</span>
           </span>
         </Link>
-        <nav className="flex items-center gap-1 sm:gap-2" aria-label="ورود به محصول">
+        <nav className="landing-header-nav" aria-label="ورود به محصول">
           <ThemeToggleButton />
-          <DownloadIosButton className="hidden !min-h-12 !px-3 text-[13px] sm:inline-flex sm:!px-4" variant="ghost" />
-          <Link href="/login" className="btn btn-ghost !min-h-12 !px-3 text-[13px] sm:!px-4">
-            ورود به سیستم
+          <span className="hidden sm:inline-flex">
+            <DownloadIosButton className="!min-h-12 !px-3 text-[13px] sm:!px-4" variant="ghost" />
+          </span>
+          <Link href="/login" className="btn btn-ghost !min-h-12 !px-2.5 text-[13px] sm:!px-4">
+            ورود
           </Link>
           <Link href="/register" className="btn btn-primary !min-h-12 !px-3 text-[13px] sm:!px-4">
             ایجاد حساب

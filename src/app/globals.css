@@ -969,13 +969,21 @@ select.field {
 
 .landing {
   min-height: 100dvh;
+  max-width: 100%;
+  overflow-x: clip;
   background: var(--bg);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
 .landing-wrap {
-  width: min(1120px, calc(100% - 2rem));
+  width: min(1120px, calc(100% - 2rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
   margin-inline: auto;
+}
+
+@media (max-width: 359px) {
+  .landing-wrap {
+    width: min(1120px, calc(100% - 1.5rem));
+  }
 }
 
 .landing-header {
@@ -987,12 +995,37 @@ select.field {
   background: color-mix(in oklab, var(--bg) 86%, transparent);
   border-bottom: 1px solid var(--border);
   padding-top: env(safe-area-inset-top);
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+}
+
+.landing-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-block: 0.65rem;
+  min-height: 3.5rem;
+}
+
+.landing-brand {
+  display: flex;
+  min-height: 44px;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.landing-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
 }
 
 .landing-hero {
   display: grid;
-  gap: 2rem;
-  padding: 1.75rem 0 2rem;
+  gap: 1.75rem;
+  padding: 1.35rem 0 1.75rem;
 }
 
 @media (min-width: 960px) {
@@ -1007,43 +1040,91 @@ select.field {
 .landing-kicker {
   font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: var(--brand);
+  line-height: 1.6;
 }
 
 .landing-display {
-  margin-top: 0.65rem;
-  font-size: clamp(1.65rem, 5.4vw, 3.05rem);
+  margin-top: 0.55rem;
+  font-size: clamp(1.55rem, 6.4vw, 3.05rem);
   font-weight: 700;
   letter-spacing: -0.03em;
-  line-height: 1.25;
+  line-height: 1.35;
+  text-wrap: balance;
 }
 
 .landing-lede {
-  margin-top: 0.85rem;
+  margin-top: 0.75rem;
   max-width: 34rem;
-  font-size: 0.98rem;
-  line-height: 1.75;
+  font-size: 0.92rem;
+  line-height: 1.8;
   color: var(--text-2);
+  text-wrap: pretty;
+}
+
+@media (min-width: 640px) {
+  .landing-lede {
+    font-size: 0.98rem;
+    line-height: 1.75;
+  }
+}
+
+.landing-cta-cluster {
+  margin-top: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+@media (min-width: 640px) {
+  .landing-cta-cluster {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.landing-cta-cluster-center {
+  justify-content: center;
 }
 
 .landing-section {
-  padding: 1.75rem 0 1.25rem;
+  padding: 1.75rem 0;
+}
+
+@media (min-width: 960px) {
+  .landing-section {
+    padding: 2.75rem 0;
+  }
 }
 
 .landing-h2 {
-  font-size: clamp(1.15rem, 2.4vw, 1.55rem);
+  font-size: clamp(1.12rem, 2.4vw, 1.55rem);
   font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1.35;
+  line-height: 1.45;
+  text-wrap: balance;
 }
 
 .landing-support {
-  margin-top: 0.5rem;
+  margin-top: 0.65rem;
   max-width: 36rem;
   color: var(--text-2);
   font-size: 0.92rem;
-  line-height: 1.7;
+  line-height: 1.8;
+}
+
+.landing-trust-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+}
+
+.landing-trust-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 
 .landing-card {
@@ -1067,10 +1148,24 @@ select.field {
   color: var(--brand);
 }
 
+.landing-outcomes {
+  margin-top: 0.35rem;
+  max-width: 40rem;
+}
+
+@media (min-width: 800px) {
+  .landing-outcomes {
+    max-width: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 2.75rem;
+  }
+}
+
 .landing-benefit {
   display: flex;
   gap: 0.85rem;
-  padding: 0.85rem 0;
+  padding: 0.95rem 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -1098,17 +1193,13 @@ select.field {
 }
 
 .landing-cta-final {
-  padding: 1.5rem 1.15rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  background: var(--surface);
+  padding: 1.25rem 0 0.25rem;
   text-align: center;
+  border-top: 1px solid var(--border);
 }
 
-@media (min-width: 640px) {
-  .landing-cta-final {
-    padding: 1.75rem 2rem;
-  }
+.landing-cta-final .landing-support {
+  margin-inline: auto;
 }
 
 .landing-preview {
@@ -1117,29 +1208,78 @@ select.field {
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .landing-preview-chrome {
   display: flex;
-  gap: 6px;
-  padding: 0.65rem 0.9rem;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.9rem;
   border-bottom: 1px solid var(--border);
   background: var(--sunken);
 }
 
-.landing-preview-chrome span {
+.landing-preview-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.landing-preview-dots span {
   width: 8px;
   height: 8px;
   border-radius: 99px;
   background: var(--border-strong);
 }
 
+.landing-preview-badge {
+  margin-inline-start: auto;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--text-3);
+  line-height: 1.4;
+}
+
 .landing-preview-body {
-  padding: 1rem 1.1rem 1.2rem;
+  padding: 1rem 1.05rem 1.15rem;
+}
+
+.landing-preview-hero-amount {
+  margin-top: 0.2rem;
+  font-size: clamp(1.2rem, 4.6vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
+.landing-preview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+
+.landing-preview-amount {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.55;
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 640px) {
+  .landing-preview-amount {
+    font-size: 0.92rem;
+  }
 }
 
 .landing-footer {
-  margin-top: 2rem;
+  margin-top: 1.5rem;
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -1175,12 +1315,14 @@ select.field {
 
 .ios-guide {
   width: 100%;
-  max-height: 92dvh;
+  max-width: 100%;
+  max-height: 94dvh;
 }
 
 @media (min-width: 640px) {
   .ios-guide {
     width: min(520px, calc(100% - 2rem));
+    max-width: 560px;
     max-height: 85dvh;
   }
 }

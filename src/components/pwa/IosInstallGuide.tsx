@@ -137,7 +137,7 @@ export function IosInstallGuide({
           <button
             ref={closeRef}
             type="button"
-            className="icon-btn"
+            className="icon-btn !min-h-12 !min-w-12"
             onClick={onClose}
             aria-label="بستن"
           >
@@ -167,35 +167,26 @@ export function IosInstallGuide({
           <ol className="mt-6 space-y-3 text-right">
             <li className="ios-guide-step">
               <span className="ios-guide-num" aria-hidden="true">
-                1
+                ۱
               </span>
-              <span>
-                <span className="flex items-center gap-1.5 font-semibold">
-                  <Icon name="share" size={15} />
-                  Share
-                </span>
-                <span className="sub mt-0.5 block text-[13px] leading-6">1. در Safari روی دکمه Share بزنید.</span>
+              <span className="flex min-h-11 items-center gap-1.5 leading-6">
+                <Icon name="share" size={15} />
+                در Safari روی دکمه Share بزنید.
               </span>
             </li>
             <li className="ios-guide-step">
               <span className="ios-guide-num" aria-hidden="true">
-                2
+                ۲
               </span>
-              <span>
-                <span className="font-semibold">Add to Home Screen</span>
-                <span className="sub mt-0.5 block text-[13px] leading-6">
-                  {'2. از منو گزینه "Add to Home Screen" را انتخاب کنید.'}
-                </span>
+              <span className="flex min-h-11 items-center leading-6">
+                از منو گزینه «Add to Home Screen» را انتخاب کنید.
               </span>
             </li>
             <li className="ios-guide-step">
               <span className="ios-guide-num" aria-hidden="true">
-                3
+                ۳
               </span>
-              <span>
-                <span className="font-semibold">Add</span>
-                <span className="sub mt-0.5 block text-[13px] leading-6">{'3. در مرحله آخر روی "Add" بزنید.'}</span>
-              </span>
+              <span className="flex min-h-11 items-center leading-6">در مرحله آخر روی «Add» بزنید.</span>
             </li>
           </ol>
 
@@ -216,7 +207,7 @@ function subscribeStandalone(cb: () => void) {
 
 export function DownloadIosButton({
   className = "",
-  children = "Download iOS",
+  children = "نصب روی آیفون",
   variant = "ghost",
 }: {
   className?: string;
@@ -238,6 +229,7 @@ export function DownloadIosButton({
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-label="نصب روی آیفون"
       >
         <Icon name="download" size={15} />
         {children}
