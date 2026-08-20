@@ -1199,6 +1199,13 @@ select.field {
   justify-content: center;
 }
 
+.landing-hero-note {
+  margin-top: 0.85rem;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: rgba(242, 240, 233, 0.7);
+}
+
 .landing-band {
   background: var(--bg-page);
 }

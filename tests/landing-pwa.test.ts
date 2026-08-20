@@ -33,7 +33,7 @@ test("Landing — Shell paints standalone public chrome without app nav", () => 
   assert.match(shell, /usePwaInstallState/);
 });
 
-test("Landing — Persian RTL conversion page with primary CTA ایجاد حساب", () => {
+test("Landing — Persian RTL conversion page with primary CTA شروع رایگان", () => {
   const landing = read("src/components/landing/LandingPage.tsx");
   const chrome = read("src/components/landing/LandingChrome.tsx");
   const layout = read("src/app/layout.tsx");
@@ -44,11 +44,13 @@ test("Landing — Persian RTL conversion page with primary CTA ایجاد حسا
   assert.match(landing, /سیستم‌عامل ثروت شخصی/);
   assert.match(
     landing,
-    /دارایی‌ها، بدهی‌ها، نقدینگی و ارزش خالص خود را در یک نمای روشن ببینید و با اطمینان بیشتری/,
+    /دیگر لازم نیست بین اکسل، اپلیکیشن بانک و یادداشت‌های پراکنده سرگردان باشید/,
   );
-  assert.match(landing, /ایجاد حساب/);
-  assert.match(landing, /ورود/);
-  assert.match(landing, /DownloadIosButton/);
+  assert.match(landing, /شروع رایگان/);
+  // «ورود» stays visually secondary (ghost) next to the single primary CTA.
+  assert.match(landing, /btn-ghost/);
+  // iOS install lives in the header chrome, not in the hero CTA row.
+  assert.doesNotMatch(landing, /DownloadIosButton/);
   assert.match(landing, /href=\"\/login\"/);
   assert.match(landing, /href=\"\/register\"/);
   assert.match(chrome, /href=\"\/login\"/);
@@ -68,25 +70,44 @@ test("Landing — Persian RTL conversion page with primary CTA ایجاد حسا
   assert.doesNotMatch(chrome, /ورود به سیستم/);
 });
 
-test("Landing — four primary outcomes, transactions not primary, terminology stable", () => {
+test("Landing — four primary outcomes, how-it-works, FAQ, and final CTA copy", () => {
   const landing = read("src/components/landing/LandingPage.tsx");
 
-  assert.match(landing, /آنچه در یک نگاه می‌بینید/);
+  assert.match(landing, /هر عدد، یک تصمیم بهتر/);
   assert.match(landing, /ارزش خالص/);
-  assert.match(landing, /ارزش واقعی ثروت شما پس از کسر بدهی‌ها/);
+  assert.match(landing, /بدانید امسال واقعاً ثروتمندتر شده‌اید یا نه/);
   assert.match(landing, /دارایی‌ها/);
-  assert.match(landing, /تمام دارایی‌های شما، در یک تصویر واحد/);
+  assert.match(landing, /از حساب بانکی تا ملک و طلا، همه‌جا یک‌جا/);
   assert.match(landing, /بدهی‌ها/);
-  assert.match(landing, /تمام تعهدات مالی شما، شفاف و در کنار دارایی‌ها/);
+  assert.match(landing, /هیچ قسط یا بدهی‌ای از چشمتان دور نمی‌ماند/);
   assert.match(landing, /نقدینگی/);
-  assert.match(landing, /آنچه امروز برای استفاده در دسترس شماست/);
+  assert.match(landing, /همین امروز بدانید چقدر پول واقعی در دست دارید/);
   assert.match(landing, /خصوصی، شفاف، تحت کنترل شما/);
-  assert.match(landing, /تصویر مالی‌تان را یکجا ببینید/);
-  assert.match(landing, /ارزش خالص، دارایی‌ها، بدهی‌ها و نقدینگی خود را در یک نمای روشن مدیریت کنید/);
+  assert.match(landing, /همین امروز تصویر مالی‌تان را روشن کنید/);
+  assert.match(landing, /ثبت‌نام ساده است و نیازی به کارت بانکی ندارد/);
+
+  // New sections: how-it-works (3 steps) and FAQ accordion (4 questions).
+  assert.match(landing, /شروع، ساده‌تر از یک صفحه‌گسترده/);
+  assert.match(landing, /دارایی‌ها و بدهی‌هایتان را اضافه کنید/);
+  assert.match(landing, /توازن خودکار محاسبه می‌کند/);
+  assert.match(landing, /با یک نگاه تصمیم بگیرید/);
+  assert.match(landing, /سوالات متداول/);
+  assert.match(landing, /آیا استفاده از توازن رایگان است؟/);
+  assert.match(landing, /آیا باید حساب بانکی‌ام را وصل کنم؟/);
+  assert.match(landing, /اطلاعات مالی من کجا ذخیره می‌شود و چقدر امن است؟/);
+  assert.match(landing, /آیا می‌توانم چند نوع دارایی مختلف/);
+  assert.match(landing, /<details/);
+  assert.match(landing, /<summary/);
+
+  // Hero trust note and demo caption.
+  assert.match(landing, /بدون نیاز به اتصال حساب بانکی/);
+  assert.match(landing, /یک نمونه واقعی از داشبورد توازن/);
 
   assert.doesNotMatch(landing, /title: \"تراکنش‌ها\"/);
   assert.doesNotMatch(landing, /title: \"نقد\"/);
   assert.doesNotMatch(landing, /label: \"نقد\"/);
+  assert.doesNotMatch(landing, /آنچه در یک نگاه می‌بینید/);
+  assert.doesNotMatch(landing, /تصویر مالی‌تان را یکجا ببینید/);
 });
 
 test("Landing — product preview uses static Toman samples with Persian digits", () => {
