@@ -631,6 +631,11 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       } else if (input.type === "transfer") {
         if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
         if (!isUuid(input.counterAccountId)) throw new Error("حساب مقابل را انتخاب کنید");
+        const [fromRow] = await tx.select({ id: accounts.id, type: accounts.type }).from(accounts).where(eq(accounts.id, input.primaryAccountId)).limit(1);
+        const [toRow] = await tx.select({ id: accounts.id, type: accounts.type }).from(accounts).where(eq(accounts.id, input.counterAccountId)).limit(1);
+        if (!fromRow || fromRow.type !== "asset") throw new Error("حساب مبدأ انتقال نامعتبر است (باید حساب دارایی باشد)");
+        if (!toRow || toRow.type !== "asset") throw new Error("حساب مقصد انتقال نامعتبر است (باید حساب دارایی باشد)");
+
         const assetId = await accountAsset(input.primaryAccountId);
         const destAssetId = await accountAsset(input.counterAccountId);
         if (assetId !== destAssetId) {
@@ -685,6 +690,11 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       } else {
         if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
         if (!isUuid(input.counterAccountId)) throw new Error("حساب مقابل را انتخاب کنید");
+        const [primaryRow] = await tx.select({ id: accounts.id, type: accounts.type }).from(accounts).where(eq(accounts.id, input.primaryAccountId)).limit(1);
+        const [counterRow] = await tx.select({ id: accounts.id, type: accounts.type }).from(accounts).where(eq(accounts.id, input.counterAccountId)).limit(1);
+        if (!primaryRow || primaryRow.type !== "asset") throw new Error("حساب دارایی نامعتبر است (باید حساب دارایی باشد)");
+        if (!counterRow || counterRow.type !== "asset") throw new Error("حساب واریز/پرداخت نقدی نامعتبر است (باید حساب نقد/بانک باشد)");
+
         const assetId = await accountAsset(input.primaryAccountId);
         const cashAssetId = await accountAsset(input.counterAccountId);
         const cashPrice = await latestPrice(cashAssetId, authUser?.id ?? null);
