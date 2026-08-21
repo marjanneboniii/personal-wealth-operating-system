@@ -95,7 +95,7 @@ export function PreviewCard({ title, children }: { title: string; children: Reac
     <div className="card soft p-4 space-y-2 border" style={{ borderColor: "var(--brand)" }}>
       <div className="text-xs font-bold" style={{ color: "var(--brand)" }}>{title}</div>
       {children}
-      <div className="muted text-[10px]">این پیش‌نمایش فقط نمایشی است — هیچ اطلاعاتی تا قبل از «تأیید نهایی» در دفترکل ثبت نمی‌شود.</div>
+      <div className="muted text-[10px]">این پیش‌نمایش فقط نمایشی است — تا قبل از «تأیید نهایی» هیچ تغییری ثبت نمی‌شود.</div>
     </div>
   );
 }
