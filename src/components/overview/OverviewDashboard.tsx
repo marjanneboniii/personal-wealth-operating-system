@@ -15,7 +15,7 @@ import Icon from "@/components/ui/Icon";
 import { humanizeEntry } from "@/lib/tx";
 import { D } from "@/domain/decimal";
 import { formatMoney, formatPct, formatShortDate, toJalali, faCount } from "@/lib/format";
-import { getLatestUsdIrtRate } from "@/lib/fx";
+import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
 export const dynamic = "force-dynamic";
@@ -38,18 +38,36 @@ export default async function OverviewDashboard() {
 
   const userId = (user as { id?: string } | null)?.id;
 
-  const [setupState, nw, snaps, tx, insts, flow, projection, unreviewed, fx] = await Promise.all([
-    getSetupState(userId),
-    getCurrentNetWorth(userId),
-    // Net-worth history is per user: the delta badge and the chart must never
-    // read another account's snapshots.
-    getSnapshotSeries(40, userId),
-    getTransactions({ limit: 6 }),
-    upcomingInstallments(3),
-    getCashflow(6),
-    projectCashflow(6),
-    countUnreviewed(),
-    getLatestUsdIrtRate(),
+  // The headline valuation is the primary record on this page, so let an error
+  // there surface normally rather than displaying a potentially misleading
+  // number. The remaining reads are independent convenience widgets. A failed
+  // optional widget (for example, an old deployment whose debt migration has
+  // not been applied yet) must not make the entire overview unavailable.
+  const nw = await getCurrentNetWorth(userId);
+  const unavailableWidgets: string[] = [];
+  const optionalRead = async <T,>(widget: string, fallback: T, read: () => Promise<T>): Promise<T> => {
+    try {
+      return await read();
+    } catch (error) {
+      unavailableWidgets.push(widget);
+      // Keep the operational detail in server logs, where it can be matched to
+      // the Next.js digest, without exposing database internals to the user.
+      console.error(`[overview] ${widget} could not be loaded`, error);
+      return fallback;
+    }
+  };
+
+  const [setupState, snaps, tx, insts, flow, projection, unreviewed, fx] = await Promise.all([
+    optionalRead("setup state", { completed: false, currentStep: 1 }, () => getSetupState(userId)),
+    // Net-worth history is per user: the delta badge and chart must never read
+    // another account's snapshots.
+    optionalRead("net-worth history", [], () => getSnapshotSeries(40, userId)),
+    optionalRead("recent activity", [], () => getTransactions({ limit: 6, userId })),
+    optionalRead("upcoming installments", [], () => upcomingInstallments(3, userId)),
+    optionalRead("cash flow", [], () => getCashflow(6, userId)),
+    optionalRead("cash-flow projection", { startingLiquidity: "0", netWorth: "0", points: [], scenario: "base" as const }, () => projectCashflow(6, "base", userId)),
+    optionalRead("unreviewed transactions", 0, () => countUnreviewed(userId)),
+    optionalRead("exchange rate", { rate: "190000", effectiveDate: new Date().toISOString().slice(0, 10), source: "fallback" }, () => getLatestUsdIrtRateForUser(userId)),
   ]);
 
   const staleCount = nw.valuation.priceStatus.stale + nw.valuation.priceStatus.unavailable;
@@ -117,6 +135,11 @@ export default async function OverviewDashboard() {
 
   return (
     <div className="space-y-8">
+      {unavailableWidgets.length > 0 && (
+        <Alert tone="warn" icon="alert" title="بخشی از نمای کلی فعلاً در دسترس نیست">
+          اطلاعات اصلی دارایی‌های شما نمایش داده می‌شود، اما برخی کارت‌ها بارگذاری نشدند. این موضوع هیچ تغییری در دفترکل شما ایجاد نکرده است؛ چند لحظه دیگر صفحه را تازه‌سازی کنید.
+        </Alert>
+      )}
       {!setupState.completed && (
         <Alert
           tone="brand"
