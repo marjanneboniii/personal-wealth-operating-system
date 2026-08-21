@@ -112,10 +112,14 @@ export default async function DebtsPage() {
                     <div className="text-left">
                       <p className="muted text-[10.5px]">مانده قابل پرداخت</p>
                       <p className="num text-xl font-bold" dir="rtl" style={{ color: settled ? "var(--positive)" : "var(--negative)" }}>
-                        {formatMoney(settled ? 0 : d.outstandingBase)}
+                        {d.outstandingToman != null
+                          ? formatMoney(settled ? 0 : d.outstandingToman, "IRT")
+                          : formatMoney(settled ? 0 : d.outstandingBase)}
                       </p>
                       <p className="muted num mt-0.5 text-[10.5px]" dir="rtl">
-                        اصل: {formatMoney(d.principalBase)}
+                        {d.outstandingToman != null
+                          ? <>≈ {formatMoney(settled ? 0 : d.outstandingBase)}</>
+                          : <>اصل: {formatMoney(d.principalBase)}</>}
                       </p>
                     </div>
                   </div>
@@ -141,7 +145,7 @@ export default async function DebtsPage() {
                     <p className="text-[12px]" style={{ color: late ? "var(--negative)" : "var(--text-2)" }}>
                       {d.nextDue ? (
                         <>
-                          قسط بعدی: <b className="num">{formatMoney(d.nextDue.amountBase)}</b> ·{" "}
+                          قسط بعدی: <b className="num">{d.nextDue.amountToman != null ? formatMoney(d.nextDue.amountToman, "IRT") : formatMoney(d.nextDue.amountBase)}</b> ·{" "}
                           {dDays != null && dDays < 0 ? (
                             <b>{faCount(Math.abs(dDays))} روز گذشته</b>
                           ) : dDays === 0 ? (

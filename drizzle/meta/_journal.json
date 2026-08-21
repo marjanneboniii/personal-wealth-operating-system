@@ -43,6 +43,13 @@
       "when": 1787142564843,
       "tag": "0005_coingecko_price_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787300382229,
+      "tag": "0006_worthless_gateway",
+      "breakpoints": true
     }
   ]
 }

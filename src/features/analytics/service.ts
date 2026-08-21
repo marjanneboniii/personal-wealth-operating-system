@@ -6,6 +6,7 @@ import {
   portfolioSnapshots,
 } from "@/db/schema";
 import { getPortfolioValuation } from "@/features/portfolio/service";
+import { hasMultipleUsers } from "@/features/ledger/queries";
 import { calculateGrowth } from "./performance";
 import { calculateAttribution } from "./attribution";
 import { calculateBenchmarkComparison } from "./benchmark";
@@ -40,6 +41,31 @@ export async function ensureBenchmarkDefinitions() {
 }
 
 /**
+ * Resolve the tenant for analytics.
+ *
+ * FAIL-CLOSED (multi-user isolation): in a multi-tenant database an analytics
+ * request without a resolved identity must NEVER degrade to a global read —
+ * blending every tenant's net worth, growth, risk, timeline and capital flows
+ * into one user's dashboard is a critical cross-user data leak.
+ *
+ * Legacy single-tenant mode (≤1 user, pre-migration) keeps its global view.
+ */
+async function resolveAnalyticsUserId(explicitUserId?: string): Promise<string | undefined> {
+  if (explicitUserId) return explicitUserId;
+  try {
+    const { getCurrentUser } = await import("@/lib/auth");
+    const u = await getCurrentUser();
+    if (u?.id) return u.id;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) throw e;
+  }
+  if (await hasMultipleUsers()) {
+    throw new Error("Authentication/Database error: Access denied");
+  }
+  return undefined;
+}
+
+/**
  * Service: Wealth Analytics & Performance Intelligence Engine (Phase 2.5)
  *
  * READ-ONLY SYSTEM GUARANTEE:
@@ -51,12 +77,14 @@ export async function ensureBenchmarkDefinitions() {
  * Historical calculation results are never updated or deleted.
  */
 export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDashboardSummary> {
+  const u = await resolveAnalyticsUserId(userId);
+
   const [valuationSummary, rawSnapshots, benchmarks] = await Promise.all([
-    getPortfolioValuation(undefined, userId),
+    getPortfolioValuation(undefined, u),
     db
       .select()
       .from(portfolioSnapshots)
-      .where(userId ? eq(portfolioSnapshots.userId, userId) : sql`1=1`)
+      .where(u ? eq(portfolioSnapshots.userId, u) : sql`1=1`)
       .orderBy(desc(portfolioSnapshots.snapshotDate)),
     ensureBenchmarkDefinitions(),
   ]);
@@ -68,7 +96,7 @@ export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDas
 
   // Use explicit ExternalCapitalFlowProvider abstraction
   const flowProvider = new DefaultExternalCapitalFlowProvider();
-  const capitalFlows = await flowProvider.getExternalCapitalFlows(userId, periodStart, periodEnd);
+  const capitalFlows = await flowProvider.getExternalCapitalFlows(u, periodStart, periodEnd);
 
   const timeline = generateWealthTimeline(
     rawSnapshots.map((s) => ({
@@ -125,9 +153,11 @@ export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDas
     valuationSummary.valuationDate,
   );
 
-  // APPEND-ONLY Execution Tracking: Insert new run metadata into analytics_runs
+  // APPEND-ONLY Execution Tracking: Insert new run metadata into analytics_runs.
+  // The run is scoped to the resolved tenant (never null for an authenticated
+  // multi-tenant user); null is reserved for legacy single-tenant mode.
   await db.insert(analyticsRuns).values({
-    userId: userId ?? null,
+    userId: u ?? null,
     runType: "dashboard",
     periodStart: growth.periodStart,
     periodEnd: growth.periodEnd,

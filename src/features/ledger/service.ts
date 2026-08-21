@@ -14,6 +14,7 @@ import { consumeFifo } from "@/domain/fifo";
 import { D, Decimal } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
 import { recordAuditEvent } from "@/lib/audit";
+import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
 
 export type PostEntryInput = {
   entryDate: string;
@@ -108,13 +109,29 @@ async function resolveServiceUserId(
     if (u?.id) return u.id;
   } catch {}
 
-  // Fallback for standalone single-user test environments
+  // Fallback for standalone single-user test/seed environments.
   try {
     const res = await tx.execute(sql`select id from users limit 2`);
-    if (res.rows.length === 1) {
-      return (res.rows[0] as { id?: string })?.id;
+    const rows = res.rows as { id?: string }[];
+    if (rows.length === 1) {
+      return rows[0]?.id;
     }
-  } catch {}
+    // Multi-tenant database with no resolved identity: a write must NEVER be
+    // attributed to a shared/NULL owner. Deny (fail-closed).
+    if (rows.length > 1) {
+      const err: any = new Error("Authentication/Database error: Access denied");
+      err.code = "UNAUTHORIZED";
+      err.status = 401;
+      throw err;
+    }
+  } catch (e: any) {
+    if (e?.message?.includes("Access denied") || e?.message?.includes("Authentication/Database error")) {
+      throw e;
+    }
+    // If the identity probe itself fails, deny the write rather than post
+    // an unowned entry.
+    throw new Error("Authentication/Database error: Access denied");
+  }
 
   return undefined;
 }
@@ -502,13 +519,18 @@ export async function accountByCode(code: string) {
 
 /**
  * Convert a base-currency amount into the asset units of a given account,
- * using the latest known unit price. Keeps the quantity ledger truthful for
- * non-base assets (IRT, USDT, …) while base values stay balanced.
+ * using the single authoritative unit-price rule (`nativeUnitPriceUsd`).
+ * Keeps the quantity ledger truthful for non-base assets (IRT, USDT, …) while
+ * base values stay balanced.
+ *
+ * For IRT accounts the native unit IS the Toman: quantity = amount × user FX
+ * rate (1 / unit price), never `prices.IRT`.
  */
 export async function unitsFor(
   accountId: string,
   baseAmount: string,
   txClient?: any,
+  userId?: string | null,
 ): Promise<{ assetId: string; quantity: string }> {
   // `txClient ?? db`: when the caller already holds a transaction (e.g. the
   // atomic installment payment), reference reads MUST run inside it — many
@@ -521,10 +543,7 @@ export async function unitsFor(
     .limit(1);
   const assetId = row[0]?.assetId;
   if (!assetId) throw new Error("حساب انتخاب‌شده به هیچ دارایی متصل نیست");
-  const price = await client.execute(
-    sql`select price_base::text as p from prices where asset_id = ${assetId} order by as_of desc limit 1`,
-  );
-  const unit = (price.rows[0] as { p?: string } | undefined)?.p ?? "1";
+  const unit = await nativeUnitPriceUsd(assetId, userId, client);
   const unitDec = D(unit).isZero() ? D("1") : D(unit);
   return { assetId, quantity: D(baseAmount).div(unitDec).toString() };
 }

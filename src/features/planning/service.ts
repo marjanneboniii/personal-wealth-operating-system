@@ -14,8 +14,9 @@ import {
 } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import { postEntry, unitsFor } from "@/features/ledger/service";
-import { getAccountBalances } from "@/features/ledger/queries";
+import { getAccountBalances, hasMultipleUsers } from "@/features/ledger/queries";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
+import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { addMonthsIso, todayIso } from "@/lib/format";
 
 async function resolvePlanningUserId(explicitUserId?: string): Promise<string | undefined> {
@@ -39,6 +40,7 @@ async function resolvePlanningUserId(explicitUserId?: string): Promise<string | 
 
 export async function listGoals(userId?: string) {
   const u = await resolvePlanningUserId(userId);
+  if (!u && (await hasMultipleUsers())) return [];
   const balances = await getAccountBalances(userId);
   const rows = await db
     .select()
@@ -64,6 +66,7 @@ export async function listGoals(userId?: string) {
 
 export async function listFunds(userId?: string) {
   const u = await resolvePlanningUserId(userId);
+  if (!u && (await hasMultipleUsers())) return [];
   const balances = await getAccountBalances(userId);
   const rows = await db
     .select()
@@ -86,6 +89,7 @@ export async function listFunds(userId?: string) {
 /** Budgets with actual spend derived from the ledger (never stored balances). */
 export async function listBudgets(userId?: string) {
   const u = await resolvePlanningUserId(userId);
+  if (!u && (await hasMultipleUsers())) return [];
   const rows = await db
     .select({
       id: budgets.id,
@@ -155,7 +159,12 @@ export async function listBudgets(userId?: string) {
 
 export async function listDebts(userId?: string) {
   const u = await resolvePlanningUserId(userId);
-  const balances = await getAccountBalances(userId);
+  if (!u && (await hasMultipleUsers())) return [];
+  const [balances, fx] = await Promise.all([
+    getAccountBalances(userId),
+    getLatestUsdIrtRateForUser(u ?? null),
+  ]);
+  const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("1");
   const rows = await db
     .select()
     .from(debts)
@@ -168,6 +177,32 @@ export async function listDebts(userId?: string) {
     const bal = balances.find((b) => b.accountId === d.accountId);
     const own = inst.filter((i) => i.debtId === d.id);
     const paid = own.filter((i) => i.status === "paid");
+
+    // Phase 3: contractual Toman amount is the source of truth for new records.
+    // USD equivalents are derived at the CURRENT rate (dynamic while unpaid).
+    if (d.principalToman != null) {
+      const principalToman = D(d.principalToman);
+      const paidToman = paid.reduce(
+        (sum, i) => sum.add(i.amountToman != null ? D(i.amountToman) : Decimal.zero()),
+        Decimal.zero(),
+      );
+      const remaining = principalToman.sub(paidToman);
+      const outstandingToman = remaining.isNegative() ? Decimal.zero() : remaining;
+      return {
+        ...d,
+        principalToman: principalToman.toString(),
+        outstandingToman: outstandingToman.toString(),
+        // Legacy-compatible USD fields derived dynamically (never stored as truth).
+        principalBase: principalToman.div(rate).toString(),
+        outstandingBase: outstandingToman.div(rate).toString(),
+        installments: own,
+        paidCount: paid.length,
+        totalCount: own.length,
+        nextDue: own.find((i) => i.status === "pending") ?? null,
+      };
+    }
+
+    // Legacy records: unchanged behavior (USD from ledger or planning).
     // Planning-only debts have no liability account yet. Their visible
     // outstanding amount still decreases when a linked installment is marked
     // paid, while ledger-backed debts continue to use the ledger balance.
@@ -180,6 +215,8 @@ export async function listDebts(userId?: string) {
         : planningOutstanding;
     return {
       ...d,
+      principalToman: null,
+      outstandingToman: null,
       outstandingBase: outstanding.toString(),
       installments: own,
       paidCount: paid.length,
@@ -191,12 +228,14 @@ export async function listDebts(userId?: string) {
 
 export async function upcomingInstallments(limit = 8, userId?: string) {
   const u = await resolvePlanningUserId(userId);
+  if (!u && (await hasMultipleUsers())) return [];
   return db
     .select({
       id: installments.id,
       seq: installments.seq,
       dueDate: installments.dueDate,
       amountBase: installments.amountBase,
+      amountToman: installments.amountToman,
       status: installments.status,
       debtTitle: debts.title,
       creditor: debts.creditor,
@@ -231,6 +270,10 @@ export async function upcomingInstallments(limit = 8, userId?: string) {
  */
 export async function payInstallment(installmentId: string, cashAccountId: string, userId?: string) {
   const u = userId ?? (await resolvePlanningUserId(undefined));
+  // Fail-closed: a settlement write must never target a shared/NULL tenant.
+  if (!u && (await hasMultipleUsers())) {
+    throw new Error("Authentication/Database error: Access denied");
+  }
   return db.transaction(async (tx) => {
     // 1) Validate installment - row lock first so a concurrent payment of the
     //    same installment serializes behind us and sees the updated status.
@@ -259,8 +302,8 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     const amount = D(inst.amountBase);
     // Reference reads run INSIDE the transaction (single-connection drivers
     // hold an exclusive lock during it) — keeps the read set consistent too.
-    const cashUnits = await unitsFor(cashAccountId, amount.toString(), tx);
-    const debtUnits = await unitsFor(debt.accountId, amount.toString(), tx);
+    const cashUnits = await unitsFor(cashAccountId, amount.toString(), tx, u);
+    const debtUnits = await unitsFor(debt.accountId, amount.toString(), tx, u);
 
     // 4) Post the ledger movement through the EXISTING single write path,
     //    inside this same transaction so it commits or rolls back atomically.
@@ -311,6 +354,7 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
 
 export async function listPlanned(userId?: string) {
   const u = await resolvePlanningUserId(userId);
+  if (!u && (await hasMultipleUsers())) return [];
   return db
     .select()
     .from(plannedTransactions)
@@ -341,8 +385,8 @@ export async function executePlanned(id: string) {
 
   const amount = D(plan.amountBase);
   const outflow = plan.direction === "outflow";
-  const cashUnits = await unitsFor(cashId, amount.toString());
-  const counterUnits = await unitsFor(counterId, amount.toString());
+  const cashUnits = await unitsFor(cashId, amount.toString(), undefined, plan.userId ?? null);
+  const counterUnits = await unitsFor(counterId, amount.toString(), undefined, plan.userId ?? null);
 
   const entry = await postEntry({
     entryDate: plan.plannedDate,
@@ -403,6 +447,10 @@ export type ProjectionPoint = {
 
 export async function projectCashflow(months = 12, scenario: "base" | "optimistic" | "pessimistic" = "base", userId?: string) {
   const u = await resolvePlanningUserId(userId);
+  // Fail-closed: never blend tenants' projections.
+  if (!u && (await hasMultipleUsers())) {
+    return { startingLiquidity: "0", netWorth: "0", points: [], scenario };
+  }
   const [nw, planned, insts, obls, evs] = await Promise.all([
     getCurrentNetWorth(userId),
     listPlanned(userId),
@@ -476,6 +524,7 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
 
 export async function listEvents(userId?: string) {
   const u = await resolvePlanningUserId(userId);
+  if (!u && (await hasMultipleUsers())) return [];
   return db
     .select()
     .from(events)
@@ -485,6 +534,7 @@ export async function listEvents(userId?: string) {
 
 export async function listObligations(userId?: string) {
   const u = await resolvePlanningUserId(userId);
+  if (!u && (await hasMultipleUsers())) return [];
   return db
     .select()
     .from(obligations)

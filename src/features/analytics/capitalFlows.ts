@@ -40,8 +40,10 @@ export class DefaultExternalCapitalFlowProvider implements ExternalCapitalFlowPr
     periodStart = "2025-01-01",
     periodEnd = "2026-08-02",
   ): Promise<CapitalFlowsSummary> {
-    // Call Accounting Query Service (Accounting Core -> Analytics Adapter -> Wealth Analytics)
-    const rows = await getCapitalFlowRecords(periodStart, periodEnd);
+    // Call Accounting Query Service (Accounting Core -> Analytics Adapter -> Wealth Analytics).
+    // The tenant id is threaded through so capital-flow records are strictly
+    // user-scoped — never a global read across users.
+    const rows = await getCapitalFlowRecords(periodStart, periodEnd, userId);
 
     const inflows: CapitalFlowItem[] = [];
     const outflows: CapitalFlowItem[] = [];

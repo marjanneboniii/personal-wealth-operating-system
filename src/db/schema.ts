@@ -608,7 +608,22 @@ export const debts = pgTable(
     userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     creditor: text("creditor").notNull(),
     title: text("title").notNull(),
+    /**
+     * LEGACY (USD) principal — kept for Phase 4 migration compatibility.
+     * Not the source of truth for new records.
+     */
     principalBase: money("principal_base").notNull(),
+    /**
+     * Contractual principal in Toman — the AUTHORITATIVE amount for a debt.
+     * Written exactly as entered for new records (Phase 3); backfilled for
+     * legacy rows in Phase 4. NEVER derived back from a USD value.
+     */
+    principalToman: money("principal_toman"),
+    /**
+     * Creation-time USD snapshot (audit / display only). Never a source of
+     * truth — never divide/multiply it to reconstruct the Toman amount.
+     */
+    principalUsdCreated: money("principal_usd_created"),
     interestRate: numeric("interest_rate", { precision: 8, scale: 4 }).notNull().default("0"),
     startDate: date("start_date").notNull(),
     accountId: uuid("account_id").references(() => accounts.id),
@@ -627,7 +642,24 @@ export const installments = pgTable(
       .references(() => debts.id, { onDelete: "cascade" }),
     seq: integer("seq").notNull(),
     dueDate: date("due_date").notNull(),
+    /**
+     * LEGACY (USD) installment amount — kept for Phase 4 migration compatibility.
+     * Not the source of truth for new records.
+     */
     amountBase: money("amount_base").notNull(),
+    /**
+     * Contractual installment amount in Toman — AUTHORITATIVE for new records.
+     * Legacy rows keep this NULL until the Phase 4 backfill.
+     */
+    amountToman: money("amount_toman"),
+    /** Creation-time USD snapshot (audit / display only). */
+    amountUsdCreated: money("amount_usd_created"),
+    /** Frozen at settlement (Phase 5): actual Toman paid. */
+    paidToman: money("paid_toman"),
+    /** Frozen at settlement (Phase 5): USD equivalent at the payment rate. */
+    paidUsd: money("paid_usd"),
+    /** Frozen at settlement (Phase 5): FX rate (IRT per 1 USD) at payment. */
+    paidFxRate: money("paid_fx_rate"),
     status: text("status").notNull().default("pending"), // pending | paid
     paidEntryId: uuid("paid_entry_id").references(() => journalEntries.id),
     paidAt: date("paid_at"),

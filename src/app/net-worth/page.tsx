@@ -87,7 +87,9 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
     getCurrentNetWorth(userId),
     // Snapshot history is tenant-scoped — never read another account's rows.
     getSnapshotSeries(420, userId),
-    getAnalyticsSummary(),
+    // Analytics is tenant-scoped: the authenticated user's id is passed
+    // explicitly so growth/risk/timeline/capital-flows can never blend tenants.
+    getAnalyticsSummary(userId),
     getLatestUsdIrtRate(),
   ]);
 

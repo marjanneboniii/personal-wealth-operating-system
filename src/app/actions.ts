@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -16,12 +16,12 @@ import {
   installments,
   journalEntries,
   plannedTransactions,
-  prices,
   snapshotLines,
   snapshots,
   users,
   wallets,
 } from "@/db/schema";
+import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
 import { getLatestUsdIrtRateForUser, getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentUser } from "@/lib/auth";
 import { validateAccountOwnership } from "@/lib/validation";
@@ -351,14 +351,10 @@ export async function createBudgetAction(_p: ActionResult | null, fd: FormData):
   }
 }
 
-async function latestPrice(assetId: string): Promise<string> {
-  const row = await db
-    .select({ p: prices.priceBase })
-    .from(prices)
-    .where(eq(prices.assetId, assetId))
-    .orderBy(desc(prices.asOf))
-    .limit(1);
-  return row[0]?.p ?? "1";
+async function latestPrice(assetId: string, userId?: string | null): Promise<string> {
+  // Single authoritative unit-price rule (per-user FX for IRT, market data
+  // otherwise). prices.IRT is never an FX authority.
+  return nativeUnitPriceUsd(assetId, userId ?? null);
 }
 
 async function accountAsset(accountId: string): Promise<string> {
@@ -472,9 +468,16 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       linkedInst = row;
       const [debtRow] = await db.select().from(debts).where(eq(debts.id, row.debtId)).limit(1);
       if (debtRow) linkedDebt = debtRow;
-      // Check amount not exceed installment amount (allow small tolerance)
-      const instAmt = D(row.amountBase);
-      if (amount.gt(instAmt.mul("1.05"))) throw new Error("مبلغ واردشده بیشتر از مبلغ قسط است");
+      // Check amount not exceed installment amount (allow small tolerance).
+      // New records (contractual Toman present) compare Toman amounts so an FX
+      // change can never make the correct Toman payment look over/under-sized.
+      if (row.amountToman != null) {
+        const instToman = D(row.amountToman);
+        if (D(irtAmountStr).gt(instToman.mul("1.05"))) throw new Error("مبلغ واردشده بیشتر از مبلغ قسط است");
+      } else {
+        const instAmt = D(row.amountBase);
+        if (amount.gt(instAmt.mul("1.05"))) throw new Error("مبلغ واردشده بیشتر از مبلغ قسط است");
+      }
     } else if (input.debtId) {
       const [debtRow] = await db.select().from(debts).where(eq(debts.id, input.debtId)).limit(1);
       if (!debtRow) throw new Error("بدهی انتخاب‌شده یافت نشد");
@@ -515,7 +518,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           // (equity) account, so no wallet/account balance moves.
           const reserve = await ensureReserveAccount(authUser?.id ?? null, tx);
           if (!reserve.assetId) throw new Error("حساب ذخیره استهلاک به دارایی پایه متصل نیست");
-          const price = await latestPrice(reserve.assetId);
+          const price = await latestPrice(reserve.assetId, authUser?.id ?? null);
           const qty = amount.div(price).toString();
           entry = await postEntry(
             {
@@ -546,7 +549,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         } else {
           if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
           const cashAsset = await accountAsset(input.primaryAccountId);
-          const price = await latestPrice(cashAsset);
+          const price = await latestPrice(cashAsset, authUser?.id ?? null);
           const qty = amount.div(price).toString();
           const cmd = {
             entryDate: input.entryDate,
@@ -573,7 +576,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         //    excluded from expense/cash-flow aggregations.
         if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
         const cashAsset = await accountAsset(input.primaryAccountId);
-        const price = await latestPrice(cashAsset);
+        const price = await latestPrice(cashAsset, authUser?.id ?? null);
         const qty = amount.div(price).toString();
         const lines = [
           {
@@ -585,7 +588,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         ];
         if (linkedDebt?.accountId) {
           const debtAsset = await accountAsset(linkedDebt.accountId);
-          const debtPrice = await latestPrice(debtAsset);
+          const debtPrice = await latestPrice(debtAsset, authUser?.id ?? null);
           lines.push({
             accountId: linkedDebt.accountId,
             assetId: debtAsset,
@@ -660,7 +663,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
             tx,
           );
         } else {
-          const price = await latestPrice(assetId);
+          const price = await latestPrice(assetId, authUser?.id ?? null);
           const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : amount.div(price).toString();
           entry = await recordTransfer(
             {
@@ -684,7 +687,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         if (!isUuid(input.counterAccountId)) throw new Error("حساب مقابل را انتخاب کنید");
         const assetId = await accountAsset(input.primaryAccountId);
         const cashAssetId = await accountAsset(input.counterAccountId);
-        const cashPrice = await latestPrice(cashAssetId);
+        const cashPrice = await latestPrice(cashAssetId, authUser?.id ?? null);
         const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : "0";
         if (D(qty).lte(0)) throw new Error("مقدار دارایی را وارد کنید");
         const cashQuantity = amount.div(cashPrice).toString();
@@ -968,8 +971,18 @@ export async function createDebtAction(_prev: ActionResult | null, fd: FormData)
     const fx = user ? await getLatestUsdIrtRateForUser(user.id) : await getLatestUsdIrtRate();
     const rate = D(fx.rate);
     if (!rate.gt(0)) throw new Error("نرخ تبدیل دلار به تومان برای ثبت این بدهی موجود نیست.");
-    const principalBase = principalIrt.div(rate).toString();
-    const installmentBase = installmentIrt.div(rate).toString();
+
+    // Phase 3 — contractual Toman amount is the SOURCE OF TRUTH.
+    // `principal_toman` / `amount_toman` store the exact entered Toman.
+    // USD values below are: a creation-time snapshot (audit) + a legacy
+    // dual-write for backward compatibility. Neither is authoritative.
+    const principalToman = principalIrt.toString();
+    const principalUsdCreated = principalIrt.div(rate).toString();
+    const installmentToman = installmentIrt.toString();
+    const installmentUsdCreated = installmentIrt.div(rate).toString();
+    // Legacy dual-write (kept ONLY for Phase 4 migration compatibility).
+    const principalBase = principalUsdCreated;
+    const installmentBase = installmentUsdCreated;
 
     const debt = await db.transaction(async (tx) => {
       const [created] = await tx
@@ -979,6 +992,8 @@ export async function createDebtAction(_prev: ActionResult | null, fd: FormData)
           creditor: value.creditor,
           title: value.title,
           principalBase,
+          principalToman,
+          principalUsdCreated,
           interestRate: interestRate.toString(),
           startDate: value.startDate,
           // A planning-only debt has no ledger account by design. This keeps
@@ -995,6 +1010,8 @@ export async function createDebtAction(_prev: ActionResult | null, fd: FormData)
             seq: index + 1,
             dueDate: addMonthsIso(value.firstDueDate, index),
             amountBase: installmentBase,
+            amountToman: installmentToman,
+            amountUsdCreated: installmentUsdCreated,
             status: "pending",
           })),
         );
