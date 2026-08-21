@@ -9,6 +9,10 @@ export type DebtOption = {
   creditor: string;
   principalBase: string;
   outstandingBase: string;
+  /** Contractual principal in Toman — present for Phase 3+ records. */
+  principalToman?: string | null;
+  /** Outstanding Toman (derived) — present for Phase 3+ records. */
+  outstandingToman?: string | null;
   interestRate: string;
   status: string;
   /** liability account of the debt — null for planning-only debts */
@@ -18,6 +22,8 @@ export type DebtOption = {
     seq: number;
     dueDate: string;
     amountBase: string;
+    /** Contractual installment amount in Toman — present for Phase 3+ records. */
+    amountToman?: string | null;
     status: string;
   }>;
 };

@@ -312,8 +312,15 @@ export default function TransactionForm({
     setSelectedDebt(d);
     setSelectedInst(null);
     const pendingInst = d.installments.find((i) => i.status === "pending");
-    const amt = pendingInst ? pendingInst.amountBase : d.outstandingBase;
-    const irt = effectiveRate ? D(amt).mul(effectiveRate).toFixed(0) : amt;
+    // Phase 3: the contractual Toman amount is authoritative — never re-derived
+    // from a stored USD value, so an FX change cannot alter the Toman amount.
+    const amtToman = pendingInst ? pendingInst.amountToman : d.outstandingToman;
+    const amtUsd = pendingInst ? pendingInst.amountBase : d.outstandingBase;
+    const irt = amtToman
+      ? D(amtToman).toFixed(0)
+      : effectiveRate
+        ? D(amtUsd).mul(effectiveRate).toFixed(0)
+        : amtUsd;
     setIrtAmount(irt);
     setDescription(`بازپرداخت بدهی — ${d.title} (${d.creditor})`);
     setEntryDate(today);
@@ -332,7 +339,12 @@ export default function TransactionForm({
   const handleSelectInstallment = (d: DebtOption, inst: DebtOption["installments"][number]) => {
     setSelectedDebt(d);
     setSelectedInst(inst);
-    const irt = effectiveRate ? D(inst.amountBase).mul(effectiveRate).toFixed(0) : inst.amountBase;
+    // Phase 3: use the stored contractual Toman amount when present.
+    const irt = inst.amountToman
+      ? D(inst.amountToman).toFixed(0)
+      : effectiveRate
+        ? D(inst.amountBase).mul(effectiveRate).toFixed(0)
+        : inst.amountBase;
     setIrtAmount(irt);
     setDescription(`پرداخت قسط ${inst.seq} — ${d.title}`);
     setEntryDate(inst.dueDate);

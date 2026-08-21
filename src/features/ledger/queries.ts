@@ -44,8 +44,12 @@ async function resolveQueryUserId(explicitUserId?: string): Promise<string | und
  * True when the database holds more than one identity (real multi-tenant
  * deployment). Used only to keep tenant-scoped reads fail-closed; it never
  * influences ledger, FIFO or valuation logic.
+ *
+ * Exported so other read services (analytics, planning) apply the SAME
+ * fail-closed rule: in a multi-tenant database an unresolved identity must
+ * never degrade to a global (tenant-blending) read.
  */
-async function hasMultipleUsers(): Promise<boolean> {
+export async function hasMultipleUsers(): Promise<boolean> {
   try {
     const res = await db.execute(sql`select id from users limit 2`);
     return res.rows.length > 1;
@@ -74,6 +78,9 @@ export type AccountBalance = {
 /** Balances are ALWAYS derived from the immutable ledger — never stored. */
 export async function getAccountBalances(userId?: string): Promise<AccountBalance[]> {
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: in a multi-tenant database an unresolved identity must not
+  // read every tenant's balances.
+  if (!u && (await hasMultipleUsers())) return [];
   return rows<AccountBalance>(sql`
     select a.id            as "accountId",
            a.code          as "code",
@@ -115,6 +122,8 @@ export type Holding = {
 /** Portfolio holdings: quantity from ledger, price from latest price row. */
 export async function getHoldings(userId?: string): Promise<Holding[]> {
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: never blend tenants' holdings.
+  if (!u && (await hasMultipleUsers())) return [];
   return rows<Holding>(sql`
     with latest as (
       select distinct on (asset_id) asset_id, price_base
@@ -209,6 +218,8 @@ export type LedgerRow = {
 export async function getLedger(limit = 60, userId?: string): Promise<LedgerRow[]> {
   const safeLimit = Math.min(Math.max(1, limit), 500);
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: never blend tenants' ledger entries.
+  if (!u && (await hasMultipleUsers())) return [];
   return rows<LedgerRow>(sql`
     select je.id,
            je.entry_date::text as "entryDate",
@@ -236,6 +247,8 @@ export async function getLedger(limit = 60, userId?: string): Promise<LedgerRow[
 /** Fetch a single ledger entry by id (asset ↔ ledger navigation, e.g. ?entry=ID). */
 export async function getLedgerById(entryId: string, userId?: string): Promise<LedgerRow | null> {
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: never return another tenant's entry.
+  if (!u && (await hasMultipleUsers())) return null;
   const result = await rows<LedgerRow>(sql`
     select je.id,
            je.entry_date::text as "entryDate",
@@ -271,6 +284,8 @@ export type LotRow = {
 
 export async function getOpenLots(assetId?: string, userId?: string): Promise<LotRow[]> {
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: never expose another tenant's FIFO lots.
+  if (!u && (await hasMultipleUsers())) return [];
   return rows<LotRow>(sql`
     select l.id, l.asset_id as "assetId", ast.symbol,
            l.opened_at::text as "openedAt",
@@ -286,6 +301,8 @@ export async function getOpenLots(assetId?: string, userId?: string): Promise<Lo
 
 export async function getRealizedPnl(userId?: string): Promise<{ total: string; bySymbol: { symbol: string; pnl: string }[] }> {
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: never blend tenants' realized P&L.
+  if (!u && (await hasMultipleUsers())) return { total: "0", bySymbol: [] };
   const data = await rows<{ symbol: string; pnl: string }>(sql`
     select ast.symbol, sum(lc.realized_pnl)::text as pnl
     from lot_consumptions lc
@@ -309,6 +326,8 @@ export async function getRealizedPnl(userId?: string): Promise<{ total: string; 
  */
 export async function getCashflow(months = 6, userId?: string) {
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: never blend tenants' cash flow.
+  if (!u && (await hasMultipleUsers())) return [];
   return rows<{ month: string; inflow: string; outflow: string }>(sql`
     select to_char(date_trunc('month', je.entry_date), 'YYYY-MM-01') as month,
            coalesce(sum(case when a.type = 'income' then -p.base_value else 0 end), 0)::text as inflow,
@@ -352,6 +371,8 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
   const { type, q, accountId, categoryId, from, to } = filter;
   const safeLimit = Math.min(Math.max(1, filter.limit || 120), 500);
   const u = await resolveQueryUserId(filter.userId);
+  // Fail-closed: never blend tenants' transactions.
+  if (!u && (await hasMultipleUsers())) return [];
   const orderBy =
     filter.sort === "old"
       ? sql`order by je.entry_date asc, je.created_at asc`
@@ -409,6 +430,8 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
 
 export async function countUnreviewed(userId?: string): Promise<number> {
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: never count another tenant's records.
+  if (!u && (await hasMultipleUsers())) return 0;
   const res = await rows<{ c: string }>(sql`
     select count(*)::text as c
     from journal_entries je
@@ -426,6 +449,8 @@ export async function countUnreviewed(userId?: string): Promise<number> {
  */
 export async function getFlowByAccount(accountType: "income" | "expense", months = 6, userId?: string) {
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: never blend tenants' income/expense flows.
+  if (!u && (await hasMultipleUsers())) return [];
   return rows<{ accountId: string; code: string; name: string; total: string; months: number }>(sql`
     select a.id as "accountId", a.code, a.name,
            coalesce(sum(case when ${accountType} = 'income' then -p.base_value else p.base_value end), 0)::text as total,
@@ -451,6 +476,8 @@ export async function getFlowByAccount(accountType: "income" | "expense", months
  */
 export async function getNetSavingsBetween(from: string, to: string, userId?: string): Promise<string> {
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: never blend tenants' savings.
+  if (!u && (await hasMultipleUsers())) return "0";
   const res = await rows<{ net: string }>(sql`
     select coalesce(sum(
       case when a.type = 'income' then -p.base_value
@@ -530,6 +557,8 @@ export async function getFirstSnapshotAfter(isoDate: string, userId?: string) {
 /** Liability balance (derived from ledger) as derived total — no dates stored; snapshots give history. */
 export async function getLiabilitiesTotal(userId?: string): Promise<string> {
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: never blend tenants' liabilities.
+  if (!u && (await hasMultipleUsers())) return "0";
   const res = await rows<{ total: string }>(sql`
     select coalesce(-sum(p.base_value) filter (where a.type = 'liability'), 0)::text as total
     from postings p
@@ -544,6 +573,8 @@ export async function getLiabilitiesTotal(userId?: string): Promise<string> {
 /** Accounting Query Service: Exposes capital flow records for analytics adapter */
 export async function getCapitalFlowRecords(periodStart: string, periodEnd: string, userId?: string) {
   const u = await resolveQueryUserId(userId);
+  // Fail-closed: capital-flow records are user financial data — never blend tenants.
+  if (!u && (await hasMultipleUsers())) return [];
   return db
     .select({
       id: journalEntries.id,

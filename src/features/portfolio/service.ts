@@ -14,6 +14,7 @@ import {
   getAccountBalances,
   getHoldings,
   getOpenLots,
+  hasMultipleUsers,
 } from "@/features/ledger/queries";
 import { D, Decimal } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
@@ -59,12 +60,33 @@ async function historicalTomanCostByAsset(userId: string | null): Promise<Map<st
  * Accounting is READ ONLY: holdings, quantities, FIFO lots, cost basis and
  * balances are consumed through existing query primitives. This service has
  * no journal/posting/lot/account mutation path.
+ *
+ * FAIL-CLOSED (multi-user isolation): with no resolvable identity in a
+ * multi-tenant database the valuation returns an EMPTY summary — it never
+ * degrades to a global (tenant-blending) read via `WHERE 1=1`.
  */
 export async function getPortfolioValuation(
   valuationDate = todayIso(),
   explicitUserId?: string,
 ): Promise<PortfolioSummary> {
   const userId = await resolveValuationUserId(explicitUserId);
+  if (!userId && (await hasMultipleUsers())) {
+    return {
+      totalNetWorth: "0",
+      totalNetWorthToman: "0",
+      totalCostBasis: "0",
+      totalUnrealizedPnl: "0",
+      totalUnrealizedPnlToman: "0",
+      overallRoiPercentage: "0",
+      assetValuations: [],
+      allocationByClass: [],
+      valuationDate,
+      baseCurrencyCode: "USD",
+      currentFxRate: "0",
+      priceStatus: { fresh: 0, stale: 0, unavailable: 0 },
+    };
+  }
+
   const [holdings, openLots, balances, fx, historicalTomanCosts] = await Promise.all([
     getHoldings(userId ?? undefined),
     getOpenLots(undefined, userId ?? undefined),
