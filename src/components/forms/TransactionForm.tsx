@@ -143,7 +143,19 @@ export default function TransactionForm({
     defaultType === "expense" ? accounts.find((a) => a.type === "expense")?.id ?? "" : "",
   );
   const [entryDate, setEntryDate] = useState(initialEntryDate ?? today);
-  const [description, setDescription] = useState(initialDescription ?? initialTitle ?? "");
+  /**
+   * Independent «شرح» draft per transaction type. Switching type must never
+   * carry one type's description into another; each type keeps its own draft
+   * (preserved across type switches). This is UI state only — the description
+   * is still submitted to the ledger through the single `description` field.
+   */
+  const [descriptionDrafts, setDescriptionDrafts] = useState<Partial<Record<TxType, string>>>(() => {
+    const initial = initialDescription ?? initialTitle ?? "";
+    return initial ? { [defaultType]: initial } : {};
+  });
+  const description = descriptionDrafts[type] ?? "";
+  const setDescription = (value: string) =>
+    setDescriptionDrafts((cur) => ({ ...cur, [type]: value }));
   const [fee, setFee] = useState("");
   const [selectedDebt, setSelectedDebt] = useState<DebtOption | null>(null);
   const [selectedInst, setSelectedInst] = useState<DebtOption["installments"][number] | null>(null);
@@ -309,6 +321,17 @@ export default function TransactionForm({
 
   const needsQty = type === "buy" || type === "sell" || type === "transfer";
 
+  /**
+   * Counter expense account for planning-only debts (no ledger liability
+   * account). Prefer the «متفرقه» (miscellaneous) expense account (5900) so
+   * the outflow lands in a meaningful bucket; fall back to any expense
+   * account. The user never sees or chooses this — it is pure plumbing for
+   * the existing double-entry engine.
+   */
+  const defaultExpenseAccount = () =>
+    accountOptions.find((a) => a.type === "expense" && a.code === "5900") ??
+    accountOptions.find((a) => a.type === "expense");
+
   const handleSelectDebt = (d: DebtOption) => {
     setSelectedDebt(d);
     setSelectedInst(null);
@@ -323,14 +346,14 @@ export default function TransactionForm({
         ? D(amtUsd).mul(effectiveRate).toFixed(0)
         : amtUsd;
     setIrtAmount(irt);
-    setDescription(`بازپرداخت بدهی — ${d.title} (${d.creditor})`);
+    setDescriptionDrafts((cur) => ({ ...cur, debt_repayment: `بازپرداخت بدهی — ${d.title} (${d.creditor})` }));
     setEntryDate(today);
     setType("debt_repayment");
     setCategoryId("");
     setCategoryParentId("");
     setShowExplorer(false);
     if (!d.accountId) {
-      const expAcc = accountOptions.find((a) => a.type === "expense");
+      const expAcc = defaultExpenseAccount();
       if (expAcc) setCounterAccountId(expAcc.id);
     }
     const cashAcc = accountOptions.find((a) => a.type === "asset");
@@ -347,14 +370,14 @@ export default function TransactionForm({
         ? D(inst.amountBase).mul(effectiveRate).toFixed(0)
         : inst.amountBase;
     setIrtAmount(irt);
-    setDescription(`پرداخت قسط ${inst.seq} — ${d.title}`);
+    setDescriptionDrafts((cur) => ({ ...cur, debt_repayment: `پرداخت قسط ${inst.seq} — ${d.title}` }));
     setEntryDate(inst.dueDate);
     setType("debt_repayment");
     setCategoryId("");
     setCategoryParentId("");
     setShowExplorer(false);
     if (!d.accountId) {
-      const expAcc = accountOptions.find((a) => a.type === "expense");
+      const expAcc = defaultExpenseAccount();
       if (expAcc) setCounterAccountId(expAcc.id);
     }
     const cashAcc = accountOptions.find((a) => a.type === "asset");
@@ -395,6 +418,15 @@ export default function TransactionForm({
     !!primaryAccount?.symbol &&
     !!counterAccount?.symbol &&
     primaryAccount.symbol !== counterAccount.symbol;
+  // The existing FX engine (resolveFxBookLegs / recordFx) can only anchor a
+  // conversion on IRT or a USD-face asset. Mirror that rule here so the UI
+  // tells the user honestly which cross-asset conversions are supported —
+  // without ever changing the engine itself.
+  const SWAP_ANCHOR_ASSETS = new Set(["IRT", "USD", "USDT"]);
+  const swapSupported =
+    isCrossCurrencyTransfer &&
+    (SWAP_ANCHOR_ASSETS.has(primaryAccount?.symbol ?? "") ||
+      SWAP_ANCHOR_ASSETS.has(counterAccount?.symbol ?? ""));
 
   const previewUsd = irtAmount && effectiveRate ? D(irtAmount).div(effectiveRate).toFixed(2) : "";
   const primaryNeeded = !(type === "expense" && isNonCashCategory);
@@ -446,11 +478,10 @@ export default function TransactionForm({
       <input type="hidden" name="installmentId" value={selectedInst?.id ?? ""} />
       {type === "debt_repayment" && (
         <div className="soft space-y-2 rounded-[var(--r-md)] p-3 text-[12px] leading-6">
-          <p className="font-semibold">قسط و بدهی را از فهرست زیر انتخاب کنید — نه از لیست حساب‌ها.</p>
+          <p className="font-semibold">بدهی یا قسطی را که می‌خواهید پرداخت کنید، انتخاب کنید.</p>
           <p className="muted text-[11.5px]">
-            «حساب هزینه» سرفصل دفترکل است (مثلاً بیمه، قبض، متفرقه) و خودِ قسط نیست.
-            پول از حساب نقد/بانک خارج می‌شود؛ بدهی یا قسط را اینجا مشخص می‌کنید.
-            سرفصل هزینه فقط وقتی لازم است که بدهی هنوز حساب بدهی در دفترکل نداشته باشد تا سند دوطرفه تراز بماند.
+            پول از حساب نقد یا بانک شما پرداخت می‌شود و همان مبلغ از مانده بدهی‌تان کم می‌شود.
+            جزئیات ثبت و حسابداری به‌صورت خودکار در پس‌زمینه مدیریت می‌شود و نیازی به تنظیم آن ندارید.
           </p>
         </div>
       )}
@@ -701,52 +732,65 @@ export default function TransactionForm({
             )}
           </div>
           <div>
-            <label className="label">
-              {type === "debt_repayment"
-                ? selectedDebtHasLedgerAccount
-                  ? "طرف مقابل سند (حساب بدهی)"
-                  : selectedDebt
-                    ? "سرفصل هزینه — فقط طبقه‌بندی خروج وجه"
-                    : "سرفصل هزینه"
-                : meta.counter}
-            </label>
-            {type === "debt_repayment" && !selectedDebt ? (
-              <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
-                این فهرست قسط بیمه یا بدهی نیست. ابتدا بدهی/قسط را از کادر بالا انتخاب کنید. سرفصل هزینه فقط برای بدهی‌های بدون حساب دفترکل لازم است تا سند دوطرفه تراز شود.
-              </div>
-            ) : type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount ? (
+            {type === "debt_repayment" ? (
               <>
-                <input type="hidden" name="counterAccountId" value="" />
-                <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
-                  بازپرداخت اصل بدهی «{selectedDebt.title}» مستقیماً از مانده بدهی کسر می‌شود و <strong>هزینه نیست</strong>. سرفصل هزینه لازم نیست.
-                </div>
+                {!selectedDebt ? (
+                  <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
+                    ابتدا بدهی یا قسط را از فهرست بالا انتخاب کنید تا جزئیات پرداخت تکمیل شود.
+                  </div>
+                ) : selectedDebtHasLedgerAccount ? (
+                  <>
+                    <input type="hidden" name="counterAccountId" value="" />
+                    <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
+                      با این پرداخت، مبلغ مستقیماً از مانده بدهی «{selectedDebt.title}» کم می‌شود.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <input type="hidden" name="counterAccountId" value={counterAccountId} />
+                    <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
+                      مبلغ پرداخت از حساب انتخابی شما کسر می‌شود و مانده این بدهی کاهش پیدا می‌کند. همه جزئیات ثبت به‌صورت خودکار انجام می‌شود.
+                    </div>
+                  </>
+                )}
               </>
-            ) : type === "debt_repayment" && selectedDebt && !selectedDebtHasLedgerAccount ? (
+            ) : (
               <>
+                <label className="label">{meta.counter}</label>
                 <select name="counterAccountId" required className="field" value={counterAccountId} onChange={(e) => setCounterAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
-                  <option value="" disabled>سرفصل هزینه را انتخاب کنید…</option>
+                  <option value="" disabled>انتخاب کنید…</option>
                   {counterOptions.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name}{a.symbol ? ` — ${currencyLabel(a.symbol)}` : ""}
+                      {/* Income categories are shown to the user by friendly name only —
+                          no account code and no currency label (e.g. «حقوق و درآمد» instead
+                          of «4010 — حقوق و درآمد (دلار)»). Presentation-only; the value
+                          submitted stays the real account id, so accounting is unchanged. */}
+                      {type === "income" ? a.name : `${a.code} — ${a.name}${a.symbol ? ` (${currencyLabel(a.symbol)})` : ""}`}
                     </option>
                   ))}
                 </select>
-                <p className="muted mt-1.5 text-[10.5px] leading-5">
-                  این بدهی حساب بدهی در دفترکل ندارد (مثل قسط بیمه برنامه‌ریزی‌شده). پول از حساب نقد خارج می‌شود و طرف دوم سند باید یک سرفصل هزینه باشد تا تراز بماند — نه اینکه قسط را از این لیست انتخاب کنید.
-                </p>
               </>
-            ) : (
-              <select name="counterAccountId" required className="field" value={counterAccountId} onChange={(e) => setCounterAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
-                <option value="" disabled>انتخاب کنید…</option>
-                {counterOptions.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name} {a.symbol ? `(${currencyLabel(a.symbol)})` : ""}
-                  </option>
-                ))}
-              </select>
             )}
           </div>
         </div>
+
+        {type === "transfer" && isCrossCurrencyTransfer && (
+          swapSupported ? (
+            <div className="rounded-[var(--r-md)] p-3 text-[11px] leading-5" style={{ border: "1px solid var(--brand)", background: "var(--brand-soft)" }} role="note">
+              <div className="font-semibold">تبدیل دارایی</div>
+              <div>
+                از <strong>{primaryAccount?.name}</strong> ({currencyLabel(primaryAccount?.symbol)}) به{" "}
+                <strong>{counterAccount?.name}</strong> ({currencyLabel(counterAccount?.symbol)}).
+              </div>
+              <div className="muted">این تبدیل نه هزینه است و نه درآمد — فقط ترکیب دارایی‌های شما تغییر می‌کند.</div>
+            </div>
+          ) : (
+            <div className="rounded-[var(--r-md)] p-3 text-[11px] leading-5" style={{ background: "var(--warning-soft)", border: "1px solid var(--warning)" }} role="note">
+              تبدیل مستقیم {primaryAccount?.symbol} به {counterAccount?.symbol} در حال حاضر پشتیبانی نمی‌شود.
+              برای این تبدیل ابتدا به تومان، دلار یا تتر تبدیل کنید.
+            </div>
+          )
+        )}
 
         {/* Dual Date Engine — shared single source of truth */}
         <DualDateInput name="entryDate" value={entryDate} onChange={setEntryDate} label="تاریخ سند" required />
@@ -791,6 +835,49 @@ export default function TransactionForm({
 
       {/* Smart Preview Before Commit */}
       {showPreview ? (
+        type === "debt_repayment" ? (
+          <PreviewCard title="پیش‌نمایش پرداخت">
+            <div className="space-y-2 text-xs leading-6">
+              <div><span className="muted">نوع:</span> <strong>بازپرداخت بدهی</strong></div>
+              <div><span className="muted">بدهی:</span> <strong>{selectedDebt?.title ?? "—"}</strong></div>
+              {selectedInst && (
+                <div>
+                  <span className="muted">قسط:</span>{" "}
+                  <strong>{faCount(selectedInst.seq)} از {faCount(selectedDebt?.installments.length ?? 0)}</strong>
+                </div>
+              )}
+              <div className="soft rounded-xl p-3 space-y-1">
+                <div><span className="muted">مبلغ پرداخت:</span> <strong className="num" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</strong></div>
+                <div><span className="muted">معادل تقریبی:</span> <strong className="num" dir="rtl" style={{ color: "var(--brand)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"}</strong></div>
+                <div><span className="muted">نرخ تبدیل:</span> <strong className="num" dir="rtl">{effectiveRate ? `${formatMoney(effectiveRate, "IRT")} ≈ ۱ دلار` : "ثبت نشده"}</strong></div>
+              </div>
+              <div><span className="muted">از حساب:</span> <strong>{primaryAccount?.name ?? "—"}</strong></div>
+              <div>
+                <span className="muted">تاریخ:</span>{" "}
+                <strong>{entryDate ? getDualDate(entryDate).jalali : "—"}</strong>{" "}
+                <span className="muted num" dir="ltr">{entryDate || "—"}</span>
+              </div>
+              {debtStatusAfter && (
+                <div><span className="muted">پس از این پرداخت:</span> <strong style={{ color: "var(--brand)" }}>{debtStatusAfter}</strong></div>
+              )}
+              <div className="soft rounded-xl p-3 text-[11px] leading-5">
+                <div className="font-semibold mb-1">خلاصه</div>
+                <ul className="space-y-1 list-disc pr-4">
+                  <li>مبلغ این بدهی کاهش پیدا می‌کند.</li>
+                  <li>موجودی حساب انتخاب‌شده کاهش پیدا می‌کند.</li>
+                  <li>ثبت حسابداری صحیح به‌صورت خودکار انجام می‌شود.</li>
+                  <li>ارزش خالص شما طبق منطق فعلی سیستم محاسبه می‌شود.</li>
+                </ul>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowPreview(false)} className="btn btn-ghost flex-1" style={{ touchAction: "manipulation" }}>بازگشت به ویرایش</button>
+              <button type="submit" disabled={pending} className="btn btn-primary flex-1" style={{ touchAction: "manipulation" }}>
+                {pending ? "در حال ثبت…" : "تأیید و ثبت پرداخت"}
+              </button>
+            </div>
+          </PreviewCard>
+        ) : (
         <PreviewCard title="پیش‌نمایش هوشمند قبل از ثبت نهایی — فقط نمایشی">
           <div className="space-y-2 text-xs leading-6">
             <div><span className="muted">نوع تراکنش:</span> <strong>{TYPES.find(t=>t.key===type)?.label}</strong></div>
@@ -800,12 +887,6 @@ export default function TransactionForm({
                 <span className="muted">دسته هزینه:</span>{" "}
                 <strong>{selectedParent && selectedCategory ? `${selectedParent.name} › ${selectedCategory.name}` : "—"}</strong>
                 {isNonCashCategory && <span className="chip">غیرنقدی — بدون خروج وجه</span>}
-              </div>
-            )}
-            {type === "debt_repayment" && selectedDebt && (
-              <div>
-                <span className="muted">بدهی:</span> <strong>{selectedDebt.title}</strong>{" "}
-                <span className="chip">{selectedDebtHasLedgerAccount ? "کسر از مانده بدهی — هزینه نیست" : "ثبت با حساب هزینه"}</span>
               </div>
             )}
             <div className="soft rounded-xl p-2">
@@ -847,6 +928,7 @@ export default function TransactionForm({
             </button>
           </div>
         </PreviewCard>
+        )
       ) : (
         <button
           type="button"
