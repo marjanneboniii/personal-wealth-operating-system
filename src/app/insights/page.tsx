@@ -9,6 +9,7 @@ import { Alert, EmptyState, Metric, PageHeader, Progress, Section } from "@/comp
 import Icon, { type IconName } from "@/components/ui/Icon";
 import { D, Decimal } from "@/domain/decimal";
 import { formatMoney, formatNumber, formatPct, formatShortDate, todayIso, faCount } from "@/lib/format";
+import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export default async function InsightsPage() {
   await ensureAuth();
   await seedIfEmpty();
 
-  const [nw, flow, categories, debts, projection, liabilities, unreviewed] = await Promise.all([
+  const [nw, flow, categories, debts, projection, liabilities, unreviewed, fx] = await Promise.all([
     getCurrentNetWorth(),
     getCashflow(6),
     getFlowByCategory(3),
@@ -57,7 +58,9 @@ export default async function InsightsPage() {
     projectCashflow(12),
     getLiabilitiesTotal(),
     countUnreviewed(),
+    getLatestUsdIrtRate(),
   ]);
+  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
 
   const today = todayIso();
 
@@ -123,7 +126,7 @@ export default async function InsightsPage() {
       tone: "neg",
       icon: "clock",
       title: `${faCount(overdue.length)} قسط سررسید گذشته دارید`,
-      body: `مجموع ${formatMoney(Decimal.sum(overdue.map((i) => i.amountBase)).toString())} در انتظار پرداخت است.`,
+      body: `مجموع ${toIrt(Decimal.sum(overdue.map((i) => i.amountBase)).toString()) ?? formatMoney(Decimal.sum(overdue.map((i) => i.amountBase)).toString())} در انتظار پرداخت است.`,
       href: "/debts/installments",
       action: "مشاهده اقساط",
     });
@@ -209,7 +212,7 @@ export default async function InsightsPage() {
             label="نسبت بدهی به دارایی"
             value={`${formatPct(debtRatio.toFixed(1), 1)}`}
             tone={debtRatio.gt("50") ? "down" : debtRatio.gt("30") ? "neutral" : "up"}
-            hint={formatMoney(totalLiabilities.toString())}
+            hint={toIrt(totalLiabilities.toString()) ?? formatMoney(totalLiabilities.toString())}
           />
           <Metric
             label="نرخ پس‌انداز"
@@ -221,13 +224,13 @@ export default async function InsightsPage() {
             label="دوام نقدینگی"
             value={runwayMonths ? `${formatNumber(runwayMonths.toFixed(1), { decimals: 1 })} ماه` : "—"}
             tone={runwayMonths ? (runwayMonths.gte("6") ? "up" : runwayMonths.gte("3") ? "neutral" : "down") : "neutral"}
-            hint={avgOutflow.isZero() ? "هزینه ثبت‌شده‌ای نیست" : `میانگین هزینه ${formatMoney(avgOutflow.toString())}`}
+            hint={avgOutflow.isZero() ? "هزینه ثبت‌شده‌ای نیست" : `میانگین هزینه ${toIrt(avgOutflow.toString()) ?? formatMoney(avgOutflow.toString())}`}
           />
           <Metric
             label="سهم دارایی نقدشونده"
             value={`${formatPct(liquidShare.toFixed(1), 1)}`}
             tone={liquidShare.gte("15") ? "up" : "neutral"}
-            hint={formatMoney(liquid.toString())}
+            hint={toIrt(liquid.toString()) ?? formatMoney(liquid.toString())}
           />
         </div>
       </Section>
@@ -284,8 +287,15 @@ export default async function InsightsPage() {
                       <span className="num muted text-[10.5px]" dir="rtl">
                         {formatPct(shareNum, 1)}
                       </span>
-                      <span className="num font-bold" dir="rtl">
-                        {formatMoney(c.total)}
+                      <span className="flex flex-col items-end">
+                        <span className="num font-bold" dir="rtl">
+                          {toIrt(c.total) ?? formatMoney(c.total)}
+                        </span>
+                        {fx.rate && (
+                          <span className="muted num text-[9.5px]" dir="rtl">
+                            ≈ {formatMoney(c.total)}
+                          </span>
+                        )}
                       </span>
                     </span>
                   </div>
@@ -312,8 +322,15 @@ export default async function InsightsPage() {
                   <span className="truncate">{c.className}</span>
                 </span>
                 <span className="flex shrink-0 items-baseline gap-2">
-                  <span className="num text-[13px] font-bold" dir="rtl">
-                    {formatMoney(c.value)}
+                  <span className="flex flex-col items-end">
+                    <span className="num text-[13px] font-bold" dir="rtl">
+                      {toIrt(c.value) ?? formatMoney(c.value)}
+                    </span>
+                    {fx.rate && (
+                      <span className="muted num text-[9.5px]" dir="rtl">
+                        ≈ {formatMoney(c.value)}
+                      </span>
+                    )}
                   </span>
                   <span className="num muted w-10 text-[10.5px]" dir="rtl">
                     {formatPct(Number(c.share), 1)}

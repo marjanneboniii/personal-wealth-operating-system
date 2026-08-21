@@ -169,9 +169,16 @@ export default async function AccountsPage() {
                       {b.code}
                     </p>
                   </div>
-                  <p className="num text-[13px] font-bold" dir="rtl" style={{ color: "var(--negative)" }}>
-                    {formatMoney(D(b.baseValue).abs().toString())}
-                  </p>
+                  <div className="text-left">
+                    <p className="num text-[13px] font-bold" dir="rtl" style={{ color: "var(--negative)" }}>
+                      {toIrt(D(b.baseValue).abs().toString()) ?? formatMoney(D(b.baseValue).abs().toString())}
+                    </p>
+                    {toIrt(D(b.baseValue).abs().toString()) && (
+                      <p className="muted num text-[9.5px]" dir="rtl">
+                        ≈ {formatMoney(D(b.baseValue).abs().toString())}
+                      </p>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

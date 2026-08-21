@@ -43,6 +43,8 @@ export default async function GoalsPage() {
     getLatestUsdIrtRate(),
   ]);
 
+  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
+
   const activeGoals = goals.filter((g) => g.status === "active");
   const totalTarget = activeGoals.reduce((s, g) => s + Number(g.targetBase), 0);
   const totalSaved = activeGoals.reduce((s, g) => s + Number(g.savedBase), 0);
@@ -57,7 +59,7 @@ export default async function GoalsPage() {
           <div className="mb-2 flex items-baseline justify-between">
             <p className="muted text-[12px] font-medium">پیشرفت مجموع اهداف فعال</p>
             <p className="num text-[13px] font-bold" dir="rtl">
-              {formatMoney(totalSaved)} <span className="muted font-normal">از</span> {formatMoney(totalTarget)}
+              {toIrt(totalSaved) ?? formatMoney(totalSaved)} <span className="muted font-normal">از</span> {toIrt(totalTarget) ?? formatMoney(totalTarget)}
             </p>
           </div>
           <Progress value={overall} />
@@ -95,8 +97,16 @@ export default async function GoalsPage() {
                       </span>
                       {g.targetDate && <span className="muted num text-[10.5px]">تا {formatDualDate(g.targetDate)}</span>}
                     </p>
-                    <span className="num text-[13px]" dir="rtl">
-                      <b className="text-[15px]">{formatMoney(g.savedBase)}</b> <span className="muted">از {formatMoney(g.targetBase)}</span>
+                    <span className="flex flex-col items-end">
+                      <span className="num text-[13px]" dir="rtl">
+                        <b className="text-[15px]">{toIrt(g.savedBase) ?? formatMoney(g.savedBase)}</b>{" "}
+                        <span className="muted">از {toIrt(g.targetBase) ?? formatMoney(g.targetBase)}</span>
+                      </span>
+                      {fx.rate && (
+                        <span className="muted num text-[9.5px]" dir="rtl">
+                          ≈ {formatMoney(g.savedBase)} از {formatMoney(g.targetBase)}
+                        </span>
+                      )}
                     </span>
                   </div>
                   <Progress value={g.progress} color={done ? "var(--positive)" : "var(--brand)"} />
@@ -105,7 +115,7 @@ export default async function GoalsPage() {
                       {formatPct(g.progress, 0)}
                     </span>
                     <span>
-                      {done ? "تبریک — به این هدف رسیدید" : `${formatMoney(g.remainingBase)} مانده`}
+                      {done ? "تبریک — به این هدف رسیدید" : `${toIrt(g.remainingBase) ?? formatMoney(g.remainingBase)} مانده`}
                     </span>
                   </div>
                 </li>
@@ -130,7 +140,8 @@ export default async function GoalsPage() {
                       <span className="badge badge-neutral mr-2">{FUND_KIND[f.kind] ?? f.kind}</span>
                     </span>
                     <span className="num" dir="rtl">
-                      <b>{formatMoney(f.savedBase)}</b> <span className="muted text-[11px]">از {formatMoney(f.targetBase)}</span>
+                      <b>{toIrt(f.savedBase) ?? formatMoney(f.savedBase)}</b>{" "}
+                      <span className="muted text-[11px]">از {toIrt(f.targetBase) ?? formatMoney(f.targetBase)}</span>
                     </span>
                   </div>
                   <Progress value={f.progress} color="var(--info)" />
@@ -178,8 +189,15 @@ export default async function GoalsPage() {
                       </p>
                       <p className="muted num mt-0.5 text-[10.5px]">{formatDualDate(x.date)}</p>
                     </div>
-                    <span className="num shrink-0 text-[13px] font-bold" dir="rtl">
-                      {formatMoney(x.amount)}
+                    <span className="flex shrink-0 flex-col items-end">
+                      <span className="num text-[13px] font-bold" dir="rtl">
+                        {toIrt(x.amount) ?? formatMoney(x.amount)}
+                      </span>
+                      {fx.rate && (
+                        <span className="muted num text-[9.5px]" dir="rtl">
+                          ≈ {formatMoney(x.amount)}
+                        </span>
+                      )}
                     </span>
                   </li>
                 ))}

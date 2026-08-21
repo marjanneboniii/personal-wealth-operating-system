@@ -92,6 +92,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
     getAnalyticsSummary(userId),
     getLatestUsdIrtRate(),
   ]);
+  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(D(usd).mul(fx.rate).toFixed(0), "IRT") : null);
 
   const baseline =
     (await getSnapshotAsOf(from, userId)) ?? (await getFirstSnapshotAfter(from, userId)) ?? null;
@@ -200,24 +201,38 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                         }}
                       />
                     </div>
-                    <span
-                      className="num w-[7.5rem] shrink-0 text-left text-[15px] font-bold"
+                    <div
+                      className="flex w-[7.5rem] shrink-0 flex-col items-end text-left"
                       dir="rtl"
                       style={{ color: pos ? "var(--positive)" : neg ? "var(--negative)" : "var(--text-2)" }}
                     >
-                      {pos ? "+" : neg ? "−" : ""}
-                      {formatMoney(D(r.value).abs().toString())}
-                    </span>
+                      <span className="num text-[15px] font-bold">
+                        {pos ? "+" : neg ? "−" : ""}
+                        {toIrt(D(r.value).abs().toString()) ?? formatMoney(D(r.value).abs().toString())}
+                      </span>
+                      {fx.rate && (
+                        <span className="muted num text-[9.5px]">
+                          ≈ {formatMoney(D(r.value).abs().toString())}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </li>
               );
             })}
             <li className="flex items-center justify-between gap-4 py-3.5">
               <p className="text-[13.5px] font-bold">مجموع</p>
-              <span className="num text-[15px] font-bold" dir="rtl">
-                {deltaAbs.gte(0) ? "+" : "−"}
-                {formatMoney(deltaAbs.abs().toString())}
-              </span>
+              <div className="flex flex-col items-end">
+                <span className="num text-[15px] font-bold" dir="rtl">
+                  {deltaAbs.gte(0) ? "+" : "−"}
+                  {toIrt(deltaAbs.abs().toString()) ?? formatMoney(deltaAbs.abs().toString())}
+                </span>
+                {fx.rate && (
+                  <span className="muted num text-[9.5px]" dir="rtl">
+                    ≈ {formatMoney(deltaAbs.abs().toString())}
+                  </span>
+                )}
+              </div>
             </li>
           </ul>
         ) : (
@@ -251,8 +266,15 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                     <span className="muted text-[10px]">{b.members.map((m) => m.name).join("، ")}</span>
                   </span>
                   <span className="flex shrink-0 items-baseline gap-2">
-                    <span className="num text-[13px] font-bold" dir="rtl">
-                      {formatMoney(b.value)}
+                    <span className="flex flex-col items-end">
+                      <span className="num text-[13px] font-bold" dir="rtl">
+                        {toIrt(b.value) ?? formatMoney(b.value)}
+                      </span>
+                      {fx.rate && (
+                        <span className="muted num text-[9.5px]" dir="rtl">
+                          ≈ {formatMoney(b.value)}
+                        </span>
+                      )}
                     </span>
                     <span className="num muted w-10 text-[10.5px]" dir="rtl">
                       {formatPct((b.value / totalAssets) * 100, 1)}
@@ -279,9 +301,9 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
             />
             <Metric
               label="بازده سرمایه‌گذاری خالص"
-              value={formatMoney(growth.netInvestmentReturn)}
+              value={toIrt(growth.netInvestmentReturn) ?? formatMoney(growth.netInvestmentReturn)}
               tone={D(growth.netInvestmentReturn).gte(0) ? "up" : "down"}
-              hint="بدون احتساب واریز/برداشت‌ها"
+              hint={fx.rate ? `≈ ${formatMoney(growth.netInvestmentReturn)} · بدون احتساب واریز/برداشت‌ها` : "بدون احتساب واریز/برداشت‌ها"}
             />
             <Metric label="بیشترین افت از سقف" value={`−${formatPct(risk.maxDrawdownPercentage, 2)}`} tone={Number(risk.maxDrawdownPercentage) > 15 ? "down" : "neutral"} />
             <Metric label="ریسک رمزارز" value={`${formatPct(risk.cryptoExposurePercentage, 2)}`} hint={`بزرگ‌ترین دارایی: ${risk.largestAssetSymbol}`} />

@@ -56,16 +56,18 @@ export default async function PortfolioPage() {
       {/* KPI strip */}
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش روز سبد" value={formatMoney(valuation.totalNetWorthToman, "IRT")} hint={formatMoney(valuation.totalNetWorth)} />
-        <Metric label="بهای تمام‌شده" value={formatMoney(valuation.totalCostBasis)} />
+        <Metric label="بهای تمام‌شده" value={toIrt(valuation.totalCostBasis) ?? formatMoney(valuation.totalCostBasis)} hint={fx.rate ? formatMoney(valuation.totalCostBasis) : undefined} />
         <Metric
           label="سود/زیان تحقق‌نیافته"
-          value={`${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}`}
+          value={`${unrealized.gte(0) ? "+" : "−"}${toIrt(unrealized.abs().toString()) ?? formatMoney(unrealized.abs().toString())}`}
           tone={unrealized.gte(0) ? "up" : "down"}
+          hint={fx.rate ? `${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}` : undefined}
         />
         <Metric
           label="سود تحقق‌یافته"
-          value={`${D(pnl.total).gte(0) ? "+" : "−"}${formatMoney(D(pnl.total).abs().toString())}`}
+          value={`${D(pnl.total).gte(0) ? "+" : "−"}${toIrt(D(pnl.total).abs().toString()) ?? formatMoney(D(pnl.total).abs().toString())}`}
           tone={D(pnl.total).gte(0) ? "up" : "down"}
+          hint={fx.rate ? `${D(pnl.total).gte(0) ? "+" : "−"}${formatMoney(D(pnl.total).abs().toString())}` : undefined}
         />
       </section>
 

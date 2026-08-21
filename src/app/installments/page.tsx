@@ -7,6 +7,7 @@ import { seedIfEmpty } from "@/db/seed";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import RowAction from "@/components/RowAction";
 import { formatDualDate, formatMoney, todayIso, faCount } from "@/lib/format";
+import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function InstallmentsPage() {
       seq: installments.seq,
       dueDate: installments.dueDate,
       amountBase: installments.amountBase,
+      amountToman: installments.amountToman,
       status: installments.status,
       paidAt: installments.paidAt,
       debtId: debts.id,
@@ -47,6 +49,9 @@ export default async function InstallmentsPage() {
     .orderBy(asc(accounts.code))
     .limit(1);
 
+  const fx = await getLatestUsdIrtRate();
+  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
+
   const today = todayIso();
   const pending = rows.filter((r) => r.status === "pending");
   const paid = rows.filter((r) => r.status === "paid");
@@ -60,8 +65,8 @@ export default async function InstallmentsPage() {
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="معوق" value={String(overdueList.length)} tone={overdueList.length ? "down" : "up"} />
-        <Metric label="در ۳۰ روز آینده" value={faCount(next30.length)} hint={next30.length ? formatMoney(next30.reduce((s, r) => s + Number(r.amountBase), 0)) : undefined} />
-        <Metric label="مانده اقساط" value={formatMoney(remainingTotal)} />
+        <Metric label="در ۳۰ روز آینده" value={faCount(next30.length)} hint={next30.length ? toIrt(next30.reduce((s, r) => s + Number(r.amountBase), 0)) ?? formatMoney(next30.reduce((s, r) => s + Number(r.amountBase), 0)) : undefined} />
+        <Metric label="مانده اقساط" value={toIrt(remainingTotal) ?? formatMoney(remainingTotal)} hint={fx.rate ? formatMoney(remainingTotal) : undefined} />
         <Metric label="پرداخت‌شده" value={faCount(paid.length)} tone="up" hint={`از ${faCount(rows.length)} قسط`} />
       </section>
 
@@ -130,7 +135,8 @@ export default async function InstallmentsPage() {
                         </span>
                       </td>
                       <td className="td-num font-bold" dir="rtl">
-                        {formatMoney(r.amountBase)}
+                        <div>{r.amountToman != null ? formatMoney(r.amountToman, "IRT") : toIrt(r.amountBase) ?? formatMoney(r.amountBase)}</div>
+                        <div className="muted num text-[9.5px]">≈ {formatMoney(r.amountBase)}</div>
                       </td>
                       <td className="text-left">
                         {r.status === "pending" && (

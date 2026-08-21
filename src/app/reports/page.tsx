@@ -34,7 +34,7 @@ export default async function ReportsPage() {
   ]);
 
   const rate = fx.rate;
-  const toIrt = (usd: string | number) => (rate ? D(usd).mul(rate).toFixed(0) : null);
+  const toIrt = (usd: string | number) => (rate ? formatMoney(D(usd).mul(rate).toFixed(0), "IRT") : null);
 
   const expenses = balances.filter((b) => b.type === "expense" && !D(b.baseValue).isZero());
   const incomes = balances.filter((b) => b.type === "income" && !D(b.baseValue).isZero());
@@ -66,8 +66,8 @@ export default async function ReportsPage() {
       {/* KPI strip */}
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش خالص" value={formatMoney(nw.netWorthToman, "IRT")} hint={formatMoney(nw.netWorth)} />
-        <Metric label="کل درآمد ثبت‌شده" value={formatMoney(totalIncome.toString())} tone="up" />
-        <Metric label="کل هزینه ثبت‌شده" value={formatMoney(totalExpense.toString())} tone="down" />
+        <Metric label="کل درآمد ثبت‌شده" value={toIrt(totalIncome.toString()) ?? formatMoney(totalIncome.toString())} tone="up" hint={rate ? formatMoney(totalIncome.toString()) : undefined} />
+        <Metric label="کل هزینه ثبت‌شده" value={toIrt(totalExpense.toString()) ?? formatMoney(totalExpense.toString())} tone="down" hint={rate ? formatMoney(totalExpense.toString()) : undefined} />
         <Metric label="نرخ پس‌انداز" value={`${formatPct(savingsRate, 1)}`} tone={Number(savingsRate) >= 0 ? "up" : "down"} />
       </section>
 
@@ -75,10 +75,10 @@ export default async function ReportsPage() {
       <Section title="گزارش ماهانه">
         <div id="monthly-report">
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Metric label="دارایی" value={formatMoney(nw.totalAssets)} />
-            <Metric label="بدهی" value={formatMoney(nw.totalLiabilities)} />
-            <Metric label="نقدشونده" value={formatMoney(nw.liquid)} />
-            <Metric label="میانگین هزینه ماهانه" value={formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0")} />
+            <Metric label="دارایی" value={formatMoney(nw.totalAssetsToman, "IRT")} hint={formatMoney(nw.totalAssets)} />
+            <Metric label="بدهی" value={formatMoney(nw.totalLiabilitiesToman, "IRT")} hint={formatMoney(nw.totalLiabilities)} />
+            <Metric label="نقدشونده" value={formatMoney(nw.liquidToman, "IRT")} hint={formatMoney(nw.liquid)} />
+            <Metric label="میانگین هزینه ماهانه" value={toIrt(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0") ?? formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0")} hint={rate ? formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0") : undefined} />
           </div>
           <div className="card mb-4 p-4 sm:p-5">
             <BarsChart
@@ -109,14 +109,19 @@ export default async function ReportsPage() {
                     <tr key={m.month}>
                       <td className="font-medium">{m.jalaliLabel}</td>
                       <td className="td-num" dir="rtl" style={{ color: "var(--positive)" }}>
-                        {formatMoney(m.inflow)}
+                        <div>{toIrt(m.inflow) ?? formatMoney(m.inflow)}</div>
+                        {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(m.inflow)}</div>}
                       </td>
                       <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
-                        {formatMoney(m.outflow)}
+                        <div>{toIrt(m.outflow) ?? formatMoney(m.outflow)}</div>
+                        {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(m.outflow)}</div>}
                       </td>
                       <td className="td-num font-bold" dir="rtl" style={{ color: D(m.net).gte(0) ? "var(--positive)" : "var(--negative)" }}>
-                        {D(m.net).gte(0) ? "+" : "−"}
-                        {formatMoney(D(m.net).abs().toString())}
+                        <div>
+                          {D(m.net).gte(0) ? "+" : "−"}
+                          {toIrt(D(m.net).abs().toString()) ?? formatMoney(D(m.net).abs().toString())}
+                        </div>
+                        {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(D(m.net).abs().toString())}</div>}
                       </td>
                       <td className="td-num hidden sm:table-cell num" dir="rtl" style={{ color: diff && diff.gt(0) ? "var(--negative)" : "var(--positive)" }}>
                         {diff ? `${diff.gte(0) ? "+" : "−"}${formatPct(diff.abs().toString(), 1)}` : "—"}
@@ -143,13 +148,15 @@ export default async function ReportsPage() {
           <div className="grid grid-cols-2 gap-6 border-b pb-5" style={{ borderColor: "var(--border)" }}>
             <Metric
               label="تحقق‌یافته"
-              value={`${D(pnl.total).gte(0) ? "+" : "−"}${formatMoney(D(pnl.total).abs().toString())}`}
+              value={`${D(pnl.total).gte(0) ? "+" : "−"}${toIrt(D(pnl.total).abs().toString()) ?? formatMoney(D(pnl.total).abs().toString())}`}
               tone={D(pnl.total).gte(0) ? "up" : "down"}
+              hint={rate ? `${D(pnl.total).gte(0) ? "+" : "−"}${formatMoney(D(pnl.total).abs().toString())}` : undefined}
             />
             <Metric
               label="تحقق‌نیافته"
-              value={`${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}`}
+              value={`${unrealized.gte(0) ? "+" : "−"}${toIrt(unrealized.abs().toString()) ?? formatMoney(unrealized.abs().toString())}`}
               tone={unrealized.gte(0) ? "up" : "down"}
+              hint={rate ? `${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}` : undefined}
             />
           </div>
           <ul className="mt-3 divide-y" style={{ borderColor: "var(--border)" }}>
@@ -179,7 +186,9 @@ export default async function ReportsPage() {
                 <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[13px]">
                   <span className="font-medium">{d.title}</span>
                   <span className="num font-bold" dir="rtl" style={{ color: d.status === "settled" ? "var(--positive)" : "var(--negative)" }}>
-                    {formatMoney(d.status === "settled" ? 0 : d.outstandingBase)}
+                    {d.outstandingToman != null
+                      ? formatMoney(d.status === "settled" ? 0 : d.outstandingToman, "IRT")
+                      : toIrt(d.status === "settled" ? 0 : d.outstandingBase) ?? formatMoney(d.status === "settled" ? 0 : d.outstandingBase)}
                   </span>
                 </div>
                 <Progress value={d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0} color={d.status === "settled" ? "var(--positive)" : "var(--warning)"} />
@@ -211,13 +220,16 @@ export default async function ReportsPage() {
                 <tr key={p.month}>
                   <td>{jalaliMonthLabel(jalaliMonthKey(p.month))}</td>
                   <td className="td-num" dir="rtl" style={{ color: "var(--positive)" }}>
-                    {formatMoney(p.inflow)}
+                    <div>{toIrt(p.inflow) ?? formatMoney(p.inflow)}</div>
+                    {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(p.inflow)}</div>}
                   </td>
                   <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
-                    {formatMoney(p.outflow)}
+                    <div>{toIrt(p.outflow) ?? formatMoney(p.outflow)}</div>
+                    {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(p.outflow)}</div>}
                   </td>
                   <td className="td-num font-bold" dir="rtl" style={{ color: p.deficit ? "var(--negative)" : undefined }}>
-                    {formatMoney(p.cumulative)}
+                    <div>{toIrt(p.cumulative) ?? formatMoney(p.cumulative)}</div>
+                    {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(p.cumulative)}</div>}
                   </td>
                 </tr>
               ))}

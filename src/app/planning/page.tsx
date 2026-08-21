@@ -45,6 +45,8 @@ export default async function PlanningPage() {
     getLatestUsdIrtRate(),
   ]);
 
+  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
+
   const pending = planned.filter((p) => p.status === "pending");
   const deficit = projection.points.find((p) => p.deficit);
   const totalPlannedOut = pending.filter((p) => p.direction === "outflow").reduce((s, p) => s + Number(p.amountBase), 0);
@@ -102,12 +104,13 @@ export default async function PlanningPage() {
       )}
 
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="نقدینگی فعلی" value={formatMoney(projection.startingLiquidity)} />
-        <Metric label="خروجی برنامه‌ریزی‌شده" value={formatMoney(totalPlannedOut)} tone="down" hint={`${pending.length} برنامه در انتظار`} />
+        <Metric label="نقدینگی فعلی" value={toIrt(projection.startingLiquidity) ?? formatMoney(projection.startingLiquidity)} hint={fx.rate ? formatMoney(projection.startingLiquidity) : undefined} />
+        <Metric label="خروجی برنامه‌ریزی‌شده" value={toIrt(totalPlannedOut) ?? formatMoney(totalPlannedOut)} tone="down" hint={fx.rate ? formatMoney(totalPlannedOut) : `${pending.length} برنامه در انتظار`} />
         <Metric
           label="نقدینگی پایان ۱۲ ماه"
-          value={formatMoney(projection.points.at(-1)?.cumulative ?? "0")}
+          value={toIrt(projection.points.at(-1)?.cumulative ?? "0") ?? formatMoney(projection.points.at(-1)?.cumulative ?? "0")}
           tone={deficit ? "down" : "up"}
+          hint={fx.rate ? formatMoney(projection.points.at(-1)?.cumulative ?? "0") : undefined}
         />
         <Metric label="هشدار کسری" value={deficit ? formatShortDate(deficit.month) : "ندارد"} tone={deficit ? "down" : "up"} />
       </section>
@@ -144,8 +147,15 @@ export default async function PlanningPage() {
                       </span>
                     </p>
                   </div>
-                  <span className="num shrink-0 text-[13.5px] font-bold" dir="rtl">
-                    {formatMoney(q.amount)}
+                  <span className="flex shrink-0 flex-col items-end">
+                    <span className="num text-[13.5px] font-bold" dir="rtl">
+                      {toIrt(q.amount) ?? formatMoney(q.amount)}
+                    </span>
+                    {fx.rate && (
+                      <span className="muted num text-[9.5px]" dir="rtl">
+                        ≈ {formatMoney(q.amount)}
+                      </span>
+                    )}
                   </span>
                   {q.kind === "installment" && (
                     <Link
@@ -183,7 +193,7 @@ export default async function PlanningPage() {
           {[
             { href: "/budgets", label: "بودجه‌ها", q: "آیا در چارچوب هستم؟", icon: "budgets" as const },
             { href: "/goals", label: "اهداف و صندوق‌ها", q: "چقدر نزدیکم؟", icon: "goals" as const },
-            { href: "/debts", label: "بدهی‌ها", q: `مانده: ${formatMoney(debts.reduce((s, d) => s + Number(d.outstandingBase), 0))}`, icon: "debts" as const },
+            { href: "/debts", label: "بدهی‌ها", q: `مانده: ${toIrt(debts.reduce((s, d) => s + Number(d.outstandingBase), 0)) ?? formatMoney(debts.reduce((s, d) => s + Number(d.outstandingBase), 0))}`, icon: "debts" as const },
             { href: "/installments", label: "اقساط", q: "چه زمانی سر می‌رسد؟", icon: "installments" as const },
           ].map((l) => (
             <Link key={l.href} href={l.href} className="card group p-4 transition-transform hover:-translate-y-0.5">

@@ -72,18 +72,22 @@ export default async function CryptoPage() {
               value={toIrt(cryptoValue.toString()) ?? formatMoney(cryptoValue.toString())}
               hint={fx.rate ? formatMoney(cryptoValue.toString()) : undefined}
             />
-            <Metric label="استیبل‌کوین‌ها" value={formatMoney(stableValue.toString())} hint={stable.map((s) => currencyLabel(s.symbol)).join(" · ") || undefined} />
+            <Metric
+              label="استیبل‌کوین‌ها"
+              value={toIrt(stableValue.toString()) ?? formatMoney(stableValue.toString())}
+              hint={fx.rate ? formatMoney(stableValue.toString()) : stable.map((s) => currencyLabel(s.symbol)).join(" · ") || undefined}
+            />
             <Metric
               label="سود/زیان تحقق‌نیافته"
-              value={`${cryptoPnl.gte(0) ? "+" : "−"}${formatMoney(cryptoPnl.abs().toString())}`}
+              value={`${cryptoPnl.gte(0) ? "+" : "−"}${toIrt(cryptoPnl.abs().toString()) ?? formatMoney(cryptoPnl.abs().toString())}`}
               tone={cryptoPnl.gte(0) ? "up" : "down"}
-              hint={`بهای تمام‌شده ${formatMoney(cryptoCost.toString())}`}
+              hint={fx.rate ? `≈ ${formatMoney(cryptoPnl.abs().toString())} · بهای تمام‌شده ${formatMoney(cryptoCost.toString())}` : `بهای تمام‌شده ${formatMoney(cryptoCost.toString())}`}
             />
             <Metric
               label="سود تحقق‌یافته"
-              value={`${realized.gte(0) ? "+" : "−"}${formatMoney(realized.abs().toString())}`}
+              value={`${realized.gte(0) ? "+" : "−"}${toIrt(realized.abs().toString()) ?? formatMoney(realized.abs().toString())}`}
               tone={realized.gte(0) ? "up" : "down"}
-              hint="فروش‌های انجام‌شده (FIFO)"
+              hint={fx.rate ? `≈ ${formatMoney(realized.abs().toString())} · فروش‌های انجام‌شده (FIFO)` : "فروش‌های انجام‌شده (FIFO)"}
             />
           </section>
 
@@ -106,8 +110,15 @@ export default async function CryptoPage() {
                             <span className="num muted text-[10.5px]" dir="rtl">
                               {formatPct(share, 1)}
                             </span>
-                            <span className="num font-bold" dir="rtl">
-                              {formatMoney(value)}
+                            <span className="flex flex-col items-end">
+                              <span className="num font-bold" dir="rtl">
+                                {toIrt(value) ?? formatMoney(value)}
+                              </span>
+                              {fx.rate && (
+                                <span className="muted num text-[9.5px]" dir="rtl">
+                                  ≈ {formatMoney(value)}
+                                </span>
+                              )}
                             </span>
                           </span>
                         </div>

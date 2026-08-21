@@ -19,11 +19,13 @@ function FlowTable({
   rows,
   total,
   color,
+  toIrt,
 }: {
   hint: string;
   rows: { code: string; name: string; total: string }[];
   total: string;
   color: string;
+  toIrt: (usd: string | number) => string | null;
 }) {
   const sum = D(total);
   return (
@@ -42,8 +44,15 @@ function FlowTable({
                     <span className="num muted text-[10.5px]" dir="rtl">
                       {formatPct(share, 1)}
                     </span>
-                    <span className="num font-bold" dir="rtl">
-                      {formatMoney(r.total)}
+                    <span className="flex flex-col items-end">
+                      <span className="num font-bold" dir="rtl">
+                        {toIrt(r.total) ?? formatMoney(r.total)}
+                      </span>
+                      {toIrt(r.total) && (
+                        <span className="muted num text-[9.5px]" dir="rtl">
+                          ≈ {formatMoney(r.total)}
+                        </span>
+                      )}
                     </span>
                   </span>
                 </div>
@@ -64,7 +73,7 @@ function FlowTable({
  * their detail. Non-cash rows (depreciation/reserves) are shown separately —
  * they are expenses but never a cash outflow.
  */
-function CategoryBreakdown({ rows }: { rows: CategoryFlowRow[] }) {
+function CategoryBreakdown({ rows, toIrt }: { rows: CategoryFlowRow[]; toIrt: (usd: string | number) => string | null }) {
   if (!rows.length) return null;
   const groups = new Map<string, { name: string; parentId: string; total: Decimal; nonCash: Decimal; leaves: CategoryFlowRow[] }>();
   for (const r of rows) {
@@ -85,7 +94,7 @@ function CategoryBreakdown({ rows }: { rows: CategoryFlowRow[] }) {
         {misc && misc.total.gt(0) && (
           <div className="soft flex flex-wrap items-center justify-between gap-2 rounded-[var(--r-md)] p-3 text-[11.5px]">
             <span>
-              <strong>{formatMoney(misc.total.toString())}</strong> در دسته «متفرقه» ثبت شده است — فقط وقتی هیچ دسته مناسبی نیست.
+              <strong>{toIrt(misc.total.toString()) ?? formatMoney(misc.total.toString())}</strong> در دسته «متفرقه» ثبت شده است — فقط وقتی هیچ دسته مناسبی نیست.
               در صورت تکرار یک نوع هزینه، برای آن زیردسته مستقل بسازید.
             </span>
             <Link href={`/transactions?category=${misc.parentId}`} className="btn btn-soft !min-h-8 !px-3 text-[11px]">
@@ -102,7 +111,12 @@ function CategoryBreakdown({ rows }: { rows: CategoryFlowRow[] }) {
                   <span className="min-w-0 truncate font-semibold">{g.name}</span>
                   <span className="flex shrink-0 items-baseline gap-2">
                     <span className="num muted text-[10.5px]" dir="rtl">{formatPct(share, 1)}</span>
-                    <span className="num font-bold" dir="rtl">{formatMoney(g.total.toString())}</span>
+                    <span className="flex flex-col items-end">
+                      <span className="num font-bold" dir="rtl">{toIrt(g.total.toString()) ?? formatMoney(g.total.toString())}</span>
+                      {toIrt(g.total.toString()) && (
+                        <span className="muted num text-[9.5px]" dir="rtl">≈ {formatMoney(g.total.toString())}</span>
+                      )}
+                    </span>
                   </span>
                 </div>
                 <div className="meter"><i style={{ width: `${Math.min(100, share)}%`, background: "var(--negative)" }} /></div>
@@ -116,7 +130,7 @@ function CategoryBreakdown({ rows }: { rows: CategoryFlowRow[] }) {
                           • {l.name}
                           {l.nature === "non_cash" && <span className="badge ms-1.5">غیرنقدی — بدون خروج وجه</span>}
                         </span>
-                        <span className="num shrink-0" dir="rtl">{formatMoney(l.total)}</span>
+                        <span className="num shrink-0" dir="rtl">{toIrt(l.total) ?? formatMoney(l.total)}</span>
                       </li>
                     ))}
                 </ul>
@@ -139,6 +153,7 @@ export default async function CashFlowPage() {
     getLatestUsdIrtRate(),
     getFlowByCategory(6),
   ]);
+  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
 
   const month = flow.at(-1);
   const totalIncome12 = Decimal.sum(flow.map((f) => f.inflow));
@@ -157,18 +172,18 @@ export default async function CashFlowPage() {
 
       {/* KPI strip — borderless metrics with dividers */}
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="درآمد این ماه" value={formatMoney(month?.inflow ?? 0)} tone="up" />
-        <Metric label="هزینه این ماه" value={formatMoney(month?.outflow ?? 0)} tone="down" />
+        <Metric label="درآمد این ماه" value={toIrt(month?.inflow ?? 0) ?? formatMoney(month?.inflow ?? 0)} tone="up" hint={fx.rate ? formatMoney(month?.inflow ?? 0) : undefined} />
+        <Metric label="هزینه این ماه" value={toIrt(month?.outflow ?? 0) ?? formatMoney(month?.outflow ?? 0)} tone="down" hint={fx.rate ? formatMoney(month?.outflow ?? 0) : undefined} />
         <Metric
           label="خالص این ماه"
-          value={`${netMonth.gte(0) ? "+" : "−"}${formatMoney(netMonth.abs().toString())}`}
+          value={`${netMonth.gte(0) ? "+" : "−"}${toIrt(netMonth.abs().toString()) ?? formatMoney(netMonth.abs().toString())}`}
           tone={netMonth.gte(0) ? "up" : "down"}
-          hint={savingsRate != null ? `${formatPct(savingsRate, 0)} نرخ پس‌انداز` : undefined}
+          hint={fx.rate ? `≈ ${formatMoney(netMonth.abs().toString())}${savingsRate != null ? ` · ${formatPct(savingsRate, 0)} نرخ پس‌انداز` : ""}` : savingsRate != null ? `${formatPct(savingsRate, 0)} نرخ پس‌انداز` : undefined}
         />
         <Metric
           label="خالص ۱۲ ماه"
-          value={`${D(totalIncome12.sub(totalExpense12).toString()).gte(0) ? "+" : "−"}${formatMoney(totalIncome12.sub(totalExpense12).abs().toString())}`}
-          hint={`درآمد ${formatMoney(totalIncome12.toString())} · هزینه ${formatMoney(totalExpense12.toString())}`}
+          value={`${D(totalIncome12.sub(totalExpense12).toString()).gte(0) ? "+" : "−"}${toIrt(totalIncome12.sub(totalExpense12).abs().toString()) ?? formatMoney(totalIncome12.sub(totalExpense12).abs().toString())}`}
+          hint={fx.rate ? `≈ ${formatMoney(totalIncome12.sub(totalExpense12).abs().toString())} · درآمد ${formatMoney(totalIncome12.toString())} · هزینه ${formatMoney(totalExpense12.toString())}` : `درآمد ${formatMoney(totalIncome12.toString())} · هزینه ${formatMoney(totalExpense12.toString())}`}
         />
       </section>
 
@@ -194,11 +209,11 @@ export default async function CashFlowPage() {
       </Section>
 
       <div className="grid gap-10 lg:grid-cols-2">
-        <FlowTable hint="هزینه‌ها بر اساس حساب معین — ۶ ماه اخیر" rows={expenses} total={expTotal.toString()} color="var(--negative)" />
-        <FlowTable hint="درآمدها بر اساس منبع — ۶ ماه اخیر" rows={incomes} total={incTotal.toString()} color="var(--positive)" />
+        <FlowTable hint="هزینه‌ها بر اساس حساب معین — ۶ ماه اخیر" rows={expenses} total={expTotal.toString()} color="var(--negative)" toIrt={toIrt} />
+        <FlowTable hint="درآمدها بر اساس منبع — ۶ ماه اخیر" rows={incomes} total={incTotal.toString()} color="var(--positive)" toIrt={toIrt} />
       </div>
 
-      <CategoryBreakdown rows={categoryFlows} />
+      <CategoryBreakdown rows={categoryFlows} toIrt={toIrt} />
 
       <p className="muted text-[10.5px]">
         نرمال‌سازی ارز: {fx.rate ? <>هر ۱ دلار ≈ <span className="num">{formatMoney(fx.rate, "IRT")}</span></> : "ثبت نشده"} · منبع داده: دفترکل دوطرفه — همان حقیقت حسابداری.

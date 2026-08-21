@@ -271,8 +271,15 @@ export default async function OverviewDashboard() {
                           <span className="num muted text-[11px]" dir="rtl">
                             {formatPct(Number(c.share), 1)}
                           </span>
-                          <span className="num text-[13px] font-semibold" dir="rtl">
-                            {formatMoney(c.value)}
+                          <span className="flex flex-col items-end">
+                            <span className="num text-[13px] font-semibold" dir="rtl">
+                              {toIrt(c.value) ?? formatMoney(c.value)}
+                            </span>
+                            {rate && (
+                              <span className="muted num text-[9.5px]" dir="rtl">
+                                ≈ {formatMoney(c.value)}
+                              </span>
+                            )}
                           </span>
                         </span>
                       </li>
@@ -288,21 +295,24 @@ export default async function OverviewDashboard() {
                 <div>
                   <p className="muted text-[10.5px]">درآمد</p>
                   <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: "var(--positive)" }}>
-                    {formatMoney(monthFlow?.inflow ?? 0)}
+                    {toIrt(monthFlow?.inflow ?? 0) ?? formatMoney(monthFlow?.inflow ?? 0)}
                   </p>
+                  {rate && <p className="muted num text-[9.5px]" dir="rtl">≈ {formatMoney(monthFlow?.inflow ?? 0)}</p>}
                 </div>
                 <div>
                   <p className="muted text-[10.5px]">هزینه</p>
                   <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: "var(--negative)" }}>
-                    {formatMoney(monthFlow?.outflow ?? 0)}
+                    {toIrt(monthFlow?.outflow ?? 0) ?? formatMoney(monthFlow?.outflow ?? 0)}
                   </p>
+                  {rate && <p className="muted num text-[9.5px]" dir="rtl">≈ {formatMoney(monthFlow?.outflow ?? 0)}</p>}
                 </div>
                 <div>
                   <p className="muted text-[10.5px]">خالص</p>
                   <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: netMonth >= 0 ? "var(--positive)" : "var(--negative)" }}>
                     {netMonth >= 0 ? "+" : "−"}
-                    {formatMoney(Math.abs(netMonth))}
+                    {toIrt(Math.abs(netMonth)) ?? formatMoney(Math.abs(netMonth))}
                   </p>
+                  {rate && <p className="muted num text-[9.5px]" dir="rtl">≈ {formatMoney(Math.abs(netMonth))}</p>}
                 </div>
               </div>
               <BarsChart

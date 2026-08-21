@@ -18,6 +18,7 @@ export default async function DebtsPage() {
   await ensureAuth();
   await seedIfEmpty();
   const [debts, fx] = await Promise.all([listDebts(), getLatestUsdIrtRate()]);
+  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
 
   const today = todayIso();
   const totalOutstanding = debts.reduce((s, d) => s + Number(d.outstandingBase), 0);
@@ -54,12 +55,16 @@ export default async function DebtsPage() {
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric
           label="مانده کل بدهی"
-          value={formatMoney(totalOutstanding)}
+          value={toIrt(totalOutstanding) ?? formatMoney(totalOutstanding)}
           tone={totalOutstanding > 0 ? "down" : "up"}
-          hint={totalOutstanding === 0 ? "بدهی‌ای ندارید" : `${active.length} بدهی فعال`}
+          hint={totalOutstanding === 0 ? "بدهی‌ای ندارید" : fx.rate ? formatMoney(totalOutstanding) : `${active.length} بدهی فعال`}
         />
         <Metric label="اقساط معوق" value={String(overdue.length)} tone={overdue.length ? "down" : "up"} />
-        <Metric label="قسط بعدی" value={nextPayment ? formatMoney(nextPayment.amountBase) : "—"} hint={nextPayment ? `${nextPayment.title} · ${formatDualDate(nextPayment.dueDate)}` : "قسطی در انتظار نیست"} />
+        <Metric
+          label="قسط بعدی"
+          value={nextPayment ? (toIrt(nextPayment.amountBase) ?? formatMoney(nextPayment.amountBase)) : "—"}
+          hint={nextPayment ? `${nextPayment.title} · ${formatDualDate(nextPayment.dueDate)}` : "قسطی در انتظار نیست"}
+        />
         <Metric
           label="تسویه‌شده"
           value={String(debts.filter((d) => d.status === "settled").length)}
