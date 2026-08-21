@@ -316,6 +316,60 @@ test("Phase4-N — zero-quantity evidence is invalid (blocked, no backfill)", as
   assert.ok(blocker, "zero evidence must block the debt");
 });
 
+test("Phase4-D — pending legacy installment is a MIGRATION BLOCKER", async () => {
+  await clean();
+  const { irtAsset, usdAsset } = await seedRefData();
+  const user = await makeUser("mig-pending");
+  const { liab } = await makeAccounts(user.id, irtAsset.id, usdAsset.id, "35");
+  const [debt] = await db.insert(debts).values({
+    userId: user.id, creditor: "bank", title: "loan", principalBase: "10",
+    interestRate: "0", startDate: "2026-01-01", accountId: liab.id, status: "active",
+  } as any).returning();
+  const [inst] = await db.insert(installments).values({
+    debtId: debt.id, seq: 1, dueDate: "2026-02-01", amountBase: "5", status: "pending", paidEntryId: null,
+  } as any).returning();
+
+  const report = await classifyLegacyDebtTomanMigration(db);
+  assert.equal(report.installments.pendingBlocked, 1);
+  const blocker = report.blockers.find((b) => b.id === inst.id)!;
+  assert.equal(blocker.category, "pending_no_toman");
+
+  await backfillDeterministicDebtToman({ batchSize: 10 });
+  const [row] = await db.select().from(installments).where(eq(installments.id, inst.id));
+  assert.equal(row.amountToman, null, "pending legacy installment must stay NULL — never calculated using today's FX");
+});
+
+test("Phase4-G — non-IRT debt posting is a MIGRATION BLOCKER", async () => {
+  await clean();
+  const { irtAsset, usdAsset } = await seedRefData();
+  const user = await makeUser("mig-non-irt");
+  const { cash, liab } = await makeAccounts(user.id, irtAsset.id, usdAsset.id, "45");
+  const [debt] = await db.insert(debts).values({
+    userId: user.id, creditor: "bank", title: "loan", principalBase: "10",
+    interestRate: "0", startDate: "2026-01-01", accountId: liab.id, status: "active",
+  } as any).returning();
+
+  // Post a debt opening entry using USD asset instead of IRT asset for liability
+  await postEntry({
+    entryDate: "2026-01-01",
+    type: "debt",
+    description: "non-IRT debt opening",
+    userId: user.id,
+    postings: [
+      { accountId: cash.id, assetId: usdAsset.id, quantity: "100", baseValue: "100" },
+      { accountId: liab.id, assetId: usdAsset.id, quantity: "-100", baseValue: "-100" },
+    ],
+  });
+
+  const report = await classifyLegacyDebtTomanMigration(db);
+  const blocker = report.blockers.find((b) => b.id === debt.id)!;
+  assert.equal(blocker.category, "non_irt_denomination");
+
+  await backfillDeterministicDebtToman({ batchSize: 10 });
+  const [row] = await db.select().from(debts).where(eq(debts.id, debt.id));
+  assert.equal(row.principalToman, null, "non-IRT debt posting must stay NULL — never backfilled without IRT proof");
+});
+
 test("Phase4-K/L — backfill never touches ledger or legacy columns", async () => {
   await clean();
   const { irtAsset, usdAsset } = await seedRefData();
