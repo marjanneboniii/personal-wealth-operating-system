@@ -577,7 +577,7 @@ export class CrossCurrencyTransferError extends Error {
   }
 }
 
-const USD_FACE = new Set(["USD", "USDT"]);
+const USD_FACE = new Set(["USD", "USDT", "USDC", "USDG", "USDE", "USDS"]);
 
 /** Server-side native qty + USD book value. Client amounts are verified, never trusted as book currency. */
 export function resolveFxBookLegs(input: {

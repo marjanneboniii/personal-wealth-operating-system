@@ -208,20 +208,43 @@ export default function TransactionForm({
    * counter expense account for the double-entry ledger, so it is defaulted
    * to the first one here (in the event handler, not in an effect), keeping
    * the category picker as the user's main decision.
+   *
+   * When switching to buy / sell / transfer, counter accounts MUST strictly be
+   * cash/bank asset accounts, so any leftover expense/income account is wiped.
    */
   const pickType = (key: TxType) => {
     setType(key);
     if (key === "debt_repayment") {
       setShowExplorer(true);
     }
+    const targetPrimaryOptions = (key === "buy" || key === "sell")
+      ? cash.filter((a) => !["IRT", "USD"].includes(a.symbol ?? ""))
+      : cash;
+    if (primaryAccountId && !targetPrimaryOptions.some((a) => a.id === primaryAccountId)) {
+      setPrimaryAccountId("");
+    }
+
     if (key === "expense") {
       const valid = accountOptions.some((a) => a.id === counterAccountId && a.type === "expense");
       const first = accountOptions.find((a) => a.type === "expense");
       if (!valid && first) setCounterAccountId(first.id);
+      else if (!valid) setCounterAccountId("");
     } else if (key === "income") {
       const valid = accountOptions.some((a) => a.id === counterAccountId && a.type === "income");
       const first = accountOptions.find((a) => a.type === "income");
       if (!valid && first) setCounterAccountId(first.id);
+      else if (!valid) setCounterAccountId("");
+    } else if (key === "debt_repayment") {
+      if (!selectedDebt?.accountId) {
+        const expAcc = defaultExpenseAccount();
+        if (expAcc) setCounterAccountId(expAcc.id);
+      }
+    } else {
+      // For buy, sell, transfer: counter account must be an asset account (cash/bank)
+      const valid = cash.some((a) => a.id === counterAccountId);
+      if (!valid) {
+        setCounterAccountId("");
+      }
     }
   };
 
@@ -422,7 +445,7 @@ export default function TransactionForm({
   // conversion on IRT or a USD-face asset. Mirror that rule here so the UI
   // tells the user honestly which cross-asset conversions are supported —
   // without ever changing the engine itself.
-  const SWAP_ANCHOR_ASSETS = new Set(["IRT", "USD", "USDT"]);
+  const SWAP_ANCHOR_ASSETS = new Set(["IRT", "USD", "USDT", "USDC", "USDG", "USDE", "USDS"]);
   const swapSupported =
     isCrossCurrencyTransfer &&
     (SWAP_ANCHOR_ASSETS.has(primaryAccount?.symbol ?? "") ||
@@ -431,15 +454,16 @@ export default function TransactionForm({
   const previewUsd = irtAmount && effectiveRate ? D(irtAmount).div(effectiveRate).toFixed(2) : "";
   const primaryNeeded = !(type === "expense" && isNonCashCategory);
   const counterNeeded = !(type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount);
-  const canPreview =
+  const canPreview = Boolean(
     irtAmount &&
-    D(irtAmount).gt(0) &&
-    description &&
-    entryDate &&
-    (!primaryNeeded || primaryAccountId) &&
-    (!counterNeeded || counterAccountId) &&
-    (type !== "debt_repayment" || selectedDebt) &&
-    (type !== "expense" || !!categoryId);
+      D(irtAmount).gt(0) &&
+      description &&
+      entryDate &&
+      (!primaryNeeded || (primaryAccountId && primaryOptions.some((a) => a.id === primaryAccountId))) &&
+      (!counterNeeded || (counterAccountId && counterOptions.some((a) => a.id === counterAccountId))) &&
+      (type !== "debt_repayment" || selectedDebt) &&
+      (type !== "expense" || !!categoryId),
+  );
 
   const debtStatusAfter = useMemo(() => {
     if (!selectedDebt) return null;
@@ -721,7 +745,14 @@ export default function TransactionForm({
                 ثبت غیرنقدی — حساب نقدی درگیر نیست؛ طرف مقابل، خودکار «ذخیره استهلاک و تعمیرات آتی» است.
               </div>
             ) : (
-              <select name="primaryAccountId" required className="field" value={primaryAccountId} onChange={(e) => setPrimaryAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
+              <select
+                name="primaryAccountId"
+                required
+                className="field"
+                value={primaryOptions.some((a) => a.id === primaryAccountId) ? primaryAccountId : ""}
+                onChange={(e) => setPrimaryAccountId(e.target.value)}
+                style={{ touchAction: "manipulation" }}
+              >
                 <option value="" disabled>انتخاب کنید…</option>
                 {primaryOptions.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -757,7 +788,14 @@ export default function TransactionForm({
             ) : (
               <>
                 <label className="label">{meta.counter}</label>
-                <select name="counterAccountId" required className="field" value={counterAccountId} onChange={(e) => setCounterAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
+                <select
+                  name="counterAccountId"
+                  required
+                  className="field"
+                  value={counterOptions.some((a) => a.id === counterAccountId) ? counterAccountId : ""}
+                  onChange={(e) => setCounterAccountId(e.target.value)}
+                  style={{ touchAction: "manipulation" }}
+                >
                   <option value="" disabled>انتخاب کنید…</option>
                   {counterOptions.map((a) => (
                     <option key={a.id} value={a.id}>
