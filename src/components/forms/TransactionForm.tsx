@@ -84,7 +84,7 @@ const TYPES = [
   { key: "expense", label: "هزینه", primary: "پرداخت از حساب", counter: "حساب معین هزینه" },
   { key: "income", label: "درآمد", primary: "واریز به حساب", counter: "دسته درآمد" },
   { key: "transfer", label: "انتقال", primary: "از حساب", counter: "به حساب" },
-  { key: "debt_repayment", label: "بازپرداخت بدهی", primary: "پرداخت از حساب", counter: "حساب هزینه (در صورت نیاز)" },
+  { key: "debt_repayment", label: "بازپرداخت بدهی", primary: "پرداخت از حساب نقد/بانک", counter: "سرفصل طبقه‌بندی خروج وجه" },
   { key: "buy", label: "خرید دارایی", primary: "حساب دارایی خریداری‌شده", counter: "پرداخت از حساب" },
   { key: "sell", label: "فروش دارایی", primary: "حساب دارایی فروخته‌شده", counter: "واریز به حساب" },
 ] as const;
@@ -140,16 +140,14 @@ export default function TransactionForm({
   const [quantity, setQuantity] = useState("");
   const [primaryAccountId, setPrimaryAccountId] = useState("");
   const [counterAccountId, setCounterAccountId] = useState(() =>
-    defaultType === "expense" || defaultType === "debt_repayment"
-      ? accounts.find((a) => a.type === "expense")?.id ?? ""
-      : "",
+    defaultType === "expense" ? accounts.find((a) => a.type === "expense")?.id ?? "" : "",
   );
   const [entryDate, setEntryDate] = useState(initialEntryDate ?? today);
   const [description, setDescription] = useState(initialDescription ?? initialTitle ?? "");
   const [fee, setFee] = useState("");
   const [selectedDebt, setSelectedDebt] = useState<DebtOption | null>(null);
   const [selectedInst, setSelectedInst] = useState<DebtOption["installments"][number] | null>(null);
-  const [showExplorer, setShowExplorer] = useState(false);
+  const [showExplorer, setShowExplorer] = useState(defaultType === "debt_repayment");
   const [showPreview, setShowPreview] = useState(false);
   const [accountOptions, setAccountOptions] = useState(accounts);
   const [assetSearch, setAssetSearch] = useState("");
@@ -201,7 +199,10 @@ export default function TransactionForm({
    */
   const pickType = (key: TxType) => {
     setType(key);
-    if (key === "expense" || key === "debt_repayment") {
+    if (key === "debt_repayment") {
+      setShowExplorer(true);
+    }
+    if (key === "expense") {
       const valid = accountOptions.some((a) => a.id === counterAccountId && a.type === "expense");
       const first = accountOptions.find((a) => a.type === "expense");
       if (!valid && first) setCounterAccountId(first.id);
@@ -443,18 +444,29 @@ export default function TransactionForm({
       <input type="hidden" name="fxRateDate" value={effectiveRateDate ?? ""} />
       <input type="hidden" name="debtId" value={selectedDebt?.id ?? ""} />
       <input type="hidden" name="installmentId" value={selectedInst?.id ?? ""} />
-      {/* Explorer toggle — pick a debt/installment (debt repayment flow) */}
+      {type === "debt_repayment" && (
+        <div className="soft space-y-2 rounded-[var(--r-md)] p-3 text-[12px] leading-6">
+          <p className="font-semibold">قسط و بدهی را از فهرست زیر انتخاب کنید — نه از لیست حساب‌ها.</p>
+          <p className="muted text-[11.5px]">
+            «حساب هزینه» سرفصل دفترکل است (مثلاً بیمه، قبض، متفرقه) و خودِ قسط نیست.
+            پول از حساب نقد/بانک خارج می‌شود؛ بدهی یا قسط را اینجا مشخص می‌کنید.
+            سرفصل هزینه فقط وقتی لازم است که بدهی هنوز حساب بدهی در دفترکل نداشته باشد تا سند دوطرفه تراز بماند.
+          </p>
+        </div>
+      )}
       {(type === "expense" || type === "debt_repayment") && debts.length > 0 && (
         <div>
-          <button type="button" onClick={() => setShowExplorer((v) => !v)} className="btn btn-ghost w-full !justify-between" style={{ touchAction: "manipulation" }}>
-            <span className="inline-flex items-center gap-1.5">
-              <Icon name="search" size={15} />
-              انتخاب بدهی / قسط (Explorer)
-            </span>
-            <span className="chip">{showExplorer ? "بستن" : "نمایش"} · {debts.length} بدهی</span>
-          </button>
-          {showExplorer && (
-            <div className="mt-3">
+          {type !== "debt_repayment" && (
+            <button type="button" onClick={() => setShowExplorer((v) => !v)} className="btn btn-ghost w-full !justify-between" style={{ touchAction: "manipulation" }}>
+              <span className="inline-flex items-center gap-1.5">
+                <Icon name="search" size={15} />
+                انتخاب بدهی / قسط
+              </span>
+              <span className="chip">{showExplorer ? "بستن" : "نمایش"} · {debts.length} بدهی</span>
+            </button>
+          )}
+          {(showExplorer || type === "debt_repayment") && (
+            <div className={type === "debt_repayment" ? "" : "mt-3"}>
               <DebtInstallmentExplorer
                 debts={debts}
                 onSelectDebt={handleSelectDebt}
@@ -470,6 +482,11 @@ export default function TransactionForm({
             </div>
           )}
         </div>
+      )}
+      {type === "debt_repayment" && debts.length === 0 && (
+        <p className="rounded-[var(--r-md)] px-3 py-2 text-xs" style={{ background: "var(--negative-soft)", color: "var(--negative)" }}>
+          هیچ بدهی یا قسطی ثبت نشده است. ابتدا از صفحه بدهی‌ها بدهی/قسط تعریف کنید.
+        </p>
       )}
 
       <div className="card space-y-3 p-4">
@@ -684,14 +701,40 @@ export default function TransactionForm({
             )}
           </div>
           <div>
-            <label className="label">{meta.counter}</label>
-            {type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount ? (
-              <input type="hidden" name="counterAccountId" value="" />
-            ) : null}
-            {type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount ? (
+            <label className="label">
+              {type === "debt_repayment"
+                ? selectedDebtHasLedgerAccount
+                  ? "طرف مقابل سند (حساب بدهی)"
+                  : selectedDebt
+                    ? "سرفصل هزینه — فقط طبقه‌بندی خروج وجه"
+                    : "سرفصل هزینه"
+                : meta.counter}
+            </label>
+            {type === "debt_repayment" && !selectedDebt ? (
               <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
-                بازپرداخت اصل بدهی — مستقیماً از مانده بدهی «{selectedDebt.title}» کسر می‌شود و <strong>هزینه محسوب نمی‌شود</strong>.
+                این فهرست قسط بیمه یا بدهی نیست. ابتدا بدهی/قسط را از کادر بالا انتخاب کنید. سرفصل هزینه فقط برای بدهی‌های بدون حساب دفترکل لازم است تا سند دوطرفه تراز شود.
               </div>
+            ) : type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount ? (
+              <>
+                <input type="hidden" name="counterAccountId" value="" />
+                <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
+                  بازپرداخت اصل بدهی «{selectedDebt.title}» مستقیماً از مانده بدهی کسر می‌شود و <strong>هزینه نیست</strong>. سرفصل هزینه لازم نیست.
+                </div>
+              </>
+            ) : type === "debt_repayment" && selectedDebt && !selectedDebtHasLedgerAccount ? (
+              <>
+                <select name="counterAccountId" required className="field" value={counterAccountId} onChange={(e) => setCounterAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
+                  <option value="" disabled>سرفصل هزینه را انتخاب کنید…</option>
+                  {counterOptions.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}{a.symbol ? ` — ${currencyLabel(a.symbol)}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="muted mt-1.5 text-[10.5px] leading-5">
+                  این بدهی حساب بدهی در دفترکل ندارد (مثل قسط بیمه برنامه‌ریزی‌شده). پول از حساب نقد خارج می‌شود و طرف دوم سند باید یک سرفصل هزینه باشد تا تراز بماند — نه اینکه قسط را از این لیست انتخاب کنید.
+                </p>
+              </>
             ) : (
               <select name="counterAccountId" required className="field" value={counterAccountId} onChange={(e) => setCounterAccountId(e.target.value)} style={{ touchAction: "manipulation" }}>
                 <option value="" disabled>انتخاب کنید…</option>
@@ -788,7 +831,7 @@ export default function TransactionForm({
               <div className="soft rounded-xl p-2 border" style={{ borderColor:"var(--border)" }}>
                 <div className="font-bold">مرجع بدهی/قسط</div>
                 <div>بدهی: <strong>{selectedDebt?.title}</strong> — {selectedDebt?.creditor}</div>
-                {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید {getDualDate(selectedInst.dueDate).jalali} / <span dir="ltr">{selectedInst.dueDate}</span> — مبلغ <span dir="rtl">{formatMoney(selectedInst.amountBase,"USD")}</span></div>}
+                {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید {getDualDate(selectedInst.dueDate).jalali} / <span dir="ltr">{selectedInst.dueDate}</span> — مبلغ <span dir="rtl">{selectedInst.amountToman ? formatMoney(selectedInst.amountToman, "IRT") : formatMoney(selectedInst.amountBase, "USD")}</span></div>}
                 <div>وضعیت پس از پرداخت: <strong style={{ color:"var(--brand)" }}>{debtStatusAfter}</strong></div>
                 <div className="muted text-[10px]">شناسه مرجع در سند حسابداری ذخیره و قابل پیگیری از هر دو سمت خواهد بود.</div>
               </div>
