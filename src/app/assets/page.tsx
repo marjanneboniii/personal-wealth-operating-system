@@ -98,8 +98,9 @@ export default async function AssetsPage() {
         <Metric label="تعداد دارایی" value={String(all.length)} hint={`${financial.length} مالی · ${real.length} واقعی`} />
         <Metric
           label="سود/زیان محقق‌نشده"
-          value={formatMoney(unrealized.toString())}
+          value={toIrt(unrealized.toString()) ?? formatMoney(unrealized.toString())}
           tone={unrealized.gte(0) ? "up" : "down"}
+          hint={fx.rate ? formatMoney(unrealized.toString()) : undefined}
         />
         <Metric
           label="وضعیت قیمت‌ها"
@@ -127,8 +128,15 @@ export default async function AssetsPage() {
                   </span>
                 </span>
                 <span className="mt-3.5 flex items-end justify-between gap-2">
-                  <span className="num text-lg font-bold" dir="rtl">
-                    {formatMoney(f.value)}
+                  <span className="flex flex-col items-start">
+                    <span className="num text-lg font-bold" dir="rtl">
+                      {toIrt(f.value) ?? formatMoney(f.value)}
+                    </span>
+                    {fx.rate && (
+                      <span className="muted num text-[9.5px]" dir="rtl">
+                        ≈ {formatMoney(f.value)}
+                      </span>
+                    )}
                   </span>
                   <span className="muted num text-[10.5px]" dir="rtl">
                     {faCount(f.count)} مورد
@@ -167,8 +175,15 @@ export default async function AssetsPage() {
                   <span className="truncate">{c.className}</span>
                 </span>
                 <span className="flex shrink-0 items-baseline gap-2">
-                  <span className="num text-[13px] font-bold" dir="rtl">
-                    {formatMoney(c.value)}
+                  <span className="flex flex-col items-end">
+                    <span className="num text-[13px] font-bold" dir="rtl">
+                      {toIrt(c.value) ?? formatMoney(c.value)}
+                    </span>
+                    {fx.rate && (
+                      <span className="muted num text-[9.5px]" dir="rtl">
+                        ≈ {formatMoney(c.value)}
+                      </span>
+                    )}
                   </span>
                   <span className="num muted w-10 text-[10.5px]" dir="rtl">
                     {formatPct(Number(c.percentage), 1)}

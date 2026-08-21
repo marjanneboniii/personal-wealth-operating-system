@@ -102,9 +102,9 @@ export default async function FinancialAssetsPage() {
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش روز" value={toIrt(totalValue.toString()) ?? formatMoney(totalValue.toString())} hint={fx.rate ? formatMoney(totalValue.toString()) : undefined} />
-        <Metric label="بهای تمام‌شده" value={formatMoney(totalCost.toString())} />
-        <Metric label="سود/زیان محقق‌نشده" value={formatMoney(unrealized.toString())} tone={unrealized.gte(0) ? "up" : "down"} />
-        <Metric label="سود/زیان محقق‌شده" value={formatMoney(realized.toString())} tone={realized.gte(0) ? "up" : "down"} hint="از فروش‌های ثبت‌شده (FIFO)" />
+        <Metric label="بهای تمام‌شده" value={toIrt(totalCost.toString()) ?? formatMoney(totalCost.toString())} hint={fx.rate ? formatMoney(totalCost.toString()) : undefined} />
+        <Metric label="سود/زیان محقق‌نشده" value={toIrt(unrealized.toString()) ?? formatMoney(unrealized.toString())} tone={unrealized.gte(0) ? "up" : "down"} hint={fx.rate ? formatMoney(unrealized.toString()) : undefined} />
+        <Metric label="سود/زیان محقق‌شده" value={toIrt(realized.toString()) ?? formatMoney(realized.toString())} tone={realized.gte(0) ? "up" : "down"} hint="از فروش‌های ثبت‌شده (FIFO)" />
       </section>
 
       {ordered.length === 0 ? (
@@ -133,8 +133,13 @@ export default async function FinancialAssetsPage() {
                     <span className="text-[12.5px] font-semibold">{b.name}</span>
                   </span>
                   <p className="num mt-2.5 text-lg font-bold" dir="rtl">
-                    {formatMoney(b.value.toString())}
+                    {toIrt(b.value.toString()) ?? formatMoney(b.value.toString())}
                   </p>
+                  {fx.rate && (
+                    <p className="muted num text-[9.5px]" dir="rtl">
+                      ≈ {formatMoney(b.value.toString())}
+                    </p>
+                  )}
                   <p className="muted num text-[10.5px]" dir="rtl">
                     {b.rows.length} دارایی ·{" "}
                     {formatPct(totalValue.isZero() ? "0.0" : b.value.div(totalValue).mul(100).toFixed(1), 1)}
@@ -145,7 +150,7 @@ export default async function FinancialAssetsPage() {
           </Section>
 
           {ordered.map((b) => (
-            <Section key={b.name} title={b.name} hint={`${b.rows.length} دارایی · ${formatMoney(b.value.toString())}`}>
+            <Section key={b.name} title={b.name} hint={`${b.rows.length} دارایی · ${toIrt(b.value.toString()) ?? formatMoney(b.value.toString())}${fx.rate ? ` ≈ ${formatMoney(b.value.toString())}` : ""}`}>
               <HoldingsTable rows={b.rows} toIrt={toIrt} />
             </Section>
           ))}

@@ -9,20 +9,23 @@ import Icon from "@/components/ui/Icon";
 import BudgetForm from "@/components/forms/BudgetForm";
 import { D } from "@/domain/decimal";
 import { formatDualDate, formatMoney, formatPct } from "@/lib/format";
+import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
 
 export default async function BudgetsPage() {
   await ensureAuth();
   await seedIfEmpty();
-  const [budgets, expenseAccounts] = await Promise.all([
+  const [budgets, expenseAccounts, fx] = await Promise.all([
     listBudgets(),
     db
       .select({ id: accounts.id, code: accounts.code, name: accounts.name })
       .from(accounts)
       .where(sql`${accounts.type} = 'expense' and ${accounts.deletedAt} is null`)
       .orderBy(asc(accounts.code)),
+    getLatestUsdIrtRate(),
   ]);
+  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
 
   const activeCount = budgets.length;
   const overCount = budgets.filter((b) => b.over).length;
@@ -39,8 +42,8 @@ export default async function BudgetsPage() {
       {activeCount > 0 && (
         <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
           <Metric label="بودجه فعال" value={String(activeCount)} />
-          <Metric label="سقف مجموع" value={formatMoney(totalLimit)} />
-          <Metric label="مصرف مجموع" value={formatMoney(totalSpent)} tone={totalSpent > totalLimit ? "down" : "neutral"} />
+          <Metric label="سقف مجموع" value={toIrt(totalLimit) ?? formatMoney(totalLimit)} hint={fx.rate ? formatMoney(totalLimit) : undefined} />
+          <Metric label="مصرف مجموع" value={toIrt(totalSpent) ?? formatMoney(totalSpent)} tone={totalSpent > totalLimit ? "down" : "neutral"} hint={fx.rate ? formatMoney(totalSpent) : undefined} />
           <Metric label="خارج از چارچوب" value={String(overCount)} tone={overCount ? "down" : "up"} />
         </section>
       )}
@@ -69,12 +72,19 @@ export default async function BudgetsPage() {
                       {over && <span className="badge badge-neg">خارج از چارچوب</span>}
                       {almost && <span className="badge badge-warn">نزدیک به سقف</span>}
                     </div>
-                    <p className="num text-[13px]" dir="rtl">
-                      <b className="text-[15px]" style={{ color }}>
-                        {formatMoney(b.spentBase)}
-                      </b>{" "}
-                      <span className="muted">از {formatMoney(b.amountBase)}</span>
-                    </p>
+                    <div className="text-left">
+                      <p className="num text-[13px]" dir="rtl">
+                        <b className="text-[15px]" style={{ color }}>
+                          {toIrt(b.spentBase) ?? formatMoney(b.spentBase)}
+                        </b>{" "}
+                        <span className="muted">از {toIrt(b.amountBase) ?? formatMoney(b.amountBase)}</span>
+                      </p>
+                      {fx.rate && (
+                        <p className="muted num text-[9.5px]" dir="rtl">
+                          ≈ {formatMoney(b.spentBase)} از {formatMoney(b.amountBase)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="meter mt-3">
                     <i style={{ width: `${Math.min(100, b.usage)}%`, background: color }} />
@@ -85,8 +95,8 @@ export default async function BudgetsPage() {
                     </span>
                     <span className="num" dir="rtl" style={{ color: over ? "var(--negative)" : "var(--positive)" }}>
                       {over
-                        ? `${formatMoney(D(b.remainingBase).abs().toString())} بیشتر از سقف`
-                        : `${formatMoney(b.remainingBase)} مانده · ${formatPct(b.usage, 0)} مصرف شده`}
+                        ? `${toIrt(D(b.remainingBase).abs().toString()) ?? formatMoney(D(b.remainingBase).abs().toString())} بیشتر از سقف`
+                        : `${toIrt(b.remainingBase) ?? formatMoney(b.remainingBase)} مانده · ${formatPct(b.usage, 0)} مصرف شده`}
                     </span>
                   </div>
                 </li>

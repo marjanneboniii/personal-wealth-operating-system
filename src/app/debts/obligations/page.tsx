@@ -5,6 +5,7 @@ import { listEvents, listObligations, upcomingInstallments } from "@/features/pl
 import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { formatDualDate, formatMoney, todayIso, faCount } from "@/lib/format";
+import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +36,13 @@ export default async function ObligationsPage() {
   await ensureAuth();
   await seedIfEmpty();
 
-  const [obligations, events, insts] = await Promise.all([
+  const [obligations, events, insts, fx] = await Promise.all([
     listObligations(),
     listEvents(),
     upcomingInstallments(100),
+    getLatestUsdIrtRate(),
   ]);
+  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
 
   const today = todayIso();
 
@@ -115,14 +118,14 @@ export default async function ObligationsPage() {
         <Metric
           label="۳۰ روز آینده"
           value={String(next30.length)}
-          hint={next30.length ? formatMoney(next30.reduce((s, r) => s + Number(r.amount), 0)) : undefined}
+          hint={next30.length ? toIrt(next30.reduce((s, r) => s + Number(r.amount), 0)) ?? formatMoney(next30.reduce((s, r) => s + Number(r.amount), 0)) : undefined}
         />
         <Metric
           label="۹۰ روز آینده"
           value={String(next90.length)}
-          hint={next90.length ? formatMoney(next90.reduce((s, r) => s + Number(r.amount), 0)) : undefined}
+          hint={next90.length ? toIrt(next90.reduce((s, r) => s + Number(r.amount), 0)) ?? formatMoney(next90.reduce((s, r) => s + Number(r.amount), 0)) : undefined}
         />
-        <Metric label="مجموع تعهدات پیش‌رو" value={formatMoney(totalCommitted)} />
+        <Metric label="مجموع تعهدات پیش‌رو" value={toIrt(totalCommitted) ?? formatMoney(totalCommitted)} hint={fx.rate ? formatMoney(totalCommitted) : undefined} />
       </section>
 
       <Section title="زمان‌بندی تعهدات" hint="از نزدیک‌ترین سررسید به دورترین">
@@ -171,7 +174,8 @@ export default async function ObligationsPage() {
                         </span>
                       </td>
                       <td className="td-num font-bold" dir="rtl">
-                        {formatMoney(r.amount)}
+                        <div>{toIrt(r.amount) ?? formatMoney(r.amount)}</div>
+                        {fx.rate && <div className="muted num text-[9.5px]">≈ {formatMoney(r.amount)}</div>}
                       </td>
                     </tr>
                   );
