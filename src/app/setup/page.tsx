@@ -40,6 +40,12 @@ export default function SetupWizardPage() {
     fetchSetupStateAction()
       .then((state) => {
         if (!active) return;
+        // LOGIN-GATED APP: an anonymous visitor never runs the wizard —
+        // they are sent to /login (landing stays the public surface).
+        if ((state as { loginRequired?: boolean }).loginRequired) {
+          router.replace("/login");
+          return;
+        }
         setSetupStatus(state.completed ? "completed" : "pending");
         if (state.usdIrtRate) setUsdIrtRate(state.usdIrtRate);
       })
@@ -49,7 +55,7 @@ export default function SetupWizardPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [router]);
 
   // Step 1 State
   const [userName, setUserName] = useState("مالک خانواده");

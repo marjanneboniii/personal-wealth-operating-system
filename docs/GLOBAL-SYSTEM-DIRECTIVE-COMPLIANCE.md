@@ -10,10 +10,12 @@
 | الزام | وضعیت | پیاده‌سازی |
 |---|---|---|
 | ایزوله‌سازی سراسری داده‌ها | ✅ (موجود + پین‌شده با تست) | تمام کوئری‌های دیتابیس از قبل Tenant-scoped هستند (`user_id` روی `journal_entries`، `postings`، `accounts`، `wallets`، …). کش نرخ ارز از قبل per-user است (`fxRateCache` با کلید `user_fx:{userId}` — `src/features/fx/userRate.ts`). تنها کش‌های اشتراکی، داده‌های عمومی بازار هستند (قیمت‌های CoinGecko). |
+| اپ کاملاً Login-Gated | ✅ (بهبود یافته) | کاربر خارج‌شده فقط «لندینگ» را می‌بیند: `resolveHomeMode` ناشناس → همیشه landing؛ `ensureAuth` ناشناس → همیشه redirect به `/login` (مسیر قدیمیِ legacy — دسترسی بی‌ session وقتی کاربر احراز هویت وجود ندارد — حذف شد)؛ `requireAuthForApi` ناشناس → همیشه 401. راه‌اندازی اولیه (`/setup`) نیز session می‌خواهد و bootstrap ناشناس بسته شد. یک fast-path در `src/proxy.ts` (قرارداد Next 16 برای middleware — فایل قبلیِ ریشه‌ایِ `middleware.ts` در Next 16 عملاً اجرا نمی‌شد و اصلاح شد) درخواستِ بدون کوکی session را پیش از رندر هر چیزی به `/login` می‌فرستد (307)؛ اعتبارسنجی واقعی session همچنان سمت سرور است. |
 | State سراسری فرانت‌اند | ✅ | هیچ State مشترک بین‌کاربری وجود ندارد؛ تمام صفحات Server Component و per-request رندر می‌شوند (`force-dynamic`). |
 | ممنوعیت کامل Hardcoding | ✅ رفع شد | مقدار پیش‌فرض هاردکد «بانک ملت — جاری» در فرم راه‌اندازی اولیه (`src/app/setup/page.tsx`) حذف شد؛ فیلد خالی با placeholder خنثی شروع می‌شود و سرویس فقط fallback عمومی «حساب بانکی اصلی» دارد. داده‌های نمونه فقط در seed (با هدف مشخص) باقی مانده‌اند. |
+| هیچ داده مالی تستی در اپ | ✅ | seed نمونه فقط با فلگ صریح توسعه (`APP_MODE=development` یا `ALLOW_DEMO_SEED=true`) و هرگز در production اجرا می‌شود؛ حالت پیش‌فرض (`personal`) هیچ ردیف مالی نمی‌سازد — با تست پین شده. |
 
-تست‌های پشتیبان: `multi-user-isolation`، `analytics-isolation`، `net-worth-snapshot-isolation`، `security-isolation-hardening` + تست جدید `global-system-directive` (بند §0/§2).
+تست‌های پشتیبان: `multi-user-isolation`، `analytics-isolation`، `net-worth-snapshot-isolation`، `security-isolation-hardening` + تست‌های جدید `global-system-directive` (بند §0/§2) و `login-gated-app` (ریدایرکت ناشناس حتی در نصب تازه، بسته‌شدن bootstrap ناشناسِ setup، عدم seed داده نمونه بدون فلگ صریح، fail-closed با session معلق).
 
 ---
 
@@ -67,7 +69,7 @@
 
 ## تست‌ها
 
-- `npm test` → **341 تست، همه سبز** (۳۳۰ موجود + ۱۱ جدید در `global-system-directive` و `pro-mode-ledger-render`).
+- `npm test` → **346 تست، همه سبز** (۳۳۰ موجود + ۱۶ جدید در `global-system-directive`، `pro-mode-ledger-render` و `login-gated-app`).
 - `npx tsc --noEmit` ✅ — `npx eslint` ✅ (فقط هشدار موجودِ قبلی setup/page) — `next build` ✅.
 
 ## مهاجرت دیتابیس
