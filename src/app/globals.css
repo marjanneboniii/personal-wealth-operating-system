@@ -1576,3 +1576,17 @@ select.field {
     background: #fff;
   }
 }
+
+/* Mobile ledger polish */
+@media (max-width: 640px) {
+  .quick-actions, .quick-actions > * { min-width: 0; }
+  .quick-actions { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; width: 100%; }
+  .quick-actions a { width: auto !important; min-height: 4.25rem; padding-inline: .25rem; }
+  .preview-modal, [role="dialog"] { margin-top: 1rem; z-index: 50; max-height: calc(100dvh - 2rem); overflow-y: auto; }
+  .asset-metric { min-width: 0; overflow: hidden; padding-inline: .5rem !important; }
+  .asset-metric .num { min-width: 0; overflow-wrap: anywhere; font-size: clamp(.78rem, 3.5vw, 1rem); }
+  .chart-filters { display: flex; gap: .375rem; overflow-x: auto; padding: .25rem; border-radius: 999px; }
+  .chart-filters > * { flex: 1 0 auto; border-radius: 999px; }
+  .donut-legend { padding-bottom: 2rem; overflow: visible; }
+  main { padding-bottom: 2rem; }
+}

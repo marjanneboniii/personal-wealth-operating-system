@@ -81,7 +81,7 @@ export type CategoryGroupOption = {
 };
 
 const TYPES = [
-  { key: "expense", label: "هزینه", primary: "پرداخت از حساب", counter: "حساب معین هزینه" },
+  { key: "expense", label: "هزینه", primary: "پرداخت از حساب", counter: "دسته هزینه" },
   { key: "income", label: "درآمد", primary: "واریز به حساب", counter: "دسته درآمد" },
   { key: "transfer", label: "انتقال", primary: "از حساب", counter: "به حساب" },
   { key: "debt_repayment", label: "بازپرداخت بدهی", primary: "پرداخت از حساب نقد/بانک", counter: "سرفصل طبقه‌بندی خروج وجه" },
@@ -190,7 +190,7 @@ export default function TransactionForm({
     return cash;
   }, [type, cash]);
   const counterOptions = useMemo(() => {
-    if (type === "expense") return accountOptions.filter((a) => a.type === "expense");
+    if (type === "expense") return [];
     if (type === "income") return accountOptions.filter((a) => a.type === "income");
     if (type === "debt_repayment") return accountOptions.filter((a) => a.type === "expense");
     return cash;
@@ -453,7 +453,7 @@ export default function TransactionForm({
 
   const previewUsd = irtAmount && effectiveRate ? D(irtAmount).div(effectiveRate).toFixed(2) : "";
   const primaryNeeded = !(type === "expense" && isNonCashCategory);
-  const counterNeeded = !(type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount);
+  const counterNeeded = type !== "expense" && !(type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount);
   const canPreview = Boolean(
     irtAmount &&
       D(irtAmount).gt(0) &&
@@ -785,6 +785,8 @@ export default function TransactionForm({
                   </>
                 )}
               </>
+            ) : type === "expense" ? (
+              <input type="hidden" name="counterAccountId" value="" />
             ) : (
               <>
                 <label className="label">{meta.counter}</label>
@@ -935,7 +937,7 @@ export default function TransactionForm({
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
               <div><span className="muted">حساب مبدأ:</span> <strong>{accountOptions.find(a=>a.id===primaryAccountId)?.name ?? "—"}</strong> <span className="chip">{accountOptions.find(a=>a.id===primaryAccountId)?.code ?? ""}</span></div>
-              <div><span className="muted">حساب مقابل:</span> <strong>{accountOptions.find(a=>a.id===counterAccountId)?.name ?? "—"}</strong> <span className="chip">{accountOptions.find(a=>a.id===counterAccountId)?.code ?? ""}</span></div>
+              {type !== "expense" && <div><span className="muted">حساب مقابل:</span> <strong>{accountOptions.find(a=>a.id===counterAccountId)?.name ?? "—"}</strong> <span className="chip">{accountOptions.find(a=>a.id===counterAccountId)?.code ?? ""}</span></div>}
             </div>
             <div>
               <span className="muted">تاریخ شمسی / میلادی:</span>
