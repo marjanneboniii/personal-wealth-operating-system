@@ -504,12 +504,24 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       }
     }
 
+    // Expenses are classified exclusively by category. The ledger counterpart is
+    // resolved server-side to the system expense bucket and is never selected,
+    // submitted, or exposed in the UI.
+    let resolvedExpenseAccountId: string | null = null;
+    if (input.type === "expense") {
+      const [expenseAccount] = await db.select({ id: accounts.id }).from(accounts)
+        .where(eq(accounts.type, "expense")).limit(1);
+      if (!expenseAccount) throw new Error("حساب سیستمی هزینه در دسترس نیست");
+      resolvedExpenseAccountId = expenseAccount.id;
+    }
+
     // Wrap ledger write + FX snapshot + debt linkage in one atomic transaction
     const entryId = await db.transaction(async (tx) => {
       let entry: { id: string } | null = null;
 
       if (input.type === "income" || input.type === "expense") {
-        if (!isUuid(input.counterAccountId)) throw new Error("حساب مقابل را انتخاب کنید");
+        const ledgerCategoryAccountId = input.type === "expense" ? resolvedExpenseAccountId : input.counterAccountId;
+        if (!ledgerCategoryAccountId) throw new Error(input.type === "expense" ? "حساب سیستمی هزینه در دسترس نیست" : "حساب مقابل را انتخاب کنید");
         const categoryId = category?.id ?? null;
 
         if (category?.nature === "non_cash") {
@@ -537,7 +549,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
                   memo: "ثبت غیرنقدی (استهلاک/ذخیره)",
                 },
                 {
-                  accountId: input.counterAccountId,
+                  accountId: ledgerCategoryAccountId,
                   assetId: reserve.assetId,
                   quantity: qty,
                   baseValue: amount.toString(),
@@ -555,7 +567,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
             entryDate: input.entryDate,
             description: input.description,
             cashAccountId: input.primaryAccountId,
-            categoryAccountId: input.counterAccountId,
+            categoryAccountId: ledgerCategoryAccountId,
             assetId: cashAsset,
             quantity: qty,
             baseValue: amount.toString(),

@@ -185,7 +185,7 @@ export default async function OverviewDashboard() {
           {/* Quick capture — fastest workflow in the product */}
           <div>
             <p className="muted mb-2 text-[11px] font-medium">ثبت سریع</p>
-            <div className="flex gap-1.5">
+            <div className="quick-actions flex gap-1.5">
               {QUICK.map((q) => (
                 <Link
                   key={q.href}
