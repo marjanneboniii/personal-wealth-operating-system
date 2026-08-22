@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import { markManyReviewedAction, markReviewedAction } from "@/app/actions";
-import { humanizeEntry, typeBadgeTone } from "@/lib/tx";
+import { humanizeEntry, moneyFlowLabel, typeBadgeTone } from "@/lib/tx";
 import type { TxRow } from "@/features/ledger/queries";
-import { currencyLabel, formatJalaliIso, formatMoney, formatQty, formatShortDate } from "@/lib/format";
+import { faCount, formatJalaliIso, formatMoney, formatShortDate } from "@/lib/format";
+import { D } from "@/domain/decimal";
 
 export type ClientTxRow = TxRow & {
   fx: { irtAmount: string; usdAmount: string; fxRate: string; rateSource: string; rateDate: string } | null;
@@ -60,7 +61,10 @@ export default function TransactionsView({
   const searchRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toIrt = (usd: string | number) => (rate ? formatMoney(Math.round(Number(usd) * Number(rate)), "IRT") : null);
+  const toIrtFromUsd = (usd: string | number) =>
+    rate && D(rate).gt(0) ? formatMoney(D(usd).mul(rate).toFixed(0), "IRT") : null;
+  const displayIrt = (e: ClientTxRow, h: ReturnType<typeof humanizeEntry>) =>
+    e.fx?.irtAmount ? formatMoney(D(e.fx.irtAmount).toFixed(0), "IRT") : h.nativeIrt ? formatMoney(h.nativeIrt, "IRT") : toIrtFromUsd(h.amount);
 
   // URL state — filters survive refresh, share and browser back
   const apply = (patch: Partial<Filters>) => {
@@ -114,7 +118,7 @@ export default function TransactionsView({
     const body = selectedRows
       .map((r) => {
         const h = humanizeEntry(r);
-        const irt = toIrt(h.amount)?.replace(/[,٬]/g, "") ?? "";
+        const irt = (r.fx?.irtAmount ?? h.nativeIrt ?? "").replace(/[,٬]/g, "");
         return [
           r.entryDate,
           `"${r.description.replace(/"/g, '""')}"`,
@@ -139,139 +143,75 @@ export default function TransactionsView({
   return (
     <div className="space-y-3">
       {/* ─────────── Filter bar ─────────── */}
-      <div className="card sticky top-[52px] z-20 flex flex-wrap items-center gap-2 p-2 lg:top-0" style={{ touchAction: "manipulation" }}>
-        <div className="relative min-w-[180px] flex-1">
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 opacity-40">
-            <Icon name="search" size={15} />
-          </span>
-          <input
-            ref={searchRef}
-            value={query}
-            onChange={(e) => onQuery(e.target.value)}
-            placeholder="جستجوی شرح یا مرجع…"
-            aria-label="جستجوی تراکنش‌ها"
-            className="field !min-h-9 !py-1.5 pr-9 text-[13px]"
-            style={{ touchAction: "manipulation" }}
-          />
-          <kbd className="kbd absolute left-2.5 top-1/2 hidden -translate-y-1/2 lg:inline-flex">/</kbd>
-        </div>
-
-        <div className="seg order-3 w-full overflow-x-auto sm:order-none sm:w-auto" style={{ touchAction: "pan-x" }}>
-          {TYPE_OPTIONS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => apply({ type: t.key })}
-              className={filters.type === t.key ? "seg-on" : ""}
-              aria-pressed={filters.type === t.key}
-              style={{ touchAction: "manipulation" }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <select
-          value={filters.range}
-          onChange={(e) => apply({ range: e.target.value })}
-          className="field !min-h-9 !w-auto !py-1.5 text-[12.5px]"
-          aria-label="بازه زمانی"
-          style={{ touchAction: "manipulation" }}
-        >
-          {RANGE_OPTIONS.map((r) => (
-            <option key={r.key} value={r.key}>
-              {r.label}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={filters.accountId}
-          onChange={(e) => apply({ accountId: e.target.value })}
-          className="field !min-h-9 !w-auto max-w-[150px] !py-1.5 text-[12.5px]"
-          aria-label="فیلتر حساب"
-          style={{ touchAction: "manipulation" }}
-        >
-          <option value="">همه حساب‌ها</option>
-          {accountGroups.map((g) => (
-            <optgroup key={g.label} label={g.label}>
-              {g.options.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-
-        {categoryGroups.length > 0 && (
-          <select
-            value={filters.categoryId}
-            onChange={(e) => apply({ categoryId: e.target.value })}
-            className="field !min-h-9 !w-auto max-w-[170px] !py-1.5 text-[12.5px]"
-            aria-label="فیلتر دسته هزینه"
-            style={{ touchAction: "manipulation" }}
-          >
-            <option value="">همه دسته‌های هزینه</option>
-            {categoryGroups.map((g) => (
-              <optgroup key={g.id} label={g.name}>
-                <option value={g.id}>{g.name} (همه)</option>
-                {g.children.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
+      <div className="card sticky top-[52px] z-20 space-y-2 p-2 lg:top-0" style={{ touchAction: "manipulation" }}>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[180px] flex-1">
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 opacity-40">
+              <Icon name="search" size={15} />
+            </span>
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(e) => onQuery(e.target.value)}
+              placeholder="جستجوی شرح یا مرجع…"
+              aria-label="جستجوی تراکنش‌ها"
+              className="field !min-h-9 !py-1.5 pr-9 text-[13px]"
+            />
+          </div>
+          <details className="group">
+            <summary className="chip cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+              <Icon name="filter" size={12} />
+              فیلترها
+            </summary>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <select value={filters.type} onChange={(e) => apply({ type: e.target.value })} className="field !min-h-9 !w-auto !py-1.5 text-[12.5px]" aria-label="نوع">
+                {TYPE_OPTIONS.map((t) => (
+                  <option key={t.key} value={t.key}>{t.label}</option>
                 ))}
-              </optgroup>
-            ))}
-          </select>
-        )}
-
-        <button
-          type="button"
-          onClick={() => apply({ sort: filters.sort === "old" ? "new" : "old" })}
-          className={`chip ${filters.sort === "old" ? "chip-on" : ""}`}
-          aria-pressed={filters.sort === "old"}
-          title="ترتیب زمانی"
-          style={{ touchAction: "manipulation" }}
-        >
-          <Icon name="calendar" size={12} />
-          {filters.sort === "old" ? "قدیمی‌ترین" : "جدیدترین"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => apply({ sort: filters.sort === "amount" ? "new" : "amount" })}
-          className={`chip ${filters.sort === "amount" ? "chip-on" : ""}`}
-          aria-pressed={filters.sort === "amount"}
-          title="مرتب‌سازی بر اساس مبلغ"
-          style={{ touchAction: "manipulation" }}
-        >
-          <Icon name="filter" size={12} />
-          بیشترین مبلغ
-        </button>
-
-        <button
-          type="button"
-          onClick={() => apply({ review: filters.review === "unreviewed" ? "" : "unreviewed" })}
-          className={`chip ${filters.review === "unreviewed" ? "chip-on" : ""}`}
-          aria-pressed={filters.review === "unreviewed"}
-          style={{ touchAction: "manipulation" }}
-        >
-          <Icon name="check" size={12} />
-          بررسی‌نشده
-        </button>
-
-        {isFiltered && (
-          <button
-            type="button"
-            className="btn btn-ghost !min-h-8 !px-2 !py-1 text-[11.5px]"
-            onClick={() => router.replace("/transactions")}
-            style={{ touchAction: "manipulation" }}
-          >
-            <Icon name="x" size={13} />
-            پاک کردن فیلترها
-          </button>
-        )}
+              </select>
+              <select value={filters.range} onChange={(e) => apply({ range: e.target.value })} className="field !min-h-9 !w-auto !py-1.5 text-[12.5px]" aria-label="بازه">
+                {RANGE_OPTIONS.map((r) => (
+                  <option key={r.key} value={r.key}>{r.label}</option>
+                ))}
+              </select>
+              <select value={filters.accountId} onChange={(e) => apply({ accountId: e.target.value })} className="field !min-h-9 !w-auto max-w-[160px] !py-1.5 text-[12.5px]" aria-label="حساب">
+                <option value="">همه حساب‌ها</option>
+                {accountGroups.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.options.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              {categoryGroups.length > 0 && (
+                <select value={filters.categoryId} onChange={(e) => apply({ categoryId: e.target.value })} className="field !min-h-9 !w-auto max-w-[170px] !py-1.5 text-[12.5px]" aria-label="دسته">
+                  <option value="">همه دسته‌ها</option>
+                  {categoryGroups.map((g) => (
+                    <optgroup key={g.id} label={g.name}>
+                      <option value={g.id}>{g.name} (همه)</option>
+                      {g.children.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              )}
+              <button type="button" onClick={() => apply({ sort: filters.sort === "old" ? "new" : "old" })} className={`chip ${filters.sort === "old" ? "chip-on" : ""}`}>
+                {filters.sort === "old" ? "قدیمی‌ترین" : "جدیدترین"}
+              </button>
+              <button type="button" onClick={() => apply({ review: filters.review === "unreviewed" ? "" : "unreviewed" })} className={`chip ${filters.review === "unreviewed" ? "chip-on" : ""}`}>
+                بررسی‌نشده
+              </button>
+            </div>
+          </details>
+          {isFiltered && (
+            <button type="button" className="btn btn-ghost !min-h-8 !px-2 !py-1 text-[11.5px]" onClick={() => router.replace("/transactions")}>
+              <Icon name="x" size={13} />
+              پاک کردن
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ─────────── List ─────────── */}
@@ -341,9 +281,9 @@ export default function TransactionsView({
                             {e.categoryNonCash ? " · غیرنقدی" : ""}
                           </span>
                         )}
-                        {h.from && h.to && (
+                        {moneyFlowLabel(h.from, h.to) && (
                           <span className="hidden truncate sm:inline">
-                            &nbsp;· {h.from} ← {h.to}
+                            · {moneyFlowLabel(h.from, h.to)}
                           </span>
                         )}
                       </span>
@@ -356,9 +296,9 @@ export default function TransactionsView({
                         style={{ color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)" }}
                       >
                         {h.sign > 0 ? "+" : h.sign < 0 ? "−" : ""}
-                        {rate ? toIrt(h.amount) : formatMoney(h.amount)}
+                        {displayIrt(e, h) ?? formatMoney(h.amount)}
                       </span>
-                      {rate && <span className="muted num block text-[9.5px]">≈ {formatMoney(h.amount)}</span>}
+                      {rate && <span className="muted num block text-[10.5px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(h.amount)}</span>}
                     </span>
 
                     <span className={`muted shrink-0 transition-transform ${open ? "rotate-180" : ""}`}>
@@ -377,40 +317,20 @@ export default function TransactionsView({
                     <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
                       {/* Postings — the accounting truth of this transaction */}
                       <div>
-                        <p className="muted mb-2 text-[11px] font-semibold">اثر مالی این تراکنش (سوابق مالی)</p>
-                        <table className="table">
-                          <thead>
-                            <tr>
-                              <th>حساب</th>
-                              <th className="td-num">مقدار</th>
-                              <th className="td-num">ارزش پایه</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {e.lines.map((l, i) => (
-                              <tr key={i}>
-                                <td>
-                                  <span className="text-[12.5px] font-medium">{l.account}</span>
-                                  <span className={`badge badge-neutral mr-2 ${Number(l.baseValue) >= 0 ? "badge-pos" : "badge-neg"}`}>
-                                    {Number(l.baseValue) >= 0 ? "بدهکار" : "بستانکار"}
-                                  </span>
-                                  {l.quantity && Math.abs(Number(l.quantity)) > 0 && (
-                                    <span className="muted num mr-1 text-[10px]" dir="rtl">
-                                      {formatQty(l.quantity, l.decimals)} {currencyLabel(l.symbol)}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="td-num" dir="rtl">
-                                  {l.symbol && l.symbol !== "USD" && l.symbol !== "IRT" ? `${formatQty(l.quantity, l.decimals)} ${currencyLabel(l.symbol)}` : "—"}
-                                </td>
-                                <td className="td-num font-semibold" dir="rtl" style={{ color: Number(l.baseValue) >= 0 ? "var(--positive)" : "var(--negative)" }}>
-                                  {Number(l.baseValue) >= 0 ? "+" : "−"}
-                                  {formatMoney(Math.abs(Number(l.baseValue)))}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        <p className="mb-2 text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>جریان پول</p>
+                        <div className="card p-3" style={{ background: "var(--surface)" }}>
+                          <p className="text-[13.5px] font-medium">
+                            {moneyFlowLabel(h.from, h.to) ?? "جابه‌جایی داخلی"}
+                          </p>
+                          {e.categoryName && (
+                            <p className="muted mt-1 text-[12px]">
+                              دسته: {e.categoryParentName ? `${e.categoryParentName} › ` : ""}{e.categoryName}
+                            </p>
+                          )}
+                          <p className="num mt-2 text-[15px] font-bold" dir="rtl">
+                            {displayIrt(e, h) ?? formatMoney(h.amount)}
+                          </p>
+                        </div>
                         {e.fx && (
                           <p className="muted mt-3 text-[10.5px] leading-5">
                             مبلغ تاریخی منجمد: <b className="num">{formatMoney(e.fx.irtAmount, "IRT")}</b> ≈{" "}
@@ -434,33 +354,28 @@ export default function TransactionsView({
                           <p className="muted mb-1.5 text-[11px] font-semibold">جزئیات</p>
                           <dl className="space-y-1.5 text-[12px]">
                             <div className="flex justify-between gap-2">
-                              <dt className="muted">تاریخ</dt>
+                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>تاریخ</dt>
                               <dd className="num text-left">
                                 {formatJalaliIso(e.entryDate)} <span className="muted text-[10px]" dir="ltr">({e.entryDate})</span>
                               </dd>
                             </div>
                             <div className="flex justify-between gap-2">
-                              <dt className="muted">نوع</dt>
+                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>نوع</dt>
                               <dd>
                                 <span className={`badge badge-${typeBadgeTone(e.type)}`}>{h.typeLabel}</span>
                               </dd>
                             </div>
                             <div className="flex justify-between gap-2">
-                              <dt className="muted">منبع</dt>
+                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>منبع</dt>
                               <dd>{SOURCE_LABEL[e.source] ?? e.source}</dd>
                             </div>
                             <div className="flex items-center justify-between gap-2">
-                              <dt className="muted">وضعیت بازبینی</dt>
+                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>وضعیت بازبینی</dt>
                               <dd>
                                 {e.reviewed ? <span className="badge badge-pos">تأیید شده</span> : <span className="badge badge-warn">بررسی‌نشده</span>}
                               </dd>
                             </div>
-                            <div className="flex items-center justify-between gap-2">
-                              <dt className="muted">شناسه سند</dt>
-                              <dd className="num text-[10px]" dir="ltr">
-                                #{e.id.slice(0, 8)}
-                              </dd>
-                            </div>
+
                           </dl>
                         </div>
 
@@ -477,7 +392,7 @@ export default function TransactionsView({
                             className={`btn ${e.reviewed ? "btn-soft" : "btn-primary"} !min-h-9 !py-1.5 text-[12px]`}
                             style={{ touchAction: "manipulation" }}
                           >
-                            <Icon name="check" size={14} />
+                            <Icon name={e.reviewed ? "undo" : "check"} size={14} />
                             {e.reviewed ? "برگشت به «بررسی‌نشده»" : "تأیید این رکورد"}
                           </button>
                           {!isVoid && (
@@ -516,7 +431,7 @@ export default function TransactionsView({
           role="region"
           aria-label="اقدامات گروهی"
         >
-          <span className="text-[12.5px] font-semibold">{selectedRows.length} مورد انتخاب شده</span>
+          <span className="text-[12.5px] font-semibold">{faCount(selectedRows.length)} مورد انتخاب شده</span>
           <div className="flex items-center gap-1.5">
             <button type="button" className="btn btn-primary !min-h-9 !px-3 !py-1.5 text-[12px]" onClick={exportCsv} style={{ touchAction: "manipulation" }}>
               <Icon name="download" size={14} />

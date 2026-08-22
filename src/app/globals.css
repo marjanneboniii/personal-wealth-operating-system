@@ -1031,6 +1031,13 @@ select.field {
   flex: none;
 }
 
+/* Donut chart must stay inside its card and never overlap siblings */
+.donut-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 /* Stacked composition bar */
 .comp-bar {
   display: flex;

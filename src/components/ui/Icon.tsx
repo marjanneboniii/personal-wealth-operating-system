@@ -174,6 +174,12 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M20 3.8v4h-4" />
     </>
   ),
+  undo: (
+    <>
+      <path d="M9 7.5 4.5 12 9 16.5" />
+      <path d="M4.5 12H14a5.5 5.5 0 1 1 0 11" />
+    </>
+  ),
   download: (
     <>
       <path d="M12 4v10.5" />

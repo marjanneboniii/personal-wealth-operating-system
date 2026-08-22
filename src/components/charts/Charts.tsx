@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { formatMoney, formatPct, formatShortDate } from "@/lib/format";
+import { faCount, formatMoney, formatNumber, formatPct, formatShortDate } from "@/lib/format";
 
 export type SeriesPoint = { date: string; value: number };
 
@@ -30,10 +30,10 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
     return <p className="muted py-10 text-center text-xs">داده‌ای برای نمایش نیست — با گذر زمان و ثبت اسنپ‌شات، این نمودار شکل می‌گیرد.</p>;
 
   const w = 600;
-  const h = height;
-  const padX = 6;
-  const padTop = 10;
-  const padBottom = 8;
+  const h = height + 28;
+  const padX = 52;
+  const padTop = 12;
+  const padBottom = 28;
   const values = points.map((p) => p.value);
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -73,7 +73,7 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
       <svg
         viewBox={`0 0 ${w} ${h}`}
         className="w-full"
-        style={{ height }}
+        style={{ height: h }}
         role="img"
         aria-label={`نمودار تغییرات — از ${formatMoney(first)} به ${formatMoney(last)}`}
         onMouseLeave={() => setHover(null)}
@@ -89,8 +89,22 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
             <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
           </linearGradient>
         </defs>
-        {[0.25, 0.5, 0.75].map((t) => (
-          <line key={t} x1={padX} x2={w - padX} y1={padTop + (h - padTop - padBottom) * t} y2={padTop + (h - padTop - padBottom) * t} stroke="var(--border)" strokeDasharray="2 4" strokeWidth="1" />
+        {[0, 0.5, 1].map((t) => {
+          const yPos = padTop + (h - padTop - padBottom) * t;
+          const val = max - span * t;
+          return (
+            <g key={t}>
+              <line x1={padX} x2={w - 8} y1={yPos} y2={yPos} stroke="var(--border)" strokeDasharray="2 4" strokeWidth="1" />
+              <text x={padX - 6} y={yPos + 3} textAnchor="end" fontSize="9" fill="var(--text-3)">
+                {formatNumber(val, { decimals: 0 })}
+              </text>
+            </g>
+          );
+        })}
+        {points.filter((_, i) => i === 0 || i === points.length - 1 || i === Math.floor(points.length / 2)).map((p) => (
+          <text key={p.date} x={x(points.indexOf(p))} y={h - 6} textAnchor="middle" fontSize="9" fill="var(--text-3)">
+            {formatShortDate(p.date)}
+          </text>
         ))}
         <path d={area} fill="url(#pwosArea)" />
         <path d={line} fill="none" stroke="var(--brand)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
@@ -139,8 +153,8 @@ export function Donut({
   const shown = active != null ? data[active] : null;
 
   return (
-    <div className="flex flex-col items-center gap-5 sm:flex-row">
-      <div className="relative shrink-0">
+    <div className="flex w-full min-w-0 flex-col items-center gap-5 overflow-hidden sm:flex-row sm:items-center">
+      <div className="relative mx-auto shrink-0">
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="نمودار ترکیب">
           <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
             {segments.map(({ d, len, offset }, i) => (
@@ -169,7 +183,7 @@ export function Donut({
             {formatMoney(shown ? shown.value : total)}
           </div>
           <div className="muted num text-[10px]" dir="rtl">
-            {shown ? formatPct(((shown.value / total) * 100), 1) : `${data.length} بخش`}
+            {shown ? formatPct(((shown.value / total) * 100), 1) : `${faCount(data.length)} بخش`}
           </div>
         </div>
       </div>

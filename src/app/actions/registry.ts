@@ -30,7 +30,13 @@ import { users } from "@/db/schema";
 import { isNotNull } from "drizzle-orm";
 
 export type RegistryResult = { ok: boolean; message: string };
-const refresh = () => revalidatePath("/asset-registry");
+const refresh = () => {
+  revalidatePath("/asset-registry");
+  revalidatePath("/");
+  revalidatePath("/assets");
+  revalidatePath("/portfolio");
+  revalidatePath("/net-worth");
+};
 
 /**
  * SECURITY: registry writes create/modify shared reference records. Require

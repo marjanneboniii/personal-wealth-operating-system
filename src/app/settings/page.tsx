@@ -8,7 +8,7 @@ import { Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import RestorePanel from "@/components/RestorePanel";
-import { formatDate } from "@/lib/format";
+import { faCount, formatDate } from "@/lib/format";
 import { getCurrentUser } from "@/lib/auth";
 import { ensureAuth } from "@/lib/authGuard";
 import { getUserFxRate } from "@/features/fx/userRate";
@@ -29,14 +29,15 @@ export default async function SettingsPage() {
   await ensureAuth();
   await seedIfEmpty();
   const user = await getCurrentUser();
+  const uid = user?.id ?? null;
   const [config, backups, counts, fx] = await Promise.all([
     db.select().from(settings).where(sql`${settings.deletedAt} is null`),
     db.select().from(backupRuns).orderBy(desc(backupRuns.createdAt)).limit(5),
     db.execute(sql`
       select
-        (select count(*) from journal_entries) as entries,
-        (select count(*) from postings) as postings,
-        (select count(*) from accounts) as accounts,
+        (select count(*) from journal_entries je where ${uid ? sql`je.user_id = ${uid}` : sql`1=1`}) as entries,
+        (select count(*) from postings p join journal_entries je on je.id = p.entry_id where ${uid ? sql`je.user_id = ${uid}` : sql`1=1`}) as postings,
+        (select count(*) from accounts a where a.deleted_at is null and ${uid ? sql`(a.user_id = ${uid} or a.user_id is null)` : sql`1=1`}) as accounts,
         (select count(*) from assets) as assets
     `),
     user ? getUserFxRate(user.id) : Promise.resolve({ rate: "190000", lastUpdatedAt: null, nextUpdateAt: null, canUpdate: false } as any),
@@ -91,10 +92,10 @@ export default async function SettingsPage() {
 
       <Section title="سلامت داده" action={<SectionLink href="/audit" label="حسابرسی کامل" />}>
         <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
-          <Metric label="اسناد روزنامه" value={c.entries} />
-          <Metric label="ردیف‌های دفترکل" value={c.postings} />
-          <Metric label="حساب‌ها" value={c.accounts} />
-          <Metric label="دارایی‌ها" value={c.assets} />
+          <Metric label="تراکنش‌ها" value={faCount(c.entries)} />
+          <Metric label="ردیف‌های مالی" value={faCount(c.postings)} />
+          <Metric label="حساب‌ها" value={faCount(c.accounts)} />
+          <Metric label="دارایی‌ها" value={faCount(c.assets)} />
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <RowAction kind="integrity" label="بررسی تراز همه اسناد" primary />
@@ -118,7 +119,7 @@ export default async function SettingsPage() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] font-medium">سوابق مالی</span>
-                  <span className="muted block text-[11px]">اثر مالی هر تراکنش — اسناد، ردیف‌ها، بدهکار و بستانکار</span>
+                  <span className="muted block text-[11px]">جزئیات کامل هر تراکنش و مسیر پول</span>
                 </span>
                 <Icon name="chevronLeft" size={16} className="shrink-0 opacity-50" />
               </Link>

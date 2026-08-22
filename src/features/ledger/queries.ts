@@ -101,7 +101,7 @@ export async function getAccountBalances(userId?: string): Promise<AccountBalanc
       left join assets ast on ast.id = coalesce(p.asset_id, a.asset_id)
       left join wallets w on w.id = a.wallet_id
       left join asset_classes ac on ac.id = ast.class_id
-    where a.deleted_at is null ${u ? sql`and (a.user_id = ${u} or (a.user_id is null and a.code in ('1000','2000','3000','3010','3200','4000','4010','4100','4900','5000','5010','5020','5030','5040','5050','5900')))` : sql``}
+    where a.deleted_at is null ${u ? sql`and (a.user_id = ${u} or (a.user_id is null and a.code in ('1000','1300','1400','1600','1610','1620','2000','3000','3010','3015','3200','4000','4010','4100','4900','5000','5010','5020','5030','5040','5050','5900')))` : sql``}
     group by a.id, a.code, a.name, a.type, ast.id, ast.symbol, ast.name, ast.decimals, w.name, ac.name, ac.color
     order by a.code
   `);

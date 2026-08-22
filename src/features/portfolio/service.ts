@@ -9,6 +9,8 @@ import {
   realEstateProperties,
   rwaOwnershipRecords,
   rwaValuationEvents,
+  vehicleAssets,
+  vehicleValuationSnapshots,
 } from "@/db/schema";
 import {
   getAccountBalances,
@@ -52,6 +54,242 @@ async function historicalTomanCostByAsset(userId: string | null): Promise<Map<st
     group by l.asset_id
   `);
   return new Map((response.rows as Array<{ assetId: string; costToman: string }>).map((row) => [row.assetId, row.costToman]));
+}
+
+/**
+ * Real assets (property / vehicle / generic RWA) that live in their own
+ * registry tables but have no remaining ledger quantity. Overlay is READ ONLY:
+ * it never posts, never opens lots, and never rewrites cost basis.
+ */
+async function loadUnheldRealAssets(input: {
+  userId: string | null;
+  fxRate: string;
+  alreadyHeld: Set<string>;
+}): Promise<AssetValuation[]> {
+  const { userId, fxRate, alreadyHeld } = input;
+  const extras: AssetValuation[] = [];
+  const seen = new Set(alreadyHeld);
+
+  const push = (row: AssetValuation) => {
+    if (seen.has(row.assetId)) return;
+    if (!D(row.currentValue).abs().gt("0.00000001") && !D(row.costBasis).abs().gt("0.00000001")) return;
+    seen.add(row.assetId);
+    extras.push(row);
+  };
+
+  const propertyRows = await db
+    .select({
+      assetId: realEstateProperties.assetId,
+      symbol: assets.symbol,
+      name: assets.name,
+      logoUrl: assets.logoUrl,
+      decimals: assets.decimals,
+      className: assetClasses.name,
+      classColor: assetClasses.color,
+      currentValueUsd: realEstateProperties.currentValueUsd,
+      currentValueToman: realEstateProperties.currentValueToman,
+      purchaseValueUsd: realEstateProperties.purchaseValueUsd,
+      purchasePriceToman: realEstateProperties.purchasePriceToman,
+      valuationDate: realEstateProperties.valuationDate,
+    })
+    .from(realEstateProperties)
+    .innerJoin(assets, eq(assets.id, realEstateProperties.assetId))
+    .innerJoin(assetClasses, eq(assetClasses.id, assets.classId))
+    .where(userId ? eq(realEstateProperties.userId, userId) : sql`1=1`);
+
+  for (const row of propertyRows) {
+    const currentValue = row.currentValueUsd?.toString()
+      ?? (row.currentValueToman && D(fxRate).gt(0) ? D(row.currentValueToman).div(fxRate).toString() : "0");
+    const currentValueToman = row.currentValueToman
+      ? D(row.currentValueToman).toFixed(0)
+      : D(currentValue).mul(fxRate).toFixed(0);
+    const costBasis = row.purchaseValueUsd?.toString() ?? currentValue;
+    const historicalCostToman = row.purchasePriceToman ? D(row.purchasePriceToman).toFixed(0) : null;
+    push({
+      assetId: row.assetId,
+      symbol: row.symbol,
+      name: row.name,
+      logoUrl: row.logoUrl ?? null,
+      className: row.className,
+      classColor: row.classColor,
+      decimals: row.decimals,
+      quantity: "1",
+      marketPrice: currentValue,
+      marketCurrencyCode: "USD",
+      currentValue,
+      currentValueToman,
+      costBasis,
+      historicalCostToman,
+      unrealizedPnl: calculateUnrealizedPnl(currentValue, costBasis),
+      unrealizedPnlToman: historicalCostToman
+        ? D(currentValueToman).sub(historicalCostToman).toFixed(0)
+        : D(calculateUnrealizedPnl(currentValue, costBasis)).mul(fxRate).toFixed(0),
+      roiPercentage: calculateRoi(currentValue, costBasis),
+      sharePercentage: "0",
+      valuationBasis: "manual_real_asset",
+      priceFreshness: "fresh",
+      priceObservedAt: row.valuationDate ? `${row.valuationDate}T00:00:00.000Z` : null,
+    });
+  }
+
+  const vehicleRows = await db
+    .select({
+      vehicleId: vehicleAssets.id,
+      assetId: vehicleAssets.assetId,
+      catalogId: vehicleAssets.catalogId,
+      symbol: assets.symbol,
+      name: assets.name,
+      logoUrl: assets.logoUrl,
+      decimals: assets.decimals,
+      className: assetClasses.name,
+      classColor: assetClasses.color,
+      status: vehicleAssets.status,
+      purchaseValueUsd: vehicleAssets.purchaseValueUsd,
+      purchasePriceToman: vehicleAssets.purchasePriceToman,
+    })
+    .from(vehicleAssets)
+    .innerJoin(assets, eq(assets.id, vehicleAssets.assetId))
+    .innerJoin(assetClasses, eq(assetClasses.id, assets.classId))
+    .where(and(
+      userId ? eq(vehicleAssets.userId, userId) : sql`1=1`,
+      sql`coalesce(${vehicleAssets.status}, 'active') <> 'sold'`,
+    ));
+
+  const vehicleIds = vehicleRows.map((row) => row.vehicleId);
+  const snapshotRows = vehicleIds.length
+    ? await db
+        .select()
+        .from(vehicleValuationSnapshots)
+        .where(inArray(vehicleValuationSnapshots.userVehicleId, vehicleIds))
+        .orderBy(desc(vehicleValuationSnapshots.snapshotDate), desc(vehicleValuationSnapshots.createdAt))
+    : [];
+  const latestByVehicle = new Map<string, (typeof snapshotRows)[number]>();
+  for (const snap of snapshotRows) {
+    if (snap.userVehicleId && !latestByVehicle.has(snap.userVehicleId)) {
+      latestByVehicle.set(snap.userVehicleId, snap);
+    }
+  }
+
+  for (const row of vehicleRows) {
+    const snap = latestByVehicle.get(row.vehicleId);
+    const currentValue = snap?.currentValueUsd?.toString()
+      ?? row.purchaseValueUsd?.toString()
+      ?? "0";
+    const currentValueToman = snap?.currentValueToman
+      ? D(snap.currentValueToman).toFixed(0)
+      : row.purchasePriceToman
+        ? D(row.purchasePriceToman).toFixed(0)
+        : D(currentValue).mul(fxRate).toFixed(0);
+    const costBasis = row.purchaseValueUsd?.toString() ?? currentValue;
+    const historicalCostToman = row.purchasePriceToman ? D(row.purchasePriceToman).toFixed(0) : null;
+    push({
+      assetId: row.assetId,
+      symbol: row.symbol,
+      name: row.name,
+      logoUrl: row.logoUrl ?? null,
+      className: row.className,
+      classColor: row.classColor,
+      decimals: row.decimals,
+      quantity: "1",
+      marketPrice: currentValue,
+      marketCurrencyCode: "USD",
+      currentValue,
+      currentValueToman,
+      costBasis,
+      historicalCostToman,
+      unrealizedPnl: calculateUnrealizedPnl(currentValue, costBasis),
+      unrealizedPnlToman: historicalCostToman
+        ? D(currentValueToman).sub(historicalCostToman).toFixed(0)
+        : D(calculateUnrealizedPnl(currentValue, costBasis)).mul(fxRate).toFixed(0),
+      roiPercentage: calculateRoi(currentValue, costBasis),
+      sharePercentage: "0",
+      valuationBasis: "manual_real_asset",
+      priceFreshness: snap ? "fresh" : "unavailable",
+      priceObservedAt: snap?.snapshotDate ? `${snap.snapshotDate}T00:00:00.000Z` : null,
+    });
+  }
+
+  const ownershipRows = await db
+    .select({
+      assetId: rwaOwnershipRecords.assetId,
+      symbol: assets.symbol,
+      name: assets.name,
+      logoUrl: assets.logoUrl,
+      decimals: assets.decimals,
+      className: assetClasses.name,
+      classColor: assetClasses.color,
+      purchaseToman: rwaOwnershipRecords.acquisitionPriceIRR,
+    })
+    .from(rwaOwnershipRecords)
+    .innerJoin(assets, eq(assets.id, rwaOwnershipRecords.assetId))
+    .innerJoin(assetClasses, eq(assetClasses.id, assets.classId))
+    .where(and(
+      eq(rwaOwnershipRecords.isActive, true),
+      userId ? eq(rwaOwnershipRecords.userId, userId) : sql`1=1`,
+    ));
+
+  const ownedIds = ownershipRows.map((row) => row.assetId).filter((id) => !seen.has(id));
+  const genericValuationRows = ownedIds.length
+    ? await db
+        .select()
+        .from(rwaValuationEvents)
+        .where(and(
+          inArray(rwaValuationEvents.assetId, ownedIds),
+          userId ? eq(rwaValuationEvents.userId, userId) : sql`1=1`,
+        ))
+        .orderBy(desc(rwaValuationEvents.valuationDate), desc(rwaValuationEvents.createdAt))
+    : [];
+  const latestGeneric = new Map<string, (typeof genericValuationRows)[number]>();
+  for (const row of genericValuationRows) {
+    if (!latestGeneric.has(row.assetId)) latestGeneric.set(row.assetId, row);
+  }
+
+  for (const row of ownershipRows) {
+    const generic = latestGeneric.get(row.assetId);
+    const purchaseToman = row.purchaseToman ? D(row.purchaseToman).toFixed(0) : null;
+    let currentValue = "0";
+    let currentValueToman = purchaseToman ?? "0";
+    if (generic?.priceUSD) {
+      currentValue = D(generic.priceUSD).toString();
+      currentValueToman = generic.priceIRR
+        ? D(generic.priceIRR).toFixed(0)
+        : D(currentValue).mul(fxRate).toFixed(0);
+    } else if (generic?.priceIRR) {
+      currentValueToman = D(generic.priceIRR).toFixed(0);
+      currentValue = D(fxRate).gt(0) ? D(currentValueToman).div(fxRate).toString() : "0";
+    } else if (purchaseToman && D(fxRate).gt(0)) {
+      currentValue = D(purchaseToman).div(fxRate).toString();
+      currentValueToman = purchaseToman;
+    }
+    const costBasis = purchaseToman && D(fxRate).gt(0) ? D(purchaseToman).div(fxRate).toString() : currentValue;
+    push({
+      assetId: row.assetId,
+      symbol: row.symbol,
+      name: row.name,
+      logoUrl: row.logoUrl ?? null,
+      className: row.className,
+      classColor: row.classColor,
+      decimals: row.decimals,
+      quantity: "1",
+      marketPrice: currentValue,
+      marketCurrencyCode: "USD",
+      currentValue,
+      currentValueToman,
+      costBasis,
+      historicalCostToman: purchaseToman,
+      unrealizedPnl: calculateUnrealizedPnl(currentValue, costBasis),
+      unrealizedPnlToman: purchaseToman
+        ? D(currentValueToman).sub(purchaseToman).toFixed(0)
+        : "0",
+      roiPercentage: calculateRoi(currentValue, costBasis),
+      sharePercentage: "0",
+      valuationBasis: "manual_real_asset",
+      priceFreshness: generic ? "fresh" : "unavailable",
+      priceObservedAt: generic?.valuationDate ? `${generic.valuationDate}T00:00:00.000Z` : null,
+    });
+  }
+
+  return extras;
 }
 
 /**
@@ -339,6 +577,20 @@ export async function getPortfolioValuation(
       priceObservedAt,
       priceFailureCode,
     });
+  }
+
+  const extras = await loadUnheldRealAssets({
+    userId,
+    fxRate: fx.rate,
+    alreadyHeld: new Set(assetValuations.map((row) => row.assetId)),
+  });
+  for (const extra of extras) {
+    totalNetWorth = totalNetWorth.add(extra.currentValue);
+    totalNetWorthToman = totalNetWorthToman.add(extra.currentValueToman);
+    totalCostBasis = totalCostBasis.add(extra.costBasis);
+    totalUnrealizedPnl = totalUnrealizedPnl.add(extra.unrealizedPnl);
+    totalUnrealizedPnlToman = totalUnrealizedPnlToman.add(extra.unrealizedPnlToman);
+    assetValuations.push(extra);
   }
 
   for (const valuation of assetValuations) {

@@ -1,4 +1,5 @@
 import { ENTRY_TYPE_LABELS, type EntryType } from "@/domain/accounting";
+import { D, Decimal } from "@/domain/decimal";
 import type { LedgerRow } from "@/features/ledger/queries";
 import { currencyLabel, formatQty } from "@/lib/format";
 
@@ -11,6 +12,8 @@ import { currencyLabel, formatQty } from "@/lib/format";
 export type HumanTx = {
   /** display amount in base currency, always positive */
   amount: string;
+  /** native toman on IRT/IRR legs when present — never recomputed via today's FX */
+  nativeIrt: string | null;
   /** sign for colour: +1 income-ish, -1 expense-ish, 0 neutral movement */
   sign: -1 | 0 | 1;
   from: string | null;
@@ -24,9 +27,14 @@ const POSITIVE_TYPES = new Set(["income", "sell"]);
 const NEGATIVE_TYPES = new Set(["expense", "buy", "installment", "debt", "debt_repayment"]);
 
 export function humanizeEntry(e: LedgerRow): HumanTx {
-  const positives = e.lines.filter((l) => Number(l.baseValue) > 0);
-  const negatives = e.lines.filter((l) => Number(l.baseValue) < 0);
-  const amount = positives.reduce((s, l) => s + Number(l.baseValue), 0) || Math.abs(Number(e.lines[0]?.baseValue ?? 0));
+  const positives = e.lines.filter((l) => D(l.baseValue).gt(0));
+  const negatives = e.lines.filter((l) => D(l.baseValue).lt(0));
+  const amountDec = positives.reduce((s, l) => s.add(l.baseValue), Decimal.zero());
+  const amount = amountDec.gt(0) ? amountDec : D(e.lines[0]?.baseValue ?? 0).abs();
+  const irtLeg = e.lines.find((l) => l.symbol === "IRT" || l.symbol === "IRR");
+  const nativeIrt = irtLeg
+    ? (irtLeg.symbol === "IRR" ? D(irtLeg.quantity).abs().div(10) : D(irtLeg.quantity).abs()).toFixed(0)
+    : null;
 
   let sign: -1 | 0 | 1 = 0;
   if (POSITIVE_TYPES.has(e.type)) sign = 1;
@@ -43,12 +51,21 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
 
   return {
     amount: amount.toFixed(2),
+    nativeIrt,
     sign,
     from,
     to,
     typeLabel: ENTRY_TYPE_LABELS[e.type as EntryType] ?? e.type,
     qtyLabel,
   };
+}
+
+/** Human money-flow sentence — never uses debit/credit jargon. */
+export function moneyFlowLabel(from: string | null, to: string | null): string | null {
+  if (from && to) return `از ${from} به ${to}`;
+  if (from) return `از ${from}`;
+  if (to) return `به ${to}`;
+  return null;
 }
 
 /** Badge tone per entry type — semantic, quiet. */
