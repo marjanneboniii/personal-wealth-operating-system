@@ -155,7 +155,7 @@ export function Delta({
 export function Pct({ value }: { value: string | number }) {
   const n = Number(value);
   return (
-    <span className="num rtl-isolate" dir="rtl" style={{ color: n >= 0 ? "var(--positive)" : "var(--negative)" }}>
+    <span className="num rtl-isolate" dir="rtl" style={{ color: n > 0 ? "var(--positive)" : n < 0 ? "var(--negative)" : "var(--text-2)" }}>
       {formatPercent(value)}
     </span>
   );

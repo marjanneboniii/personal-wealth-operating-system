@@ -43,10 +43,12 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
           <h5 className="mb-1 text-[11.5px] font-bold">اطلاعات دارایی</h5>
           <DetailRow label="نام خودکار">
-            <span className="font-bold">{a.assetName}</span>
+            <span className="font-semibold">{a.assetName}</span>
           </DetailRow>
           <DetailRow label="Symbol">
-            <Ltr>{a.symbol}</Ltr>
+            <span className="muted text-[11px] font-normal">
+              <Ltr>{a.symbol}</Ltr>
+            </span>
           </DetailRow>
           <DetailRow label="نوع ملک">
             {a.propertyTypeNameFa ?? a.propertyType ?? "—"}

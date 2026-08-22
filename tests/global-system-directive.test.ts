@@ -158,6 +158,19 @@ test("§3 Persian digits, «٫» decimal, «٬» thousands — no Latin digit, n
   }
 });
 
+test("§3 formatSignedMoney keeps the sign inside one isolate — never «تومان+ … تومان»", async () => {
+  await modulesReady;
+  const out = format.formatSignedMoney("-893746171", "IRT");
+  assert.ok(out.includes("تومان"), out);
+  assert.equal((out.match(/تومان/g) ?? []).length, 1);
+  assert.ok(out.includes("−"), out);
+  assert.ok(!out.includes("+"), out);
+  const zero = format.formatSignedMoney(0, "IRT");
+  assert.ok(!zero.includes("+") && !zero.includes("−"), zero);
+  const pos = format.formatSignedMoney("100", "IRT");
+  assert.ok(pos.includes("+"), pos);
+});
+
 test("§3 the minus sign LEADS the number in RTL — it is never left dangling at the end", async () => {
   await modulesReady;
   const out = format.formatNumber("-908200", { decimals: 0 });

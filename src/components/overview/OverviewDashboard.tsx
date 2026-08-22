@@ -5,7 +5,7 @@ import {
   countUnreviewed,
   getCashflow,
   getSnapshotSeries,
-  getTransactions,
+  getRecent,
 } from "@/features/ledger/queries";
 import { projectCashflow, upcomingInstallments } from "@/features/planning/service";
 import { getSetupState } from "@/features/setup/service";
@@ -14,7 +14,7 @@ import { AreaChart, BarsChart, Donut } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
 import { humanizeEntry, moneyFlowLabel } from "@/lib/tx";
 import { D } from "@/domain/decimal";
-import { formatMoney, formatPct, formatShortDate, toJalali, faCount } from "@/lib/format";
+import { formatMoney, formatPct, formatShortDate, formatSignedMoney, toJalali, faCount, trendColor, usdToIrt } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -62,17 +62,17 @@ export default async function OverviewDashboard() {
     // Net-worth history is per user: the delta badge and chart must never read
     // another account's snapshots.
     optionalRead("net-worth history", [], () => getSnapshotSeries(40, userId)),
-    optionalRead("recent activity", [], () => getTransactions({ limit: 6, userId })),
+    optionalRead("recent activity", [], () => getRecent(6, userId)),
     optionalRead("upcoming installments", [], () => upcomingInstallments(3, userId)),
     optionalRead("cash flow", [], () => getCashflow(6, userId)),
     optionalRead("cash-flow projection", { startingLiquidity: "0", netWorth: "0", points: [], scenario: "base" as const }, () => projectCashflow(6, "base", userId)),
     optionalRead("unreviewed transactions", 0, () => countUnreviewed(userId)),
-    optionalRead("exchange rate", { rate: "190000", effectiveDate: new Date().toISOString().slice(0, 10), source: "fallback" }, () => getLatestUsdIrtRateForUser(userId)),
+    optionalRead("exchange rate", { rate: "", effectiveDate: "", source: "unavailable" }, () => getLatestUsdIrtRateForUser(userId)),
   ]);
 
   const staleCount = nw.valuation.priceStatus.stale + nw.valuation.priceStatus.unavailable;
-  const rate = fx.rate;
-  const toIrt = (usd: string | number) => (rate ? D(usd).mul(rate).toFixed(0) : null);
+  const rate = fx.rate && D(fx.rate).gt(0) ? fx.rate : "";
+  const toIrt = (usd: string | number) => (rate ? usdToIrt(usd, rate) : null);
 
   const series = [...snaps]
     .reverse()
@@ -271,23 +271,22 @@ export default async function OverviewDashboard() {
                 <div className="mb-4 grid grid-cols-3 gap-2">
                   <div>
                     <p className="muted text-[10.5px]">درآمد</p>
-                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: "var(--positive)" }}>
+                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: D(monthFlow?.inflow ?? 0).isZero() ? "var(--text-2)" : "var(--positive)" }}>
                       {toIrt(monthFlow?.inflow ?? 0) ? formatMoney(toIrt(monthFlow?.inflow ?? 0)!, "IRT") : formatMoney(monthFlow?.inflow ?? 0)}
                     </p>
                     {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.inflow ?? 0)}</p>}
                   </div>
                   <div>
                     <p className="muted text-[10.5px]">هزینه</p>
-                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: "var(--negative)" }}>
+                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: D(monthFlow?.outflow ?? 0).isZero() ? "var(--text-2)" : "var(--negative)" }}>
                       {toIrt(monthFlow?.outflow ?? 0) ? formatMoney(toIrt(monthFlow?.outflow ?? 0)!, "IRT") : formatMoney(monthFlow?.outflow ?? 0)}
                     </p>
                     {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.outflow ?? 0)}</p>}
                   </div>
                   <div>
                     <p className="muted text-[10.5px]">خالص</p>
-                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: netMonth === 0 ? "var(--text-3)" : netMonth > 0 ? "var(--positive)" : "var(--negative)" }}>
-                      {netMonth === 0 ? "" : netMonth > 0 ? "+" : "−"}
-                      {toIrt(Math.abs(netMonth)) ? formatMoney(toIrt(Math.abs(netMonth))!, "IRT") : formatMoney(Math.abs(netMonth))}
+                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: trendColor(netMonth) }}>
+                      {toIrt(netMonth) ? formatSignedMoney(toIrt(netMonth)!, "IRT") : formatSignedMoney(netMonth)}
                     </p>
                     {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(Math.abs(netMonth))}</p>}
                   </div>
