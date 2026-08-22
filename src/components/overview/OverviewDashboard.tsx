@@ -10,7 +10,7 @@ import {
 import { projectCashflow, upcomingInstallments } from "@/features/planning/service";
 import { getSetupState } from "@/features/setup/service";
 import { Alert, Delta, EmptyState, Section, SectionLink } from "@/components/ui/Card";
-import { AreaChart, BarsChart } from "@/components/charts/Charts";
+import { AreaChart, BarsChart, Donut } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
 import { humanizeEntry } from "@/lib/tx";
 import { D } from "@/domain/decimal";
@@ -95,7 +95,7 @@ export default async function OverviewDashboard() {
     attention.push({
       icon: "check",
       tone: "warn",
-      text: `${unreviewed} تراکنش بررسی‌نشده`,
+      text: `${faCount(unreviewed)} تراکنش بررسی‌نشده`,
       detail: "قبل از اعتماد به گزارش‌ها، این رکوردها را تأیید کنید.",
       href: "/transactions?review=unreviewed",
       action: "بررسی",
@@ -125,7 +125,7 @@ export default async function OverviewDashboard() {
     attention.push({
       icon: "refresh",
       tone: "warn",
-      text: `${staleCount} دارایی قیمت تازه ندارد`,
+      text: `${faCount(staleCount)} دارایی قیمت تازه ندارد`,
       detail: "ارزش‌گذاری این دارایی‌ها ممکن است قدیمی باشد.",
       href: "/portfolio",
       action: "تحلیل",
@@ -254,91 +254,58 @@ export default async function OverviewDashboard() {
               {nw.byClass.length === 0 ? (
                 <p className="muted py-6 text-xs">دارایی‌ای ثبت نشده است.</p>
               ) : (
-                <div>
-                  <div className="comp-bar" role="img" aria-label="ترکیب ثروت">
-                    {nw.byClass.map((c) => (
-                      <span key={c.className} style={{ width: `${Number(c.share)}%`, background: c.color }} />
-                    ))}
+                <div className="card overflow-hidden p-4">
+                  <div className="mx-auto flex max-w-full items-center justify-center">
+                    <Donut
+                      data={nw.byClass.map((c) => ({ label: c.className, value: Number(c.value), color: c.color }))}
+                      centerLabel="مجموع"
+                    />
                   </div>
-                  <ul className="mt-3 divide-y" style={{ borderColor: "var(--border)" }}>
-                    {nw.byClass.slice(0, 5).map((c) => (
-                      <li key={c.className} className="flex items-center justify-between gap-3 py-2.5">
-                        <span className="flex min-w-0 items-center gap-2.5 text-[13px]">
-                          <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: c.color }} />
-                          <span className="truncate">{c.className}</span>
-                        </span>
-                        <span className="flex shrink-0 items-baseline gap-2">
-                          <span className="num muted text-[11px]" dir="rtl">
-                            {formatPct(Number(c.share), 1)}
-                          </span>
-                          <span className="flex flex-col items-end">
-                            <span className="num text-[13px] font-semibold" dir="rtl">
-                              {toIrt(c.value) ?? formatMoney(c.value)}
-                            </span>
-                            {rate && (
-                              <span className="muted num text-[9.5px]" dir="rtl">
-                                ≈ {formatMoney(c.value)}
-                              </span>
-                            )}
-                          </span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
               )}
             </Section>
 
             {/* ═══ CASH FLOW ═══ */}
             <Section title="پول این ماه چه کرد؟" action={<SectionLink href="/cash-flow" label="جریان نقدی" />}>
-              <div className="mb-4 grid grid-cols-3 gap-2">
-                <div>
-                  <p className="muted text-[10.5px]">درآمد</p>
-                  <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: "var(--positive)" }}>
-                    {toIrt(monthFlow?.inflow ?? 0) ?? formatMoney(monthFlow?.inflow ?? 0)}
-                  </p>
-                  {rate && <p className="muted num text-[9.5px]" dir="rtl">≈ {formatMoney(monthFlow?.inflow ?? 0)}</p>}
+              <div className="card p-4">
+                <div className="mb-4 grid grid-cols-3 gap-2">
+                  <div>
+                    <p className="muted text-[10.5px]">درآمد</p>
+                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: "var(--positive)" }}>
+                      {toIrt(monthFlow?.inflow ?? 0) ? formatMoney(toIrt(monthFlow?.inflow ?? 0)!, "IRT") : formatMoney(monthFlow?.inflow ?? 0)}
+                    </p>
+                    {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.inflow ?? 0)}</p>}
+                  </div>
+                  <div>
+                    <p className="muted text-[10.5px]">هزینه</p>
+                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: "var(--negative)" }}>
+                      {toIrt(monthFlow?.outflow ?? 0) ? formatMoney(toIrt(monthFlow?.outflow ?? 0)!, "IRT") : formatMoney(monthFlow?.outflow ?? 0)}
+                    </p>
+                    {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.outflow ?? 0)}</p>}
+                  </div>
+                  <div>
+                    <p className="muted text-[10.5px]">خالص</p>
+                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: netMonth === 0 ? "var(--text-3)" : netMonth > 0 ? "var(--positive)" : "var(--negative)" }}>
+                      {netMonth === 0 ? "" : netMonth > 0 ? "+" : "−"}
+                      {toIrt(Math.abs(netMonth)) ? formatMoney(toIrt(Math.abs(netMonth))!, "IRT") : formatMoney(Math.abs(netMonth))}
+                    </p>
+                    {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(Math.abs(netMonth))}</p>}
+                  </div>
                 </div>
-                <div>
-                  <p className="muted text-[10.5px]">هزینه</p>
-                  <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: "var(--negative)" }}>
-                    {toIrt(monthFlow?.outflow ?? 0) ?? formatMoney(monthFlow?.outflow ?? 0)}
-                  </p>
-                  {rate && <p className="muted num text-[9.5px]" dir="rtl">≈ {formatMoney(monthFlow?.outflow ?? 0)}</p>}
-                </div>
-                <div>
-                  <p className="muted text-[10.5px]">خالص</p>
-                  <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: netMonth >= 0 ? "var(--positive)" : "var(--negative)" }}>
-                    {netMonth >= 0 ? "+" : "−"}
-                    {toIrt(Math.abs(netMonth)) ?? formatMoney(Math.abs(netMonth))}
-                  </p>
-                  {rate && <p className="muted num text-[9.5px]" dir="rtl">≈ {formatMoney(Math.abs(netMonth))}</p>}
-                </div>
+                <BarsChart
+                  height={160}
+                  data={flow.map((f) => ({
+                    label: (() => {
+                      const j = toJalali(f.month);
+                      return ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"][j.m];
+                    })(),
+                    positive: Number(f.inflow),
+                    negative: Number(f.outflow),
+                  }))}
+                />
               </div>
-              <BarsChart
-                height={110}
-                data={flow.map((f) => ({
-                  label: (() => {
-                    const j = toJalali(f.month);
-                    return ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"][j.m];
-                  })(),
-                  positive: Number(f.inflow),
-                  negative: Number(f.outflow),
-                }))}
-              />
             </Section>
           </div>
-
-          <Section title="ثروت شما چگونه تغییر کرده است؟" action={<SectionLink href="/net-worth" label="تحلیل ارزش خالص" />}>
-            <p className="sr-only">
-              {deltaPct
-                ? `ارزش خالص نسبت به آخرین اسنپ‌شات ${deltaPct} درصد ${Number(deltaAbs) >= 0 ? "افزایش" : "کاهش"} یافته است.`
-                : "تاریخچه کافی برای توصیف روند ارزش خالص وجود ندارد."}
-            </p>
-            <div className="card p-4 sm:p-5">
-              <AreaChart data={series} />
-            </div>
-          </Section>
 
           {/* ═══ ACTIVITY ═══ */}
           <Section title="فعالیت اخیر" action={<SectionLink href="/transactions" label="همه تراکنش‌ها" />}>

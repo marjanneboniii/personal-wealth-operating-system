@@ -51,8 +51,9 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
       from,
       review: (review || undefined) as "reviewed" | "unreviewed" | undefined,
       sort: sort as "new" | "old" | "amount",
+      userId,
     }),
-    getAccountBalances(),
+    getAccountBalances(userId),
     getLatestUsdIrtRate(),
     listCategoryTree(userId),
   ]);

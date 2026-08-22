@@ -7,7 +7,8 @@ import RowAction from "@/components/RowAction";
 import { markManyReviewedAction, markReviewedAction } from "@/app/actions";
 import { humanizeEntry, typeBadgeTone } from "@/lib/tx";
 import type { TxRow } from "@/features/ledger/queries";
-import { currencyLabel, formatJalaliIso, formatMoney, formatQty, formatShortDate } from "@/lib/format";
+import { currencyLabel, faCount, formatJalaliIso, formatMoney, formatQty, formatShortDate, toFaDigits } from "@/lib/format";
+import { D } from "@/domain/decimal";
 
 export type ClientTxRow = TxRow & {
   fx: { irtAmount: string; usdAmount: string; fxRate: string; rateSource: string; rateDate: string } | null;
@@ -60,7 +61,10 @@ export default function TransactionsView({
   const searchRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toIrt = (usd: string | number) => (rate ? formatMoney(Math.round(Number(usd) * Number(rate)), "IRT") : null);
+  const toIrtFromUsd = (usd: string | number) =>
+    rate && D(rate).gt(0) ? formatMoney(D(usd).mul(rate).toFixed(0), "IRT") : null;
+  const displayIrt = (e: ClientTxRow, h: ReturnType<typeof humanizeEntry>) =>
+    e.fx?.irtAmount ? formatMoney(D(e.fx.irtAmount).toFixed(0), "IRT") : h.nativeIrt ? formatMoney(h.nativeIrt, "IRT") : toIrtFromUsd(h.amount);
 
   // URL state — filters survive refresh, share and browser back
   const apply = (patch: Partial<Filters>) => {
@@ -114,7 +118,7 @@ export default function TransactionsView({
     const body = selectedRows
       .map((r) => {
         const h = humanizeEntry(r);
-        const irt = toIrt(h.amount)?.replace(/[,٬]/g, "") ?? "";
+        const irt = (e.fx?.irtAmount ?? h.nativeIrt ?? "").replace(/[,٬]/g, "");
         return [
           r.entryDate,
           `"${r.description.replace(/"/g, '""')}"`,
@@ -356,9 +360,9 @@ export default function TransactionsView({
                         style={{ color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)" }}
                       >
                         {h.sign > 0 ? "+" : h.sign < 0 ? "−" : ""}
-                        {rate ? toIrt(h.amount) : formatMoney(h.amount)}
+                        {displayIrt(e, h) ?? formatMoney(h.amount)}
                       </span>
-                      {rate && <span className="muted num block text-[9.5px]">≈ {formatMoney(h.amount)}</span>}
+                      {rate && <span className="muted num block text-[10.5px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(h.amount)}</span>}
                     </span>
 
                     <span className={`muted shrink-0 transition-transform ${open ? "rotate-180" : ""}`}>
@@ -391,8 +395,8 @@ export default function TransactionsView({
                               <tr key={i}>
                                 <td>
                                   <span className="text-[12.5px] font-medium">{l.account}</span>
-                                  <span className={`badge badge-neutral mr-2 ${Number(l.baseValue) >= 0 ? "badge-pos" : "badge-neg"}`}>
-                                    {Number(l.baseValue) >= 0 ? "بدهکار" : "بستانکار"}
+                                  <span className="badge badge-neutral mr-2">
+                                    {D(l.baseValue).gte(0) ? "بدهکار" : "بستانکار"}
                                   </span>
                                   {l.quantity && Math.abs(Number(l.quantity)) > 0 && (
                                     <span className="muted num mr-1 text-[10px]" dir="rtl">
@@ -403,9 +407,8 @@ export default function TransactionsView({
                                 <td className="td-num" dir="rtl">
                                   {l.symbol && l.symbol !== "USD" && l.symbol !== "IRT" ? `${formatQty(l.quantity, l.decimals)} ${currencyLabel(l.symbol)}` : "—"}
                                 </td>
-                                <td className="td-num font-semibold" dir="rtl" style={{ color: Number(l.baseValue) >= 0 ? "var(--positive)" : "var(--negative)" }}>
-                                  {Number(l.baseValue) >= 0 ? "+" : "−"}
-                                  {formatMoney(Math.abs(Number(l.baseValue)))}
+                                <td className="td-num font-semibold" dir="rtl" style={{ color: "var(--text)" }}>
+                                  {formatMoney(D(l.baseValue).abs().toString())}
                                 </td>
                               </tr>
                             ))}
@@ -434,31 +437,31 @@ export default function TransactionsView({
                           <p className="muted mb-1.5 text-[11px] font-semibold">جزئیات</p>
                           <dl className="space-y-1.5 text-[12px]">
                             <div className="flex justify-between gap-2">
-                              <dt className="muted">تاریخ</dt>
+                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>تاریخ</dt>
                               <dd className="num text-left">
                                 {formatJalaliIso(e.entryDate)} <span className="muted text-[10px]" dir="ltr">({e.entryDate})</span>
                               </dd>
                             </div>
                             <div className="flex justify-between gap-2">
-                              <dt className="muted">نوع</dt>
+                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>نوع</dt>
                               <dd>
                                 <span className={`badge badge-${typeBadgeTone(e.type)}`}>{h.typeLabel}</span>
                               </dd>
                             </div>
                             <div className="flex justify-between gap-2">
-                              <dt className="muted">منبع</dt>
+                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>منبع</dt>
                               <dd>{SOURCE_LABEL[e.source] ?? e.source}</dd>
                             </div>
                             <div className="flex items-center justify-between gap-2">
-                              <dt className="muted">وضعیت بازبینی</dt>
+                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>وضعیت بازبینی</dt>
                               <dd>
                                 {e.reviewed ? <span className="badge badge-pos">تأیید شده</span> : <span className="badge badge-warn">بررسی‌نشده</span>}
                               </dd>
                             </div>
                             <div className="flex items-center justify-between gap-2">
-                              <dt className="muted">شناسه سند</dt>
-                              <dd className="num text-[10px]" dir="ltr">
-                                #{e.id.slice(0, 8)}
+                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>شناسه سند</dt>
+                              <dd className="num text-[10px]" dir="rtl">
+                                {toFaDigits(e.id.replace(/-/g, "").slice(0, 8))}
                               </dd>
                             </div>
                           </dl>
@@ -477,7 +480,7 @@ export default function TransactionsView({
                             className={`btn ${e.reviewed ? "btn-soft" : "btn-primary"} !min-h-9 !py-1.5 text-[12px]`}
                             style={{ touchAction: "manipulation" }}
                           >
-                            <Icon name="check" size={14} />
+                            <Icon name={e.reviewed ? "undo" : "check"} size={14} />
                             {e.reviewed ? "برگشت به «بررسی‌نشده»" : "تأیید این رکورد"}
                           </button>
                           {!isVoid && (
@@ -516,7 +519,7 @@ export default function TransactionsView({
           role="region"
           aria-label="اقدامات گروهی"
         >
-          <span className="text-[12.5px] font-semibold">{selectedRows.length} مورد انتخاب شده</span>
+          <span className="text-[12.5px] font-semibold">{faCount(selectedRows.length)} مورد انتخاب شده</span>
           <div className="flex items-center gap-1.5">
             <button type="button" className="btn btn-primary !min-h-9 !px-3 !py-1.5 text-[12px]" onClick={exportCsv} style={{ touchAction: "manipulation" }}>
               <Icon name="download" size={14} />

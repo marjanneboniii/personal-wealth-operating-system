@@ -107,7 +107,8 @@ export function formatMoney(
 
 export function formatPercent(value: string | number, digits: DigitStyle = "fa"): string {
   const n = formatNumber(value, { decimals: 2, digits });
-  const sign = Number(value) > 0 ? "+" : "";
+  const num = Number(value);
+  const sign = num > 0 ? "+" : num < 0 ? "" : "";
   return `${sign}${n}٪`;
 }
 

@@ -179,7 +179,7 @@ export function Stat({
   return (
     <div className="card p-4">
       <div className="muted text-[11px] font-medium">{label}</div>
-      <div className="num mt-1.5 text-lg font-bold tracking-tight sm:text-xl" style={{ color }} dir="ltr">
+      <div className="num mt-1.5 text-lg font-bold tracking-tight sm:text-xl" style={{ color }} dir="rtl">
         {value}
       </div>
       {hint && <div className="muted mt-1 text-[11px] leading-5">{hint}</div>}
@@ -204,7 +204,7 @@ export function Metric({
   return (
     <div className="min-w-0">
       <div className="muted text-[11px] font-medium">{label}</div>
-      <div className="num mt-1 text-lg font-bold tracking-tight sm:text-xl" style={{ color }} dir="ltr">
+      <div className="num mt-1 text-lg font-bold tracking-tight sm:text-xl" style={{ color }} dir="rtl">
         {value}
       </div>
       {hint && <div className="muted mt-0.5 text-[11px] leading-5">{hint}</div>}

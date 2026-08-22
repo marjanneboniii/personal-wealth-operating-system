@@ -523,7 +523,7 @@ export default function Shell({
             <ThemeToggle />
             <Link
               href="/new"
-              className={`btn btn-primary flex-1 !text-[12.5px] ${collapsed ? "!w-11 !px-0" : ""}`}
+              className={`btn btn-primary min-w-0 flex-1 !px-2 !text-[12.5px] ${collapsed ? "!w-11 !px-0" : ""}`}
               aria-label="ثبت تراکنش جدید"
               style={{ touchAction: "manipulation" }}
             >

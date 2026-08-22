@@ -10,7 +10,7 @@ import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import { ACCOUNT_TYPE_LABELS, ENTRY_TYPE_LABELS, type AccountType, type EntryType } from "@/domain/accounting";
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatDualDate, formatJalaliIso, formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, faCount, formatDualDate, formatJalaliIso, formatMoney, formatQty, toFaDigits } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { eq, inArray } from "drizzle-orm";
 import { assets, debts, entryFxSnapshots, installments, realEstateProperties } from "@/db/schema";
@@ -24,22 +24,25 @@ function shortId(id: string) {
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function LedgerPage({ searchParams }: { searchParams: SearchParams }) {
-  await ensureAuth();
+  const user = await ensureAuth();
+  const userId = (user as { id?: string } | null)?.id ?? undefined;
   await seedIfEmpty();
   const sp = await searchParams;
   // Asset ↔ ledger navigation: ?entry=ID opens that specific entry on top.
   const focusEntryId = typeof sp.entry === "string" && sp.entry ? sp.entry : null;
   const [baseEntries, focused, balances, fx, integrity] = await Promise.all([
-    getLedger(60),
-    focusEntryId ? getLedgerById(focusEntryId) : Promise.resolve(null),
-    getAccountBalances(),
+    getLedger(60, userId),
+    focusEntryId ? getLedgerById(focusEntryId, userId) : Promise.resolve(null),
+    getAccountBalances(userId),
     getLatestUsdIrtRate(),
-    // The register certifies itself: live balance check
+    // Tenant-scoped integrity only — never blend other users' journals.
     db.execute(sql`
-      select count(*)::text as bad, (select count(*) from journal_entries)::text as total
+      select count(*)::text as bad,
+             (select count(*) from journal_entries je2 where ${userId ? sql`je2.user_id = ${userId}` : sql`1=1`})::text as total
       from (
         select je.id from journal_entries je
         join postings p on p.entry_id = je.id
+        where ${userId ? sql`je.user_id = ${userId}` : sql`1=1`}
         group by je.id having abs(sum(p.base_value)) > 0.000000001
       ) x
     `),
@@ -100,9 +103,9 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
       >
         <span className="flex items-center gap-2 font-semibold" style={{ color: bad ? "var(--negative)" : "var(--positive)" }}>
           <Icon name={bad ? "xcircle" : "check-circle"} size={16} />
-          {bad ? `${bad} سند نامتوازن` : "دفترکل تراز است"}
+          {bad ? `${faCount(bad)} سند نامتوازن` : "دفترکل تراز است"}
         </span>
-        <span className="muted num">{totalEntries} سند ثبت‌شده</span>
+        <span className="muted num">{faCount(totalEntries)} سند ثبت‌شده</span>
       </div>
 
       {/* ── Trial balance ── */}
@@ -124,8 +127,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                 const v = Number(b.baseValue);
                 return (
                   <tr key={b.accountId}>
-                    <td className="num muted" dir="ltr">
-                      {b.code}
+                    <td className="num muted" dir="rtl">
+                      {toFaDigits(b.code)}
                     </td>
                     <td className="font-medium">
                       {b.name}
@@ -227,10 +230,10 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                             <td className="td-num" dir="rtl">
                               {formatQty(l.quantity, l.decimals)} {currencyLabel(l.symbol)}
                             </td>
-                            <td className="td-num font-semibold" dir="rtl" style={{ color: v > 0 ? "var(--positive)" : undefined }}>
+                            <td className="td-num font-semibold" dir="rtl">
                               {v > 0 ? formatMoney(v) : ""}
                             </td>
-                            <td className="td-num font-semibold" dir="rtl" style={{ color: v < 0 ? "var(--negative)" : undefined }}>
+                            <td className="td-num font-semibold" dir="rtl">
                               {v < 0 ? formatMoney(Math.abs(v)) : ""}
                             </td>
                             <td className="muted text-[10.5px]">{l.memo ?? ""}</td>

@@ -10,7 +10,7 @@ import Icon from "@/components/ui/Icon";
 import MoneyAccountForm from "@/components/forms/MoneyAccountForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, faCount, formatMoney, formatQty, toFaDigits } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ export default async function AccountsPage() {
   // assets such as apartment units can never enter this form.
   const currencyRows = await listMoneyAccountCurrencies();
   const [balances, walletRows, fx] = await Promise.all([
-    getAccountBalances(),
+    getAccountBalances(userId ?? undefined),
     db
       .select({
         id: wallets.id,
@@ -58,12 +58,30 @@ export default async function AccountsPage() {
 
   const toIrt = (usd: string | number) => (fx.rate ? formatMoney(D(usd).mul(fx.rate).abs().toFixed(0), "IRT") : null);
 
+  const primaryMoney = (b: (typeof balances)[number]) => {
+    if (b.symbol === "IRT") return formatMoney(D(b.quantity).abs().toFixed(0), "IRT");
+    if (b.symbol === "IRR") return formatMoney(D(b.quantity).abs().div(10).toFixed(0), "IRT");
+    return toIrt(b.baseValue) ?? formatMoney(D(b.baseValue).abs().toString());
+  };
+
   // A registered wallet remains visible even while its balance is zero. This
   // is important when users create several bank/fund/wallet containers before
   // recording their first transaction.
-  const moneyAccounts = balances.filter(
+  const moneyAccountsRaw = balances.filter(
     (b) => b.type === "asset" && (!!b.walletName || !D(b.quantity).isZero()),
   );
+  const moneyById = new Map<string, (typeof moneyAccountsRaw)[number]>();
+  for (const row of moneyAccountsRaw) {
+    const prev = moneyById.get(row.accountId);
+    if (!prev) {
+      moneyById.set(row.accountId, row);
+      continue;
+    }
+    const preferIrt = row.symbol === "IRT" || row.symbol === "IRR";
+    const prevIrt = prev.symbol === "IRT" || prev.symbol === "IRR";
+    moneyById.set(row.accountId, preferIrt && !prevIrt ? row : prev);
+  }
+  const moneyAccounts = [...moneyById.values()];
   const liabilityAccounts = balances.filter((b) => b.type === "liability" && !D(b.baseValue).isZero());
   const totalCash = moneyAccounts.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
   const controlSum = balances.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
@@ -109,6 +127,13 @@ export default async function AccountsPage() {
               const walletTotal = rows.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
               const walletMeta = walletRows.find((w) => w.id === walletKey);
               const walletName = walletMeta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف‌پول";
+              const irtOnly = rows.every((r) => r.symbol === "IRT" || r.symbol === "IRR");
+              const walletPrimary = irtOnly
+                ? formatMoney(
+                    rows.reduce((s, r) => s.add(r.symbol === "IRR" ? D(r.quantity).abs().div(10) : D(r.quantity).abs()), Decimal.zero()).toFixed(0),
+                    "IRT",
+                  )
+                : toIrt(walletTotal.toString()) ?? formatMoney(walletTotal.toString());
               return (
                 <div key={walletKey} className="card overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--sunken)" }}>
@@ -126,26 +151,30 @@ export default async function AccountsPage() {
                     </div>
                     <div className="text-left">
                       <p className="num text-[14px] font-bold" dir="rtl">
-                        {toIrt(walletTotal.toString()) ?? formatMoney(walletTotal.toString())}
+                        {walletPrimary}
                       </p>
-                      {toIrt(walletTotal.toString()) && <p className="muted num text-[9.5px]">≈ {formatMoney(walletTotal.toString())}</p>}
+                      {!irtOnly && toIrt(walletTotal.toString()) && <p className="muted num text-[10.5px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(walletTotal.toString())}</p>}
                     </div>
                   </div>
                   <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
                     {rows.map((b) => (
                       <li key={b.accountId} className="flex items-center justify-between gap-3 px-4 py-2.5">
                         <div className="min-w-0">
-                          <p className="truncate text-[12.5px] font-medium">{b.name}</p>
-                          <p className="muted num text-[10px]">
-                            <span className="ltr-isolate" dir="ltr">{b.code}</span> ·{" "}
-                            <span dir="rtl">{formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}</span>
+                          <p className="flex items-center gap-2 truncate text-[12.5px] font-medium">
+                            {b.name}
+                            <span className="badge badge-neutral num">{toFaDigits(b.code)}</span>
+                          </p>
+                          <p className="muted num text-[10px]" dir="rtl">
+                            {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}
                           </p>
                         </div>
                         <div className="shrink-0 text-left">
                           <p className="num text-[12.5px] font-bold" dir="rtl">
-                            {toIrt(b.baseValue) ?? formatMoney(b.baseValue)}
+                            {primaryMoney(b)}
                           </p>
-                          {toIrt(b.baseValue) && <p className="muted num text-[9.5px]">≈ {formatMoney(b.baseValue)}</p>}
+                          {b.symbol !== "IRT" && b.symbol !== "IRR" && toIrt(b.baseValue) && (
+                            <p className="muted num text-[10.5px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(b.baseValue)}</p>
+                          )}
                         </div>
                       </li>
                     ))}
