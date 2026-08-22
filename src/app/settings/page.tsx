@@ -12,7 +12,9 @@ import { faCount, formatDate } from "@/lib/format";
 import { getCurrentUser } from "@/lib/auth";
 import { ensureAuth } from "@/lib/authGuard";
 import { getUserFxRate } from "@/features/fx/userRate";
+import { getUserProMode } from "@/features/preferences/service";
 import FxSettings from "@/components/settings/FxSettings";
+import ProModeToggle from "@/components/settings/ProModeToggle";
 import UserPanel from "@/components/settings/UserPanel";
 import AuthAccessCard from "@/components/auth/AuthAccessCard";
 
@@ -30,7 +32,7 @@ export default async function SettingsPage() {
   await seedIfEmpty();
   const user = await getCurrentUser();
   const uid = user?.id ?? null;
-  const [config, backups, counts, fx] = await Promise.all([
+  const [config, backups, counts, fx, proMode] = await Promise.all([
     db.select().from(settings).where(sql`${settings.deletedAt} is null`),
     db.select().from(backupRuns).orderBy(desc(backupRuns.createdAt)).limit(5),
     db.execute(sql`
@@ -41,6 +43,7 @@ export default async function SettingsPage() {
         (select count(*) from assets) as assets
     `),
     user ? getUserFxRate(user.id) : Promise.resolve({ rate: "190000", lastUpdatedAt: null, nextUpdateAt: null, canUpdate: false } as any),
+    getUserProMode(uid),
   ]);
   const c = counts.rows[0] as Record<string, string>;
 
@@ -53,6 +56,17 @@ export default async function SettingsPage() {
           <UserPanel user={user as any} />
         </Section>
       )}
+
+      <Section title="نمایش و حالت حرفه‌ای" hint="سراسری — روی همه صفحات اعمال می‌شود">
+        {user ? (
+          <ProModeToggle initialPro={proMode} />
+        ) : (
+          <div className="card p-4 text-[12.5px] leading-5">
+            برای انتخاب بین <b>نمای ساده</b> (پیش‌فرض) و <b>حالت حرفه‌ای</b> (نمایش کد معین، بدهکار/بستانکار
+            و جزئیات دفتر کل)، ابتدا وارد حساب خود شوید. این تنظیم به‌صورت اختصاصی برای هر کاربر ذخیره می‌شود.
+          </div>
+        )}
+      </Section>
 
       <Section title="نرخ ارز — ارزش‌گذاری جاری">
         {user ? (

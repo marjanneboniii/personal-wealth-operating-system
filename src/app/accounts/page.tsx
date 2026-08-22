@@ -10,8 +10,9 @@ import Icon from "@/components/ui/Icon";
 import MoneyAccountForm from "@/components/forms/MoneyAccountForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, faCount, formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, faCount, formatMoney, formatQty, toIrtMoney, toFaDigits } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
+import { getUserProMode } from "@/features/preferences/service";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,8 @@ const WALLET_KIND: Record<string, string> = {
 export default async function AccountsPage() {
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? null;
+  // Chart-of-accounts codes (کد معین) are PRO-only vocabulary (Directive §2).
+  const pro = await getUserProMode(userId);
   await seedIfEmpty();
   // Repair old catalogs first, then expose exactly IRT / USD / USDT. Real
   // assets such as apartment units can never enter this form.
@@ -56,7 +59,7 @@ export default async function AccountsPage() {
     getLatestUsdIrtRate(),
   ]);
 
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(D(usd).mul(fx.rate).abs().toFixed(0), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(D(usd).abs().toString(), fx.rate);
 
   const primaryMoney = (b: (typeof balances)[number]) => {
     if (b.symbol === "IRT") return formatMoney(D(b.quantity).abs().toFixed(0), "IRT");
@@ -103,11 +106,11 @@ export default async function AccountsPage() {
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-3" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش پایه حساب‌های پول" value={toIrt(totalCash.toString()) ?? formatMoney(totalCash.toString())} hint={fx.rate ? formatMoney(totalCash.toString()) : undefined} />
-        <Metric label="حساب‌های فعال" value={String(moneyAccounts.length + liabilityAccounts.length)} hint={`${byWallet.size} کیف‌پول / نهاد`} />
+        <Metric label="حساب‌های فعال" value={faCount(moneyAccounts.length + liabilityAccounts.length)} hint={`${faCount(byWallet.size)} کیف‌پول / نهاد`} />
         <Metric
           label="جمع کنترلی دفتر"
           value={formatMoney(controlSum.toFixed(2))}
-          tone={controlSum.abs().lt("0.000001") ? "up" : "down"}
+          tone={controlSum.abs().lt("0.000001") ? "neutral" : "down"}
           hint={controlSum.abs().lt("0.000001") ? "صفر — اصل دوطرفه رعایت شده" : "باید صفر باشد — نیاز به بررسی"}
         />
       </section>
@@ -191,9 +194,11 @@ export default async function AccountsPage() {
                 <li key={b.accountId} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div>
                     <p className="text-[12.5px] font-medium">{b.name}</p>
-                    <p className="muted num text-[10px]" dir="ltr">
-                      {b.code}
-                    </p>
+                    {pro && (
+                      <p className="muted num text-[10px]" dir="ltr">
+                        {toFaDigits(b.code)}
+                      </p>
+                    )}
                   </div>
                   <div className="text-left">
                     <p className="num text-[13px] font-bold" dir="rtl" style={{ color: "var(--negative)" }}>
@@ -233,7 +238,7 @@ export default async function AccountsPage() {
                       {g.rows.map((b) => (
                         <li key={b.accountId} className="flex items-center justify-between text-[12px]">
                           <span>
-                            <span className="muted num ml-1.5">{b.code}</span>
+                            {pro && <span className="muted num ml-1.5">{toFaDigits(b.code)}</span>}
                             {b.name}
                           </span>
                           <span className="num" dir="rtl">

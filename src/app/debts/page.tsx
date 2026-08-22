@@ -5,7 +5,7 @@ import { listDebts } from "@/features/planning/service";
 import { EmptyState, Card, Metric, PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
 import DebtForm from "@/components/forms/DebtForm";
 import Icon from "@/components/ui/Icon";
-import { formatDualDate, formatMoney, formatPct, formatQty, todayIso, faCount } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct, formatQty, todayIso, faCount, toIrtMoney } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export default async function DebtsPage() {
   await ensureAuth();
   await seedIfEmpty();
   const [debts, fx] = await Promise.all([listDebts(), getLatestUsdIrtRate()]);
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const today = todayIso();
   const totalOutstanding = debts.reduce((s, d) => s + Number(d.outstandingBase), 0);
@@ -56,10 +56,10 @@ export default async function DebtsPage() {
         <Metric
           label="مانده کل بدهی"
           value={toIrt(totalOutstanding) ?? formatMoney(totalOutstanding)}
-          tone={totalOutstanding > 0 ? "down" : "up"}
-          hint={totalOutstanding === 0 ? "بدهی‌ای ندارید" : fx.rate ? formatMoney(totalOutstanding) : `${active.length} بدهی فعال`}
+          tone={totalOutstanding > 0 ? "down" : "neutral"}
+          hint={totalOutstanding === 0 ? "بدهی‌ای ندارید" : fx.rate ? formatMoney(totalOutstanding) : `${faCount(active.length)} بدهی فعال`}
         />
-        <Metric label="اقساط معوق" value={String(overdue.length)} tone={overdue.length ? "down" : "up"} />
+        <Metric label="اقساط معوق" value={faCount(overdue.length)} tone={overdue.length ? "down" : "neutral"} />
         <Metric
           label="قسط بعدی"
           value={nextPayment ? (toIrt(nextPayment.amountBase) ?? formatMoney(nextPayment.amountBase)) : "—"}
@@ -67,8 +67,8 @@ export default async function DebtsPage() {
         />
         <Metric
           label="تسویه‌شده"
-          value={String(debts.filter((d) => d.status === "settled").length)}
-          hint={debts.length ? `از مجموع ${debts.length} بدهی` : undefined}
+          value={faCount(debts.filter((d) => d.status === "settled").length)}
+          hint={debts.length ? `از مجموع ${faCount(debts.length)} بدهی` : undefined}
         />
       </section>
 

@@ -6,7 +6,7 @@ import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatNumber, formatPct, faCount } from "@/lib/format";
+import { formatMoney, formatNumber, formatPct, faCount, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +39,7 @@ export default async function AssetsPage() {
   await seedIfEmpty();
 
   const [valuation, fx] = await Promise.all([getPortfolioValuation(), getLatestUsdIrtRate()]);
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(D(usd).mul(fx.rate).toFixed(0), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const all = valuation.assetValuations;
   const financial = all.filter((a) => !isRealAsset(a.className));
@@ -95,18 +95,18 @@ export default async function AssetsPage() {
 
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش کل دارایی‌ها" value={toIrt(totalValue.toString()) ?? formatMoney(totalValue.toString())} hint={fx.rate ? formatMoney(totalValue.toString()) : undefined} />
-        <Metric label="تعداد دارایی" value={String(all.length)} hint={`${financial.length} مالی · ${real.length} واقعی`} />
+        <Metric label="تعداد دارایی" value={faCount(all.length)} hint={`${faCount(financial.length)} مالی · ${faCount(real.length)} واقعی`} />
         <Metric
           label="سود/زیان محقق‌نشده"
           value={toIrt(unrealized.toString()) ?? formatMoney(unrealized.toString())}
-          tone={unrealized.gte(0) ? "up" : "down"}
+          tone={trendTone(unrealized.toString())}
           hint={fx.rate ? formatMoney(unrealized.toString()) : undefined}
         />
         <Metric
           label="وضعیت قیمت‌ها"
-          value={`${valuation.priceStatus.fresh} تازه`}
-          tone={valuation.priceStatus.unavailable > 0 ? "down" : valuation.priceStatus.stale > 0 ? "neutral" : "up"}
-          hint={`${valuation.priceStatus.stale} قدیمی · ${valuation.priceStatus.unavailable} بدون قیمت`}
+          value={`${faCount(valuation.priceStatus.fresh)} تازه`}
+          tone={valuation.priceStatus.unavailable > 0 ? "down" : "neutral"}
+          hint={`${faCount(valuation.priceStatus.stale)} قدیمی · ${faCount(valuation.priceStatus.unavailable)} بدون قیمت`}
         />
       </section>
 

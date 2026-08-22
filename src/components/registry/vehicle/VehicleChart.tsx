@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { formatMoney, formatPct, formatShortDate, formatDate } from "@/lib/format";
+import { formatMoney, formatPct, formatShortDate, formatDate, trendColor, trendArrow } from "@/lib/format";
 import type { SnapshotPoint } from "@/features/rwa/vehicle/analytics";
 
 type Currency = "toman" | "usd";
@@ -86,8 +86,8 @@ export default function VehicleChart({
             {series.length > 1 && (
               <>
                 {" · "}
-                <span style={{ color: changePct >= 0 ? "var(--positive)" : "var(--negative)" }}>
-                  {changePct >= 0 ? "↑" : "↓"}{" "}
+                <span style={{ color: trendColor(changePct) }}>
+                  {trendArrow(changePct)}{" "}
                   <span dir="rtl">{formatPct(Math.abs(changePct), 2)}</span> در کل بازه نمودار
                 </span>
               </>

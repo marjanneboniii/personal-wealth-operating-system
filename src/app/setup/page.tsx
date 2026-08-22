@@ -58,8 +58,10 @@ export default function SetupWizardPage() {
   const [dateCalendar, setDateCalendar] = useState<"jalali" | "gregorian">("jalali");
   const [digitStyle, setDigitStyle] = useState<"fa" | "en">("fa");
 
-  // Step 2 State — names + native denomination (independent of book USD)
-  const [bankAccountName, setBankAccountName] = useState("بانک ملت — جاری");
+  // Step 2 State — names + native denomination (independent of book USD).
+  // NO hardcoded bank/account names (Directive §0): the user names their own
+  // accounts; only a neutral generic fallback exists server-side.
+  const [bankAccountName, setBankAccountName] = useState("");
   const [cashWalletName, setCashWalletName] = useState("صندوق خانگی");
   const [bankAssetSymbol, setBankAssetSymbol] = useState<MoneySymbol>("IRT");
   const [cashAssetSymbol, setCashAssetSymbol] = useState<MoneySymbol>("IRT");
@@ -312,6 +314,7 @@ export default function SetupWizardPage() {
                     required
                     value={bankAccountName}
                     onChange={(e) => setBankAccountName(e.target.value)}
+                    placeholder="مثلاً حساب بانکی اصلی"
                     className="field"
                   />
                 </div>

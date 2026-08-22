@@ -812,6 +812,16 @@ const STATEMENTS = [
     updated_at timestamptz
   );`,
   `CREATE INDEX IF NOT EXISTS user_fx_settings_user_idx ON user_fx_settings(user_id);`,
+  // Per-user UI preferences — Global Pro Mode toggle (Directive §2).
+  // One row per user; default is the SIMPLE (non-accounting) view.
+  `CREATE TABLE IF NOT EXISTS user_preferences (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+    pro_mode boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );`,
+  `CREATE INDEX IF NOT EXISTS user_preferences_user_idx ON user_preferences(user_id);`,
 
   // ───────────── STAGE 2: Multi-User Financial Data Isolation ─────────────
   `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,

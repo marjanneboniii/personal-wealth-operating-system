@@ -14,7 +14,7 @@ import { Alert, Delta, EmptyState, Metric, PageHeader, Section } from "@/compone
 import NetWorthChart from "@/components/charts/NetWorthChart";
 import RowAction from "@/components/RowAction";
 import { D } from "@/domain/decimal";
-import { formatMoney, formatPct, formatPercent, todayIso } from "@/lib/format";
+import { formatMoney, formatPct, formatPercent, todayIso, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +92,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
     getAnalyticsSummary(userId),
     getLatestUsdIrtRate(),
   ]);
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(D(usd).mul(fx.rate).toFixed(0), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const baseline =
     (await getSnapshotAsOf(from, userId)) ?? (await getFirstSnapshotAfter(from, userId)) ?? null;
@@ -297,12 +297,12 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
             <Metric
               label="بازده تعدیل‌شده"
               value={formatPercent(growth.adjustedWealthReturnPercentage)}
-              tone={D(growth.adjustedWealthReturnPercentage).gte(0) ? "up" : "down"}
+              tone={trendTone(growth.adjustedWealthReturnPercentage)}
             />
             <Metric
               label="بازده سرمایه‌گذاری خالص"
               value={toIrt(growth.netInvestmentReturn) ?? formatMoney(growth.netInvestmentReturn)}
-              tone={D(growth.netInvestmentReturn).gte(0) ? "up" : "down"}
+              tone={trendTone(growth.netInvestmentReturn)}
               hint={fx.rate ? `≈ ${formatMoney(growth.netInvestmentReturn)} · بدون احتساب واریز/برداشت‌ها` : "بدون احتساب واریز/برداشت‌ها"}
             />
             <Metric label="بیشترین افت از سقف" value={`−${formatPct(risk.maxDrawdownPercentage, 2)}`} tone={Number(risk.maxDrawdownPercentage) > 15 ? "down" : "neutral"} />

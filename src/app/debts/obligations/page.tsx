@@ -4,7 +4,7 @@ import { seedIfEmpty } from "@/db/seed";
 import { listEvents, listObligations, upcomingInstallments } from "@/features/planning/service";
 import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import { formatDualDate, formatMoney, todayIso, faCount } from "@/lib/format";
+import { formatDualDate, formatMoney, todayIso, faCount, toIrtMoney } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +42,7 @@ export default async function ObligationsPage() {
     upcomingInstallments(100),
     getLatestUsdIrtRate(),
   ]);
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const today = todayIso();
 
@@ -114,15 +114,15 @@ export default async function ObligationsPage() {
       </Alert>
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="سررسید گذشته" value={String(overdue.length)} tone={overdue.length ? "down" : "up"} />
+        <Metric label="سررسید گذشته" value={faCount(overdue.length)} tone={overdue.length ? "down" : "neutral"} />
         <Metric
           label="۳۰ روز آینده"
-          value={String(next30.length)}
+          value={faCount(next30.length)}
           hint={next30.length ? toIrt(next30.reduce((s, r) => s + Number(r.amount), 0)) ?? formatMoney(next30.reduce((s, r) => s + Number(r.amount), 0)) : undefined}
         />
         <Metric
           label="۹۰ روز آینده"
-          value={String(next90.length)}
+          value={faCount(next90.length)}
           hint={next90.length ? toIrt(next90.reduce((s, r) => s + Number(r.amount), 0)) ?? formatMoney(next90.reduce((s, r) => s + Number(r.amount), 0)) : undefined}
         />
         <Metric label="مجموع تعهدات پیش‌رو" value={toIrt(totalCommitted) ?? formatMoney(totalCommitted)} hint={fx.rate ? formatMoney(totalCommitted) : undefined} />

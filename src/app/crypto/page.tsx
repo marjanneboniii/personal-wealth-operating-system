@@ -5,7 +5,7 @@ import { getPortfolioValuation } from "@/features/portfolio/service";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatPct, formatQty } from "@/lib/format";
+import { currencyLabel, formatMoney, formatPct, formatQty, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -22,7 +22,7 @@ export default async function CryptoPage() {
     getLatestUsdIrtRate(),
   ]);
 
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(D(usd).mul(fx.rate).toFixed(0), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const crypto = valuation.assetValuations.filter((a) => a.className === "رمزارز");
   const stable = valuation.assetValuations.filter((a) => a.className === "استیبل‌کوین");
@@ -80,13 +80,13 @@ export default async function CryptoPage() {
             <Metric
               label="سود/زیان تحقق‌نیافته"
               value={`${cryptoPnl.gte(0) ? "+" : "−"}${toIrt(cryptoPnl.abs().toString()) ?? formatMoney(cryptoPnl.abs().toString())}`}
-              tone={cryptoPnl.gte(0) ? "up" : "down"}
+              tone={trendTone(cryptoPnl.toString())}
               hint={fx.rate ? `≈ ${formatMoney(cryptoPnl.abs().toString())} · بهای تمام‌شده ${formatMoney(cryptoCost.toString())}` : `بهای تمام‌شده ${formatMoney(cryptoCost.toString())}`}
             />
             <Metric
               label="سود تحقق‌یافته"
               value={`${realized.gte(0) ? "+" : "−"}${toIrt(realized.abs().toString()) ?? formatMoney(realized.abs().toString())}`}
-              tone={realized.gte(0) ? "up" : "down"}
+              tone={trendTone(realized.toString())}
               hint={fx.rate ? `≈ ${formatMoney(realized.abs().toString())} · فروش‌های انجام‌شده (FIFO)` : "فروش‌های انجام‌شده (FIFO)"}
             />
           </section>

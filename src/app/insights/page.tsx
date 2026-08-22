@@ -8,7 +8,7 @@ import { listDebts, projectCashflow } from "@/features/planning/service";
 import { Alert, EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatNumber, formatPct, formatShortDate, todayIso, faCount } from "@/lib/format";
+import { formatMoney, formatNumber, formatPct, formatShortDate, todayIso, faCount, toIrtMoney } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -60,7 +60,7 @@ export default async function InsightsPage() {
     countUnreviewed(),
     getLatestUsdIrtRate(),
   ]);
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const today = todayIso();
 

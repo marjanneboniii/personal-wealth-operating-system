@@ -517,7 +517,7 @@ export default function TransactionForm({
                 <Icon name="search" size={15} />
                 انتخاب بدهی / قسط
               </span>
-              <span className="chip">{showExplorer ? "بستن" : "نمایش"} · {debts.length} بدهی</span>
+              <span className="chip">{showExplorer ? "بستن" : "نمایش"} · {faCount(debts.length)} بدهی</span>
             </button>
           )}
           {(showExplorer || type === "debt_repayment") && (

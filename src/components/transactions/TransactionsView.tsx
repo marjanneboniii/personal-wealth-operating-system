@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
+import AdvancedFilter from "@/components/ui/AdvancedFilter";
 import { markManyReviewedAction, markReviewedAction } from "@/app/actions";
 import { humanizeEntry, moneyFlowLabel, typeBadgeTone } from "@/lib/tx";
 import type { TxRow } from "@/features/ledger/queries";
 import { faCount, formatJalaliIso, formatMoney, formatShortDate } from "@/lib/format";
+import { useProMode } from "@/components/layout/ProModeProvider";
 import { D } from "@/domain/decimal";
 
 export type ClientTxRow = TxRow & {
@@ -54,17 +56,29 @@ export default function TransactionsView({
 }) {
   const router = useRouter();
   const sp = useSearchParams();
+  // Historical FX freeze lines are ledger-grade detail → PRO-only (Directive §2).
+  const pro = useProMode();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [query, setQuery] = useState(filters.q);
   const [pending, startTransition] = useTransition();
   const searchRef = useRef<HTMLInputElement>(null);
-  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toIrtFromUsd = (usd: string | number) =>
-    rate && D(rate).gt(0) ? formatMoney(D(usd).mul(rate).toFixed(0), "IRT") : null;
-  const displayIrt = (e: ClientTxRow, h: ReturnType<typeof humanizeEntry>) =>
-    e.fx?.irtAmount ? formatMoney(D(e.fx.irtAmount).toFixed(0), "IRT") : h.nativeIrt ? formatMoney(h.nativeIrt, "IRT") : toIrtFromUsd(h.amount);
+  // ONE-WAY DYNAMIC EQUIVALENT (Directive §1): the primary Toman figure comes
+  // from the frozen entry snapshot or the exact IRT leg — never re-derived.
+  // Only when neither exists is it computed live, from the FULL-PRECISION
+  // base amount (never a 2-dp display string) and marked with «≈».
+  const amountLabel = (e: ClientTxRow, h: ReturnType<typeof humanizeEntry>) => {
+    const sign = h.sign > 0 ? "+" : h.sign < 0 ? "−" : "";
+    const irt = e.fx?.irtAmount
+      ? formatMoney(D(e.fx.irtAmount).toFixed(0), "IRT")
+      : h.nativeIrt
+        ? formatMoney(h.nativeIrt, "IRT")
+        : rate && D(rate).gt(0)
+          ? formatMoney(D(h.amountExact).mul(rate).toFixed(0), "IRT")
+          : null;
+    const dynamic = !e.fx?.irtAmount && !h.nativeIrt && !!irt;
+    return `${dynamic ? "≈ " : ""}${sign}${irt ?? formatMoney(h.amount)}`;
+  };
 
   // URL state — filters survive refresh, share and browser back
   const apply = (patch: Partial<Filters>) => {
@@ -74,31 +88,6 @@ export default function TransactionsView({
       else next.delete(k);
     }
     router.replace(`/transactions?${next.toString()}`, { scroll: false });
-  };
-
-  // Sync the local query box when the URL filter changes (back/forward, clear-all)
-  const [lastQ, setLastQ] = useState(filters.q);
-  if (filters.q !== lastQ) {
-    setLastQ(filters.q);
-    setQuery(filters.q);
-  }
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (e.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
-
-  const onQuery = (v: string) => {
-    setQuery(v);
-    if (debounce.current) clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => apply({ q: v }), 350);
   };
 
   const toggleSelect = (id: string, e?: React.MouseEvent | React.ChangeEvent) => {
@@ -142,77 +131,76 @@ export default function TransactionsView({
 
   return (
     <div className="space-y-3">
-      {/* ─────────── Filter bar ─────────── */}
-      <div className="card sticky top-[52px] z-20 space-y-2 p-2 lg:top-0" style={{ touchAction: "manipulation" }}>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[180px] flex-1">
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 opacity-40">
-              <Icon name="search" size={15} />
-            </span>
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={(e) => onQuery(e.target.value)}
-              placeholder="جستجوی شرح یا مرجع…"
-              aria-label="جستجوی تراکنش‌ها"
-              className="field !min-h-9 !py-1.5 pr-9 text-[13px]"
-            />
-          </div>
-          <details className="group">
-            <summary className="chip cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-              <Icon name="filter" size={12} />
-              فیلترها
-            </summary>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <select value={filters.type} onChange={(e) => apply({ type: e.target.value })} className="field !min-h-9 !w-auto !py-1.5 text-[12.5px]" aria-label="نوع">
-                {TYPE_OPTIONS.map((t) => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
-                ))}
-              </select>
-              <select value={filters.range} onChange={(e) => apply({ range: e.target.value })} className="field !min-h-9 !w-auto !py-1.5 text-[12.5px]" aria-label="بازه">
-                {RANGE_OPTIONS.map((r) => (
-                  <option key={r.key} value={r.key}>{r.label}</option>
-                ))}
-              </select>
-              <select value={filters.accountId} onChange={(e) => apply({ accountId: e.target.value })} className="field !min-h-9 !w-auto max-w-[160px] !py-1.5 text-[12.5px]" aria-label="حساب">
-                <option value="">همه حساب‌ها</option>
-                {accountGroups.map((g) => (
-                  <optgroup key={g.label} label={g.label}>
-                    {g.options.map((a) => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              {categoryGroups.length > 0 && (
-                <select value={filters.categoryId} onChange={(e) => apply({ categoryId: e.target.value })} className="field !min-h-9 !w-auto max-w-[170px] !py-1.5 text-[12.5px]" aria-label="دسته">
-                  <option value="">همه دسته‌ها</option>
-                  {categoryGroups.map((g) => (
-                    <optgroup key={g.id} label={g.name}>
-                      <option value={g.id}>{g.name} (همه)</option>
-                      {g.children.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              )}
-              <button type="button" onClick={() => apply({ sort: filters.sort === "old" ? "new" : "old" })} className={`chip ${filters.sort === "old" ? "chip-on" : ""}`}>
-                {filters.sort === "old" ? "قدیمی‌ترین" : "جدیدترین"}
-              </button>
-              <button type="button" onClick={() => apply({ review: filters.review === "unreviewed" ? "" : "unreviewed" })} className={`chip ${filters.review === "unreviewed" ? "chip-on" : ""}`}>
-                بررسی‌نشده
-              </button>
-            </div>
-          </details>
-          {isFiltered && (
-            <button type="button" className="btn btn-ghost !min-h-8 !px-2 !py-1 text-[11.5px]" onClick={() => router.replace("/transactions")}>
-              <Icon name="x" size={13} />
-              پاک کردن
-            </button>
-          )}
-        </div>
-      </div>
+      {/* ─────────── Filter bar — unified AdvancedFilter component ─────────── */}
+      <AdvancedFilter
+        searchRef={searchRef}
+        search={{
+          value: filters.q,
+          placeholder: "جستجوی شرح یا مرجع…",
+          ariaLabel: "جستجوی تراکنش‌ها",
+          onChange: (v) => apply({ q: v }),
+        }}
+        selects={[
+          {
+            key: "type",
+            label: "نوع",
+            value: filters.type,
+            placeholder: "همه انواع",
+            options: TYPE_OPTIONS.map((t) => ({ value: t.key, label: t.label })),
+            onChange: (v: string) => apply({ type: v }),
+          },
+          {
+            key: "range",
+            label: "بازه",
+            value: filters.range,
+            placeholder: "۳ ماه",
+            options: RANGE_OPTIONS.map((r) => ({ value: r.key, label: r.label })),
+            onChange: (v: string) => apply({ range: v }),
+          },
+          {
+            key: "account",
+            label: "حساب",
+            value: filters.accountId,
+            placeholder: "همه حساب‌ها",
+            groups: accountGroups.map((g) => ({ label: g.label, options: g.options.map((a) => ({ value: a.id, label: a.name })) })),
+            maxWidthClass: "max-w-[160px]",
+            onChange: (v: string) => apply({ accountId: v }),
+          },
+          ...(categoryGroups.length > 0
+            ? [
+                {
+                  key: "category",
+                  label: "دسته",
+                  value: filters.categoryId,
+                  placeholder: "همه دسته‌ها",
+                  groups: categoryGroups.map((g) => ({
+                    label: g.name,
+                    options: [{ value: g.id, label: `${g.name} (همه)` }, ...g.children.map((c) => ({ value: c.id, label: c.name }))],
+                  })),
+                  maxWidthClass: "max-w-[170px]",
+                  onChange: (v: string) => apply({ categoryId: v }),
+                },
+              ]
+            : []),
+        ]}
+        chips={[
+          {
+            key: "sort",
+            label: "جدیدترین",
+            activeLabel: filters.sort === "old" ? "قدیمی‌ترین" : "جدیدترین",
+            active: filters.sort === "old",
+            onClick: () => apply({ sort: filters.sort === "old" ? "new" : "old" }),
+          },
+          {
+            key: "review",
+            label: "بررسی‌نشده",
+            active: filters.review === "unreviewed",
+            onClick: () => apply({ review: filters.review === "unreviewed" ? "" : "unreviewed" }),
+          },
+        ]}
+        isFiltered={!!isFiltered}
+        onClear={() => router.replace("/transactions")}
+      />
 
       {/* ─────────── List ─────────── */}
       {rows.length === 0 ? (
@@ -295,8 +283,7 @@ export default function TransactionsView({
                         dir="rtl"
                         style={{ color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)" }}
                       >
-                        {h.sign > 0 ? "+" : h.sign < 0 ? "−" : ""}
-                        {displayIrt(e, h) ?? formatMoney(h.amount)}
+                        {amountLabel(e, h)}
                       </span>
                       {rate && <span className="muted num block text-[10.5px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(h.amount)}</span>}
                     </span>
@@ -328,10 +315,10 @@ export default function TransactionsView({
                             </p>
                           )}
                           <p className="num mt-2 text-[15px] font-bold" dir="rtl">
-                            {displayIrt(e, h) ?? formatMoney(h.amount)}
+                            {amountLabel(e, h)}
                           </p>
                         </div>
-                        {e.fx && (
+                        {e.fx && pro && (
                           <p className="muted mt-3 text-[10.5px] leading-5">
                             مبلغ تاریخی منجمد: <b className="num">{formatMoney(e.fx.irtAmount, "IRT")}</b> ≈{" "}
                             <b className="num" dir="rtl">
@@ -417,7 +404,7 @@ export default function TransactionsView({
       )}
 
       <p className="muted px-1 text-[10.5px]">
-        {rows.length} رکورد · ترتیب: {filters.sort === "old" ? "قدیمی‌ترین" : filters.sort === "amount" ? "بیشترین مبلغ" : "جدیدترین"} · کلید <kbd className="kbd">/</kbd> برای جستجو · جزئیات حسابداری کامل در{" "}
+        {faCount(rows.length)} رکورد · ترتیب: {filters.sort === "old" ? "قدیمی‌ترین" : filters.sort === "amount" ? "بیشترین مبلغ" : "جدیدترین"} · کلید <kbd className="kbd">/</kbd> برای جستجو · جزئیات حسابداری کامل در{" "}
         <a href="/financial-records" className="underline underline-offset-2" style={{ color: "var(--brand)" }}>
           سوابق مالی
         </a>

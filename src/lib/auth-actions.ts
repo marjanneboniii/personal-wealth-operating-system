@@ -243,3 +243,25 @@ export async function updateFxRateAction(prev: AuthResult | null, formData: Form
   }
   return { ok: result.ok, message: result.message };
 }
+
+// ───────────── Global Pro Mode toggle (Directive §2) ─────────────
+
+/**
+ * Per-user, server-verified toggle between the SIMPLE vocabulary view
+ * (default: ورودی/خروجی، دسته‌بندی، جریان پول) and the PROFESSIONAL
+ * accounting view (کد معین، بدهکار/بستانکار، جزئیات دفتر کل) across the
+ * whole app. The preference row is tenant-scoped (unique user_id); it is
+ * read server-side per request and revalidated everywhere it is used.
+ */
+export async function setProModeAction(_prev: AuthResult | null, formData: FormData): Promise<AuthResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, message: "ابتدا وارد شوید." };
+  const pro = String(formData.get("proMode") ?? "") === "true";
+  const { setUserProMode } = await import("@/features/preferences/service");
+  const result = await setUserProMode(user.id, pro);
+  if (result.ok) {
+    // The flag is consumed by the root layout and every gated page.
+    revalidatePath("/", "layout");
+  }
+  return { ok: result.ok, message: result.message };
+}
