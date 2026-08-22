@@ -160,10 +160,7 @@ export default async function AccountsPage() {
                     {rows.map((b) => (
                       <li key={b.accountId} className="flex items-center justify-between gap-3 px-4 py-2.5">
                         <div className="min-w-0">
-                          <p className="flex items-center gap-2 truncate text-[12.5px] font-medium">
-                            {b.name}
-                            <span className="badge badge-neutral num">{toFaDigits(b.code)}</span>
-                          </p>
+                          <p className="truncate text-[12.5px] font-medium">{b.name}</p>
                           <p className="muted num text-[10px]" dir="rtl">
                             {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}
                           </p>

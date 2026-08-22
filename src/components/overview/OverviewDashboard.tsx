@@ -12,7 +12,7 @@ import { getSetupState } from "@/features/setup/service";
 import { Alert, Delta, EmptyState, Section, SectionLink } from "@/components/ui/Card";
 import { AreaChart, BarsChart, Donut } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
-import { humanizeEntry } from "@/lib/tx";
+import { humanizeEntry, moneyFlowLabel } from "@/lib/tx";
 import { D } from "@/domain/decimal";
 import { formatMoney, formatPct, formatShortDate, toJalali, faCount } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
@@ -320,12 +320,10 @@ export default async function OverviewDashboard() {
                         <span>{formatShortDate(e.entryDate)}</span>
                         <span className="opacity-40">·</span>
                         <span>{h.typeLabel}</span>
-                        {h.from && h.to && (
+                        {moneyFlowLabel(h.from, h.to) && (
                           <>
                             <span className="opacity-40">·</span>
-                            <span className="truncate">
-                              {h.from} ← {h.to}
-                            </span>
+                            <span className="truncate">{moneyFlowLabel(h.from, h.to)}</span>
                           </>
                         )}
                       </p>

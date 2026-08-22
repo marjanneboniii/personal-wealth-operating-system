@@ -60,6 +60,14 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
   };
 }
 
+/** Human money-flow sentence — never uses debit/credit jargon. */
+export function moneyFlowLabel(from: string | null, to: string | null): string | null {
+  if (from && to) return `از ${from} به ${to}`;
+  if (from) return `از ${from}`;
+  if (to) return `به ${to}`;
+  return null;
+}
+
 /** Badge tone per entry type — semantic, quiet. */
 export function typeBadgeTone(type: string): "pos" | "neg" | "brand" | "neutral" | "warn" | "info" {
   if (type === "income") return "pos";

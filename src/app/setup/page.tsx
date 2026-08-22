@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { completeSetupAction, fetchSetupStateAction, type ActionResult } from "@/app/actions";
 import { getTranslations } from "@/i18n";
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, faCount, formatMoney, formatQty } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
 
 const t = getTranslations("fa").setup;
@@ -147,7 +147,7 @@ export default function SetupWizardPage() {
           <div>
             <h1 className="text-xl font-bold">راه‌اندازی اولیه کامل است</h1>
             <p className="muted mt-2 text-xs leading-6">
-              حساب «سرمایه افتتاحیه» (3010) و نمودار حساب‌های پایه آماده‌اند. برای افزودن هر تعداد حساب بانکی، صندوق، صرافی یا کیف‌پول از بخش حساب‌ها استفاده کنید؛ هر مورد شناسه و کد مستقل دارد.
+              حساب‌های پایه آماده‌اند. برای افزودن بانک، صندوق، صرافی یا کیف‌پول از بخش حساب‌ها استفاده کنید.
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-2">
@@ -362,12 +362,11 @@ export default function SetupWizardPage() {
               </div>
 
               <div className="card soft p-3 text-[11px] leading-6">
-                <strong>نمودار حساب‌های پیش‌فرض ایجادشده:</strong>
+                <strong>چه چیزهایی ساخته می‌شود:</strong>
                 <ul className="mt-1 list-disc space-y-0.5 pr-4">
-                  <li>حساب بانکی (الزامی) — صندوق نقد فقط در صورت تمایل یا داشتن موجودی ایجاد می‌شود</li>
-                  <li>بدهی‌ها: وام و بدهی عمومی</li>
-                  <li>سرمایه: حساب سرمایه افتتاحیه (Opening Balance Equity - 3010)</li>
-                  <li>درآمدها و هزینه‌ها: دسته‌ها و هزینه‌های استاندارد خانوار</li>
+                  <li>حساب بانکی اصلی — صندوق نقد فقط در صورت تمایل</li>
+                  <li>دسته‌های بدهی، درآمد و هزینه خانوار</li>
+                  <li>سرمایه اولیه برای شروع تصویر ثروت</li>
                 </ul>
               </div>
 
@@ -545,7 +544,7 @@ export default function SetupWizardPage() {
                 <div className="divide-y text-xs" style={{ borderColor: "var(--border)" }}>
                   {D(previewData.bankQty).gt(0) && (
                     <div className="flex justify-between gap-3 py-2">
-                      <span>بدهکار: {bankAccountName} ({formatMoney(previewData.bankQty, bankAssetSymbol)})</span>
+                      <span>به {bankAccountName} ({formatMoney(previewData.bankQty, bankAssetSymbol)})</span>
                       <span className="num font-bold" dir="rtl">
                         {formatMoney(previewData.bankBook, "USD")}
                       </span>
@@ -554,7 +553,7 @@ export default function SetupWizardPage() {
 
                   {D(previewData.cashQty).gt(0) && (
                     <div className="flex justify-between gap-3 py-2">
-                      <span>بدهکار: {cashWalletName} ({formatMoney(previewData.cashQty, cashAssetSymbol)})</span>
+                      <span>به {cashWalletName} ({formatMoney(previewData.cashQty, cashAssetSymbol)})</span>
                       <span className="num font-bold" dir="rtl">
                         {formatMoney(previewData.cashBook, "USD")}
                       </span>
@@ -563,7 +562,7 @@ export default function SetupWizardPage() {
 
                   {D(previewData.ethQty).gt(0) && (
                     <div className="flex justify-between py-2">
-                      <span>بدهکار: کیف رمزارز ({formatQty(previewData.ethQty, 8)} ETH)</span>
+                      <span>به کیف رمزارز ({formatQty(previewData.ethQty, 8)} ETH)</span>
                       <span className="num font-bold" dir="rtl">
                         {formatMoney(previewData.ethVal, "USD")}
                       </span>
@@ -572,7 +571,7 @@ export default function SetupWizardPage() {
 
                   {D(previewData.goldQty).gt(0) && (
                     <div className="flex justify-between py-2">
-                      <span>بدهکار: طلای ۱۸ عیار ({formatQty(previewData.goldQty, 2)} گرم)</span>
+                      <span>به طلای ۱۸ عیار ({formatQty(previewData.goldQty, 2)} گرم)</span>
                       <span className="num font-bold" dir="rtl">
                         {formatMoney(previewData.goldVal, "USD")}
                       </span>
@@ -581,7 +580,7 @@ export default function SetupWizardPage() {
 
                   {previewData.hasItems ? (
                     <div className="flex justify-between py-2 font-bold" style={{ color: "var(--negative)" }}>
-                      <span>بستانکار: سرمایه افتتاحیه (Opening Equity - 3010)</span>
+                      <span>از سرمایه اولیه</span>
                       <span className="num" dir="rtl">
                         −{formatMoney(previewData.totalEquity, baseCurrency)}
                       </span>

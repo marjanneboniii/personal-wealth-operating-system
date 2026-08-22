@@ -69,7 +69,7 @@ export default async function NewTransactionPage({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title="ثبت تراکنش" subtitle="هر ثبت یک سند دوطرفه تغییرناپذیر در دفترکل می‌سازد. پیش‌نمایش هوشمند قبل از تأیید نهایی، فقط نمایشی است." />
+      <PageHeader title="ثبت تراکنش" subtitle="پول از کجا آمده و به کجا رفته را ثبت کنید. پیش‌نمایش قبل از تأیید فقط نمایشی است." />
       <TransactionForm
         accounts={rows.map((r) => ({ ...r, decimals: r.decimals ?? 2 }))}
         categories={categoryTree.map((p) => ({

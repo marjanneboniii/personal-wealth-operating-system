@@ -113,9 +113,9 @@ export default function MoneyAccountForm({
             ))}
           </select>
           <span className="muted block text-[10px] leading-5">
-            واحدی که موجودی این حساب در آن نگهداری می‌شود. ارز دفترکل برای همه حساب‌ها دلار است و قابل تغییر نیست.
+            واحدی که موجودی این حساب در آن نگهداری می‌شود. جمع‌بندی داخلی برای همه حساب‌ها دلار است و قابل تغییر نیست.
           </span>
-          <span className="chip mt-1 inline-block">ارز دفترکل: دلار (فقط خواندنی)</span>
+          <span className="chip mt-1 inline-block">واحد جمع‌بندی: دلار (فقط خواندنی)</span>
         </label>
         <label className="space-y-1">
           <span className="label">موجودی اولیه به واحد ارز انتخاب‌شده</span>

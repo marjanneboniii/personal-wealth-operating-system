@@ -118,8 +118,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                 <th>حساب</th>
                 <th>نوع</th>
                 <th className="td-num">مقدار</th>
-                <th className="td-num">بدهکار</th>
-                <th className="td-num">بستانکار</th>
+                <th className="td-num">ورود</th>
+                <th className="td-num">خروج</th>
               </tr>
             </thead>
             <tbody>
@@ -216,8 +216,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                       <tr>
                         <th>حساب</th>
                         <th className="td-num">مقدار</th>
-                        <th className="td-num">بدهکار</th>
-                        <th className="td-num">بستانکار</th>
+                        <th className="td-num">ورود</th>
+                        <th className="td-num">خروج</th>
                         <th>یادداشت</th>
                       </tr>
                     </thead>
