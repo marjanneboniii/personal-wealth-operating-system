@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, trendColor, trendTone } from "@/lib/format";
+import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, trendArrow, trendColor, trendTone } from "@/lib/format";
 import type { AssetValuation } from "@/features/portfolio/types";
 
 /**
@@ -31,6 +31,9 @@ export default function HoldingsTable({
         <tbody>
           {rows.map((a) => {
             const pnl = D(a.unrealizedPnl);
+            // ZERO IS ALWAYS NEUTRAL (Directive §2): a flat position is never
+            // painted green/red and gets neither a "+" nor an "↑".
+            const pnlTone = trendTone(a.unrealizedPnl);
             return (
               <tr key={a.assetId}>
                 <td>
@@ -47,7 +50,8 @@ export default function HoldingsTable({
                       <div className="muted truncate text-[10.5px] font-normal" dir="ltr">
                         {currencyLabel(a.symbol)}
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {/* Freshness chips — own padded row, clear of the name */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         {a.priceFreshness === "fresh" && <span className="chip">Fresh</span>}
                         {a.priceFreshness === "stale" && <span className="chip" style={{ color: "var(--warning)" }}>Stale</span>}
                         {a.priceFreshness === "unavailable" && <span className="chip" style={{ color: "var(--negative)" }}>Unavailable</span>}
@@ -78,7 +82,8 @@ export default function HoldingsTable({
                 </td>
                 <td className="td-num hidden lg:table-cell" dir="rtl">
                   <div className="text-[12px]">{formatMoney(a.costBasis)}</div>
-                  <div className="mt-1"><span className="chip">FIFO</span></div>
+                  {/* FIFO chip — separated on its own padded line inside the cell */}
+                  <div className="mt-1.5"><span className="chip">FIFO</span></div>
                 </td>
                 <td className="td-num" dir="rtl">
                   <div className="num text-[13px] font-bold">{formatMoney(a.currentValueToman, "IRT")}</div>
@@ -86,13 +91,13 @@ export default function HoldingsTable({
                     ≈ {formatMoney(a.currentValue)}
                   </div>
                 </td>
-                <td className="td-num hidden sm:table-cell" dir="rtl" style={{ color: pnl.isNegative() ? "var(--negative)" : "var(--positive)" }}>
+                <td className="td-num hidden sm:table-cell" dir="rtl" style={{ color: trendColor(a.unrealizedPnl) }}>
                   <div className="text-[12.5px] font-semibold">
-                    {pnl.gte(0) ? "+" : "−"}
+                    {pnlTone === "up" ? "+" : pnlTone === "down" ? "−" : ""}
                     {formatMoney(pnl.abs().toString())}
                   </div>
                   <div className="num text-[10px]">
-                    {D(a.roiPercentage).gte(0) ? "↑" : "↓"} {formatQty(D(a.roiPercentage).abs().toString(), 2)}٪
+                    {trendArrow(a.roiPercentage)} {formatQty(D(a.roiPercentage).abs().toString(), 2)}٪
                   </div>
                 </td>
                 <td className="td-num hidden sm:table-cell" dir="rtl">

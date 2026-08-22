@@ -16,7 +16,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import { EventForm, GoalForm, PlannedForm } from "@/components/forms/QuickForms";
 import RowAction from "@/components/RowAction";
 import Icon from "@/components/ui/Icon";
-import { formatMoney, formatShortDate, getDualDate, toJalali, faCount, toIrtMoney } from "@/lib/format";
+import { formatMoney, formatShortDate, getDualDate, toJalali, faCount, outflowTone, toIrtMoney } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -105,7 +105,7 @@ export default async function PlanningPage() {
 
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="نقدینگی فعلی" value={toIrt(projection.startingLiquidity) ?? formatMoney(projection.startingLiquidity)} hint={fx.rate ? formatMoney(projection.startingLiquidity) : undefined} />
-        <Metric label="خروجی برنامه‌ریزی‌شده" value={toIrt(totalPlannedOut) ?? formatMoney(totalPlannedOut)} tone="down" hint={fx.rate ? formatMoney(totalPlannedOut) : `${faCount(pending.length)} برنامه در انتظار`} />
+        <Metric label="خروجی برنامه‌ریزی‌شده" value={toIrt(totalPlannedOut) ?? formatMoney(totalPlannedOut)} tone={outflowTone(totalPlannedOut)} hint={fx.rate ? formatMoney(totalPlannedOut) : `${faCount(pending.length)} برنامه در انتظار`} />
         <Metric
           label="نقدینگی پایان ۱۲ ماه"
           value={toIrt(projection.points.at(-1)?.cumulative ?? "0") ?? formatMoney(projection.points.at(-1)?.cumulative ?? "0")}

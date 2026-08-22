@@ -11,7 +11,7 @@ import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import VehiclePortfolioSection from "@/components/portfolio/VehiclePortfolioSection";
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatDualDate, formatMoney, formatQty, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
+import { currencyLabel, faCount, formatDualDate, formatMoney, formatQty, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -51,8 +51,8 @@ export default async function PortfolioPage() {
 
       {(valuation.priceStatus.stale > 0 || valuation.priceStatus.unavailable > 0) && (
         <Alert tone="warn" title="بخشی از قیمت‌های جاری قطعی نیست">
-          {valuation.priceStatus.stale > 0 ? `${valuation.priceStatus.stale} قیمت Stale است. ` : ""}
-          {valuation.priceStatus.unavailable > 0 ? `${valuation.priceStatus.unavailable} ارزش‌گذاری Unavailable است و با Cost Basis مشخص نمایش داده می‌شود.` : ""}
+          {valuation.priceStatus.stale > 0 ? `${faCount(valuation.priceStatus.stale)} قیمت Stale است. ` : ""}
+          {valuation.priceStatus.unavailable > 0 ? `${faCount(valuation.priceStatus.unavailable)} ارزش‌گذاری Unavailable است و با Cost Basis مشخص نمایش داده می‌شود.` : ""}
           هیچ fallback دستی برای قیمت جاری Crypto استفاده نشده است.
         </Alert>
       )}
@@ -114,7 +114,7 @@ export default async function PortfolioPage() {
             <details className="card overflow-hidden">
               <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 marker:hidden [&::-webkit-details-marker]:hidden">
                 <span className="text-[13px] font-semibold">
-                  بسته‌های FIFO باز <span className="muted num text-[11px]">({lots.length})</span>
+                  بسته‌های FIFO باز <span className="muted num text-[11px]">({faCount(lots.length)})</span>
                 </span>
                 <span className="muted text-[11px]">مرجع بهای تمام‌شده — باز کنید</span>
               </summary>

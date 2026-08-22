@@ -71,10 +71,48 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
 
 /** Human money-flow sentence — never uses debit/credit jargon. */
 export function moneyFlowLabel(from: string | null, to: string | null): string | null {
-  if (from && to) return `از ${from} به ${to}`;
-  if (from) return `از ${from}`;
-  if (to) return `به ${to}`;
+  const pFrom = from != null ? plainAccountName(from) : null;
+  const pTo = to != null ? plainAccountName(to) : null;
+  if (pFrom && pTo) return `از ${pFrom} به ${pTo}`;
+  if (pFrom) return `از ${pFrom}`;
+  if (pTo) return `به ${pTo}`;
   return null;
+}
+
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ * UX TRANSLATION PIPE (Global Directive §4 — Accounting Abstraction Layer)
+ *
+ * Technical general-ledger account names (equity / opening-capital / reserve
+ * accounts such as «سرمایه افتتاحیه تملک‌های تاریخی») are sanitized into
+ * smooth, human category titles for the GENERAL UI layer (overview recent
+ * activity, transactions). The accounting-truth layer — the /ledger page in
+ * Pro Mode — keeps the exact names and codes; this pipe never touches data,
+ * only presentation. Rules are ordered: first match wins, everything else
+ * passes through untouched.
+ * ────────────────────────────────────────────────────────────────────────── */
+const PLAIN_ACCOUNT_RULES: { pattern: RegExp; label: string }[] = [
+  // 3010 «سرمایه افتتاحیه» + 3015 «سرمایه افتتاحیه تملک‌های تاریخی (املاک)»
+  { pattern: /^سرمایه\s+افتتاحیه/, label: "موجودی آغازین" },
+  // 3000 «سرمایه» (bare equity root)
+  { pattern: /^سرمایه$/, label: "موجودی آغازین" },
+  // 3200 «ذخیره استهلاک و تعمیرات آتی» — non-cash reserve
+  { pattern: /^ذخیره\s+استهلاک/, label: "ذخیره هزینه‌های آتی (غیرنقدی)" },
+  // 4100 «سود سرمایه‌ای تحقق‌یافته»
+  { pattern: /^سود\s+سرمایه‌ای\s+تحقق‌یافته/, label: "سود فروش دارایی" },
+];
+
+/**
+ * Translate ONE technical ledger account name into its smooth human title.
+ * Unknown names (real banks, wallets, user-created accounts) pass through
+ * unchanged — the pipe only abstracts bookkeeping vocabulary, never the
+ * user's own data.
+ */
+export function plainAccountName(name: string): string {
+  for (const rule of PLAIN_ACCOUNT_RULES) {
+    if (rule.pattern.test(name)) return rule.label;
+  }
+  return name;
 }
 
 /** Badge tone per entry type — semantic, quiet. */

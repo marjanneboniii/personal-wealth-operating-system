@@ -58,7 +58,7 @@ export default async function LoansPage() {
         <Metric label="اصل کل تسهیلات" value={toIrt(totalPrincipal) ?? formatMoney(totalPrincipal)} hint={fx.rate ? formatMoney(totalPrincipal) : undefined} />
         <Metric
           label="اقساط پرداخت‌شده"
-          value={`${totalPaid} / ${totalInstallments}`}
+          value={`${faCount(totalPaid)} از ${faCount(totalInstallments)}`}
           tone={totalInstallments > 0 && totalPaid === totalInstallments ? "up" : "neutral"}
         />
         <Metric label="تسویه‌شده" value={faCount(settled.length)} />

@@ -14,7 +14,7 @@ import { AreaChart, BarsChart, Donut } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
 import { humanizeEntry, moneyFlowLabel } from "@/lib/tx";
 import { D } from "@/domain/decimal";
-import { formatMoney, formatPct, formatShortDate, formatSignedMoney, toJalali, faCount, trendColor, usdToIrt } from "@/lib/format";
+import { formatMoney, formatPct, formatShortDate, formatSignedMoney, toJalali, faCount, inflowTone, outflowTone, toneColor, trendColor, usdToIrt } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -271,14 +271,14 @@ export default async function OverviewDashboard() {
                 <div className="mb-4 grid grid-cols-3 gap-2">
                   <div>
                     <p className="muted text-[10.5px]">درآمد</p>
-                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: D(monthFlow?.inflow ?? 0).isZero() ? "var(--text-2)" : "var(--positive)" }}>
+                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: toneColor(inflowTone(monthFlow?.inflow ?? 0)) }}>
                       {toIrt(monthFlow?.inflow ?? 0) ? formatMoney(toIrt(monthFlow?.inflow ?? 0)!, "IRT") : formatMoney(monthFlow?.inflow ?? 0)}
                     </p>
                     {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.inflow ?? 0)}</p>}
                   </div>
                   <div>
                     <p className="muted text-[10.5px]">هزینه</p>
-                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: D(monthFlow?.outflow ?? 0).isZero() ? "var(--text-2)" : "var(--negative)" }}>
+                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: toneColor(outflowTone(monthFlow?.outflow ?? 0)) }}>
                       {toIrt(monthFlow?.outflow ?? 0) ? formatMoney(toIrt(monthFlow?.outflow ?? 0)!, "IRT") : formatMoney(monthFlow?.outflow ?? 0)}
                     </p>
                     {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.outflow ?? 0)}</p>}
