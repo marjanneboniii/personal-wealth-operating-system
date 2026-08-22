@@ -248,19 +248,17 @@ export default async function OverviewDashboard() {
             </div>
           </Section>
 
-          <div className="grid gap-8 lg:grid-cols-2">
+          <div className="grid items-start gap-8 lg:grid-cols-2">
             {/* ═══ COMPOSITION ═══ */}
             <Section title="ثروت شما کجا قرار دارد؟" action={<SectionLink href="/portfolio" label="سبد دارایی" />}>
               {nw.byClass.length === 0 ? (
                 <p className="muted py-6 text-xs">دارایی‌ای ثبت نشده است.</p>
               ) : (
-                <div className="card overflow-hidden p-4">
-                  <div className="mx-auto flex max-w-full items-center justify-center">
-                    <Donut
-                      data={nw.byClass.map((c) => ({ label: c.className, value: Number(c.value), color: c.color }))}
-                      centerLabel="مجموع"
-                    />
-                  </div>
+                <div className="card relative z-0 overflow-visible p-4 sm:p-5">
+                  <Donut
+                    data={nw.byClass.map((c) => ({ label: c.className, value: Number(c.value), color: c.color }))}
+                    centerLabel="مجموع"
+                  />
                 </div>
               )}
             </Section>

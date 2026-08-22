@@ -11,7 +11,7 @@ import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import VehiclePortfolioSection from "@/components/portfolio/VehiclePortfolioSection";
 import { D } from "@/domain/decimal";
-import { currencyLabel, faCount, formatDualDate, formatMoney, formatQty, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
+import { currencyLabel, faCount, formatDualDate, formatMoney, formatPct, formatQty, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -46,6 +46,7 @@ export default async function PortfolioPage() {
     <div className="space-y-8">
       <PageHeader
         title="سبد دارایی"
+        subtitle="ترکیب دارایی‌ها، ارزش روز و سود و زیان — این صفحه فقط نمایشی است و سندی ثبت نمی‌کند."
         action={<Link href="/new?type=buy" className="btn btn-primary">ثبت خرید دارایی</Link>}
       />
 
@@ -90,24 +91,74 @@ export default async function PortfolioPage() {
         </div>
       ) : (
         <>
-          {/* Allocation — where is the money? */}
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,380px)_1fr]">
-            <Section title="ثروت شما کجا قرار دارد؟">
-              <div className="card p-4 sm:p-5">
-                <Donut
-                  centerLabel="ارزش سبد"
-                  data={valuation.allocationByClass.map((c) => ({
-                    label: c.className,
-                    value: Number(c.value),
-                    color: c.color,
-                  }))}
-                />
+          {/* Allocation is the page's question — full width, never beside the
+              holdings table (that pairing clipped the ring behind the table). */}
+          <Section title="ثروت شما کجا قرار دارد؟" hint="ترکیب سبد بر اساس کلاس دارایی">
+            {valuation.allocationByClass.length === 0 ? (
+              <p className="muted py-6 text-center text-xs">هنوز ترکیبی برای نمایش ساخته نشده است.</p>
+            ) : (
+              <div className="card relative z-0 overflow-visible p-4 sm:p-6">
+                <div
+                  className="comp-bar mb-5"
+                  role="img"
+                  aria-label="نوار ترکیب ثروت"
+                >
+                  {valuation.allocationByClass.map((c) => (
+                    <span
+                      key={c.className}
+                      style={{ width: `${Math.max(0, Math.min(100, Number(c.percentage)))}%`, background: c.color }}
+                    />
+                  ))}
+                </div>
+                <div className="grid min-w-0 items-center gap-6 lg:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
+                  <Donut
+                    size={200}
+                    centerLabel="ارزش سبد"
+                    showLegend={false}
+                    data={valuation.allocationByClass.map((c) => ({
+                      label: c.className,
+                      value: Number(c.value),
+                      color: c.color,
+                    }))}
+                  />
+                  <ul className="min-w-0 space-y-3">
+                    {valuation.allocationByClass.map((c) => (
+                      <li key={c.className}>
+                        <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px]">
+                          <span className="flex min-w-0 items-center gap-2 font-medium">
+                            <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: c.color }} />
+                            <span className="truncate">{c.className}</span>
+                          </span>
+                          <span className="flex shrink-0 items-baseline gap-2">
+                            <span className="flex flex-col items-end">
+                              <span className="num text-[13px] font-bold" dir="rtl">
+                                {toIrt(c.value) ?? formatMoney(c.value)}
+                              </span>
+                              {fx.rate && (
+                                <span className="muted num text-[9.5px]" dir="rtl">
+                                  ≈ {formatMoney(c.value)}
+                                </span>
+                              )}
+                            </span>
+                            <span className="num muted w-11 text-left text-[11px]" dir="rtl">
+                              {formatPct(c.percentage, 1)}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="meter" aria-hidden="true">
+                          <i style={{ width: `${Math.max(0, Math.min(100, Number(c.percentage)))}%`, background: c.color }} />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-            </Section>
-            <Section title="ارزش‌گذاری دارایی‌ها" hint={`به‌روزرسانی با آخرین قیمت‌ها · نرخ مرجع ${fx.rate ? formatMoney(fx.rate, "IRT") : "—"}`}>
-              <HoldingsTable rows={valuation.assetValuations} toIrt={toIrt} />
-            </Section>
-          </div>
+            )}
+          </Section>
+
+          <Section title="ارزش‌گذاری دارایی‌ها" hint={`به‌روزرسانی با آخرین قیمت‌ها · نرخ مرجع ${fx.rate ? formatMoney(fx.rate, "IRT") : "—"}`}>
+            <HoldingsTable rows={valuation.assetValuations} toIrt={toIrt} />
+          </Section>
 
           {/* FIFO lots — accounting reference, tucked away until needed */}
           {lots.length > 0 && (

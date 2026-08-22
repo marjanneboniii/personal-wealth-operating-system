@@ -1031,11 +1031,67 @@ select.field {
   flex: none;
 }
 
-/* Donut chart must stay inside its card and never overlap siblings */
+/* Donut — composition chart. Stacks by default so the ring never slides
+   behind its legend or a neighbouring table. Side-by-side only when the
+   *containing card* is wide enough (container query), not the viewport. */
 .donut-wrap {
   width: 100%;
   max-width: 100%;
-  overflow: hidden;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: donut;
+}
+.donut-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  width: 100%;
+  min-width: 0;
+}
+.donut-chart {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 172px;
+}
+.donut-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.donut-center {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.35rem;
+}
+.donut-legend {
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.donut-wrap-chart-only .donut-chart {
+  margin-inline: auto;
+}
+@container donut (min-width: 440px) {
+  .donut-wrap:not(.donut-wrap-chart-only) .donut-layout {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+  }
+  .donut-wrap:not(.donut-wrap-chart-only) .donut-legend {
+    flex: 1 1 0;
+  }
 }
 
 /* Stacked composition bar */
@@ -1587,6 +1643,5 @@ select.field {
   .asset-metric .num { min-width: 0; overflow-wrap: anywhere; font-size: clamp(.78rem, 3.5vw, 1rem); }
   .chart-filters { display: flex; gap: .375rem; overflow-x: auto; padding: .25rem; border-radius: 999px; }
   .chart-filters > * { flex: 1 0 auto; border-radius: 999px; }
-  .donut-legend { padding-bottom: 2rem; overflow: visible; }
-  main { padding-bottom: 2rem; }
+  .donut-legend { padding-bottom: 0; overflow: visible; }
 }
