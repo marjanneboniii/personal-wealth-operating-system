@@ -105,6 +105,23 @@ export function formatMoney(
   return `${RLI}${n} ${label}${PDI}`;
 }
 
+/**
+ * Signed money inside a single bidi isolate so the minus/plus NEVER trails
+ * the currency word in RTL (e.g. «−۸۹۳٬۷۴۶٬۱۷۱ تومان», never «تومان+ … تومان»).
+ * Zero is unsigned and must be paired with trendTone() = neutral.
+ */
+export function formatSignedMoney(
+  value: string | number,
+  currency = "USD",
+): string {
+  const dec = D(value ?? 0);
+  if (dec.isZero()) return formatMoney("0", currency);
+  const abs = formatMoney(dec.abs().toString(), currency);
+  const inner = abs.replace(/^\u2067/, "").replace(/\u2069$/, "");
+  const sign = dec.isNegative() ? "−" : "+";
+  return `${RLI}${sign}${inner}${PDI}`;
+}
+
 export function formatPercent(value: string | number, digits: DigitStyle = "fa"): string {
   const n = formatNumber(value, { decimals: 2, digits });
   const num = Number(value);
@@ -357,7 +374,8 @@ export function formatDualMoneyFromIrt(irtAmount: string | number, usdToIrtRate:
 }
 
 export function formatDualMoneyFromUsd(usdAmount: string | number, usdToIrtRate: string | number | null, _digits: DigitStyle = "fa"): { irt: string; usd: string; rateLabel: string } {
-  const usdStr = D(usdAmount).toFixed(2);
+  const usdExact = D(usdAmount);
+  const usdStr = usdExact.toFixed(2);
   if (!usdToIrtRate || D(usdToIrtRate).lte(0)) {
     return {
       irt: "—",
@@ -365,7 +383,9 @@ export function formatDualMoneyFromUsd(usdAmount: string | number, usdToIrtRate:
       rateLabel: "نرخ ثبت نشده",
     };
   }
-  const irt = usdToIrt(usdStr, usdToIrtRate);
+  // Convert the exact USD figure — never the 2-dp display string — so
+  // ۹۰۹٬۰۹۰ cannot collapse to ۹۰۸٬۲۰۰ via float/2-dp pre-rounding.
+  const irt = usdToIrt(usdExact.toString(), usdToIrtRate);
   return {
     irt: formatMoney(irt, "IRT"),
     usd: formatMoney(usdStr, "USD"),

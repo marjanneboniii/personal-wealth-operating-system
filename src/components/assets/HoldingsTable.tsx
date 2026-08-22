@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatPct, formatQty } from "@/lib/format";
+import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, trendColor, trendTone } from "@/lib/format";
 import type { AssetValuation } from "@/features/portfolio/types";
 
 /**
@@ -41,11 +41,13 @@ export default function HoldingsTable({
                       <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: a.classColor }} />
                     )}
                     <div className="min-w-0">
-                      <div className="text-[13px] font-bold tracking-tight" dir="rtl">
+                      <div className="truncate text-[13px] font-semibold tracking-tight" dir="rtl">
+                        {a.name}
+                      </div>
+                      <div className="muted truncate text-[10.5px] font-normal" dir="ltr">
                         {currencyLabel(a.symbol)}
                       </div>
-                      <div className="muted truncate text-[10.5px]">{a.name}</div>
-                      <div className="mt-0.5 text-[9px]">
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
                         {a.priceFreshness === "fresh" && <span className="chip">Fresh</span>}
                         {a.priceFreshness === "stale" && <span className="chip" style={{ color: "var(--warning)" }}>Stale</span>}
                         {a.priceFreshness === "unavailable" && <span className="chip" style={{ color: "var(--negative)" }}>Unavailable</span>}
@@ -76,7 +78,7 @@ export default function HoldingsTable({
                 </td>
                 <td className="td-num hidden lg:table-cell" dir="rtl">
                   <div className="text-[12px]">{formatMoney(a.costBasis)}</div>
-                  <div className="muted text-[9.5px]">FIFO</div>
+                  <div className="mt-1"><span className="chip">FIFO</span></div>
                 </td>
                 <td className="td-num" dir="rtl">
                   <div className="num text-[13px] font-bold">{formatMoney(a.currentValueToman, "IRT")}</div>

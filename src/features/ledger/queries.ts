@@ -367,6 +367,11 @@ export type TxFilter = {
 
 export type TxRow = LedgerRow & { reviewed: boolean };
 
+/** Recent activity — same repository as the Transactions module (SSOT). */
+export async function getRecent(limit = 6, userId?: string): Promise<TxRow[]> {
+  return getTransactions({ limit, userId });
+}
+
 export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
   const { type, q, accountId, categoryId, from, to } = filter;
   const safeLimit = Math.min(Math.max(1, filter.limit || 120), 500);

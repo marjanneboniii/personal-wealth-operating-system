@@ -11,7 +11,7 @@ import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import VehiclePortfolioSection from "@/components/portfolio/VehiclePortfolioSection";
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatDualDate, formatMoney, formatQty, toIrtMoney, trendTone } from "@/lib/format";
+import { currencyLabel, formatDualDate, formatMoney, formatQty, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -34,7 +34,11 @@ export default async function PortfolioPage() {
       .catch(() => null),
   ]);
 
-  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
+  const tomanOf = (usd: string | number) => (fx.rate ? usdToIrt(usd, fx.rate) : null);
+  const toIrt = (usd: string | number) => {
+    const t = tomanOf(usd);
+    return t ? formatMoney(t, "IRT") : null;
+  };
   const unrealized = D(valuation.totalUnrealizedPnl);
   const hasVehicles = (vehicles?.count ?? 0) > 0;
 
@@ -59,15 +63,15 @@ export default async function PortfolioPage() {
         <Metric label="بهای تمام‌شده" value={toIrt(valuation.totalCostBasis) ?? formatMoney(valuation.totalCostBasis)} hint={fx.rate ? formatMoney(valuation.totalCostBasis) : undefined} />
         <Metric
           label="سود/زیان تحقق‌نیافته"
-          value={`${unrealized.gte(0) ? "+" : "−"}${toIrt(unrealized.abs().toString()) ?? formatMoney(unrealized.abs().toString())}`}
+          value={tomanOf(unrealized.toString()) != null ? formatSignedMoney(tomanOf(unrealized.toString())!, "IRT") : formatSignedMoney(unrealized.toString())}
           tone={trendTone(unrealized.toString())}
-          hint={fx.rate ? `${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}` : undefined}
+          hint={fx.rate ? formatSignedMoney(unrealized.toString()) : undefined}
         />
         <Metric
           label="سود تحقق‌یافته"
-          value={`${D(pnl.total).gte(0) ? "+" : "−"}${toIrt(D(pnl.total).abs().toString()) ?? formatMoney(D(pnl.total).abs().toString())}`}
+          value={tomanOf(pnl.total) != null ? formatSignedMoney(tomanOf(pnl.total)!, "IRT") : formatSignedMoney(pnl.total)}
           tone={trendTone(pnl.total)}
-          hint={fx.rate ? `${D(pnl.total).gte(0) ? "+" : "−"}${formatMoney(D(pnl.total).abs().toString())}` : undefined}
+          hint={fx.rate ? formatSignedMoney(pnl.total) : undefined}
         />
       </section>
 
@@ -149,9 +153,8 @@ export default async function PortfolioPage() {
             <Alert tone="info" icon="info" title="سود/زیان تحقق‌یافته بر اساس دارایی">
               <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
                 {pnl.bySymbol.map((p) => (
-                  <span key={p.symbol} className="num text-[11.5px]" dir="rtl" style={{ color: D(p.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
-                    {D(p.pnl).gte(0) ? "+" : "−"}
-                    {formatMoney(D(p.pnl).abs().toString(), p.symbol)}
+                  <span key={p.symbol} className="num text-[11.5px]" dir="rtl" style={{ color: trendTone(p.pnl) === "up" ? "var(--positive)" : trendTone(p.pnl) === "down" ? "var(--negative)" : "var(--text-2)" }}>
+                    {formatSignedMoney(p.pnl, p.symbol)}
                   </span>
                 ))}
               </div>

@@ -255,7 +255,7 @@ export function BarsChart({
           </span>
         )}
       </div>
-      <div className="flex items-end gap-1.5 overflow-x-auto pb-1" style={{ height: height + 26 }} dir="ltr">
+      <div className="flex items-end gap-1.5 overflow-x-auto rounded-md pb-1" style={{ height: height + 26, background: "var(--sunken)" }} dir="ltr">
         {data.map((d, i) => (
           <button
             key={d.label}
