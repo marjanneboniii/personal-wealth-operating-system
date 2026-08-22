@@ -10,7 +10,7 @@ import Icon from "@/components/ui/Icon";
 import MoneyAccountForm from "@/components/forms/MoneyAccountForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, faCount, formatMoney, formatQty, toFaDigits } from "@/lib/format";
+import { currencyLabel, faCount, formatMoney, formatQty } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
