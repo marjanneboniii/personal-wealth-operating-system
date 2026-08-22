@@ -5,7 +5,7 @@ import { listDebts } from "@/features/planning/service";
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { D } from "@/domain/decimal";
-import { formatDualDate, formatMoney, formatPct, formatQty, todayIso, faCount } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct, formatQty, todayIso, faCount, toIrtMoney } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export default async function LoansPage() {
   await ensureAuth();
   await seedIfEmpty();
   const [debts, fx] = await Promise.all([listDebts(), getLatestUsdIrtRate()]);
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const today = todayIso();
   // Presentation split only — the stored records are identical.
@@ -54,14 +54,14 @@ export default async function LoansPage() {
       />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="مانده وام‌های فعال" value={toIrt(totalOutstanding) ?? formatMoney(totalOutstanding)} tone={totalOutstanding > 0 ? "down" : "up"} hint={fx.rate ? formatMoney(totalOutstanding) : `${active.length} وام فعال`} />
+        <Metric label="مانده وام‌های فعال" value={toIrt(totalOutstanding) ?? formatMoney(totalOutstanding)} tone={totalOutstanding > 0 ? "down" : "neutral"} hint={fx.rate ? formatMoney(totalOutstanding) : `${faCount(active.length)} وام فعال`} />
         <Metric label="اصل کل تسهیلات" value={toIrt(totalPrincipal) ?? formatMoney(totalPrincipal)} hint={fx.rate ? formatMoney(totalPrincipal) : undefined} />
         <Metric
           label="اقساط پرداخت‌شده"
           value={`${totalPaid} / ${totalInstallments}`}
           tone={totalInstallments > 0 && totalPaid === totalInstallments ? "up" : "neutral"}
         />
-        <Metric label="تسویه‌شده" value={String(settled.length)} tone="up" />
+        <Metric label="تسویه‌شده" value={faCount(settled.length)} />
       </section>
 
       <Section title="وضعیت هر وام" hint="ترتیب بر اساس مانده قابل پرداخت">

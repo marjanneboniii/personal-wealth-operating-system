@@ -13,7 +13,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatDualDate, formatMoney, formatPct, jalaliMonthKey, jalaliMonthLabel, faCount } from "@/lib/format";
+import { currencyLabel, formatDualDate, formatMoney, formatPct, jalaliMonthKey, jalaliMonthLabel, faCount, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -34,7 +34,7 @@ export default async function ReportsPage() {
   ]);
 
   const rate = fx.rate;
-  const toIrt = (usd: string | number) => (rate ? formatMoney(D(usd).mul(rate).toFixed(0), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, rate);
 
   const expenses = balances.filter((b) => b.type === "expense" && !D(b.baseValue).isZero());
   const incomes = balances.filter((b) => b.type === "income" && !D(b.baseValue).isZero());
@@ -68,7 +68,7 @@ export default async function ReportsPage() {
         <Metric label="ارزش خالص" value={formatMoney(nw.netWorthToman, "IRT")} hint={formatMoney(nw.netWorth)} />
         <Metric label="کل درآمد ثبت‌شده" value={toIrt(totalIncome.toString()) ?? formatMoney(totalIncome.toString())} tone="up" hint={rate ? formatMoney(totalIncome.toString()) : undefined} />
         <Metric label="کل هزینه ثبت‌شده" value={toIrt(totalExpense.toString()) ?? formatMoney(totalExpense.toString())} tone="down" hint={rate ? formatMoney(totalExpense.toString()) : undefined} />
-        <Metric label="نرخ پس‌انداز" value={`${formatPct(savingsRate, 1)}`} tone={Number(savingsRate) >= 0 ? "up" : "down"} />
+        <Metric label="نرخ پس‌انداز" value={`${formatPct(savingsRate, 1)}`} tone={trendTone(savingsRate)} />
       </section>
 
       {/* Monthly report — printable */}
@@ -149,13 +149,13 @@ export default async function ReportsPage() {
             <Metric
               label="تحقق‌یافته"
               value={`${D(pnl.total).gte(0) ? "+" : "−"}${toIrt(D(pnl.total).abs().toString()) ?? formatMoney(D(pnl.total).abs().toString())}`}
-              tone={D(pnl.total).gte(0) ? "up" : "down"}
+              tone={trendTone(pnl.total)}
               hint={rate ? `${D(pnl.total).gte(0) ? "+" : "−"}${formatMoney(D(pnl.total).abs().toString())}` : undefined}
             />
             <Metric
               label="تحقق‌نیافته"
               value={`${unrealized.gte(0) ? "+" : "−"}${toIrt(unrealized.abs().toString()) ?? formatMoney(unrealized.abs().toString())}`}
-              tone={unrealized.gte(0) ? "up" : "down"}
+              tone={trendTone(unrealized.toString())}
               hint={rate ? `${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}` : undefined}
             />
           </div>

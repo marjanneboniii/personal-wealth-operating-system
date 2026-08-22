@@ -11,7 +11,7 @@ import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import VehiclePortfolioSection from "@/components/portfolio/VehiclePortfolioSection";
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatDualDate, formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, formatDualDate, formatMoney, formatQty, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -34,7 +34,7 @@ export default async function PortfolioPage() {
       .catch(() => null),
   ]);
 
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(D(usd).mul(fx.rate).toFixed(0), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
   const unrealized = D(valuation.totalUnrealizedPnl);
   const hasVehicles = (vehicles?.count ?? 0) > 0;
 
@@ -60,13 +60,13 @@ export default async function PortfolioPage() {
         <Metric
           label="سود/زیان تحقق‌نیافته"
           value={`${unrealized.gte(0) ? "+" : "−"}${toIrt(unrealized.abs().toString()) ?? formatMoney(unrealized.abs().toString())}`}
-          tone={unrealized.gte(0) ? "up" : "down"}
+          tone={trendTone(unrealized.toString())}
           hint={fx.rate ? `${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}` : undefined}
         />
         <Metric
           label="سود تحقق‌یافته"
           value={`${D(pnl.total).gte(0) ? "+" : "−"}${toIrt(D(pnl.total).abs().toString()) ?? formatMoney(D(pnl.total).abs().toString())}`}
-          tone={D(pnl.total).gte(0) ? "up" : "down"}
+          tone={trendTone(pnl.total)}
           hint={fx.rate ? `${D(pnl.total).gte(0) ? "+" : "−"}${formatMoney(D(pnl.total).abs().toString())}` : undefined}
         />
       </section>

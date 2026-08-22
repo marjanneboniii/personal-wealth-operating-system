@@ -6,7 +6,7 @@ import { accounts, assets, debts, installments } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import RowAction from "@/components/RowAction";
-import { formatDualDate, formatMoney, todayIso, faCount } from "@/lib/format";
+import { formatDualDate, formatMoney, todayIso, faCount, toIrtMoney } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +50,7 @@ export default async function InstallmentsPage() {
     .limit(1);
 
   const fx = await getLatestUsdIrtRate();
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const today = todayIso();
   const pending = rows.filter((r) => r.status === "pending");
@@ -64,7 +64,7 @@ export default async function InstallmentsPage() {
       <PageHeader title="اقساط" />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="معوق" value={String(overdueList.length)} tone={overdueList.length ? "down" : "up"} />
+        <Metric label="معوق" value={faCount(overdueList.length)} tone={overdueList.length ? "down" : "neutral"} />
         <Metric label="در ۳۰ روز آینده" value={faCount(next30.length)} hint={next30.length ? toIrt(next30.reduce((s, r) => s + Number(r.amountBase), 0)) ?? formatMoney(next30.reduce((s, r) => s + Number(r.amountBase), 0)) : undefined} />
         <Metric label="مانده اقساط" value={toIrt(remainingTotal) ?? formatMoney(remainingTotal)} hint={fx.rate ? formatMoney(remainingTotal) : undefined} />
         <Metric label="پرداخت‌شده" value={faCount(paid.length)} tone="up" hint={`از ${faCount(rows.length)} قسط`} />

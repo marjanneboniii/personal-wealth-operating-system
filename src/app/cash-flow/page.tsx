@@ -7,7 +7,7 @@ import { MISC_PARENT_CODE } from "@/features/categories/catalog";
 import { Metric, PageHeader, Section, SectionLink, EmptyState } from "@/components/ui/Card";
 import { BarsChart } from "@/components/charts/Charts";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatPct, toJalali } from "@/lib/format";
+import { formatMoney, formatPct, toJalali, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -153,7 +153,7 @@ export default async function CashFlowPage() {
     getLatestUsdIrtRate(),
     getFlowByCategory(6),
   ]);
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const month = flow.at(-1);
   const totalIncome12 = Decimal.sum(flow.map((f) => f.inflow));
@@ -177,7 +177,7 @@ export default async function CashFlowPage() {
         <Metric
           label="خالص این ماه"
           value={`${netMonth.gte(0) ? "+" : "−"}${toIrt(netMonth.abs().toString()) ?? formatMoney(netMonth.abs().toString())}`}
-          tone={netMonth.gte(0) ? "up" : "down"}
+          tone={trendTone(netMonth.toString())}
           hint={fx.rate ? `≈ ${formatMoney(netMonth.abs().toString())}${savingsRate != null ? ` · ${formatPct(savingsRate, 0)} نرخ پس‌انداز` : ""}` : savingsRate != null ? `${formatPct(savingsRate, 0)} نرخ پس‌انداز` : undefined}
         />
         <Metric
@@ -209,7 +209,7 @@ export default async function CashFlowPage() {
       </Section>
 
       <div className="grid gap-10 lg:grid-cols-2">
-        <FlowTable hint="هزینه‌ها بر اساس حساب معین — ۶ ماه اخیر" rows={expenses} total={expTotal.toString()} color="var(--negative)" toIrt={toIrt} />
+        <FlowTable hint="هزینه‌ها بر اساس دسته‌بندی — ۶ ماه اخیر" rows={expenses} total={expTotal.toString()} color="var(--negative)" toIrt={toIrt} />
         <FlowTable hint="درآمدها بر اساس منبع — ۶ ماه اخیر" rows={incomes} total={incTotal.toString()} color="var(--positive)" toIrt={toIrt} />
       </div>
 

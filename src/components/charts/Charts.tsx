@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { faCount, formatMoney, formatNumber, formatPct, formatShortDate } from "@/lib/format";
+import { faCount, formatMoney, formatNumber, formatPct, formatShortDate, trendArrow, trendColor } from "@/lib/format";
 
 export type SeriesPoint = { date: string; value: number };
 
@@ -57,8 +57,8 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
           </div>
           <div className="muted text-[11px]">
             {formatShortDate(points[active].date)} ·{" "}
-            <span style={{ color: changePct >= 0 ? "var(--positive)" : "var(--negative)" }}>
-              {changePct >= 0 ? "↑" : "↓"} <span dir="rtl">{formatPct(Math.abs(changePct), 1)}</span> در این بازه
+            <span style={{ color: trendColor(changePct) }}>
+              {trendArrow(changePct)} <span dir="rtl">{formatPct(Math.abs(changePct), 1)}</span> در این بازه
             </span>
           </div>
         </div>
@@ -101,9 +101,9 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
             </g>
           );
         })}
-        {points.filter((_, i) => i === 0 || i === points.length - 1 || i === Math.floor(points.length / 2)).map((p) => (
-          <text key={p.date} x={x(points.indexOf(p))} y={h - 6} textAnchor="middle" fontSize="9" fill="var(--text-3)">
-            {formatShortDate(p.date)}
+        {[...new Set([0, points.length - 1, Math.floor(points.length / 2)])].map((i) => (
+          <text key={points[i].date + i} x={x(i)} y={h - 6} textAnchor="middle" fontSize="9" fill="var(--text-3)">
+            {formatShortDate(points[i].date)}
           </text>
         ))}
         <path d={area} fill="url(#pwosArea)" />
@@ -153,9 +153,19 @@ export function Donut({
   const shown = active != null ? data[active] : null;
 
   return (
-    <div className="flex w-full min-w-0 flex-col items-center gap-5 overflow-hidden sm:flex-row sm:items-center">
-      <div className="relative mx-auto shrink-0">
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="نمودار ترکیب">
+    <div className="flex w-full min-w-0 flex-col items-center justify-center gap-5 overflow-hidden sm:flex-row sm:items-center sm:justify-center">
+      {/* Donut is ALWAYS centred inside its own card and can never overflow it
+          or overlap the legend/table: the SVG scales down with its container
+          (max-width + aspect ratio from the viewBox) instead of pushing out. */}
+      <div className="relative mx-auto flex shrink-0 items-center justify-center">
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          role="img"
+          aria-label="نمودار ترکیب"
+          style={{ maxWidth: "100%", height: "auto", display: "block" }}
+        >
           <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
             {segments.map(({ d, len, offset }, i) => (
               <circle
@@ -187,7 +197,7 @@ export function Donut({
           </div>
         </div>
       </div>
-      <ul className="w-full space-y-1">
+      <ul className="w-full min-w-0 flex-1 space-y-1">
         {data.map((d, i) => (
           <li key={d.label}>
             <button
@@ -239,7 +249,7 @@ export function BarsChart({
         {cur && (
           <span className="muted">
             {cur.label} — خالص:{" "}
-            <b className="num" dir="rtl" style={{ color: cur.positive - cur.negative >= 0 ? "var(--positive)" : "var(--negative)" }}>
+            <b className="num" dir="rtl" style={{ color: trendColor(cur.positive - cur.negative) }}>
               {formatMoney(cur.positive - cur.negative)}
             </b>
           </span>

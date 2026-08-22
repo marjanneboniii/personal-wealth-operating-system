@@ -7,7 +7,7 @@ import { seedIfEmpty } from "@/db/seed";
 import { runIntegrityChecks, summarize, type CheckStatus } from "@/features/integrity/service";
 import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
-import { formatDualDate } from "@/lib/format";
+import { formatDualDate, faCount } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -61,12 +61,12 @@ export default async function AuditPage() {
           </span>
           <div>
             <p className="text-[16px] font-bold tracking-tight">
-              {allOk ? null : fails ? `${fails} مشکل جدی نیاز به اقدام دارد` : "قابل اعتماد، با چند نکته"}
+              {allOk ? null : fails ? `${faCount(fails)} مشکل جدی نیاز به اقدام دارد` : "قابل اعتماد، با چند نکته"}
             </p>
             <p className="sub text-[12px]">
               {allOk
                 ? null
-                : `${checks.filter((c) => c.status === "pass").length} آزمون موفق · ${warnings} هشدار · ${fails} خطا`}
+                : `${faCount(checks.filter((c) => c.status === "pass").length)} آزمون موفق · ${faCount(warnings)} هشدار · ${faCount(fails)} خطا`}
             </p>
           </div>
         </div>
@@ -114,7 +114,7 @@ export default async function AuditPage() {
                     {c.samples.length > 0 && (
                       <details className="mt-2">
                         <summary className="muted cursor-pointer text-[11px] underline underline-offset-2">
-                          مشاهده {c.samples.length} رکورد متاثر
+                          مشاهده {faCount(c.samples.length)} رکورد متاثر
                         </summary>
                         <ul className="sub mt-1.5 space-y-1 text-[11.5px]">
                           {c.samples.map((s, i) => (

@@ -1,7 +1,4 @@
 import { redirect } from "next/navigation";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { isNotNull } from "drizzle-orm";
 import { getCurrentUser, getCurrentUserFromRequest } from "@/lib/auth";
 import { safeEqual } from "@/lib/rateLimit";
 
@@ -12,31 +9,17 @@ export function isAdminOrOwner(user: { role?: string | null } | null | undefined
 
 /**
  * Call at top of any protected server component.
- * - If no auth users exist (legacy single-tenant mode), allow without login (preserves 1456 data before migration).
- * - If auth users exist and no session, redirect to /login.
- * - Otherwise allow.
- * Fail-Closed: DB errors throw instead of allowing access.
+ * LOGIN-GATED APP (Global System Directive §0): a signed-out visitor never
+ * sees app pages — they are redirected to /login. The public marketing
+ * landing lives at `/`. The historical legacy path (anonymous access while no
+ * auth users existed yet) has been removed: the app is visible only after
+ * login/registration, and every tenant sees only their own data.
+ * Fail-Closed: DB/session errors throw instead of allowing access.
  */
 export async function ensureAuth() {
   const user = await getCurrentUser();
   if (user) return user;
-
-  let hasAuth: unknown;
-  try {
-    const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
-    hasAuth = row;
-  } catch (e: any) {
-    if (e?.digest?.startsWith("NEXT_REDIRECT") || e?.message === "NEXT_REDIRECT") {
-      throw e;
-    }
-    // Fail-Closed: if DB check fails, deny access
-    throw new Error("Authentication/Database error: Access denied");
-  }
-
-  if (hasAuth) {
-    redirect("/login");
-  }
-  return null;
+  redirect("/login");
 }
 
 export async function requireAuth() {
@@ -44,27 +27,15 @@ export async function requireAuth() {
 }
 
 /**
- * For API routes / actions: throw if auth required but not logged in.
+ * For API routes / actions: throw if not logged in.
  * Fail-Closed: DB errors throw instead of allowing access.
  */
 export async function requireAuthForApi() {
   const user = await getCurrentUser();
-  if (user) return user;
-
-  let hasAuth: unknown;
-  try {
-    const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
-    hasAuth = row;
-  } catch (e: any) {
-    if (e instanceof Error && e.message.includes("Unauthorized")) throw e;
-    // Fail-Closed: if DB check fails, deny access
-    throw new Error("Authentication/Database error: Access denied");
-  }
-
-  if (hasAuth) {
+  if (!user) {
     throw new Error("Unauthorized: login required");
   }
-  return null;
+  return user;
 }
 
 /**

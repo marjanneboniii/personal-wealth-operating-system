@@ -291,6 +291,54 @@ export function usdToIrt(usdAmount: string | number, usdToIrtRate: string | numb
   return D(usdAmount).mul(usdToIrtRate).toFixed(0);
 }
 
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ * SINGLE SOURCE OF TRUTH for the dynamic Toman equivalent of a base-currency
+ * (USD) amount — Global System Directive §1 + §4 (Rounding Service Fix).
+ *
+ * Rules enforced here for the WHOLE app:
+ *   • EXACT decimal arithmetic (src/domain/decimal) — never JS floats, never
+ *     `Math.round(Number(a) * Number(b))` (float drift on IRT-scale values).
+ *   • ONE rounding step only, half-up, at the final display digit (whole
+ *     Toman). No intermediate 2-digit rounding that could turn ۹۰۹٬۰۹۰ into
+ *     ۹۰۸٬۲۰۰/۹۱۰٬۱۰۰.
+ *   • This is the one-way DYNAMIC equivalent only (مانده تومانی ÷ نرخ روز).
+ *     It can NEVER mutate a stored Toman balance — those are rendered from
+ *     the ledger/snapshot value directly.
+ *   • Missing/invalid rate → null (the caller shows «—»), never a silent 1:1.
+ * ────────────────────────────────────────────────────────────────────────── */
+export function toIrtMoney(
+  usdAmount: string | number,
+  usdToIrtRate: string | number | null | undefined,
+): string | null {
+  if (usdToIrtRate == null || D(usdToIrtRate).lte(0)) return null;
+  return formatMoney(usdToIrt(usdAmount, usdToIrtRate), "IRT");
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Trend tone & arrow — Global System Directive §4 (منطق رنگ صفر):
+ * ZERO IS ALWAYS NEUTRAL. It is never painted green (var(--positive)) nor
+ * red (var(--negative)), and gets no up/down arrow. Every chart, KPI and
+ * delta in the app resolves its colour through these helpers.
+ * ────────────────────────────────────────────────────────────────────────── */
+export type TrendTone = "up" | "down" | "neutral";
+
+export function trendTone(value: string | number): TrendTone {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || n === 0) return "neutral";
+  return n > 0 ? "up" : "down";
+}
+
+export function trendArrow(value: string | number): "↑" | "↓" | "—" {
+  const tone = trendTone(value);
+  return tone === "up" ? "↑" : tone === "down" ? "↓" : "—";
+}
+
+export function trendColor(value: string | number): string {
+  const tone = trendTone(value);
+  return tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : "var(--text-2)";
+}
+
 export function formatDualMoneyFromIrt(irtAmount: string | number, usdToIrtRate: string | number | null, _digits: DigitStyle = "fa"): { irt: string; usd: string; rateLabel: string } {
   const irtStr = D(irtAmount).toFixed(0);
   if (!usdToIrtRate || D(usdToIrtRate).lte(0)) {

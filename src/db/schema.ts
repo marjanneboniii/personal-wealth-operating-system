@@ -1304,3 +1304,27 @@ export const userFxSettings = pgTable(
   },
   (t) => [index("user_fx_settings_user_idx").on(t.userId)],
 );
+
+/*
+ * Per-user UI preferences (Global System Directive §2 — Global Pro Mode).
+ *
+ * TENANCY: one row per user (unique user_id). The flag is read on the server
+ * per request and ONLY ever applies to the authenticated user's own render
+ * tree — it can never leak into another tenant's view. Default = SIMPLE view;
+ * accounting vocabulary (کد معین / بدهکار / بستانکار / جزئیات دفتر کل) is
+ * revealed across the whole app only when `pro_mode` is switched on.
+ */
+export const userPreferences = pgTable(
+  "user_preferences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" })
+      .unique(),
+    proMode: boolean("pro_mode").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("user_preferences_user_idx").on(t.userId)],
+);

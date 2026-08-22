@@ -12,6 +12,13 @@ import { currencyLabel, formatQty } from "@/lib/format";
 export type HumanTx = {
   /** display amount in base currency, always positive */
   amount: string;
+  /**
+   * FULL-PRECISION base-currency amount (no 2-dp rounding). Any dynamic Toman
+   * equivalent MUST be derived from this — never from `amount`, whose 2-dp
+   * display rounding is exactly what produced the ۹۰۸٬۲۰۰-vs-۹۰۹٬۰۹۰ class of
+   * discrepancy (Global System Directive §4 — Rounding Service Fix).
+   */
+  amountExact: string;
   /** native toman on IRT/IRR legs when present — never recomputed via today's FX */
   nativeIrt: string | null;
   /** sign for colour: +1 income-ish, -1 expense-ish, 0 neutral movement */
@@ -31,6 +38,7 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
   const negatives = e.lines.filter((l) => D(l.baseValue).lt(0));
   const amountDec = positives.reduce((s, l) => s.add(l.baseValue), Decimal.zero());
   const amount = amountDec.gt(0) ? amountDec : D(e.lines[0]?.baseValue ?? 0).abs();
+  const amountExact = amount.toString();
   const irtLeg = e.lines.find((l) => l.symbol === "IRT" || l.symbol === "IRR");
   const nativeIrt = irtLeg
     ? (irtLeg.symbol === "IRR" ? D(irtLeg.quantity).abs().div(10) : D(irtLeg.quantity).abs()).toFixed(0)
@@ -51,6 +59,7 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
 
   return {
     amount: amount.toFixed(2),
+    amountExact,
     nativeIrt,
     sign,
     from,

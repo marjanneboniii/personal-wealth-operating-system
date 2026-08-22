@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import Shell from "@/components/layout/Shell";
+import { ProModeProvider } from "@/components/layout/ProModeProvider";
 import { getCurrentUser } from "@/lib/auth";
+import { getUserProMode } from "@/features/preferences/service";
 import { resolveHomeMode } from "@/lib/publicEntry";
 
 export const metadata: Metadata = {
@@ -49,6 +51,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // server component through ensureAuth().
   let authUser: { name: string; username: string | null; email: string | null; role: string } | null = null;
   let publicHome = false;
+  let proMode = false;
   try {
     const user = await getCurrentUser();
     if (user) {
@@ -58,6 +61,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         email: (user as any).email ?? null,
         role: user.role,
       };
+      // Per-user UI vocabulary preference — resolved server-side per request
+      // (Directive §2). Fails safe to the SIMPLE view for anonymous users.
+      proMode = await getUserProMode((user as { id?: string }).id);
     }
     publicHome = (await resolveHomeMode(user)) === "landing";
   } catch {
@@ -79,9 +85,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         >
           پرش به محتوای اصلی
         </a>
-        <Shell authUser={authUser} publicHome={publicHome}>
-          {children}
-        </Shell>
+        <ProModeProvider pro={proMode}>
+          <Shell authUser={authUser} publicHome={publicHome}>
+            {children}
+          </Shell>
+        </ProModeProvider>
       </body>
     </html>
   );

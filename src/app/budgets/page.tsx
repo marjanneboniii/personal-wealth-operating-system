@@ -8,7 +8,7 @@ import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import BudgetForm from "@/components/forms/BudgetForm";
 import { D } from "@/domain/decimal";
-import { formatDualDate, formatMoney, formatPct } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct, toIrtMoney, faCount } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export default async function BudgetsPage() {
       .orderBy(asc(accounts.code)),
     getLatestUsdIrtRate(),
   ]);
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const activeCount = budgets.length;
   const overCount = budgets.filter((b) => b.over).length;
@@ -41,10 +41,10 @@ export default async function BudgetsPage() {
 
       {activeCount > 0 && (
         <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-          <Metric label="بودجه فعال" value={String(activeCount)} />
+          <Metric label="بودجه فعال" value={faCount(activeCount)} />
           <Metric label="سقف مجموع" value={toIrt(totalLimit) ?? formatMoney(totalLimit)} hint={fx.rate ? formatMoney(totalLimit) : undefined} />
           <Metric label="مصرف مجموع" value={toIrt(totalSpent) ?? formatMoney(totalSpent)} tone={totalSpent > totalLimit ? "down" : "neutral"} hint={fx.rate ? formatMoney(totalSpent) : undefined} />
-          <Metric label="خارج از چارچوب" value={String(overCount)} tone={overCount ? "down" : "up"} />
+          <Metric label="خارج از چارچوب" value={faCount(overCount)} tone={overCount ? "down" : "neutral"} />
         </section>
       )}
 

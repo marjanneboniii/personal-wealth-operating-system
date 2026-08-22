@@ -1302,13 +1302,14 @@ const setupSchema = z.object({
 });
 
 export async function completeSetupAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  // Auth guard — FAIL-CLOSED. Every authenticated user may initialize their
-  // own tenant-scoped chart; this is not a global admin operation and never
-  // grants a role or access to another user's data.
+  // Auth guard — FAIL-CLOSED and LOGIN-GATED: the setup wizard initializes
+  // the authenticated user's own tenant-scoped chart. Anonymous visitors are
+  // never bootstrapped into a legacy open dashboard — they must log in or
+  // register first (Global System Directive §0).
   let setupUser: any = null;
   try {
     const ctx = await getAuthContext();
-    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    if (!ctx.user) return { ok: false, message: loginRequiredMessage() };
     setupUser = ctx.user;
   } catch (e: any) {
     if (e?.message?.includes("Authentication/Database error")) {
@@ -1332,12 +1333,13 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
 }
 
 export async function fetchSetupStateAction() {
-  // SECURITY: require a session once auth is enabled — never serve state to
-  // an anonymous caller in multi-user mode.
-  const { user, hasAuth } = await getAuthContext();
-  if (hasAuth && !user) throw new Error("Unauthorized: login required");
-  const state = await getSetupState(user?.id);
-  const fx = user ? await getLatestUsdIrtRateForUser(user.id) : await getLatestUsdIrtRate();
+  // SECURITY: LOGIN-GATED — never serve setup state to an anonymous caller;
+  // the wizard is part of the app (Global System Directive §0). The client
+  // redirects the visitor to /login on the loginRequired marker.
+  const { user } = await getAuthContext();
+  if (!user) return { completed: false, loginRequired: true, usdIrtRate: "" };
+  const state = await getSetupState(user.id);
+  const fx = await getLatestUsdIrtRateForUser(user.id);
   return { ...state, usdIrtRate: fx.rate };
 }
 

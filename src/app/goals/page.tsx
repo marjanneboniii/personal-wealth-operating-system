@@ -7,7 +7,7 @@ import { listEvents, listFunds, listGoals, listObligations } from "@/features/pl
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { EventForm, GoalForm } from "@/components/forms/QuickForms";
-import { formatDualDate, formatMoney, formatPct } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct, toIrtMoney, faCount } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +43,7 @@ export default async function GoalsPage() {
     getLatestUsdIrtRate(),
   ]);
 
-  const toIrt = (usd: string | number) => (fx.rate ? formatMoney(Math.round(Number(usd) * Number(fx.rate)), "IRT") : null);
+  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const activeGoals = goals.filter((g) => g.status === "active");
   const totalTarget = activeGoals.reduce((s, g) => s + Number(g.targetBase), 0);
@@ -64,10 +64,10 @@ export default async function GoalsPage() {
           </div>
           <Progress value={overall} />
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Metric label="اهداف فعال" value={String(activeGoals.length)} />
-            <Metric label="رسیده" value={String(goals.filter((g) => g.status === "reached").length)} tone="up" />
-            <Metric label="صندوق‌های اختصاصی" value={String(funds.length)} />
-            <Metric label="رویدادهای پیش‌رو" value={String(events.filter((e) => e.status === "planned").length)} />
+            <Metric label="اهداف فعال" value={faCount(activeGoals.length)} />
+            <Metric label="رسیده" value={faCount(goals.filter((g) => g.status === "reached").length)} />
+            <Metric label="صندوق‌های اختصاصی" value={faCount(funds.length)} />
+            <Metric label="رویدادهای پیش‌رو" value={faCount(events.filter((e) => e.status === "planned").length)} />
           </div>
         </section>
       )}
