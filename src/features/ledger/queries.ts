@@ -323,26 +323,51 @@ export async function getRealizedPnl(userId?: string): Promise<{ total: string; 
  *    they are not an expense by the transaction-type separation rule;
  *  - non-cash categories (depreciation / reserves, ec.nature = 'non_cash')
  *    are excluded — they are expenses in reports but never a cash outflow.
+ *
+ * CURRENCY ISOLATION FIX:
+ *  - inflow/outflow remain USD base values (canonical accounting).
+ *  - inflowToman/outflowToman are derived from the FROZEN entry_fx_snapshots
+ *    (canonical Toman amount at commit time), NEVER re-derived via current FX.
+ *    This guarantees IRT balances stay fixed when FX changes, while still
+ *    providing a Toman view that matches the user's original input (e.g. 909,090).
+ *  - When no snapshot exists (legacy data), Toman is NULL and caller falls
+ *    back to current-rate valuation only for display, but never mutates balance.
  */
 export async function getCashflow(months = 6, userId?: string) {
   const u = await resolveQueryUserId(userId);
   // Fail-closed: never blend tenants' cash flow.
   if (!u && (await hasMultipleUsers())) return [];
-  return rows<{ month: string; inflow: string; outflow: string }>(sql`
-    select to_char(date_trunc('month', je.entry_date), 'YYYY-MM-01') as month,
-           coalesce(sum(case when a.type = 'income' then -p.base_value else 0 end), 0)::text as inflow,
-           coalesce(sum(case when a.type = 'expense'
-                              and je.type not in ('debt_repayment')
-                              and coalesce(ec.nature, 'cash') = 'cash'
-                             then p.base_value else 0 end), 0)::text as outflow
-    from journal_entries je
-      join postings p on p.entry_id = je.id
-      join accounts a on a.id = p.account_id
-      left join expense_categories ec on ec.id = je.category_id
-    where je.status = 'posted'
-      ${u ? sql`and je.user_id = ${u}` : sql``}
-      and je.entry_date >= (current_date - (${months} || ' months')::interval)
-    group by 1 order by 1
+  // Two-level aggregation: first per entry (to avoid double-counting snapshot
+  // irt_amount when an entry has multiple postings), then per month.
+  return rows<{ month: string; inflow: string; outflow: string; inflowToman: string | null; outflowToman: string | null }>(sql`
+    with per_entry as (
+      select je.id,
+             date_trunc('month', je.entry_date)::date as month_trunc,
+             coalesce(sum(case when a.type = 'income' then -p.base_value else 0 end), 0) as inflow_usd,
+             coalesce(sum(case when a.type = 'expense'
+                                and je.type not in ('debt_repayment')
+                                and coalesce(ec.nature, 'cash') = 'cash'
+                               then p.base_value else 0 end), 0) as outflow_usd,
+             s.irt_amount::numeric as irt_amount
+      from journal_entries je
+        join postings p on p.entry_id = je.id
+        join accounts a on a.id = p.account_id
+        left join expense_categories ec on ec.id = je.category_id
+        left join entry_fx_snapshots s on s.entry_id = je.id
+      where je.status = 'posted'
+        ${u ? sql`and je.user_id = ${u}` : sql``}
+        and je.entry_date >= (current_date - (${months} || ' months')::interval)
+      group by je.id, je.entry_date, s.irt_amount, je.type
+    )
+    select to_char(month_trunc, 'YYYY-MM-01') as month,
+           coalesce(sum(inflow_usd), 0)::text as inflow,
+           coalesce(sum(outflow_usd), 0)::text as outflow,
+           -- Toman is canonical from snapshot, only when that entry contributed to inflow/outflow
+           coalesce(sum(case when inflow_usd > 0 then irt_amount else 0 end), 0)::text as \"inflowToman\",
+           coalesce(sum(case when outflow_usd > 0 then irt_amount else 0 end), 0)::text as \"outflowToman\"
+    from per_entry
+    group by month_trunc
+    order by month_trunc
   `);
 }
 
@@ -451,26 +476,39 @@ export async function countUnreviewed(userId?: string): Promise<number> {
  * Expense/income account breakdown for the Cash Flow page (posted, last N months).
  * Debt principal repayments (type 'debt_repayment') are never counted here —
  * by the transaction-type separation rule they are not income/expense.
+ *
+ * Returns both USD (base) and canonical Toman (from frozen snapshots) to keep
+ * IRT amounts stable when FX changes.
  */
 export async function getFlowByAccount(accountType: "income" | "expense", months = 6, userId?: string) {
   const u = await resolveQueryUserId(userId);
-  // Fail-closed: never blend tenants' income/expense flows.
   if (!u && (await hasMultipleUsers())) return [];
-  return rows<{ accountId: string; code: string; name: string; total: string; months: number }>(sql`
-    select a.id as "accountId", a.code, a.name,
-           coalesce(sum(case when ${accountType} = 'income' then -p.base_value else p.base_value end), 0)::text as total,
+  return rows<{ accountId: string; code: string; name: string; total: string; totalToman: string | null; months: number }>(sql`
+    with per_entry as (
+      select a.id as acc_id, a.code, a.name,
+             je.id as entry_id,
+             coalesce(sum(case when ${accountType} = 'income' then -p.base_value else p.base_value end), 0) as total_usd,
+             s.irt_amount::numeric as irt_amount,
+             sum(case when ${accountType} = 'income' then 1 when ${accountType} = 'expense' then 1 else 0 end) as matched
+      from postings p
+        join journal_entries je on je.id = p.entry_id
+        join accounts a on a.id = p.account_id
+        left join entry_fx_snapshots s on s.entry_id = je.id
+      where a.type = ${accountType}
+        and je.status = 'posted'
+        and je.type not in ('debt_repayment')
+        ${u ? sql`and je.user_id = ${u}` : sql``}
+        and je.entry_date >= (current_date - (${months} || ' months')::interval)
+      group by a.id, a.code, a.name, je.id, s.irt_amount
+    )
+    select acc_id as "accountId", code, name,
+           coalesce(sum(total_usd),0)::text as total,
+           coalesce(sum(case when total_usd != 0 then irt_amount else 0 end),0)::text as \"totalToman\",
            ${months}::int as months
-    from postings p
-      join journal_entries je on je.id = p.entry_id
-      join accounts a on a.id = p.account_id
-    where a.type = ${accountType}
-      and je.status = 'posted'
-      and je.type not in ('debt_repayment')
-      ${u ? sql`and je.user_id = ${u}` : sql``}
-      and je.entry_date >= (current_date - (${months} || ' months')::interval)
-    group by a.id, a.code, a.name
-    having abs(coalesce(sum(p.base_value), 0)) > 0.000000001
-    order by abs(sum(p.base_value)) desc
+    from per_entry
+    group by acc_id, code, name
+    having abs(coalesce(sum(total_usd),0)) > 0.000000001
+    order by abs(sum(total_usd)) desc
   `);
 }
 

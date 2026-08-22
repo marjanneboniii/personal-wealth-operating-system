@@ -8,17 +8,10 @@ import MasterDataAdmin from "./MasterDataAdmin";
 import RealEstateCard from "./RealEstateCard";
 import RealEstateForm from "./RealEstateForm";
 import { DeltaPct, DeltaToman, DeltaUsd, Hint, Metric, Toman, Usd, faNum } from "./shared";
+import { getRealEstateDisplayLabel } from "@/features/rwa/realEstate/display";
 
 type Tab = "list" | "add" | "master";
 
-/**
- * دارایی واقعی ← ملک / Real Estate
- *
- * یک ملک یک «دارایی حسابداری‌شده» است:
- * نام و Symbol تولید خودکار · تاریخ شمسی → میلادی خودکار · نرخ دلار تاریخی
- * در هر دو تاریخ · سود/زیان تومانی و دلاری مستقل · سند افتتاحیه دفترکل با
- * تاریخ تملک واقعی · ارزش فعلی در مجموع ثروت.
- */
 export default function RealEstateModule({
   dashboard,
   summary,
@@ -58,7 +51,6 @@ export default function RealEstateModule({
         </div>
       </header>
 
-      {/* ── مجموع دارایی‌های واقعی (ملک) ── */}
       {summary.count > 0 && (
         <div className="mb-5 grid grid-cols-2 gap-4 border-y py-4 sm:grid-cols-3 lg:grid-cols-6" style={{ borderColor: "var(--border)" }}>
           <Metric
@@ -67,8 +59,8 @@ export default function RealEstateModule({
             sub={<>≈ <Usd value={summary.totalCurrentUsd} /></>}
           />
           <Metric label="مجموع قیمت خرید" value={<Toman value={summary.totalPurchaseToman} />} sub={<>≈ <Usd value={summary.totalPurchaseUsd} /></>} />
-          <Metric label="سود/زیان تومانی کل" value={<DeltaToman value={summary.totalGainToman} />} sub={<>ROI: <DeltaPct value={summary.roiToman} /></>} />
-          <Metric label="سود/زیان دلاری کل" value={<DeltaUsd value={summary.totalGainUsd} />} sub={<>ROI: <DeltaPct value={summary.roiUsd} /></>} />
+          <Metric label="سود/زیان تومانی کل" value={<DeltaToman value={summary.totalGainToman} />} sub={<>بازده: <DeltaPct value={summary.roiToman} /></>} />
+          <Metric label="سود/زیان دلاری کل" value={<DeltaUsd value={summary.totalGainUsd} />} sub={<>بازده: <DeltaPct value={summary.roiUsd} /></>} />
           <Metric label="تعداد ملک" value={<span className="num">{faNum(summary.count)}</span>} sub="ثبت‌شده در سیستم" />
           <Metric
             label="نرخ جاری سیستم"
@@ -103,7 +95,8 @@ export default function RealEstateModule({
                 <thead>
                   <tr>
                     <th>نام دارایی</th>
-                    <th>Symbol</th>
+                    <th>نمایش فارسی</th>
+                    <th>Symbol فنی</th>
                     <th>نوع ملک</th>
                     <th>شهر</th>
                     <th>منطقه / محله</th>
@@ -124,6 +117,12 @@ export default function RealEstateModule({
                   {dashboard.map((item) => {
                     const open = openId === item.id;
                     const p = item.performance;
+                    const displayFa = getRealEstateDisplayLabel({
+                      symbol: item.symbol,
+                      assetName: item.assetName,
+                      neighborhoodNameFa: item.neighborhoodNameFa,
+                      cityNameFa: item.cityNameFa,
+                    });
                     return (
                       <Fragment key={item.id}>
                         <tr
@@ -133,6 +132,9 @@ export default function RealEstateModule({
                         >
                           <td className="max-w-56 font-bold">
                             <span className="block truncate">{item.assetName}</span>
+                          </td>
+                          <td className="font-semibold">
+                            {displayFa}
                           </td>
                           <td className="font-mono text-[10.5px]" dir="ltr">
                             {item.symbol}
@@ -172,7 +174,7 @@ export default function RealEstateModule({
                         </tr>
                         {open && (
                           <tr>
-                            <td colSpan={16} className="!bg-transparent p-0">
+                            <td colSpan={17} className="!bg-transparent p-0">
                               <div className="border-t px-3 py-4" style={{ borderColor: "var(--border)", background: "var(--sunken)" }}>
                                 <RealEstateCard item={item} />
                               </div>

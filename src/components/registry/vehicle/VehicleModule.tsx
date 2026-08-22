@@ -64,8 +64,8 @@ export default function VehicleModule({
             value={<Toman value={summary.totalPurchaseToman} />}
             sub={<>≈ <Usd value={summary.totalPurchaseUsd} /></>}
           />
-          <Metric label="سود/زیان تومانی" value={<DeltaToman value={summary.totalGainToman} />} sub={<>ROI: <DeltaPct value={summary.roiToman} /></>} />
-          <Metric label="سود/زیان دلاری" value={<DeltaUsd value={summary.totalGainUsd} />} sub={<>ROI: <DeltaPct value={summary.roiUsd} /></>} />
+          <Metric label="سود/زیان تومانی" value={<DeltaToman value={summary.totalGainToman} />} sub={<>بازده: <DeltaPct value={summary.roiToman} /></>} />
+          <Metric label="سود/زیان دلاری" value={<DeltaUsd value={summary.totalGainUsd} />} sub={<>بازده: <DeltaPct value={summary.roiUsd} /></>} />
           <Metric
             label="تعداد خودرو"
             value={<span className="num">{faNum(summary.count)}</span>}

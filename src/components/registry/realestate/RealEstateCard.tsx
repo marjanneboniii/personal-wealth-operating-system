@@ -8,6 +8,7 @@ import AmountInput from "@/components/ui/AmountInput";
 import { formatJalaliIso } from "@/lib/format";
 import type { RealEstateDashboardItem } from "@/features/rwa/realEstate/service";
 import { DeltaPct, DeltaToman, DeltaUsd, DetailRow, FxRateInfo, Hint, JDate, Labeled, Result, Toman, Usd, faNum } from "./shared";
+import { getRealEstateDisplayLabel } from "@/features/rwa/realEstate/display";
 
 function Ltr({ children }: { children: React.ReactNode }) {
   return (
@@ -17,10 +18,6 @@ function Ltr({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * جزئیات کامل ملک (با کلیک روی ردیف جدول باز می‌شود):
- * اطلاعات دارایی / اطلاعات خرید / اطلاعات ارزش‌گذاری / عملکرد + لینک سند دفترکل.
- */
 export default function RealEstateCard({ item }: { item: RealEstateDashboardItem }) {
   const [state, action, pending] = useActionState(recordRealEstateValuationAction, null);
   const [revalue, setRevalue] = useState(false);
@@ -39,13 +36,22 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* اطلاعات دارایی */}
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
           <h5 className="mb-1 text-[11.5px] font-bold">اطلاعات دارایی</h5>
           <DetailRow label="نام خودکار">
             <span className="font-semibold">{a.assetName}</span>
           </DetailRow>
-          <DetailRow label="Symbol">
+          <DetailRow label="نمایش فارسی">
+            <span className="font-semibold">
+              {getRealEstateDisplayLabel({
+                symbol: a.symbol,
+                assetName: a.assetName,
+                neighborhoodNameFa: a.neighborhoodNameFa,
+                cityNameFa: a.cityNameFa,
+              })}
+            </span>
+          </DetailRow>
+          <DetailRow label="Symbol فنی">
             <span className="muted text-[11px] font-normal">
               <Ltr>{a.symbol}</Ltr>
             </span>
@@ -72,7 +78,6 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
           </DetailRow>
         </div>
 
-        {/* اطلاعات خرید */}
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
           <h5 className="mb-1 text-[11.5px] font-bold">اطلاعات خرید (تغییرناپذیر)</h5>
           <DetailRow label="تاریخ تملک (شمسی)">
@@ -92,7 +97,6 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
           </DetailRow>
         </div>
 
-        {/* اطلاعات ارزش‌گذاری */}
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
           <h5 className="mb-1 text-[11.5px] font-bold">اطلاعات ارزش‌گذاری</h5>
           <DetailRow label="تاریخ ارزش‌گذاری (شمسی)">
@@ -115,7 +119,6 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
           </DetailRow>
         </div>
 
-        {/* عملکرد */}
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
           <h5 className="mb-1 text-[11.5px] font-bold">عملکرد</h5>
           <DetailRow label="سود / زیان تومانی">
