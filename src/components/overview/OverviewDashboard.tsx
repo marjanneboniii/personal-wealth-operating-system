@@ -14,7 +14,20 @@ import { AreaChart, BarsChart, Donut } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
 import { humanizeEntry, moneyFlowLabel } from "@/lib/tx";
 import { D } from "@/domain/decimal";
-import { formatMoney, formatPct, formatShortDate, formatSignedMoney, toJalali, faCount, inflowTone, outflowTone, toneColor, trendColor, usdToIrt } from "@/lib/format";
+import {
+  formatMoney,
+  formatPct,
+  formatShortDate,
+  formatSignedMoney,
+  toJalali,
+  faCount,
+  inflowTone,
+  outflowTone,
+  toneColor,
+  trendColor,
+  usdToIrt,
+  irtToUsd,
+} from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -38,11 +51,6 @@ export default async function OverviewDashboard() {
 
   const userId = (user as { id?: string } | null)?.id;
 
-  // The headline valuation is the primary record on this page, so let an error
-  // there surface normally rather than displaying a potentially misleading
-  // number. The remaining reads are independent convenience widgets. A failed
-  // optional widget (for example, an old deployment whose debt migration has
-  // not been applied yet) must not make the entire overview unavailable.
   const nw = await getCurrentNetWorth(userId);
   const unavailableWidgets: string[] = [];
   const optionalRead = async <T,>(widget: string, fallback: T, read: () => Promise<T>): Promise<T> => {
@@ -50,8 +58,6 @@ export default async function OverviewDashboard() {
       return await read();
     } catch (error) {
       unavailableWidgets.push(widget);
-      // Keep the operational detail in server logs, where it can be matched to
-      // the Next.js digest, without exposing database internals to the user.
       console.error(`[overview] ${widget} could not be loaded`, error);
       return fallback;
     }
@@ -59,8 +65,6 @@ export default async function OverviewDashboard() {
 
   const [setupState, snaps, tx, insts, flow, projection, unreviewed, fx] = await Promise.all([
     optionalRead("setup state", { completed: false, currentStep: 1 }, () => getSetupState(userId)),
-    // Net-worth history is per user: the delta badge and chart must never read
-    // another account's snapshots.
     optionalRead("net-worth history", [], () => getSnapshotSeries(40, userId)),
     optionalRead("recent activity", [], () => getRecent(6, userId)),
     optionalRead("upcoming installments", [], () => upcomingInstallments(3, userId)),
@@ -73,6 +77,7 @@ export default async function OverviewDashboard() {
   const staleCount = nw.valuation.priceStatus.stale + nw.valuation.priceStatus.unavailable;
   const rate = fx.rate && D(fx.rate).gt(0) ? fx.rate : "";
   const toIrt = (usd: string | number) => (rate ? usdToIrt(usd, rate) : null);
+  const toUsd = (irt: string | number) => (rate ? irtToUsd(irt, rate) : null);
 
   const series = [...snaps]
     .reverse()
@@ -85,11 +90,14 @@ export default async function OverviewDashboard() {
     ? D(deltaAbs).div(lastSnap.netWorth).abs().mul(100).toFixed(2)
     : null;
 
-  const monthFlow = flow.at(-1);
-  const netMonth = monthFlow ? Number(monthFlow.inflow) - Number(monthFlow.outflow) : 0;
+  const monthFlow = flow.at(-1) as any;
+  // CURRENCY ISOLATION: monthFlow now carries canonical Toman from snapshots when available.
+  const monthInflowToman = monthFlow?.inflowToman && D(monthFlow.inflowToman).gt(0) ? monthFlow.inflowToman : toIrt(monthFlow?.inflow ?? 0);
+  const monthOutflowToman = monthFlow?.outflowToman && D(monthFlow.outflowToman).gt(0) ? monthFlow.outflowToman : toIrt(monthFlow?.outflow ?? 0);
+  const monthNetToman = monthInflowToman && monthOutflowToman ? D(monthInflowToman).sub(monthOutflowToman).toString() : toIrt((Number(monthFlow?.inflow ?? 0) - Number(monthFlow?.outflow ?? 0)).toString());
+  const netMonthUsd = monthFlow ? Number(monthFlow.inflow) - Number(monthFlow.outflow) : 0;
   const nextDeficit = projection.points.find((p) => p.deficit);
 
-  // Attention items — only what genuinely needs a human decision
   const attention: { icon: "alert" | "clock" | "refresh" | "check"; tone: "warn" | "neg" | "info" | "pos"; text: string; detail: string; href: string; action: string }[] = [];
   if (unreviewed > 0)
     attention.push({
@@ -103,11 +111,13 @@ export default async function OverviewDashboard() {
   const soonInst = insts.find((i) => daysUntil(i.dueDate) <= 14);
   if (soonInst) {
     const d = daysUntil(soonInst.dueDate);
+    // Display canonical Toman if available, otherwise derived
+    const instToman = (soonInst as any).amountToman ? (soonInst as any).amountToman : toIrt(soonInst.amountBase);
     attention.push({
       icon: "clock",
       tone: d < 0 ? "neg" : "info",
       text: d < 0 ? `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» سررسید گذشته است` : `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${d === 0 ? "امروز" : `${faCount(d)} روز دیگر`} سر می‌رسد`,
-      detail: `${formatMoney(soonInst.amountBase)} — ${soonInst.creditor}`,
+      detail: `${instToman ? formatMoney(instToman, "IRT") : formatMoney(soonInst.amountBase)} — ${soonInst.creditor}`,
       href: "/installments",
       action: "مشاهده",
     });
@@ -182,7 +192,6 @@ export default async function OverviewDashboard() {
             )}
           </div>
 
-          {/* Quick capture — fastest workflow in the product */}
           <div>
             <p className="muted mb-2 text-[11px] font-medium">ثبت سریع</p>
             <div className="quick-actions flex gap-1.5">
@@ -206,7 +215,6 @@ export default async function OverviewDashboard() {
           </div>
         </div>
 
-        {/* Structure strip — dividers, not cards */}
         <div className="mt-6 grid grid-cols-3 divide-x divide-x-reverse border-t pt-4" style={{ borderColor: "var(--border)" }}>
             {[
               { label: "کل دارایی‌ها", value: nw.totalAssets, toman: nw.totalAssetsToman, tone: "var(--color-module-wealth)" },
@@ -241,7 +249,6 @@ export default async function OverviewDashboard() {
         </div>
       ) : (
         <>
-          {/* ═══ ROND ═══ */}
           <Section title="ثروت شما چگونه تغییر کرده است؟" action={<SectionLink href="/net-worth" label="تحلیل ارزش خالص" />}>
             <div className="card p-4 sm:p-5">
               <AreaChart data={series} />
@@ -249,7 +256,6 @@ export default async function OverviewDashboard() {
           </Section>
 
           <div className="grid items-start gap-8 lg:grid-cols-2">
-            {/* ═══ COMPOSITION ═══ */}
             <Section title="ثروت شما کجا قرار دارد؟" action={<SectionLink href="/portfolio" label="سبد دارایی" />}>
               {nw.byClass.length === 0 ? (
                 <p className="muted py-6 text-xs">دارایی‌ای ثبت نشده است.</p>
@@ -263,35 +269,34 @@ export default async function OverviewDashboard() {
               )}
             </Section>
 
-            {/* ═══ CASH FLOW ═══ */}
             <Section title="پول این ماه چه کرد؟" action={<SectionLink href="/cash-flow" label="جریان نقدی" />}>
               <div className="card p-4">
                 <div className="mb-4 grid grid-cols-3 gap-2">
                   <div>
                     <p className="muted text-[10.5px]">درآمد</p>
                     <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: toneColor(inflowTone(monthFlow?.inflow ?? 0)) }}>
-                      {toIrt(monthFlow?.inflow ?? 0) ? formatMoney(toIrt(monthFlow?.inflow ?? 0)!, "IRT") : formatMoney(monthFlow?.inflow ?? 0)}
+                      {monthInflowToman ? formatMoney(monthInflowToman, "IRT") : formatMoney(monthFlow?.inflow ?? 0)}
                     </p>
                     {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.inflow ?? 0)}</p>}
                   </div>
                   <div>
                     <p className="muted text-[10.5px]">هزینه</p>
                     <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: toneColor(outflowTone(monthFlow?.outflow ?? 0)) }}>
-                      {toIrt(monthFlow?.outflow ?? 0) ? formatMoney(toIrt(monthFlow?.outflow ?? 0)!, "IRT") : formatMoney(monthFlow?.outflow ?? 0)}
+                      {monthOutflowToman ? formatMoney(monthOutflowToman, "IRT") : formatMoney(monthFlow?.outflow ?? 0)}
                     </p>
                     {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.outflow ?? 0)}</p>}
                   </div>
                   <div>
                     <p className="muted text-[10.5px]">خالص</p>
-                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: trendColor(netMonth) }}>
-                      {toIrt(netMonth) ? formatSignedMoney(toIrt(netMonth)!, "IRT") : formatSignedMoney(netMonth)}
+                    <p className="num mt-0.5 text-[15px] font-bold" dir="rtl" style={{ color: trendColor(netMonthUsd) }}>
+                      {monthNetToman ? formatSignedMoney(monthNetToman, "IRT") : formatSignedMoney(netMonthUsd)}
                     </p>
-                    {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(Math.abs(netMonth))}</p>}
+                    {rate && <p className="muted num text-[10.5px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(Math.abs(netMonthUsd))}</p>}
                   </div>
                 </div>
                 <BarsChart
                   height={160}
-                  data={flow.map((f) => ({
+                  data={flow.map((f: any) => ({
                     label: (() => {
                       const j = toJalali(f.month);
                       return ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"][j.m];
@@ -304,11 +309,15 @@ export default async function OverviewDashboard() {
             </Section>
           </div>
 
-          {/* ═══ ACTIVITY ═══ */}
           <Section title="فعالیت اخیر" action={<SectionLink href="/transactions" label="همه تراکنش‌ها" />}>
             <ul className="divide-y border-t border-b" style={{ borderColor: "var(--border)" }} role="list">
               {tx.map((e) => {
                 const h = humanizeEntry(e);
+                // CURRENCY ISOLATION: IRT transactions have canonical nativeIrt — display it directly.
+                // Non-IRT uses derived Toman valuation via current rate from amountExact (full precision).
+                const hasNativeIrt = h.nativeIrt != null && D(h.nativeIrt).gt(0);
+                const displayToman = hasNativeIrt ? h.nativeIrt! : (rate ? usdToIrt(h.amountExact, rate) : null);
+                const displayUsd = hasNativeIrt ? (rate ? irtToUsd(h.nativeIrt!, rate) : h.amountExact) : h.amountExact;
                 return (
                   <li key={e.id} className="flex items-center gap-3 py-3">
                     <div className="min-w-0 flex-1">
@@ -334,10 +343,10 @@ export default async function OverviewDashboard() {
                         }}
                       >
                         {h.sign > 0 ? "+" : h.sign < 0 ? "−" : ""}
-                        {rate ? formatMoney(toIrt(h.amount)!, "IRT") : formatMoney(h.amount)}
+                        {displayToman ? formatMoney(displayToman, "IRT") : formatMoney(h.amount)}
                       </span>
                       {rate && (
-                        <p className="muted num text-[10px]">≈ {formatMoney(h.amount)}</p>
+                        <p className="muted num text-[10px]">≈ {formatMoney(displayUsd)}</p>
                       )}
                     </div>
                   </li>

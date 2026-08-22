@@ -2,14 +2,9 @@ import { seedIfEmpty } from "@/db/seed";
 import { ensureAuth } from "@/lib/authGuard";
 import { getOpenLots, getRealizedPnl } from "@/features/ledger/queries";
 import { getPortfolioValuation } from "@/features/portfolio/service";
-import {
-  ensureVehicleModuleReady,
-  getVehiclePortfolioSummary,
-} from "@/features/rwa/vehicle/service";
 import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
-import VehiclePortfolioSection from "@/components/portfolio/VehiclePortfolioSection";
 import { D } from "@/domain/decimal";
 import { currencyLabel, faCount, formatDualDate, formatMoney, formatPct, formatQty, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
@@ -18,20 +13,14 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function PortfolioPage() {
-  const user = await ensureAuth();
-  const userId = (user as { id?: string } | null)?.id ?? null;
+  await ensureAuth();
   await seedIfEmpty();
 
-  const [valuation, lots, pnl, fx, vehicles] = await Promise.all([
+  const [valuation, lots, pnl, fx] = await Promise.all([
     getPortfolioValuation(),
     getOpenLots(),
     getRealizedPnl(),
     getLatestUsdIrtRate(),
-    // «خودروها» is its own portfolio category: real assets valued from their
-    // own immutable snapshots, deliberately kept out of the FIFO ledger.
-    ensureVehicleModuleReady()
-      .then(() => getVehiclePortfolioSummary(userId))
-      .catch(() => null),
   ]);
 
   const tomanOf = (usd: string | number) => (fx.rate ? usdToIrt(usd, fx.rate) : null);
@@ -40,7 +29,6 @@ export default async function PortfolioPage() {
     return t ? formatMoney(t, "IRT") : null;
   };
   const unrealized = D(valuation.totalUnrealizedPnl);
-  const hasVehicles = (vehicles?.count ?? 0) > 0;
 
   return (
     <div className="space-y-8">
@@ -58,7 +46,6 @@ export default async function PortfolioPage() {
         </Alert>
       )}
 
-      {/* KPI strip */}
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش روز سبد" value={formatMoney(valuation.totalNetWorthToman, "IRT")} hint={formatMoney(valuation.totalNetWorth)} />
         <Metric label="بهای تمام‌شده" value={toIrt(valuation.totalCostBasis) ?? formatMoney(valuation.totalCostBasis)} hint={fx.rate ? formatMoney(valuation.totalCostBasis) : undefined} />
@@ -76,7 +63,7 @@ export default async function PortfolioPage() {
         />
       </section>
 
-      {valuation.assetValuations.length === 0 && !hasVehicles ? (
+      {valuation.assetValuations.length === 0 ? (
         <div className="card">
           <EmptyState
             icon="portfolio"
@@ -91,8 +78,6 @@ export default async function PortfolioPage() {
         </div>
       ) : (
         <>
-          {/* Allocation is the page's question — full width, never beside the
-              holdings table (that pairing clipped the ring behind the table). */}
           <Section title="ثروت شما کجا قرار دارد؟" hint="ترکیب سبد بر اساس کلاس دارایی">
             {valuation.allocationByClass.length === 0 ? (
               <p className="muted py-6 text-center text-xs">هنوز ترکیبی برای نمایش ساخته نشده است.</p>
@@ -160,7 +145,6 @@ export default async function PortfolioPage() {
             <HoldingsTable rows={valuation.assetValuations} toIrt={toIrt} />
           </Section>
 
-          {/* FIFO lots — accounting reference, tucked away until needed */}
           {lots.length > 0 && (
             <details className="card overflow-hidden">
               <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 marker:hidden [&::-webkit-details-marker]:hidden">
@@ -212,10 +196,6 @@ export default async function PortfolioPage() {
             </Alert>
           )}
         </>
-      )}
-
-      {vehicles && hasVehicles && (
-        <VehiclePortfolioSection summary={vehicles} ledgerNetWorthUsd={valuation.totalNetWorth} />
       )}
     </div>
   );

@@ -333,8 +333,6 @@ export async function getPortfolioValuation(
     historicalTomanCostByAsset(userId),
   ]);
 
-  // Reading account balances is intentional regression protection: it keeps
-  // the same accounting source available to callers without ever mutating it.
   void balances;
 
   const activeHoldings = holdings.filter((holding) => D(holding.quantity).abs().gt("0.00000001"));
@@ -355,8 +353,6 @@ export async function getPortfolioValuation(
     : [];
   const metadata = new Map(metadataRows.map((row) => [row.assetId, row]));
 
-  // Real-asset reads remain tenant-scoped in SQL. NULL-owned rows are never
-  // treated as shared when a tenant is known.
   const realEstateRows = assetIds.length
     ? await db
         .select({
@@ -467,6 +463,7 @@ export async function getPortfolioValuation(
       priceObservedAt = market.observedAt;
       priceFailureCode = market.failureCode;
     } else if (holding.symbol === "USD") {
+      // USD Balance = Z USD (canonical, fixed vs FX), Toman Valuation = Z * Rate (derived, changes)
       marketPrice = "1";
       currentValue = qty.toString();
       currentValueToman = qty.mul(fx.rate).toFixed(0);
@@ -477,6 +474,7 @@ export async function getPortfolioValuation(
       valuationBasis = "face_value";
       priceFreshness = "fresh";
     } else if (holding.symbol === "IRT" || holding.symbol === "IRR") {
+      // IRT Balance = X IRT (canonical from ledger, fixed vs FX), USD Valuation = X / Rate (derived)
       const tomanQuantity = holding.symbol === "IRR" ? qty.div("10") : qty;
       currentValueToman = tomanQuantity.toFixed(0);
       currentValue = tomanQuantity.div(fx.rate).toString();
@@ -679,32 +677,66 @@ export async function getAssetValuationDetail(assetId: string, userId?: string) 
 }
 
 /**
- * Current net worth is a Valuation output, not an Accounting mutation:
- * valued assets come from getPortfolioValuation; liabilities remain derived
- * read-only from the existing ledger balance primitive.
+ * Current net worth is a Valuation output, not an Accounting mutation.
+ * Assets from getPortfolioValuation; liabilities combine ledger + planning debts.
+ *
+ * FIX: Toman liabilities for debts with principalToman are FIXED (contractual),
+ * USD equivalent is DYNAMIC (Toman / currentRate). No round-trip for balance.
  */
 export async function getCurrentNetWorth(userId?: string) {
-  const [valuation, balances] = await Promise.all([
+  const [valuation, balances, debts] = await Promise.all([
     getPortfolioValuation(undefined, userId),
     getAccountBalances(userId),
+    (async () => {
+      try {
+        const { listDebts } = await import("@/features/planning/service");
+        return await listDebts(userId);
+      } catch {
+        return [] as any[];
+      }
+    })(),
   ]);
-  const liabilities = balances
-    .filter((balance) => balance.type === "liability")
-    .reduce((sum, balance) => sum.add(D(balance.baseValue).neg()), Decimal.zero());
+
+  const rate = D(valuation.currentFxRate).gt(0) ? D(valuation.currentFxRate) : D("1");
+
+  // Ledger liabilities
+  const ledgerLiabilities = balances.filter((b) => b.type === "liability");
+  const debtAccountIds = new Set(
+    (debts as any[]).filter((d: any) => d.accountId).map((d: any) => d.accountId as string),
+  );
+  const otherLedgerLiabilities = ledgerLiabilities.filter((b) => !debtAccountIds.has(b.accountId));
+  const otherLedgerUsd = otherLedgerLiabilities.reduce((sum, b) => sum.add(D(b.baseValue).neg()), Decimal.zero());
+  const otherLedgerToman = otherLedgerUsd.mul(rate);
+
+  let debtsUsd = Decimal.zero();
+  let debtsToman = Decimal.zero();
+  for (const d of debts as any[]) {
+    const outBase = D((d as any).outstandingBase ?? "0");
+    const outToman = (d as any).outstandingToman != null ? D((d as any).outstandingToman) : null;
+    debtsUsd = debtsUsd.add(outBase);
+    if (outToman != null) {
+      debtsToman = debtsToman.add(outToman);
+    } else {
+      debtsToman = debtsToman.add(outBase.mul(rate));
+    }
+  }
+
+  const totalLiabilitiesUsd = debts.length > 0 ? otherLedgerUsd.add(debtsUsd) : ledgerLiabilities.reduce((sum, b) => sum.add(D(b.baseValue).neg()), Decimal.zero());
+  const totalLiabilitiesToman = debts.length > 0 ? otherLedgerToman.add(debtsToman) : totalLiabilitiesUsd.mul(rate);
+
   const liquidAssets = valuation.assetValuations.filter((asset) =>
     ["نقد و بانک", "Cash", "استیبل‌کوین", "Stablecoin"].includes(asset.className),
   );
   const liquid = liquidAssets.reduce((sum, asset) => sum.add(asset.currentValue), Decimal.zero());
   const liquidToman = liquidAssets.reduce((sum, asset) => sum.add(asset.currentValueToman), Decimal.zero());
-  const liabilitiesToman = liabilities.mul(valuation.currentFxRate);
 
   return {
     totalAssets: valuation.totalNetWorth,
     totalAssetsToman: valuation.totalNetWorthToman,
-    totalLiabilities: liabilities.toString(),
-    totalLiabilitiesToman: liabilitiesToman.toFixed(0),
-    netWorth: D(valuation.totalNetWorth).sub(liabilities).toString(),
-    netWorthToman: D(valuation.totalNetWorthToman).sub(liabilitiesToman).toFixed(0),
+    totalLiabilities: totalLiabilitiesUsd.toString(),
+    totalLiabilitiesToman: totalLiabilitiesToman.toFixed(0),
+    netWorth: D(valuation.totalNetWorth).sub(totalLiabilitiesUsd).toString(),
+    netWorthToman: D(valuation.totalNetWorthToman).sub(totalLiabilitiesToman).toFixed(0),
     liquid: liquid.toString(),
     liquidToman: liquidToman.toFixed(0),
     byClass: valuation.allocationByClass.map((group) => ({

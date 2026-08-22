@@ -22,7 +22,7 @@ function FlowTable({
   toIrt,
 }: {
   hint: string;
-  rows: { code: string; name: string; total: string }[];
+  rows: { code: string; name: string; total: string; totalToman?: string | null }[];
   total: string;
   color: string;
   toIrt: (usd: string | number) => string | null;
@@ -34,8 +34,9 @@ function FlowTable({
         <EmptyState icon="cashflow" title="داده‌ای در این بازه نیست" body="با ثبت تراکنش‌های درآمد و هزینه، این تحلیل به‌طور خودکار ساخته می‌شود." />
       ) : (
         <ul className="space-y-3">
-          {rows.slice(0, 8).map((r) => {
+          {rows.slice(0, 8).map((r: any) => {
             const share = sum.isZero() ? 0 : D(r.total).div(sum).mul(100).toNumber();
+            const toman = r.totalToman && D(r.totalToman).gt(0) ? r.totalToman : toIrt(r.total);
             return (
               <li key={r.code}>
                 <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
@@ -46,9 +47,9 @@ function FlowTable({
                     </span>
                     <span className="flex flex-col items-end">
                       <span className="num font-bold" dir="rtl">
-                        {toIrt(r.total) ?? formatMoney(r.total)}
+                        {toman ? formatMoney(toman, "IRT") : formatMoney(r.total)}
                       </span>
-                      {toIrt(r.total) && (
+                      {toman && (
                         <span className="muted num text-[9.5px]" dir="rtl">
                           ≈ {formatMoney(r.total)}
                         </span>
@@ -68,11 +69,6 @@ function FlowTable({
   );
 }
 
-/**
- * Hierarchical expense breakdown: parents roll up their leaves, leaves keep
- * their detail. Non-cash rows (depreciation/reserves) are shown separately —
- * they are expenses but never a cash outflow.
- */
 function CategoryBreakdown({ rows, toIrt }: { rows: CategoryFlowRow[]; toIrt: (usd: string | number) => string | null }) {
   if (!rows.length) return null;
   const groups = new Map<string, { name: string; parentId: string; total: Decimal; nonCash: Decimal; leaves: CategoryFlowRow[] }>();
@@ -155,13 +151,17 @@ export default async function CashFlowPage() {
   ]);
   const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
-  const month = flow.at(-1);
+  const month = flow.at(-1) as any;
   const totalIncome12 = Decimal.sum(flow.map((f) => f.inflow));
   const totalExpense12 = Decimal.sum(flow.map((f) => f.outflow));
   const netMonth = month ? D(month.inflow).sub(month.outflow) : Decimal.zero();
   const savingsRate = month && !D(month.inflow).isZero() ? netMonth.div(month.inflow).mul(100).toFixed(0) : null;
   const expTotal = Decimal.sum(expenses.map((e) => e.total));
   const incTotal = Decimal.sum(incomes.map((i) => i.total));
+
+  // Use canonical Toman when available
+  const monthInflowToman = month?.inflowToman && D(month.inflowToman).gt(0) ? month.inflowToman : toIrt(month?.inflow ?? 0);
+  const monthOutflowToman = month?.outflowToman && D(month.outflowToman).gt(0) ? month.outflowToman : toIrt(month?.outflow ?? 0);
 
   return (
     <div className="space-y-8">
@@ -170,10 +170,9 @@ export default async function CashFlowPage() {
         action={<SectionLink href="/planning" label="پیش‌بینی آینده" />}
       />
 
-      {/* KPI strip — borderless metrics with dividers */}
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="درآمد این ماه" value={toIrt(month?.inflow ?? 0) ?? formatMoney(month?.inflow ?? 0)} tone={inflowTone(month?.inflow ?? 0)} hint={fx.rate ? formatMoney(month?.inflow ?? 0) : undefined} />
-        <Metric label="هزینه این ماه" value={toIrt(month?.outflow ?? 0) ?? formatMoney(month?.outflow ?? 0)} tone={outflowTone(month?.outflow ?? 0)} hint={fx.rate ? formatMoney(month?.outflow ?? 0) : undefined} />
+        <Metric label="درآمد این ماه" value={monthInflowToman ? formatMoney(monthInflowToman, "IRT") : formatMoney(month?.inflow ?? 0)} tone={inflowTone(month?.inflow ?? 0)} hint={fx.rate ? formatMoney(month?.inflow ?? 0) : undefined} />
+        <Metric label="هزینه این ماه" value={monthOutflowToman ? formatMoney(monthOutflowToman, "IRT") : formatMoney(month?.outflow ?? 0)} tone={outflowTone(month?.outflow ?? 0)} hint={fx.rate ? formatMoney(month?.outflow ?? 0) : undefined} />
         <Metric
           label="خالص این ماه"
           value={formatSignedMoneyFromUsd(netMonth.toString(), fx.rate)}
@@ -209,8 +208,8 @@ export default async function CashFlowPage() {
       </Section>
 
       <div className="grid gap-10 lg:grid-cols-2">
-        <FlowTable hint="هزینه‌ها بر اساس دسته‌بندی — ۶ ماه اخیر" rows={expenses} total={expTotal.toString()} color="var(--negative)" toIrt={toIrt} />
-        <FlowTable hint="درآمدها بر اساس منبع — ۶ ماه اخیر" rows={incomes} total={incTotal.toString()} color="var(--positive)" toIrt={toIrt} />
+        <FlowTable hint="هزینه‌ها بر اساس دسته‌بندی — ۶ ماه اخیر" rows={expenses as any} total={expTotal.toString()} color="var(--negative)" toIrt={toIrt} />
+        <FlowTable hint="درآمدها بر اساس منبع — ۶ ماه اخیر" rows={incomes as any} total={incTotal.toString()} color="var(--positive)" toIrt={toIrt} />
       </div>
 
       <CategoryBreakdown rows={categoryFlows} toIrt={toIrt} />

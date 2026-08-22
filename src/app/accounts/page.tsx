@@ -28,11 +28,8 @@ const WALLET_KIND: Record<string, string> = {
 export default async function AccountsPage() {
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? null;
-  // Chart-of-accounts codes (کد معین) are PRO-only vocabulary (Directive §2).
   const pro = await getUserProMode(userId);
   await seedIfEmpty();
-  // Repair old catalogs first, then expose exactly IRT / USD / USDT. Real
-  // assets such as apartment units can never enter this form.
   const currencyRows = await listMoneyAccountCurrencies();
   const [balances, walletRows, fx] = await Promise.all([
     getAccountBalances(userId ?? undefined),
@@ -61,15 +58,28 @@ export default async function AccountsPage() {
 
   const toIrt = (usd: string | number) => toIrtMoney(D(usd).abs().toString(), fx.rate);
 
-  const primaryMoney = (b: (typeof balances)[number]) => {
+  // CURRENCY ISOLATION: Balance is canonical in its own currency, Valuation is derived.
+  // IRT Balance = quantity (Toman) canonical
+  // USDT Balance = quantity (USDT) canonical, Toman Valuation = qty * rate
+  // USD Balance = quantity (USD) canonical, Toman Valuation = qty * rate
+  const canonicalBalance = (b: (typeof balances)[number]) => {
     if (b.symbol === "IRT") return formatMoney(D(b.quantity).abs().toFixed(0), "IRT");
     if (b.symbol === "IRR") return formatMoney(D(b.quantity).abs().div(10).toFixed(0), "IRT");
-    return toIrt(b.baseValue) ?? formatMoney(D(b.baseValue).abs().toString());
+    if (b.symbol === "USDT") return formatMoney(D(b.quantity).abs().toString(), "USDT");
+    if (b.symbol === "USD") return formatMoney(D(b.quantity).abs().toString(), "USD");
+    // Fallback for other assets: quantity in its own symbol
+    return formatMoney(D(b.quantity).abs().toString(), b.symbol ?? "USD");
   };
 
-  // A registered wallet remains visible even while its balance is zero. This
-  // is important when users create several bank/fund/wallet containers before
-  // recording their first transaction.
+  const valuationToman = (b: (typeof balances)[number]) => {
+    if (b.symbol === "IRT" || b.symbol === "IRR") return null; // IRT balance IS Toman, no separate valuation needed for primary
+    if (b.symbol === "USDT" || b.symbol === "USD") {
+      // Toman valuation = canonical qty * current rate
+      return toIrt(D(b.quantity).abs().toString()) ?? formatMoney(D(b.baseValue).abs().toString(), "IRT");
+    }
+    return toIrt(b.baseValue) ?? null;
+  };
+
   const moneyAccountsRaw = balances.filter(
     (b) => b.type === "asset" && (!!b.walletName || !D(b.quantity).isZero()),
   );
@@ -89,8 +99,6 @@ export default async function AccountsPage() {
   const totalCash = moneyAccounts.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
   const controlSum = balances.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
 
-  // Group by wallet identity, not display name. Two separately registered
-  // accounts may intentionally have the same label and must never be merged.
   const walletIdByAccount = new Map(
     walletRows.filter((w) => w.accountId).map((w) => [w.accountId as string, w.id]),
   );
@@ -160,24 +168,31 @@ export default async function AccountsPage() {
                     </div>
                   </div>
                   <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
-                    {rows.map((b) => (
-                      <li key={b.accountId} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                        <div className="min-w-0">
-                          <p className="truncate text-[12.5px] font-medium">{b.name}</p>
-                          <p className="muted num text-[10px]" dir="rtl">
-                            {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-left">
-                          <p className="num text-[12.5px] font-bold" dir="rtl">
-                            {primaryMoney(b)}
-                          </p>
-                          {b.symbol !== "IRT" && b.symbol !== "IRR" && toIrt(b.baseValue) && (
-                            <p className="muted num text-[10.5px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(b.baseValue)}</p>
-                          )}
-                        </div>
-                      </li>
-                    ))}
+                    {rows.map((b) => {
+                      const bal = canonicalBalance(b);
+                      const val = valuationToman(b);
+                      return (
+                        <li key={b.accountId} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                          <div className="min-w-0">
+                            <p className="truncate text-[12.5px] font-medium">{b.name}</p>
+                            <p className="muted num text-[10px]" dir="rtl">
+                              {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)} — مانده اصلی
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-left">
+                            <p className="num text-[12.5px] font-bold" dir="rtl">
+                              {bal}
+                            </p>
+                            {val && (
+                              <p className="muted num text-[10.5px]" style={{ color: "var(--text-2)" }}>ارزش: {val}</p>
+                            )}
+                            {b.symbol !== "IRT" && b.symbol !== "IRR" && !val && toIrt(b.baseValue) && (
+                              <p className="muted num text-[10.5px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(b.baseValue)}</p>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               );
@@ -217,7 +232,6 @@ export default async function AccountsPage() {
         </Section>
       )}
 
-      {/* Chart of accounts — accounting reference, collapsed */}
       <Section title="دفتر حساب‌ها">
         <details className="card group overflow-hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
@@ -254,7 +268,6 @@ export default async function AccountsPage() {
         </details>
       </Section>
 
-      {/* Add wallet */}
       <Section title="معرفی حساب یا کیف‌پول جدید">
         <details className="card group overflow-hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
