@@ -129,10 +129,13 @@ export function Donut({
   data,
   size = 172,
   centerLabel,
+  showLegend = true,
 }: {
   data: { label: string; value: number; color: string }[];
   size?: number;
   centerLabel?: string;
+  /** Hide the built-in list when the parent already renders a richer breakdown. */
+  showLegend?: boolean;
 }) {
   const [active, setActive] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
@@ -153,72 +156,75 @@ export function Donut({
   const shown = active != null ? data[active] : null;
 
   return (
-    <div className="flex w-full min-w-0 flex-col items-center justify-center gap-5 overflow-hidden sm:flex-row sm:items-center sm:justify-center">
-      {/* Donut is ALWAYS centred inside its own card and can never overflow it
-          or overlap the legend/table: the SVG scales down with its container
-          (max-width + aspect ratio from the viewBox) instead of pushing out. */}
-      <div className="relative mx-auto flex shrink-0 items-center justify-center">
-        <svg
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          role="img"
-          aria-label="نمودار ترکیب"
-          style={{ maxWidth: "100%", height: "auto", display: "block" }}
-        >
-          <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
-            {segments.map(({ d, len, offset }, i) => (
-              <circle
-                key={d.label}
-                cx={size / 2}
-                cy={size / 2}
-                r={r}
-                fill="none"
-                stroke={d.color}
-                strokeWidth={active === i ? 20 : 15}
-                strokeDasharray={`${Math.max(0, len - (len > 2 ? 1.5 : 0))} ${c - len + (len > 2 ? 1.5 : 0)}`}
-                strokeDashoffset={-offset}
-                strokeLinecap="butt"
-                opacity={active == null || active === i ? 1 : 0.35}
-                style={{ transition: "stroke-width .15s ease, opacity .15s ease", cursor: "pointer" }}
-                onMouseEnter={() => setActive(i)}
-                onMouseLeave={() => setActive(null)}
-              />
-            ))}
-          </g>
-        </svg>
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-          <div className="muted text-[10px]">{shown ? shown.label : (centerLabel ?? "مجموع")}</div>
-          <div className="num text-[15px] font-bold" dir="rtl">
-            {formatMoney(shown ? shown.value : total)}
-          </div>
-          <div className="muted num text-[10px]" dir="rtl">
-            {shown ? formatPct(((shown.value / total) * 100), 1) : `${faCount(data.length)} بخش`}
+    <div className={`donut-wrap ${showLegend ? "" : "donut-wrap-chart-only"}`}>
+      {/* Chart + legend never overlap: they stack by default and only sit
+          side-by-side when the *card* is wide enough (container query),
+          not when the viewport happens to be `sm`. */}
+      <div className="donut-layout">
+        <div className="donut-chart" style={{ maxWidth: size }}>
+          <svg
+            viewBox={`0 0 ${size} ${size}`}
+            role="img"
+            aria-label="نمودار ترکیب"
+            className="donut-svg"
+          >
+            <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+              {segments.map(({ d, len, offset }, i) => (
+                <circle
+                  key={d.label}
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={r}
+                  fill="none"
+                  stroke={d.color}
+                  strokeWidth={active === i ? 20 : 15}
+                  strokeDasharray={`${Math.max(0, len - (len > 2 ? 1.5 : 0))} ${c - len + (len > 2 ? 1.5 : 0)}`}
+                  strokeDashoffset={-offset}
+                  strokeLinecap="butt"
+                  opacity={active == null || active === i ? 1 : 0.35}
+                  style={{ transition: "stroke-width .15s ease, opacity .15s ease", cursor: "pointer" }}
+                  onMouseEnter={() => setActive(i)}
+                  onMouseLeave={() => setActive(null)}
+                />
+              ))}
+            </g>
+          </svg>
+          <div className="donut-center">
+            <div className="muted max-w-[78%] truncate text-[10px]">{shown ? shown.label : (centerLabel ?? "مجموع")}</div>
+            <div className="num px-2 text-[15px] font-bold leading-tight" dir="rtl">
+              {formatMoney(shown ? shown.value : total)}
+            </div>
+            <div className="muted num text-[10px]" dir="rtl">
+              {shown ? formatPct(((shown.value / total) * 100), 1) : `${faCount(data.length)} بخش`}
+            </div>
           </div>
         </div>
+        {showLegend && (
+          <ul className="donut-legend">
+            {data.map((d, i) => (
+              <li key={d.label}>
+                <button
+                  type="button"
+                  onMouseEnter={() => setActive(i)}
+                  onMouseLeave={() => setActive(null)}
+                  onFocus={() => setActive(i)}
+                  onBlur={() => setActive(null)}
+                  className="flex w-full min-w-0 items-center justify-between gap-2 rounded-[9px] px-2 py-1.5 text-xs transition-colors"
+                  style={{ background: active === i ? "var(--hover)" : "transparent" }}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: d.color }} />
+                    <span className="truncate">{d.label}</span>
+                  </span>
+                  <span className="num muted shrink-0" dir="rtl">
+                    {formatPct(((d.value / total) * 100), 1)} · {formatMoney(d.value)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      <ul className="w-full min-w-0 flex-1 space-y-1">
-        {data.map((d, i) => (
-          <li key={d.label}>
-            <button
-              onMouseEnter={() => setActive(i)}
-              onMouseLeave={() => setActive(null)}
-              onFocus={() => setActive(i)}
-              onBlur={() => setActive(null)}
-              className="flex w-full items-center justify-between gap-2 rounded-[9px] px-2 py-1.5 text-xs transition-colors"
-              style={{ background: active === i ? "var(--hover)" : "transparent" }}
-            >
-              <span className="flex items-center gap-2">
-                <i className="inline-block h-2.5 w-2.5 rounded-[4px]" style={{ background: d.color }} />
-                {d.label}
-              </span>
-              <span className="num muted" dir="rtl">
-                {formatPct(((d.value / total) * 100), 1)} · {formatMoney(d.value)}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
