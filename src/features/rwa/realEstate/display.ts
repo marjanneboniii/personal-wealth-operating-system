@@ -10,7 +10,7 @@
  * Persian asset name or neighborhood name already resolved from DB.
  */
 
-import { NEIGHBORHOODS_SEED, CITIES_SEED, PROPERTY_TYPES_SEED } from "./masterData";
+import { NEIGHBORHOODS_SEED, CITIES_SEED, PROPERTY_TYPES_SEED } from "./seedData";
 
 // Build lookup maps from seed (which is the source of truth for Persian names)
 const neighborhoodByCode = new Map(NEIGHBORHOODS_SEED.map((n) => [n.code.toUpperCase(), n.nameFa]));
