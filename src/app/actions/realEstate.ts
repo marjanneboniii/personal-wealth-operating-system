@@ -29,7 +29,13 @@ import {
 
 export type RealEstateResult = { ok: boolean; message: string };
 
-const refresh = () => revalidatePath("/asset-registry");
+const refresh = () => {
+  revalidatePath("/asset-registry");
+  revalidatePath("/");
+  revalidatePath("/assets");
+  revalidatePath("/portfolio");
+  revalidatePath("/net-worth");
+};
 
 /**
  * SECURITY: real estate writes create/modify user assets and ledger entries.
