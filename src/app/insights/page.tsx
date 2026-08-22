@@ -180,7 +180,7 @@ export default async function InsightsPage() {
     insights.push({
       tone: "info",
       icon: "check",
-      title: `${unreviewed} رکورد درون‌ریزی‌شده بازبینی نشده است`,
+      title: `${faCount(unreviewed)} رکورد درون‌ریزی‌شده بازبینی نشده است`,
       body: "پیش از اتکا به گزارش‌ها، این رکوردها را تأیید کنید.",
       href: "/transactions?review=unreviewed",
       action: "بازبینی",

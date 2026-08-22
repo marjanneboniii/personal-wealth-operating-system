@@ -7,7 +7,7 @@ import { MISC_PARENT_CODE } from "@/features/categories/catalog";
 import { Metric, PageHeader, Section, SectionLink, EmptyState } from "@/components/ui/Card";
 import { BarsChart } from "@/components/charts/Charts";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatPct, toJalali, toIrtMoney, trendTone } from "@/lib/format";
+import { formatMoney, formatPct, formatSignedMoneyFromUsd, inflowTone, outflowTone, toJalali, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -172,17 +172,17 @@ export default async function CashFlowPage() {
 
       {/* KPI strip — borderless metrics with dividers */}
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="درآمد این ماه" value={toIrt(month?.inflow ?? 0) ?? formatMoney(month?.inflow ?? 0)} tone="up" hint={fx.rate ? formatMoney(month?.inflow ?? 0) : undefined} />
-        <Metric label="هزینه این ماه" value={toIrt(month?.outflow ?? 0) ?? formatMoney(month?.outflow ?? 0)} tone="down" hint={fx.rate ? formatMoney(month?.outflow ?? 0) : undefined} />
+        <Metric label="درآمد این ماه" value={toIrt(month?.inflow ?? 0) ?? formatMoney(month?.inflow ?? 0)} tone={inflowTone(month?.inflow ?? 0)} hint={fx.rate ? formatMoney(month?.inflow ?? 0) : undefined} />
+        <Metric label="هزینه این ماه" value={toIrt(month?.outflow ?? 0) ?? formatMoney(month?.outflow ?? 0)} tone={outflowTone(month?.outflow ?? 0)} hint={fx.rate ? formatMoney(month?.outflow ?? 0) : undefined} />
         <Metric
           label="خالص این ماه"
-          value={`${netMonth.gte(0) ? "+" : "−"}${toIrt(netMonth.abs().toString()) ?? formatMoney(netMonth.abs().toString())}`}
+          value={formatSignedMoneyFromUsd(netMonth.toString(), fx.rate)}
           tone={trendTone(netMonth.toString())}
           hint={fx.rate ? `≈ ${formatMoney(netMonth.abs().toString())}${savingsRate != null ? ` · ${formatPct(savingsRate, 0)} نرخ پس‌انداز` : ""}` : savingsRate != null ? `${formatPct(savingsRate, 0)} نرخ پس‌انداز` : undefined}
         />
         <Metric
           label="خالص ۱۲ ماه"
-          value={`${D(totalIncome12.sub(totalExpense12).toString()).gte(0) ? "+" : "−"}${toIrt(totalIncome12.sub(totalExpense12).abs().toString()) ?? formatMoney(totalIncome12.sub(totalExpense12).abs().toString())}`}
+          value={formatSignedMoneyFromUsd(totalIncome12.sub(totalExpense12).toString(), fx.rate)}
           hint={fx.rate ? `≈ ${formatMoney(totalIncome12.sub(totalExpense12).abs().toString())} · درآمد ${formatMoney(totalIncome12.toString())} · هزینه ${formatMoney(totalExpense12.toString())}` : `درآمد ${formatMoney(totalIncome12.toString())} · هزینه ${formatMoney(totalExpense12.toString())}`}
         />
       </section>

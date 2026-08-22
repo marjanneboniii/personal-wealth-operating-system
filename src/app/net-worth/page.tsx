@@ -14,7 +14,7 @@ import { Alert, Delta, EmptyState, Metric, PageHeader, Section } from "@/compone
 import NetWorthChart from "@/components/charts/NetWorthChart";
 import RowAction from "@/components/RowAction";
 import { D } from "@/domain/decimal";
-import { formatMoney, formatPct, formatPercent, todayIso, toIrtMoney, trendTone } from "@/lib/format";
+import { formatMoney, formatPct, formatPercent, formatSignedMoneyFromUsd, todayIso, toIrtMoney, trendColor, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -223,9 +223,8 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
             <li className="flex items-center justify-between gap-4 py-3.5">
               <p className="text-[13.5px] font-bold">مجموع</p>
               <div className="flex flex-col items-end">
-                <span className="num text-[15px] font-bold" dir="rtl">
-                  {deltaAbs.gte(0) ? "+" : "−"}
-                  {toIrt(deltaAbs.abs().toString()) ?? formatMoney(deltaAbs.abs().toString())}
+                <span className="num text-[15px] font-bold" dir="rtl" style={{ color: trendColor(deltaAbs.toString()) }}>
+                  {formatSignedMoneyFromUsd(deltaAbs.toString(), fx.rate)}
                 </span>
                 {fx.rate && (
                   <span className="muted num text-[9.5px]" dir="rtl">

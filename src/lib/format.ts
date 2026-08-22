@@ -352,8 +352,53 @@ export function trendArrow(value: string | number): "↑" | "↓" | "—" {
 }
 
 export function trendColor(value: string | number): string {
-  const tone = trendTone(value);
+  return toneColor(trendTone(value));
+}
+
+/** Resolve an already-computed tone to its CSS colour (zero → neutral grey). */
+export function toneColor(tone: TrendTone): string {
   return tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : "var(--text-2)";
+}
+
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ * Directional KPI tones — SSOT for income/expense metric colouring.
+ *
+ * A KPI that measured NOTHING (۰ تومان) is ALWAYS neutral (Directive §3:
+ * «رنگ‌بندی هزینه صفر از قرمز به رنگ خنثی تغییر یابد»). Only money that
+ * actually moved gets a semantic colour. Pages must never hard-wire
+ * tone="down"/tone="up" on a value that can be zero.
+ * ────────────────────────────────────────────────────────────────────────── */
+export function inflowTone(value: string | number): TrendTone {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || Math.abs(n) === 0) return "neutral";
+  return "up";
+}
+
+/** Any real outflow (spend) reads as "down"; a zero outflow is neutral. */
+export function outflowTone(value: string | number): TrendTone {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || Math.abs(n) === 0) return "neutral";
+  return "down";
+}
+
+/*
+ * SSOT for SIGNED dynamic Toman equivalents of a USD amount — used by every
+ * KPI delta («خالص این ماه»، «سود تحقق‌یافته»، …). The sign ALWAYS lives
+ * inside the single bidi isolate produced by formatSignedMoney, so a page
+ * can never again glue a manual "+/−" onto a formatted money string and
+ * reproduce the «تومان+ ۸۹۳٬۷۴۶٬۱۷۱ تومان» / trailing-minus class of bug.
+ * Conversion uses the FULL-PRECISION amount and one half-up rounding step
+ * (same rules as usdToIrt). Zero → unsigned, paired with a neutral tone.
+ */
+export function formatSignedMoneyFromUsd(
+  usdAmount: string | number,
+  usdToIrtRate: string | number | null | undefined,
+): string {
+  if (usdToIrtRate == null || D(usdToIrtRate).lte(0)) {
+    return formatSignedMoney(usdAmount, "USD");
+  }
+  return formatSignedMoney(usdToIrt(usdAmount, usdToIrtRate), "IRT");
 }
 
 export function formatDualMoneyFromIrt(irtAmount: string | number, usdToIrtRate: string | number | null, _digits: DigitStyle = "fa"): { irt: string; usd: string; rateLabel: string } {

@@ -67,7 +67,7 @@ export default async function InstallmentsPage() {
         <Metric label="معوق" value={faCount(overdueList.length)} tone={overdueList.length ? "down" : "neutral"} />
         <Metric label="در ۳۰ روز آینده" value={faCount(next30.length)} hint={next30.length ? toIrt(next30.reduce((s, r) => s + Number(r.amountBase), 0)) ?? formatMoney(next30.reduce((s, r) => s + Number(r.amountBase), 0)) : undefined} />
         <Metric label="مانده اقساط" value={toIrt(remainingTotal) ?? formatMoney(remainingTotal)} hint={fx.rate ? formatMoney(remainingTotal) : undefined} />
-        <Metric label="پرداخت‌شده" value={faCount(paid.length)} tone="up" hint={`از ${faCount(rows.length)} قسط`} />
+        <Metric label="پرداخت‌شده" value={faCount(paid.length)} tone={paid.length > 0 ? "up" : "neutral"} hint={`از ${faCount(rows.length)} قسط`} />
       </section>
 
       <Section title="زمان‌بندی اقساط">

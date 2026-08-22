@@ -13,7 +13,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatDualDate, formatMoney, formatPct, jalaliMonthKey, jalaliMonthLabel, faCount, toIrtMoney, trendTone } from "@/lib/format";
+import { currencyLabel, formatDualDate, formatMoney, formatPct, jalaliMonthKey, jalaliMonthLabel, faCount, inflowTone, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -66,8 +66,8 @@ export default async function ReportsPage() {
       {/* KPI strip */}
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش خالص" value={formatMoney(nw.netWorthToman, "IRT")} hint={formatMoney(nw.netWorth)} />
-        <Metric label="کل درآمد ثبت‌شده" value={toIrt(totalIncome.toString()) ?? formatMoney(totalIncome.toString())} tone="up" hint={rate ? formatMoney(totalIncome.toString()) : undefined} />
-        <Metric label="کل هزینه ثبت‌شده" value={toIrt(totalExpense.toString()) ?? formatMoney(totalExpense.toString())} tone="down" hint={rate ? formatMoney(totalExpense.toString()) : undefined} />
+        <Metric label="کل درآمد ثبت‌شده" value={toIrt(totalIncome.toString()) ?? formatMoney(totalIncome.toString())} tone={inflowTone(totalIncome.toString())} hint={rate ? formatMoney(totalIncome.toString()) : undefined} />
+        <Metric label="کل هزینه ثبت‌شده" value={toIrt(totalExpense.toString()) ?? formatMoney(totalExpense.toString())} tone={outflowTone(totalExpense.toString())} hint={rate ? formatMoney(totalExpense.toString()) : undefined} />
         <Metric label="نرخ پس‌انداز" value={`${formatPct(savingsRate, 1)}`} tone={trendTone(savingsRate)} />
       </section>
 

@@ -242,3 +242,83 @@ test("§0/§2 Pro Mode defaults to SIMPLE and is isolated per user", async () =>
   assert.equal(back.ok, true);
   assert.equal(await preferences.getUserProMode(alice.id), false);
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   §3/§4 — Zero-is-neutral KPI tones (income/expense metrics)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+test("§3 a zero expense/income KPI is NEVER red/green — directional tones", async () => {
+  await modulesReady;
+  // The reported bug: «هزینه این ماه ۰ تومان» rendered in red because KPI
+  // strips hard-wired tone="down". Zero must resolve to neutral…
+  assert.equal(format.outflowTone(0), "neutral");
+  assert.equal(format.outflowTone("0.00"), "neutral");
+  assert.equal(format.inflowTone(0), "neutral");
+  assert.equal(format.inflowTone("0"), "neutral");
+  // …while real money that moved keeps its semantic colour:
+  assert.equal(format.outflowTone("1500"), "down");
+  assert.equal(format.outflowTone("-75"), "down"); // refund-shaped row is still a spend event
+  assert.equal(format.inflowTone("1500"), "up");
+  // And the neutral tone maps to the neutral grey, never positive/negative:
+  assert.equal(format.toneColor(format.outflowTone(0)), "var(--text-2)");
+  assert.notEqual(format.toneColor(format.outflowTone(0)), "var(--negative)");
+  assert.notEqual(format.toneColor(format.inflowTone(0)), "var(--positive)");
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   §4 — Signed dynamic Toman KPIs share ONE formatter (no manual "+/−" glue)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+test("§4 formatSignedMoneyFromUsd keeps the sign inside the single isolate", async () => {
+  await modulesReady;
+  // Exact-precision conversion: 4.784684… USD × 190,000 = ۹۰۹٬۰۹۰ — the
+  // manual page-level «+/−» glue previously re-rounded this to ۹۰۸٬۲۰۰.
+  const pos = format.formatSignedMoneyFromUsd("4.784684210526315789", "190000");
+  assert.equal(pos, `${RLI}+۹۰۹٬۰۹۰ تومان${PDI}`);
+  const neg = format.formatSignedMoneyFromUsd("-4.784684210526315789", "190000");
+  assert.equal(neg, `${RLI}−۹۰۹٬۰۹۰ تومان${PDI}`);
+  // «تومان» appears exactly once — never «تومان+ … تومان»:
+  assert.equal((neg.match(/تومان/g) ?? []).length, 1);
+  // Zero is unsigned regardless of rate:
+  const zero = format.formatSignedMoneyFromUsd(0, "190000");
+  assert.equal(zero, `${RLI}۰ تومان${PDI}`);
+  assert.ok(!zero.includes("+") && !zero.includes("−"), zero);
+  // Missing/invalid rate → signed USD fallback, still one isolate:
+  assert.equal(format.formatSignedMoneyFromUsd("-3.5", null), `${RLI}−۳٫۵ دلار${PDI}`);
+  assert.equal(format.formatSignedMoneyFromUsd("-3.5", "0"), `${RLI}−۳٫۵ دلار${PDI}`);
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   §4 — UX Translation Pipe: technical ledger vocabulary never reaches the
+   human layer («از سرمایه افتتاحیه…» → «از موجودی آغازین…»)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+test("§4 the UX pipe sanitizes bookkeeping account names in the human layer only", async () => {
+  await modulesReady;
+  // The exact phrase from the directive is censored into a smooth title…
+  assert.equal(
+    tx.moneyFlowLabel("سرمایه افتتاحیه", "بانک سامان — سپرده"),
+    "از موجودی آغازین به بانک سامان — سپرده",
+  );
+  assert.equal(
+    tx.moneyFlowLabel("سرمایه افتتاحیه تملک‌های تاریخی (املاک)", "دارایی‌ها"),
+    "از موجودی آغازین به دارایی‌ها",
+  );
+  // …non-cash reserves and realized-capital gains read as plain categories…
+  assert.equal(tx.plainAccountName("ذخیره استهلاک و تعمیرات آتی"), "ذخیره هزینه‌های آتی (غیرنقدی)");
+  assert.equal(tx.plainAccountName("سود سرمایه‌ای تحقق‌یافته"), "سود فروش دارایی");
+  assert.equal(tx.plainAccountName("سرمایه"), "موجودی آغازین");
+  // …while the user's own accounts/data pass through UNCHANGED (no censoring
+  // of real data, no mock mapping):
+  assert.equal(tx.plainAccountName("بانک سامان — سپرده"), "بانک سامان — سپرده");
+  assert.equal(tx.plainAccountName("خرید نان"), "خرید نان");
+  // The pipe output stays jargon-free:
+  for (const label of [
+    tx.moneyFlowLabel("سرمایه افتتاحیه", "صندوق طلای کیان")!,
+    tx.moneyFlowLabel("ذخیره استهلاک و تعمیرات آتی", null)!,
+  ]) {
+    for (const banned of ["سرمایه افتتاحیه", "بدهکار", "بستانکار", "کد معین"]) {
+      assert.ok(!label.includes(banned), `«${banned}» leaked into human layer: ${label}`);
+    }
+  }
+});
