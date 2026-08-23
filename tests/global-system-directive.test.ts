@@ -55,7 +55,7 @@ test("§4 the canonical ۹۰۹٬۰۹۰ Toman case survives the USD round-trip ex
   // … and back through the SINGLE shared conversion (never float, never a
   // 2-dp pre-rounded USD value).
   assert.equal(format.usdToIrt(usd.toString(), "190000"), "909090");
-  assert.equal(format.toIrtMoney(usd.toString(), "190000"), `${RLI}۹۰۹٬۰۹۰\u00A0ت${PDI}`);
+  assert.equal(format.toIrtMoney(usd.toString(), "190000"), `${RLI}۹۰۹٬۰۹۰ تومان${PDI}`);
   // The old buggy derivation (2-dp USD → float multiply) reproduces the exact
   // reported bug: ۴.۷۸ × ۱۹۰٬۰۰۰ = ۹۰۸٬۲۰۰ «به جای ۹۰۹٬۰۹۰».
   assert.equal(Math.round(Number(usd.toFixed(2)) * Number("190000")), 908200);
@@ -106,12 +106,12 @@ test("§1 the stored Toman figure is invariant to the USD rate; only the side US
   await modulesReady;
   const a = format.formatDualMoneyFromIrt("1000000", "190000");
   const b = format.formatDualMoneyFromIrt("1000000", "250000");
-  // ۱٬۰۰۰٬۰۰۰ ت stays ۱٬۰۰۰٬۰۰۰ ت under any rate…
-  assert.equal(a.irt, `${RLI}۱٬۰۰۰٬۰۰۰\u00A0ت${PDI}`);
+  // ۱٬۰۰۰٬۰۰۰ تومان stays ۱٬۰۰۰٬۰۰۰ تومان under any rate…
+  assert.equal(a.irt, `${RLI}۱٬۰۰۰٬۰۰۰ تومان${PDI}`);
   assert.equal(a.irt, b.irt);
   // …while the dynamic dollar equivalent follows the rate one-way:
-  assert.equal(a.usd, `${RLI}۵٫۲۶\u00A0$${PDI}`);
-  assert.equal(b.usd, `${RLI}۴\u00A0$${PDI}`);
+  assert.equal(a.usd, `${RLI}۵٫۲۶ دلار${PDI}`);
+  assert.equal(b.usd, `${RLI}۴ دلار${PDI}`);
 });
 
 test("§1 humanized ledger entries expose the FULL-PRECISION amount for any conversion", async () => {
@@ -145,7 +145,7 @@ test("§3 Persian digits, «٫» decimal, «٬» thousands — no Latin digit, n
   await modulesReady;
   assert.equal(format.formatNumber("32731.12", { decimals: 2 }), "۳۲٬۷۳۱٫۱۲");
   assert.equal(format.formatNumber("58.3", { decimals: 1 }), "۵۸٫۳");
-  assert.equal(format.formatMoney("4670288949", "IRT"), `${RLI}۴٬۶۷۰٬۲۸۸٬۹۴۹\u00A0ت${PDI}`);
+  assert.equal(format.formatMoney("4670288949", "IRT"), `${RLI}۴٬۶۷۰٬۲۸۸٬۹۴۹ تومان${PDI}`);
   assert.equal(format.faCount("12"), "۱۲");
   assert.equal(format.formatPct("58.3", 1), "۵۸٫۳٪");
   for (const out of [
@@ -158,11 +158,11 @@ test("§3 Persian digits, «٫» decimal, «٬» thousands — no Latin digit, n
   }
 });
 
-test("§3 formatSignedMoney keeps the sign inside one isolate — never «ت+ … ت»", async () => {
+test("§3 formatSignedMoney keeps the sign inside one isolate — never «تومان+ … تومان»", async () => {
   await modulesReady;
   const out = format.formatSignedMoney("-893746171", "IRT");
-  assert.ok(out.includes("ت"), out);
-  assert.equal((out.match(/ت/g) ?? []).length, 1);
+  assert.ok(out.includes("تومان"), out);
+  assert.equal((out.match(/تومان/g) ?? []).length, 1);
   assert.ok(out.includes("−"), out);
   assert.ok(!out.includes("+"), out);
   const zero = format.formatSignedMoney(0, "IRT");
@@ -274,18 +274,18 @@ test("§4 formatSignedMoneyFromUsd keeps the sign inside the single isolate", as
   // Exact-precision conversion: 4.784684… USD × 190,000 = ۹۰۹٬۰۹۰ — the
   // manual page-level «+/−» glue previously re-rounded this to ۹۰۸٬۲۰۰.
   const pos = format.formatSignedMoneyFromUsd("4.784684210526315789", "190000");
-  assert.equal(pos, `${RLI}+۹۰۹٬۰۹۰\u00A0ت${PDI}`);
+  assert.equal(pos, `${RLI}+۹۰۹٬۰۹۰ تومان${PDI}`);
   const neg = format.formatSignedMoneyFromUsd("-4.784684210526315789", "190000");
-  assert.equal(neg, `${RLI}−۹۰۹٬۰۹۰\u00A0ت${PDI}`);
-  // the short unit «ت» appears exactly once — never «ت+ … ت»:
-  assert.equal((neg.match(/ت/g) ?? []).length, 1);
+  assert.equal(neg, `${RLI}−۹۰۹٬۰۹۰ تومان${PDI}`);
+  // «تومان» appears exactly once — never «تومان+ … تومان»:
+  assert.equal((neg.match(/تومان/g) ?? []).length, 1);
   // Zero is unsigned regardless of rate:
   const zero = format.formatSignedMoneyFromUsd(0, "190000");
-  assert.equal(zero, `${RLI}۰\u00A0ت${PDI}`);
+  assert.equal(zero, `${RLI}۰ تومان${PDI}`);
   assert.ok(!zero.includes("+") && !zero.includes("−"), zero);
   // Missing/invalid rate → signed USD fallback, still one isolate:
-  assert.equal(format.formatSignedMoneyFromUsd("-3.5", null), `${RLI}−۳٫۵\u00A0$${PDI}`);
-  assert.equal(format.formatSignedMoneyFromUsd("-3.5", "0"), `${RLI}−۳٫۵\u00A0$${PDI}`);
+  assert.equal(format.formatSignedMoneyFromUsd("-3.5", null), `${RLI}−۳٫۵ دلار${PDI}`);
+  assert.equal(format.formatSignedMoneyFromUsd("-3.5", "0"), `${RLI}−۳٫۵ دلار${PDI}`);
 });
 
 /* ══════════════════════════════════════════════════════════════════════════

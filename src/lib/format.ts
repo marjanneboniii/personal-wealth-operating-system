@@ -74,39 +74,6 @@ export function currencyLabel(currency: string | null | undefined): string {
 }
 
 /*
- * ULTRA-SHORT currency symbols — the SSOT used by every money string that is
- * rendered inside a card, KPI, table cell or chart. The full Persian word
- * («تومان»، «دلار»، «تتر») is 4–5 glyphs wide and was the main reason amounts
- * overflowed narrow cards/columns on mobile (مبلغ از کادر بیرون می‌زد). The
- * short symbol keeps the exact same number readable in a fraction of the room:
- *
- *   ۴٬۶۷۰٬۲۸۸٬۹۴۹ تومان   →   ۴٬۶۷۰٬۲۸۸٬۹۴۹ ت
- *
- * Full words are still available through `currencyLabel()` / `formatMoneyLong()`
- * for form labels, tooltips (`title`) and screen-reader text.
- */
-export const CURRENCY_SYMBOLS: Record<string, string> = {
-  IRT: "ت",
-  IRR: "ر",
-  USD: "$",
-  USDT: "₮",
-  EUR: "€",
-  BTC: "₿",
-};
-
-export function currencySymbol(currency: string | null | undefined): string {
-  if (!currency) return "";
-  const code = String(currency).trim().toUpperCase();
-  return CURRENCY_SYMBOLS[code] ?? String(currency);
-}
-
-/** Currencies displayed without decimals (Toman/Rial). */
-function isZeroDecimalCurrency(currency: string | null | undefined): boolean {
-  const code = String(currency ?? "").trim().toUpperCase();
-  return code === "IRT" || code === "IRR";
-}
-
-/*
  * Unicode bidi isolates (RLI … PDI). Every money string produced by
  * formatMoney is wrapped in them so its visual order is ALWAYS
  * «عدد فارسی → فاصله → نام فارسی ارز» — number first, currency word after —
@@ -122,68 +89,20 @@ export function formatMoney(
   currency = "USD",
   _digits?: DigitStyle,
 ): string {
-  const symbol = currencySymbol(currency);
-  const dp = isZeroDecimalCurrency(currency) ? 0 : 2;
+  const label = currencyLabel(currency);
+  const isZeroDecimals = label === "تومان" || label === "ریال";
+  const dp = isZeroDecimals ? 0 : 2;
   // All financial amounts are rendered for the user in Persian digits with a
   // Persian thousand separator. Trailing zeros are trimmed so whole amounts
-  // read naturally (۱۵٬۹۵۷ $ instead of ۱۵٬۹۵۷٫۰۰ $).
+  // read naturally (۱۵٬۹۵۷ دلار instead of ۱۵٬۹۵۷٫۰۰ دلار).
   const raw = D(value ?? 0)
     .toFixed(dp)
     .replace(/(\.\d*?)0+$/, "$1")
     .replace(/\.$/, "");
   const n = toFaDigits(groupThousands(raw));
-  // Order is ALWAYS: number → NBSP → ultra-short symbol (IRT→ت، USD→$، USDT→₮).
-  // NBSP keeps the unit glued to the number so it can never drop to a new line.
-  return `${RLI}${n}${NBSP}${symbol}${PDI}`;
-}
-
-/**
- * Same amount with the FULL Persian currency word. Only for places where space
- * is not a constraint: `title`/tooltips, printed reports, screen-reader labels
- * and confirmation sentences.
- */
-export function formatMoneyLong(value: string | number, currency = "USD"): string {
-  const label = currencyLabel(currency);
-  const dp = isZeroDecimalCurrency(currency) ? 0 : 2;
-  const raw = D(value ?? 0)
-    .toFixed(dp)
-    .replace(/(\.\d*?)0+$/, "$1")
-    .replace(/\.$/, "");
-  const n = toFaDigits(groupThousands(raw));
+  // Order is ALWAYS: number → NBSP → Persian currency word (IRT→تومان,
+  // USD→دلار, USDT→تتر). NBSP prevents «تومان» wrapping under number on mobile PWA.
   return `${RLI}${n}${NBSP}${label}${PDI}`;
-}
-
-/**
- * COMPACT money for the tightest cells (dense tables, chart labels, KPI tiles
- * on mobile). Huge Toman figures collapse to a scale word so they can never
- * overflow their column: ۴٬۶۷۰٬۲۸۸٬۹۴۹ ت → «۴٫۶۷ میلیارد ت».
- * Amounts below one million keep their exact grouped digits.
- * Always pair with title={formatMoneyLong(...)} so the exact figure stays one
- * hover / long-press away.
- */
-export function formatMoneyCompact(value: string | number, currency = "USD"): string {
-  const symbol = currencySymbol(currency);
-  const dec = D(value ?? 0);
-  const abs = Math.abs(Number(dec.toString()));
-  const sign = dec.isNegative() ? "−" : "";
-  const scales: { limit: number; word: string }[] = [
-    { limit: 1e12, word: "هزار میلیارد" },
-    { limit: 1e9, word: "میلیارد" },
-    { limit: 1e6, word: "میلیون" },
-  ];
-  for (const s of scales) {
-    if (abs >= s.limit) {
-      const scaled = abs / s.limit;
-      const dp = scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2;
-      const trimmed = scaled.toFixed(dp).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
-      const n = toFaDigits(groupThousands(trimmed));
-      return `${RLI}${sign}${n}${NBSP}${s.word}${NBSP}${symbol}${PDI}`;
-    }
-  }
-  const inner = formatMoney(dec.abs().toString(), currency)
-    .replace(/^\u2067/, "")
-    .replace(/\u2069$/, "");
-  return `${RLI}${sign}${inner}${PDI}`;
 }
 
 /**

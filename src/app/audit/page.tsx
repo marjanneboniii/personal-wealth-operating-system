@@ -149,7 +149,7 @@ export default async function AuditPage() {
         {auditRows.length === 0 ? (
           <EmptyState icon="audit" title="هنوز رویدادی ثبت نشده است" body="هر ثبت یا اصلاح در دفترکل، اینجا ردپای ماندگار می‌گذارد." />
         ) : (
-          <div className="card table-wrap">
+          <div className="card overflow-x-auto">
             <table className="table">
               <thead>
                 <tr>
