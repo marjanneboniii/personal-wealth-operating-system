@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, trendArrow, trendColor, trendTone } from "@/lib/format";
+import { currencySymbol, formatMoney, formatMoneyLong, formatPct, formatQty, trendArrow, trendColor, trendTone } from "@/lib/format";
+import { MoneyCell } from "@/components/ui/Card";
 import type { AssetValuation } from "@/features/portfolio/types";
 
 /**
@@ -14,7 +15,7 @@ export default function HoldingsTable({
   toIrt: (usd: string | number) => string | null;
 }) {
   return (
-    <div className="card overflow-x-auto">
+    <div className="card table-wrap">
       <table className="table">
         <thead>
           <tr>
@@ -45,7 +46,7 @@ export default function HoldingsTable({
                         {a.name}
                       </div>
                       <div className="muted truncate text-[10px] font-normal sm:text-[10.5px]" dir="ltr">
-                        {currencyLabel(a.symbol)}
+                        {currencySymbol(a.symbol)}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-1">
                         {a.priceFreshness === "fresh" && <span className="chip text-[9px]">Fresh</span>}
@@ -58,42 +59,52 @@ export default function HoldingsTable({
                 <td className="td-num money-nowrap text-[11px] sm:text-[12px]" dir="rtl">
                   {formatQty(a.quantity, a.decimals)}
                 </td>
-                <td className="td-num money-nowrap" dir="rtl">
+                <td className="td-num" dir="rtl">
                   {a.marketPrice !== "0" && toIrt(a.marketPrice) ? (
-                    <>
-                      <div className="text-[11px] font-medium money-nowrap sm:text-[12px]">
-                        {toIrt(a.marketPrice)}
-                      </div>
-                      <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
-                        ≈ {formatMoney(a.marketPrice)}
-                      </div>
-                    </>
+                    <MoneyCell
+                      align="end"
+                      strong={false}
+                      className="text-[11px] sm:text-[12px]"
+                      title={formatMoneyLong(a.marketPrice)}
+                      value={toIrt(a.marketPrice)}
+                      sub={`≈ ${formatMoney(a.marketPrice)}`}
+                    />
                   ) : (
-                    <div className="text-[11px] font-medium money-nowrap sm:text-[12px]">
-                      {a.priceFreshness === "unavailable" && a.valuationBasis === "cost_basis_fallback"
-                        ? "در دسترس نیست"
-                        : formatMoney(a.marketPrice)}
-                    </div>
+                    <MoneyCell
+                      align="end"
+                      strong={false}
+                      className="text-[11px] sm:text-[12px]"
+                      title={formatMoneyLong(a.marketPrice)}
+                      value={
+                        a.priceFreshness === "unavailable" && a.valuationBasis === "cost_basis_fallback"
+                          ? "در دسترس نیست"
+                          : formatMoney(a.marketPrice)
+                      }
+                    />
                   )}
                 </td>
-                <td className="td-num hidden lg:table-cell money-nowrap text-[11px]" dir="rtl">
-                  <div>{formatMoney(a.costBasis)}</div>
+                <td className="td-num hidden lg:table-cell text-[11px]" dir="rtl">
+                  <MoneyCell align="end" strong={false} className="text-[11px]" title={formatMoneyLong(a.costBasis)} value={formatMoney(a.costBasis)} />
                   <div className="mt-1"><span className="chip text-[9px]">FIFO</span></div>
                 </td>
-                <td className="td-num money-nowrap" dir="rtl">
-                  <div className="num text-[11px] font-bold money-nowrap sm:text-[12px]">{formatMoney(a.currentValueToman, "IRT")}</div>
-                  <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
-                    ≈ {formatMoney(a.currentValue)}
-                  </div>
+                <td className="td-num" dir="rtl">
+                  <MoneyCell
+                    align="end"
+                    className="text-[11px] sm:text-[12px]"
+                    title={formatMoneyLong(a.currentValueToman, "IRT")}
+                    value={formatMoney(a.currentValueToman, "IRT")}
+                    sub={`≈ ${formatMoney(a.currentValue)}`}
+                  />
                 </td>
-                <td className="td-num hidden sm:table-cell money-nowrap" dir="rtl" style={{ color: trendColor(a.unrealizedPnl) }}>
-                  <div className="text-[11px] font-semibold money-nowrap sm:text-[12px]">
-                    {pnlTone === "up" ? "+" : pnlTone === "down" ? "−" : ""}
-                    {formatMoney(pnl.abs().toString())}
-                  </div>
-                  <div className="num text-[9px] money-nowrap sm:text-[10px]">
-                    {trendArrow(a.roiPercentage)} {formatQty(D(a.roiPercentage).abs().toString(), 2)}٪
-                  </div>
+                <td className="td-num hidden sm:table-cell" dir="rtl">
+                  <MoneyCell
+                    align="end"
+                    className="text-[11px] sm:text-[12px]"
+                    color={trendColor(a.unrealizedPnl)}
+                    title={formatMoneyLong(pnl.abs().toString())}
+                    value={`${pnlTone === "up" ? "+" : pnlTone === "down" ? "−" : ""}${formatMoney(pnl.abs().toString())}`}
+                    sub={`${trendArrow(a.roiPercentage)} ${formatQty(D(a.roiPercentage).abs().toString(), 2)}٪`}
+                  />
                 </td>
                 <td className="td-num hidden sm:table-cell money-nowrap text-[11px]" dir="rtl">
                   <span className="num">{formatPct(a.sharePercentage, 2)}</span>

@@ -10,7 +10,7 @@ import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import { ACCOUNT_TYPE_LABELS, ENTRY_TYPE_LABELS, type AccountType, type EntryType } from "@/domain/accounting";
 import { D } from "@/domain/decimal";
-import { currencyLabel, faCount, formatDualDate, formatJalaliIso, formatMoney, formatQty, toFaDigits } from "@/lib/format";
+import { currencySymbol, faCount, formatDualDate, formatJalaliIso, formatMoney, formatQty, toFaDigits } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getUserProMode } from "@/features/preferences/service";
 import { eq, inArray } from "drizzle-orm";
@@ -124,7 +124,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
 
       {/* ── Trial balance (PRO) / simple account summary (default) ── */}
       <Section title={pro ? "تراز آزمایشی" : "خلاصه حساب‌ها"}>
-        <div className="card overflow-x-auto">
+        <div className="card table-wrap">
           <table className="table">
             {pro ? (
               <thead>
@@ -165,7 +165,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                       <span className="badge badge-neutral">{ACCOUNT_TYPE_LABELS[b.type as AccountType]}</span>
                     </td>
                     <td className="td-num" dir="rtl">
-                      {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}
+                      {formatQty(b.quantity, b.assetDecimals)} {currencySymbol(b.symbol)}
                     </td>
                     {pro ? (
                       <>
@@ -283,7 +283,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                           <tr key={i}>
                             <td className="pr-3 font-medium">{l.account}</td>
                             <td className="td-num" dir="rtl">
-                              {formatQty(l.quantity, l.decimals)} {currencyLabel(l.symbol)}
+                              {formatQty(l.quantity, l.decimals)} {currencySymbol(l.symbol)}
                             </td>
                             {pro ? (
                               <>

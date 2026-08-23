@@ -10,7 +10,7 @@ import Icon from "@/components/ui/Icon";
 import MoneyAccountForm from "@/components/forms/MoneyAccountForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, faCount, formatMoney, formatQty, toIrtMoney, toFaDigits } from "@/lib/format";
+import { currencySymbol, faCount, formatMoney, formatQty, toIrtMoney, toFaDigits } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getUserProMode } from "@/features/preferences/service";
 
@@ -176,7 +176,7 @@ export default async function AccountsPage() {
                           <div className="min-w-0">
                             <p className="truncate text-[12.5px] font-medium">{b.name}</p>
                             <p className="muted num text-[10px]" dir="rtl">
-                              {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)} — مانده اصلی
+                              {formatQty(b.quantity, b.assetDecimals)} {currencySymbol(b.symbol)} — مانده اصلی
                             </p>
                           </div>
                           <div className="shrink-0 text-left">

@@ -4,9 +4,9 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, assets, debts, installments } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
-import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
+import { EmptyState, Metric, MoneyCell, PageHeader, Section } from "@/components/ui/Card";
 import RowAction from "@/components/RowAction";
-import { formatDualDate, formatMoney, todayIso, faCount, toIrtMoney } from "@/lib/format";
+import { formatDualDate, formatMoney, formatMoneyLong, todayIso, faCount, toIrtMoney } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -85,7 +85,7 @@ export default async function InstallmentsPage() {
             />
           </div>
         ) : (
-          <div className="card overflow-x-auto">
+          <div className="card table-wrap">
             <table className="table">
               <thead>
                 <tr>
@@ -134,9 +134,14 @@ export default async function InstallmentsPage() {
                                 : `${faCount(d)} روز دیگر`}
                         </span>
                       </td>
-                      <td className="td-num font-bold" dir="rtl">
-                        <div>{r.amountToman != null ? formatMoney(r.amountToman, "IRT") : toIrt(r.amountBase) ?? formatMoney(r.amountBase)}</div>
-                        <div className="muted num text-[9.5px]">≈ {formatMoney(r.amountBase)}</div>
+                      <td className="td-num" dir="rtl">
+                        <MoneyCell
+                          align="end"
+                          className="text-[12px] sm:text-[12.5px]"
+                          title={r.amountToman != null ? formatMoneyLong(r.amountToman, "IRT") : formatMoneyLong(r.amountBase)}
+                          value={r.amountToman != null ? formatMoney(r.amountToman, "IRT") : toIrt(r.amountBase) ?? formatMoney(r.amountBase)}
+                          sub={`≈ ${formatMoney(r.amountBase)}`}
+                        />
                       </td>
                       <td className="text-left">
                         {r.status === "pending" && (

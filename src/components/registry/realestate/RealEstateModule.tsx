@@ -90,7 +90,7 @@ export default function RealEstateModule({
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="table-wrap">
               <table className="table min-w-[1400px] text-[11.5px]">
                 <thead>
                   <tr>

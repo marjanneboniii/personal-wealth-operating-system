@@ -5,7 +5,7 @@ import { getPortfolioValuation } from "@/features/portfolio/service";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoneyFromUsd, toIrtMoney, trendTone } from "@/lib/format";
+import { currencySymbol, formatMoney, formatPct, formatQty, formatSignedMoneyFromUsd, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -75,7 +75,7 @@ export default async function CryptoPage() {
             <Metric
               label="استیبل‌کوین‌ها"
               value={toIrt(stableValue.toString()) ?? formatMoney(stableValue.toString())}
-              hint={fx.rate ? formatMoney(stableValue.toString()) : stable.map((s) => currencyLabel(s.symbol)).join(" · ") || undefined}
+              hint={fx.rate ? formatMoney(stableValue.toString()) : stable.map((s) => currencySymbol(s.symbol)).join(" · ") || undefined}
             />
             <Metric
               label="سود/زیان تحقق‌نیافته"
@@ -138,7 +138,7 @@ export default async function CryptoPage() {
               .filter((b) => b.type === "asset" && b.symbol && cryptoSymbols.has(b.symbol) && Math.abs(Number(b.quantity)) > 0.000001)
               .map((b) => (
                 <span key={b.accountId} className="num mx-1" dir="rtl">
-                  {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}
+                  {formatQty(b.quantity, b.assetDecimals)} {currencySymbol(b.symbol)}
                 </span>
               ))}
           </p>

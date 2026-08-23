@@ -2,9 +2,9 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import { listEvents, listObligations, upcomingInstallments } from "@/features/planning/service";
-import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
+import { Alert, EmptyState, Metric, MoneyCell, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import { formatDualDate, formatMoney, todayIso, faCount, toIrtMoney } from "@/lib/format";
+import { formatDualDate, formatMoney, formatMoneyLong, todayIso, faCount, toIrtMoney } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -143,7 +143,7 @@ export default async function ObligationsPage() {
             />
           </div>
         ) : (
-          <div className="card overflow-x-auto">
+          <div className="card table-wrap">
             <table className="table">
               <thead>
                 <tr>
@@ -173,9 +173,14 @@ export default async function ObligationsPage() {
                           {d < 0 ? `${faCount(Math.abs(d))} روز گذشته` : d === 0 ? "امروز" : `${faCount(d)} روز دیگر`}
                         </span>
                       </td>
-                      <td className="td-num font-bold" dir="rtl">
-                        <div>{toIrt(r.amount) ?? formatMoney(r.amount)}</div>
-                        {fx.rate && <div className="muted num text-[9.5px]">≈ {formatMoney(r.amount)}</div>}
+                      <td className="td-num" dir="rtl">
+                        <MoneyCell
+                          align="end"
+                          className="text-[12px] sm:text-[12.5px]"
+                          title={formatMoneyLong(r.amount)}
+                          value={toIrt(r.amount) ?? formatMoney(r.amount)}
+                          sub={fx.rate ? `≈ ${formatMoney(r.amount)}` : undefined}
+                        />
                       </td>
                     </tr>
                   );
