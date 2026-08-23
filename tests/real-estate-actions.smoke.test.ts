@@ -7,7 +7,7 @@ import { before, mock, test } from "node:test";
 import { db } from "../src/db";
 import { createSchemaIfNotExists } from "../src/db/init-schema";
 import { assets, cities, neighborhoods, propertyTypes, postings, prices, realEstateProperties, journalEntries, exchangeRates } from "../src/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { seedRealEstateMasterData } from "../src/features/rwa/realEstate/masterData";
 import { jalaliToIso } from "../src/lib/format";
 import { D } from "../src/domain/decimal";
@@ -30,12 +30,13 @@ before(async () => {
 
 async function reset() {
   await createSchemaIfNotExists();
+  const registered = await db.select({ assetId: realEstateProperties.assetId }).from(realEstateProperties);
   await db.delete(realEstateProperties);
   await db.delete(postings);
   await db.delete(journalEntries);
   await db.delete(prices);
   await db.delete(exchangeRates);
-  await db.delete(assets).where(sql`symbol like 'RE-%'`);
+  if (registered.length) await db.delete(assets).where(inArray(assets.id, registered.map((row) => row.assetId)));
   await db.delete(neighborhoods);
   await db.delete(propertyTypes);
   await db.delete(cities);
@@ -79,7 +80,7 @@ actions.saveRealEstateAction(null, fd({
   }));
 
   assert.equal(result.ok, true, result.message);
-  assert.match(result.message, /RE-AHZ-KPE-APT-0001/);
+  assert.match(result.message, /شناسه ۰۰۱/);
 
   const [prop] = await db.select().from(realEstateProperties);
   assert.ok(prop);
@@ -89,7 +90,7 @@ actions.saveRealEstateAction(null, fd({
   assert.equal(prop!.isHistorical, true);
   assert.ok(prop!.ledgerEntryId, "ledger link must be stored");
 
-  // Second registration gets sequence 0002.
+  // Second registration gets the next compact RWA identity.
   const result2 = await 
 actions.saveRealEstateAction(null, fd({
     cityId,
@@ -103,7 +104,7 @@ actions.saveRealEstateAction(null, fd({
     currentValueToman: "7000000000",
   }));
   assert.equal(result2.ok, true, result2.message);
-  assert.match(result2.message, /RE-AHZ-KPE-APT-0002/);
+  assert.match(result2.message, /شناسه ۰۰۲/);
 });
 
 test("preview actions return generated identity and USD values", async () => {
@@ -116,7 +117,7 @@ test("preview actions return generated identity and USD values", async () => {
   const id = await 
 actions.previewRealEstateIdentityAction(cityId, neighborhoodId, propertyTypeId);
   assert.equal(id.ok, true);
-  assert.equal(id.symbol, "RE-AHZ-KPE-APT-0001");
+  assert.equal(id.symbol, "001");
   assert.equal(id.assetName, "آپارتمان — اهواز — کیانپارس شرقی");
 
   const usd = await 

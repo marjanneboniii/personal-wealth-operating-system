@@ -1,13 +1,10 @@
 /**
- * Real Estate Display Mapping — فارسی‌سازی Symbol
+ * Real Estate display mapping.
  *
- * Technical Symbol (e.g. RE-AHZ-SDU-APT-000) remains immutable in DB and logic.
- * UI displays Persian name (e.g. "شهرک دانشگاه") as Display Name.
- *
- * This mapping is generic, data-driven, and never hardcodes user financial values.
- * It only maps known master-data codes to their Persian labels, which already
- * exist in the master-data seed. For unknown symbols, it falls back to the
- * Persian asset name or neighborhood name already resolved from DB.
+ * Current assets use compact numeric ids (`001`, …), while location/type come
+ * from relational master data. The parser below remains only as a read-time
+ * fallback for legacy `RE-*` identities that may appear in old backups or
+ * historical audit text; it never drives current identity generation.
  */
 
 import { NEIGHBORHOODS_SEED, CITIES_SEED, PROPERTY_TYPES_SEED } from "./seedData";
@@ -56,11 +53,9 @@ export function getRealEstateDisplayNameFromSymbol(symbol: string): string | nul
 /**
  * Generic display label for a real-estate asset:
  * 1. If DB already resolved Persian neighborhoodNameFa, use it (most accurate, user-scoped).
- * 2. Else, try to derive from technical symbol via seed mapping.
+ * 2. Else, try to derive from a legacy technical symbol via seed mapping.
  * 3. Else, fallback to assetName (which is already Persian, e.g. "آپارتمان — اهواز — شهرک دانشگاه").
  * 4. Else, raw symbol.
- *
- * Technical symbol itself is never mutated.
  */
 export function getRealEstateDisplayLabel(input: {
   symbol?: string | null;

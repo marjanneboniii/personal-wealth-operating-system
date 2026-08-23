@@ -137,7 +137,7 @@ export default function MasterDataAdmin({
           fields={[
             { name: "nameFa", label: "نام فارسی", required: true },
             { name: "nameEn", label: "نام انگلیسی", dir: "ltr", required: true },
-            { name: "code", label: "کد (Symbol)", dir: "ltr", required: true, placeholder: "AHZ" },
+            { name: "code", label: "کد داخلی", dir: "ltr", required: true, placeholder: "AHZ" },
           ]}
         />
         <div className="space-y-1.5">
@@ -181,7 +181,7 @@ export default function MasterDataAdmin({
           fields={[
             { name: "nameFa", label: "نام فارسی", required: true },
             { name: "nameEn", label: "نام انگلیسی", dir: "ltr", required: true },
-            { name: "code", label: "کد (Symbol)", dir: "ltr", required: true, placeholder: "KPE" },
+            { name: "code", label: "کد داخلی", dir: "ltr", required: true, placeholder: "KPE" },
           ]}
         />
         <div className="grid gap-1.5 sm:grid-cols-2">
@@ -210,7 +210,7 @@ export default function MasterDataAdmin({
           fields={[
             { name: "nameFa", label: "نام فارسی", required: true },
             { name: "nameEn", label: "نام انگلیسی", dir: "ltr", required: true },
-            { name: "code", label: "کد (Symbol)", dir: "ltr", required: true, placeholder: "APT" },
+            { name: "code", label: "کد داخلی", dir: "ltr", required: true, placeholder: "APT" },
           ]}
         />
         <div className="grid gap-1.5 sm:grid-cols-2">
@@ -231,8 +231,8 @@ export default function MasterDataAdmin({
       </div>
 
       <div className="muted text-[10.5px] leading-5">
-        کدها در Symbol خودکار استفاده می‌شوند (مثلاً <Code>RE-AHZ-KPE-APT-0001</Code>). پس از ثبت ملک، Symbol تغییرناپذیر
-        است؛ اگر کدی را تغییر دهید فقط روی ملک‌های آینده اثر می‌گذارد.
+        این کدها شناسه‌های داخلی دادهٔ پایه‌اند و برای جست‌وجو و یکپارچگی شهر، محله و نوع ملک استفاده می‌شوند. شناسهٔ
+        دارایی مستقل و به‌شکل عددی کوتاه (مانند <Code>001</Code>) توسط سیستم تولید می‌شود.
       </div>
     </div>
   );
