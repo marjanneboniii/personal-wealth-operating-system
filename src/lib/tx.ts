@@ -1,7 +1,7 @@
 import { ENTRY_TYPE_LABELS, type EntryType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
 import type { LedgerRow } from "@/features/ledger/queries";
-import { currencySymbol, formatQty } from "@/lib/format";
+import { currencyLabel, formatQty } from "@/lib/format";
 
 /**
  * Human rendering of a ledger entry.
@@ -55,7 +55,7 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
   const qtyLeg = positives[0] ?? e.lines[0];
   // Display only: the asset label is shown to the user in Persian
   // (USD→دلار, USDT→تتر, IRT→تومان); unknown tickers (ETH, BTC, …) pass through.
-  const qtyLabel = qtyLeg && qtyLeg.symbol && qtyLeg.symbol !== "USD" && qtyLeg.symbol !== "IRT" ? `${formatQty(qtyLeg.quantity, qtyLeg.decimals ?? 8)} ${currencySymbol(qtyLeg.symbol)}` : null;
+  const qtyLabel = qtyLeg && qtyLeg.symbol && qtyLeg.symbol !== "USD" && qtyLeg.symbol !== "IRT" ? `${formatQty(qtyLeg.quantity, qtyLeg.decimals ?? 8)} ${currencyLabel(qtyLeg.symbol)}` : null;
 
   return {
     amount: amount.toFixed(2),

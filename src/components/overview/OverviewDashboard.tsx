@@ -9,14 +9,13 @@ import {
 } from "@/features/ledger/queries";
 import { projectCashflow, upcomingInstallments } from "@/features/planning/service";
 import { getSetupState } from "@/features/setup/service";
-import { Alert, Delta, EmptyState, MoneyCell, Section, SectionLink } from "@/components/ui/Card";
+import { Alert, Delta, EmptyState, Section, SectionLink } from "@/components/ui/Card";
 import { AreaChart, BarsChart, Donut } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
 import { humanizeEntry, moneyFlowLabel } from "@/lib/tx";
 import { D } from "@/domain/decimal";
 import {
   formatMoney,
-  formatMoneyLong,
   formatPct,
   formatShortDate,
   formatSignedMoney,
@@ -170,11 +169,7 @@ export default async function OverviewDashboard() {
           <div className="min-w-0 flex-1">
             <p className="muted text-[11px] font-medium">ارزش خالص دارایی</p>
             <div className="mt-1.5 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 sm:gap-y-2">
-              <span
-                className="money-hero text-[24px] sm:text-[28px] lg:text-[32px] font-bold leading-[1.15] tracking-tight money-nowrap"
-                dir="rtl"
-                title={nw.netWorthToman ? formatMoneyLong(nw.netWorthToman, "IRT") : formatMoneyLong(nw.netWorth)}
-              >
+              <span className="money-hero text-[24px] sm:text-[28px] lg:text-[32px] font-bold leading-[1.15] tracking-tight money-nowrap" dir="rtl">
                 {nw.netWorthToman ? formatMoney(nw.netWorthToman, "IRT") : formatMoney(nw.netWorth)}
               </span>
               {lastSnap && (
@@ -226,13 +221,12 @@ export default async function OverviewDashboard() {
             ].map((m) => (
             <div key={m.label} className="min-w-0 px-2.5 first:pr-0 last:pl-0 sm:px-4" style={{ borderColor: "var(--border)" }}>
               <p className="muted truncate text-[10px] sm:text-[11px]">{m.label}</p>
-              <MoneyCell
-                className="mt-1 text-[12px] leading-[1.3] sm:text-[14px]"
-                color={m.tone}
-                title={formatMoneyLong(D(m.toman).abs().toString(), "IRT")}
-                value={formatMoney(D(m.toman).abs().toString(), "IRT")}
-                sub={<span className="hidden sm:inline">≈ {formatMoney(m.value)}</span>}
-              />
+              <p className="num mt-1 text-[12px] font-bold leading-[1.3] money-nowrap sm:text-[14px]" dir="rtl" style={{ color: m.tone }}>
+                {formatMoney(D(m.toman).abs().toString(), "IRT")}
+              </p>
+              <p className="muted num mt-0.5 hidden text-[10px] money-nowrap sm:block sm:text-[10.5px]">
+                ≈ {formatMoney(m.value)}
+              </p>
             </div>
           ))}
         </div>

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { D } from "@/domain/decimal";
-import { formatDate, formatMoney, formatMoneyLong, formatNumber, formatPct, toFaDigits } from "@/lib/format";
+import { formatDate, formatMoney, formatNumber, formatPct, toFaDigits } from "@/lib/format";
 import type { RegistryResult } from "@/app/actions/registry";
 
 /* ─────────────────────────── money display — compact & nowrap ─────────────────────────── */
@@ -10,7 +10,7 @@ import type { RegistryResult } from "@/app/actions/registry";
 export function Toman({ value, className = "" }: { value: string | number | null | undefined; className?: string }) {
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   return (
-    <span className={`num money-nowrap text-[12px] sm:text-[13px] ${className}`} dir="rtl" title={formatMoneyLong(value, "IRT")}>
+    <span className={`num money-nowrap text-[12px] sm:text-[13px] ${className}`} dir="rtl">
       {formatMoney(value, "IRT")}
     </span>
   );
@@ -19,7 +19,7 @@ export function Toman({ value, className = "" }: { value: string | number | null
 export function Usd({ value, className = "" }: { value: string | number | null | undefined; className?: string }) {
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   return (
-    <span className={`num rtl-isolate money-nowrap text-[12px] sm:text-[13px] ${className}`} dir="rtl" title={formatMoneyLong(value, "USD")}>
+    <span className={`num rtl-isolate money-nowrap text-[12px] sm:text-[13px] ${className}`} dir="rtl">
       {formatMoney(value, "USD")}
     </span>
   );
@@ -38,7 +38,7 @@ export function DeltaToman({ value }: { value: string | number | null | undefine
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   const { color, sign } = toneOf(value);
   return (
-    <span className="num money-nowrap text-[12px] sm:text-[13px]" style={{ color }} dir="rtl" title={formatMoneyLong(D(value).abs().toString(), "IRT")}>
+    <span className="num money-nowrap text-[12px] sm:text-[13px]" style={{ color }} dir="rtl">
       {sign}
       {formatMoney(D(value).abs().toString(), "IRT")}
     </span>
@@ -49,7 +49,7 @@ export function DeltaUsd({ value }: { value: string | number | null | undefined 
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   const { color, sign } = toneOf(value);
   return (
-    <span className="num rtl-isolate money-nowrap text-[12px] sm:text-[13px]" style={{ color }} dir="rtl" title={formatMoneyLong(D(value).abs().toString(), "USD")}>
+    <span className="num rtl-isolate money-nowrap text-[12px] sm:text-[13px]" style={{ color }} dir="rtl">
       {sign}
       {formatMoney(D(value).abs().toString(), "USD")}
     </span>

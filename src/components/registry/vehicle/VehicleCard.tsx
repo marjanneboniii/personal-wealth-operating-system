@@ -186,7 +186,7 @@ export default function VehicleCard({ item }: { item: VehicleDashboardItem }) {
 
 function PerformanceTable({ periods }: { periods: VehicleDashboardItem["periods"] }) {
   return (
-    <div className="table-wrap">
+    <div className="overflow-x-auto">
       <table className="table">
         <thead>
           <tr>
@@ -243,7 +243,7 @@ function HistoryTable({
     return <p className="muted text-[11.5px]">هنوز هیچ Snapshot ارزش‌گذاری برای این خودرو ثبت نشده است.</p>;
   }
   return (
-    <div className="table-wrap">
+    <div className="overflow-x-auto">
       <table className="table">
         <thead>
           <tr>

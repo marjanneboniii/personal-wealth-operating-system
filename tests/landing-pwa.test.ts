@@ -311,7 +311,7 @@ test("Application currency system is unchanged — تومان، دلار، تت�
   assert.match(moneyForm, /تومان/);
   assert.match(moneyForm, /دلار/);
   assert.match(moneyForm, /تتر/);
-  assert.match(dual, /formatDualMoney/);
+  assert.match(dual, /formatMoney/);
   assert.match(fx, /نرخ دلار/);
 
   assert.doesNotMatch(landing, /\$184,240/);

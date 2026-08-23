@@ -1819,11 +1819,7 @@ body {
 
 /* Improve tap targets & spacing on mobile for all cards */
 @media (max-width: 640px) {
-  /* NOTE: cards that host a scrollable table (overflow-x-auto / .table-wrap)
-     must NOT be clipped — clipping them was cutting long money values
-     (e.g. قیمت ملک) off the screen with no way to scroll to them. */
-  .card:not([class*="overflow-"]):not(.table-wrap):not(:has(.table)),
-  .soft:not([class*="overflow-"]):not(:has(.table)) {
+  .card, .soft {
     overflow: hidden;
   }
   /* Any flex row with money should not allow wrap of unit */
@@ -1838,99 +1834,3 @@ body {
   }
 }
 
-
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Money layout — app-wide, all modules, all users
-   Root causes fixed here:
-     1) the currency word («تومان») ate the whole width of a cell/card,
-     2) cards clipped their scrollable tables so long amounts were unreachable,
-     3) numbers touched the card border with no padding («تومان به کادر چسبیده»).
-   The currency unit itself is now an ultra-short symbol (ت / $ / ₮) produced
-   by formatMoney() in src/lib/format.ts — this file only handles the layout.
-   ══════════════════════════════════════════════════════════════════════════ */
-
-/* A money value that always stays on ONE tidy line, never touching an edge. */
-.money-cell {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  min-width: 0;
-  max-width: 100%;
-  white-space: nowrap;
-  word-break: keep-all;
-  font-variant-numeric: tabular-nums lining-nums;
-}
-.money-cell > * {
-  white-space: nowrap;
-  word-break: keep-all;
-}
-/* Secondary (≈ equivalent) line, always quieter and smaller. */
-.money-sub {
-  font-size: 0.62rem;
-  line-height: 1.35;
-  opacity: 0.72;
-  white-space: nowrap;
-}
-
-/* Number on the first line, unit under it — for very narrow KPI tiles. */
-.money-stack {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1.2;
-}
-
-/* Scrollable table container — the ONLY correct wrapper for `.table`. */
-.table-wrap {
-  max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-}
-.table-wrap > .table {
-  min-width: max-content;
-}
-
-/* Never let a card clip a table that needs to scroll. */
-.card.overflow-x-auto,
-.card:has(.table) {
-  overflow-x: auto;
-  overflow-y: visible;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Money columns: breathing room from the card edge + hard nowrap. */
-.table .td-num,
-.table td.td-num,
-.table th.td-num {
-  padding-inline: 0.85rem;
-  white-space: nowrap !important;
-  word-break: keep-all !important;
-}
-.table tr > *:first-child { padding-inline-start: 0.9rem; }
-.table tr > *:last-child { padding-inline-end: 0.9rem; }
-
-/* Overview summary tiles — tidy columns, unit never glued to the divider. */
-.overview-summary > div {
-  padding-inline: 0.6rem;
-  min-width: 0;
-}
-.overview-summary > div:first-child { padding-inline-start: 0; }
-.overview-summary > div:last-child { padding-inline-end: 0; }
-.overview-summary .num,
-.overview-summary .money-cell {
-  white-space: nowrap;
-  word-break: keep-all;
-  max-width: 100%;
-}
-
-@media (max-width: 640px) {
-  .table-wrap > .table { min-width: max-content; }
-  .table .td-num { padding-inline: 0.55rem; }
-  .money-sub { font-size: 0.58rem; }
-  .overview-summary > div { padding-inline: 0.4rem !important; }
-}
