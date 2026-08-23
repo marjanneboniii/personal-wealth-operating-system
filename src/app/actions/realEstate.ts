@@ -12,7 +12,7 @@ import {
   previewRealEstateIdentity,
   recordRealEstateValuation,
 } from "@/features/rwa/realEstate/service";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, toFaDigits } from "@/lib/format";
 import { tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { resolveUsdRateForDate } from "@/features/rwa/vehicle/fx";
 import {
@@ -136,14 +136,14 @@ export async function saveRealEstateAction(_previous: RealEstateResult | null, f
     refresh();
     return {
       ok: true,
-      message: `ملک «${result.assetName}» با نماد ${result.symbol} ثبت شد. معادل‌های دلاری با نرخ تاریخی همان روزها محاسبه و سند افتتاحیه دفترکل با تاریخ تملک واقعی ایجاد شد.`,
+      message: `ملک «${result.assetName}» با شناسه ${toFaDigits(result.symbol)} ثبت شد. معادل‌های دلاری با نرخ تاریخی همان روزها محاسبه و سند افتتاحیه دفترکل با تاریخ تملک واقعی ایجاد شد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت ملک ناموفق بود." };
   }
 }
 
-/** پیش‌نمایش نام و Symbol تولیدشده توسط سیستم (بدون ذخیره‌سازی). */
+/** پیش‌نمایش نام و شناسه کوتاه تولیدشده توسط سیستم (بدون ذخیره‌سازی). */
 export async function previewRealEstateIdentityAction(
   cityId: string,
   neighborhoodId: string,
@@ -155,7 +155,7 @@ export async function previewRealEstateIdentityAction(
     if (!preview) return { ok: false, message: "داده پایه یافت نشد." };
     return { ok: true, assetName: preview.assetName, symbol: preview.symbol, sequence: preview.sequence };
   } catch {
-    return { ok: false, message: "پیش‌نمایش نام/Symbol در دسترس نیست." };
+    return { ok: false, message: "پیش‌نمایش نام/شناسه در دسترس نیست." };
   }
 }
 

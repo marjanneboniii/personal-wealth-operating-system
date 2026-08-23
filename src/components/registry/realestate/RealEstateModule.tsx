@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { formatDualDate } from "@/lib/format";
+import { formatDualDate, toFaDigits } from "@/lib/format";
 import type { RealEstateDashboardItem, RealEstatePortfolioSummary } from "@/features/rwa/realEstate/service";
 import type { City, Neighborhood, PropertyType } from "@/features/rwa/realEstate/types";
 import MasterDataAdmin from "./MasterDataAdmin";
@@ -82,8 +82,8 @@ export default function RealEstateModule({
             <div className="py-10 text-center">
               <p className="text-[13px] font-semibold">هنوز ملکی ثبت نشده است</p>
               <p className="muted mx-auto mt-1 max-w-md text-[11.5px] leading-6">
-                شهر و محله و نوع ملک را از فهرست انتخاب کنید؛ نام و Symbol به‌صورت خودکار تولید می‌شوند و معادل‌های دلاری
-                با نرخ تاریخی همان روزها محاسبه می‌شوند.
+                شهر و محله و نوع ملک را از فهرست انتخاب کنید؛ نام و شناسه کوتاه به‌صورت خودکار تولید می‌شوند و معادل‌های
+                دلاری با نرخ تاریخی همان روزها محاسبه می‌شوند.
               </p>
               <button className="btn btn-primary mt-3" onClick={() => setTab("add")}>
                 ثبت ملک
@@ -96,7 +96,7 @@ export default function RealEstateModule({
                   <tr>
                     <th>نام دارایی</th>
                     <th>نمایش فارسی</th>
-                    <th>Symbol فنی</th>
+                    <th>شناسه دارایی</th>
                     <th>نوع ملک</th>
                     <th>شهر</th>
                     <th>منطقه / محله</th>
@@ -136,8 +136,8 @@ export default function RealEstateModule({
                           <td className="font-semibold">
                             {displayFa}
                           </td>
-                          <td className="font-mono text-[10.5px]" dir="ltr">
-                            {item.symbol}
+                          <td className="num text-[11.5px] font-semibold">
+                            {toFaDigits(item.symbol)}
                           </td>
                           <td>{item.propertyTypeNameFa ?? item.propertyType ?? "—"}</td>
                           <td>{item.cityNameFa ?? item.cityNameEn ?? "—"}</td>

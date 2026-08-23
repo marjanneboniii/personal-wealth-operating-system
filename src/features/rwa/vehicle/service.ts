@@ -14,12 +14,13 @@
  *   Current Value   = the latest valuation SNAPSHOT (never today's FX rate)
  */
 
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { assetClasses, assets, rwaOwnershipRecords, vehicleAssets } from "@/db/schema";
 import { ensureSchemaOnce } from "@/db/init-schema";
 import { D } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
+import { nextRwaSymbol } from "@/features/rwa/symbol";
 import type { CreateVehicleInput, VehicleAsset } from "../types";
 import {
   getCatalogModel,
@@ -187,18 +188,6 @@ async function ensureRwaAssetClassId(): Promise<string> {
   return klass.id;
 }
 
-async function nextVehicleSymbol(): Promise<string> {
-  const [row] = await db.select({ c: sql<number>`count(*)::int` }).from(vehicleAssets);
-  let n = (Number(row?.c ?? 0) || 0) + 1;
-  for (let i = 0; i < 500; i++) {
-    const symbol = `VEH-${String(n).padStart(4, "0")}`;
-    const [clash] = await db.select({ id: assets.id }).from(assets).where(eq(assets.symbol, symbol)).limit(1);
-    if (!clash) return symbol;
-    n++;
-  }
-  return `VEH-${Date.now().toString(36).toUpperCase()}`;
-}
-
 /* ───────────────────────── create / update ───────────────────────── */
 
 /**
@@ -207,7 +196,7 @@ async function nextVehicleSymbol(): Promise<string> {
  *  - سال ساخت، تاریخ تملک و قیمت خرید اجباری
  *  - معادل دلاری قیمت خرید با نرخ دلارِ «تاریخ تملک» محاسبه و ذخیره می‌شود
  */
-export async function createUserVehicle(input: CreateUserVehicleInput): Promise<{ id: string; assetId: string }> {
+export async function createUserVehicle(input: CreateUserVehicleInput): Promise<{ id: string; assetId: string; symbol: string }> {
   if (!input.catalogId) throw new Error("خودرو باید از فهرست (کاتالوگ) انتخاب شود.");
   const model = await getCatalogModel(input.catalogId);
   if (!model) throw new Error("خودروی انتخاب‌شده در کاتالوگ یافت نشد.");
@@ -231,33 +220,41 @@ export async function createUserVehicle(input: CreateUserVehicleInput): Promise<
   const purchaseValueUsd = tomanToUsd(purchase.toFixed(0), purchaseUsdRate);
 
   const classId = await ensureRwaAssetClassId();
-  const symbol = await nextVehicleSymbol();
   const name = `${model.brandName} ${model.modelName} (${year})`;
 
-  const [asset] = await db
-    .insert(assets)
-    .values({ name, symbol, classId, decimals: 2, priceSource: "manual" })
-    .returning();
+  // Asset identity and vehicle row commit atomically. Locking the shared RWA
+  // class row also serialises the compact numeric sequence with properties.
+  const { asset, row, symbol } = await db.transaction(async (tx) => {
+    const symbol = await nextRwaSymbol(tx, classId);
+    const [asset] = await tx
+      .insert(assets)
+      .values({ name, symbol, classId, decimals: 2, priceSource: "manual" })
+      .returning();
+    if (!asset) throw new Error("ایجاد رکورد دارایی خودرو ناموفق بود.");
 
-  const [row] = await db
-    .insert(vehicleAssets)
-    .values({
-      assetId: asset.id,
-      userId: input.userId ?? null,
-      catalogId: model.id,
-      brand: model.brandName,
-      model: model.modelName,
-      year,
-      ownershipDate,
-      purchasePriceToman: purchase.toFixed(0),
-      purchaseUsdRate: D(purchaseUsdRate).toString(),
-      purchaseValueUsd,
-      licensePlate: input.plate?.trim() || null,
-      mileage: Number.isFinite(Number(input.mileage)) && input.mileage != null ? Number(input.mileage) : null,
-      status: "active",
-      notes: input.notes?.trim() || null,
-    })
-    .returning();
+    const [row] = await tx
+      .insert(vehicleAssets)
+      .values({
+        assetId: asset.id,
+        userId: input.userId ?? null,
+        catalogId: model.id,
+        brand: model.brandName,
+        model: model.modelName,
+        year,
+        ownershipDate,
+        purchasePriceToman: purchase.toFixed(0),
+        purchaseUsdRate: D(purchaseUsdRate).toString(),
+        purchaseValueUsd,
+        licensePlate: input.plate?.trim() || null,
+        mileage: Number.isFinite(Number(input.mileage)) && input.mileage != null ? Number(input.mileage) : null,
+        status: "active",
+        notes: input.notes?.trim() || null,
+      })
+      .returning();
+    if (!row) throw new Error("ثبت خودروی کاربر ناموفق بود.");
+
+    return { asset, row, symbol };
+  });
 
   // Optional first valuation snapshot (never derived from the purchase price).
   if (input.initialValuation && D(input.initialValuation.valueToman ?? "0").gt(0)) {
@@ -273,7 +270,7 @@ export async function createUserVehicle(input: CreateUserVehicleInput): Promise<
     });
   }
 
-  return { id: row.id, assetId: asset.id };
+  return { id: row.id, assetId: asset.id, symbol };
 }
 
 /** Mutable, non-historical details only (plate + mileage + notes). */

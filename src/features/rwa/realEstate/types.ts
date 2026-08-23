@@ -11,8 +11,9 @@
  *        ↓
  *   General Ledger (opening entry dated at the REAL acquisition date)
  *
- * The symbol is 100% system-generated, unique and immutable:
- *   RE-AHZ-KPE-APT-0001   (Real Estate · Ahvaz · Kianpars East · Apartment · seq)
+ * The symbol is 100% system-generated, unique and immutable. It uses the
+ * compact global RWA sequence (`001`, `002`, …); location/type identity stays
+ * in the relational master-data fields instead of being duplicated in it.
  */
 
 export type FxRateResolution = {

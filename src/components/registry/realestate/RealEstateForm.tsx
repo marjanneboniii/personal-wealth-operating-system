@@ -29,9 +29,9 @@ function digitsOnly(v: string) {
 /**
  * فرم ثبت ملک — دارایی واقعی → ملک.
  *
- * ❌ هیچ فیلد آزاد برای نام دارایی، Symbol، شهر، محله یا نوع ملک وجود ندارد.
+ * ❌ هیچ فیلد آزاد برای نام دارایی، شناسه، شهر، محله یا نوع ملک وجود ندارد.
  * ✅ شهر → محله → نوع ملک از Master Data انتخاب می‌شوند (کاوش‌گر مرحله‌ای).
- * ✅ نام و Symbol توسط سیستم تولید می‌شوند و به‌صورت زنده پیش‌نمایش می‌شوند.
+ * ✅ نام و شناسه کوتاه توسط سیستم تولید و به‌صورت زنده پیش‌نمایش می‌شوند.
  * ✅ تاریخ‌ها فقط شمسی وارد می‌شوند؛ میلادی خودکار محاسبه می‌شود.
  * ✅ معادل دلاری با نرخِ همان تاریخِ تملک/ارزش‌گذاری محاسبه می‌شود.
  */
@@ -79,7 +79,7 @@ export default function RealEstateForm({
   const [loadingPurchase, setLoadingPurchase] = useState(false);
   const [loadingValuation, setLoadingValuation] = useState(false);
 
-  /* پیش‌نمایش نام و Symbol تولیدشده */
+  /* پیش‌نمایش نام و شناسه کوتاه تولیدشده */
   const canPreviewIdentity = !!cityId && !!neighborhoodId && !!propertyTypeId;
   useEffect(() => {
     if (!canPreviewIdentity) return;
@@ -231,7 +231,7 @@ export default function RealEstateForm({
 
       </section>
 
-      {/* ── نام و Symbol — تولید خودکار ── */}
+      {/* ── نام و شناسه کوتاه — تولید خودکار ── */}
       <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="min-w-0">
@@ -240,8 +240,8 @@ export default function RealEstateForm({
             </div>
           </div>
           <div className="min-w-0">
-            <div className="mt-0.5 font-mono text-[12.5px] font-semibold" dir="ltr" style={{ color: "var(--brand)" }}>
-              {loadingIdentity ? "…" : identityPreview?.symbol ?? "—"}
+            <div className="mt-0.5 text-[12.5px] font-semibold" style={{ color: "var(--brand)" }}>
+              شناسه: <span className="num">{loadingIdentity ? "…" : identityPreview?.symbol ? toFaDigits(identityPreview.symbol) : "—"}</span>
             </div>
           </div>
           {identityPreview?.sequence && identityPreview.sequence > 1 && (

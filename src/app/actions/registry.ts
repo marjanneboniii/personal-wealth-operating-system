@@ -18,8 +18,9 @@ import {
   listVehicleBrands,
 } from "@/features/rwa/vehicle/catalog";
 import { recordVehicleValuationSnapshot } from "@/features/rwa/vehicle/valuation";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, toFaDigits } from "@/lib/format";
 import { resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
+import { nextRwaSymbol } from "@/features/rwa/symbol";
 import { createOwnershipRecord } from "@/features/rwa/ownership/service";
 import { createValuationEvent } from "@/features/rwa/valuation/service";
 import { createCategory, createCommodityItem, recordPricePoint } from "@/features/commodities/service";
@@ -104,9 +105,9 @@ const optional = (f: FormData, key: string) => val(f,key) || undefined;
 const numeric = (f: FormData, key: string) => val(f, key).replace(/[,٬\s]/g, "");
 
 async function rwaAsset(form: FormData) {
-  const name = val(form,"name"), symbol = val(form,"symbol").toUpperCase();
+  const name = val(form,"name");
   const kind = val(form,"kind") || "property";
-  if (!name || !symbol) throw new Error("نام و نماد دارایی الزامی است.");
+  if (!name) throw new Error("نام دارایی الزامی است.");
   let [klass] = await db.select().from(assetClasses).where(eq(assetClasses.code, "RWA")).limit(1);
   if (!klass) {
     [klass] = await db.insert(assetClasses).values({ code:"RWA", name:"دارایی واقعی", color:"#12131c", sortOrder:90 }).onConflictDoNothing().returning();
@@ -114,7 +115,15 @@ async function rwaAsset(form: FormData) {
   }
   const classId = klass?.id;
   if (!classId) throw new Error("کلاس دارایی واقعی ایجاد نشد.");
-  const [asset] = await db.insert(assets).values({ name, symbol, classId, decimals: 2, priceSource:"manual", pricingMethod:"manual" }).onConflictDoUpdate({target: assets.symbol, set:{name, pricingMethod:"manual"}}).returning();
+  const asset = await db.transaction(async (tx) => {
+    const symbol = await nextRwaSymbol(tx, classId);
+    const [created] = await tx
+      .insert(assets)
+      .values({ name, symbol, classId, decimals: 2, priceSource: "manual", pricingMethod: "manual" })
+      .returning();
+    if (!created) throw new Error("ایجاد رکورد دارایی ناموفق بود.");
+    return created;
+  });
   return { asset, kind };
 }
 
@@ -218,7 +227,7 @@ export async function saveVehicleAction(_previous: RegistryResult | null, form: 
     });
 
     refresh();
-    return { ok: true, message: `خودرو ثبت شد. معادل دلاری قیمت خرید بر اساس نرخ همان تاریخ ذخیره شد (شناسه دارایی: ${result.assetId.slice(0, 8)}…).` };
+    return { ok: true, message: `خودرو با شناسه ${toFaDigits(result.symbol)} ثبت شد. معادل دلاری قیمت خرید بر اساس نرخ همان تاریخ ذخیره شد.` };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت خودرو ناموفق بود." };
   }

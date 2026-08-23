@@ -5,7 +5,7 @@ import { useActionState, useState } from "react";
 import { recordRealEstateValuationAction } from "@/app/actions/realEstate";
 import JalaliDateInput from "@/components/ui/JalaliDateInput";
 import AmountInput from "@/components/ui/AmountInput";
-import { formatJalaliIso } from "@/lib/format";
+import { formatJalaliIso, toFaDigits } from "@/lib/format";
 import type { RealEstateDashboardItem } from "@/features/rwa/realEstate/service";
 import { DeltaPct, DeltaToman, DeltaUsd, DetailRow, FxRateInfo, Hint, JDate, Labeled, Result, Toman, Usd, faNum } from "./shared";
 import { getRealEstateDisplayLabel } from "@/features/rwa/realEstate/display";
@@ -51,10 +51,8 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
               })}
             </span>
           </DetailRow>
-          <DetailRow label="Symbol فنی">
-            <span className="muted text-[11px] font-normal">
-              <Ltr>{a.symbol}</Ltr>
-            </span>
+          <DetailRow label="شناسه دارایی">
+            <span className="num font-semibold">{toFaDigits(a.symbol)}</span>
           </DetailRow>
           <DetailRow label="نوع ملک">
             {a.propertyTypeNameFa ?? a.propertyType ?? "—"}
