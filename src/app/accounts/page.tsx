@@ -153,7 +153,7 @@ export default async function AccountsPage() {
                         <Icon name="wallet" size={15} />
                       </span>
                       <div>
-                        <p className="text-[13.5px] font-semibold">{walletName}</p>
+                        <p className="text-[12px] sm:text-[13px] font-semibold">{walletName}</p>
                         <p className="muted text-[10px]">
                           {walletMeta ? WALLET_KIND[walletMeta.kind] ?? walletMeta.kind : "حساب"}
                           {walletMeta?.institution ? ` · ${walletMeta.institution}` : walletMeta?.network ? ` · ${walletMeta.network}` : ""}
@@ -161,7 +161,7 @@ export default async function AccountsPage() {
                       </div>
                     </div>
                     <div className="text-left">
-                      <p className="num text-[14px] font-bold" dir="rtl">
+                      <p className="num text-[12px] sm:text-[12px] sm:text-[13px] font-bold money-nowrap money-nowrap" dir="rtl">
                         {walletPrimary}
                       </p>
                       {!irtOnly && toIrt(walletTotal.toString()) && <p className="muted num text-[10.5px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(walletTotal.toString())}</p>}
@@ -180,7 +180,7 @@ export default async function AccountsPage() {
                             </p>
                           </div>
                           <div className="shrink-0 text-left">
-                            <p className="num text-[12.5px] font-bold" dir="rtl">
+                            <p className="num text-[11px] sm:text-[12px] font-bold money-nowrap" dir="rtl">
                               {bal}
                             </p>
                             {val && (
@@ -216,7 +216,7 @@ export default async function AccountsPage() {
                     )}
                   </div>
                   <div className="text-left">
-                    <p className="num text-[13px] font-bold" dir="rtl" style={{ color: "var(--negative)" }}>
+                    <p className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl" style={{ color: "var(--negative)" }}>
                       {toIrt(D(b.baseValue).abs().toString()) ?? formatMoney(D(b.baseValue).abs().toString())}
                     </p>
                     {toIrt(D(b.baseValue).abs().toString()) && (
@@ -235,7 +235,7 @@ export default async function AccountsPage() {
       <Section title="دفتر حساب‌ها">
         <details className="card group overflow-hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-            <span className="text-[13.5px] font-semibold">نمودار کامل حساب‌ها (Chart of Accounts)</span>
+            <span className="text-[12px] sm:text-[13px] font-semibold">نمودار کامل حساب‌ها (Chart of Accounts)</span>
             <span className="muted transition-transform group-open:rotate-180">
               <Icon name="chevronDown" size={15} />
             </span>
@@ -271,7 +271,7 @@ export default async function AccountsPage() {
       <Section title="معرفی حساب یا کیف‌پول جدید">
         <details className="card group overflow-hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-            <span className="text-[13.5px] font-semibold">افزودن حساب جدید</span>
+            <span className="text-[12px] sm:text-[13px] font-semibold">افزودن حساب جدید</span>
             <span className="muted transition-transform group-open:rotate-180">
               <Icon name="chevronDown" size={15} />
             </span>

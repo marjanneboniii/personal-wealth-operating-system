@@ -43,9 +43,9 @@ export function FxRateInfo({
 }) {
   if (!rate) return <span className="muted">—</span>;
   return (
-    <span className="num" dir="rtl">
+    <span className="num money-nowrap text-[11px] sm:text-[12px]" dir="rtl">
       {formatMoney(rate, "IRT")}
-      <span className="muted text-[9.5px]">
+      <span className="muted text-[9px] sm:text-[9.5px]">
         {" "}
         · {source ? (RATE_SOURCE_LABEL[source] ?? source) : ""}
         {effectiveDate ? ` (${effectiveDate})` : ""}
@@ -56,9 +56,9 @@ export function FxRateInfo({
 
 export function DetailRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b py-2 text-[11.5px] last:border-0" style={{ borderColor: "var(--border)" }}>
-      <span className="muted">{label}</span>
-      <span className="font-medium">{children}</span>
+    <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 border-b py-2 text-[11px] last:border-0 sm:gap-x-3 sm:text-[11.5px]" style={{ borderColor: "var(--border)" }}>
+      <span className="muted shrink-0">{label}</span>
+      <span className="font-medium min-w-0 text-left money-nowrap">{children}</span>
     </div>
   );
 }

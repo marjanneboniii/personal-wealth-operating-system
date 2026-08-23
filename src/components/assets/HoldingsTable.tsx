@@ -4,8 +4,7 @@ import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, tr
 import type { AssetValuation } from "@/features/portfolio/types";
 
 /**
- * Holdings valuation table — shared by Portfolio and Crypto.
- * Dense on desktop, progressive disclosure on mobile (PnL columns drop).
+ * Holdings valuation table — compact for mobile PWA, nowrap money.
  */
 export default function HoldingsTable({
   rows,
@@ -31,77 +30,73 @@ export default function HoldingsTable({
         <tbody>
           {rows.map((a) => {
             const pnl = D(a.unrealizedPnl);
-            // ZERO IS ALWAYS NEUTRAL (Directive §2): a flat position is never
-            // painted green/red and gets neither a "+" nor an "↑".
             const pnlTone = trendTone(a.unrealizedPnl);
             return (
               <tr key={a.assetId}>
-                <td>
-                  <div className="flex items-center gap-2.5">
+                <td className="min-w-0">
+                  <div className="flex items-center gap-2 sm:gap-2.5">
                     {a.logoUrl ? (
-                      <img src={a.logoUrl} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-full" referrerPolicy="no-referrer" />
+                      <img src={a.logoUrl} alt="" width={28} height={28} className="h-6 w-6 shrink-0 rounded-full sm:h-7 sm:w-7" referrerPolicy="no-referrer" />
                     ) : (
-                      <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: a.classColor }} />
+                      <i className="h-2 w-2 shrink-0 rounded-[3px] sm:h-2.5 sm:w-2.5" style={{ background: a.classColor }} />
                     )}
                     <div className="min-w-0">
-                      <div className="truncate text-[13px] font-semibold tracking-tight" dir="rtl">
+                      <div className="truncate text-[12px] font-semibold tracking-tight sm:text-[13px]" dir="rtl">
                         {a.name}
                       </div>
-                      <div className="muted truncate text-[10.5px] font-normal" dir="ltr">
+                      <div className="muted truncate text-[10px] font-normal sm:text-[10.5px]" dir="ltr">
                         {currencyLabel(a.symbol)}
                       </div>
-                      {/* Freshness chips — own padded row, clear of the name */}
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        {a.priceFreshness === "fresh" && <span className="chip">Fresh</span>}
-                        {a.priceFreshness === "stale" && <span className="chip" style={{ color: "var(--warning)" }}>Stale</span>}
-                        {a.priceFreshness === "unavailable" && <span className="chip" style={{ color: "var(--negative)" }}>Unavailable</span>}
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        {a.priceFreshness === "fresh" && <span className="chip text-[9px]">Fresh</span>}
+                        {a.priceFreshness === "stale" && <span className="chip text-[9px]" style={{ color: "var(--warning)" }}>Stale</span>}
+                        {a.priceFreshness === "unavailable" && <span className="chip text-[9px]" style={{ color: "var(--negative)" }}>Unavailable</span>}
                       </div>
                     </div>
                   </div>
                 </td>
-                <td className="td-num" dir="rtl">
+                <td className="td-num money-nowrap text-[11px] sm:text-[12px]" dir="rtl">
                   {formatQty(a.quantity, a.decimals)}
                 </td>
-                <td className="td-num" dir="rtl">
+                <td className="td-num money-nowrap" dir="rtl">
                   {a.marketPrice !== "0" && toIrt(a.marketPrice) ? (
                     <>
-                      <div className="text-[12.5px] font-medium">
+                      <div className="text-[11px] font-medium money-nowrap sm:text-[12px]">
                         {toIrt(a.marketPrice)}
                       </div>
-                      <div className="muted num text-[9.5px]" dir="rtl">
+                      <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
                         ≈ {formatMoney(a.marketPrice)}
                       </div>
                     </>
                   ) : (
-                    <div className="text-[12.5px] font-medium">
+                    <div className="text-[11px] font-medium money-nowrap sm:text-[12px]">
                       {a.priceFreshness === "unavailable" && a.valuationBasis === "cost_basis_fallback"
                         ? "در دسترس نیست"
                         : formatMoney(a.marketPrice)}
                     </div>
                   )}
                 </td>
-                <td className="td-num hidden lg:table-cell" dir="rtl">
-                  <div className="text-[12px]">{formatMoney(a.costBasis)}</div>
-                  {/* FIFO chip — separated on its own padded line inside the cell */}
-                  <div className="mt-1.5"><span className="chip">FIFO</span></div>
+                <td className="td-num hidden lg:table-cell money-nowrap text-[11px]" dir="rtl">
+                  <div>{formatMoney(a.costBasis)}</div>
+                  <div className="mt-1"><span className="chip text-[9px]">FIFO</span></div>
                 </td>
-                <td className="td-num" dir="rtl">
-                  <div className="num text-[13px] font-bold">{formatMoney(a.currentValueToman, "IRT")}</div>
-                  <div className="muted num text-[9.5px]" dir="rtl">
+                <td className="td-num money-nowrap" dir="rtl">
+                  <div className="num text-[11px] font-bold money-nowrap sm:text-[12px]">{formatMoney(a.currentValueToman, "IRT")}</div>
+                  <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
                     ≈ {formatMoney(a.currentValue)}
                   </div>
                 </td>
-                <td className="td-num hidden sm:table-cell" dir="rtl" style={{ color: trendColor(a.unrealizedPnl) }}>
-                  <div className="text-[12.5px] font-semibold">
+                <td className="td-num hidden sm:table-cell money-nowrap" dir="rtl" style={{ color: trendColor(a.unrealizedPnl) }}>
+                  <div className="text-[11px] font-semibold money-nowrap sm:text-[12px]">
                     {pnlTone === "up" ? "+" : pnlTone === "down" ? "−" : ""}
                     {formatMoney(pnl.abs().toString())}
                   </div>
-                  <div className="num text-[10px]">
+                  <div className="num text-[9px] money-nowrap sm:text-[10px]">
                     {trendArrow(a.roiPercentage)} {formatQty(D(a.roiPercentage).abs().toString(), 2)}٪
                   </div>
                 </td>
-                <td className="td-num hidden sm:table-cell" dir="rtl">
-                  <span className="num text-[12px]">{formatPct(a.sharePercentage, 2)}</span>
+                <td className="td-num hidden sm:table-cell money-nowrap text-[11px]" dir="rtl">
+                  <span className="num">{formatPct(a.sharePercentage, 2)}</span>
                 </td>
               </tr>
             );

@@ -277,15 +277,15 @@ export default function TransactionsView({
                       </span>
                     </span>
 
-                    <span className="shrink-0 text-left">
+                    <span className="shrink-0 text-left min-w-0 max-w-[44%] sm:max-w-none">
                       <span
-                        className="num block text-[13.5px] font-bold"
+                        className="num block text-[12px] font-bold money-nowrap leading-[1.3] sm:text-[13px]"
                         dir="rtl"
                         style={{ color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)" }}
                       >
                         {amountLabel(e, h)}
                       </span>
-                      {rate && <span className="muted num block text-[10.5px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(h.amount)}</span>}
+                      {rate && <span className="muted num block text-[9px] money-nowrap sm:text-[10px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(h.amount)}</span>}
                     </span>
 
                     <span className={`muted shrink-0 transition-transform ${open ? "rotate-180" : ""}`}>
@@ -314,7 +314,7 @@ export default function TransactionsView({
                               دسته: {e.categoryParentName ? `${e.categoryParentName} › ` : ""}{e.categoryName}
                             </p>
                           )}
-                          <p className="num mt-2 text-[15px] font-bold" dir="rtl">
+                          <p className="num mt-2 text-[13px] font-bold money-nowrap sm:text-[14px]" dir="rtl">
                             {amountLabel(e, h)}
                           </p>
                         </div>

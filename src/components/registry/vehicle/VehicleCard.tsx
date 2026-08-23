@@ -58,7 +58,7 @@ export default function VehicleCard({ item }: { item: VehicleDashboardItem }) {
       {/* ── Header ── */}
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="flex flex-wrap items-center gap-2 text-[15px] font-bold tracking-tight">
+          <h3 className="flex flex-wrap items-center gap-2 text-[13px] sm:text-[14px] font-bold tracking-tight">
             🚗 {title}
             <StatusChip status={vehicle.status} />
             {valuation.scope === "catalog" && (

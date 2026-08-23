@@ -5,12 +5,12 @@ import { D } from "@/domain/decimal";
 import { formatDate, formatMoney, formatNumber, formatPct, toFaDigits } from "@/lib/format";
 import type { RegistryResult } from "@/app/actions/registry";
 
-/* ─────────────────────────── money display ─────────────────────────── */
+/* ─────────────────────────── money display — compact & nowrap ─────────────────────────── */
 
 export function Toman({ value, className = "" }: { value: string | number | null | undefined; className?: string }) {
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   return (
-    <span className={`num ${className}`} dir="rtl">
+    <span className={`num money-nowrap text-[12px] sm:text-[13px] ${className}`} dir="rtl">
       {formatMoney(value, "IRT")}
     </span>
   );
@@ -19,7 +19,7 @@ export function Toman({ value, className = "" }: { value: string | number | null
 export function Usd({ value, className = "" }: { value: string | number | null | undefined; className?: string }) {
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   return (
-    <span className={`num rtl-isolate ${className}`} dir="rtl">
+    <span className={`num rtl-isolate money-nowrap text-[12px] sm:text-[13px] ${className}`} dir="rtl">
       {formatMoney(value, "USD")}
     </span>
   );
@@ -38,7 +38,7 @@ export function DeltaToman({ value }: { value: string | number | null | undefine
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   const { color, sign } = toneOf(value);
   return (
-    <span className="num" style={{ color }} dir="rtl">
+    <span className="num money-nowrap text-[12px] sm:text-[13px]" style={{ color }} dir="rtl">
       {sign}
       {formatMoney(D(value).abs().toString(), "IRT")}
     </span>
@@ -49,7 +49,7 @@ export function DeltaUsd({ value }: { value: string | number | null | undefined 
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   const { color, sign } = toneOf(value);
   return (
-    <span className="num rtl-isolate" style={{ color }} dir="rtl">
+    <span className="num rtl-isolate money-nowrap text-[12px] sm:text-[13px]" style={{ color }} dir="rtl">
       {sign}
       {formatMoney(D(value).abs().toString(), "USD")}
     </span>
@@ -60,7 +60,7 @@ export function DeltaPct({ value }: { value: string | number | null | undefined 
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
   const { color, sign } = toneOf(value);
   return (
-    <span className="num" style={{ color }} dir="rtl">
+    <span className="num money-nowrap text-[12px] sm:text-[13px]" style={{ color }} dir="rtl">
       {sign}
       {formatPct(D(value).abs().toString(), 2)}
     </span>
@@ -69,7 +69,7 @@ export function DeltaPct({ value }: { value: string | number | null | undefined 
 
 export function JDate({ iso, fallback = "—" }: { iso: string | null | undefined; fallback?: string }) {
   if (!iso) return <span className="muted">{fallback}</span>;
-  return <span className="num">{formatDate(iso)}</span>;
+  return <span className="num text-[11px] sm:text-[12px]">{formatDate(iso)}</span>;
 }
 
 export function faNum(value: string | number | null | undefined, decimals = 0): string {
@@ -77,7 +77,7 @@ export function faNum(value: string | number | null | undefined, decimals = 0): 
   return toFaDigits(formatNumber(value, { decimals }));
 }
 
-/* ─────────────────────────── layout atoms ─────────────────────────── */
+/* ─────────────────────────── layout atoms — compact ─────────────────────────── */
 
 export function Metric({
   label,
@@ -92,12 +92,12 @@ export function Metric({
 }) {
   const color = tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : undefined;
   return (
-    <div className="min-w-0">
-      <div className="muted text-[10.5px] font-medium">{label}</div>
-      <div className="mt-1 text-[13.5px] font-bold tracking-tight" style={color ? { color } : undefined}>
+    <div className="min-w-0 overflow-hidden">
+      <div className="muted text-[10px] font-medium truncate sm:text-[10.5px]">{label}</div>
+      <div className="mt-1 text-[12px] font-bold tracking-tight money-nowrap sm:text-[13px]" style={color ? { color } : undefined} dir="rtl">
         {value}
       </div>
-      {sub && <div className="muted mt-0.5 text-[10.5px] leading-5">{sub}</div>}
+      {sub && <div className="muted mt-0.5 text-[10px] leading-4 line-clamp-2 sm:text-[10.5px] sm:leading-5">{sub}</div>}
     </div>
   );
 }
@@ -106,7 +106,7 @@ export function Result({ state }: { state: RegistryResult | null }) {
   if (!state) return null;
   return (
     <p
-      className="rounded-[var(--r-md)] p-3 text-xs leading-6"
+      className="rounded-[var(--r-md)] p-2.5 text-[11px] leading-5 sm:p-3 sm:text-xs sm:leading-6"
       role="status"
       style={{
         background: state.ok ? "var(--positive-soft)" : "var(--negative-soft)",
@@ -122,7 +122,7 @@ export function Hint({ children, tone = "info" }: { children: ReactNode; tone?: 
   const color = tone === "warn" ? "var(--warning)" : "var(--info)";
   const bg = tone === "warn" ? "var(--warning-soft)" : "var(--info-soft)";
   return (
-    <p className="rounded-[var(--r-md)] p-2.5 text-[11px] leading-5" style={{ background: bg, color }}>
+    <p className="rounded-[var(--r-md)] p-2 text-[10.5px] leading-5 sm:p-2.5 sm:text-[11px]" style={{ background: bg, color }}>
       {children}
     </p>
   );
@@ -141,7 +141,7 @@ export function Labeled({
 }) {
   return (
     <div className="min-w-0">
-      <label className="label">
+      <label className="label text-[11px] sm:text-[12px]">
         {label}
         {required && <span style={{ color: "var(--negative)" }}> *</span>}
       </label>
@@ -155,7 +155,7 @@ export function StatusChip({ status }: { status: "active" | "sold" }) {
   const active = status === "active";
   return (
     <span
-      className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+      className="rounded-full px-2 py-0.5 text-[9px] font-medium sm:text-[10px]"
       style={{
         background: active ? "var(--positive-soft)" : "var(--sunken)",
         color: active ? "var(--positive)" : "var(--text-2)",

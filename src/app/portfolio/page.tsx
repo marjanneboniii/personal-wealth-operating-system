@@ -116,7 +116,7 @@ export default async function PortfolioPage() {
                           </span>
                           <span className="flex shrink-0 items-baseline gap-2">
                             <span className="flex flex-col items-end">
-                              <span className="num text-[13px] font-bold" dir="rtl">
+                              <span className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
                                 {toIrt(c.value) ?? formatMoney(c.value)}
                               </span>
                               {fx.rate && (
