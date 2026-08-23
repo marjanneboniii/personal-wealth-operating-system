@@ -128,7 +128,7 @@ export default function VehiclePortfolioSection({
         )}
 
         {/* Per-vehicle rows — no FIFO, no live price feed. */}
-        <div className="mt-4 overflow-x-auto border-t pt-1" style={{ borderColor: "var(--border)" }}>
+        <div className="table-wrap mt-4 border-t pt-1" style={{ borderColor: "var(--border)" }}>
           <table className="table">
             <thead>
               <tr>

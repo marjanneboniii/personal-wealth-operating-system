@@ -6,7 +6,7 @@ import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/
 import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D } from "@/domain/decimal";
-import { currencyLabel, faCount, formatDualDate, formatMoney, formatPct, formatQty, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
+import { currencySymbol, faCount, formatDualDate, formatMoney, formatPct, formatQty, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -167,7 +167,7 @@ export default async function PortfolioPage() {
                     {lots.map((l) => (
                       <tr key={l.id}>
                         <td className="font-bold" dir="rtl">
-                          {currencyLabel(l.symbol)}
+                          {currencySymbol(l.symbol)}
                         </td>
                         <td className="num text-[11.5px]">{formatDualDate(l.openedAt)}</td>
                         <td className="td-num" dir="rtl">

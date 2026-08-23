@@ -13,7 +13,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatDualDate, formatMoney, formatPct, jalaliMonthKey, jalaliMonthLabel, faCount, inflowTone, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
+import { currencySymbol, formatDualDate, formatMoney, formatPct, jalaliMonthKey, jalaliMonthLabel, faCount, inflowTone, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -90,7 +90,7 @@ export default async function ReportsPage() {
               }))}
             />
           </div>
-          <div className="card overflow-x-auto">
+          <div className="card table-wrap">
             <table className="table">
               <thead>
                 <tr>
@@ -163,7 +163,7 @@ export default async function ReportsPage() {
             {pnl.bySymbol.map((s) => (
               <li key={s.symbol} className="flex items-center justify-between py-2 text-[12.5px]">
                 <span className="font-bold" dir="rtl">
-                  {currencyLabel(s.symbol)}
+                  {currencySymbol(s.symbol)}
                 </span>
                 <span className="num" dir="rtl" style={{ color: D(s.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
                   {D(s.pnl).gte(0) ? "+" : "−"}
@@ -205,7 +205,7 @@ export default async function ReportsPage() {
 
       {/* Forward liquidity */}
       <Section title="نقدینگی پیش‌رو" hint="۱۲ ماه آینده — برنامه‌ها، اقساط و تعهدات">
-        <div className="card overflow-x-auto">
+        <div className="card table-wrap">
           <table className="table">
             <thead>
               <tr>

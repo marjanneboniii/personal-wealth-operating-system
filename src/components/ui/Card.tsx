@@ -117,6 +117,43 @@ export function Money({
   );
 }
 
+/**
+ * MoneyCell — the ONE way to render an amount (plus its optional «≈» equivalent)
+ * inside a table cell, KPI tile or card. Keeps the number and its ultra-short
+ * unit («ت» / «$» / «₮») on a single tidy line, adds breathing room from the
+ * card edge and stacks the secondary value underneath instead of beside it.
+ */
+export function MoneyCell({
+  value,
+  sub,
+  title,
+  align = "start",
+  color,
+  className = "",
+  strong = true,
+}: {
+  value: ReactNode;
+  sub?: ReactNode;
+  /** full-word amount, shown on hover / long-press */
+  title?: string;
+  align?: "start" | "end";
+  color?: string;
+  className?: string;
+  strong?: boolean;
+}) {
+  return (
+    <span
+      className={`money-cell ${align === "end" ? "items-end text-left" : "items-start"} ${className}`}
+      dir="rtl"
+      title={title}
+      style={color ? { color } : undefined}
+    >
+      <span className={`num money-nowrap ${strong ? "font-bold" : "font-medium"}`}>{value}</span>
+      {sub != null && sub !== "" && <span className="muted num money-sub">{sub}</span>}
+    </span>
+  );
+}
+
 /** Signed delta with arrow + percent — colour is never the only signal. */
 export function Delta({
   value,
