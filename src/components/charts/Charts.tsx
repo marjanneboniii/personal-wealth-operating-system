@@ -191,7 +191,7 @@ export function Donut({
           </svg>
           <div className="donut-center">
             <div className="muted max-w-[78%] truncate text-[10px]">{shown ? shown.label : (centerLabel ?? "مجموع")}</div>
-            <div className="num px-2 text-[15px] font-bold leading-tight" dir="rtl">
+            <div className="num px-2 text-[11px] sm:text-[12px] font-bold leading-tight money-nowrap" dir="rtl">
               {formatMoney(shown ? shown.value : total)}
             </div>
             <div className="muted num text-[10px]" dir="rtl">

@@ -58,7 +58,7 @@ export default async function GoalsPage() {
         <section className="rise border-b pb-6" style={{ borderColor: "var(--border)" }}>
           <div className="mb-2 flex items-baseline justify-between">
             <p className="muted text-[12px] font-medium">پیشرفت مجموع اهداف فعال</p>
-            <p className="num text-[13px] font-bold" dir="rtl">
+            <p className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
               {toIrt(totalSaved) ?? formatMoney(totalSaved)} <span className="muted font-normal">از</span> {toIrt(totalTarget) ?? formatMoney(totalTarget)}
             </p>
           </div>
@@ -85,7 +85,7 @@ export default async function GoalsPage() {
               return (
                 <li key={g.id} className="card p-4">
                   <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="flex items-center gap-2 text-[14px] font-semibold">
+                    <p className="flex items-center gap-2 text-[12px] sm:text-[13px] font-semibold">
                       {done && (
                         <span style={{ color: "var(--positive)" }}>
                           <Icon name="check-circle" size={16} />
@@ -98,7 +98,7 @@ export default async function GoalsPage() {
                       {g.targetDate && <span className="muted num text-[10.5px]">تا {formatDualDate(g.targetDate)}</span>}
                     </p>
                     <span className="flex flex-col items-end">
-                      <span className="num text-[13px]" dir="rtl">
+                      <span className="num text-[12px] sm:text-[13px] money-nowrap" dir="rtl">
                         <b className="text-[15px]">{toIrt(g.savedBase) ?? formatMoney(g.savedBase)}</b>{" "}
                         <span className="muted">از {toIrt(g.targetBase) ?? formatMoney(g.targetBase)}</span>
                       </span>
@@ -190,7 +190,7 @@ export default async function GoalsPage() {
                       <p className="muted num mt-0.5 text-[10.5px]">{formatDualDate(x.date)}</p>
                     </div>
                     <span className="flex shrink-0 flex-col items-end">
-                      <span className="num text-[13px] font-bold" dir="rtl">
+                      <span className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
                         {toIrt(x.amount) ?? formatMoney(x.amount)}
                       </span>
                       {fx.rate && (

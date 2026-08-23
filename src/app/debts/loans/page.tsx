@@ -91,7 +91,7 @@ export default async function LoansPage() {
                   <li key={d.id} className="card p-4 sm:p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="flex flex-wrap items-center gap-2 text-[15px] font-semibold tracking-tight">
+                        <p className="flex flex-wrap items-center gap-2 text-[12px] sm:text-[13px] font-semibold tracking-tight money-nowrap">
                           {d.title}
                           <span className={isSettled ? "badge badge-pos" : "badge badge-neutral"}>{isSettled ? "تسویه شد" : "فعال"}</span>
                           {late && <span className="badge badge-neg">قسط معوق</span>}

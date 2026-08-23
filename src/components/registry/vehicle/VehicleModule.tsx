@@ -36,7 +36,7 @@ export default function VehicleModule({
     <section className="card p-5">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-bold tracking-tight">🚗 دارایی واقعی ← خودرو</h2>
+          <h2 className="text-[13px] sm:text-[14px] font-bold tracking-tight">🚗 دارایی واقعی ← خودرو</h2>
         </div>
         <div className="seg" role="group" aria-label="بخش خودرو">
           <button type="button" onClick={() => setTab("vehicles")} className={tab === "vehicles" ? "seg-on" : ""} aria-pressed={tab === "vehicles"}>

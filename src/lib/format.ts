@@ -82,6 +82,7 @@ export function currencyLabel(currency: string | null | undefined): string {
  */
 const RLI = "\u2067"; // RIGHT-TO-LEFT ISOLATE (invisible)
 const PDI = "\u2069"; // POP DIRECTIONAL ISOLATE (invisible)
+const NBSP = "\u00A0"; // non-breaking space — keeps number+unit on same line on mobile
 
 export function formatMoney(
   value: string | number,
@@ -99,10 +100,9 @@ export function formatMoney(
     .replace(/(\.\d*?)0+$/, "$1")
     .replace(/\.$/, "");
   const n = toFaDigits(groupThousands(raw));
-  // Order is ALWAYS: number → space → Persian currency word (IRT→تومان,
-  // USD→دلار, USDT→تتر). The currency unit NEVER precedes the number and no
-  // raw ticker ($, USD, USDT, IRT) is ever shown to the user.
-  return `${RLI}${n} ${label}${PDI}`;
+  // Order is ALWAYS: number → NBSP → Persian currency word (IRT→تومان,
+  // USD→دلار, USDT→تتر). NBSP prevents «تومان» wrapping under number on mobile PWA.
+  return `${RLI}${n}${NBSP}${label}${PDI}`;
 }
 
 /**

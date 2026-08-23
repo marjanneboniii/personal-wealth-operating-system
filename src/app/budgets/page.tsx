@@ -67,14 +67,14 @@ export default async function BudgetsPage() {
                 <li key={b.id} className="card p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <p className="text-[14px] font-semibold">{b.name}</p>
+                      <p className="text-[12px] sm:text-[13px] font-semibold">{b.name}</p>
                       {b.accountName && <span className="badge badge-neutral">{b.accountName}</span>}
                       {over && <span className="badge badge-neg">خارج از چارچوب</span>}
                       {almost && <span className="badge badge-warn">نزدیک به سقف</span>}
                     </div>
                     <div className="text-left">
-                      <p className="num text-[13px]" dir="rtl">
-                        <b className="text-[15px]" style={{ color }}>
+                      <p className="num text-[12px] sm:text-[12px] money-nowrap" dir="rtl">
+                        <b className="text-[12px] sm:text-[13px] money-nowrap" style={{ color }}>
                           {toIrt(b.spentBase) ?? formatMoney(b.spentBase)}
                         </b>{" "}
                         <span className="muted">از {toIrt(b.amountBase) ?? formatMoney(b.amountBase)}</span>

@@ -19,10 +19,10 @@ export function Card({
   action?: ReactNode;
 }) {
   return (
-    <section className={`card p-4 sm:p-5 ${className}`}>
+    <section className={`card p-3.5 sm:p-4 ${className}`}>
       {(title || action) && (
-        <header className="mb-3 flex items-center justify-between gap-2">
-          {title && <h2 className="text-sm font-semibold tracking-tight">{title}</h2>}
+        <header className="mb-2.5 flex items-center justify-between gap-2">
+          {title && <h2 className="text-[13px] font-semibold tracking-tight sm:text-sm">{title}</h2>}
           {action}
         </header>
       )}
@@ -54,10 +54,10 @@ export function Section({
   return (
     <section id={id} className={`scroll-mt-24 ${className}`}>
       {(title || hint || action) && (
-        <header className="mb-3 flex items-end justify-between gap-3">
-          <div>
-            {title && <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>}
-            {hint && <p className="muted mt-0.5 text-[11.5px]">{hint}</p>}
+        <header className="mb-2.5 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            {title && <h2 className="text-[13px] font-semibold tracking-tight sm:text-[14px]">{title}</h2>}
+            {hint && <p className="muted mt-0.5 text-[11px] leading-5">{hint}</p>}
           </div>
           {action && <div className="shrink-0 pb-0.5">{action}</div>}
         </header>
@@ -72,7 +72,7 @@ export function SectionLink({ href, label = "مشاهده همه" }: { href: str
     <Link
       href={href}
       aria-label={`مشاهده همه ${label}`}
-      className="inline-flex items-center gap-1 text-[12px] font-medium transition-colors"
+      className="inline-flex items-center gap-1 text-[11.5px] font-medium transition-colors sm:text-[12px]"
       style={{ color: "var(--brand)" }}
     >
       {label}
@@ -81,7 +81,7 @@ export function SectionLink({ href, label = "مشاهده همه" }: { href: str
   );
 }
 
-/* ─────────────────────── Financial numbers ────────────────────── */
+/* ─────────────────────── Financial numbers — PWA compact ────────────────────── */
 
 export function Money({
   value,
@@ -98,20 +98,21 @@ export function Money({
 }) {
   const n = Number(value);
   const color = tone ? (n > 0 ? "var(--positive)" : n < 0 ? "var(--negative)" : "var(--text)") : undefined;
+  // Compact, PWA-friendly — no huge 3xl/4xl that breaks mobile
   const cls =
     size === "xl"
-      ? "display-num text-3xl sm:text-4xl font-bold"
+      ? "money-hero text-[20px] sm:text-[24px] md:text-[28px] font-bold leading-[1.15] money-nowrap"
       : size === "lg"
-        ? "num text-xl font-bold"
+        ? "money-hero-sm text-[15px] sm:text-[17px] md:text-[19px] font-bold money-nowrap"
         : size === "sm"
-          ? "num text-[13px]"
-          : "num font-semibold";
+          ? "num text-[11px] sm:text-[12px] font-medium money-nowrap"
+          : "num text-[12.5px] sm:text-[13.5px] font-semibold money-nowrap";
   return (
-    <span className={`inline-flex items-center gap-1 rtl-isolate ${cls}`} dir="rtl" style={color ? { color } : undefined}>
+    <span className={`money-inline rtl-isolate ${cls}`} dir="rtl" style={color ? { color } : undefined}>
       {arrow && n !== 0 && (
-        <Icon name={n > 0 ? "trend-up" : "trend-down"} size={size === "xl" ? 20 : 14} strokeWidth={2.2} />
+        <Icon name={n > 0 ? "trend-up" : "trend-down"} size={size === "xl" ? 15 : 12} strokeWidth={2.2} />
       )}
-      {formatMoney(value, currency)}
+      <span className="money-nowrap">{formatMoney(value, currency)}</span>
     </span>
   );
 }
@@ -137,17 +138,17 @@ export function Delta({
   const arrow = zero ? null : up ? "↑" : "↓";
   const abs = formatMoney(Math.abs(n), currency);
   return (
-    <span className={`inline-flex flex-wrap items-baseline gap-x-2 ${className}`} style={{ color }}>
-      <span className="num font-semibold rtl-isolate" dir="rtl">
+    <span className={`inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 ${className} money-nowrap`} style={{ color }}>
+      <span className="num text-[12px] sm:text-[13px] font-semibold rtl-isolate money-nowrap" dir="rtl">
         {arrow} {zero ? formatMoney(0, currency) : `${up ? "+" : "−"}${abs.replace(/^−|-/, "")}`}
       </span>
       {pct != null && Number.isFinite(Number(pct)) && (
-        <span className="num text-[12px] opacity-80 rtl-isolate" dir="rtl">
+        <span className="num text-[10.5px] sm:text-[11px] opacity-80 rtl-isolate money-nowrap" dir="rtl">
           ({up ? "+" : "−"}
           {formatPercent(Math.abs(Number(pct))).replace("+", "")})
         </span>
       )}
-      {suffix && <span className="muted text-[11px]">{suffix}</span>}
+      {suffix && <span className="muted text-[10px] sm:text-[11px]">{suffix}</span>}
     </span>
   );
 }
@@ -155,13 +156,13 @@ export function Delta({
 export function Pct({ value }: { value: string | number }) {
   const n = Number(value);
   return (
-    <span className="num rtl-isolate" dir="rtl" style={{ color: n > 0 ? "var(--positive)" : n < 0 ? "var(--negative)" : "var(--text-2)" }}>
+    <span className="num rtl-isolate money-nowrap text-[12px]" dir="rtl" style={{ color: n > 0 ? "var(--positive)" : n < 0 ? "var(--negative)" : "var(--text-2)" }}>
       {formatPercent(value)}
     </span>
   );
 }
 
-/* ─────────────────────────── Stat tile ────────────────────────── */
+/* ─────────────────────────── Stat tile — compact ────────────────────────── */
 
 export function Stat({
   label,
@@ -177,17 +178,17 @@ export function Stat({
   const color =
     tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : "var(--text)";
   return (
-    <div className="card p-4">
-      <div className="muted text-[11px] font-medium">{label}</div>
-      <div className="num mt-1.5 text-lg font-bold tracking-tight sm:text-xl" style={{ color }} dir="rtl">
+    <div className="card p-3 sm:p-3.5 min-w-0 overflow-hidden">
+      <div className="muted text-[10px] sm:text-[11px] font-medium truncate">{label}</div>
+      <div className="stat-value mt-1 text-[13px] sm:text-[15px] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
         {value}
       </div>
-      {hint && <div className="muted mt-1 text-[11px] leading-5">{hint}</div>}
+      {hint && <div className="muted mt-1 text-[10px] sm:text-[11px] leading-4 line-clamp-2">{hint}</div>}
     </div>
   );
 }
 
-/** Borderless metric — label above, value below. For dense KPI rows. */
+/** Borderless metric — label above, value below. For dense KPI rows. Compact for PWA. */
 export function Metric({
   label,
   value,
@@ -202,12 +203,12 @@ export function Metric({
   const color =
     tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : "var(--text)";
   return (
-    <div className="min-w-0">
-      <div className="muted text-[11px] font-medium">{label}</div>
-      <div className="num mt-1 text-lg font-bold tracking-tight sm:text-xl" style={{ color }} dir="rtl">
+    <div className="min-w-0 overflow-hidden">
+      <div className="muted text-[10px] sm:text-[11px] font-medium truncate">{label}</div>
+      <div className="metric-value mt-1 text-[13px] sm:text-[14px] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
         {value}
       </div>
-      {hint && <div className="muted mt-0.5 text-[11px] leading-5">{hint}</div>}
+      {hint && <div className="muted mt-0.5 text-[10px] leading-4 line-clamp-2 sm:text-[11px]">{hint}</div>}
     </div>
   );
 }
@@ -239,15 +240,15 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+    <div className="flex flex-col items-center gap-2 px-4 py-8 text-center sm:px-6 sm:py-10">
       <span
-        className="mb-1 flex h-11 w-11 items-center justify-center rounded-full"
+        className="mb-1 flex h-10 w-10 items-center justify-center rounded-full sm:h-11 sm:w-11"
         style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
       >
-        <Icon name={icon} size={20} />
+        <Icon name={icon} size={18} />
       </span>
-      <div className="text-[13.5px] font-semibold">{title}</div>
-      {body && <p className="muted max-w-sm text-[12px] leading-5">{body}</p>}
+      <div className="text-[12.5px] font-semibold sm:text-[13.5px]">{title}</div>
+      {body && <p className="muted max-w-sm text-[11px] leading-5 sm:text-[12px]">{body}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );
@@ -263,10 +264,10 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3 pt-1">
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-2.5 pt-1 sm:mb-5 sm:gap-3">
       <div className="min-w-0">
-        <h1 className="text-xl font-bold tracking-tight sm:text-[22px]">{title}</h1>
-        {subtitle && <p className="muted mt-1 max-w-2xl text-[12.5px] leading-6">{subtitle}</p>}
+        <h1 className="text-[18px] font-bold tracking-tight sm:text-[20px]">{title}</h1>
+        {subtitle && <p className="muted mt-1 max-w-2xl text-[11px] leading-5 sm:text-[12.5px] sm:leading-6">{subtitle}</p>}
       </div>
       {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
     </div>
@@ -303,17 +304,17 @@ export function Alert({
   }[tone];
   return (
     <div
-      className="flex items-start gap-3 rounded-[var(--r-lg)] border p-4"
+      className="flex items-start gap-2.5 rounded-[var(--r-lg)] border p-3 sm:gap-3 sm:p-4"
       style={{ borderColor: `color-mix(in oklab, ${map.c} 25%, transparent)`, background: map.bg }}
       role={tone === "neg" || tone === "warn" ? "alert" : "status"}
       aria-live={tone === "neg" || tone === "warn" ? "assertive" : "polite"}
     >
       <span className="mt-0.5 shrink-0" style={{ color: map.c }}>
-        <Icon name={icon ?? (map.i as Parameters<typeof Icon>[0]["name"])} size={18} />
+        <Icon name={icon ?? (map.i as Parameters<typeof Icon>[0]["name"])} size={16} />
       </span>
       <div className="min-w-0 flex-1">
-        {title && <div className="text-[13px] font-semibold" style={{ color: map.c }}>{title}</div>}
-        {children && <div className="sub mt-0.5 text-[12px] leading-5">{children}</div>}
+        {title && <div className="text-[12px] font-semibold sm:text-[13px]" style={{ color: map.c }}>{title}</div>}
+        {children && <div className="sub mt-0.5 text-[11px] leading-5 sm:text-[12px]">{children}</div>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
