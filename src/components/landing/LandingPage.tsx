@@ -3,14 +3,16 @@ import { LandingFooter, LandingHeader } from "@/components/landing/LandingChrome
 import Icon, { type IconName } from "@/components/ui/Icon";
 
 /**
- * Static demo amounts for the public landing preview only.
- * Hardcoded Toman samples — not user data, not API, not ledger, not FX.
+ * DEMO DATA — ONLY for the public landing page preview.
+ * These are fictional but consistent numbers (assets − debts = net worth).
+ * Real users enter their own data after login/registration.
+ * This data is NEVER used inside the app for any user.
  */
 const PREVIEW_SAMPLE = {
-  netWorth: "۱۸۴٬۲۴۰٬۰۰۰ تومان",
-  assets: "۲۴۱٬۸۰۰٬۰۰۰ تومان",
-  debts: "۵۷٬۵۶۰٬۰۰۰ تومان",
-  liquidity: "۴۲٬۳۰۰٬۰۰۰ تومان",
+  netWorth: "۱۲۵٬۰۰۰٬۰۰۰ تومان",
+  assets: "۱۸۰٬۰۰۰٬۰۰۰ تومان",
+  debts: "۵۵٬۰۰۰٬۰۰۰ تومان",
+  liquidity: "۳۵٬۰۰۰٬۰۰۰ تومان",
 } as const;
 
 const OUTCOMES: { icon: IconName; title: string; body: string; tone: "wealth" | "commitments" | "expenses" }[] = [
