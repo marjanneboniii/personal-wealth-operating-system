@@ -203,8 +203,11 @@ export default async function ReportsPage() {
         </Section>
       </div>
 
-      {/* Forward liquidity */}
-      <Section title="نقدینگی پیش‌رو" hint="۱۲ ماه آینده — برنامه‌ها، اقساط و تعهدات">
+      {/* Forward liquidity — projection figures are ALREADY Toman (see
+          projectCashflow: "Projection unit = Toman"). Never pass them through
+          toIrt/usd→irt: that multiplies by the live rate a second time and
+          mislabels the Toman figure as "≈ USD". */}
+      <Section title="نقدینگی پیش‌رو" hint="۱۲ ماه آینده — برنامه‌ها، اقساط و تعهدات — مبالغ به تومان">
         <div className="card overflow-x-auto">
           <table className="table">
             <thead>
@@ -220,16 +223,16 @@ export default async function ReportsPage() {
                 <tr key={p.month}>
                   <td>{jalaliMonthLabel(jalaliMonthKey(p.month))}</td>
                   <td className="td-num" dir="rtl" style={{ color: "var(--positive)" }}>
-                    <div>{toIrt(p.inflow) ?? formatMoney(p.inflow)}</div>
-                    {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(p.inflow)}</div>}
+                    <div>{formatMoney(p.inflow, "IRT")}</div>
+                    {rate && p.inflowUsd != null && <div className="muted num text-[9.5px]">≈ {formatMoney(p.inflowUsd)}</div>}
                   </td>
                   <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
-                    <div>{toIrt(p.outflow) ?? formatMoney(p.outflow)}</div>
-                    {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(p.outflow)}</div>}
+                    <div>{formatMoney(p.outflow, "IRT")}</div>
+                    {rate && p.outflowUsd != null && <div className="muted num text-[9.5px]">≈ {formatMoney(p.outflowUsd)}</div>}
                   </td>
                   <td className="td-num font-bold" dir="rtl" style={{ color: p.deficit ? "var(--negative)" : undefined }}>
-                    <div>{toIrt(p.cumulative) ?? formatMoney(p.cumulative)}</div>
-                    {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(p.cumulative)}</div>}
+                    <div>{formatMoney(p.cumulative, "IRT")}</div>
+                    {rate && p.cumulativeUsd != null && <div className="muted num text-[9.5px]">≈ {formatMoney(p.cumulativeUsd)}</div>}
                   </td>
                 </tr>
               ))}
