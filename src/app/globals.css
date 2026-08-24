@@ -1302,6 +1302,21 @@ select.field {
   }
 }
 
+/* Fix mobile hero stacking and text size */
+@media (max-width: 640px) {
+  .landing-hero {
+    gap: 1.25rem;
+    padding: 1.25rem 0 1.75rem;
+  }
+  .landing-display {
+    font-size: clamp(1.35rem, 6.8vw, 2.1rem);
+  }
+  .landing-lede {
+    font-size: 0.88rem;
+    line-height: 1.7;
+  }
+}
+
 .landing-kicker {
   font-size: 0.72rem;
   font-weight: 600;
@@ -1467,6 +1482,17 @@ select.field {
   }
 }
 
+/* Mobile tightening for landing benefits */
+@media (max-width: 640px) {
+  .landing-benefit {
+    padding: 0.75rem 0;
+    gap: 0.65rem;
+  }
+  .landing-h2 {
+    font-size: clamp(1.0rem, 4.8vw, 1.35rem);
+  }
+}
+
 .landing-benefit {
   display: flex;
   gap: 0.85rem;
@@ -1552,6 +1578,7 @@ select.field {
 
 .landing-preview-body {
   padding: 1rem 1.05rem 1.15rem;
+  overflow: hidden;
 }
 
 .landing-preview-hero-amount {
@@ -1560,7 +1587,9 @@ select.field {
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.5;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
   color: var(--text);
 }
 
@@ -1571,6 +1600,7 @@ select.field {
   margin-top: 1rem;
   padding-top: 0.9rem;
   border-top: 1px solid var(--border);
+  overflow: hidden;
 }
 
 .landing-preview-amount {
@@ -1579,13 +1609,33 @@ select.field {
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.55;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (min-width: 640px) {
   .landing-preview-amount {
     font-size: 0.92rem;
+  }
+}
+
+/* Mobile: make preview metrics more compact to avoid overlap */
+@media (max-width: 640px) {
+  .landing-preview-metrics {
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.65rem;
+  }
+  .landing-preview-amount {
+    font-size: 0.72rem;
+    line-height: 1.4;
+  }
+  .landing-preview-hero-amount {
+    font-size: clamp(1.05rem, 4.2vw, 1.45rem);
   }
 }
 
@@ -1741,8 +1791,44 @@ select.field {
 
   /* Overview 3-col summary — keep 3 cols but shrink padding & font */
   .overview-summary { display: grid !important; grid-template-columns: repeat(3, minmax(0,1fr)) !important; gap: 0 !important; }
-  .overview-summary > div { padding: 0 0.5rem !important; min-width: 0; }
-  .overview-summary .num { font-size: clamp(0.72rem, 3vw, 0.85rem) !important; white-space: nowrap; }
+  .overview-summary > div { 
+    padding: 0 0.2rem !important; 
+    min-width: 0; 
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+  .overview-summary .num { 
+    font-size: clamp(0.60rem, 2.45vw, 0.72rem) !important; 
+    white-space: nowrap !important; 
+    line-height: 1.1 !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: block;
+  }
+  .overview-summary p.muted {
+    font-size: 8px !important;
+    line-height: 1.05;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  /* Main amount line - extra tight for long numbers + تومان (تومان دست نخورده) */
+  .overview-summary .num.mt-1 {
+    font-size: clamp(0.58rem, 2.35vw, 0.70rem) !important;
+    line-height: 1.08 !important;
+    margin-top: 1px !important;
+    padding-bottom: 1px;
+  }
+  /* Ensure the whole column never overflows */
+  .overview-summary > div p {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   /* Transaction list — amount must stay on one line */
   .tx-amount { white-space: nowrap !important; font-size: clamp(0.78rem, 3.2vw, 0.85rem) !important; }

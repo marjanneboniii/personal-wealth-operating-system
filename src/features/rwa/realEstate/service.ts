@@ -36,6 +36,7 @@ import { todayIso } from "@/lib/format";
 import { recordAuditEvent } from "@/lib/audit";
 import { postEntry } from "@/features/ledger/service";
 import { resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
+import { formatMoney } from "@/lib/format";
 import { buildRwaSymbol, nextRwaSymbol } from "@/features/rwa/symbol";
 import {
   getCity,
@@ -282,6 +283,7 @@ async function postRealEstateOpeningEntry(
     entryDate: string;
     acquisitionDatePersian: string | null;
     purchaseValueUsd: string;
+    purchasePriceToman: string; // قیمت خرید واقعی کاربر (تومان)
   },
 ): Promise<string> {
   const { assetAccountId, openingEquityAccountId } = await ensureRealEstateLedgerAccounts(tx);
@@ -291,7 +293,7 @@ async function postRealEstateOpeningEntry(
     {
       entryDate: input.entryDate,
       type: "opening",
-      description: `تملک تاریخی — ${input.assetName} (${input.symbol})${input.acquisitionDatePersian ? ` — ${input.acquisitionDatePersian}` : ""}`,
+      description: `تملک تاریخی — ${input.assetName} (${input.symbol})${input.acquisitionDatePersian ? ` — ${input.acquisitionDatePersian}` : ""} | قیمت خرید: ${formatMoney(input.purchasePriceToman, "IRT")}`,
       source: "manual",
       reference: input.symbol,
       userId: input.userId ?? undefined,
@@ -302,7 +304,7 @@ async function postRealEstateOpeningEntry(
           assetId: input.assetId,
           quantity: "1",
           baseValue: input.purchaseValueUsd,
-          memo: "تملک ملک",
+          memo: `تملک ملک — قیمت خرید: ${formatMoney(input.purchasePriceToman, "IRT")}`,
         },
         {
           accountId: openingEquityAccountId,
@@ -461,6 +463,7 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
       entryDate: acquisitionDate,
       acquisitionDatePersian: input.acquisitionDatePersian || null,
       purchaseValueUsd,
+      purchasePriceToman: purchase.toFixed(0),
     });
 
     await tx
