@@ -27,7 +27,9 @@ import {
   accounts,
   assetClasses,
   assets,
+  journalEntries,
   prices,
+  postings,
   realEstateProperties,
 } from "@/db/schema";
 import { ensureSchemaOnce } from "@/db/init-schema";
@@ -59,6 +61,7 @@ import type {
   RealEstatePerformance,
   RealEstatePortfolioSummary,
   RecordRealEstateValuationInput,
+  UpdateRealEstatePurchasePriceInput,
 } from "./types";
 
 /* ─────────────────────── shared helpers ─────────────────────── */
@@ -833,6 +836,121 @@ export async function createRealEstateProperty(input: {
   return { id: inserted.id };
 }
 
+/* ─────────────────────── purchase price correction ─────────────────────── */
+
+/**
+ * ویرایش قیمت خرید — برای اصلاح خطاهای ورود داده.
+ * 
+ * ⚠️ این تابع فقط برای اصلاح خطاهای ورود داده استفاده می‌شود.
+ * ⚠️ تاریخ تملک و سایر اطلاعات تغییر نمی‌کند.
+ * ⚠️ ارزش فعلی (currentValue) تغییر نمی‌کند.
+ * 
+ * این تابع:
+ * 1. purchasePriceToman و purchaseFxRate و purchaseValueUsd را به‌روزرسانی می‌کند
+ * 2. سند دفترکل را با توضیحات جدید به‌روزرسانی می‌کند
+ */
+export async function updateRealEstatePurchasePrice(input: UpdateRealEstatePurchasePriceInput): Promise<{
+  id: string;
+  purchasePriceToman: string;
+  purchaseValueUsd: string;
+  purchaseFxRate: string;
+}> {
+  // Load the property with tenant isolation
+  const [row] = await db
+    .select({
+      p: realEstateProperties,
+      assetSymbol: assets.symbol,
+      assetName: assets.name,
+    })
+    .from(realEstateProperties)
+    .innerJoin(assets, eq(assets.id, realEstateProperties.assetId))
+    .where(
+      input.userId
+        ? and(eq(realEstateProperties.id, input.propertyId), eq(realEstateProperties.userId, input.userId))
+        : eq(realEstateProperties.id, input.propertyId),
+    )
+    .limit(1);
+  if (!row) throw new Error("ملک یافت نشد یا متعلق به شما نیست.");
+
+  const prop = row.p;
+  const asset = row;
+
+  const acquisitionDate = prop.acquisitionDate;
+  if (!acquisitionDate) throw new Error("تاریخ تملک ملک یافت نشد.");
+
+  const purchase = D(input.purchasePriceToman ?? "0");
+  if (purchase.lte(0)) throw new Error("قیمت خرید باید بزرگ‌تر از صفر باشد.");
+
+  // Resolve FX rate
+  let purchaseFx: FxRateResolution;
+  if (input.purchaseFxRate && D(input.purchaseFxRate).gt(0)) {
+    purchaseFx = { rate: D(input.purchaseFxRate).toString(), effectiveDate: acquisitionDate, source: "manual", isExact: true };
+  } else {
+    purchaseFx = await resolveUsdRateForDate(acquisitionDate, input.userId ?? null);
+  }
+  if (D(purchaseFx.rate).lte(0)) throw new Error("نرخ دلار تاریخ تملک در دسترس نیست.");
+  const purchaseValueUsd = tomanToUsd(purchase.toFixed(0), purchaseFx.rate);
+
+  const updated = await db.transaction(async (tx) => {
+    // Update property record
+    const [updatedRow] = await tx
+      .update(realEstateProperties)
+      .set({
+        purchasePriceToman: purchase.toFixed(0),
+        purchaseFxRate: D(purchaseFx.rate).toString(),
+        purchaseFxRateSource: purchaseFx.source,
+        purchaseFxRateDate: purchaseFx.effectiveDate,
+        purchaseValueUsd,
+        updatedAt: new Date(),
+      })
+      .where(eq(realEstateProperties.id, prop.id))
+      .returning();
+
+    // Update ledger entry description if exists
+    if (prop.ledgerEntryId) {
+      const newMemo = `تملک ملک — قیمت خرید: ${formatMoney(purchase.toFixed(0), "IRT")}`;
+      
+      await tx
+        .update(postings)
+        .set({ memo: newMemo })
+        .where(
+          and(
+            eq(postings.entryId, prop.ledgerEntryId),
+            sql`asset_id = ${prop.assetId}`
+          )
+        );
+    }
+
+    await recordAuditEvent(
+      {
+        action: "UPDATE_REAL_ESTATE_PURCHASE_PRICE",
+        entityType: "real_estate_property",
+        entityId: prop.id,
+        userId: input.userId ?? null,
+        result: "SUCCESS",
+        payload: {
+          previousPurchasePriceToman: prop.purchasePriceToman,
+          newPurchasePriceToman: purchase.toFixed(0),
+          purchaseFxRate: D(purchaseFx.rate).toString(),
+          purchaseValueUsd,
+          ledgerEntryId: prop.ledgerEntryId,
+        },
+      },
+      tx,
+    );
+
+    return updatedRow;
+  });
+
+  if (!updated) throw new Error("به‌روزرسانی قیمت خرید ناموفق بود.");
+  return {
+    id: updated.id,
+    purchasePriceToman: D(updated.purchasePriceToman ?? "0").toFixed(0),
+    purchaseValueUsd: D(updated.purchaseValueUsd ?? "0").toFixed(2),
+    purchaseFxRate: D(updated.purchaseFxRate ?? "0").toString(),
+  };
+}
+
 /* Re-export shared module types for components/actions. */
 export type {
   City,
@@ -845,4 +963,5 @@ export type {
   RealEstatePerformance,
   RealEstatePortfolioSummary,
   RecordRealEstateValuationInput,
+  UpdateRealEstatePurchasePriceInput,
 } from "./types";

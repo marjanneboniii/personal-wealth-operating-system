@@ -169,6 +169,14 @@ export type RecordRealEstateValuationInput = {
   note?: string | null;
 };
 
+export type UpdateRealEstatePurchasePriceInput = {
+  propertyId: string;
+  userId?: string | null;
+  purchasePriceToman: string;
+  /** optional manual override for the FX rate; default = FX rate of the acquisition date */
+  purchaseFxRate?: string;
+};
+
 export type RealEstateNamePreview = {
   assetName: string;
   symbol: string;

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { recordRealEstateValuationAction } from "@/app/actions/realEstate";
+import { recordRealEstateValuationAction, updateRealEstatePurchasePriceAction } from "@/app/actions/realEstate";
 import JalaliDateInput from "@/components/ui/JalaliDateInput";
 import AmountInput from "@/components/ui/AmountInput";
 import { formatJalaliIso, toFaDigits } from "@/lib/format";
@@ -20,7 +20,9 @@ function Ltr({ children }: { children: React.ReactNode }) {
 
 export default function RealEstateCard({ item }: { item: RealEstateDashboardItem }) {
   const [state, action, pending] = useActionState(recordRealEstateValuationAction, null);
+  const [editPurchaseState, editPurchaseAction, editPurchasePending] = useActionState(updateRealEstatePurchasePriceAction, null);
   const [revalue, setRevalue] = useState(false);
+  const [editPurchase, setEditPurchase] = useState(false);
 
   const a = item;
   const p = item.performance;
@@ -77,7 +79,12 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
         </div>
 
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
-          <h5 className="mb-1 text-[11.5px] font-bold">اطلاعات خرید (تغییرناپذیر)</h5>
+          <div className="flex items-center justify-between mb-1">
+            <h5 className="text-[11.5px] font-bold">اطلاعات خرید</h5>
+            <button type="button" className="btn text-[10.5px]" onClick={() => setEditPurchase((v) => !v)} aria-expanded={editPurchase}>
+              {editPurchase ? "انصراف" : "ویرایش قیمت خرید"}
+            </button>
+          </div>
           <DetailRow label="تاریخ تملک (شمسی)">
             <JDate iso={a.acquisitionDate} fallback="—" />
           </DetailRow>
@@ -169,6 +176,38 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
           </div>
           <div className="mt-2">
             <Result state={state} />
+          </div>
+        </form>
+      )}
+
+      {editPurchase && (
+        <form action={editPurchaseAction} className="rounded-[var(--r-md)] border p-3" style={{ borderColor: "var(--border)" }}>
+          <input type="hidden" name="propertyId" value={a.id} />
+          <h5 className="mb-2 text-[11.5px] font-bold">ویرایش قیمت خرید — برای اصلاح خطای ورود داده</h5>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Labeled label="قیمت خرید جدید (تومان)" required>
+              <AmountInput 
+                className="field num" 
+                name="purchasePriceToman" 
+                inputMode="numeric" 
+                dir="ltr" 
+                placeholder={a.purchasePriceToman ?? "4500000000"} 
+                unit="toman" 
+                required 
+              />
+            </Labeled>
+            <Labeled label="نرخ دلار (اختیاری)" hint="خالی بماند: نرخ تاریخ تملک از موتور نرخ ارز خوانده می‌شود.">
+              <input className="field num" name="purchaseFxRate" inputMode="numeric" dir="ltr" placeholder={a.purchaseFxRate ?? "190000"} />
+            </Labeled>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button className="btn btn-primary" disabled={editPurchasePending}>
+              {editPurchasePending ? "در حال ذخیره…" : "ذخیره قیمت خرید"}
+            </button>
+            <span className="muted text-[10.5px]\">سند دفترکل با توضیحات جدید به‌روزرسانی می‌شود.</span>
+          </div>
+          <div className="mt-2">
+            <Result state={editPurchaseState} />
           </div>
         </form>
       )}

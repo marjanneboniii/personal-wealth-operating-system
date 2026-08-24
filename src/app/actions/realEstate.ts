@@ -15,6 +15,7 @@ import {
 import { formatMoney, toFaDigits } from "@/lib/format";
 import { tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { resolveUsdRateForDate } from "@/features/rwa/vehicle/fx";
+import { updateRealEstatePurchasePrice } from "@/features/rwa/realEstate/service";
 import {
   createCity,
   createNeighborhood,
@@ -198,6 +199,28 @@ export async function recordRealEstateValuationAction(_previous: RealEstateResul
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت ارزش‌گذاری ناموفق بود." };
+  }
+}
+
+/** ویرایش قیمت خرید — برای اصلاح خطاهای ورود داده. سند دفترکل به‌روزرسانی می‌شود. */
+export async function updateRealEstatePurchasePriceAction(_previous: RealEstateResult | null, form: FormData): Promise<RealEstateResult> {
+  const denied = await guardRealEstate();
+  if (denied) return { ok: false, message: denied };
+  try {
+    const userId = await currentUserId();
+    const result = await updateRealEstatePurchasePrice({
+      propertyId: val(form, "propertyId"),
+      userId,
+      purchasePriceToman: numeric(form, "purchasePriceToman"),
+      purchaseFxRate: numeric(form, "purchaseFxRate") || undefined,
+    });
+    refresh();
+    return {
+      ok: true,
+      message: `قیمت خرید به ${formatMoney(result.purchasePriceToman, "IRT")} (معادل ${formatMoney(result.purchaseValueUsd, "USD")} با نرخ ${formatMoney(result.purchaseFxRate, "IRT")}) اصلاح شد.`,
+    };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "ویرایش قیمت خرید ناموفق بود." };
   }
 }
 
