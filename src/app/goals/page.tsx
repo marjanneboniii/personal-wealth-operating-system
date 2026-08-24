@@ -7,7 +7,13 @@ import { listEvents, listFunds, listGoals, listObligations } from "@/features/pl
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { EventForm, GoalForm } from "@/components/forms/QuickForms";
-import { formatDualDate, formatMoney, formatPct, toIrtMoney, faCount } from "@/lib/format";
+import {
+  formatDualDate,
+  formatPct,
+  faCount,
+  formatTomanPrimary,
+  sumToman,
+} from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -43,25 +49,31 @@ export default async function GoalsPage() {
     getLatestUsdIrtRate(),
   ]);
 
-  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
-
   const activeGoals = goals.filter((g) => g.status === "active");
-  const totalTarget = activeGoals.reduce((s, g) => s + Number(g.targetBase), 0);
-  const totalSaved = activeGoals.reduce((s, g) => s + Number(g.savedBase), 0);
-  const overall = totalTarget ? Math.min(100, (totalSaved / totalTarget) * 100) : 0;
+  // targetBase / targetToman = contractual Toman (never moves with FX).
+  const totalTargetToman = sumToman(activeGoals.map((g) => g.targetToman ?? g.targetBase));
+  const totalSavedToman = sumToman(activeGoals.map((g) => g.savedToman ?? g.savedBase));
+  const overall = Number(totalTargetToman) ? Math.min(100, (Number(totalSavedToman) / Number(totalTargetToman)) * 100) : 0;
+  const savedDisp = formatTomanPrimary(totalSavedToman, fx.rate);
+  const targetDisp = formatTomanPrimary(totalTargetToman, fx.rate);
 
   return (
     <div className="space-y-8">
-      <PageHeader title="اهداف و صندوق‌ها" />
+      <PageHeader title="اهداف و صندوق‌ها" subtitle="مبلغ تومان هدف و صندوق ثابت است؛ معادل دلاری فقط نمایشی است و با نرخ روز تغییر می‌کند." />
 
       {activeGoals.length > 0 && (
         <section className="rise border-b pb-6" style={{ borderColor: "var(--border)" }}>
           <div className="mb-2 flex items-baseline justify-between">
             <p className="muted text-[12px] font-medium">پیشرفت مجموع اهداف فعال</p>
             <p className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
-              {toIrt(totalSaved) ?? formatMoney(totalSaved)} <span className="muted font-normal">از</span> {toIrt(totalTarget) ?? formatMoney(totalTarget)}
+              {savedDisp.primary} <span className="muted font-normal">از</span> {targetDisp.primary}
             </p>
           </div>
+          {(savedDisp.usdHint || targetDisp.usdHint) && (
+            <p className="muted num mb-2 text-[10px]" dir="rtl">
+              معادل: {savedDisp.usdHint ?? "—"} از {targetDisp.usdHint ?? "—"}
+            </p>
+          )}
           <Progress value={overall} />
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Metric label="اهداف فعال" value={faCount(activeGoals.length)} />
@@ -82,6 +94,9 @@ export default async function GoalsPage() {
           <ul className="space-y-2.5">
             {goals.map((g) => {
               const done = g.status === "reached";
+              const savedD = formatTomanPrimary(g.savedToman ?? g.savedBase, fx.rate);
+              const targetD = formatTomanPrimary(g.targetToman ?? g.targetBase, fx.rate);
+              const remD = formatTomanPrimary(g.remainingToman ?? g.remainingBase, fx.rate);
               return (
                 <li key={g.id} className="card p-4">
                   <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -99,12 +114,12 @@ export default async function GoalsPage() {
                     </p>
                     <span className="flex flex-col items-end">
                       <span className="num text-[12px] sm:text-[13px] money-nowrap" dir="rtl">
-                        <b className="text-[15px]">{toIrt(g.savedBase) ?? formatMoney(g.savedBase)}</b>{" "}
-                        <span className="muted">از {toIrt(g.targetBase) ?? formatMoney(g.targetBase)}</span>
+                        <b className="text-[15px]">{savedD.primary}</b>{" "}
+                        <span className="muted">از {targetD.primary}</span>
                       </span>
-                      {fx.rate && (
+                      {(savedD.usdHint || targetD.usdHint) && (
                         <span className="muted num text-[9.5px]" dir="rtl">
-                          ≈ {formatMoney(g.savedBase)} از {formatMoney(g.targetBase)}
+                          معادل: {savedD.usdHint ?? "—"} از {targetD.usdHint ?? "—"}
                         </span>
                       )}
                     </span>
@@ -115,7 +130,7 @@ export default async function GoalsPage() {
                       {formatPct(g.progress, 0)}
                     </span>
                     <span>
-                      {done ? "تبریک — به این هدف رسیدید" : `${toIrt(g.remainingBase) ?? formatMoney(g.remainingBase)} مانده`}
+                      {done ? "تبریک — به این هدف رسیدید" : `${remD.primary} مانده`}
                     </span>
                   </div>
                 </li>
@@ -127,33 +142,37 @@ export default async function GoalsPage() {
 
       <div className="grid gap-10 lg:grid-cols-2">
         {/* Funds */}
-        <Section title="صندوق‌های اختصاصی" hint="پول‌های کنارگذاشته‌شده برای منظور مشخص">
+        <Section title="صندوق‌های اختصاصی" hint="پول‌های کنارگذاشته‌شده برای منظور مشخص — مبلغ تومان هدف ثابت است">
           {funds.length === 0 ? (
             <p className="muted py-4 text-xs">صندوقی تعریف نشده است.</p>
           ) : (
             <ul className="space-y-4">
-              {funds.map((f) => (
-                <li key={f.id}>
-                  <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[13px]">
-                    <span className="font-medium">
-                      {f.name}
-                      <span className="badge badge-neutral mr-2">{FUND_KIND[f.kind] ?? f.kind}</span>
-                    </span>
-                    <span className="num" dir="rtl">
-                      <b>{toIrt(f.savedBase) ?? formatMoney(f.savedBase)}</b>{" "}
-                      <span className="muted text-[11px]">از {toIrt(f.targetBase) ?? formatMoney(f.targetBase)}</span>
-                    </span>
-                  </div>
-                  <Progress value={f.progress} color="var(--info)" />
-                  {f.note && <p className="muted mt-1.5 text-[10.5px]">{f.note}</p>}
-                </li>
-              ))}
+              {funds.map((f) => {
+                const savedD = formatTomanPrimary(f.savedToman ?? f.savedBase, fx.rate);
+                const targetD = formatTomanPrimary(f.targetToman ?? f.targetBase, fx.rate);
+                return (
+                  <li key={f.id}>
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[13px]">
+                      <span className="font-medium">
+                        {f.name}
+                        <span className="badge badge-neutral mr-2">{FUND_KIND[f.kind] ?? f.kind}</span>
+                      </span>
+                      <span className="num" dir="rtl">
+                        <b>{savedD.primary}</b>{" "}
+                        <span className="muted text-[11px]">از {targetD.primary}</span>
+                      </span>
+                    </div>
+                    <Progress value={f.progress} color="var(--info)" />
+                    {f.note && <p className="muted mt-1.5 text-[10.5px]">{f.note}</p>}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Section>
 
         {/* Events & obligations */}
-        <Section title="رویدادها و تعهدات" hint="هزینه‌های از پیش‌دانسته آینده">
+        <Section title="رویدادها و تعهدات" hint="هزینه‌های از پیش‌دانسته آینده — مبلغ تومان ثابت">
           {events.length === 0 && obligations.length === 0 ? (
             <p className="muted py-4 text-xs">رویداد یا تعهدی ثبت نشده است.</p>
           ) : (
@@ -163,7 +182,7 @@ export default async function GoalsPage() {
                   id: e.id,
                   title: e.name,
                   date: e.eventDate,
-                  amount: e.budgetBase,
+                  amountToman: e.budgetToman ?? e.budgetBase,
                   badge: EVENT_CATEGORY[e.category] ?? "رویداد",
                   recurrence: null as string | null,
                 })),
@@ -171,36 +190,39 @@ export default async function GoalsPage() {
                   id: o.id,
                   title: o.title,
                   date: o.dueDate,
-                  amount: o.amountBase,
+                  amountToman: o.amountToman ?? o.amountBase,
                   badge: "تعهد",
                   recurrence: o.recurrence,
                 })),
               ]
                 .sort((a, b) => a.date.localeCompare(b.date))
-                .map((x) => (
-                  <li key={x.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className="flex items-center gap-2 truncate text-[13px] font-medium">
-                        {x.title}
-                        <span className="badge badge-neutral">{x.badge}</span>
-                        {x.recurrence && x.recurrence !== "none" && (
-                          <span className="badge badge-info">{x.recurrence === "monthly" ? "ماهانه" : "سالانه"}</span>
-                        )}
-                      </p>
-                      <p className="muted num mt-0.5 text-[10.5px]">{formatDualDate(x.date)}</p>
-                    </div>
-                    <span className="flex shrink-0 flex-col items-end">
-                      <span className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
-                        {toIrt(x.amount) ?? formatMoney(x.amount)}
-                      </span>
-                      {fx.rate && (
-                        <span className="muted num text-[9.5px]" dir="rtl">
-                          ≈ {formatMoney(x.amount)}
+                .map((x) => {
+                  const disp = formatTomanPrimary(x.amountToman, fx.rate);
+                  return (
+                    <li key={x.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 truncate text-[13px] font-medium">
+                          {x.title}
+                          <span className="badge badge-neutral">{x.badge}</span>
+                          {x.recurrence && x.recurrence !== "none" && (
+                            <span className="badge badge-info">{x.recurrence === "monthly" ? "ماهانه" : "سالانه"}</span>
+                          )}
+                        </p>
+                        <p className="muted num mt-0.5 text-[10.5px]">{formatDualDate(x.date)}</p>
+                      </div>
+                      <span className="flex shrink-0 flex-col items-end">
+                        <span className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
+                          {disp.primary}
                         </span>
-                      )}
-                    </span>
-                  </li>
-                ))}
+                        {disp.usdHint && (
+                          <span className="muted num text-[9.5px]" dir="rtl">
+                            معادل: {disp.usdHint}
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
             </ul>
           )}
         </Section>

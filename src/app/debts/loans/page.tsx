@@ -5,7 +5,16 @@ import { listDebts } from "@/features/planning/service";
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { D } from "@/domain/decimal";
-import { formatDualDate, formatMoney, formatPct, formatQty, todayIso, faCount, toIrtMoney } from "@/lib/format";
+import {
+  formatDualDate,
+  formatMoney,
+  formatPct,
+  formatQty,
+  todayIso,
+  faCount,
+  formatTomanPrimary,
+  sumToman,
+} from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -15,19 +24,15 @@ export const metadata = { title: "وام‌ها" };
 /**
  * بدهی → وام‌ها
  *
- * READ-ONLY VIEW. Every number comes from the existing `listDebts()` service,
- * whose outstanding balance is derived from the ledger (or, for planning-only
- * debts, from the existing scheduled-installment logic). This page performs no
- * mutation, creates no journal entry/posting and holds no debt state of its own.
- *
- * A "loan" here is presentation-only: an interest-bearing or instalment-backed
- * debt. The underlying record and its financial semantics are unchanged.
+ * READ-ONLY VIEW. Every number comes from the existing `listDebts()` service.
+ * Contractual Toman amounts are authoritative; USD is display-only and moves
+ * with the live FX rate. Raising the dollar rate NEVER inflates the Toman
+ * principal / outstanding / installment figures.
  */
 export default async function LoansPage() {
   await ensureAuth();
   await seedIfEmpty();
   const [debts, fx] = await Promise.all([listDebts(), getLatestUsdIrtRate()]);
-  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const today = todayIso();
   // Presentation split only — the stored records are identical.
@@ -35,16 +40,18 @@ export default async function LoansPage() {
   const active = loans.filter((d) => d.status !== "settled");
   const settled = loans.filter((d) => d.status === "settled");
 
-  const totalOutstanding = active.reduce((s, d) => s + Number(d.outstandingBase), 0);
-  const totalPrincipal = loans.reduce((s, d) => s + Number(d.principalBase), 0);
+  const totalOutstandingToman = sumToman(active.map((d) => d.outstandingToman));
+  const totalPrincipalToman = sumToman(loans.map((d) => d.principalToman));
   const totalPaid = loans.reduce((s, d) => s + d.paidCount, 0);
   const totalInstallments = loans.reduce((s, d) => s + d.totalCount, 0);
+  const outDisp = formatTomanPrimary(totalOutstandingToman, fx.rate);
+  const prinDisp = formatTomanPrimary(totalPrincipalToman, fx.rate);
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="وام‌ها"
-        subtitle="تسهیلات و بدهی‌های دارای برنامه بازپرداخت. مانده هر وام از سوابق مالی مشتق می‌شود."
+        subtitle="تسهیلات و بدهی‌های دارای برنامه بازپرداخت. مبلغ تومان ثابت است؛ معادل دلاری فقط نمایشی است."
         action={
           <Link href="/debts" className="btn btn-soft">
             <Icon name="debts" size={16} />
@@ -54,8 +61,17 @@ export default async function LoansPage() {
       />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="مانده وام‌های فعال" value={toIrt(totalOutstanding) ?? formatMoney(totalOutstanding)} tone={totalOutstanding > 0 ? "down" : "neutral"} hint={fx.rate ? formatMoney(totalOutstanding) : `${faCount(active.length)} وام فعال`} />
-        <Metric label="اصل کل تسهیلات" value={toIrt(totalPrincipal) ?? formatMoney(totalPrincipal)} hint={fx.rate ? formatMoney(totalPrincipal) : undefined} />
+        <Metric
+          label="مانده وام‌های فعال"
+          value={outDisp.primary}
+          tone={Number(totalOutstandingToman) > 0 ? "down" : "neutral"}
+          hint={outDisp.usdHint ? `معادل: ${outDisp.usdHint}` : `${faCount(active.length)} وام فعال`}
+        />
+        <Metric
+          label="اصل کل تسهیلات"
+          value={prinDisp.primary}
+          hint={prinDisp.usdHint ? `معادل: ${prinDisp.usdHint}` : undefined}
+        />
         <Metric
           label="اقساط پرداخت‌شده"
           value={`${faCount(totalPaid)} از ${faCount(totalInstallments)}`}
@@ -64,7 +80,7 @@ export default async function LoansPage() {
         <Metric label="تسویه‌شده" value={faCount(settled.length)} />
       </section>
 
-      <Section title="وضعیت هر وام" hint="ترتیب بر اساس مانده قابل پرداخت">
+      <Section title="وضعیت هر وام" hint="ترتیب بر اساس مانده قابل پرداخت (تومان)">
         {loans.length === 0 ? (
           <div className="card">
             <EmptyState
@@ -81,12 +97,17 @@ export default async function LoansPage() {
         ) : (
           <ul className="space-y-2.5">
             {[...loans]
-              .sort((a, b) => Number(b.outstandingBase) - Number(a.outstandingBase))
+              .sort((a, b) => Number(b.outstandingToman ?? 0) - Number(a.outstandingToman ?? 0))
               .map((d) => {
                 const progress = d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0;
                 const isSettled = d.status === "settled";
                 const late = d.nextDue && d.nextDue.dueDate < today;
-                const repaid = D(d.principalBase).sub(isSettled ? d.principalBase : d.outstandingBase);
+                const principalT = D(d.principalToman ?? "0");
+                const outstandingT = D(isSettled ? "0" : (d.outstandingToman ?? "0"));
+                const repaidT = principalT.sub(outstandingT);
+                const outD = formatTomanPrimary(outstandingT.toFixed(0), fx.rate);
+                const repaidD = formatTomanPrimary(repaidT.toFixed(0), fx.rate);
+                const nextToman = d.nextDue?.amountToman != null ? String(d.nextDue.amountToman) : null;
                 return (
                   <li key={d.id} className="card p-4 sm:p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -106,13 +127,11 @@ export default async function LoansPage() {
                       <div className="text-left">
                         <p className="muted text-[10.5px]">مانده قابل پرداخت</p>
                         <p className="num text-xl font-bold" dir="rtl" style={{ color: isSettled ? "var(--positive)" : "var(--negative)" }}>
-                          {d.outstandingToman != null
-                            ? formatMoney(isSettled ? 0 : d.outstandingToman, "IRT")
-                            : toIrt(isSettled ? 0 : d.outstandingBase) ?? formatMoney(isSettled ? 0 : d.outstandingBase)}
+                          {outD.primary}
                         </p>
                         <p className="muted num mt-0.5 text-[10.5px]" dir="rtl">
-                          ≈ {formatMoney(isSettled ? 0 : d.outstandingBase)} · بازپرداخت‌شده:{" "}
-                          {toIrt(repaid.toString()) ?? formatMoney(repaid.toString())}
+                          {outD.usdHint ? <>معادل: {outD.usdHint} · </> : null}
+                          بازپرداخت‌شده: {repaidD.primary}
                         </p>
                       </div>
                     </div>
@@ -140,9 +159,7 @@ export default async function LoansPage() {
                           <>
                             قسط بعدی:{" "}
                             <b className="num">
-                              {d.nextDue.amountToman != null
-                                ? formatMoney(d.nextDue.amountToman, "IRT")
-                                : toIrt(d.nextDue.amountBase) ?? formatMoney(d.nextDue.amountBase)}
+                              {nextToman != null ? formatMoney(nextToman, "IRT") : "—"}
                             </b>{" "}
                             · {formatDualDate(d.nextDue.dueDate)}
                           </>

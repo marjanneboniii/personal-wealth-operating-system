@@ -1,13 +1,29 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createBudgetAction, type ActionResult } from "@/app/actions";
 import SubmitButton from "@/components/ui/SubmitButton";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
+import { SmartAmountPreview, useLatestRate } from "@/components/ui/SmartPreview";
 
-export default function BudgetForm({ accounts }: { accounts: { id: string; code: string; name: string }[] }) {
+export default function BudgetForm({
+  accounts,
+  initialRate,
+  initialRateDate,
+  initialRateSource,
+}: {
+  accounts: { id: string; code: string; name: string }[];
+  initialRate?: string | null;
+  initialRateDate?: string;
+  initialRateSource?: string;
+}) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(createBudgetAction, null);
+  const [irtAmount, setIrtAmount] = useState("");
+  const { rate, date, source } = useLatestRate(initialRate ?? null);
+  const effectiveRate = initialRate ?? rate;
+  const effectiveDate = initialRateDate ?? date;
+  const effectiveSource = initialRateSource ?? source;
 
   return (
     <form action={formAction} className="grid gap-3 sm:grid-cols-2">
@@ -26,8 +42,25 @@ export default function BudgetForm({ accounts }: { accounts: { id: string; code:
         </select>
       </div>
       <div>
-        <label className="label" htmlFor="b-amount">سقف (ارز پایه — دلار)</label>
-        <AmountInput id="b-amount" name="amountBase" className="field num" dir="ltr" inputMode="decimal" placeholder="500" unit="usd" required />
+        <label className="label" htmlFor="b-amount">سقف بودجه به تومان — مرجع</label>
+        <AmountInput
+          id="b-amount"
+          name="amountBase"
+          className="field num"
+          dir="ltr"
+          inputMode="numeric"
+          placeholder="مثلاً 50000000"
+          unit="toman"
+          value={irtAmount}
+          onChange={(e) => setIrtAmount(e.target.value.replace(/[^0-9]/g, ""))}
+          required
+        />
+        <div className="mt-2">
+          <SmartAmountPreview irtAmount={irtAmount} rate={effectiveRate} rateDate={effectiveDate} rateSource={effectiveSource} />
+        </div>
+        <p className="muted mt-1 text-[10px] leading-5">
+          مبلغ تومان ثابت می‌ماند؛ معادل دلاری فقط نمایشی است و با تغییر نرخ روز به‌روز می‌شود.
+        </p>
       </div>
       <DualDateInput name="periodStart" label="شروع دوره" required />
       <DualDateInput name="periodEnd" label="پایان دوره" required />

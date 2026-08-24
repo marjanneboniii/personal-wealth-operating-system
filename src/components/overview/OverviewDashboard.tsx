@@ -69,7 +69,7 @@ export default async function OverviewDashboard() {
     optionalRead("recent activity", [], () => getRecent(6, userId)),
     optionalRead("upcoming installments", [], () => upcomingInstallments(3, userId)),
     optionalRead("cash flow", [], () => getCashflow(6, userId)),
-    optionalRead("cash-flow projection", { startingLiquidity: "0", netWorth: "0", points: [], scenario: "base" as const }, () => projectCashflow(6, "base", userId)),
+    optionalRead("cash-flow projection", { startingLiquidity: "0", netWorth: "0", startingLiquidityToman: "0", netWorthToman: "0", startingLiquidityUsd: "0", netWorthUsd: "0", points: [], scenario: "base" as const, unit: "IRT" as const }, () => projectCashflow(6, "base", userId)),
     optionalRead("unreviewed transactions", 0, () => countUnreviewed(userId)),
     optionalRead("exchange rate", { rate: "", effectiveDate: "", source: "unavailable" }, () => getLatestUsdIrtRateForUser(userId)),
   ]);
@@ -110,12 +110,16 @@ export default async function OverviewDashboard() {
   const soonInst = insts.find((i) => daysUntil(i.dueDate) <= 14);
   if (soonInst) {
     const d = daysUntil(soonInst.dueDate);
-    const instToman = (soonInst as any).amountToman ? (soonInst as any).amountToman : toIrt(soonInst.amountBase);
+    // amountToman is contractual (authoritative). Never rebuild Toman from USD×rate.
+    const instToman =
+      (soonInst as any).amountToman != null
+        ? String((soonInst as any).amountToman)
+        : toIrt(soonInst.amountBase);
     attention.push({
       icon: "clock",
       tone: d < 0 ? "neg" : "info",
       text: d < 0 ? `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» سررسید گذشته است` : `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${d === 0 ? "امروز" : `${faCount(d)} روز دیگر`} سر می‌رسد`,
-      detail: `${instToman ? formatMoney(instToman, "IRT") : formatMoney(soonInst.amountBase)} — ${soonInst.creditor}`,
+      detail: `${instToman ? formatMoney(instToman, "IRT") : "—"} — ${soonInst.creditor}`,
       href: "/installments",
       action: "مشاهده",
     });

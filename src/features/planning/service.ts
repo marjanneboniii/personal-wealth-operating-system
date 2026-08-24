@@ -36,12 +36,34 @@ async function resolvePlanningUserId(explicitUserId?: string): Promise<string | 
   return undefined;
 }
 
+/**
+ * Resolve a fund/goal linked account balance in Toman.
+ * IRT-denominated accounts keep quantity as the fixed Toman truth;
+ * USD/USDT (and other) accounts convert quantity × current rate for display
+ * only — never the reverse path that would inflate a stored Toman target.
+ */
+function balanceAsToman(
+  bal: { quantity: string; baseValue: string; symbol: string | null } | undefined,
+  rate: Decimal,
+): Decimal {
+  if (!bal) return Decimal.zero();
+  const sym = (bal.symbol ?? "").toUpperCase();
+  if (sym === "IRT" || sym === "IRR") return D(bal.quantity);
+  // Non-IRT cash: book value is USD; convert to Toman at the live rate for display.
+  if (rate.gt(0)) return D(bal.baseValue).mul(rate);
+  return Decimal.zero();
+}
+
 /* ---------------- Goals ---------------- */
 
 export async function listGoals(userId?: string) {
   const u = await resolvePlanningUserId(userId);
   if (!u && (await hasMultipleUsers())) return [];
-  const balances = await getAccountBalances(userId);
+  const [balances, fx] = await Promise.all([
+    getAccountBalances(userId),
+    getLatestUsdIrtRateForUser(u ?? null),
+  ]);
+  const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("0");
   const rows = await db
     .select()
     .from(goals)
@@ -50,13 +72,26 @@ export async function listGoals(userId?: string) {
 
   return rows.map((g) => {
     const bal = balances.find((b) => b.accountId === g.fundAccountId);
-    const saved = bal ? D(bal.baseValue) : Decimal.zero();
-    const target = D(g.targetBase);
-    const progress = target.isZero() ? Decimal.zero() : saved.div(target).mul(100);
+    // targetBase stores the contractual Toman amount entered by the user.
+    const targetToman = D(g.targetBase);
+    const savedToman = balanceAsToman(bal, rate);
+    const progress = targetToman.isZero() ? Decimal.zero() : savedToman.div(targetToman).mul(100);
+    const remainingToman = targetToman.sub(savedToman);
+    // USD equivalents are display-only and move with the live rate.
+    const targetUsd = rate.gt(0) ? targetToman.div(rate).toString() : "0";
+    const savedUsd = rate.gt(0) ? savedToman.div(rate).toString() : "0";
+    const remainingUsd = rate.gt(0) ? remainingToman.div(rate).toString() : "0";
     return {
       ...g,
-      savedBase: saved.toString(),
-      remainingBase: target.sub(saved).toString(),
+      targetToman: targetToman.toFixed(0),
+      savedToman: savedToman.toFixed(0),
+      remainingToman: remainingToman.toFixed(0),
+      // Legacy field names kept for callers; values are now Toman (authoritative).
+      savedBase: savedToman.toFixed(0),
+      remainingBase: remainingToman.toFixed(0),
+      targetUsd,
+      savedUsd,
+      remainingUsd,
       progress: Math.max(0, Math.min(100, progress.toNumber())),
     };
   });
@@ -67,19 +102,29 @@ export async function listGoals(userId?: string) {
 export async function listFunds(userId?: string) {
   const u = await resolvePlanningUserId(userId);
   if (!u && (await hasMultipleUsers())) return [];
-  const balances = await getAccountBalances(userId);
+  const [balances, fx] = await Promise.all([
+    getAccountBalances(userId),
+    getLatestUsdIrtRateForUser(u ?? null),
+  ]);
+  const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("0");
   const rows = await db
     .select()
     .from(funds)
     .where(and(sql`${funds.deletedAt} is null`, u ? eq(funds.userId, u) : sql`1=1`));
   return rows.map((f) => {
     const bal = balances.find((b) => b.accountId === f.accountId);
-    const saved = bal ? D(bal.baseValue) : Decimal.zero();
-    const target = D(f.targetBase);
+    const targetToman = D(f.targetBase);
+    const savedToman = balanceAsToman(bal, rate);
+    const targetUsd = rate.gt(0) ? targetToman.div(rate).toString() : "0";
+    const savedUsd = rate.gt(0) ? savedToman.div(rate).toString() : "0";
     return {
       ...f,
-      savedBase: saved.toString(),
-      progress: target.isZero() ? 0 : Math.min(100, saved.div(target).mul(100).toNumber()),
+      targetToman: targetToman.toFixed(0),
+      savedToman: savedToman.toFixed(0),
+      savedBase: savedToman.toFixed(0),
+      targetUsd,
+      savedUsd,
+      progress: targetToman.isZero() ? 0 : Math.min(100, savedToman.div(targetToman).mul(100).toNumber()),
     };
   });
 }
@@ -90,6 +135,8 @@ export async function listFunds(userId?: string) {
 export async function listBudgets(userId?: string) {
   const u = await resolvePlanningUserId(userId);
   if (!u && (await hasMultipleUsers())) return [];
+  const fx = await getLatestUsdIrtRateForUser(u ?? null);
+  const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("0");
   const rows = await db
     .select({
       id: budgets.id,
@@ -107,6 +154,9 @@ export async function listBudgets(userId?: string) {
     .orderBy(asc(budgets.periodStart));
 
   // Spend must respect each budget's own period — derive per budget without N+1 query loop.
+  // Budget ceilings are contractual Toman. Ledger expense postings book USD base_value;
+  // convert spend → Toman at the live rate for comparison only (display). The ceiling
+  // itself never moves with FX.
   const spendMap = new Map<string, string>();
   const activeAccountIds = Array.from(new Set(rows.map((r) => r.accountId).filter(Boolean))) as string[];
   if (rows.length > 0 && activeAccountIds.length > 0) {
@@ -128,28 +178,40 @@ export async function listBudgets(userId?: string) {
     const postingRows = postingsRes.rows as { account_id: string; entry_date: string; val: string }[];
     for (const b of rows) {
       if (!b.accountId) continue;
-      let sumSpend = Decimal.zero();
+      let sumSpendUsd = Decimal.zero();
       for (const pr of postingRows) {
         if (pr.account_id === b.accountId && pr.entry_date >= b.periodStart && pr.entry_date <= b.periodEnd) {
-          sumSpend = sumSpend.add(D(pr.val));
+          sumSpendUsd = sumSpendUsd.add(D(pr.val));
         }
       }
-      spendMap.set(b.id, sumSpend.toString());
+      // Convert USD book spend → Toman at live rate for apples-to-apples with Toman ceiling.
+      const spendToman = rate.gt(0) ? sumSpendUsd.mul(rate) : Decimal.zero();
+      spendMap.set(b.id, spendToman.toFixed(0));
     }
   }
 
   const result = [];
   for (const b of rows) {
-    const spentInPeriod = spendMap.get(b.id) ?? "0";
-    const limit = D(b.amountBase);
-    const used = D(spentInPeriod);
-    const remaining = limit.sub(used);
+    const spentToman = D(spendMap.get(b.id) ?? "0");
+    // amountBase is the contractual Toman ceiling entered by the user.
+    const limitToman = D(b.amountBase);
+    const remainingToman = limitToman.sub(spentToman);
+    const limitUsd = rate.gt(0) ? limitToman.div(rate).toString() : "0";
+    const spentUsd = rate.gt(0) ? spentToman.div(rate).toString() : "0";
+    const remainingUsd = rate.gt(0) ? remainingToman.div(rate).toString() : "0";
     result.push({
       ...b,
-      spentBase: used.toString(),
-      remainingBase: remaining.toString(),
-      usage: limit.isZero() ? 0 : Math.max(0, used.div(limit).mul(100).toNumber()),
-      over: remaining.isNegative(),
+      amountToman: limitToman.toFixed(0),
+      spentToman: spentToman.toFixed(0),
+      remainingToman: remainingToman.toFixed(0),
+      // Legacy field names now carry Toman (authoritative for the planning UI).
+      spentBase: spentToman.toFixed(0),
+      remainingBase: remainingToman.toFixed(0),
+      amountUsd: limitUsd,
+      spentUsd,
+      remainingUsd,
+      usage: limitToman.isZero() ? 0 : Math.max(0, spentToman.div(limitToman).mul(100).toNumber()),
+      over: remainingToman.isNegative(),
     });
   }
   return result;
@@ -178,23 +240,29 @@ export async function listDebts(userId?: string) {
     const own = inst.filter((i) => i.debtId === d.id);
     const paid = own.filter((i) => i.status === "paid");
 
-    // Phase 3: contractual Toman amount is the source of truth for new records.
-    // USD equivalents are derived at the CURRENT rate (dynamic while unpaid).
+    // Contractual Toman is the SOURCE OF TRUTH. USD is always live ÷ rate.
+    // Never reconstruct Toman from USD × current rate for Phase-3+ rows.
     if (d.principalToman != null) {
       const principalToman = D(d.principalToman);
-      const paidToman = paid.reduce(
-        (sum, i) => sum.add(i.amountToman != null ? D(i.amountToman) : Decimal.zero()),
-        Decimal.zero(),
-      );
+      const paidToman = paid.reduce((sum, i) => {
+        if (i.amountToman != null) return sum.add(D(i.amountToman));
+        // Paid legacy installment without Toman: convert its frozen USD book
+        // amount at the CURRENT rate only for residual math (display path).
+        return sum.add(rate.gt(0) ? D(i.amountBase).mul(rate) : Decimal.zero());
+      }, Decimal.zero());
       const remaining = principalToman.sub(paidToman);
       const outstandingToman = remaining.isNegative() ? Decimal.zero() : remaining;
+      const principalUsd = principalToman.div(rate).toString();
+      const outstandingUsd = outstandingToman.div(rate).toString();
       return {
         ...d,
-        principalToman: principalToman.toString(),
-        outstandingToman: outstandingToman.toString(),
-        // Legacy-compatible USD fields derived dynamically (never stored as truth).
-        principalBase: principalToman.div(rate).toString(),
-        outstandingBase: outstandingToman.div(rate).toString(),
+        principalToman: principalToman.toFixed(0),
+        outstandingToman: outstandingToman.toFixed(0),
+        // USD fields are display-only equivalents at the live rate.
+        principalBase: principalUsd,
+        outstandingBase: outstandingUsd,
+        principalUsd,
+        outstandingUsd,
         installments: own,
         paidCount: paid.length,
         totalCount: own.length,
@@ -202,22 +270,26 @@ export async function listDebts(userId?: string) {
       };
     }
 
-    // Legacy records: unchanged behavior (USD from ledger or planning).
-    // Planning-only debts have no liability account yet. Their visible
-    // outstanding amount still decreases when a linked installment is marked
-    // paid, while ledger-backed debts continue to use the ledger balance.
+    // Legacy records without principal_toman: keep USD planning math, but ALSO
+    // surface a Toman display derived at the live rate so the UI never multiplies
+    // a USD figure a second time (which would inflate Toman when FX rises).
     const paidScheduled = paid.reduce((sum, i) => sum.add(i.amountBase), Decimal.zero());
     const planningOutstanding = D(d.principalBase).sub(paidScheduled);
-    const outstanding = bal
+    const outstandingUsd = bal
       ? D(bal.baseValue).neg()
       : planningOutstanding.isNegative()
         ? Decimal.zero()
         : planningOutstanding;
+    const principalUsd = D(d.principalBase);
+    const principalTomanDisp = rate.gt(0) ? principalUsd.mul(rate).toFixed(0) : null;
+    const outstandingTomanDisp = rate.gt(0) ? outstandingUsd.mul(rate).toFixed(0) : null;
     return {
       ...d,
-      principalToman: null,
-      outstandingToman: null,
-      outstandingBase: outstanding.toString(),
+      principalToman: principalTomanDisp,
+      outstandingToman: outstandingTomanDisp,
+      outstandingBase: outstandingUsd.toString(),
+      principalUsd: principalUsd.toString(),
+      outstandingUsd: outstandingUsd.toString(),
       installments: own,
       paidCount: paid.length,
       totalCount: own.length,
@@ -229,7 +301,9 @@ export async function listDebts(userId?: string) {
 export async function upcomingInstallments(limit = 8, userId?: string) {
   const u = await resolvePlanningUserId(userId);
   if (!u && (await hasMultipleUsers())) return [];
-  return db
+  const fx = await getLatestUsdIrtRateForUser(u ?? null);
+  const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("0");
+  const rows = await db
     .select({
       id: installments.id,
       seq: installments.seq,
@@ -246,6 +320,23 @@ export async function upcomingInstallments(limit = 8, userId?: string) {
     .where(and(eq(installments.status, "pending"), u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`))
     .orderBy(asc(installments.dueDate))
     .limit(limit);
+
+  // Attach a resolved Toman figure so callers never have to do USD×rate themselves.
+  return rows.map((r) => {
+    const amountToman =
+      r.amountToman != null
+        ? D(r.amountToman).toFixed(0)
+        : rate.gt(0)
+          ? D(r.amountBase).mul(rate).toFixed(0)
+          : null;
+    const amountUsd =
+      amountToman != null && rate.gt(0) ? D(amountToman).div(rate).toString() : D(r.amountBase).toString();
+    return {
+      ...r,
+      amountToman,
+      amountUsd,
+    };
+  });
 }
 
 /**
@@ -352,16 +443,6 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
 
 /* ---------------- Planned transactions ---------------- */
 
-export async function listPlanned(userId?: string) {
-  const u = await resolvePlanningUserId(userId);
-  if (!u && (await hasMultipleUsers())) return [];
-  return db
-    .select()
-    .from(plannedTransactions)
-    .where(and(sql`${plannedTransactions.deletedAt} is null`, u ? eq(plannedTransactions.userId, u) : sql`1=1`))
-    .orderBy(asc(plannedTransactions.plannedDate));
-}
-
 /**
  * A plan only touches the ledger when it is explicitly executed.
  * Execution is idempotent: an already-executed plan is never posted twice.
@@ -438,10 +519,16 @@ export async function executePlanned(id: string) {
 
 export type ProjectionPoint = {
   month: string;
+  /** Toman (authoritative for the planning module). */
   inflow: string;
   outflow: string;
   net: string;
   cumulative: string;
+  /** USD display-only companions at the live rate. */
+  inflowUsd?: string;
+  outflowUsd?: string;
+  netUsd?: string;
+  cumulativeUsd?: string;
   deficit: boolean;
 };
 
@@ -449,9 +536,17 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
   const u = await resolvePlanningUserId(userId);
   // Fail-closed: never blend tenants' projections.
   if (!u && (await hasMultipleUsers())) {
-    return { startingLiquidity: "0", netWorth: "0", points: [], scenario };
+    return {
+      startingLiquidity: "0",
+      netWorth: "0",
+      startingLiquidityToman: "0",
+      netWorthToman: "0",
+      points: [],
+      scenario,
+      unit: "IRT" as const,
+    };
   }
-  const [nw, planned, insts, obls, evs] = await Promise.all([
+  const [nw, planned, insts, obls, evs, fx] = await Promise.all([
     getCurrentNetWorth(userId),
     listPlanned(userId),
     db
@@ -468,32 +563,53 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
       .select()
       .from(events)
       .where(and(sql`${events.deletedAt} is null`, u ? eq(events.userId, u) : sql`1=1`)),
+    getLatestUsdIrtRateForUser(u ?? null),
   ]);
 
+  const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("0");
   const factorIn = scenario === "optimistic" ? 1.1 : scenario === "pessimistic" ? 0.9 : 1;
   const factorOut = scenario === "optimistic" ? 0.95 : scenario === "pessimistic" ? 1.15 : 1;
 
+  /**
+   * Projection unit = Toman.
+   * Planning amounts (planned txns, obligations, events, installment.amount_toman)
+   * are contractual Toman and enter the buckets unchanged. Only the starting
+   * liquidity (ledger USD book) is converted once at the live rate for the
+   * opening balance. FX changes therefore move the USD preview of the opening
+   * line — never the Toman scheduled outflows.
+   */
   const start = todayIso().slice(0, 8) + "01";
   const buckets = new Map<string, { inflow: Decimal; outflow: Decimal }>();
   for (let i = 0; i < months; i++) {
     buckets.set(addMonthsIso(start, i), { inflow: Decimal.zero(), outflow: Decimal.zero() });
   }
   const bucketKey = (iso: string) => iso.slice(0, 8) + "01";
-  const push = (iso: string, amount: Decimal, dir: "inflow" | "outflow") => {
+  const push = (iso: string, amountToman: Decimal, dir: "inflow" | "outflow") => {
     const key = bucketKey(iso);
     const b = buckets.get(key);
     if (!b) return;
-    if (dir === "inflow") b.inflow = b.inflow.add(amount.mul(String(factorIn)));
-    else b.outflow = b.outflow.add(amount.mul(String(factorOut)));
+    if (dir === "inflow") b.inflow = b.inflow.add(amountToman.mul(String(factorIn)));
+    else b.outflow = b.outflow.add(amountToman.mul(String(factorOut)));
   };
 
   for (const p of planned) {
     if (p.status !== "pending") continue;
+    // amountBase on planned transactions stores the user-entered Toman amount.
     push(p.plannedDate, D(p.amountBase), p.direction === "inflow" ? "inflow" : "outflow");
   }
-  for (const i of insts) push(i.dueDate, D(i.amountBase), "outflow");
+  for (const i of insts) {
+    // Prefer contractual amount_toman; legacy USD installments convert once.
+    const toman =
+      i.amountToman != null
+        ? D(i.amountToman)
+        : rate.gt(0)
+          ? D(i.amountBase).mul(rate)
+          : Decimal.zero();
+    push(i.dueDate, toman, "outflow");
+  }
   for (const o of obls) {
     if (o.status !== "pending") continue;
+    // amountBase stores contractual Toman.
     if (o.recurrence === "monthly") {
       for (let k = 0; k < months; k++) push(addMonthsIso(bucketKey(o.dueDate), k), D(o.amountBase), "outflow");
     } else {
@@ -502,42 +618,98 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
   }
   for (const e of evs) {
     if (e.status !== "planned") continue;
+    // budgetBase stores contractual Toman.
     push(e.eventDate, D(e.budgetBase), "outflow");
   }
 
-  let cumulative = D(nw.liquid);
+  // Opening liquidity: ledger reports USD book; convert once → Toman for the axis.
+  const startingLiquidityToman = rate.gt(0) ? D(nw.liquid).mul(rate) : Decimal.zero();
+  const netWorthToman = rate.gt(0) ? D(nw.netWorth).mul(rate) : Decimal.zero();
+  let cumulative = startingLiquidityToman;
   const points: ProjectionPoint[] = [];
   for (const [month, b] of buckets) {
     const net = b.inflow.sub(b.outflow);
     cumulative = cumulative.add(net);
+    const inflowT = b.inflow;
+    const outflowT = b.outflow;
     points.push({
       month,
-      inflow: b.inflow.toString(),
-      outflow: b.outflow.toString(),
-      net: net.toString(),
-      cumulative: cumulative.toString(),
+      // Primary figures are Toman (authoritative for the planning module).
+      inflow: inflowT.toFixed(0),
+      outflow: outflowT.toFixed(0),
+      net: net.toFixed(0),
+      cumulative: cumulative.toFixed(0),
+      // USD display-only companions (live rate).
+      inflowUsd: rate.gt(0) ? inflowT.div(rate).toString() : "0",
+      outflowUsd: rate.gt(0) ? outflowT.div(rate).toString() : "0",
+      netUsd: rate.gt(0) ? net.div(rate).toString() : "0",
+      cumulativeUsd: rate.gt(0) ? cumulative.div(rate).toString() : "0",
       deficit: cumulative.isNegative(),
-    });
+    } as ProjectionPoint);
   }
-  return { startingLiquidity: nw.liquid, netWorth: nw.netWorth, points, scenario };
+  return {
+    startingLiquidity: startingLiquidityToman.toFixed(0),
+    netWorth: netWorthToman.toFixed(0),
+    startingLiquidityToman: startingLiquidityToman.toFixed(0),
+    netWorthToman: netWorthToman.toFixed(0),
+    startingLiquidityUsd: nw.liquid,
+    netWorthUsd: nw.netWorth,
+    points,
+    scenario,
+    unit: "IRT" as const,
+  };
 }
 
 export async function listEvents(userId?: string) {
   const u = await resolvePlanningUserId(userId);
   if (!u && (await hasMultipleUsers())) return [];
-  return db
+  const fx = await getLatestUsdIrtRateForUser(u ?? null);
+  const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("0");
+  const rows = await db
     .select()
     .from(events)
     .where(and(sql`${events.deletedAt} is null`, u ? eq(events.userId, u) : sql`1=1`))
     .orderBy(asc(events.eventDate));
+  // budgetBase is contractual Toman; attach a live USD preview only.
+  return rows.map((e) => ({
+    ...e,
+    budgetToman: D(e.budgetBase).toFixed(0),
+    budgetUsd: rate.gt(0) ? D(e.budgetBase).div(rate).toString() : "0",
+  }));
 }
 
 export async function listObligations(userId?: string) {
   const u = await resolvePlanningUserId(userId);
   if (!u && (await hasMultipleUsers())) return [];
-  return db
+  const fx = await getLatestUsdIrtRateForUser(u ?? null);
+  const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("0");
+  const rows = await db
     .select()
     .from(obligations)
     .where(and(sql`${obligations.deletedAt} is null`, u ? eq(obligations.userId, u) : sql`1=1`))
     .orderBy(asc(obligations.dueDate));
+  // amountBase is contractual Toman; attach a live USD preview only.
+  return rows.map((o) => ({
+    ...o,
+    amountToman: D(o.amountBase).toFixed(0),
+    amountUsd: rate.gt(0) ? D(o.amountBase).div(rate).toString() : "0",
+  }));
+}
+
+export async function listPlanned(userId?: string) {
+  const u = await resolvePlanningUserId(userId);
+  if (!u && (await hasMultipleUsers())) return [];
+  const fx = await getLatestUsdIrtRateForUser(u ?? null);
+  const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("0");
+  const rows = await db
+    .select()
+    .from(plannedTransactions)
+    .where(and(sql`${plannedTransactions.deletedAt} is null`, u ? eq(plannedTransactions.userId, u) : sql`1=1`))
+    .orderBy(asc(plannedTransactions.plannedDate));
+  // amountBase is contractual Toman entered by the user.
+  return rows.map((p) => ({
+    ...p,
+    amountToman: D(p.amountBase).toFixed(0),
+    amountUsd: rate.gt(0) ? D(p.amountBase).div(rate).toString() : "0",
+  }));
 }

@@ -8,7 +8,13 @@ import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import BudgetForm from "@/components/forms/BudgetForm";
 import { D } from "@/domain/decimal";
-import { formatDualDate, formatMoney, formatPct, toIrtMoney, faCount } from "@/lib/format";
+import {
+  formatDualDate,
+  formatPct,
+  faCount,
+  formatTomanPrimary,
+  sumToman,
+} from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -25,25 +31,36 @@ export default async function BudgetsPage() {
       .orderBy(asc(accounts.code)),
     getLatestUsdIrtRate(),
   ]);
-  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const activeCount = budgets.length;
   const overCount = budgets.filter((b) => b.over).length;
-  const totalLimit = budgets.reduce((s, b) => s + Number(b.amountBase), 0);
-  const totalSpent = budgets.reduce((s, b) => s + Number(b.spentBase), 0);
+  // amountBase / amountToman = contractual Toman ceiling (never moves with FX).
+  const totalLimitToman = sumToman(budgets.map((b) => b.amountToman ?? b.amountBase));
+  const totalSpentToman = sumToman(budgets.map((b) => b.spentToman ?? b.spentBase));
+  const limitDisp = formatTomanPrimary(totalLimitToman, fx.rate);
+  const spentDisp = formatTomanPrimary(totalSpentToman, fx.rate);
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="بودجه‌ها"
-        subtitle="آیا در چارچوب بودجه هستم؟ — مصرف واقعی هر بخش، مستقیم از دفترکل خوانده می‌شود."
+        subtitle="آیا در چارچوب بودجه هستم؟ — سقف بودجه به تومان ثابت است؛ معادل دلاری فقط نمایشی است."
       />
 
       {activeCount > 0 && (
         <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
           <Metric label="بودجه فعال" value={faCount(activeCount)} />
-          <Metric label="سقف مجموع" value={toIrt(totalLimit) ?? formatMoney(totalLimit)} hint={fx.rate ? formatMoney(totalLimit) : undefined} />
-          <Metric label="مصرف مجموع" value={toIrt(totalSpent) ?? formatMoney(totalSpent)} tone={totalSpent > totalLimit ? "down" : "neutral"} hint={fx.rate ? formatMoney(totalSpent) : undefined} />
+          <Metric
+            label="سقف مجموع"
+            value={limitDisp.primary}
+            hint={limitDisp.usdHint ? `معادل: ${limitDisp.usdHint}` : undefined}
+          />
+          <Metric
+            label="مصرف مجموع"
+            value={spentDisp.primary}
+            tone={Number(totalSpentToman) > Number(totalLimitToman) ? "down" : "neutral"}
+            hint={spentDisp.usdHint ? `معادل: ${spentDisp.usdHint}` : undefined}
+          />
           <Metric label="خارج از چارچوب" value={faCount(overCount)} tone={overCount ? "down" : "neutral"} />
         </section>
       )}
@@ -63,6 +80,10 @@ export default async function BudgetsPage() {
               const over = b.over || b.usage >= 100;
               const almost = !over && b.usage >= 80;
               const color = over ? "var(--negative)" : almost ? "var(--warning)" : "var(--positive)";
+              const spentD = formatTomanPrimary(b.spentToman ?? b.spentBase, fx.rate);
+              const limitD = formatTomanPrimary(b.amountToman ?? b.amountBase, fx.rate);
+              const remRaw = b.remainingToman ?? b.remainingBase;
+              const remD = formatTomanPrimary(D(remRaw).abs().toFixed(0), fx.rate);
               return (
                 <li key={b.id} className="card p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -75,13 +96,13 @@ export default async function BudgetsPage() {
                     <div className="text-left">
                       <p className="num text-[12px] sm:text-[12px] money-nowrap" dir="rtl">
                         <b className="text-[12px] sm:text-[13px] money-nowrap" style={{ color }}>
-                          {toIrt(b.spentBase) ?? formatMoney(b.spentBase)}
+                          {spentD.primary}
                         </b>{" "}
-                        <span className="muted">از {toIrt(b.amountBase) ?? formatMoney(b.amountBase)}</span>
+                        <span className="muted">از {limitD.primary}</span>
                       </p>
-                      {fx.rate && (
+                      {(spentD.usdHint || limitD.usdHint) && (
                         <p className="muted num text-[9.5px]" dir="rtl">
-                          ≈ {formatMoney(b.spentBase)} از {formatMoney(b.amountBase)}
+                          معادل: {spentD.usdHint ?? "—"} از {limitD.usdHint ?? "—"}
                         </p>
                       )}
                     </div>
@@ -95,8 +116,8 @@ export default async function BudgetsPage() {
                     </span>
                     <span className="num" dir="rtl" style={{ color: over ? "var(--negative)" : "var(--positive)" }}>
                       {over
-                        ? `${toIrt(D(b.remainingBase).abs().toString()) ?? formatMoney(D(b.remainingBase).abs().toString())} بیشتر از سقف`
-                        : `${toIrt(b.remainingBase) ?? formatMoney(b.remainingBase)} مانده · ${formatPct(b.usage, 0)} مصرف شده`}
+                        ? `${remD.primary} بیشتر از سقف`
+                        : `${formatTomanPrimary(remRaw, fx.rate).primary} مانده · ${formatPct(b.usage, 0)} مصرف شده`}
                     </span>
                   </div>
                 </li>
@@ -115,7 +136,7 @@ export default async function BudgetsPage() {
             </span>
           </summary>
           <div className="border-t p-4" style={{ borderColor: "var(--border)" }}>
-            <BudgetForm accounts={expenseAccounts} />
+            <BudgetForm accounts={expenseAccounts} initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} />
           </div>
         </details>
       </Section>

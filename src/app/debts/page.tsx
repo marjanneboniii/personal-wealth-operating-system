@@ -5,7 +5,16 @@ import { listDebts } from "@/features/planning/service";
 import { EmptyState, Card, Metric, PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
 import DebtForm from "@/components/forms/DebtForm";
 import Icon from "@/components/ui/Icon";
-import { formatDualDate, formatMoney, formatPct, formatQty, todayIso, faCount, toIrtMoney } from "@/lib/format";
+import {
+  formatDualDate,
+  formatMoney,
+  formatPct,
+  formatQty,
+  todayIso,
+  faCount,
+  formatTomanPrimary,
+  sumToman,
+} from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -18,21 +27,27 @@ export default async function DebtsPage() {
   await ensureAuth();
   await seedIfEmpty();
   const [debts, fx] = await Promise.all([listDebts(), getLatestUsdIrtRate()]);
-  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const today = todayIso();
-  const totalOutstanding = debts.reduce((s, d) => s + Number(d.outstandingBase), 0);
+  // Toman is authoritative — never rebuild from USD × live rate.
+  const totalOutstandingToman = sumToman(debts.map((d) => d.outstandingToman));
   const overdue = debts.flatMap((d) => d.installments.filter((i) => i.status === "pending" && i.dueDate < today));
   const active = debts.filter((d) => d.status === "active");
   const nextPayment = debts
     .flatMap((d) => (d.nextDue ? [{ ...d.nextDue, title: d.title }] : []))
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+  const nextToman =
+    nextPayment?.amountToman != null
+      ? String(nextPayment.amountToman)
+      : null;
+  const nextDisp = nextToman ? formatTomanPrimary(nextToman, fx.rate) : null;
+  const totalDisp = formatTomanPrimary(totalOutstandingToman, fx.rate);
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="بدهی‌ها"
-        subtitle="نمای کامل تعهدات شما. مانده هر بدهی از سوابق مالی مشتق می‌شود و این صفحه آن را تغییر نمی‌دهد."
+        subtitle="نمای کامل تعهدات شما. مبلغ تومان هر بدهی ثابت است؛ معادل دلاری فقط نمایشی است و با نرخ روز تغییر می‌کند."
         action={
           <div className="flex flex-wrap items-center gap-3">
             <Link href="#manual-debt" className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[12px]">
@@ -55,15 +70,25 @@ export default async function DebtsPage() {
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric
           label="مانده کل بدهی"
-          value={toIrt(totalOutstanding) ?? formatMoney(totalOutstanding)}
-          tone={totalOutstanding > 0 ? "down" : "neutral"}
-          hint={totalOutstanding === 0 ? "بدهی‌ای ندارید" : fx.rate ? formatMoney(totalOutstanding) : `${faCount(active.length)} بدهی فعال`}
+          value={totalDisp.primary}
+          tone={Number(totalOutstandingToman) > 0 ? "down" : "neutral"}
+          hint={
+            Number(totalOutstandingToman) === 0
+              ? "بدهی‌ای ندارید"
+              : totalDisp.usdHint
+                ? `معادل: ${totalDisp.usdHint}`
+                : `${faCount(active.length)} بدهی فعال`
+          }
         />
         <Metric label="اقساط معوق" value={faCount(overdue.length)} tone={overdue.length ? "down" : "neutral"} />
         <Metric
           label="قسط بعدی"
-          value={nextPayment ? (toIrt(nextPayment.amountBase) ?? formatMoney(nextPayment.amountBase)) : "—"}
-          hint={nextPayment ? `${nextPayment.title} · ${formatDualDate(nextPayment.dueDate)}` : "قسطی در انتظار نیست"}
+          value={nextDisp?.primary ?? "—"}
+          hint={
+            nextPayment
+              ? `${nextPayment.title} · ${formatDualDate(nextPayment.dueDate)}${nextDisp?.usdHint ? ` · معادل ${nextDisp.usdHint}` : ""}`
+              : "قسطی در انتظار نیست"
+          }
         />
         <Metric
           label="تسویه‌شده"
@@ -96,6 +121,9 @@ export default async function DebtsPage() {
               const settled = d.status === "settled";
               const late = d.nextDue && d.nextDue.dueDate < today;
               const dDays = d.nextDue ? daysUntil(d.nextDue.dueDate) : null;
+              const outToman = settled ? "0" : (d.outstandingToman ?? "0");
+              const outDisp = formatTomanPrimary(outToman, fx.rate);
+              const nextInstToman = d.nextDue?.amountToman != null ? String(d.nextDue.amountToman) : null;
               return (
                 <li key={d.id} className="card p-4 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -117,14 +145,10 @@ export default async function DebtsPage() {
                     <div className="text-left">
                       <p className="muted text-[10.5px]">مانده قابل پرداخت</p>
                       <p className="num text-xl font-bold" dir="rtl" style={{ color: settled ? "var(--positive)" : "var(--negative)" }}>
-                        {d.outstandingToman != null
-                          ? formatMoney(settled ? 0 : d.outstandingToman, "IRT")
-                          : formatMoney(settled ? 0 : d.outstandingBase)}
+                        {outDisp.primary}
                       </p>
                       <p className="muted num mt-0.5 text-[10.5px]" dir="rtl">
-                        {d.outstandingToman != null
-                          ? <>≈ {formatMoney(settled ? 0 : d.outstandingBase)}</>
-                          : <>اصل: {formatMoney(d.principalBase)}</>}
+                        {outDisp.usdHint ? <>معادل: {outDisp.usdHint}</> : null}
                       </p>
                     </div>
                   </div>
@@ -150,7 +174,13 @@ export default async function DebtsPage() {
                     <p className="text-[12px]" style={{ color: late ? "var(--negative)" : "var(--text-2)" }}>
                       {d.nextDue ? (
                         <>
-                          قسط بعدی: <b className="num">{d.nextDue.amountToman != null ? formatMoney(d.nextDue.amountToman, "IRT") : formatMoney(d.nextDue.amountBase)}</b> ·{" "}
+                          قسط بعدی:{" "}
+                          <b className="num">
+                            {nextInstToman != null
+                              ? formatMoney(nextInstToman, "IRT")
+                              : "—"}
+                          </b>{" "}
+                          ·{" "}
                           {dDays != null && dDays < 0 ? (
                             <b>{faCount(Math.abs(dDays))} روز گذشته</b>
                           ) : dDays === 0 ? (

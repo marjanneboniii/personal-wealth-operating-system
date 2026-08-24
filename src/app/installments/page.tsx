@@ -6,7 +6,14 @@ import { accounts, assets, debts, installments } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import RowAction from "@/components/RowAction";
-import { formatDualDate, formatMoney, todayIso, faCount, toIrtMoney } from "@/lib/format";
+import {
+  formatDualDate,
+  todayIso,
+  faCount,
+  formatTomanPrimary,
+  resolveTomanAmount,
+  sumToman,
+} from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -50,23 +57,42 @@ export default async function InstallmentsPage() {
     .limit(1);
 
   const fx = await getLatestUsdIrtRate();
-  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const today = todayIso();
   const pending = rows.filter((r) => r.status === "pending");
   const paid = rows.filter((r) => r.status === "paid");
   const overdueList = pending.filter((r) => r.dueDate < today);
   const next30 = pending.filter((r) => r.dueDate >= today && daysUntil(r.dueDate) <= 30);
-  const remainingTotal = pending.reduce((s, r) => s + Number(r.amountBase), 0);
+
+  // Resolve each row's contractual Toman once; never USD×rate as primary.
+  const resolved = rows.map((r) => ({
+    ...r,
+    toman: resolveTomanAmount(r.amountToman, r.amountBase, fx.rate),
+  }));
+  const pendingResolved = resolved.filter((r) => r.status === "pending");
+  const remainingTotalToman = sumToman(pendingResolved.map((r) => r.toman));
+  const next30Toman = sumToman(
+    pendingResolved.filter((r) => r.dueDate >= today && daysUntil(r.dueDate) <= 30).map((r) => r.toman),
+  );
+  const remainingDisp = formatTomanPrimary(remainingTotalToman, fx.rate);
+  const next30Disp = formatTomanPrimary(next30Toman, fx.rate);
 
   return (
     <div className="space-y-8">
-      <PageHeader title="اقساط" />
+      <PageHeader title="اقساط" subtitle="مبلغ تومان هر قسط ثابت است؛ معادل دلاری فقط نمایشی است و با نرخ روز تغییر می‌کند." />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="معوق" value={faCount(overdueList.length)} tone={overdueList.length ? "down" : "neutral"} />
-        <Metric label="در ۳۰ روز آینده" value={faCount(next30.length)} hint={next30.length ? toIrt(next30.reduce((s, r) => s + Number(r.amountBase), 0)) ?? formatMoney(next30.reduce((s, r) => s + Number(r.amountBase), 0)) : undefined} />
-        <Metric label="مانده اقساط" value={toIrt(remainingTotal) ?? formatMoney(remainingTotal)} hint={fx.rate ? formatMoney(remainingTotal) : undefined} />
+        <Metric
+          label="در ۳۰ روز آینده"
+          value={faCount(next30.length)}
+          hint={next30.length ? next30Disp.primary : undefined}
+        />
+        <Metric
+          label="مانده اقساط"
+          value={remainingDisp.primary}
+          hint={remainingDisp.usdHint ? `معادل: ${remainingDisp.usdHint}` : undefined}
+        />
         <Metric label="پرداخت‌شده" value={faCount(paid.length)} tone={paid.length > 0 ? "up" : "neutral"} hint={`از ${faCount(rows.length)} قسط`} />
       </section>
 
@@ -98,10 +124,11 @@ export default async function InstallmentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
+                {resolved.map((r) => {
                   const late = r.status === "pending" && r.dueDate < today;
                   const soon = !late && r.status === "pending" && daysUntil(r.dueDate) <= 14;
                   const d = daysUntil(r.dueDate);
+                  const disp = formatTomanPrimary(r.toman, fx.rate);
                   return (
                     <tr key={r.id} className={r.status === "paid" ? "opacity-50" : ""}>
                       <td>
@@ -135,8 +162,10 @@ export default async function InstallmentsPage() {
                         </span>
                       </td>
                       <td className="td-num font-bold" dir="rtl">
-                        <div>{r.amountToman != null ? formatMoney(r.amountToman, "IRT") : toIrt(r.amountBase) ?? formatMoney(r.amountBase)}</div>
-                        <div className="muted num text-[9.5px]">≈ {formatMoney(r.amountBase)}</div>
+                        <div>{disp.primary}</div>
+                        {disp.usdHint && (
+                          <div className="muted num text-[9.5px]">معادل: {disp.usdHint}</div>
+                        )}
                       </td>
                       <td className="text-left">
                         {r.status === "pending" && (

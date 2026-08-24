@@ -4,7 +4,13 @@ import { seedIfEmpty } from "@/db/seed";
 import { listEvents, listObligations, upcomingInstallments } from "@/features/planning/service";
 import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import { formatDualDate, formatMoney, todayIso, faCount, toIrtMoney } from "@/lib/format";
+import {
+  formatDualDate,
+  todayIso,
+  faCount,
+  formatTomanPrimary,
+  sumToman,
+} from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -24,13 +30,8 @@ const RECURRENCE_LABEL: Record<string, string> = {
 /**
  * بدهی → تعهدات آینده
  *
- * PLANNED ≠ ACTUAL (§19). Everything on this page is a *future, scheduled*
- * commitment: pending installments, pending obligations and planned events.
- * None of it is a posted financial event, none of it is counted as a cash
- * outflow, and rendering this page creates no journal entry or posting.
- *
- * All rows are read through the existing planning services — no new query
- * model, no second obligation state.
+ * PLANNED ≠ ACTUAL. Future commitments only. Contractual Toman is authoritative;
+ * USD is a live display equivalent and never rewrites the Toman figure.
  */
 export default async function ObligationsPage() {
   await ensureAuth();
@@ -42,7 +43,6 @@ export default async function ObligationsPage() {
     upcomingInstallments(100),
     getLatestUsdIrtRate(),
   ]);
-  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const today = todayIso();
 
@@ -50,7 +50,8 @@ export default async function ObligationsPage() {
     id: string;
     title: string;
     date: string;
-    amount: string;
+    /** Contractual Toman — never recomputed from USD. */
+    amountToman: string;
     kind: "installment" | "obligation" | "event";
     badge: string;
     detail: string | null;
@@ -61,7 +62,7 @@ export default async function ObligationsPage() {
       id: `inst-${i.id}`,
       title: `قسط ${i.seq} — ${i.debtTitle}`,
       date: i.dueDate,
-      amount: String(i.amountBase),
+      amountToman: i.amountToman != null ? String(i.amountToman) : "0",
       kind: "installment" as const,
       badge: "قسط",
       detail: i.creditor,
@@ -72,7 +73,7 @@ export default async function ObligationsPage() {
         id: `obl-${o.id}`,
         title: o.title,
         date: o.dueDate,
-        amount: String(o.amountBase),
+        amountToman: o.amountToman ?? String(o.amountBase),
         kind: "obligation" as const,
         badge: RECURRENCE_LABEL[o.recurrence] ?? "تعهد",
         detail: o.note ?? null,
@@ -83,7 +84,7 @@ export default async function ObligationsPage() {
         id: `evt-${e.id}`,
         title: e.name,
         date: e.eventDate,
-        amount: String(e.budgetBase),
+        amountToman: e.budgetToman ?? String(e.budgetBase),
         kind: "event" as const,
         badge: "رویداد",
         detail: e.note ?? null,
@@ -93,13 +94,18 @@ export default async function ObligationsPage() {
   const overdue = rows.filter((r) => r.date < today);
   const next30 = rows.filter((r) => r.date >= today && daysUntil(r.date) <= 30);
   const next90 = rows.filter((r) => r.date >= today && daysUntil(r.date) <= 90);
-  const totalCommitted = rows.filter((r) => r.date >= today).reduce((s, r) => s + Number(r.amount), 0);
+  const totalCommittedToman = sumToman(rows.filter((r) => r.date >= today).map((r) => r.amountToman));
+  const next30Toman = sumToman(next30.map((r) => r.amountToman));
+  const next90Toman = sumToman(next90.map((r) => r.amountToman));
+  const totalDisp = formatTomanPrimary(totalCommittedToman, fx.rate);
+  const n30Disp = formatTomanPrimary(next30Toman, fx.rate);
+  const n90Disp = formatTomanPrimary(next90Toman, fx.rate);
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="تعهدات آینده"
-        subtitle="پرداخت‌های دانسته‌ای که هنوز رخ نداده‌اند — اقساط سررسیدنشده، تعهدات و رویدادهای برنامه‌ریزی‌شده."
+        subtitle="پرداخت‌های دانسته‌ای که هنوز رخ نداده‌اند — مبلغ تومان ثابت است؛ معادل دلاری فقط نمایشی است."
         action={
           <Link href="/debts" className="btn btn-soft">
             <Icon name="debts" size={16} />
@@ -118,14 +124,18 @@ export default async function ObligationsPage() {
         <Metric
           label="۳۰ روز آینده"
           value={faCount(next30.length)}
-          hint={next30.length ? toIrt(next30.reduce((s, r) => s + Number(r.amount), 0)) ?? formatMoney(next30.reduce((s, r) => s + Number(r.amount), 0)) : undefined}
+          hint={next30.length ? n30Disp.primary : undefined}
         />
         <Metric
           label="۹۰ روز آینده"
           value={faCount(next90.length)}
-          hint={next90.length ? toIrt(next90.reduce((s, r) => s + Number(r.amount), 0)) ?? formatMoney(next90.reduce((s, r) => s + Number(r.amount), 0)) : undefined}
+          hint={next90.length ? n90Disp.primary : undefined}
         />
-        <Metric label="مجموع تعهدات پیش‌رو" value={toIrt(totalCommitted) ?? formatMoney(totalCommitted)} hint={fx.rate ? formatMoney(totalCommitted) : undefined} />
+        <Metric
+          label="مجموع تعهدات پیش‌رو"
+          value={totalDisp.primary}
+          hint={totalDisp.usdHint ? `معادل: ${totalDisp.usdHint}` : undefined}
+        />
       </section>
 
       <Section title="زمان‌بندی تعهدات" hint="از نزدیک‌ترین سررسید به دورترین">
@@ -158,6 +168,7 @@ export default async function ObligationsPage() {
                   const late = r.date < today;
                   const soon = !late && daysUntil(r.date) <= 14;
                   const d = daysUntil(r.date);
+                  const disp = formatTomanPrimary(r.amountToman, fx.rate);
                   return (
                     <tr key={r.id}>
                       <td>
@@ -174,8 +185,8 @@ export default async function ObligationsPage() {
                         </span>
                       </td>
                       <td className="td-num font-bold" dir="rtl">
-                        <div>{toIrt(r.amount) ?? formatMoney(r.amount)}</div>
-                        {fx.rate && <div className="muted num text-[9.5px]">≈ {formatMoney(r.amount)}</div>}
+                        <div>{disp.primary}</div>
+                        {disp.usdHint && <div className="muted num text-[9.5px]">معادل: {disp.usdHint}</div>}
                       </td>
                     </tr>
                   );
