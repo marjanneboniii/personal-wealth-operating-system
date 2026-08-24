@@ -418,6 +418,84 @@ export function formatDualMoneyFromIrt(irtAmount: string | number, usdToIrtRate:
   };
 }
 
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ * Debt + Planning modules — Toman is AUTHORITATIVE, USD is display-only.
+ *
+ * Hard invariants (never violate):
+ *   • Contractual amounts (debt principal, installment, obligation, goal
+ *     target, fund target, budget ceiling, planned txn, event budget) are
+ *     stored and rendered in Toman. An FX-rate change MUST NOT rewrite or
+ *     recompute those Toman figures.
+ *   • The USD line is always `toman ÷ currentRate` (preview only).
+ *   • Never call toIrtMoney / usd→irt on these amounts: that path treats the
+ *     stored figure as USD and multiplies by the live rate, so raising the
+ *     dollar rate inflates the Toman label — the exact bug users reported.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Resolve the authoritative Toman figure for a debt/planning row.
+ * Prefers an explicit Toman field; only falls back to a legacy USD×rate
+ * conversion when no Toman was ever stored (pre-Phase-3 rows).
+ */
+export function resolveTomanAmount(
+  toman: string | number | null | undefined,
+  usdFallback: string | number | null | undefined,
+  usdToIrtRate: string | number | null | undefined,
+): string | null {
+  if (toman != null && toman !== "") {
+    try {
+      return D(toman).toFixed(0);
+    } catch {
+      return null;
+    }
+  }
+  if (usdFallback == null || usdFallback === "" || usdToIrtRate == null || D(usdToIrtRate).lte(0)) {
+    return null;
+  }
+  try {
+    return usdToIrt(usdFallback, usdToIrtRate);
+  } catch {
+    return null;
+  }
+}
+
+/** Primary Toman label + optional USD-equivalent hint (display only). */
+export function formatTomanPrimary(
+  tomanAmount: string | number | null | undefined,
+  usdToIrtRate: string | number | null | undefined,
+): { primary: string; usdHint: string | null; toman: string | null; usd: string | null } {
+  if (tomanAmount == null || tomanAmount === "") {
+    return { primary: "—", usdHint: null, toman: null, usd: null };
+  }
+  const tomanStr = D(tomanAmount).toFixed(0);
+  const primary = formatMoney(tomanStr, "IRT");
+  if (usdToIrtRate == null || D(usdToIrtRate).lte(0)) {
+    return { primary, usdHint: null, toman: tomanStr, usd: null };
+  }
+  const usd = irtToUsd(tomanStr, usdToIrtRate);
+  return {
+    primary,
+    usdHint: formatMoney(usd, "USD"),
+    toman: tomanStr,
+    usd,
+  };
+}
+
+/** Sum a list of Toman amounts with exact decimal arithmetic. */
+export function sumToman(values: Array<string | number | null | undefined>): string {
+  let total = D("0");
+  for (const v of values) {
+    if (v == null || v === "") continue;
+    try {
+      total = total.add(D(v));
+    } catch {
+      /* skip unparseable */
+    }
+  }
+  return total.toFixed(0);
+}
+
 export function formatDualMoneyFromUsd(usdAmount: string | number, usdToIrtRate: string | number | null, _digits: DigitStyle = "fa"): { irt: string; usd: string; rateLabel: string } {
   const usdExact = D(usdAmount);
   const usdStr = usdExact.toFixed(2);

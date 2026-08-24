@@ -394,24 +394,29 @@ export async function runSeed(): Promise<void> {
   });
 
   /* Debts & installments -------------------------------------------- */
+  // Demo debts store contractual Toman as the source of truth. USD base_value
+  // on the ledger stays a frozen book figure; principal_toman / amount_toman
+  // never move when the live FX rate changes.
   const [loan] = await db
     .insert(debts)
     .values({
       creditor: "بانک ملت",
       title: "وام مسکن",
       principalBase: "8000",
+      principalToman: "1520000000",
+      principalUsdCreated: "8000",
       interestRate: "18",
       startDate: m(-6),
       accountId: C["2010"],
-    })
+    } as any)
     .returning();
   await postEntry({
     entryDate: m(-6),
     type: "debt",
     description: "دریافت وام مسکن از بانک ملت",
     postings: [
-      { accountId: C["1010"], assetId: A.IRT, quantity: "800000000", baseValue: "8000" },
-      { accountId: C["2010"], assetId: A.IRT, quantity: "-800000000", baseValue: "-8000" },
+      { accountId: C["1010"], assetId: A.IRT, quantity: "1520000000", baseValue: "8000" },
+      { accountId: C["2010"], assetId: A.IRT, quantity: "-1520000000", baseValue: "-8000" },
     ],
   });
   await db.insert(installments).values(
@@ -420,6 +425,8 @@ export async function runSeed(): Promise<void> {
       seq: i + 1,
       dueDate: m(-6 + i),
       amountBase: "390",
+      amountToman: "74100000",
+      amountUsdCreated: "390",
     })),
   );
 
@@ -429,10 +436,12 @@ export async function runSeed(): Promise<void> {
       creditor: "لیزینگ ایران‌خودرو",
       title: "اقساط خودرو",
       principalBase: "6000",
+      principalToman: "1140000000",
+      principalUsdCreated: "6000",
       interestRate: "21",
       startDate: m(-4),
       accountId: C["2020"],
-    })
+    } as any)
     .returning();
   await postEntry({
     entryDate: m(-4),
@@ -440,7 +449,7 @@ export async function runSeed(): Promise<void> {
     description: "ثبت مانده اقساط خودرو",
     postings: [
       { accountId: C["3010"], assetId: A.USD, quantity: "6000", baseValue: "6000" },
-      { accountId: C["2020"], assetId: A.IRT, quantity: "-600000000", baseValue: "-6000" },
+      { accountId: C["2020"], assetId: A.IRT, quantity: "-1140000000", baseValue: "-6000" },
     ],
   });
   await db.insert(installments).values(
@@ -449,6 +458,8 @@ export async function runSeed(): Promise<void> {
       seq: i + 1,
       dueDate: m(-4 + i),
       amountBase: "330",
+      amountToman: "62700000",
+      amountUsdCreated: "330",
     })),
   );
 
@@ -460,42 +471,42 @@ export async function runSeed(): Promise<void> {
     await payInstallment(i.id, C["1010"]);
   }
 
-  /* Goals, funds, events, plans -------------------------------------- */
+  /* Goals, funds, events, plans — amounts are contractual TOMAN ------------- */
   await db.insert(goals).values([
-    { name: "خرید خانه", description: "پیش‌پرداخت آپارتمان", targetBase: "120000", targetDate: m(36), priority: 1, fundAccountId: C["1520"] },
-    { name: "سفر اروپا", description: "سفر خانوادگی تابستان", targetBase: "9000", targetDate: m(10), priority: 2, fundAccountId: C["1500"] },
-    { name: "تحصیل فرزند", description: "صندوق آموزش", targetBase: "25000", targetDate: m(60), priority: 3, fundAccountId: C["1510"] },
+    { name: "خرید خانه", description: "پیش‌پرداخت آپارتمان", targetBase: "22800000000", targetDate: m(36), priority: 1, fundAccountId: C["1520"] },
+    { name: "سفر اروپا", description: "سفر خانوادگی تابستان", targetBase: "1710000000", targetDate: m(10), priority: 2, fundAccountId: C["1500"] },
+    { name: "تحصیل فرزند", description: "صندوق آموزش", targetBase: "4750000000", targetDate: m(60), priority: 3, fundAccountId: C["1510"] },
   ]);
 
   await db.insert(funds).values([
-    { name: "صندوق اضطراری", kind: "emergency", targetBase: "12000", accountId: C["1500"], note: "معادل ۶ ماه هزینه" },
-    { name: "صندوق حمایت خانواده", kind: "family_support", targetBase: "6000", accountId: C["1510"] },
-    { name: "ذخیره فرصت سرمایه‌گذاری", kind: "reserve", targetBase: "10000", accountId: C["1110"] },
+    { name: "صندوق اضطراری", kind: "emergency", targetBase: "2280000000", accountId: C["1500"], note: "معادل ۶ ماه هزینه" },
+    { name: "صندوق حمایت خانواده", kind: "family_support", targetBase: "1140000000", accountId: C["1510"] },
+    { name: "ذخیره فرصت سرمایه‌گذاری", kind: "reserve", targetBase: "1900000000", accountId: C["1110"] },
   ]);
 
   await db.insert(events).values([
-    { name: "سفر ترکیه", category: "trip", eventDate: m(3), budgetBase: "3000" },
-    { name: "جشن سالگرد", category: "ceremony", eventDate: m(1), budgetBase: "600" },
-    { name: "هدیه تولد مادر", category: "gift", eventDate: m(2), budgetBase: "350" },
-    { name: "تعویض لپ‌تاپ", category: "purchase", eventDate: m(5), budgetBase: "2200" },
+    { name: "سفر ترکیه", category: "trip", eventDate: m(3), budgetBase: "570000000" },
+    { name: "جشن سالگرد", category: "ceremony", eventDate: m(1), budgetBase: "114000000" },
+    { name: "هدیه تولد مادر", category: "gift", eventDate: m(2), budgetBase: "66500000" },
+    { name: "تعویض لپ‌تاپ", category: "purchase", eventDate: m(5), budgetBase: "418000000" },
   ]);
 
   await db.insert(plannedTransactions).values([
-    { title: "شارژ ماهانه صندوق اضطراری", plannedDate: m(1), direction: "outflow", amountBase: "400", fromAccountId: C["1010"], toAccountId: C["1500"], recurrence: "monthly" },
-    { title: "پس‌انداز هدف خانه", plannedDate: m(1), direction: "outflow", amountBase: "800", fromAccountId: C["1010"], toAccountId: C["1520"], recurrence: "monthly" },
-    { title: "پاداش پایان سال", plannedDate: m(4), direction: "inflow", amountBase: "2500", toAccountId: C["1010"], recurrence: "yearly" },
-    { title: "بیمه عمر", plannedDate: m(2), direction: "outflow", amountBase: "450", fromAccountId: C["1010"], toAccountId: C["5900"], recurrence: "yearly" },
+    { title: "شارژ ماهانه صندوق اضطراری", plannedDate: m(1), direction: "outflow", amountBase: "76000000", fromAccountId: C["1010"], toAccountId: C["1500"], recurrence: "monthly" },
+    { title: "پس‌انداز هدف خانه", plannedDate: m(1), direction: "outflow", amountBase: "152000000", fromAccountId: C["1010"], toAccountId: C["1520"], recurrence: "monthly" },
+    { title: "پاداش پایان سال", plannedDate: m(4), direction: "inflow", amountBase: "475000000", toAccountId: C["1010"], recurrence: "yearly" },
+    { title: "بیمه عمر", plannedDate: m(2), direction: "outflow", amountBase: "85500000", fromAccountId: C["1010"], toAccountId: C["5900"], recurrence: "yearly" },
   ]);
 
   await db.insert(obligations).values([
-    { title: "اجاره ماهانه", amountBase: "900", dueDate: m(1), recurrence: "monthly" },
-    { title: "شهریه مدرسه", amountBase: "1400", dueDate: m(6), recurrence: "yearly" },
-    { title: "بیمه خودرو", amountBase: "320", dueDate: m(2), recurrence: "yearly" },
+    { title: "اجاره ماهانه", amountBase: "171000000", dueDate: m(1), recurrence: "monthly" },
+    { title: "شهریه مدرسه", amountBase: "266000000", dueDate: m(6), recurrence: "yearly" },
+    { title: "بیمه خودرو", amountBase: "60800000", dueDate: m(2), recurrence: "yearly" },
   ]);
 
   await db.insert(budgets).values([
-    { name: "خوراک ماهانه", periodStart: today.slice(0, 8) + "01", periodEnd: addMonthsIso(today.slice(0, 8) + "01", 1), accountId: C["5010"], amountBase: "800" },
-    { name: "حمل‌ونقل", periodStart: today.slice(0, 8) + "01", periodEnd: addMonthsIso(today.slice(0, 8) + "01", 1), accountId: C["5030"], amountBase: "250" },
+    { name: "خوراک ماهانه", periodStart: today.slice(0, 8) + "01", periodEnd: addMonthsIso(today.slice(0, 8) + "01", 1), accountId: C["5010"], amountBase: "152000000" },
+    { name: "حمل‌ونقل", periodStart: today.slice(0, 8) + "01", periodEnd: addMonthsIso(today.slice(0, 8) + "01", 1), accountId: C["5030"], amountBase: "47500000" },
   ]);
 
   /* Historical snapshots (12 months) ---------------------------------- */

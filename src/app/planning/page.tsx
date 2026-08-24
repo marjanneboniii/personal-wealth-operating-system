@@ -16,7 +16,15 @@ import { BarsChart } from "@/components/charts/Charts";
 import { EventForm, GoalForm, PlannedForm } from "@/components/forms/QuickForms";
 import RowAction from "@/components/RowAction";
 import Icon from "@/components/ui/Icon";
-import { formatMoney, formatShortDate, getDualDate, toJalali, faCount, outflowTone, toIrtMoney } from "@/lib/format";
+import {
+  formatShortDate,
+  getDualDate,
+  toJalali,
+  faCount,
+  outflowTone,
+  formatTomanPrimary,
+  sumToman,
+} from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -45,18 +53,25 @@ export default async function PlanningPage() {
     getLatestUsdIrtRate(),
   ]);
 
-  const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
-
   const pending = planned.filter((p) => p.status === "pending");
   const deficit = projection.points.find((p) => p.deficit);
-  const totalPlannedOut = pending.filter((p) => p.direction === "outflow").reduce((s, p) => s + Number(p.amountBase), 0);
+  // Planned amounts are contractual Toman.
+  const totalPlannedOutToman = sumToman(
+    pending.filter((p) => p.direction === "outflow").map((p) => p.amountToman ?? p.amountBase),
+  );
+  const liqDisp = formatTomanPrimary(projection.startingLiquidityToman ?? projection.startingLiquidity, fx.rate);
+  const outDisp = formatTomanPrimary(totalPlannedOutToman, fx.rate);
+  const endCum = projection.points.at(-1)?.cumulative ?? "0";
+  const endDisp = formatTomanPrimary(endCum, fx.rate);
+  const debtsOutstandingToman = sumToman(debts.map((d) => d.outstandingToman));
+  const debtsDisp = formatTomanPrimary(debtsOutstandingToman, fx.rate);
 
   // Next actions — the single merged "what's next" queue
   const queue: {
     date: string;
     title: string;
     kind: "installment" | "plan" | "event";
-    amount: string;
+    amountToman: string;
     id: string;
     extra?: string;
   }[] = [
@@ -64,7 +79,7 @@ export default async function PlanningPage() {
       date: i.dueDate,
       title: `قسط ${i.seq} «${i.debtTitle}»`,
       kind: "installment" as const,
-      amount: i.amountBase,
+      amountToman: i.amountToman != null ? String(i.amountToman) : "0",
       id: i.id,
       extra: i.creditor,
     })),
@@ -72,7 +87,7 @@ export default async function PlanningPage() {
       date: p.plannedDate,
       title: p.title,
       kind: "plan" as const,
-      amount: p.amountBase,
+      amountToman: p.amountToman ?? String(p.amountBase),
       id: p.id,
       extra: p.direction === "inflow" ? "ورودی برنامه‌ریزی‌شده" : "خروجی برنامه‌ریزی‌شده",
     })),
@@ -83,7 +98,7 @@ export default async function PlanningPage() {
         date: e.eventDate,
         title: e.name,
         kind: "event" as const,
-        amount: e.budgetBase,
+        amountToman: e.budgetToman ?? String(e.budgetBase),
         id: e.id,
         extra: "رویداد پیش‌رو",
       })),
@@ -95,7 +110,7 @@ export default async function PlanningPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="پیش‌بینی مالی" />
+      <PageHeader title="پیش‌بینی مالی" subtitle="مبالغ برنامه‌ریزی به تومان ثابت‌اند؛ معادل دلاری فقط نمایشی است." />
 
       {deficit && (
         <Alert tone="neg" icon="alert" title={`کسری نقدینگی در ${formatShortDate(deficit.month)}`}>
@@ -104,13 +119,22 @@ export default async function PlanningPage() {
       )}
 
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="نقدینگی فعلی" value={toIrt(projection.startingLiquidity) ?? formatMoney(projection.startingLiquidity)} hint={fx.rate ? formatMoney(projection.startingLiquidity) : undefined} />
-        <Metric label="خروجی برنامه‌ریزی‌شده" value={toIrt(totalPlannedOut) ?? formatMoney(totalPlannedOut)} tone={outflowTone(totalPlannedOut)} hint={fx.rate ? formatMoney(totalPlannedOut) : `${faCount(pending.length)} برنامه در انتظار`} />
+        <Metric
+          label="نقدینگی فعلی"
+          value={liqDisp.primary}
+          hint={liqDisp.usdHint ? `معادل: ${liqDisp.usdHint}` : undefined}
+        />
+        <Metric
+          label="خروجی برنامه‌ریزی‌شده"
+          value={outDisp.primary}
+          tone={outflowTone(totalPlannedOutToman)}
+          hint={outDisp.usdHint ? `معادل: ${outDisp.usdHint}` : `${faCount(pending.length)} برنامه در انتظار`}
+        />
         <Metric
           label="نقدینگی پایان ۱۲ ماه"
-          value={toIrt(projection.points.at(-1)?.cumulative ?? "0") ?? formatMoney(projection.points.at(-1)?.cumulative ?? "0")}
+          value={endDisp.primary}
           tone={deficit ? "down" : "neutral"}
-          hint={fx.rate ? formatMoney(projection.points.at(-1)?.cumulative ?? "0") : undefined}
+          hint={endDisp.usdHint ? `معادل: ${endDisp.usdHint}` : undefined}
         />
         <Metric label="هشدار کسری" value={deficit ? formatShortDate(deficit.month) : "ندارد"} tone={deficit ? "down" : "neutral"} />
       </section>
@@ -130,6 +154,7 @@ export default async function PlanningPage() {
             {queue.map((q) => {
               const d = daysUntil(q.date);
               const dual = getDualDate(q.date);
+              const disp = formatTomanPrimary(q.amountToman, fx.rate);
               return (
                 <li key={q.kind + q.id} className="flex items-center gap-3 py-3">
                   <span
@@ -149,11 +174,11 @@ export default async function PlanningPage() {
                   </div>
                   <span className="flex shrink-0 flex-col items-end">
                     <span className="num text-[13.5px] font-bold" dir="rtl">
-                      {toIrt(q.amount) ?? formatMoney(q.amount)}
+                      {disp.primary}
                     </span>
-                    {fx.rate && (
+                    {disp.usdHint && (
                       <span className="muted num text-[9.5px]" dir="rtl">
-                        ≈ {formatMoney(q.amount)}
+                        معادل: {disp.usdHint}
                       </span>
                     )}
                   </span>
@@ -173,8 +198,8 @@ export default async function PlanningPage() {
         )}
       </Section>
 
-      {/* Forecast */}
-      <Section title="جریان نقدی ۱۲ ماه آینده" hint="برنامه‌ها + اقساط + تعهدات + رویدادها — پیش‌بینی، نه واقعیت">
+      {/* Forecast — Toman axis */}
+      <Section title="جریان نقدی ۱۲ ماه آینده" hint="برنامه‌ها + اقساط + تعهدات + رویدادها — مبالغ به تومان">
         <div className="card p-4 sm:p-5">
           <BarsChart
             height={150}
@@ -193,7 +218,7 @@ export default async function PlanningPage() {
           {[
             { href: "/budgets", label: "بودجه‌ها", q: "آیا در چارچوب هستم؟", icon: "budgets" as const },
             { href: "/goals", label: "اهداف و صندوق‌ها", q: "چقدر نزدیکم؟", icon: "goals" as const },
-            { href: "/debts", label: "بدهی‌ها", q: `مانده: ${toIrt(debts.reduce((s, d) => s + Number(d.outstandingBase), 0)) ?? formatMoney(debts.reduce((s, d) => s + Number(d.outstandingBase), 0))}`, icon: "debts" as const },
+            { href: "/debts", label: "بدهی‌ها", q: `مانده: ${debtsDisp.primary}`, icon: "debts" as const },
             { href: "/installments", label: "اقساط", q: "چه زمانی سر می‌رسد؟", icon: "installments" as const },
           ].map((l) => (
             <Link key={l.href} href={l.href} className="card group p-4 transition-transform hover:-translate-y-0.5">
@@ -208,7 +233,7 @@ export default async function PlanningPage() {
       </Section>
 
       {/* Capture — collapsed until needed */}
-      <Section title="افزودن برنامه جدید" hint="تا قبل از «اجرا» هیچ سندی در دفترکل ایجاد نمی‌شود">
+      <Section title="افزودن برنامه جدید" hint="تا قبل از «اجرا» هیچ سندی در دفترکل ایجاد نمی‌شود — مبالغ به تومان">
         <div className="space-y-2.5">
           {[
             { id: "planned", label: "تراکنش برنامه‌ریزی‌شده", body: <PlannedForm accounts={accountRows} initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} /> },
