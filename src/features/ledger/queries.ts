@@ -212,6 +212,19 @@ export type LedgerRow = {
   categoryParentName?: string | null;
   /** true when the category is depreciation/reserve (no cash outflow) */
   categoryNonCash?: boolean;
+  /**
+   * Frozen Toman from entry_fx_snapshots (display-only, never accounting).
+   * Used by the Human Finance Layer so a dynamic Toman equivalent is never
+   * re-derived from the current FX rate when a commit-time freeze exists.
+   */
+  fxIrtAmount?: string | null;
+  /**
+   * Frozen historical purchase Toman for a real-estate opening entry
+   * (display-only). A prior-period acquisition is booked in USD; the
+   * contractual Toman purchase price lives on real_estate_properties and
+   * must be surfaced instead of today's USD→IRT conversion.
+   */
+  realEstatePurchaseToman?: string | null;
   lines: { account: string; accountType: string; symbol: string; quantity: string; baseValue: string; decimals: number; memo: string | null }[];
 };
 
@@ -426,7 +439,11 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
              'baseValue', p.base_value::text,
              'memo', p.memo
            ) order by p.base_value desc) filter (where p.id is not null), '[]') as lines,
-           (er.entry_id is not null) as reviewed
+           (er.entry_id is not null) as reviewed,
+           -- Frozen Toman (commit-time snapshot) — display only, never accounting.
+           (select s.irt_amount::text from entry_fx_snapshots s where s.entry_id = je.id limit 1) as "fxIrtAmount",
+           -- Frozen historical purchase Toman for a real-estate opening entry.
+           (select rep.purchase_price_toman::text from real_estate_properties rep where rep.ledger_entry_id = je.id limit 1) as "realEstatePurchaseToman"
     from journal_entries je
       left join postings p on p.entry_id = je.id
       left join accounts a on a.id = p.account_id

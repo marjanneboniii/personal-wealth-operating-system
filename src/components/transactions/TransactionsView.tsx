@@ -64,19 +64,21 @@ export default function TransactionsView({
   const searchRef = useRef<HTMLInputElement>(null);
 
   // ONE-WAY DYNAMIC EQUIVALENT (Directive §1): the primary Toman figure comes
-  // from the frozen entry snapshot or the exact IRT leg — never re-derived.
-  // Only when neither exists is it computed live, from the FULL-PRECISION
-  // base amount (never a 2-dp display string) and marked with «≈».
+  // from the authoritative frozen source — the property's stored purchase
+  // Toman for a real-estate acquisition, else the exact IRT/native leg, else
+  // the commit-time snapshot. Never re-derived from today's FX. Only when no
+  // frozen Toman exists is it computed live from the FULL-PRECISION base
+  // amount (never a 2-dp display string) and marked with «≈».
   const amountLabel = (e: ClientTxRow, h: ReturnType<typeof humanizeEntry>) => {
     const sign = h.sign > 0 ? "+" : h.sign < 0 ? "−" : "";
-    const irt = e.fx?.irtAmount
-      ? formatMoney(D(e.fx.irtAmount).toFixed(0), "IRT")
-      : h.nativeIrt
-        ? formatMoney(h.nativeIrt, "IRT")
+    const irt = h.nativeIrt
+      ? formatMoney(h.nativeIrt, "IRT")
+      : e.fx?.irtAmount
+        ? formatMoney(D(e.fx.irtAmount).toFixed(0), "IRT")
         : rate && D(rate).gt(0)
           ? formatMoney(D(h.amountExact).mul(rate).toFixed(0), "IRT")
           : null;
-    const dynamic = !e.fx?.irtAmount && !h.nativeIrt && !!irt;
+    const dynamic = !h.nativeIrt && !e.fx?.irtAmount && !!irt;
     return `${dynamic ? "≈ " : ""}${sign}${irt ?? formatMoney(h.amount)}`;
   };
 
@@ -107,7 +109,9 @@ export default function TransactionsView({
     const body = selectedRows
       .map((r) => {
         const h = humanizeEntry(r);
-        const irt = (r.fx?.irtAmount ?? h.nativeIrt ?? "").replace(/[,٬]/g, "");
+        // Authoritative Toman first (real-estate purchase record / native leg),
+        // then the commit-time snapshot; never a current-rate re-derivation.
+        const irt = (h.nativeIrt ?? r.fx?.irtAmount ?? "").replace(/[,٬]/g, "");
         return [
           r.entryDate,
           `"${r.description.replace(/"/g, '""')}"`,

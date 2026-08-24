@@ -317,7 +317,11 @@ export default async function OverviewDashboard() {
                 const h = humanizeEntry(e);
                 const hasNativeIrt = h.nativeIrt != null && D(h.nativeIrt).gt(0);
                 const displayToman = hasNativeIrt ? h.nativeIrt! : (rate ? usdToIrt(h.amountExact, rate) : null);
-                const displayUsd = hasNativeIrt ? (rate ? irtToUsd(h.nativeIrt!, rate) : h.amountExact) : h.amountExact;
+                // The USD figure shown is the ledger's canonical base value
+                // (frozen). Never re-derive it from the Toman at today's FX —
+                // that would distort a frozen purchase (e.g. a historical real
+                // estate acquisition booked in USD) into a current-rate guess.
+                const displayUsd = h.amountExact;
                 return (
                   <li key={e.id} className="flex items-center gap-2.5 py-2.5 sm:gap-3 sm:py-3">
                     <div className="min-w-0 flex-1">
