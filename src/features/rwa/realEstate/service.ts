@@ -21,12 +21,13 @@
  *   • Current value is updated ONLY by a new valuation — it never rewrites the
  *     immutable purchase history or the ledger.
  */
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   accounts,
   assetClasses,
   assets,
+  entryFxSnapshots,
   prices,
   realEstateProperties,
 } from "@/db/schema";
@@ -284,6 +285,12 @@ async function postRealEstateOpeningEntry(
     acquisitionDatePersian: string | null;
     purchaseValueUsd: string;
     purchasePriceToman: string; // قیمت خرید واقعی کاربر (تومان)
+    /** USD rate of the acquisition date, frozen (IRT per 1 USD). */
+    purchaseFxRate: string;
+    /** Source of the frozen rate: exact | nearest | manual | current | fallback. */
+    purchaseFxRateSource: string;
+    /** Effective date of the frozen rate (may differ from entryDate when nearest). */
+    purchaseFxRateDate: string;
   },
 ): Promise<string> {
   const { assetAccountId, openingEquityAccountId } = await ensureRealEstateLedgerAccounts(tx);
@@ -317,6 +324,24 @@ async function postRealEstateOpeningEntry(
     },
     tx,
   );
+
+  // Freeze the contractual Toman at commit (Presentation Layer, display & audit
+  // only — never part of the double-entry). This is what the Human Finance
+  // Layer uses so a historical acquisition shows its real purchase price in
+  // Toman, never a current USD→IRT re-derivation. Written atomically with the
+  // ledger entry; idempotent by the unique entry_id.
+  await tx
+    .insert(entryFxSnapshots)
+    .values({
+      entryId: result.id,
+      irtAmount: D(input.purchasePriceToman).toFixed(0),
+      usdAmount: D(input.purchaseValueUsd).toString(),
+      fxRate: D(input.purchaseFxRate).toString(),
+      rateSource: input.purchaseFxRateSource,
+      rateDate: input.purchaseFxRateDate,
+    })
+    .onConflictDoNothing();
+
   return result.id;
 }
 
@@ -464,6 +489,9 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
       acquisitionDatePersian: input.acquisitionDatePersian || null,
       purchaseValueUsd,
       purchasePriceToman: purchase.toFixed(0),
+      purchaseFxRate: D(purchaseFx.rate).toString(),
+      purchaseFxRateSource: purchaseFx.source,
+      purchaseFxRateDate: purchaseFx.effectiveDate,
     });
 
     await tx
@@ -728,18 +756,78 @@ let readyPromise: Promise<void> | null = null;
  *  2. seed the master data once (dynamic afterwards),
  *  3. migrate legacy free-text rows onto the master-data identity when a
  *     confident match exists (city "Ahvaz" → AHZ, area by normalized name,
- *     property type by normalized name) — existing rows are preserved.
+ *     property type by normalized name) — existing rows are preserved,
+ *  4. backfill a frozen Toman snapshot for historical acquisitions created
+ *     before the freeze existed (display-only, idempotent, never rewrites).
  */
 export async function ensureRealEstateModuleReady(): Promise<void> {
   readyPromise ??= (async () => {
     await ensureSchemaOnce();
     await seedRealEstateMasterDataIfEmpty();
     await migrateLegacyPropertyRows();
+    await backfillRealEstateFxSnapshots();
   })().catch((err) => {
     readyPromise = null;
     throw err;
   });
   return readyPromise;
+}
+
+/**
+ * Backfill a frozen Toman snapshot for real-estate opening entries created
+ * before the freeze was introduced (see `postRealEstateOpeningEntry`).
+ *
+ * Idempotent + non-destructive:
+ *  - only inserts where no `entry_fx_snapshots` row exists for the entry,
+ *  - never rewrites an existing snapshot or any ledger/postings row,
+ *  - only uses fields already stored on the property (purchase price in Toman,
+ *    purchase USD value, historical FX rate) — never guesses financial data.
+ */
+export async function backfillRealEstateFxSnapshots(): Promise<{ inserted: number; skipped: number }> {
+  const rows = await db
+    .select()
+    .from(realEstateProperties)
+    .where(
+      and(
+        isNotNull(realEstateProperties.ledgerEntryId),
+        isNotNull(realEstateProperties.purchasePriceToman),
+        isNotNull(realEstateProperties.purchaseValueUsd),
+        isNotNull(realEstateProperties.purchaseFxRate),
+      ),
+    );
+
+  let inserted = 0;
+  let skipped = 0;
+  for (const prop of rows) {
+    const entryId = prop.ledgerEntryId!;
+    const [existing] = await db
+      .select({ id: entryFxSnapshots.id })
+      .from(entryFxSnapshots)
+      .where(eq(entryFxSnapshots.entryId, entryId))
+      .limit(1);
+    if (existing) {
+      skipped++;
+      continue;
+    }
+    const rateDate = prop.purchaseFxRateDate ?? prop.acquisitionDate ?? prop.systemEntryDate;
+    if (!rateDate) {
+      skipped++;
+      continue;
+    }
+    await db
+      .insert(entryFxSnapshots)
+      .values({
+        entryId,
+        irtAmount: D(prop.purchasePriceToman!).toFixed(0),
+        usdAmount: D(prop.purchaseValueUsd!).toString(),
+        fxRate: D(prop.purchaseFxRate!).toString(),
+        rateSource: prop.purchaseFxRateSource ?? "manual",
+        rateDate,
+      })
+      .onConflictDoNothing();
+    inserted++;
+  }
+  return { inserted, skipped };
 }
 
 export async function migrateLegacyPropertyRows(): Promise<{ linked: number }> {

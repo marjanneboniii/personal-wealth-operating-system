@@ -40,9 +40,20 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
   const amount = amountDec.gt(0) ? amountDec : D(e.lines[0]?.baseValue ?? 0).abs();
   const amountExact = amount.toString();
   const irtLeg = e.lines.find((l) => l.symbol === "IRT" || l.symbol === "IRR");
+  // Frozen Toman, never recomputed via today's FX. Priority (first wins):
+  //   1. a native IRT/IRR leg (if the entry carried one) — the real Toman unit,
+  //   2. the frozen historical purchase Toman of a real-estate opening entry
+  //      (real_estate_properties.purchase_price_toman) — a prior-period
+  //      acquisition is booked in USD, so its contractual Toman purchase price
+  //      is the SINGLE authoritative figure. It wins over any generic snapshot
+  //      so a stale/incorrect entry_fx_snapshots row can never override it,
+  //   3. the entry's frozen FX snapshot (entry_fx_snapshots.irt_amount).
+  const frozenToman = e.realEstatePurchaseToman ?? e.fxIrtAmount;
   const nativeIrt = irtLeg
     ? (irtLeg.symbol === "IRR" ? D(irtLeg.quantity).abs().div(10) : D(irtLeg.quantity).abs()).toFixed(0)
-    : null;
+    : frozenToman != null && D(frozenToman).gt(0)
+      ? D(frozenToman).toFixed(0)
+      : null;
 
   let sign: -1 | 0 | 1 = 0;
   if (POSITIVE_TYPES.has(e.type)) sign = 1;

@@ -32,6 +32,7 @@ import { createSchemaIfNotExists } from "../src/db/init-schema";
 import {
   accounts,
   assets,
+  entryFxSnapshots,
   exchangeRates,
   journalEntries,
   postings,
@@ -57,7 +58,8 @@ import {
   setNeighborhoodActive,
   seedRealEstateMasterData,
 } from "../src/features/rwa/realEstate/masterData";
-import { getNetWorth } from "../src/features/ledger/queries";
+import { getNetWorth, getRecent } from "../src/features/ledger/queries";
+import { humanizeEntry } from "../src/lib/tx";
 import { jalaliToIso } from "../src/lib/format";
 import { D } from "../src/domain/decimal";
 
@@ -376,6 +378,123 @@ test("prior-period acquisition posts an OPENING entry dated at the acquisition d
   assert.ok(!lines.some((l) => cashIds.includes(l.accountId)), "cash accounts must not be touched");
   const todayEntries = await db.select().from(journalEntries).where(sql`entry_date = current_date`);
   assert.equal(todayEntries.length, 0, "no entry may be dated at the system-entry date");
+});
+
+test("recent activity shows the frozen purchase Toman for a historical acquisition — never a today's-rate re-derivation", async () => {
+  await reset();
+  const ids = await pickAhvazKianparsEastApartment();
+  // Acquisition rate 90,000; a wildly different "today" rate of 999,999 that
+  // MUST NEVER be used to rebuild the Toman amount from USD.
+  await setFxRate(ACQUISITION, "90000");
+  await setFxRate(VALUATION, "90000");
+  await setFxRate("2026-08-11", "999999");
+
+  const result = await createRealEstateAsset({
+    cityId: ids.cityId,
+    neighborhoodId: ids.neighborhoodId,
+    propertyTypeId: ids.propertyTypeId,
+    acquisitionDate: ACQUISITION,
+    acquisitionDatePersian: "1404/05/20",
+    valuationDate: VALUATION,
+    valuationDatePersian: "1405/05/20",
+    purchasePriceToman: PURCHASE_TOMAN, // generic fixture — frozen purchase price
+    currentValueToman: CURRENT_TOMAN,
+  });
+
+  // (1) A commit-time Toman snapshot is frozen next to the ledger entry.
+  const entryId = await ledgerEntryOf(result.id);
+  const [snap] = await db
+    .select()
+    .from(entryFxSnapshots)
+    .where(eq(entryFxSnapshots.entryId, entryId!));
+  assert.ok(snap, "a frozen entry_fx_snapshots row must exist for the acquisition");
+  assert.equal(D(snap!.irtAmount).toFixed(0), PURCHASE_TOMAN);
+  assert.equal(D(snap!.usdAmount).toFixed(2), "50000.00"); // 4.5B ÷ 90k
+  assert.equal(snap!.rateDate, ACQUISITION);
+
+  // (2) The Human Finance Layer surfaces the frozen Toman — NEVER the USD
+  //     cost basis re-valued at today's 999,999 rate.
+  const recent = await getRecent(6);
+  const rec = recent.find((r) => r.description.includes(result.symbol));
+  assert.ok(rec, "the acquisition must appear in recent activity");
+  const h = humanizeEntry(rec!);
+  assert.equal(h.nativeIrt, PURCHASE_TOMAN, "nativeIrt must be the frozen purchase Toman, not a today's-rate rebuild");
+  assert.ok(D(h.amountExact).gt(0), "USD cost basis is still present");
+  const todayRebuild = D(h.amountExact).mul("999999").toFixed(0);
+  assert.notEqual(h.nativeIrt, todayRebuild);
+});
+
+test("a stale/incorrect entry_fx_snapshots row never overrides the real-estate purchase record", async () => {
+  await reset();
+  const ids = await pickAhvazKianparsEastApartment();
+  await setFxRate(ACQUISITION, "90000");
+  await setFxRate(VALUATION, "90000");
+
+  const result = await createRealEstateAsset({
+    cityId: ids.cityId,
+    neighborhoodId: ids.neighborhoodId,
+    propertyTypeId: ids.propertyTypeId,
+    acquisitionDate: ACQUISITION,
+    acquisitionDatePersian: "1404/05/20",
+    valuationDate: VALUATION,
+    valuationDatePersian: "1405/05/20",
+    purchasePriceToman: PURCHASE_TOMAN,
+    currentValueToman: CURRENT_TOMAN,
+  });
+  const entryId = await ledgerEntryOf(result.id);
+
+  // Simulate a stale/incorrect snapshot with a generic, clearly-different value.
+  await db
+    .update(entryFxSnapshots)
+    .set({ irtAmount: "99000000000" })
+    .where(eq(entryFxSnapshots.entryId, entryId!));
+
+  const recent = await getRecent(6);
+  const rec = recent.find((r) => r.description.includes(result.symbol));
+  const h = humanizeEntry(rec!);
+  // The property record's purchase Toman is authoritative — it wins over the
+  // stale snapshot, so the wrong value is never displayed.
+  assert.equal(h.nativeIrt, PURCHASE_TOMAN);
+  assert.notEqual(h.nativeIrt, "99000000000");
+});
+
+test("backfill freezes a Toman snapshot for historical acquisitions created before the freeze existed", async () => {
+  await reset();
+  const ids = await pickAhvazKianparsEastApartment();
+  await setFxRate(ACQUISITION, "90000");
+  await setFxRate(VALUATION, "90000");
+
+  const result = await createRealEstateAsset({
+    cityId: ids.cityId,
+    neighborhoodId: ids.neighborhoodId,
+    propertyTypeId: ids.propertyTypeId,
+    acquisitionDate: ACQUISITION,
+    acquisitionDatePersian: "1404/05/20",
+    valuationDate: VALUATION,
+    valuationDatePersian: "1405/05/20",
+    purchasePriceToman: PURCHASE_TOMAN,
+    currentValueToman: CURRENT_TOMAN,
+  });
+  const entryId = await ledgerEntryOf(result.id);
+
+  // Simulate a row created before the freeze existed: no snapshot row.
+  await db.delete(entryFxSnapshots).where(eq(entryFxSnapshots.entryId, entryId!));
+  const before = await db.select().from(entryFxSnapshots).where(eq(entryFxSnapshots.entryId, entryId!));
+  assert.equal(before.length, 0);
+
+  const { backfillRealEstateFxSnapshots } = await import("../src/features/rwa/realEstate/service");
+  const outcome = await backfillRealEstateFxSnapshots();
+  assert.ok(outcome.inserted >= 1, "the historical acquisition must be backfilled");
+
+  const [after] = await db.select().from(entryFxSnapshots).where(eq(entryFxSnapshots.entryId, entryId!));
+  assert.ok(after, "a frozen snapshot must now exist");
+  assert.equal(D(after!.irtAmount).toFixed(0), PURCHASE_TOMAN);
+  assert.equal(D(after!.usdAmount).toFixed(2), "50000.00"); // 4.5B ÷ 90k
+
+  // Idempotent: running again must not duplicate.
+  const again = await backfillRealEstateFxSnapshots();
+  const count = await db.select().from(entryFxSnapshots).where(eq(entryFxSnapshots.entryId, entryId!));
+  assert.equal(count.length, 1, "backfill must be idempotent");
 });
 
 test("similar properties in one area get unique symbols and their own ledger entries", async () => {
