@@ -1,15 +1,15 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
-import { accounts, institutions, networks, wallets } from "@/db/schema";
+import { accounts, assets, institutions, networks, wallets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { listMoneyAccountCurrencies } from "@/features/accounts/service";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { repairOrphanedRealEstate } from "@/features/rwa/realEstate/service";
 import { EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import { BankLogo } from "@/components/ui/IranLogo";
-import { getBankLogo } from "@/features/branding/persianIcons";
+import AssetLogo from "@/components/ui/AssetLogo";
+import { resolveAssetLogoDetailed } from "@/features/branding/assetLogo";
 import MoneyAccountForm from "@/components/forms/MoneyAccountForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
@@ -62,6 +62,24 @@ export default async function AccountsPage() {
   ]);
 
   const toIrt = (usd: string | number) => toIrtMoney(D(usd).abs().toString(), fx.rate);
+
+  /**
+   * Asset display metadata (stored logo + CoinGecko identity), read separately
+   * so the ledger balance query stays untouched. Presentation only: these
+   * columns never take part in posting, FIFO or valuation.
+   */
+  const assetIds = [...new Set(balances.map((b) => b.assetId).filter((id): id is string => !!id))];
+  const assetMetaRows = assetIds.length
+    ? await db
+        .select({
+          id: assets.id,
+          logoUrl: assets.logoUrl,
+          coingeckoId: assets.coingeckoId,
+        })
+        .from(assets)
+        .where(inArray(assets.id, assetIds))
+    : [];
+  const assetMeta = new Map(assetMetaRows.map((row) => [row.id, row]));
 
   // CURRENCY ISOLATION: Balance is canonical in its own currency, Valuation is derived.
   // IRT Balance = quantity (Toman) canonical
@@ -150,12 +168,24 @@ export default async function AccountsPage() {
                     "IRT",
                   )
                 : toIrt(walletTotal.toString()) ?? formatMoney(walletTotal.toString());
+              // Brand mark for the wallet/institution header — display only.
+              const walletLogo = resolveAssetLogoDetailed({
+                assetType: walletMeta?.kind === "exchange" ? "company" : "bank",
+                brandName: walletMeta?.institution ?? walletName,
+                name: walletName,
+              });
               return (
                 <div key={walletKey} className="card overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--sunken)" }}>
                     <div className="flex items-center gap-2.5">
-                      {getBankLogo(walletMeta?.institution ?? walletName) ? (
-                        <BankLogo name={walletMeta?.institution ?? walletName} size={32} />
+                      {walletLogo.source === "persianlabs" ? (
+                        <AssetLogo
+                          assetType={walletMeta?.kind === "exchange" ? "company" : "bank"}
+                          brandName={walletMeta?.institution ?? walletName}
+                          name={walletName}
+                          size={32}
+                          radius={16}
+                        />
                       ) : (
                         <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "var(--surface)", color: "var(--brand)" }}>
                           <Icon name="wallet" size={15} />
@@ -177,19 +207,30 @@ export default async function AccountsPage() {
                     </div>
                   </div>
                   <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
-                    {rows.map((b) => (
-                      <AccountListItem
-                        key={b.accountId}
-                        accountId={b.accountId}
-                        name={b.name}
-                        symbol={b.symbol}
-                        quantity={b.quantity}
-                        assetDecimals={b.assetDecimals}
-                        baseValue={b.baseValue}
-                        walletName={b.walletName}
-                        toIrt={toIrt}
-                      />
-                    ))}
+                    {rows.map((b) => {
+                      // Money is formatted on the SERVER with the existing
+                      // helpers; only plain strings cross into the client
+                      // component (functions are not serialisable — that was
+                      // the crash this page used to hit).
+                      const meta = b.assetId ? assetMeta.get(b.assetId) : undefined;
+                      return (
+                        <AccountListItem
+                          key={b.accountId}
+                          accountId={b.accountId}
+                          name={b.name}
+                          symbol={b.symbol}
+                          quantity={b.quantity}
+                          assetDecimals={b.assetDecimals}
+                          balanceLabel={canonicalBalance(b)}
+                          valuationLabel={valuationToman(b)}
+                          baseValueLabel={formatMoney(D(b.baseValue).abs().toString())}
+                          walletName={b.walletName}
+                          logoUrl={meta?.logoUrl ?? null}
+                          assetClassName={b.className}
+                          coingeckoId={meta?.coingeckoId ?? null}
+                        />
+                      );
+                    })}
                   </ul>
                 </div>
               );
