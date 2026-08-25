@@ -686,7 +686,11 @@ async function loadProperties(userId?: string | null): Promise<RealEstateAsset[]
     })
     .from(realEstateProperties)
     .innerJoin(assets, eq(assets.id, realEstateProperties.assetId))
-    .where(userId ? eq(realEstateProperties.userId, userId) : undefined)
+    .where(
+      userId
+        ? and(eq(realEstateProperties.userId, userId), isNull(assets.deletedAt))
+        : isNull(assets.deletedAt),
+    )
     .orderBy(desc(realEstateProperties.createdAt));
 
   const filtered = rows;
@@ -959,6 +963,152 @@ export async function recordRealEstateValuation(input: RecordRealEstateValuation
   };
 }
 
+/* ─────────────────────── delete (proper cascade) ─────────────────────── */
+
+/**
+ * حذف کامل یک ملک — پاک‌سازی بدون آسیب به Accounting Core.
+ *
+ * این عمل:
+ *  1. رکورد real_estate_properties را حذف می‌کند (FK cascade → valuation snapshots)
+ *  2. دارایی (assets) را soft-delete می‌کند (deleted_at set)
+ *     → getHoldings(), getPortfolioValuation() به‌طور خودکار آن را حذف می‌کنند
+ *  3. ردیف‌های prices مربوطه را حذف می‌کند (valuation cache, not accounting)
+ *  4. audit event ثبت می‌کند
+ *
+ * این عمل تغییر نمی‌دهد:
+ *  ❌ journal_entries (immutable — ورودی دفترکل دست‌نخورده باقی می‌ماند)
+ *  ❌ postings (immutable)
+ *  ❌ accounts, lots, lot_consumptions, audit_log
+ *
+ * Note: journal entry مربوطه همچنان وجود دارد اما به‌دلیل فیلتر
+ * getTransactions() (which excludes entries whose asset-type postings all
+ * reference soft-deleted assets) در فعالیت‌های اخیر نمایش داده نمی‌شود.
+ */
+export async function deleteRealEstateAsset(input: {
+  propertyId: string;
+  userId?: string | null;
+}): Promise<{ assetId: string; symbol: string }> {
+  // 1. Load the property with its asset
+  const [prop] = await db
+    .select({
+      p: realEstateProperties,
+      assetSymbol: assets.symbol,
+    })
+    .from(realEstateProperties)
+    .innerJoin(assets, eq(assets.id, realEstateProperties.assetId))
+    .where(
+      input.userId
+        ? and(eq(realEstateProperties.id, input.propertyId), eq(realEstateProperties.userId, input.userId))
+        : eq(realEstateProperties.id, input.propertyId),
+    )
+    .limit(1);
+
+  if (!prop) throw new Error("ملک یافت نشد یا متعلق به شما نیست.");
+
+  const assetId = prop.p.assetId;
+  const symbol = prop.assetSymbol;
+
+  await db.transaction(async (tx) => {
+    // 2. Delete the property row (CASCADE → real_estate_valuation_snapshots)
+    await tx.delete(realEstateProperties).where(eq(realEstateProperties.id, prop.p.id));
+
+    // 3. Soft-delete the asset (deleted_at = now())
+    await tx
+      .update(assets)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(assets.id, assetId));
+
+    // 4. Clean up prices for this asset (valuation cache, not accounting data)
+    await tx.delete(prices).where(eq(prices.assetId, assetId));
+
+    // 5. Audit trail
+    await recordAuditEvent(
+      {
+        action: "DELETE_REAL_ESTATE_ASSET",
+        entityType: "real_estate_property",
+        entityId: prop.p.id,
+        userId: input.userId ?? null,
+        result: "SUCCESS",
+        payload: {
+          symbol,
+          assetId,
+          ledgerEntryId: prop.p.ledgerEntryId ?? null,
+        },
+      },
+      tx,
+    );
+  });
+
+  return { assetId, symbol };
+}
+
+/* ─────────────────────── repair orphaned data ─────────────────────── */
+
+/**
+ * شناسایی و پاک‌سازی دارایی‌های یتیم (orphaned) املاک.
+ *
+ * یک دارایی یتیم = یک ردیف در `assets` (کلاس RWA) که:
+ *  - ردیف متناظر در real_estate_properties ندارد (حذف شده)
+ *  - ردیف متناظر در vehicle_assets ندارد
+ *  - ردیف متناظر در rwa_ownership_records ندارد (یا isActive=false)
+ *  - soft-delete نشده (deleted_at IS NULL)
+ *
+ * برای هر دارایی یتیم:
+ *  - assets.deleted_at را تنظیم می‌کند (soft-delete)
+ *  - prices را پاک‌سازی می‌کند
+ *
+ * Non-destructive: journal_entries, postings, accounts تغییر نمی‌کنند.
+ * Idempotent: اجرای مجدد هیچ اثری ندارد.
+ */
+export async function repairOrphanedRealEstate(): Promise<{ cleaned: number; details: string[] }> {
+  // Find RWA assets that have no corresponding property, vehicle, or active ownership
+  const orphanedRows = await db.execute(sql`
+    SELECT a.id AS asset_id, a.symbol
+    FROM assets a
+    JOIN asset_classes ac ON ac.id = a.class_id
+    WHERE ac.code = 'RWA'
+      AND a.deleted_at IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM real_estate_properties rep WHERE rep.asset_id = a.id
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM vehicle_assets va WHERE va.asset_id = a.id
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM rwa_ownership_records rwa
+        WHERE rwa.asset_id = a.id AND rwa.is_active = true
+      )
+  `);
+
+  const rows = orphanedRows.rows as Array<{ asset_id: string; symbol: string }>;
+  if (rows.length === 0) return { cleaned: 0, details: [] };
+
+  const details: string[] = [];
+  for (const row of rows) {
+    // Soft-delete the orphaned asset
+    await db
+      .update(assets)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(assets.id, row.asset_id));
+
+    // Clean up prices for this asset
+    await db.delete(prices).where(eq(prices.assetId, row.asset_id));
+
+    details.push(`Asset ${row.symbol} (${row.asset_id}) — soft-deleted + prices cleaned`);
+
+    await recordAuditEvent({
+      action: "REPAIR_ORPHANED_RWA_ASSET",
+      entityType: "asset",
+      entityId: row.asset_id,
+      userId: null,
+      result: "SUCCESS",
+      payload: { symbol: row.symbol, reason: "orphaned — no property/vehicle/ownership record" },
+    });
+  }
+
+  return { cleaned: rows.length, details };
+}
+
 /* ─────────────────────── bootstrap / migration ─────────────────────── */
 
 let readyPromise: Promise<void> | null = null;
@@ -971,7 +1121,8 @@ let readyPromise: Promise<void> | null = null;
  *     confident match exists (city "Ahvaz" → AHZ, area by normalized name,
  *     property type by normalized name) — existing rows are preserved,
  *  4. backfill a frozen Toman snapshot for historical acquisitions created
- *     before the freeze existed (display-only, idempotent, never rewrites).
+ *     before the freeze existed (display-only, idempotent, never rewrites),
+ *  5. repair orphaned real-estate assets from prior inconsistent deletes.
  */
 export async function ensureRealEstateModuleReady(): Promise<void> {
   readyPromise ??= (async () => {
@@ -980,6 +1131,7 @@ export async function ensureRealEstateModuleReady(): Promise<void> {
     await migrateLegacyPropertyRows();
     await backfillRealEstateFxSnapshots();
     await backfillRealEstateValuationSnapshots();
+    await repairOrphanedRealEstate();
   })().catch((err) => {
     readyPromise = null;
     throw err;

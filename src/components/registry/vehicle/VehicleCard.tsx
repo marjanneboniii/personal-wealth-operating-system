@@ -10,6 +10,7 @@ import { compareDates, type SnapshotPoint } from "@/features/rwa/vehicle/analyti
 import type { VehicleDashboardItem } from "@/features/rwa/vehicle/dto";
 import { formatMoney, toFaDigits, todayIso } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
+import { AutomobileLogo } from "@/components/ui/IranLogo";
 import VehicleChart from "./VehicleChart";
 import {
   DeltaPct,
@@ -57,23 +58,26 @@ export default function VehicleCard({ item }: { item: VehicleDashboardItem }) {
     <article className="card p-4 sm:p-5">
       {/* ── Header ── */}
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="flex flex-wrap items-center gap-2 text-[13px] sm:text-[14px] font-bold tracking-tight">
-            🚗 {title}
-            {vehicle.assetSymbol && (
-              <span className="badge badge-neutral num">شناسه {toFaDigits(vehicle.assetSymbol)}</span>
-            )}
-            <StatusChip status={vehicle.status} />
-            {valuation.scope === "catalog" && (
-              <span className="muted text-[10px]">ارزش‌گذاری در سطح مدل (بازار)</span>
-            )}
-          </h3>
+        <div className="min-w-0 flex items-start gap-2">
+          <AutomobileLogo name={vehicle.brand} size={36} />
+          <div className="min-w-0">
+            <h3 className="flex flex-wrap items-center gap-2 text-[13px] sm:text-[14px] font-bold tracking-tight">
+              {title}
+              {vehicle.assetSymbol && (
+                <span className="badge badge-neutral num">شناسه {toFaDigits(vehicle.assetSymbol)}</span>
+              )}
+              <StatusChip status={vehicle.status} />
+              {valuation.scope === "catalog" && (
+                <span className="muted text-[10px]">ارزش‌گذاری در سطح مدل (بازار)</span>
+              )}
+            </h3>
           <p className="muted mt-1 text-[11px] leading-5">
             سال ساخت: {yearLabel(vehicle.year)}
             {catalog?.manufacturer ? ` · سازنده/مونتاژکننده: ${catalog.manufacturer}` : ""}
             {vehicle.licensePlate ? ` · پلاک: ${vehicle.licensePlate}` : ""}
             {vehicle.mileage != null ? ` · کارکرد: ${faNum(vehicle.mileage)} کیلومتر` : ""}
           </p>
+          </div>
         </div>
         <button type="button" className="btn text-[12px]" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           {open ? "بستن جزئیات" : "تحلیل و تاریخچه"}
