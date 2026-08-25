@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { isAdminOrOwner } from "@/lib/authGuard";
 import {
   createRealEstateAsset,
+  deleteRealEstateAsset,
   ensureRealEstateModuleReady,
   previewRealEstateIdentity,
   recordRealEstateValuation,
@@ -35,6 +36,8 @@ const refresh = () => {
   revalidatePath("/assets");
   revalidatePath("/portfolio");
   revalidatePath("/net-worth");
+  revalidatePath("/reports");
+  revalidatePath("/insights");
 };
 
 /**
@@ -156,6 +159,23 @@ export async function previewRealEstateIdentityAction(
     return { ok: true, assetName: preview.assetName, symbol: preview.symbol, sequence: preview.sequence };
   } catch {
     return { ok: false, message: "پیش‌نمایش نام/شناسه در دسترس نیست." };
+  }
+}
+
+/** حذف کامل یک ملک — پاک‌سازی تمام آثار بدون آسیب به Accounting Core. */
+export async function deleteRealEstateAction(propertyId: string): Promise<RealEstateResult> {
+  const denied = await guardRealEstate();
+  if (denied) return { ok: false, message: denied };
+  try {
+    const userId = await currentUserId();
+    const result = await deleteRealEstateAsset({ propertyId, userId });
+    refresh();
+    return {
+      ok: true,
+      message: `ملک ${toFaDigits(result.symbol)} حذف شد. تمام آثار آن از گزارش‌ها، سبد دارایی و شاخص‌های ثروت پاک‌سازی شد.`,
+    };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "حذف ملک ناموفق بود." };
   }
 }
 

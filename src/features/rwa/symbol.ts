@@ -28,6 +28,12 @@ export function buildRwaSymbol(sequence: number): string {
  * shared row serialises property/vehicle creation and closes the race between
  * choosing a symbol and inserting it. Preview calls intentionally omit the
  * lock; a preview is advisory and the final write always resolves again.
+ *
+ * IDENTIFIER REUSE: Only ACTIVE (non-deleted) assets occupy identifiers.
+ * Soft-deleted assets (deleted_at IS NOT NULL) release their identifier so
+ * that after a full cleanup the next asset reclaims the lowest free number.
+ * This prevents the counter from drifting (e.g. always producing 002 after
+ * deleting 001 when no other RWA exists).
  */
 export async function nextRwaSymbol(tx: any = db, rwaClassId?: string): Promise<string> {
   if (rwaClassId) {
@@ -37,11 +43,11 @@ export async function nextRwaSymbol(tx: any = db, rwaClassId?: string): Promise<
   const rows = await tx
     .select({ symbol: assets.symbol })
     .from(assets)
-    .where(sql`${assets.symbol} ~ '^[0-9]+$'`);
+    .where(sql`${assets.symbol} ~ '^[0-9]+$' AND ${assets.deletedAt} IS NULL`);
   const occupied = new Set(rows.map((row: { symbol: string }) => row.symbol));
 
-  // Deleted/legacy rows remain reserved in `assets`; identifiers are therefore
-  // never silently reused. Width grows naturally after 999 (`1000`).
+  // Active rows occupy identifiers; soft-deleted rows release theirs.
+  // Width grows naturally after 999 (`1000`).
   for (let sequence = 1; sequence <= Number.MAX_SAFE_INTEGER; sequence++) {
     const candidate = buildRwaSymbol(sequence);
     if (!occupied.has(candidate)) return candidate;

@@ -469,6 +469,24 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
       }
       ${filter.review === "reviewed" ? sql`and er.entry_id is not null` : sql``}
       ${filter.review === "unreviewed" ? sql`and er.entry_id is null` : sql``}
+      -- CONSISTENCY FIX: Exclude entries where ALL asset-type postings reference
+      -- soft-deleted assets (e.g. a real estate property that was deleted).
+      -- The immutable journal entry remains but is invisible in the activity feed.
+      and not exists (
+        select 1 from postings p_del
+        join accounts a_del on a_del.id = p_del.account_id
+        join assets ast_del on ast_del.id = p_del.asset_id
+        where p_del.entry_id = je.id
+          and a_del.type = 'asset'
+          and ast_del.deleted_at is not null
+        except
+        select 1 from postings p_active
+        join accounts a_active on a_active.id = p_active.account_id
+        join assets ast_active on ast_active.id = p_active.asset_id
+        where p_active.entry_id = je.id
+          and a_active.type = 'asset'
+          and ast_active.deleted_at is null
+      )
     group by je.id, er.entry_id, ec.name, epc.name, ec.nature
     ${orderBy}
     limit ${safeLimit}
