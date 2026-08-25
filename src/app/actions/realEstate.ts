@@ -12,7 +12,7 @@ import {
   previewRealEstateIdentity,
   recordRealEstateValuation,
 } from "@/features/rwa/realEstate/service";
-import { formatMoney, toFaDigits } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { resolveUsdRateForDate } from "@/features/rwa/vehicle/fx";
 import {
@@ -136,7 +136,7 @@ export async function saveRealEstateAction(_previous: RealEstateResult | null, f
     refresh();
     return {
       ok: true,
-      message: `ملک «${result.assetName}» با شناسه ${toFaDigits(result.symbol)} ثبت شد. معادل‌های دلاری با نرخ تاریخی همان روزها محاسبه و سند افتتاحیه دفترکل با تاریخ تملک واقعی ایجاد شد.`,
+      message: `ملک «${result.assetName}» با شناسه ${result.symbol} ثبت شد. معادل‌های دلاری با نرخ تاریخی همان روزها محاسبه و سند افتتاحیه دفترکل با تاریخ تملک واقعی ایجاد شد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت ملک ناموفق بود." };

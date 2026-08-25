@@ -18,7 +18,7 @@ import {
   listVehicleBrands,
 } from "@/features/rwa/vehicle/catalog";
 import { recordVehicleValuationSnapshot } from "@/features/rwa/vehicle/valuation";
-import { formatMoney, toFaDigits } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { nextRwaSymbol } from "@/features/rwa/symbol";
 import { createOwnershipRecord } from "@/features/rwa/ownership/service";
@@ -227,7 +227,7 @@ export async function saveVehicleAction(_previous: RegistryResult | null, form: 
     });
 
     refresh();
-    return { ok: true, message: `خودرو با شناسه ${toFaDigits(result.symbol)} ثبت شد. معادل دلاری قیمت خرید بر اساس نرخ همان تاریخ ذخیره شد.` };
+    return { ok: true, message: `خودرو با شناسه ${result.symbol} ثبت شد. معادل دلاری قیمت خرید بر اساس نرخ همان تاریخ ذخیره شد.` };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت خودرو ناموفق بود." };
   }

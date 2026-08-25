@@ -1,14 +1,13 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { formatDualDate, toFaDigits } from "@/lib/format";
+import { formatDualDate } from "@/lib/format";
 import type { RealEstateDashboardItem, RealEstatePortfolioSummary } from "@/features/rwa/realEstate/service";
 import type { City, Neighborhood, PropertyType } from "@/features/rwa/realEstate/types";
 import MasterDataAdmin from "./MasterDataAdmin";
 import RealEstateCard from "./RealEstateCard";
 import RealEstateForm from "./RealEstateForm";
 import { DeltaPct, DeltaToman, DeltaUsd, Hint, Metric, Toman, Usd, faNum } from "./shared";
-import { getRealEstateDisplayLabel } from "@/features/rwa/realEstate/display";
 
 type Tab = "list" | "add" | "master";
 
@@ -95,7 +94,6 @@ export default function RealEstateModule({
                 <thead>
                   <tr>
                     <th>نام دارایی</th>
-                    <th>نمایش فارسی</th>
                     <th>شناسه دارایی</th>
                     <th>نوع ملک</th>
                     <th>شهر</th>
@@ -117,12 +115,6 @@ export default function RealEstateModule({
                   {dashboard.map((item) => {
                     const open = openId === item.id;
                     const p = item.performance;
-                    const displayFa = getRealEstateDisplayLabel({
-                      symbol: item.symbol,
-                      assetName: item.assetName,
-                      neighborhoodNameFa: item.neighborhoodNameFa,
-                      cityNameFa: item.cityNameFa,
-                    });
                     return (
                       <Fragment key={item.id}>
                         <tr
@@ -133,11 +125,8 @@ export default function RealEstateModule({
                           <td className="max-w-56 font-bold">
                             <span className="block truncate">{item.assetName}</span>
                           </td>
-                          <td className="font-semibold">
-                            {displayFa}
-                          </td>
                           <td className="num text-[11.5px] font-semibold">
-                            {toFaDigits(item.symbol)}
+                            {item.symbol}
                           </td>
                           <td>{item.propertyTypeNameFa ?? item.propertyType ?? "—"}</td>
                           <td>{item.cityNameFa ?? item.cityNameEn ?? "—"}</td>
@@ -174,7 +163,7 @@ export default function RealEstateModule({
                         </tr>
                         {open && (
                           <tr>
-                            <td colSpan={17} className="!bg-transparent p-0">
+                            <td colSpan={16} className="!bg-transparent p-0">
                               <div className="border-t px-3 py-4" style={{ borderColor: "var(--border)", background: "var(--sunken)" }}>
                                 <RealEstateCard item={item} />
                               </div>

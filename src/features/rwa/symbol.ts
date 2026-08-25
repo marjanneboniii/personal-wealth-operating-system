@@ -1,18 +1,18 @@
 /**
  * Canonical identity for real-world assets (RWA).
  *
- * Storage stays ASCII and compact (`001`, `002`, …) so database lookups,
- * uniqueness and integrations remain predictable. Persian digits are a UI
- * concern and are rendered with `toFaDigits` at the presentation boundary.
+ * Storage stays ASCII and as SHORT as possible (`1`, `2`, …) so database
+ * lookups, uniqueness and integrations remain predictable. No zero-padding and
+ * no Persian digits are stored or rendered: the ID is shown exactly as stored.
  *
  * The sequence is shared by every RWA subtype. `assets.symbol` is globally
- * unique, so separate property/vehicle counters would both try to claim `001`.
+ * unique, so separate property/vehicle counters would both try to claim `1`.
  */
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { assets } from "@/db/schema";
 
-export const RWA_SYMBOL_MIN_WIDTH = 3;
+export const RWA_SYMBOL_MIN_WIDTH = 1;
 
 export function buildRwaSymbol(sequence: number): string {
   if (!Number.isSafeInteger(sequence) || sequence < 1) {
@@ -41,7 +41,7 @@ export async function nextRwaSymbol(tx: any = db, rwaClassId?: string): Promise<
   const occupied = new Set(rows.map((row: { symbol: string }) => row.symbol));
 
   // Deleted/legacy rows remain reserved in `assets`; identifiers are therefore
-  // never silently reused. Width grows naturally after 999 (`1000`).
+  // never silently reused. Width grows naturally after 9 (`10`).
   for (let sequence = 1; sequence <= Number.MAX_SAFE_INTEGER; sequence++) {
     const candidate = buildRwaSymbol(sequence);
     if (!occupied.has(candidate)) return candidate;

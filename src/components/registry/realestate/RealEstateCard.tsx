@@ -5,10 +5,9 @@ import { useActionState, useState } from "react";
 import { recordRealEstateValuationAction } from "@/app/actions/realEstate";
 import JalaliDateInput from "@/components/ui/JalaliDateInput";
 import AmountInput from "@/components/ui/AmountInput";
-import { formatJalaliIso, toFaDigits } from "@/lib/format";
+import { formatJalaliIso } from "@/lib/format";
 import type { RealEstateDashboardItem } from "@/features/rwa/realEstate/service";
 import { DeltaPct, DeltaToman, DeltaUsd, DetailRow, FxRateInfo, Hint, JDate, Labeled, Result, Toman, Usd, faNum } from "./shared";
-import { getRealEstateDisplayLabel } from "@/features/rwa/realEstate/display";
 
 function Ltr({ children }: { children: React.ReactNode }) {
   return (
@@ -38,21 +37,11 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
           <h5 className="mb-1 text-[11.5px] font-bold">اطلاعات دارایی</h5>
-          <DetailRow label="نام خودکار">
+          <DetailRow label="نام دارایی">
             <span className="font-semibold">{a.assetName}</span>
           </DetailRow>
-          <DetailRow label="نمایش فارسی">
-            <span className="font-semibold">
-              {getRealEstateDisplayLabel({
-                symbol: a.symbol,
-                assetName: a.assetName,
-                neighborhoodNameFa: a.neighborhoodNameFa,
-                cityNameFa: a.cityNameFa,
-              })}
-            </span>
-          </DetailRow>
           <DetailRow label="شناسه دارایی">
-            <span className="num font-semibold">{toFaDigits(a.symbol)}</span>
+            <span className="num font-semibold">{a.symbol}</span>
           </DetailRow>
           <DetailRow label="نوع ملک">
             {a.propertyTypeNameFa ?? a.propertyType ?? "—"}

@@ -80,7 +80,7 @@ actions.saveRealEstateAction(null, fd({
   }));
 
   assert.equal(result.ok, true, result.message);
-  assert.match(result.message, /شناسه ۰۰۱/);
+  assert.match(result.message, /شناسه 1/);
 
   const [prop] = await db.select().from(realEstateProperties);
   assert.ok(prop);
@@ -104,7 +104,7 @@ actions.saveRealEstateAction(null, fd({
     currentValueToman: "7000000000",
   }));
   assert.equal(result2.ok, true, result2.message);
-  assert.match(result2.message, /شناسه ۰۰۲/);
+  assert.match(result2.message, /شناسه 2/);
 });
 
 test("preview actions return generated identity and USD values", async () => {
@@ -117,8 +117,8 @@ test("preview actions return generated identity and USD values", async () => {
   const id = await 
 actions.previewRealEstateIdentityAction(cityId, neighborhoodId, propertyTypeId);
   assert.equal(id.ok, true);
-  assert.equal(id.symbol, "001");
-  assert.equal(id.assetName, "آپارتمان — اهواز — کیانپارس شرقی");
+  assert.equal(id.symbol, "1");
+  assert.equal(id.assetName, "سرای");
 
   const usd = await 
 actions.previewRealEstateUsdAction("4500000000", jalaliToIso(1404, 5, 20));

@@ -241,7 +241,7 @@ export default function RealEstateForm({
           </div>
           <div className="min-w-0">
             <div className="mt-0.5 text-[12.5px] font-semibold" style={{ color: "var(--brand)" }}>
-              شناسه: <span className="num">{loadingIdentity ? "…" : identityPreview?.symbol ? toFaDigits(identityPreview.symbol) : "—"}</span>
+              شناسه: <span className="num">{loadingIdentity ? "…" : identityPreview?.symbol ?? "—"}</span>
             </div>
           </div>
           {identityPreview?.sequence && identityPreview.sequence > 1 && (

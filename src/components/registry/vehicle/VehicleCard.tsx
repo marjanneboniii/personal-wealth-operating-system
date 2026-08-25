@@ -8,7 +8,7 @@ import {
 } from "@/app/actions/registry";
 import { compareDates, type SnapshotPoint } from "@/features/rwa/vehicle/analytics";
 import type { VehicleDashboardItem } from "@/features/rwa/vehicle/dto";
-import { formatMoney, toFaDigits, todayIso } from "@/lib/format";
+import { formatMoney, todayIso } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
 import VehicleChart from "./VehicleChart";
 import {
@@ -61,7 +61,7 @@ export default function VehicleCard({ item }: { item: VehicleDashboardItem }) {
           <h3 className="flex flex-wrap items-center gap-2 text-[13px] sm:text-[14px] font-bold tracking-tight">
             🚗 {title}
             {vehicle.assetSymbol && (
-              <span className="badge badge-neutral num">شناسه {toFaDigits(vehicle.assetSymbol)}</span>
+              <span className="badge badge-neutral num">شناسه {vehicle.assetSymbol}</span>
             )}
             <StatusChip status={vehicle.status} />
             {valuation.scope === "catalog" && (

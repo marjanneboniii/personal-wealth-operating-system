@@ -12,8 +12,9 @@
  *   General Ledger (opening entry dated at the REAL acquisition date)
  *
  * The symbol is 100% system-generated, unique and immutable. It uses the
- * compact global RWA sequence (`001`, `002`, …); location/type identity stays
- * in the relational master-data fields instead of being duplicated in it.
+ * shortest global RWA sequence (`1`, `2`, …); location/type identity stays in
+ * the relational master-data fields instead of being duplicated in the name
+ * (the name is the single short creative word «سرای»).
  */
 
 export type FxRateResolution = {

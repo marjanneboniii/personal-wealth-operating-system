@@ -349,7 +349,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                     {focusedProperty.length > 0 && (
                       <span>
                         <Link href="/asset-registry" className="font-medium underline" style={{ color: "var(--brand)" }}>
-                          ← سند تملک ملک «{focusedProperty[0].name}» (شناسه {toFaDigits(focusedProperty[0].symbol)})
+                          ← سند تملک ملک «{focusedProperty[0].name}» (شناسه {focusedProperty[0].symbol})
                         </Link>
                       </span>
                     )}
