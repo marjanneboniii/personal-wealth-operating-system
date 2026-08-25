@@ -101,7 +101,14 @@ export function historyWithDeltas(series: SnapshotPoint[]): (SnapshotPoint & Par
 
 /* ───────────────────── period performance ───────────────────── */
 
-export function periodPerformance(
+/**
+ * Generic period performance over a caller-supplied period catalog — the
+ * shared engine behind `periodPerformance` (vehicles) and the real-estate
+ * period analysis. Pure, no database, no interpolation: every baseline comes
+ * from a REAL stored point (snapshot or purchase record).
+ */
+export function periodPerformanceOver(
+  periods: { key: PeriodKey; label: string; months?: number }[],
   series: SnapshotPoint[],
   key: PeriodKey,
   opts: {
@@ -109,7 +116,7 @@ export function periodPerformance(
     purchasePoint?: SnapshotPoint | null;
   },
 ): PeriodResult {
-  const meta = VEHICLE_PERIODS.find((p) => p.key === key);
+  const meta = periods.find((p) => p.key === key);
   const label = meta?.label ?? key;
   const sorted = sortSeries(series);
   const current = valueAt(sorted, opts.todayIso) ?? latestPoint(sorted);
@@ -154,6 +161,18 @@ export function periodPerformance(
     return { available: false, key, label, reason: NO_HISTORICAL_DATA };
   }
   return { available: true, key, label, from: baseline, to: current, ...changeBetween(baseline, current) };
+}
+
+/** Vehicle period performance over the standard VEHICLE_PERIODS catalog. */
+export function periodPerformance(
+  series: SnapshotPoint[],
+  key: PeriodKey,
+  opts: {
+    todayIso: string;
+    purchasePoint?: SnapshotPoint | null;
+  },
+): PeriodResult {
+  return periodPerformanceOver(VEHICLE_PERIODS, series, key, opts);
 }
 
 export function allPeriodResults(

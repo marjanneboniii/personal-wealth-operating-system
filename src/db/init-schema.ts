@@ -573,6 +573,30 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS real_estate_properties_type_idx ON real_estate_properties(property_type_id);`,
   `CREATE INDEX IF NOT EXISTS real_estate_properties_ledger_idx ON real_estate_properties(ledger_entry_id);`,
 
+  /* Real estate valuation snapshots — IMMUTABLE append-only history of every
+     valuation (Toman value + frozen USD rate + USD value per snapshot date).
+     Mirrors vehicle_valuation_snapshots; one snapshot per property per day,
+     enforced by a unique index. Existing snapshots are never updated. */
+  `CREATE TABLE IF NOT EXISTS real_estate_valuation_snapshots (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    property_id uuid NOT NULL REFERENCES real_estate_properties(id) ON DELETE CASCADE,
+    asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES users(id),
+    snapshot_date date NOT NULL,
+    snapshot_date_persian text,
+    current_value_toman numeric(38,18) NOT NULL,
+    usd_rate numeric(38,18) NOT NULL,
+    usd_rate_source text,
+    usd_rate_date date,
+    current_value_usd numeric(38,18) NOT NULL,
+    source text NOT NULL DEFAULT 'manual',
+    note text
+  );`,
+  `CREATE INDEX IF NOT EXISTS real_estate_valuation_property_date_idx ON real_estate_valuation_snapshots(property_id, snapshot_date);`,
+  `CREATE INDEX IF NOT EXISTS real_estate_valuation_user_idx ON real_estate_valuation_snapshots(user_id);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS real_estate_valuation_property_date_uq ON real_estate_valuation_snapshots(property_id, snapshot_date);`,
+
   /* Vehicle module — Catalog (Brand -> Model), immutable valuation snapshots,
      and the user's own vehicle (kept in the pre-existing vehicle_assets table
      so existing asset ids, portfolio links and routes stay valid). */

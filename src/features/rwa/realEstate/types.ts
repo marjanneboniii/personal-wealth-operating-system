@@ -117,6 +117,60 @@ export type RealEstatePerformance = {
   roiUsd: string | null;
 };
 
+/**
+ * IMMUTABLE historical valuation record — append-only, one per property per
+ * date. Stores the Toman value AND the USD rate of the snapshot date, so the
+ * USD figure of any past valuation can never be re-derived with today's rate.
+ */
+export type RealEstateValuationSnapshot = {
+  id: string;
+  propertyId: string;
+  assetId: string;
+  userId: string | null;
+  snapshotDate: string; // ISO
+  snapshotDatePersian: string | null;
+  currentValueToman: string;
+  usdRate: string;
+  usdRateSource: string | null;
+  usdRateDate: string | null;
+  currentValueUsd: string;
+  source: string;
+  note: string | null;
+  createdAt: string;
+};
+
+/** نقشهٔ ارزش یک تاریخ مشخص — مبنا یا مبین هر مقایسهٔ بازه‌ای. */
+export type RealEstateSnapshotPoint = {
+  date: string;
+  valueToman: string;
+  usdRate: string;
+  valueUsd: string;
+};
+
+export type RealEstateHistoryRow = RealEstateSnapshotPoint & {
+  tomanChange?: string | null;
+  tomanChangePct?: string | null;
+  usdChange?: string | null;
+  usdChangePct?: string | null;
+};
+
+/** نتیجهٔ یک بازهٔ استاندارد (۱م/۳م/۶م/۱س/…/تملک/کل دوره). */
+export type RealEstatePeriodResult =
+  | {
+      available: true;
+      key: string;
+      label: string;
+      from: RealEstateSnapshotPoint;
+      to: RealEstateSnapshotPoint;
+      /** true when the baseline is the purchase record rather than a snapshot */
+      baselineIsPurchase?: boolean;
+      tomanChange: string;
+      tomanChangePct: string | null;
+      usdChange: string;
+      usdChangePct: string | null;
+    }
+  | { available: false; key: string; label: string; reason: string };
+
 export type RealEstatePortfolioSummary = {
   count: number;
   /** properties without any valuation yet */
