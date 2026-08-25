@@ -1,8 +1,7 @@
-/* eslint-disable @next/next/no-img-element */
 import { D } from "@/domain/decimal";
 import { currencyLabel, formatMoney, formatPct, formatQty, trendArrow, trendColor, trendTone } from "@/lib/format";
 import Icon from "@/components/ui/Icon";
-import { resolveHoldingLogo } from "@/features/branding/persianIcons";
+import CurrencyLogo from "@/components/ui/CurrencyLogo";
 import type { AssetValuation } from "@/features/portfolio/types";
 
 /**
@@ -33,24 +32,11 @@ export default function HoldingsTable({
           {rows.map((a) => {
             const pnl = D(a.unrealizedPnl);
             const pnlTone = trendTone(a.unrealizedPnl);
-            const logo = resolveHoldingLogo({
-              symbol: a.symbol,
-              name: a.name,
-              className: a.className,
-              logoUrl: a.logoUrl,
-            });
             return (
               <tr key={a.assetId}>
                 <td className="min-w-0">
                   <div className="flex items-center gap-2 sm:gap-2.5">
-                    <img
-                      src={logo}
-                      alt=""
-                      width={28}
-                      height={28}
-                      className="h-7 w-7 shrink-0 rounded-[9px] sm:h-8 sm:w-8"
-                      style={{ objectFit: "contain", background: "var(--sunken)" }}
-                    />
+                    <CurrencyLogo symbol={a.symbol} size={32} className="!rounded-[9px]" />
                     <div className="min-w-0">
                       <div className="truncate text-[12px] font-semibold tracking-tight sm:text-[13px]" dir="rtl">
                         {a.name}

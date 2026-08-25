@@ -9,13 +9,14 @@ import { repairOrphanedRealEstate } from "@/features/rwa/realEstate/service";
 import { EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { BankLogo } from "@/components/ui/IranLogo";
-import { getBankLogo, resolveHoldingLogo } from "@/features/branding/persianIcons";
+import { getBankLogo } from "@/features/branding/persianIcons";
 import MoneyAccountForm from "@/components/forms/MoneyAccountForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, faCount, formatMoney, formatQty, toIrtMoney, toFaDigits } from "@/lib/format";
+import { faCount, formatMoney, toIrtMoney, toFaDigits } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getUserProMode } from "@/features/preferences/service";
+import AccountListItem from "@/components/accounts/AccountListItem";
 
 export const dynamic = "force-dynamic";
 
@@ -176,45 +177,19 @@ export default async function AccountsPage() {
                     </div>
                   </div>
                   <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
-                    {rows.map((b) => {
-                      const bal = canonicalBalance(b);
-                      const val = valuationToman(b);
-                      return (
-                        <li key={b.accountId} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                          <div className="min-w-0 flex items-center gap-2.5">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={resolveHoldingLogo({
-                                symbol: b.symbol,
-                                name: walletMeta?.institution ?? b.walletName ?? b.name,
-                                className: b.className,
-                              })}
-                              alt=""
-                              width={24}
-                              height={24}
-                              className="h-6 w-6 shrink-0 rounded-[7px]"
-                            />
-                            <div className="min-w-0">
-                              <p className="truncate text-[12.5px] font-medium">{b.name}</p>
-                              <p className="muted num text-[10px]" dir="rtl">
-                                {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)} — مانده اصلی
-                              </p>
-                            </div>
-                          </div>
-                          <div className="shrink-0 text-left">
-                            <p className="num text-[11px] sm:text-[12px] font-bold money-nowrap" dir="rtl">
-                              {bal}
-                            </p>
-                            {val && (
-                              <p className="muted num text-[10.5px]" style={{ color: "var(--text-2)" }}>ارزش: {val}</p>
-                            )}
-                            {b.symbol !== "IRT" && b.symbol !== "IRR" && !val && toIrt(b.baseValue) && (
-                              <p className="muted num text-[10.5px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(b.baseValue)}</p>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
+                    {rows.map((b) => (
+                      <AccountListItem
+                        key={b.accountId}
+                        accountId={b.accountId}
+                        name={b.name}
+                        symbol={b.symbol}
+                        quantity={b.quantity}
+                        assetDecimals={b.assetDecimals}
+                        baseValue={b.baseValue}
+                        walletName={b.walletName}
+                        toIrt={toIrt}
+                      />
+                    ))}
                   </ul>
                 </div>
               );
