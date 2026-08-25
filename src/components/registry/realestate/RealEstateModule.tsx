@@ -4,6 +4,7 @@ import { Fragment, useState } from "react";
 import { formatDualDate, toFaDigits } from "@/lib/format";
 import type { RealEstateDashboardItem, RealEstatePortfolioSummary } from "@/features/rwa/realEstate/service";
 import type { City, Neighborhood, PropertyType } from "@/features/rwa/realEstate/types";
+import { RealEstateLogo } from "@/components/ui/IranLogo";
 import MasterDataAdmin from "./MasterDataAdmin";
 import RealEstateCard from "./RealEstateCard";
 import RealEstateForm from "./RealEstateForm";
@@ -123,7 +124,10 @@ export default function RealEstateModule({
                           aria-expanded={open}
                         >
                           <td className="num text-[11.5px] font-semibold">
-                            {toFaDigits(item.symbol)}
+                            <span className="flex items-center gap-1.5">
+                              <RealEstateLogo size={22} />
+                              {toFaDigits(item.symbol)}
+                            </span>
                           </td>
                           <td>{item.propertyTypeNameFa ?? item.propertyType ?? "—"}</td>
                           <td>{item.cityNameFa ?? item.cityNameEn ?? "—"}</td>

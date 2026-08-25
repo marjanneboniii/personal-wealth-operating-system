@@ -6,6 +6,7 @@ import { createMoneyAccountAction } from "@/app/actions";
 import { D } from "@/domain/decimal";
 import { formatMoney } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
+import { BankLogo } from "@/components/ui/IranLogo";
 
 export type MoneyCurrencyOption = {
   id: string;
@@ -163,6 +164,7 @@ export default function MoneyAccountForm({
         <div className="soft rounded-xl p-3">
           <div className="muted mb-2">پیش‌نمایش — هنوز حسابی ایجاد نشده است</div>
           <div className="flex flex-wrap items-center gap-2">
+            {kind === "bank" && <BankLogo name={name} size={32} />}
             <strong>{name}</strong>
             <span className="chip">{kindLabel}</span>
             {currency && <span className="chip">{currency.name}</span>}
