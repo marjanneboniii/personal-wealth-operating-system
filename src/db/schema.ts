@@ -830,6 +830,54 @@ export const realEstateProperties = pgTable(
   ],
 );
 
+/**
+ * Real Estate Valuation Snapshots — IMMUTABLE historical valuation records.
+ *
+ * RULES (never violate — mirrors `vehicle_valuation_snapshots`):
+ *  - A snapshot stores the Toman value AND the USD rate used at that moment.
+ *    value_usd = value_toman / usd_rate  (computed once, at insert time).
+ *  - An FX-rate change NEVER rewrites a stored snapshot and NEVER changes the
+ *    current value. Only a NEW snapshot changes the current value.
+ *  - Snapshots are INSERT-only. Never UPDATE. A second valuation for the same
+ *    date is refused (unique index property_id + snapshot_date).
+ *
+ * Without this table every revaluation would overwrite the single
+ * `real_estate_properties` row and the previous Toman value + FX rate would be
+ * lost forever — period analyses (1m/3m/6m/1y USD growth) were impossible.
+ */
+export const realEstateValuationSnapshots = pgTable(
+  "real_estate_valuation_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => realEstateProperties.id, { onDelete: "cascade" }),
+    /** denormalised asset link so the prices/portfolio layer can join directly */
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" }),
+    /** tenant owner copied from the property row for DB-level isolation */
+    userId: uuid("user_id").references(() => users.id),
+    snapshotDate: date("snapshot_date").notNull(),
+    /** display/audit copy of the Persian date the user typed, e.g. 1405/06/01 */
+    snapshotDatePersian: text("snapshot_date_persian"),
+    currentValueToman: money("current_value_toman").notNull(),
+    /** USD rate of the SNAPSHOT DATE, frozen at insert (IRT per 1 USD) */
+    usdRate: money("usd_rate").notNull(),
+    usdRateSource: text("usd_rate_source"),
+    usdRateDate: date("usd_rate_date"),
+    currentValueUsd: money("current_value_usd").notNull(),
+    source: text("source").notNull().default("manual"), // manual | appraisal
+    note: text("note"),
+  },
+  (t) => [
+    index("real_estate_valuation_property_date_idx").on(t.propertyId, t.snapshotDate),
+    index("real_estate_valuation_user_idx").on(t.userId),
+    uniqueIndex("real_estate_valuation_property_date_uq").on(t.propertyId, t.snapshotDate),
+  ],
+);
+
 /* ------------------------------------------------------------------ */
 /* Vehicle Catalog — Brand -> Model (standard, selectable, extensible)  */
 /* Users NEVER type a brand/model freely for catalog brands; admins can */

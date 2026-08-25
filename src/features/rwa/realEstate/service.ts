@@ -21,7 +21,7 @@
  *   • Current value is updated ONLY by a new valuation — it never rewrites the
  *     immutable purchase history or the ledger.
  */
-import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   accounts,
@@ -30,6 +30,7 @@ import {
   entryFxSnapshots,
   prices,
   realEstateProperties,
+  realEstateValuationSnapshots,
 } from "@/db/schema";
 import { ensureSchemaOnce } from "@/db/init-schema";
 import { D } from "@/domain/decimal";
@@ -49,6 +50,12 @@ import {
   normalizeKey,
   seedRealEstateMasterDataIfEmpty,
 } from "./masterData";
+import {
+  allRealEstatePeriodResults,
+  cagrPercent,
+  latestPoint,
+  realEstateHistoryWithDeltas,
+} from "./analytics";
 import type {
   City,
   CreateRealEstateAssetInput,
@@ -56,9 +63,13 @@ import type {
   Neighborhood,
   PropertyType,
   RealEstateAsset,
+  RealEstateHistoryRow,
   RealEstateNamePreview,
+  RealEstatePeriodResult,
   RealEstatePerformance,
   RealEstatePortfolioSummary,
+  RealEstateSnapshotPoint,
+  RealEstateValuationSnapshot,
   RecordRealEstateValuationInput,
 } from "./types";
 
@@ -206,11 +217,127 @@ export function computePerformance(
   return { gainToman: gainToman.toFixed(0), roiToman, gainUsd, roiUsd };
 }
 
-/* ─────────────────────── mapping ─────────────────────── */
+/* ─────────────────────── valuation snapshots (immutable history) ─────────────────────── */
 
 const num = (v: unknown): string | null => (v === null || v === undefined ? null : D(v as string).toString());
 const tomanStr = (v: unknown): string | null => (v === null || v === undefined ? null : D(v as string).toFixed(0));
 const usdStr = (v: unknown): string | null => (v === null || v === undefined ? null : D(v as string).toFixed(2));
+
+function mapSnapshot(row: typeof realEstateValuationSnapshots.$inferSelect): RealEstateValuationSnapshot {
+  return {
+    id: row.id,
+    propertyId: row.propertyId,
+    assetId: row.assetId,
+    userId: row.userId ?? null,
+    snapshotDate: row.snapshotDate,
+    snapshotDatePersian: row.snapshotDatePersian ?? null,
+    currentValueToman: tomanStr(row.currentValueToman) ?? "0",
+    usdRate: num(row.usdRate) ?? "0",
+    usdRateSource: row.usdRateSource ?? null,
+    usdRateDate: row.usdRateDate ?? null,
+    currentValueUsd: usdStr(row.currentValueUsd) ?? "0",
+    source: row.source,
+    note: row.note ?? null,
+    createdAt: row.createdAt?.toISOString() ?? new Date().toISOString(),
+  };
+}
+
+/**
+ * INSERT a new immutable valuation snapshot inside a transaction. Existing
+ * snapshots are never updated: a second valuation for the same day is
+ * refused — a new value must be recorded on a new date (same rule as the
+ * vehicle module). This is what makes "ارزش سه ماه پیش" undeletable.
+ */
+async function insertValuationSnapshot(
+  tx: any,
+  input: {
+    propertyId: string;
+    assetId: string;
+    userId?: string | null;
+    snapshotDate: string;
+    snapshotDatePersian?: string | null;
+    currentValueToman: string;
+    usdRate: string;
+    usdRateSource?: string | null;
+    usdRateDate?: string | null;
+    currentValueUsd: string;
+    source?: string;
+    note?: string | null;
+  },
+): Promise<string> {
+  const [existing] = await tx
+    .select({ id: realEstateValuationSnapshots.id })
+    .from(realEstateValuationSnapshots)
+    .where(
+      and(
+        eq(realEstateValuationSnapshots.propertyId, input.propertyId),
+        eq(realEstateValuationSnapshots.snapshotDate, input.snapshotDate),
+      ),
+    )
+    .limit(1);
+  if (existing) {
+    throw new Error(
+      "برای این تاریخ ارزش‌گذاری ثبت شده است. اسنپ‌شات‌های قبلی تغییرناپذیرند؛ برای ارزش جدید یک تاریخ جدید ثبت کنید.",
+    );
+  }
+  const [row] = await tx
+    .insert(realEstateValuationSnapshots)
+    .values({
+      propertyId: input.propertyId,
+      assetId: input.assetId,
+      userId: input.userId ?? null,
+      snapshotDate: input.snapshotDate,
+      snapshotDatePersian: input.snapshotDatePersian ?? null,
+      currentValueToman: D(input.currentValueToman).toFixed(0),
+      usdRate: D(input.usdRate).toString(),
+      usdRateSource: input.usdRateSource ?? "manual",
+      usdRateDate: input.usdRateDate ?? input.snapshotDate,
+      currentValueUsd: input.currentValueUsd,
+      source: input.source ?? "manual",
+      note: input.note ?? null,
+    })
+    .returning({ id: realEstateValuationSnapshots.id });
+  return row.id;
+}
+
+/** All valuation snapshots of one property, oldest first (immutable history). */
+export async function listRealEstateValuationSnapshots(
+  propertyId: string,
+  userId?: string | null,
+): Promise<RealEstateValuationSnapshot[]> {
+  const rows = await db
+    .select()
+    .from(realEstateValuationSnapshots)
+    .where(
+      and(
+        eq(realEstateValuationSnapshots.propertyId, propertyId),
+        userId ? eq(realEstateValuationSnapshots.userId, userId) : undefined,
+      ),
+    )
+    .orderBy(asc(realEstateValuationSnapshots.snapshotDate));
+  return rows.map(mapSnapshot);
+}
+
+/**
+ * Snapshots of a tenant's whole portfolio, grouped by property. Scoped at the
+ * DB query level (NULL-owned rows are NOT shared with identified tenants).
+ */
+async function loadSnapshotsByProperty(userId?: string | null): Promise<Map<string, RealEstateValuationSnapshot[]>> {
+  const rows = await db
+    .select()
+    .from(realEstateValuationSnapshots)
+    .where(userId ? eq(realEstateValuationSnapshots.userId, userId) : undefined)
+    .orderBy(asc(realEstateValuationSnapshots.snapshotDate));
+  const map = new Map<string, RealEstateValuationSnapshot[]>();
+  for (const row of rows) {
+    const list = map.get(row.propertyId) ?? [];
+    list.push(mapSnapshot(row));
+    map.set(row.propertyId, list);
+  }
+  return map;
+}
+
+/* ─────────────────────── mapping ─────────────────────── */
 
 type PropertyRow = typeof realEstateProperties.$inferSelect & {
   assetSymbol: string;
@@ -480,6 +607,22 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
       })
       .returning();
 
+    // Freeze the initial valuation as an IMMUTABLE snapshot — the first point
+    // of the property's valuation history (append-only, same rule as vehicles).
+    await insertValuationSnapshot(tx, {
+      propertyId: prop.id,
+      assetId: asset.id,
+      userId: input.userId ?? null,
+      snapshotDate: valuationDate,
+      snapshotDatePersian: input.valuationDatePersian || null,
+      currentValueToman: current.toFixed(0),
+      usdRate: D(valuationFx.rate).toString(),
+      usdRateSource: valuationFx.source,
+      usdRateDate: valuationFx.effectiveDate,
+      currentValueUsd,
+      note: "ارزش‌گذاری اولیه (هنگام ثبت ملک)",
+    });
+
     const ledgerEntryId = await postRealEstateOpeningEntry(tx, {
       userId: input.userId ?? null,
       assetId: asset.id,
@@ -609,14 +752,63 @@ export async function getRealEstateAsset(propertyId: string): Promise<RealEstate
 
 export type RealEstateDashboardItem = RealEstateAsset & {
   performance: RealEstatePerformance;
+  /** نقطه خرید — مبنای تغییرناپذیر مقایسه‌های «از تاریخ تملک» */
+  purchasePoint: RealEstateSnapshotPoint | null;
+  /** تاریخچه کامل ارزش‌گذاری‌ها (اسنپ‌شات‌های تغییرناپذیر)، قدیمی‌ترین اول */
+  snapshots: RealEstateValuationSnapshot[];
+  /** ردیف‌های تاریخچه با تغییر نسبت به ارزش‌گذاری قبلی */
+  history: RealEstateHistoryRow[];
+  /** رشد/افت تومانی و دلاری در بازه‌های ۱م/۳م/۶م/۱س/… و از تملک و کل دوره */
+  periods: RealEstatePeriodResult[];
+  cagrToman: string | null;
+  cagrUsd: string | null;
 };
+
+/** Immutable purchase point — the frozen basis of «از تاریخ تملک» analyses. */
+export function realEstatePurchasePointOf(a: RealEstateAsset): RealEstateSnapshotPoint | null {
+  if (!a.acquisitionDate || !a.purchasePriceToman || !a.purchaseFxRate) return null;
+  return {
+    date: a.acquisitionDate,
+    valueToman: a.purchasePriceToman,
+    usdRate: a.purchaseFxRate,
+    valueUsd: a.purchaseValueUsd ?? tomanToUsd(a.purchasePriceToman, a.purchaseFxRate),
+  };
+}
 
 export async function getRealEstateDashboard(userId?: string | null): Promise<RealEstateDashboardItem[]> {
   const assetsList = await loadProperties(userId);
-  return assetsList.map((a) => ({
-    ...a,
-    performance: computePerformance(a.purchasePriceToman, a.currentValueToman, a.purchaseValueUsd, a.currentValueUsd),
-  }));
+  const snapshotsByProperty = await loadSnapshotsByProperty(userId);
+  const today = todayIso();
+
+  return assetsList.map((a) => {
+    const snapshots = snapshotsByProperty.get(a.id) ?? [];
+    const points = snapshots.map((s) => ({
+      date: s.snapshotDate,
+      valueToman: s.currentValueToman,
+      usdRate: s.usdRate,
+      valueUsd: s.currentValueUsd,
+    }));
+    const purchasePoint = realEstatePurchasePointOf(a);
+    const latest = latestPoint(points);
+
+    let cagrToman: string | null = null;
+    let cagrUsd: string | null = null;
+    if (purchasePoint && latest) {
+      cagrToman = cagrPercent(purchasePoint.valueToman, latest.valueToman, purchasePoint.date, latest.date);
+      cagrUsd = cagrPercent(purchasePoint.valueUsd, latest.valueUsd, purchasePoint.date, latest.date);
+    }
+
+    return {
+      ...a,
+      performance: computePerformance(a.purchasePriceToman, a.currentValueToman, a.purchaseValueUsd, a.currentValueUsd),
+      purchasePoint,
+      snapshots,
+      history: realEstateHistoryWithDeltas(points),
+      periods: allRealEstatePeriodResults(points, { todayIso: today, purchasePoint }),
+      cagrToman,
+      cagrUsd,
+    };
+  });
 }
 
 export async function getRealEstatePortfolioSummary(userId?: string | null): Promise<RealEstatePortfolioSummary> {
@@ -657,6 +849,9 @@ export async function getRealEstatePortfolioSummary(userId?: string | null): Pro
 
 /**
  * ارزش‌گذاری جدید — Current Value changes ONLY here.
+ *  - A new IMMUTABLE valuation snapshot is appended first (same-date refused);
+ *    previous valuations are never updated or deleted → the Toman value AND
+ *    the frozen USD rate of «یک ماه پیش / سه ماه پیش / شش ماه پیش» survive.
  *  - The ledger entry and the purchase history are NEVER touched (immutable).
  *  - A new price row (prices) makes the aggregate / net-worth use the new value.
  */
@@ -698,6 +893,23 @@ export async function recordRealEstateValuation(input: RecordRealEstateValuation
   const currentValueUsd = tomanToUsd(current.toFixed(0), valuationFx.rate);
 
   const updated = await db.transaction(async (tx) => {
+    // 1. Append the IMMUTABLE valuation snapshot FIRST — history is never
+    //    deleted or rewritten; a same-date valuation is refused.
+    const snapshotId = await insertValuationSnapshot(tx, {
+      propertyId: prop.id,
+      assetId: prop.assetId,
+      userId: input.userId ?? null,
+      snapshotDate: valuationDate,
+      snapshotDatePersian: input.valuationDatePersian ?? null,
+      currentValueToman: current.toFixed(0),
+      usdRate: D(valuationFx.rate).toString(),
+      usdRateSource: valuationFx.source,
+      usdRateDate: valuationFx.effectiveDate,
+      currentValueUsd,
+      note: input.note ?? null,
+    });
+
+    // 2. Only the CURRENT valuation pointer on the property row moves forward.
     const [row] = await tx
       .update(realEstateProperties)
       .set({
@@ -729,6 +941,7 @@ export async function recordRealEstateValuation(input: RecordRealEstateValuation
           valuationFxRate: D(valuationFx.rate).toString(),
           source: valuationFx.source,
           ledgerEntryId: prop.ledgerEntryId,
+          valuationSnapshotId: snapshotId,
         },
       },
       tx,
@@ -766,11 +979,76 @@ export async function ensureRealEstateModuleReady(): Promise<void> {
     await seedRealEstateMasterDataIfEmpty();
     await migrateLegacyPropertyRows();
     await backfillRealEstateFxSnapshots();
+    await backfillRealEstateValuationSnapshots();
   })().catch((err) => {
     readyPromise = null;
     throw err;
   });
   return readyPromise;
+}
+
+/**
+ * Backfill immutable valuation snapshots for properties created BEFORE the
+ * snapshot history existed (additive migration, runs once per deployment).
+ *
+ * Idempotent + non-destructive:
+ *  - seeds exactly ONE snapshot per property from its authoritative current
+ *    valuation row (date + Toman value + frozen rate + USD value),
+ *  - only inserts where no snapshot exists for that property+date,
+ *  - never rewrites an existing snapshot and never invents values — older
+ *    valuations whose Toman/rate were already overwritten cannot be
+ *    reconstructed and are NOT guessed (see AUDIT-REAL-ASSETS doc).
+ */
+export async function backfillRealEstateValuationSnapshots(): Promise<{ inserted: number; skipped: number }> {
+  const props = await db
+    .select()
+    .from(realEstateProperties)
+    .where(
+      and(
+        isNotNull(realEstateProperties.currentValueToman),
+        isNotNull(realEstateProperties.valuationDate),
+        isNotNull(realEstateProperties.valuationFxRate),
+        isNotNull(realEstateProperties.currentValueUsd),
+      ),
+    );
+
+  let inserted = 0;
+  let skipped = 0;
+  for (const prop of props) {
+    const [existing] = await db
+      .select({ id: realEstateValuationSnapshots.id })
+      .from(realEstateValuationSnapshots)
+      .where(
+        and(
+          eq(realEstateValuationSnapshots.propertyId, prop.id),
+          eq(realEstateValuationSnapshots.snapshotDate, prop.valuationDate!),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      skipped++;
+      continue;
+    }
+    await db
+      .insert(realEstateValuationSnapshots)
+      .values({
+        propertyId: prop.id,
+        assetId: prop.assetId,
+        userId: prop.userId ?? null,
+        snapshotDate: prop.valuationDate!,
+        snapshotDatePersian: prop.valuationDatePersian ?? null,
+        currentValueToman: D(prop.currentValueToman!).toFixed(0),
+        usdRate: D(prop.valuationFxRate!).toString(),
+        usdRateSource: prop.valuationFxRateSource ?? "manual",
+        usdRateDate: prop.valuationFxRateDate ?? prop.valuationDate!,
+        currentValueUsd: D(prop.currentValueUsd!).toString(),
+        source: "manual",
+        note: "بازسازی اسنپ‌شات از آخرین ارزش‌گذاری معتبر (Backfill)",
+      })
+      .onConflictDoNothing();
+    inserted++;
+  }
+  return { inserted, skipped };
 }
 
 /**
@@ -929,8 +1207,12 @@ export type {
   Neighborhood,
   PropertyType,
   RealEstateAsset,
+  RealEstateHistoryRow,
   RealEstateNamePreview,
+  RealEstatePeriodResult,
   RealEstatePerformance,
   RealEstatePortfolioSummary,
+  RealEstateSnapshotPoint,
+  RealEstateValuationSnapshot,
   RecordRealEstateValuationInput,
 } from "./types";
