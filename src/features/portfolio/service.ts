@@ -25,25 +25,33 @@ import { calculateMarketValuation, valueCoinGeckoAssets } from "@/features/valua
 import { calculateRoi, calculateUnrealizedPnl } from "./valuation";
 import { calculateAssetAllocation } from "./allocation";
 import type { AssetValuation, PortfolioSummary, ValuationBasis } from "./types";
-import {
-  CRYPTO_LOGOS,
-  DEFAULT_AUTO_LOGO,
-  REAL_ESTATE_LOGO,
-  TOMAN_LOGO,
-  USD_LOGO,
-  getAutomobileLogo,
-} from "@/features/branding/persianIcons";
+import { REAL_ESTATE_LOGO } from "@/features/branding/persianIcons";
+import { resolveAssetLogo } from "@/features/branding/assetLogo";
 
+/**
+ * Vehicle logo. `existing` is the STORED asset logo and always wins, so a
+ * vehicle a user registered earlier keeps the artwork it was saved with.
+ */
 function logoForVehicleBrand(brand: string | null | undefined, existing?: string | null): string {
-  return existing || getAutomobileLogo(brand) || DEFAULT_AUTO_LOGO;
+  return resolveAssetLogo({ logoUrl: existing, brandName: brand, assetType: "vehicle" });
 }
 
-function logoForSymbol(symbol: string, existing?: string | null): string | null {
-  if (existing) return existing;
-  const s = symbol.toUpperCase();
-  if (s === "IRT" || s === "IRR") return TOMAN_LOGO;
-  if (s === "USD") return USD_LOGO;
-  return CRYPTO_LOGOS[s] ?? null;
+/**
+ * Logo for a ledger-held asset. Order is the canonical resolver order:
+ * stored metadata → PersianLabs brand → CoinGecko → placeholder.
+ */
+function logoForSymbol(
+  symbol: string,
+  existing?: string | null,
+  meta?: { className?: string | null; coingeckoId?: string | null; name?: string | null },
+): string | null {
+  return resolveAssetLogo({
+    logoUrl: existing,
+    symbol,
+    name: meta?.name ?? null,
+    className: meta?.className ?? null,
+    coingeckoId: meta?.coingeckoId ?? null,
+  });
 }
 
 const MARKET_CLASS_CODES = new Set([
@@ -626,7 +634,11 @@ export async function getPortfolioValuation(
       } else if (realEstate.has(valuation.assetId)) {
         valuation.logoUrl = valuation.logoUrl || REAL_ESTATE_LOGO;
       } else {
-        valuation.logoUrl = logoForSymbol(valuation.symbol, valuation.logoUrl);
+        valuation.logoUrl = logoForSymbol(valuation.symbol, valuation.logoUrl, {
+          className: valuation.className,
+          coingeckoId: metadata.get(valuation.assetId)?.coingeckoId ?? null,
+          name: valuation.name,
+        });
       }
     }
   }

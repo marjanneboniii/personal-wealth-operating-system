@@ -37,6 +37,10 @@ const PUBLIC_PREFIXES = [
   "/api/",
   "/_next/",
   "/fonts/",
+  // Brand/asset logo artwork (PersianLabs icons). Static images with no user
+  // data — serving them without a session avoids a redirect-to-/login for
+  // every logo request and keeps them cacheable for the offline PWA.
+  "/ir-icons/",
   "/icon-",
   "/apple-",
   "/logo-",

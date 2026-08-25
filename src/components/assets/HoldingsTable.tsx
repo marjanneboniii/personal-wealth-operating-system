@@ -1,7 +1,7 @@
 import { D } from "@/domain/decimal";
 import { currencyLabel, formatMoney, formatPct, formatQty, trendArrow, trendColor, trendTone } from "@/lib/format";
 import Icon from "@/components/ui/Icon";
-import CurrencyLogo from "@/components/ui/CurrencyLogo";
+import AssetLogo from "@/components/ui/AssetLogo";
 import type { AssetValuation } from "@/features/portfolio/types";
 
 /**
@@ -36,7 +36,14 @@ export default function HoldingsTable({
               <tr key={a.assetId}>
                 <td className="min-w-0">
                   <div className="flex items-center gap-2 sm:gap-2.5">
-                    <CurrencyLogo symbol={a.symbol} size={32} className="!rounded-[9px]" />
+                    <AssetLogo
+                      symbol={a.symbol}
+                      name={a.name}
+                      logoUrl={a.logoUrl}
+                      assetClassName={a.className}
+                      size={32}
+                      radius={9}
+                    />
                     <div className="min-w-0">
                       <div className="truncate text-[12px] font-semibold tracking-tight sm:text-[13px]" dir="rtl">
                         {a.name}
