@@ -94,8 +94,6 @@ export default function RealEstateModule({
               <table className="table min-w-[1400px] text-[11.5px]">
                 <thead>
                   <tr>
-                    <th>نام دارایی</th>
-                    <th>نمایش فارسی</th>
                     <th>شناسه دارایی</th>
                     <th>نوع ملک</th>
                     <th>شهر</th>
@@ -117,12 +115,6 @@ export default function RealEstateModule({
                   {dashboard.map((item) => {
                     const open = openId === item.id;
                     const p = item.performance;
-                    const displayFa = getRealEstateDisplayLabel({
-                      symbol: item.symbol,
-                      assetName: item.assetName,
-                      neighborhoodNameFa: item.neighborhoodNameFa,
-                      cityNameFa: item.cityNameFa,
-                    });
                     return (
                       <Fragment key={item.id}>
                         <tr
@@ -130,12 +122,6 @@ export default function RealEstateModule({
                           onClick={() => setOpenId(open ? null : item.id)}
                           aria-expanded={open}
                         >
-                          <td className="max-w-56 font-bold">
-                            <span className="block truncate">{item.assetName}</span>
-                          </td>
-                          <td className="font-semibold">
-                            {displayFa}
-                          </td>
                           <td className="num text-[11.5px] font-semibold">
                             {toFaDigits(item.symbol)}
                           </td>
@@ -174,7 +160,7 @@ export default function RealEstateModule({
                         </tr>
                         {open && (
                           <tr>
-                            <td colSpan={17} className="!bg-transparent p-0">
+                            <td colSpan={15} className="!bg-transparent p-0">
                               <div className="border-t px-3 py-4" style={{ borderColor: "var(--border)", background: "var(--sunken)" }}>
                                 <RealEstateCard item={item} />
                               </div>

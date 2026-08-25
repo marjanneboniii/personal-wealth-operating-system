@@ -231,17 +231,12 @@ export default function RealEstateForm({
 
       </section>
 
-      {/* ── نام و شناسه کوتاه — تولید خودکار ── */}
+      {/* ── شناسه عددی ملک — تولید خودکار ── */}
       <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="min-w-0">
-            <div className="mt-0.5 text-[13px] font-bold" style={{ color: "var(--brand)" }}>
-              {loadingIdentity ? "…" : identityPreview?.assetName ?? (ptype && city && cityId && neighborhoodId ? "در حال تولید…" : "—")}
-            </div>
-          </div>
-          <div className="min-w-0">
             <div className="mt-0.5 text-[12.5px] font-semibold" style={{ color: "var(--brand)" }}>
-              شناسه: <span className="num">{loadingIdentity ? "…" : identityPreview?.symbol ? toFaDigits(identityPreview.symbol) : "—"}</span>
+              شناسه منحصر به‌فرد ملک: <span className="num font-bold text-[13.5px]">{loadingIdentity ? "…" : identityPreview?.symbol ? toFaDigits(identityPreview.symbol) : "—"}</span>
             </div>
           </div>
           {identityPreview?.sequence && identityPreview.sequence > 1 && (
