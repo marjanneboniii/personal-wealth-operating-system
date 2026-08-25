@@ -97,11 +97,20 @@ export async function getAccountBalances(userId?: string): Promise<AccountBalanc
            coalesce(sum(case when je.status = 'posted' then p.base_value else 0 end), 0)::text as "baseValue"
     from accounts a
       left join postings p on p.account_id = a.id
+        -- Presentation only: omit postings of entries that reference a
+        -- soft-deleted asset (deleted property). Ledger rows stay intact.
+        and not exists (
+          select 1 from postings p_ghost
+          join assets ast_ghost on ast_ghost.id = p_ghost.asset_id
+          where p_ghost.entry_id = p.entry_id
+            and ast_ghost.deleted_at is not null
+        )
       left join journal_entries je on je.id = p.entry_id
       left join assets ast on ast.id = coalesce(p.asset_id, a.asset_id)
       left join wallets w on w.id = a.wallet_id
       left join asset_classes ac on ac.id = ast.class_id
-    where a.deleted_at is null ${u ? sql`and (a.user_id = ${u} or (a.user_id is null and a.code in ('1000','1300','1400','1600','1610','1620','2000','3000','3010','3015','3200','4000','4010','4100','4900','5000','5010','5020','5030','5040','5050','5900')))` : sql``}
+    where a.deleted_at is null
+      and (ast.id is null or ast.deleted_at is null) ${u ? sql`and (a.user_id = ${u} or (a.user_id is null and a.code in ('1000','1300','1400','1600','1610','1620','2000','3000','3010','3015','3200','4000','4010','4100','4900','5000','5010','5020','5030','5040','5050','5900')))` : sql``}
     group by a.id, a.code, a.name, a.type, ast.id, ast.symbol, ast.name, ast.decimals, w.name, ac.name, ac.color
     order by a.code
   `);
@@ -469,23 +478,15 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
       }
       ${filter.review === "reviewed" ? sql`and er.entry_id is not null` : sql``}
       ${filter.review === "unreviewed" ? sql`and er.entry_id is null` : sql``}
-      -- CONSISTENCY FIX: Exclude entries where ALL asset-type postings reference
-      -- soft-deleted assets (e.g. a real estate property that was deleted).
-      -- The immutable journal entry remains but is invisible in the activity feed.
+      -- CONSISTENCY FIX: hide activity for assets that have been soft-deleted
+      -- (e.g. a real-estate property). Opening entries also credit USD/equity,
+      -- so we cannot require ALL asset postings to be deleted.
+      -- The journal row itself is never mutated.
       and not exists (
         select 1 from postings p_del
-        join accounts a_del on a_del.id = p_del.account_id
         join assets ast_del on ast_del.id = p_del.asset_id
         where p_del.entry_id = je.id
-          and a_del.type = 'asset'
           and ast_del.deleted_at is not null
-        except
-        select 1 from postings p_active
-        join accounts a_active on a_active.id = p_active.account_id
-        join assets ast_active on ast_active.id = p_active.asset_id
-        where p_active.entry_id = je.id
-          and a_active.type = 'asset'
-          and ast_active.deleted_at is null
       )
     group by je.id, er.entry_id, ec.name, epc.name, ec.nature
     ${orderBy}

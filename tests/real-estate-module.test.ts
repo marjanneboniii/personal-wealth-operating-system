@@ -44,9 +44,11 @@ import {
 } from "../src/db/schema";
 import {
   createRealEstateAsset,
+  deleteRealEstateAsset,
   listRealEstateAssets,
   previewRealEstateIdentity,
   recordRealEstateValuation,
+  repairOrphanedRealEstate,
   computePerformance,
   buildAssetName,
   buildSymbol,
@@ -58,7 +60,7 @@ import {
   setNeighborhoodActive,
   seedRealEstateMasterData,
 } from "../src/features/rwa/realEstate/masterData";
-import { getNetWorth, getRecent } from "../src/features/ledger/queries";
+import { getAccountBalances, getNetWorth, getRecent } from "../src/features/ledger/queries";
 import { humanizeEntry } from "../src/lib/tx";
 import { jalaliToIso } from "../src/lib/format";
 import { D } from "../src/domain/decimal";
@@ -75,6 +77,7 @@ async function reset() {
   await db.delete(prices);
   await db.delete(postings);
   await db.delete(journalEntries);
+  await db.delete(assets).where(sql`${assets.symbol} ~ '^[0-9]+$' OR ${assets.symbol} LIKE '__del_%'`);
   await db.delete(exchangeRates);
   // Re-seed master data from scratch (fresh in-memory DB per test file).
   await db.delete(neighborhoods);
@@ -665,7 +668,126 @@ test("missing or non-positive amounts are rejected", async () => {
   );
 });
 
-/* ─────────────────────── pure helpers ─────────────────────── */
+/* ─────────────────────── delete / orphan repair / identifier reuse ─────────────────────── */
+
+test("deleting a property hides it from holdings, activity, metrics and reclaims identifier 001", async () => {
+  await reset();
+  const ids = await pickAhvazKianparsEastApartment();
+  await setFxRate(ACQUISITION, "100000");
+  await setFxRate(VALUATION, "100000");
+
+  const created = await createRealEstateAsset({
+    cityId: ids.cityId,
+    neighborhoodId: ids.neighborhoodId,
+    propertyTypeId: ids.propertyTypeId,
+    acquisitionDate: ACQUISITION,
+    acquisitionDatePersian: "1404/05/20",
+    valuationDate: VALUATION,
+    valuationDatePersian: "1405/05/20",
+    purchasePriceToman: PURCHASE_TOMAN,
+    currentValueToman: CURRENT_TOMAN,
+  });
+  assert.equal(created.symbol, "001");
+
+  const entryId = await ledgerEntryOf(created.id);
+  assert.ok(entryId);
+
+  await deleteRealEstateAsset({ propertyId: created.id });
+
+  const remaining = await listRealEstateAssets();
+  assert.equal(remaining.length, 0);
+
+  const [entry] = await db.select().from(journalEntries).where(eq(journalEntries.id, entryId!));
+  assert.ok(entry, "journal entry must remain");
+  const lines = await db.select().from(postings).where(eq(postings.entryId, entryId!));
+  assert.equal(lines.length, 2);
+
+  const recent = await getRecent(20);
+  assert.ok(!recent.some((r) => r.id === entryId), "deleted property must not appear in activity feed");
+
+  const nw = await getNetWorth();
+  const rwa = nw.byClass.find((c) => c.className === "دارایی واقعی");
+  assert.ok(!rwa || Number(rwa.value) === 0);
+
+  const preview = await previewRealEstateIdentity(ids.cityId, ids.neighborhoodId, ids.propertyTypeId);
+  assert.equal(preview?.symbol, "001");
+
+  const again = await createRealEstateAsset({
+    cityId: ids.cityId,
+    neighborhoodId: ids.neighborhoodId,
+    propertyTypeId: ids.propertyTypeId,
+    acquisitionDate: ACQUISITION,
+    acquisitionDatePersian: "1404/05/20",
+    valuationDate: VALUATION,
+    valuationDatePersian: "1405/05/20",
+    purchasePriceToman: PURCHASE_TOMAN,
+    currentValueToman: CURRENT_TOMAN,
+  });
+  assert.equal(again.symbol, "001");
+});
+
+test("repairOrphanedRealEstate hides leftover legacy RE-* symbols from accounts", async () => {
+  await reset();
+  const ids = await pickAhvazKianparsEastApartment();
+  await setFxRate(ACQUISITION, "100000");
+  await setFxRate(VALUATION, "100000");
+
+  const created = await createRealEstateAsset({
+    cityId: ids.cityId,
+    neighborhoodId: ids.neighborhoodId,
+    propertyTypeId: ids.propertyTypeId,
+    acquisitionDate: ACQUISITION,
+    valuationDate: VALUATION,
+    purchasePriceToman: PURCHASE_TOMAN,
+    currentValueToman: CURRENT_TOMAN,
+  });
+
+  await db.update(assets).set({ symbol: "RE-AHZ-SDU-APT-0001" }).where(eq(assets.id, created.assetId));
+  await db.delete(realEstateProperties).where(eq(realEstateProperties.id, created.id));
+
+  const before = await getAccountBalances();
+  assert.ok(before.some((b) => b.symbol === "RE-AHZ-SDU-APT-0001" && !D(b.quantity).isZero()));
+
+  const outcome = await repairOrphanedRealEstate();
+  assert.ok(outcome.cleaned >= 1);
+
+  const after = await getAccountBalances();
+  assert.ok(!after.some((b) => b.symbol === "RE-AHZ-SDU-APT-0001"));
+  assert.ok(!after.some((b) => b.code === "1600" && !D(b.quantity).isZero()));
+});
+
+test("repairOrphanedRealEstate soft-deletes leftover RWA assets after a property-only delete", async () => {
+  await reset();
+  const ids = await pickAhvazKianparsEastApartment();
+  await setFxRate(ACQUISITION, "100000");
+  await setFxRate(VALUATION, "100000");
+
+  const created = await createRealEstateAsset({
+    cityId: ids.cityId,
+    neighborhoodId: ids.neighborhoodId,
+    propertyTypeId: ids.propertyTypeId,
+    acquisitionDate: ACQUISITION,
+    valuationDate: VALUATION,
+    purchasePriceToman: PURCHASE_TOMAN,
+    currentValueToman: CURRENT_TOMAN,
+  });
+
+  await db.delete(realEstateProperties).where(eq(realEstateProperties.id, created.id));
+
+  const before = await getNetWorth();
+  const ghost = before.byClass.find((c) => c.className === "دارایی واقعی");
+  assert.ok(ghost && Number(ghost.value) > 0, "orphaned asset still inflates net worth before repair");
+
+  const outcome = await repairOrphanedRealEstate();
+  assert.ok(outcome.cleaned >= 1);
+
+  const after = await getNetWorth();
+  const rwa = after.byClass.find((c) => c.className === "دارایی واقعی");
+  assert.ok(!rwa || Number(rwa.value) === 0);
+
+  const preview = await previewRealEstateIdentity(ids.cityId, ids.neighborhoodId, ids.propertyTypeId);
+  assert.equal(preview?.symbol, "001");
+});
 
 test("buildAssetName and compact buildSymbol follow the identity spec", () => {
   const city = { id: "c", nameFa: "اهواز", nameEn: "Ahvaz", code: "AHZ", isActive: true, sortOrder: 0 } as any;

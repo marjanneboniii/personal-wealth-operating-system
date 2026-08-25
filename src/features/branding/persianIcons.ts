@@ -118,10 +118,18 @@ const BANK_MAP: Record<string, string> = {
 
 export function getBankLogo(name: string | null | undefined): string | null {
   if (!name) return null;
-  const normalized = name.trim();
-  const slug = BANK_MAP[normalized] ?? BANK_MAP[normalized.toLowerCase()] ?? null;
-  if (!slug) return null;
-  return `${BASE}/banks/${slug}.svg`;
+  const trimmed = name.trim();
+  const slug = BANK_MAP[trimmed] ?? BANK_MAP[trimmed.toLowerCase()] ?? null;
+  if (slug) return `${BASE}/banks/${slug}.svg`;
+  const normalized = trimmed.replace(/^بانک\s+/, "").trim();
+  const nested = BANK_MAP[normalized] ?? BANK_MAP[normalized.toLowerCase()] ?? null;
+  if (nested) return `${BASE}/banks/${nested}.svg`;
+  for (const [key, value] of Object.entries(BANK_MAP)) {
+    if (key.length >= 3 && (trimmed.includes(key) || key.includes(normalized))) {
+      return `${BASE}/banks/${value}.svg`;
+    }
+  }
+  return null;
 }
 
 /* ─────────────────────── Automobiles ─────────────────────── */
@@ -129,31 +137,52 @@ export function getBankLogo(name: string | null | undefined): string | null {
 const AUTO_MAP: Record<string, string> = {
   "ایران‌خودرو": "iran-khodro",
   "ایران خودرو": "iran-khodro",
+  "ایرانخودرو": "iran-khodro",
+  "iran khodro": "iran-khodro",
   "iran-khodro": "iran-khodro",
+  ikco: "iran-khodro",
   "سایپا": "saipa",
-  "saipa": "saipa",
+  saipa: "saipa",
   "پارس‌خودرو": "pars-khodro",
   "پارس خودرو": "pars-khodro",
   "pars-khodro": "pars-khodro",
   "بهمن": "bahman",
-  "bahman": "bahman",
+  "بهمن موتور": "bahman",
+  bahman: "bahman",
   "کرمان موتور": "kerman-motor",
+  "kerman motor": "kerman-motor",
   "kerman-motor": "kerman-motor",
   "کویر": "kavir",
-  "kavir": "kavir",
+  kavir: "kavir",
   "نیرومحرکه": "niromotor",
   "نیروموتور": "niromotor",
-  "niromotor": "niromotor",
+  niromotor: "niromotor",
   "زامیاد": "zamyad",
-  "zamyad": "zamyad",
+  zamyad: "zamyad",
 };
+
+function normalizeBrand(input: string): string {
+  return input
+    .replace(/[\u200c\u200f\u200e]/g, "")
+    .replace(/‌/g, "")
+    .replace(/[-_/\\.]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
 
 export function getAutomobileLogo(name: string | null | undefined): string | null {
   if (!name) return null;
-  const normalized = name.trim();
-  const slug = AUTO_MAP[normalized] ?? AUTO_MAP[normalized.toLowerCase()] ?? null;
-  if (!slug) return null;
-  return `${BASE}/automobiles/${slug}.svg`;
+  const normalized = normalizeBrand(name);
+  const direct = AUTO_MAP[name.trim()] ?? AUTO_MAP[normalized] ?? null;
+  if (direct) return `${BASE}/automobiles/${direct}.svg`;
+  for (const [key, slug] of Object.entries(AUTO_MAP)) {
+    const k = normalizeBrand(key);
+    if (k.length >= 3 && (normalized.includes(k) || k.includes(normalized))) {
+      return `${BASE}/automobiles/${slug}.svg`;
+    }
+  }
+  return null;
 }
 
 /* ────────────────────── Payment Gateways ─────────────────────── */
@@ -223,6 +252,7 @@ export function resolveBrandLogo(
   name: string | null | undefined,
   category: "bank" | "automobile" | "payment" | "realestate" | "crypto" | "default" = "default",
 ): string | null {
+  if (category === "realestate") return REAL_ESTATE_LOGO;
   if (!name) return null;
   switch (category) {
     case "bank":
@@ -231,8 +261,6 @@ export function resolveBrandLogo(
       return getAutomobileLogo(name);
     case "payment":
       return getPaymentGatewayLogo(name);
-    case "realestate":
-      return REAL_ESTATE_LOGO;
     case "crypto":
       return CRYPTO_LOGOS[name.toUpperCase()] ?? null;
     default:
@@ -243,3 +271,47 @@ export function resolveBrandLogo(
 /** Default institution icon for when no specific logo matches. */
 export const DEFAULT_INSTITUTION_LOGO = `${BASE}/defaults/bank.svg`;
 export const DEFAULT_AUTO_LOGO = `${BASE}/defaults/automobile.svg`;
+export const TOMAN_LOGO = `${BASE}/defaults/toman.svg`;
+export const USD_LOGO = `${BASE}/defaults/usd.svg`;
+
+const CATEGORY_FALLBACK: Record<string, string> = {
+  bank: DEFAULT_INSTITUTION_LOGO,
+  automobile: DEFAULT_AUTO_LOGO,
+  payment: DEFAULT_INSTITUTION_LOGO,
+  realestate: REAL_ESTATE_LOGO,
+  crypto: `${BASE}/crypto/usdt.svg`,
+  default: DEFAULT_INSTITUTION_LOGO,
+};
+
+export function categoryFallback(category: string): string {
+  return CATEGORY_FALLBACK[category] ?? DEFAULT_INSTITUTION_LOGO;
+}
+
+/** Resolve a display logo for a holding / account row (presentation only). */
+export function resolveHoldingLogo(input: {
+  symbol?: string | null;
+  name?: string | null;
+  className?: string | null;
+  logoUrl?: string | null;
+  brandName?: string | null;
+}): string {
+  if (input.logoUrl) return input.logoUrl;
+  const symbol = (input.symbol ?? "").toUpperCase();
+  const className = input.className ?? "";
+  if (symbol === "IRT" || symbol === "IRR") return TOMAN_LOGO;
+  if (symbol === "USD") return USD_LOGO;
+  const crypto = CRYPTO_LOGOS[symbol];
+  if (crypto) return crypto;
+  const auto = getAutomobileLogo(input.brandName) ?? getAutomobileLogo(input.name);
+  if (auto) return auto;
+  if (/خودرو|vehicle|automobile/i.test(className) || input.brandName) {
+    return DEFAULT_AUTO_LOGO;
+  }
+  if (/املاک|مستغلات|real.?estate|دارایی واقعی/i.test(className) || /ملک|آپارتمان|خانه/.test(input.name ?? "")) {
+    return REAL_ESTATE_LOGO;
+  }
+  const bank = getBankLogo(input.brandName) ?? getBankLogo(input.name);
+  if (bank) return bank;
+  if (/نقد|بانک|cash|bank/i.test(className)) return DEFAULT_INSTITUTION_LOGO;
+  return DEFAULT_INSTITUTION_LOGO;
+}

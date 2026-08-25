@@ -12,7 +12,7 @@ import {
   getBankLogo,
   getAutomobileLogo,
   getPaymentGatewayLogo,
-  DEFAULT_INSTITUTION_LOGO,
+  categoryFallback,
 } from "@/features/branding/persianIcons";
 
 export type LogoCategory = "bank" | "automobile" | "payment" | "realestate" | "crypto" | "default";
@@ -33,7 +33,7 @@ export function IranLogo({
   title?: string;
 }) {
   const logoUrl = resolveBrandLogo(name ?? null, category);
-  const src = logoUrl ?? fallback ?? DEFAULT_INSTITUTION_LOGO;
+  const src = logoUrl ?? fallback ?? categoryFallback(category);
 
   return (
     <img

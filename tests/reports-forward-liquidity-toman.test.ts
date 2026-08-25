@@ -12,7 +12,7 @@
  *   Buggy render showed «۱۸۱٬۸۱۸٬۰۰۰٬۰۰۰ تومان» (= 909,090 × 200,000) and
  *   «۹۸۴٬۴۷۴٬۲۷۸٬۸۰۰٬۰۰۰ تومان» cumulative (= 4,922,371,394 × 200,000).
  *
- * The table must render «۹۰۹٬۰۹۰ تومان» with a «≈ ۴٫۵۵ دلار» hint.
+ * The table must render «۹۰۹٬۰۹۰ تومان» with a «≈ ۴.۵۵ دلار» hint.
  */
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
@@ -131,7 +131,7 @@ test("forward liquidity renders Toman AS-IS — no second FX multiplication", as
   assert.ok(!html.includes("۹۸۴٬۱۱۰٬۶۴۲٬۸۰۰٬۰۰۰"), "cumulative must never be re-multiplied by the FX rate");
 
   // The USD hint is the Toman amount ÷ rate (909,090 ÷ 200,000 = 4.55 USD)…
-  assert.ok(html.includes(`۴٫۵۵${NBSP}دلار`), "USD hint must be the ÷-rate equivalent (≈ ۴٫۵۵ دلار)");
+  assert.ok(html.includes(`۴.۵۵${NBSP}دلار`), "USD hint must be the ÷-rate equivalent (≈ ۴.۵۵ دلار)");
   // …never the Toman figure mislabeled as dollars (the old «≈ ۹۰۹٬۰۹۰ دلار»).
   assert.ok(!html.includes(`۹۰۹٬۰۹۰${NBSP}دلار`), "Toman figure must never be labeled as USD");
   assert.ok(!html.includes(`۴٬۹۲۲٬۳۷۱٬۳۹۴${NBSP}دلار`), "Toman figure must never be labeled as USD");
@@ -142,7 +142,7 @@ test("forward liquidity USD hints follow the rate (display-only, Toman stays fix
   const html = forwardLiquiditySection(renderToStaticMarkup(await (ReportsPage as any)()));
   // Cumulative hint: 4,922,371,394 ÷ 200,000 = 24,611.86 USD.
   assert.ok(
-    html.includes(`۲۴٬۶۱۱٫۸۶${NBSP}دلار`),
-    "cumulative USD hint must be the ÷-rate equivalent (≈ ۲۴٬۶۱۱٫۸۶ دلار)",
+    html.includes(`۲۴٬۶۱۱.۸۶${NBSP}دلار`),
+    "cumulative USD hint must be the ÷-rate equivalent (≈ ۲۴٬۶۱۱.۸۶ دلار)",
   );
 });
