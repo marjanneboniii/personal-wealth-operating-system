@@ -167,7 +167,7 @@ test("name and compact symbol are generated from the shared numeric RWA sequence
     currentValueToman: CURRENT_TOMAN,
   });
   assert.equal(first.symbol, "001");
-  assert.equal(first.assetName, "آپارتمان — اهواز — کیانپارس شرقی");
+  assert.equal(first.assetName, "001");
 
   // Same area + same type → sequential suffix and next symbol.
   const second = await createRealEstateAsset({
@@ -182,7 +182,7 @@ test("name and compact symbol are generated from the shared numeric RWA sequence
     currentValueToman: CURRENT_TOMAN,
   });
   assert.equal(second.symbol, "002");
-  assert.equal(second.assetName, "آپارتمان — اهواز — کیانپارس شرقی — 002");
+  assert.equal(second.assetName, "002");
 
   // Symbols are unique in the assets table (DB unique constraint).
   const symbols = await db
@@ -194,7 +194,7 @@ test("name and compact symbol are generated from the shared numeric RWA sequence
   // Preview returns the same generated values.
   const preview = await previewRealEstateIdentity(ids.cityId, ids.neighborhoodId, ids.propertyTypeId);
   assert.equal(preview?.symbol, "003");
-  assert.equal(preview?.assetName, "آپارتمان — اهواز — کیانپارس شرقی — 003");
+  assert.equal(preview?.assetName, "003");
 });
 
 test("users cannot supply a name or symbol — the service ignores/derives them", async () => {
@@ -213,7 +213,7 @@ test("users cannot supply a name or symbol — the service ignores/derives them"
   });
   // Generated, not "MY-PROPERTY" or anything user-typed.
   assert.match(result.symbol, /^\d{3,}$/);
-  assert.equal(result.assetName, "آپارتمان — اهواز — کیانپارس شرقی");
+  assert.equal(result.assetName, result.symbol);
 });
 
 /* ─────────────────────── historical FX ─────────────────────── */
@@ -672,8 +672,8 @@ test("buildAssetName and compact buildSymbol follow the identity spec", () => {
   const hood = { id: "h", cityId: "c", nameFa: "کیانپارس شرقی", nameEn: "Kianpars East", code: "KPE", isActive: true, sortOrder: 0 } as any;
   const apt = { id: "p", nameFa: "آپارتمان", nameEn: "Apartment", code: "APT", isActive: true, sortOrder: 0 } as any;
 
-  assert.equal(buildAssetName(apt, city, hood, 1), "آپارتمان — اهواز — کیانپارس شرقی");
-  assert.equal(buildAssetName(apt, city, hood, 7), "آپارتمان — اهواز — کیانپارس شرقی — 007");
+  assert.equal(buildAssetName(apt, city, hood, 1), "001");
+  assert.equal(buildAssetName(apt, city, hood, 7), "007");
   assert.equal(buildSymbol(1), "001");
   assert.equal(buildSymbol(1000), "1000");
 });

@@ -152,10 +152,9 @@ async function nextPropertySequence(cityId: string, neighborhoodId: string, prop
   return (Number(row?.c ?? 0) || 0) + 1;
 }
 
-/** «آپارتمان — اهواز — کیانپارس شرقی» (+ «— 001» when similar assets exist). */
-export function buildAssetName(p: PropertyType, city: City, hood: Neighborhood, sequence: number): string {
-  const base = `${p.nameFa} — ${city.nameFa} — ${hood.nameFa}`;
-  return sequence > 1 ? `${base} — ${String(sequence).padStart(3, "0")}` : base;
+/** Short numeric identifier for properties (`001`, `002`, …). */
+export function buildAssetName(p: PropertyType, city: City, hood: Neighborhood, sequence: number, symbol?: string): string {
+  return symbol ?? buildRwaSymbol(sequence);
 }
 
 /** Compact canonical RWA id (`001`, `002`, …). Shared with vehicles. */
@@ -172,10 +171,11 @@ export async function previewRealEstateIdentity(
   const [city, hood, ptype] = await Promise.all([getCity(cityId), getNeighborhood(neighborhoodId), getPropertyType(propertyTypeId)]);
   if (!city || !hood || !ptype) return null;
   const sequence = await nextPropertySequence(cityId, neighborhoodId, propertyTypeId);
+  const symbol = await nextRwaSymbol();
   return {
-    assetName: buildAssetName(ptype, city, hood, sequence),
+    assetName: symbol,
     // Preview is advisory; the final transaction resolves and locks again.
-    symbol: await nextRwaSymbol(),
+    symbol,
     sequence,
   };
 }
@@ -300,7 +300,7 @@ async function postRealEstateOpeningEntry(
     {
       entryDate: input.entryDate,
       type: "opening",
-      description: `تملک تاریخی — ${input.assetName} (${input.symbol})${input.acquisitionDatePersian ? ` — ${input.acquisitionDatePersian}` : ""} | قیمت خرید: ${formatMoney(input.purchasePriceToman, "IRT")}`,
+      description: `تملک تاریخی — ملک ${input.symbol}${input.acquisitionDatePersian ? ` — ${input.acquisitionDatePersian}` : ""} | قیمت خرید: ${formatMoney(input.purchasePriceToman, "IRT")}`,
       source: "manual",
       reference: input.symbol,
       userId: input.userId ?? undefined,
@@ -425,7 +425,6 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
   const currentValueUsd = tomanToUsd(current.toFixed(0), valuationFx.rate);
 
   const sequence = await nextPropertySequence(city.id, hood.id, ptype.id);
-  const assetName = buildAssetName(ptype, city, hood, sequence);
   const systemEntryDate = todayIso();
   const isHistorical = acquisitionDate < systemEntryDate;
 
@@ -433,6 +432,7 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
 
   const created = await db.transaction(async (tx) => {
     const symbol = await nextRwaSymbol(tx, classId);
+    const assetName = symbol;
     const [asset] = await tx
       .insert(assets)
       .values({ name: assetName, symbol, classId, decimals: 2, priceSource: "manual" })
@@ -525,7 +525,7 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
     return { id: prop.id, assetId: asset.id, ledgerEntryId, symbol };
   });
 
-  return { ...created, assetName };
+  return { ...created, assetName: created.symbol };
 }
 
 /* ─────────────────────── reads / dashboard ─────────────────────── */

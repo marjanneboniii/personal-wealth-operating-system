@@ -1,12 +1,12 @@
 /**
  * Real Estate display mapping.
  *
- * Current assets use compact numeric ids (`001`, …), while location/type come
- * from relational master data. The parser below remains only as a read-time
- * fallback for legacy `RE-*` identities that may appear in old backups or
- * historical audit text; it never drives current identity generation.
+ * Real estate assets use short, unique numeric identifiers (`001`, `002`, ...).
+ * Location and property type come from relational master data shown in separate
+ * columns/rows.
  */
 
+import { toFaDigits } from "@/lib/format";
 import { NEIGHBORHOODS_SEED, CITIES_SEED, PROPERTY_TYPES_SEED } from "./seedData";
 
 // Build lookup maps from seed (which is the source of truth for Persian names)
@@ -33,14 +33,11 @@ export function parseRealEstateSymbol(symbol: string): { city: string; neighborh
 }
 
 /**
- * Returns Persian display name for a symbol, using master-data.
- * Example: RE-AHZ-SDU-APT-000 => "شهرک دانشگاه"
- * If neighborhood not found, tries city, then type, then null.
+ * Returns Persian display name for a legacy symbol, using master-data.
  */
 export function getRealEstateDisplayNameFromSymbol(symbol: string): string | null {
   const parsed = parseRealEstateSymbol(symbol);
   if (!parsed) return null;
-  // Priority: neighborhood (most specific, e.g. SDU => شهرک دانشگاه)
   const hood = neighborhoodByCode.get(parsed.neighborhood);
   if (hood) return hood;
   const city = cityByCode.get(parsed.city);
@@ -52,10 +49,7 @@ export function getRealEstateDisplayNameFromSymbol(symbol: string): string | nul
 
 /**
  * Generic display label for a real-estate asset:
- * 1. If DB already resolved Persian neighborhoodNameFa, use it (most accurate, user-scoped).
- * 2. Else, try to derive from a legacy technical symbol via seed mapping.
- * 3. Else, fallback to assetName (which is already Persian, e.g. "آپارتمان — اهواز — شهرک دانشگاه").
- * 4. Else, raw symbol.
+ * Always returns the short, unique, numeric property identifier.
  */
 export function getRealEstateDisplayLabel(input: {
   symbol?: string | null;
@@ -63,12 +57,7 @@ export function getRealEstateDisplayLabel(input: {
   neighborhoodNameFa?: string | null;
   cityNameFa?: string | null;
 }): string {
-  if (input.neighborhoodNameFa) return input.neighborhoodNameFa;
-  if (input.symbol) {
-    const fromSymbol = getRealEstateDisplayNameFromSymbol(input.symbol);
-    if (fromSymbol) return fromSymbol;
-  }
-  if (input.assetName) return input.assetName;
-  if (input.cityNameFa) return input.cityNameFa;
+  if (input.symbol) return toFaDigits(input.symbol);
+  if (input.assetName && /^\d+$/.test(input.assetName.trim())) return toFaDigits(input.assetName.trim());
   return input.symbol ?? "—";
 }

@@ -118,7 +118,7 @@ test("preview actions return generated identity and USD values", async () => {
 actions.previewRealEstateIdentityAction(cityId, neighborhoodId, propertyTypeId);
   assert.equal(id.ok, true);
   assert.equal(id.symbol, "001");
-  assert.equal(id.assetName, "آپارتمان — اهواز — کیانپارس شرقی");
+  assert.equal(id.assetName, "001");
 
   const usd = await 
 actions.previewRealEstateUsdAction("4500000000", jalaliToIso(1404, 5, 20));
