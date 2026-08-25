@@ -39,18 +39,35 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
   const amountDec = positives.reduce((s, l) => s.add(l.baseValue), Decimal.zero());
   const amount = amountDec.gt(0) ? amountDec : D(e.lines[0]?.baseValue ?? 0).abs();
   const amountExact = amount.toString();
-  const irtLeg = e.lines.find((l) => l.symbol === "IRT" || l.symbol === "IRR");
   // Frozen Toman, never recomputed via today's FX. Priority (first wins):
-  //   1. a native IRT/IRR leg (if the entry carried one) — the real Toman unit,
+  //   1. a native Toman SIDE of the entry: every leg on one side (all positive
+  //      legs, or all negative legs) is IRT/IRR-denominated — then that side's
+  //      Toman total IS the full amount that actually moved (a Toman expense,
+  //      a Toman→crypto buy, an IRT→USDT conversion). Several Toman legs on
+  //      the same side are summed.
+  //      A LONE Toman leg inside a multi-asset entry — e.g. the opening entry
+  //      «افتتاحیه — ثبت موجودی اولیه» carrying cash Toman + Tether + Ethereum
+  //      against opening equity — is only ONE COMPONENT of the entry. Treating
+  //      it as the entry's amount hid every other asset behind the cash figure
+  //      (the reported «در اپ فقط عدد ۶٬۰۰۰٬۰۰۰ تومان نوشته شده» bug). Such
+  //      entries fall through to the full base-currency total (converted with
+  //      an «≈» marker by the UI), so all assets are reflected.
   //   2. the frozen historical purchase Toman of a real-estate opening entry
   //      (real_estate_properties.purchase_price_toman) — a prior-period
   //      acquisition is booked in USD, so its contractual Toman purchase price
   //      is the SINGLE authoritative figure. It wins over any generic snapshot
   //      so a stale/incorrect entry_fx_snapshots row can never override it,
   //   3. the entry's frozen FX snapshot (entry_fx_snapshots.irt_amount).
+  const legToman = (l: (typeof e.lines)[number]) =>
+    l.symbol === "IRR" ? D(l.quantity).abs().div(10) : D(l.quantity).abs();
+  const sideToman = (legs: typeof e.lines) =>
+    legs.length > 0 && legs.every((l) => l.symbol === "IRT" || l.symbol === "IRR")
+      ? legs.reduce((s, l) => s.add(legToman(l)), Decimal.zero())
+      : null;
   const frozenToman = e.realEstatePurchaseToman ?? e.fxIrtAmount;
-  const nativeIrt = irtLeg
-    ? (irtLeg.symbol === "IRR" ? D(irtLeg.quantity).abs().div(10) : D(irtLeg.quantity).abs()).toFixed(0)
+  const nativeSideToman = sideToman(positives) ?? sideToman(negatives);
+  const nativeIrt = nativeSideToman?.gt(0)
+    ? nativeSideToman.toFixed(0)
     : frozenToman != null && D(frozenToman).gt(0)
       ? D(frozenToman).toFixed(0)
       : null;
