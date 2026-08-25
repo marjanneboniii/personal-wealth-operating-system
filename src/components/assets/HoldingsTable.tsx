@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { D } from "@/domain/decimal";
 import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, trendArrow, trendColor, trendTone } from "@/lib/format";
+import Icon from "@/components/ui/Icon";
 import type { AssetValuation } from "@/features/portfolio/types";
 
 /**
@@ -15,7 +16,7 @@ export default function HoldingsTable({
 }) {
   return (
     <div className="card overflow-x-auto">
-      <table className="table">
+      <table className="table table-sticky">
         <thead>
           <tr>
             <th>دارایی</th>
@@ -103,6 +104,14 @@ export default function HoldingsTable({
           })}
         </tbody>
       </table>
+      <div
+        className="muted flex items-center gap-1 border-t px-3 py-2 text-[10.5px] sm:hidden"
+        style={{ borderColor: "var(--border)" }}
+        aria-hidden="true"
+      >
+        <Icon name="chevronLeft" size={13} />
+        برای دیدن قیمت‌ها، جدول را بکشید
+      </div>
     </div>
   );
 }

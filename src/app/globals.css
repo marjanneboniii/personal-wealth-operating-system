@@ -801,6 +801,27 @@ select.field {
   white-space: nowrap;
 }
 
+/* Sticky first column for horizontally-scrollable tables (e.g. holdings).
+   `border-collapse` must be `separate` so the pinned cell's borders travel
+   with it while the rest of the columns slide underneath. */
+.table-sticky {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.table-sticky th:first-child,
+.table-sticky td:first-child {
+  position: sticky;
+  inset-inline-start: 0; /* RTL: pins the name column to the right edge */
+  background: var(--surface);
+  z-index: 2;
+  min-width: clamp(7rem, 32vw, 9.5rem);
+  /* Divider that stays visible against the columns sliding underneath. */
+  border-inline-end: 1px solid var(--border);
+}
+.table-sticky thead th:first-child {
+  z-index: 3;
+}
+
 /* ─────────────────────── Progress / meter ─────────────────────── */
 
 .meter {
@@ -1907,6 +1928,13 @@ body {
 @media (max-width: 640px) {
   .card, .soft {
     overflow: hidden;
+  }
+  /* Table wrappers must stay horizontally scrollable so long money/price
+     cells are reachable instead of being clipped out of the card. */
+  .card.overflow-x-auto {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
   }
   /* Any flex row with money should not allow wrap of unit */
   .flex.items-baseline,
