@@ -21,7 +21,8 @@ export function groupThousands(fixed: string): string {
   const body = neg ? fixed.slice(1) : fixed;
   const [int, frac] = body.split(".");
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, "٬");
-  return `${neg ? "−" : ""}${grouped}${frac ? "٫" + frac : ""}`;
+  // Display decimal separator is ASCII "." (never Persian ٫ which looks like /).
+  return `${neg ? "−" : ""}${grouped}${frac ? "." + frac : ""}`;
 }
 
 /** Decimal places that make sense per asset kind. */
@@ -40,7 +41,7 @@ export function formatNumber(
 ): string {
   const dp = opts.decimals ?? 2;
   const out = groupThousands(D(value ?? 0).toFixed(dp));
-  return opts.digits === "en" ? out.replace(/٬/g, ",").replace(/٫/g, ".") : toFaDigits(out);
+  return opts.digits === "en" ? out.replace(/٬/g, ",") : toFaDigits(out);
 }
 
 export function formatQty(
@@ -51,7 +52,7 @@ export function formatQty(
   const dp = smartDecimals(value, assetDecimals);
   const raw = D(value ?? 0).toFixed(dp).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
   const out = groupThousands(raw);
-  return digits === "en" ? out.replace(/٬/g, ",").replace(/٫/g, ".") : toFaDigits(out);
+  return digits === "en" ? out.replace(/٬/g, ",") : toFaDigits(out);
 }
 
 /**
@@ -63,7 +64,7 @@ export const CURRENCY_LABELS: Record<string, string> = {
   USD: "دلار",
   USDT: "تتر",
   IRT: "تومان",
-  IRR: "ریال",
+  IRR: "تومان",
   EUR: "یورو",
 };
 
@@ -94,7 +95,7 @@ export function formatMoney(
   const dp = isZeroDecimals ? 0 : 2;
   // All financial amounts are rendered for the user in Persian digits with a
   // Persian thousand separator. Trailing zeros are trimmed so whole amounts
-  // read naturally (۱۵٬۹۵۷ دلار instead of ۱۵٬۹۵۷٫۰۰ دلار).
+  // read naturally (۱۵٬۹۵۷ دلار instead of ۱۵٬۹۵۷.۰۰ دلار).
   const raw = D(value ?? 0)
     .toFixed(dp)
     .replace(/(\.\d*?)0+$/, "$1")
@@ -131,7 +132,7 @@ export function formatPercent(value: string | number, digits: DigitStyle = "fa")
 
 /**
  * Plain Persian percent — no forced sign, adjustable decimals.
- * e.g. formatPct("12.5", 1) → "۱۲٫۵٪". Used by tables, charts and KPIs so
+ * e.g. formatPct("12.5", 1) → "۱۲.۵٪". Used by tables, charts and KPIs so
  * every percent in the UI follows the same Persian-digit standard.
  */
 export function formatPct(value: string | number, decimals = 1): string {

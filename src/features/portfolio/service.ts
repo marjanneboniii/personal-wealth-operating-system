@@ -25,6 +25,26 @@ import { calculateMarketValuation, valueCoinGeckoAssets } from "@/features/valua
 import { calculateRoi, calculateUnrealizedPnl } from "./valuation";
 import { calculateAssetAllocation } from "./allocation";
 import type { AssetValuation, PortfolioSummary, ValuationBasis } from "./types";
+import {
+  CRYPTO_LOGOS,
+  DEFAULT_AUTO_LOGO,
+  REAL_ESTATE_LOGO,
+  TOMAN_LOGO,
+  USD_LOGO,
+  getAutomobileLogo,
+} from "@/features/branding/persianIcons";
+
+function logoForVehicleBrand(brand: string | null | undefined, existing?: string | null): string {
+  return existing || getAutomobileLogo(brand) || DEFAULT_AUTO_LOGO;
+}
+
+function logoForSymbol(symbol: string, existing?: string | null): string | null {
+  if (existing) return existing;
+  const s = symbol.toUpperCase();
+  if (s === "IRT" || s === "IRR") return TOMAN_LOGO;
+  if (s === "USD") return USD_LOGO;
+  return CRYPTO_LOGOS[s] ?? null;
+}
 
 const MARKET_CLASS_CODES = new Set([
   "crypto",
@@ -109,7 +129,7 @@ async function loadUnheldRealAssets(input: {
       assetId: row.assetId,
       symbol: row.symbol,
       name: row.name,
-      logoUrl: row.logoUrl ?? null,
+      logoUrl: row.logoUrl ?? REAL_ESTATE_LOGO,
       className: row.className,
       classColor: row.classColor,
       decimals: row.decimals,
@@ -144,6 +164,7 @@ async function loadUnheldRealAssets(input: {
       className: assetClasses.name,
       classColor: assetClasses.color,
       status: vehicleAssets.status,
+      brand: vehicleAssets.brand,
       purchaseValueUsd: vehicleAssets.purchaseValueUsd,
       purchasePriceToman: vehicleAssets.purchasePriceToman,
     })
@@ -186,7 +207,7 @@ async function loadUnheldRealAssets(input: {
       assetId: row.assetId,
       symbol: row.symbol,
       name: row.name,
-      logoUrl: row.logoUrl ?? null,
+      logoUrl: logoForVehicleBrand(row.brand, row.logoUrl),
       className: row.className,
       classColor: row.classColor,
       decimals: row.decimals,
@@ -589,6 +610,25 @@ export async function getPortfolioValuation(
     totalUnrealizedPnl = totalUnrealizedPnl.add(extra.unrealizedPnl);
     totalUnrealizedPnlToman = totalUnrealizedPnlToman.add(extra.unrealizedPnlToman);
     assetValuations.push(extra);
+  }
+
+  const logoAssetIds = assetValuations.map((row) => row.assetId);
+  if (logoAssetIds.length) {
+    const brandRows = await db
+      .select({ assetId: vehicleAssets.assetId, brand: vehicleAssets.brand })
+      .from(vehicleAssets)
+      .where(inArray(vehicleAssets.assetId, logoAssetIds));
+    const brandByAsset = new Map(brandRows.map((row) => [row.assetId, row.brand]));
+    for (const valuation of assetValuations) {
+      const brand = brandByAsset.get(valuation.assetId);
+      if (brand) {
+        valuation.logoUrl = logoForVehicleBrand(brand, valuation.logoUrl);
+      } else if (realEstate.has(valuation.assetId)) {
+        valuation.logoUrl = valuation.logoUrl || REAL_ESTATE_LOGO;
+      } else {
+        valuation.logoUrl = logoForSymbol(valuation.symbol, valuation.logoUrl);
+      }
+    }
   }
 
   for (const valuation of assetValuations) {

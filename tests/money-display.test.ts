@@ -20,6 +20,7 @@ import {
   formatDualMoneyFromIrt,
   formatDualMoneyFromUsd,
   formatMoney,
+  formatNumber,
 } from "../src/lib/format";
 
 const RLI = "\u2067";
@@ -83,6 +84,14 @@ test("dual (equivalent-currency) previews follow the same standard", () => {
   const fromUsd = formatDualMoneyFromUsd("15957", "200000");
   assert.equal(fromUsd.usd, `${RLI}۱۵٬۹۵۷ دلار${PDI}`);
   assert.ok(fromUsd.irt.includes("تومان"));
+});
+
+test("decimal separator is ASCII period, never Persian ٫", () => {
+  const usd = money("34444.33", "USD");
+  assert.ok(usd.includes("۳۴٬۴۴۴.۳۳"), usd);
+  assert.ok(!usd.includes("٫"), usd);
+  assert.ok(!usd.includes("/"), usd);
+  assert.equal(formatNumber("34444.33", { decimals: 2 }), "۳۴٬۴۴۴.۳۳");
 });
 
 test("faCount renders UI counts in Persian digits", () => {

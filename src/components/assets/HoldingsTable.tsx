@@ -1,31 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, trendArrow, trendColor, trendTone } from "@/lib/format";
+import { currencyLabel, formatMoney, formatPct, formatQty, trendArrow, trendColor, trendTone } from "@/lib/format";
 import Icon from "@/components/ui/Icon";
-import { IranLogo } from "@/components/ui/IranLogo";
-import { getBankLogo, getAutomobileLogo } from "@/features/branding/persianIcons";
+import { resolveHoldingLogo } from "@/features/branding/persianIcons";
 import type { AssetValuation } from "@/features/portfolio/types";
-
-/** Try to resolve an Iranian brand logo for a holding based on class + name */
-function resolveInstitutionLogo(
-  className: string | null,
-  name: string | null,
-): { name: string; category: "bank" | "automobile" } | null {
-  if (!name) return null;
-  const lowerClass = (className ?? "").toLowerCase();
-  // Banking / Cash class — try to match the institution name
-  if (lowerClass.includes("نقد") || lowerClass.includes("بانک") || lowerClass.includes("cash") || lowerClass.includes("bank")) {
-    if (getBankLogo(name)) return { name, category: "bank" };
-  }
-  // Automobile / Vehicle class
-  if (lowerClass.includes("خودرو") || lowerClass.includes("vehicle") || lowerClass.includes("automobile")) {
-    if (getAutomobileLogo(name)) return { name, category: "automobile" };
-  }
-  // Fallback: try both lookups regardless of class
-  if (getBankLogo(name)) return { name, category: "bank" };
-  if (getAutomobileLogo(name)) return { name, category: "automobile" };
-  return null;
-}
 
 /**
  * Holdings valuation table — compact for mobile PWA, nowrap money.
@@ -55,19 +33,24 @@ export default function HoldingsTable({
           {rows.map((a) => {
             const pnl = D(a.unrealizedPnl);
             const pnlTone = trendTone(a.unrealizedPnl);
-            // Resolve Iranian brand logo for institutions (banks, vehicles, etc.)
-            const institutionLogo = resolveInstitutionLogo(a.className, a.name);
+            const logo = resolveHoldingLogo({
+              symbol: a.symbol,
+              name: a.name,
+              className: a.className,
+              logoUrl: a.logoUrl,
+            });
             return (
               <tr key={a.assetId}>
                 <td className="min-w-0">
                   <div className="flex items-center gap-2 sm:gap-2.5">
-                    {institutionLogo ? (
-                      <IranLogo name={institutionLogo.name} category={institutionLogo.category} size={28} />
-                    ) : a.logoUrl ? (
-                      <img src={a.logoUrl} alt="" width={28} height={28} className="h-6 w-6 shrink-0 rounded-full sm:h-7 sm:w-7" referrerPolicy="no-referrer" />
-                    ) : (
-                      <i className="h-2 w-2 shrink-0 rounded-[3px] sm:h-2.5 sm:w-2.5" style={{ background: a.classColor }} />
-                    )}
+                    <img
+                      src={logo}
+                      alt=""
+                      width={28}
+                      height={28}
+                      className="h-7 w-7 shrink-0 rounded-[9px] sm:h-8 sm:w-8"
+                      style={{ objectFit: "contain", background: "var(--sunken)" }}
+                    />
                     <div className="min-w-0">
                       <div className="truncate text-[12px] font-semibold tracking-tight sm:text-[13px]" dir="rtl">
                         {a.name}
@@ -90,7 +73,7 @@ export default function HoldingsTable({
                   {a.marketPrice !== "0" && toIrt(a.marketPrice) ? (
                     <>
                       <div className="text-[11px] font-medium money-nowrap sm:text-[12px]">
-                        {toIrt(a.marketPrice)}
+                        {a.symbol === "IRT" || a.symbol === "IRR" ? formatMoney(a.currentValueToman, "IRT") : toIrt(a.marketPrice)}
                       </div>
                       <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
                         ≈ {formatMoney(a.marketPrice)}

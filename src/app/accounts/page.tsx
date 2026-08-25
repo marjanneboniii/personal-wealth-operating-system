@@ -5,8 +5,11 @@ import { accounts, institutions, networks, wallets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { listMoneyAccountCurrencies } from "@/features/accounts/service";
 import { getAccountBalances } from "@/features/ledger/queries";
+import { repairOrphanedRealEstate } from "@/features/rwa/realEstate/service";
 import { EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
+import { BankLogo } from "@/components/ui/IranLogo";
+import { getBankLogo, resolveHoldingLogo } from "@/features/branding/persianIcons";
 import MoneyAccountForm from "@/components/forms/MoneyAccountForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
@@ -30,6 +33,7 @@ export default async function AccountsPage() {
   const userId = (user as { id?: string } | null)?.id ?? null;
   const pro = await getUserProMode(userId);
   await seedIfEmpty();
+  await repairOrphanedRealEstate();
   const currencyRows = await listMoneyAccountCurrencies();
   const [balances, walletRows, fx] = await Promise.all([
     getAccountBalances(userId ?? undefined),
@@ -149,9 +153,13 @@ export default async function AccountsPage() {
                 <div key={walletKey} className="card overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--sunken)" }}>
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "var(--surface)", color: "var(--brand)" }}>
-                        <Icon name="wallet" size={15} />
-                      </span>
+                      {getBankLogo(walletMeta?.institution ?? walletName) ? (
+                        <BankLogo name={walletMeta?.institution ?? walletName} size={32} />
+                      ) : (
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "var(--surface)", color: "var(--brand)" }}>
+                          <Icon name="wallet" size={15} />
+                        </span>
+                      )}
                       <div>
                         <p className="text-[12px] sm:text-[13px] font-semibold">{walletName}</p>
                         <p className="muted text-[10px]">
@@ -173,11 +181,25 @@ export default async function AccountsPage() {
                       const val = valuationToman(b);
                       return (
                         <li key={b.accountId} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                          <div className="min-w-0">
-                            <p className="truncate text-[12.5px] font-medium">{b.name}</p>
-                            <p className="muted num text-[10px]" dir="rtl">
-                              {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)} — مانده اصلی
-                            </p>
+                          <div className="min-w-0 flex items-center gap-2.5">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={resolveHoldingLogo({
+                                symbol: b.symbol,
+                                name: walletMeta?.institution ?? b.walletName ?? b.name,
+                                className: b.className,
+                              })}
+                              alt=""
+                              width={24}
+                              height={24}
+                              className="h-6 w-6 shrink-0 rounded-[7px]"
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate text-[12.5px] font-medium">{b.name}</p>
+                              <p className="muted num text-[10px]" dir="rtl">
+                                {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)} — مانده اصلی
+                              </p>
+                            </div>
                           </div>
                           <div className="shrink-0 text-left">
                             <p className="num text-[11px] sm:text-[12px] font-bold money-nowrap" dir="rtl">

@@ -4,7 +4,7 @@
  *
  *   §1  Toman base-currency immutability + one-way dynamic USD equivalent.
  *   §2  Pro Mode default = SIMPLE; accounting vocabulary is opt-in per user.
- *   §3  100٪ Persian digits, «٫» decimal, «٬» thousands, leading minus sign.
+ *   §3  100٪ Persian digits, «.» decimal, «٬» thousands, leading minus sign.
  *   §4  Rounding service (exact decimal, single half-up step) and the
  *       zero-is-neutral colour rule.
  *   §0  Per-user preference isolation (tenant scoping of the Pro Mode flag).
@@ -110,7 +110,7 @@ test("§1 the stored Toman figure is invariant to the USD rate; only the side US
   assert.equal(a.irt, `${RLI}۱٬۰۰۰٬۰۰۰ تومان${PDI}`);
   assert.equal(a.irt, b.irt);
   // …while the dynamic dollar equivalent follows the rate one-way:
-  assert.equal(a.usd, `${RLI}۵٫۲۶ دلار${PDI}`);
+  assert.equal(a.usd, `${RLI}۵.۲۶ دلار${PDI}`);
   assert.equal(b.usd, `${RLI}۴ دلار${PDI}`);
 });
 
@@ -141,13 +141,13 @@ test("§1 humanized ledger entries expose the FULL-PRECISION amount for any conv
    §3 — Persian digits & number formatting standards
    ══════════════════════════════════════════════════════════════════════════ */
 
-test("§3 Persian digits, «٫» decimal, «٬» thousands — no Latin digit, no slash decimal", async () => {
+test("§3 Persian digits, «.» decimal, «٬» thousands — no Latin digit, no slash decimal", async () => {
   await modulesReady;
-  assert.equal(format.formatNumber("32731.12", { decimals: 2 }), "۳۲٬۷۳۱٫۱۲");
-  assert.equal(format.formatNumber("58.3", { decimals: 1 }), "۵۸٫۳");
+  assert.equal(format.formatNumber("32731.12", { decimals: 2 }), "۳۲٬۷۳۱.۱۲");
+  assert.equal(format.formatNumber("58.3", { decimals: 1 }), "۵۸.۳");
   assert.equal(format.formatMoney("4670288949", "IRT"), `${RLI}۴٬۶۷۰٬۲۸۸٬۹۴۹ تومان${PDI}`);
   assert.equal(format.faCount("12"), "۱۲");
-  assert.equal(format.formatPct("58.3", 1), "۵۸٫۳٪");
+  assert.equal(format.formatPct("58.3", 1), "۵۸.۳٪");
   for (const out of [
     format.formatMoney("4670288949", "IRT"),
     format.formatNumber("32731.12"),
@@ -177,7 +177,7 @@ test("§3 the minus sign LEADS the number in RTL — it is never left dangling a
   assert.ok(out.startsWith("−"), `minus must lead: ${out}`);
   assert.ok(!out.endsWith("-"), `minus must not trail: ${out}`);
   assert.equal(out, "−۹۰۸٬۲۰۰");
-  assert.ok(out.includes("٫") === false || true); // integer — no decimal at all
+  assert.ok(!out.includes("٫"), `Persian slash-decimal must not appear: ${out}`);
 });
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -284,8 +284,8 @@ test("§4 formatSignedMoneyFromUsd keeps the sign inside the single isolate", as
   assert.equal(zero, `${RLI}۰ تومان${PDI}`);
   assert.ok(!zero.includes("+") && !zero.includes("−"), zero);
   // Missing/invalid rate → signed USD fallback, still one isolate:
-  assert.equal(format.formatSignedMoneyFromUsd("-3.5", null), `${RLI}−۳٫۵ دلار${PDI}`);
-  assert.equal(format.formatSignedMoneyFromUsd("-3.5", "0"), `${RLI}−۳٫۵ دلار${PDI}`);
+  assert.equal(format.formatSignedMoneyFromUsd("-3.5", null), `${RLI}−۳.۵ دلار${PDI}`);
+  assert.equal(format.formatSignedMoneyFromUsd("-3.5", "0"), `${RLI}−۳.۵ دلار${PDI}`);
 });
 
 /* ══════════════════════════════════════════════════════════════════════════

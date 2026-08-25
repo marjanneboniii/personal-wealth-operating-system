@@ -1012,10 +1012,16 @@ export async function deleteRealEstateAsset(input: {
     // 2. Delete the property row (CASCADE → real_estate_valuation_snapshots)
     await tx.delete(realEstateProperties).where(eq(realEstateProperties.id, prop.p.id));
 
-    // 3. Soft-delete the asset (deleted_at = now())
+    // 3. Soft-delete the asset and RELEASE its compact identifier.
+    // assets.symbol is globally unique, so a tombstone symbol is required
+    // or the next live property could never reclaim `001`.
     await tx
       .update(assets)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .set({
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+        symbol: `__del_${assetId.replace(/-/g, "").slice(0, 16)}`,
+      })
       .where(eq(assets.id, assetId));
 
     // 4. Clean up prices for this asset (valuation cache, not accounting data)
@@ -1068,15 +1074,21 @@ export async function repairOrphanedRealEstate(): Promise<{ cleaned: number; det
     JOIN asset_classes ac ON ac.id = a.class_id
     WHERE ac.code = 'RWA'
       AND a.deleted_at IS NULL
+      AND a.symbol <> 'USD'
+      AND a.symbol NOT LIKE '__del_%'
+      AND (a.symbol ~ '^[0-9]+$' OR a.symbol ~ '^RE-')
       AND NOT EXISTS (
         SELECT 1 FROM real_estate_properties rep WHERE rep.asset_id = a.id
       )
       AND NOT EXISTS (
         SELECT 1 FROM vehicle_assets va WHERE va.asset_id = a.id
       )
-      AND NOT EXISTS (
-        SELECT 1 FROM rwa_ownership_records rwa
-        WHERE rwa.asset_id = a.id AND rwa.is_active = true
+      AND (
+        a.symbol ~ '^RE-'
+        OR NOT EXISTS (
+          SELECT 1 FROM rwa_ownership_records rwa
+          WHERE rwa.asset_id = a.id AND rwa.is_active = true
+        )
       )
   `);
 
@@ -1085,10 +1097,13 @@ export async function repairOrphanedRealEstate(): Promise<{ cleaned: number; det
 
   const details: string[] = [];
   for (const row of rows) {
-    // Soft-delete the orphaned asset
     await db
       .update(assets)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .set({
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+        symbol: `__del_${row.asset_id.replace(/-/g, "").slice(0, 16)}`,
+      })
       .where(eq(assets.id, row.asset_id));
 
     // Clean up prices for this asset
