@@ -1,5 +1,4 @@
 "use client";
-/* eslint-disable @next/next/no-img-element */
 
 import { useActionState, useEffect, useMemo, useState, useRef, useTransition } from "react";
 import { createTransactionAction, createCategoryAction, type ActionResult } from "@/app/actions";
@@ -13,6 +12,7 @@ import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from 
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
+import CurrencyLogo from "@/components/ui/CurrencyLogo";
 import DebtInstallmentExplorer, { type DebtOption } from "./DebtInstallmentExplorer";
 import { D } from "@/domain/decimal";
 import type { PriceFailureCode, PriceFreshness } from "@/features/pricing/types";
@@ -630,7 +630,12 @@ export default function TransactionForm({
                     onClick={() => selectCatalogAsset(asset)}
                     className="flex min-h-12 items-center gap-2 rounded-[var(--r-sm)] px-2.5 py-2 text-start hover:bg-[var(--hover)] disabled:opacity-60"
                   >
-                    <img src={asset.logoUrl} alt="" width={28} height={28} className="h-7 w-7 rounded-full" referrerPolicy="no-referrer" />
+                    {["IRT", "IRR", "USDT", "USD", "EUR", "GBP", "JPY", "CNY", "TRY", "AED", "CAD", "AUD"].includes(asset.symbol) ? (
+                      <CurrencyLogo symbol={asset.symbol} size={28} />
+                    ) : (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={asset.logoUrl} alt="" width={28} height={28} className="h-7 w-7 rounded-full" referrerPolicy="no-referrer" />
+                    )}
                     <span className="min-w-0 flex-1">
                       <b className="block truncate text-xs">
                         {asset.displayName} <span dir="ltr">({asset.symbol})</span>
