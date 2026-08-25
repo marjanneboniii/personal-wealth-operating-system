@@ -237,7 +237,7 @@ export const REAL_ESTATE_LOGO = `${BASE}/realestate/building.svg`;
 export const CRYPTO_LOGOS: Record<string, string> = {
   BTC: `${BASE}/crypto/btc.svg`,
   ETH: `${BASE}/crypto/eth.svg`,
-  USDT: `${BASE}/crypto/usdt.svg`,
+  USDT: `${BASE}/crypto/usdt.png`,
   USDC: `${BASE}/crypto/usdc.svg`,
   BNB: `${BASE}/crypto/bnb.svg`,
 };
@@ -271,7 +271,7 @@ export function resolveBrandLogo(
 /** Default institution icon for when no specific logo matches. */
 export const DEFAULT_INSTITUTION_LOGO = `${BASE}/defaults/bank.svg`;
 export const DEFAULT_AUTO_LOGO = `${BASE}/defaults/automobile.svg`;
-export const TOMAN_LOGO = `${BASE}/defaults/toman.svg`;
+export const TOMAN_LOGO = `${BASE}/defaults/toman.png`;
 export const USD_LOGO = `${BASE}/defaults/usd.svg`;
 
 const CATEGORY_FALLBACK: Record<string, string> = {
@@ -279,7 +279,7 @@ const CATEGORY_FALLBACK: Record<string, string> = {
   automobile: DEFAULT_AUTO_LOGO,
   payment: DEFAULT_INSTITUTION_LOGO,
   realestate: REAL_ESTATE_LOGO,
-  crypto: `${BASE}/crypto/usdt.svg`,
+  crypto: `${BASE}/crypto/usdt.png`,
   default: DEFAULT_INSTITUTION_LOGO,
 };
 
