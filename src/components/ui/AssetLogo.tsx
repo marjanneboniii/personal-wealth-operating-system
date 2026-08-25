@@ -22,7 +22,9 @@ import {
   DEFAULT_AUTO_LOGO,
   DEFAULT_INSTITUTION_LOGO,
   REAL_ESTATE_LOGO,
+  TOMAN_LOGO,
 } from "@/features/branding/persianIcons";
+import TomanIcon from "@/components/ui/TomanIcon";
 
 function localFallback(assetType: string): string {
   if (assetType === "vehicle") return DEFAULT_AUTO_LOGO;
@@ -62,6 +64,19 @@ export default function AssetLogo({
 
   const alt = title ?? input.name ?? input.symbol ?? "";
   const borderRadius = radius ?? Math.round(size * 0.28);
+
+  if (resolved.src === TOMAN_LOGO) {
+    return (
+      <span
+        className={`inline-flex shrink-0 overflow-hidden ${className}`}
+        style={{ width: size, height: size, borderRadius }}
+        role="img"
+        aria-label={alt}
+      >
+        <TomanIcon size={size} />
+      </span>
+    );
+  }
 
   return (
     /* eslint-disable-next-line @next/next/no-img-element */
