@@ -43,11 +43,30 @@ export default async function ReportsPage() {
   const unrealized = Decimal.sum(holdings.map((h) => D(h.quantity).mul(h.price ?? "0").sub(h.costBase).toString()));
   const savingsRate = totalIncome.isZero() ? "0" : totalIncome.sub(totalExpense).div(totalIncome).mul(100).toFixed(1);
 
+  // Expense Toman is authoritative from the immutable entry FX snapshot.
+  // Never convert the historical USD book total with today's rate: doing so
+  // changes a recorded expense when the dollar rate rises (e.g. ۹۰۹٬۰۹۰ →
+  // ۹۵۶٬۹۳۷). Legacy rows without a snapshot retain the old display fallback.
+  const fixedExpenseToman = Decimal.sum(
+    flow.map((f) =>
+      f.outflowToman != null && D(f.outflowToman).gt(0)
+        ? f.outflowToman
+        : rate
+          ? D(f.outflow).mul(rate).toString()
+          : "0",
+    ),
+  );
+  const expenseToman = fixedExpenseToman.isZero() && !totalExpense.isZero()
+    ? D(totalExpense).mul(rate).toString()
+    : fixedExpenseToman.toString();
+
   const monthly = flow.map((f) => ({
     month: f.month,
     jalaliLabel: jalaliMonthLabel(jalaliMonthKey(f.month)),
     inflow: f.inflow,
     outflow: f.outflow,
+    inflowToman: f.inflowToman,
+    outflowToman: f.outflowToman,
     net: D(f.inflow).sub(f.outflow).toString(),
   }));
 
@@ -67,7 +86,7 @@ export default async function ReportsPage() {
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش خالص" value={formatMoney(nw.netWorthToman, "IRT")} hint={formatMoney(nw.netWorth)} />
         <Metric label="کل درآمد ثبت‌شده" value={toIrt(totalIncome.toString()) ?? formatMoney(totalIncome.toString())} tone={inflowTone(totalIncome.toString())} hint={rate ? formatMoney(totalIncome.toString()) : undefined} />
-        <Metric label="کل هزینه ثبت‌شده" value={toIrt(totalExpense.toString()) ?? formatMoney(totalExpense.toString())} tone={outflowTone(totalExpense.toString())} hint={rate ? formatMoney(totalExpense.toString()) : undefined} />
+        <Metric label="کل هزینه ثبت‌شده" value={rate ? formatMoney(expenseToman, "IRT") : formatMoney(totalExpense.toString())} tone={outflowTone(totalExpense.toString())} hint={rate ? formatMoney(totalExpense.toString()) : undefined} />
         <Metric label="نرخ پس‌انداز" value={`${formatPct(savingsRate, 1)}`} tone={trendTone(savingsRate)} />
       </section>
 
@@ -78,7 +97,7 @@ export default async function ReportsPage() {
             <Metric label="دارایی" value={formatMoney(nw.totalAssetsToman, "IRT")} hint={formatMoney(nw.totalAssets)} />
             <Metric label="بدهی" value={formatMoney(nw.totalLiabilitiesToman, "IRT")} hint={formatMoney(nw.totalLiabilities)} />
             <Metric label="نقدشونده" value={formatMoney(nw.liquidToman, "IRT")} hint={formatMoney(nw.liquid)} />
-            <Metric label="میانگین هزینه ماهانه" value={toIrt(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0") ?? formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0")} hint={rate ? formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0") : undefined} />
+            <Metric label="میانگین هزینه ماهانه" value={rate ? formatMoney(monthly.length ? D(expenseToman).div(monthly.length).toString() : "0", "IRT") : formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0")} hint={rate ? formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0") : undefined} />
           </div>
           <div className="card mb-4 p-4 sm:p-5">
             <BarsChart
@@ -113,7 +132,16 @@ export default async function ReportsPage() {
                         {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(m.inflow)}</div>}
                       </td>
                       <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
-                        <div>{toIrt(m.outflow) ?? formatMoney(m.outflow)}</div>
+                        <div>
+                          {rate
+                            ? formatMoney(
+                                m.outflowToman != null && D(m.outflowToman).gt(0)
+                                  ? m.outflowToman
+                                  : D(m.outflow).mul(rate).toString(),
+                                "IRT",
+                              )
+                            : formatMoney(m.outflow)}
+                        </div>
                         {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(m.outflow)}</div>}
                       </td>
                       <td className="td-num font-bold" dir="rtl" style={{ color: D(m.net).gte(0) ? "var(--positive)" : "var(--negative)" }}>
