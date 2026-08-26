@@ -4,7 +4,6 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { debts, entryFxSnapshots, installments } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
-import { repairOrphanedRealEstate } from "@/features/rwa/realEstate/service";
 import { getAccountBalances, getTransactions, type TxRow } from "@/features/ledger/queries";
 import { listCategoryTree } from "@/features/categories/service";
 import { PageHeader } from "@/components/ui/Card";

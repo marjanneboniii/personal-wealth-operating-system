@@ -30,7 +30,6 @@ import {
 } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
-import { repairOrphanedRealEstate } from "@/features/rwa/realEstate/service";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +48,6 @@ function daysUntil(iso: string) {
 export default async function OverviewDashboard() {
   const user = await ensureAuth();
   await seedIfEmpty();
-  await repairOrphanedRealEstate();
 
   const userId = (user as { id?: string } | null)?.id;
 

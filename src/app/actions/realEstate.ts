@@ -12,6 +12,7 @@ import {
   ensureRealEstateModuleReady,
   previewRealEstateIdentity,
   recordRealEstateValuation,
+  repairOrphanedRealEstate,
 } from "@/features/rwa/realEstate/service";
 import { formatMoney, toFaDigits } from "@/lib/format";
 import { tomanToUsd } from "@/features/rwa/vehicle/fx";
@@ -176,6 +177,37 @@ export async function deleteRealEstateAction(propertyId: string): Promise<RealEs
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "حذف ملک ناموفق بود." };
+  }
+}
+
+/**
+ * Explicit repair of orphaned RWA assets — separated from read paths.
+ *
+ * This is a MUTATION operation (writes assets.deleted_at + cleans prices),
+ * never called from Dashboard/Reports/Portfolio/Net-Worth/Ledger/Transactions.
+ * It is idempotent and non-destructive to accounting core (journal_entries,
+ * postings, lots, lot_consumptions remain untouched).
+ *
+ * Use case: a legacy property-only delete left an active RWA asset behind.
+ * The read models already hide it (filter in getHoldings etc.), but its
+ * numeric symbol (e.g. 001) remains occupied. Running this repair frees the
+ * identifier so a new property can reclaim 001.
+ */
+export async function repairOrphanedRealEstateAction(): Promise<RealEstateResult> {
+  const denied = await guardRealEstate();
+  if (denied) return { ok: false, message: denied };
+  try {
+    const result = await repairOrphanedRealEstate();
+    if (result.cleaned === 0) {
+      return { ok: true, message: "هیچ دارایی یتیمی یافت نشد — همه چیز پاک است." };
+    }
+    refresh();
+    return {
+      ok: true,
+      message: `${result.cleaned} دارایی یتیم پاک‌سازی شد: ${result.details.join("؛ ")}`,
+    };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "پاک‌سازی دارایی‌های یتیم ناموفق بود." };
   }
 }
 

@@ -16,14 +16,12 @@ import { D, Decimal } from "@/domain/decimal";
 import { currencyLabel, formatDualDate, formatMoney, formatPct, jalaliMonthKey, jalaliMonthLabel, faCount, inflowTone, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
-import { repairOrphanedRealEstate } from "@/features/rwa/realEstate/service";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
   await ensureAuth();
   await seedIfEmpty();
-  await repairOrphanedRealEstate();
   const [nw, flow, pnl, balances, holdings, debts, projection, fx] = await Promise.all([
     getCurrentNetWorth(),
     getCashflow(12),

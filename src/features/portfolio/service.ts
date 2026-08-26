@@ -77,8 +77,22 @@ async function historicalTomanCostByAsset(userId: string | null): Promise<Map<st
     select l.asset_id as "assetId",
            sum(l.qty_remaining * l.unit_cost_base * fx.fx_rate)::text as "costToman"
     from lots l
+      join assets ast on ast.id = l.asset_id
+      join asset_classes ac on ac.id = ast.class_id
       join entry_fx_snapshots fx on fx.entry_id = l.open_entry_id
-    where l.qty_remaining > 0 ${userId ? sql`and l.user_id = ${userId}` : sql``}
+    where l.qty_remaining > 0
+      and ast.deleted_at is null
+      and not (
+        ac.code = 'RWA'
+        and (ast.symbol ~ '^[0-9]+$' or ast.symbol ~ '^RE-')
+        and not exists (select 1 from real_estate_properties rep where rep.asset_id = ast.id)
+        and not exists (select 1 from vehicle_assets va where va.asset_id = ast.id)
+        and not exists (
+          select 1 from rwa_ownership_records rwo
+          where rwo.asset_id = ast.id and rwo.is_active = true
+        )
+      )
+      ${userId ? sql`and l.user_id = ${userId}` : sql``}
     group by l.asset_id
   `);
   return new Map((response.rows as Array<{ assetId: string; costToman: string }>).map((row) => [row.assetId, row.costToman]));
