@@ -1,12 +1,12 @@
 import { seedIfEmpty } from "@/db/seed";
 import { ensureAuth } from "@/lib/authGuard";
-import { getOpenLots, getRealizedPnl } from "@/features/ledger/queries";
+import { getRealizedPnl } from "@/features/ledger/queries";
 import { getPortfolioValuation } from "@/features/portfolio/service";
 import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D } from "@/domain/decimal";
-import { currencyLabel, faCount, formatDualDate, formatMoney, formatPct, formatQty, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
+import { faCount, formatMoney, formatPct, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -16,9 +16,8 @@ export default async function PortfolioPage() {
   await ensureAuth();
   await seedIfEmpty();
 
-  const [valuation, lots, pnl, fx] = await Promise.all([
+  const [valuation, pnl, fx] = await Promise.all([
     getPortfolioValuation(),
-    getOpenLots(),
     getRealizedPnl(),
     getLatestUsdIrtRate(),
   ]);
@@ -144,45 +143,6 @@ export default async function PortfolioPage() {
           <Section title="ارزش‌گذاری دارایی‌ها" hint={`به‌روزرسانی با آخرین قیمت‌ها · نرخ مرجع ${fx.rate ? formatMoney(fx.rate, "IRT") : "—"}`}>
             <HoldingsTable rows={valuation.assetValuations} toIrt={toIrt} />
           </Section>
-
-          {lots.length > 0 && (
-            <details className="card overflow-hidden">
-              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 marker:hidden [&::-webkit-details-marker]:hidden">
-                <span className="text-[13px] font-semibold">
-                  بسته‌های FIFO باز <span className="muted num text-[11px]">({faCount(lots.length)})</span>
-                </span>
-                <span className="muted text-[11px]">مرجع بهای تمام‌شده — باز کنید</span>
-              </summary>
-              <div className="border-t" style={{ borderColor: "var(--border)" }}>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>دارایی</th>
-                      <th>تاریخ خرید</th>
-                      <th className="td-num">مانده بسته</th>
-                      <th className="td-num">قیمت واحد</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lots.map((l) => (
-                      <tr key={l.id}>
-                        <td className="font-bold" dir="rtl">
-                          {currencyLabel(l.symbol)}
-                        </td>
-                        <td className="num text-[11.5px]">{formatDualDate(l.openedAt)}</td>
-                        <td className="td-num" dir="rtl">
-                          {formatQty(l.qtyRemaining, 8)}
-                        </td>
-                        <td className="td-num" dir="rtl">
-                          {formatMoney(l.unitCostBase)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </details>
-          )}
 
           {pnl.bySymbol.length > 0 && (
             <Alert tone="info" icon="info" title="سود/زیان تحقق‌یافته بر اساس دارایی">

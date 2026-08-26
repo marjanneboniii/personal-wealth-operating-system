@@ -129,16 +129,16 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
     },
     {
       id: "fifo-consistency",
-      title: "سازگاری لایه FIFO",
+      title: "سازگاری بهای تمام‌شده",
       description: "",
       status: fifoBad.length ? "fail" : "pass",
       outcome: fifoBad.length
-        ? `${fifoBad.length} بسته FIFO ناسازگار است.`
-        : "بهای تمام‌شده FIFO برای همه دارایی‌ها سازگار است.",
+        ? `${fifoBad.length} رکورد بهای تمام‌شده ناسازگار است.`
+        : "بهای تمام‌شده برای همه دارایی‌ها سازگار است.",
       affected: fifoBad.length,
-      samples: fifoBad.map((r) => `${r.symbol} — بسته ${ago(r.opened_at)}`),
+      samples: fifoBad.map((r) => `${r.symbol} — ${ago(r.opened_at)}`),
       severityLabel: fifoBad.length ? "بحرانی" : "سالم",
-      action: fifoBad.length ? { href: "/portfolio", label: "مشاهده بسته‌های FIFO" } : undefined,
+      action: fifoBad.length ? { href: "/portfolio", label: "بررسی دارایی‌ها" } : undefined,
       ranAt,
     },
     {

@@ -332,7 +332,7 @@ export async function postEntry(
 
       const result = consumeFifo(open, input.closeLot.quantity, input.closeLot.proceedsBase);
       if (D(result.unmatchedQty).gt("0.000000001")) {
-        throw new Error("موجودی دارایی برای فروش کافی نیست (FIFO insufficient open lots)");
+        throw new Error("موجودی دارایی برای فروش کافی نیست.");
       }
       for (const alloc of result.allocations) {
         await tx
