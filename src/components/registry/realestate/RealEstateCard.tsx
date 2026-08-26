@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
-import { recordRealEstateValuationAction } from "@/app/actions/realEstate";
+import { useActionState, useState, useTransition } from "react";
+import { deleteRealEstateAction, recordRealEstateValuationAction } from "@/app/actions/realEstate";
 import JalaliDateInput from "@/components/ui/JalaliDateInput";
 import AmountInput from "@/components/ui/AmountInput";
 import { formatJalaliIso, toFaDigits, todayIso } from "@/lib/format";
@@ -38,6 +38,8 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
   const [state, action, pending] = useActionState(recordRealEstateValuationAction, null);
   const [revalue, setRevalue] = useState(false);
   const [tab, setTab] = useState<Tab>("performance");
+  const [deleting, startDelete] = useTransition();
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
   const a = item;
   const p = item.performance;
@@ -162,7 +164,25 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
             <button type="button" className="btn text-[11.5px]" onClick={() => setRevalue((v) => !v)} aria-expanded={revalue}>
               {revalue ? "بستن ارزش‌گذاری جدید" : "ثبت ارزش‌گذاری جدید"}
             </button>
+            <button
+              type="button"
+              className="btn text-[11.5px]"
+              disabled={deleting}
+              onClick={() => {
+                const ok = window.confirm(
+                  `ملک ${toFaDigits(a.symbol)} از گزارش‌ها، سبد و شاخص‌های ثروت حذف می‌شود. سند دفترکل دست‌نخورده می‌ماند. ادامه می‌دهید؟`,
+                );
+                if (!ok) return;
+                startDelete(async () => {
+                  const result = await deleteRealEstateAction(a.id);
+                  setDeleteMessage(result.message);
+                });
+              }}
+            >
+              {deleting ? "در حال حذف…" : "حذف ملک"}
+            </button>
           </div>
+          {deleteMessage && <p className="muted mt-2 text-[10.5px]">{deleteMessage}</p>}
         </div>
       </div>
 
