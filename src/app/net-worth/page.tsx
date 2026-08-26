@@ -77,6 +77,7 @@ function bucketize(byClass: { className: string; color: string; value: string; s
 export default async function NetWorthPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await ensureAuth();
   await seedIfEmpty();
+  await repairOrphanedRealEstate();
   const userId = (user as { id?: string } | null)?.id;
   const sp = await searchParams;
   const range = RANGES.some((r) => r.key === sp.range) ? (sp.range as string) : "6M";
