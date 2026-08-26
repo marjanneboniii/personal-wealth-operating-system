@@ -1136,8 +1136,15 @@ let readyPromise: Promise<void> | null = null;
  *     confident match exists (city "Ahvaz" → AHZ, area by normalized name,
  *     property type by normalized name) — existing rows are preserved,
  *  4. backfill a frozen Toman snapshot for historical acquisitions created
- *     before the freeze existed (display-only, idempotent, never rewrites),
- *  5. repair orphaned real-estate assets from prior inconsistent deletes.
+ *     before the freeze existed (display-only, idempotent, never rewrites).
+ *
+ * NOTE: repairOrphanedRealEstate() is intentionally NOT called here.
+ * Read paths must never trigger a write. Orphan filtering is handled in
+ * read queries (getHoldings, getAccountBalances, getLedger, getTransactions,
+ * getRealizedPnl, getOpenLots, historicalTomanCostByAsset, etc.), so reports
+ * stay correct even before an explicit repair. The repair itself is a
+ * separate mutation (see repairOrphanedRealEstateAction) that soft-deletes
+ * the orphan asset and cleans price caches to reclaim identifiers like 001.
  */
 export async function ensureRealEstateModuleReady(): Promise<void> {
   readyPromise ??= (async () => {
@@ -1146,7 +1153,6 @@ export async function ensureRealEstateModuleReady(): Promise<void> {
     await migrateLegacyPropertyRows();
     await backfillRealEstateFxSnapshots();
     await backfillRealEstateValuationSnapshots();
-    await repairOrphanedRealEstate();
   })().catch((err) => {
     readyPromise = null;
     throw err;

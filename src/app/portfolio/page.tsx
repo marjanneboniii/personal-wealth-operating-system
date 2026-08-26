@@ -1,5 +1,4 @@
 import { seedIfEmpty } from "@/db/seed";
-import { repairOrphanedRealEstate } from "@/features/rwa/realEstate/service";
 import { ensureAuth } from "@/lib/authGuard";
 import { getRealizedPnl } from "@/features/ledger/queries";
 import { getPortfolioValuation } from "@/features/portfolio/service";
@@ -16,7 +15,6 @@ export const dynamic = "force-dynamic";
 export default async function PortfolioPage() {
   await ensureAuth();
   await seedIfEmpty();
-  await repairOrphanedRealEstate();
 
   const [valuation, pnl, fx] = await Promise.all([
     getPortfolioValuation(),

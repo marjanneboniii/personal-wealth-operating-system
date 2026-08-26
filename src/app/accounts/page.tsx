@@ -5,7 +5,6 @@ import { accounts, assets, institutions, networks, wallets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { listMoneyAccountCurrencies } from "@/features/accounts/service";
 import { getAccountBalances } from "@/features/ledger/queries";
-import { repairOrphanedRealEstate } from "@/features/rwa/realEstate/service";
 import { EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import AssetLogo from "@/components/ui/AssetLogo";
@@ -34,7 +33,6 @@ export default async function AccountsPage() {
   const userId = (user as { id?: string } | null)?.id ?? null;
   const pro = await getUserProMode(userId);
   await seedIfEmpty();
-  await repairOrphanedRealEstate();
   const currencyRows = await listMoneyAccountCurrencies();
   const [balances, walletRows, fx] = await Promise.all([
     getAccountBalances(userId ?? undefined),

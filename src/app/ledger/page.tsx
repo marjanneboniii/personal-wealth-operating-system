@@ -4,7 +4,6 @@ import { ensureAuth } from "@/lib/authGuard";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { seedIfEmpty } from "@/db/seed";
-import { repairOrphanedRealEstate } from "@/features/rwa/realEstate/service";
 import { getAccountBalances, getLedger, getLedgerById } from "@/features/ledger/queries";
 import { PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
@@ -29,7 +28,6 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? undefined;
   await seedIfEmpty();
-  await repairOrphanedRealEstate();
   // GLOBAL PRO MODE (Directive §2): default = SIMPLE view. Account codes,
   // debit/credit columns and full double-entry detail are rendered ONLY for
   // users who explicitly enabled the professional vocabulary in settings.

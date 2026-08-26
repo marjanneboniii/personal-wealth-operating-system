@@ -385,8 +385,21 @@ export async function getOpenLots(assetId?: string, userId?: string): Promise<Lo
            l.opened_at::text as "openedAt",
            l.qty_remaining::text as "qtyRemaining",
            l.unit_cost_base::text as "unitCostBase"
-    from lots l join assets ast on ast.id = l.asset_id
+    from lots l
+      join assets ast on ast.id = l.asset_id
+      join asset_classes ac on ac.id = ast.class_id
     where l.qty_remaining > 0
+      and ast.deleted_at is null
+      and not (
+        ac.code = 'RWA'
+        and (ast.symbol ~ '^[0-9]+$' or ast.symbol ~ '^RE-')
+        and not exists (select 1 from real_estate_properties rep where rep.asset_id = ast.id)
+        and not exists (select 1 from vehicle_assets va where va.asset_id = ast.id)
+        and not exists (
+          select 1 from rwa_ownership_records rwo
+          where rwo.asset_id = ast.id and rwo.is_active = true
+        )
+      )
       ${assetId ? sql`and l.asset_id = ${assetId}` : sql``}
       ${u ? sql`and l.user_id = ${u}` : sql``}
     order by l.opened_at asc, l.id asc
@@ -756,25 +769,35 @@ export async function getCapitalFlowRecords(periodStart: string, periodEnd: stri
   const u = await resolveQueryUserId(userId);
   // Fail-closed: capital-flow records are user financial data — never blend tenants.
   if (!u && (await hasMultipleUsers())) return [];
-  return db
-    .select({
-      id: journalEntries.id,
-      entryDate: journalEntries.entryDate,
-      type: journalEntries.type,
-      description: journalEntries.description,
-      reference: journalEntries.reference,
-      baseValue: postings.baseValue,
-    })
-    .from(postings)
-    .innerJoin(journalEntries, eq(journalEntries.id, postings.entryId))
-    .innerJoin(accounts, eq(accounts.id, postings.accountId))
-    .where(
-      and(
-        eq(journalEntries.status, "posted"),
-        eq(accounts.type, "asset"),
-        u ? eq(journalEntries.userId, u) : sql`1=1`,
-        sql`${journalEntries.entryDate} >= ${periodStart}`,
-        sql`${journalEntries.entryDate} <= ${periodEnd}`,
-      ),
-    );
+  // Presentation filter: exclude flows that reference a deleted or orphaned RWA asset.
+  // Ledger rows stay intact; we only hide them from analytics.
+  return rows<{ id: string; entryDate: string; type: string; description: string; reference: string | null; baseValue: string }>(sql`
+    select je.id as id,
+           je.entry_date::text as "entryDate",
+           je.type as type,
+           je.description as description,
+           je.reference as reference,
+           p.base_value::text as "baseValue"
+    from postings p
+      join journal_entries je on je.id = p.entry_id
+      join accounts a on a.id = p.account_id
+      join assets ast on ast.id = p.asset_id
+      join asset_classes ac on ac.id = ast.class_id
+    where je.status = 'posted'
+      and a.type = 'asset'
+      and ast.deleted_at is null
+      and not (
+        ac.code = 'RWA'
+        and (ast.symbol ~ '^[0-9]+$' or ast.symbol ~ '^RE-')
+        and not exists (select 1 from real_estate_properties rep where rep.asset_id = ast.id)
+        and not exists (select 1 from vehicle_assets va where va.asset_id = ast.id)
+        and not exists (
+          select 1 from rwa_ownership_records rwo
+          where rwo.asset_id = ast.id and rwo.is_active = true
+        )
+      )
+      ${u ? sql`and je.user_id = ${u}` : sql``}
+      and je.entry_date >= ${periodStart}
+      and je.entry_date <= ${periodEnd}
+  `);
 }
