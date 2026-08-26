@@ -967,7 +967,7 @@ export default function TransactionForm({
               </div>
             )}
             <div className="muted text-[10px] leading-5">
-              تا قبل از «تأیید نهایی ثبت تراکنش» هیچ اطلاعاتی وارد Accounting Core, Ledger یا FIFO نمی‌شود. پس از تأیید، مبلغ تاریخی به تومان، معادل به دلار و نرخ زمان ثبت Freeze می‌شوند (Historical Immutability).
+              تا قبل از «تأیید نهایی ثبت تراکنش» هیچ اطلاعاتی وارد دفترکل یا هسته حسابداری نمی‌شود. پس از تأیید، مبلغ تاریخی به تومان، معادل به دلار و نرخ زمان ثبت Freeze می‌شوند (Historical Immutability).
             </div>
           </div>
           <div className="flex gap-2">

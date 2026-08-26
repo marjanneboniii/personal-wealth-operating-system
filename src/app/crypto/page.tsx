@@ -87,7 +87,7 @@ export default async function CryptoPage() {
               label="سود تحقق‌یافته"
               value={formatSignedMoneyFromUsd(realized.toString(), fx.rate)}
               tone={trendTone(realized.toString())}
-              hint={fx.rate ? `≈ ${formatMoney(realized.abs().toString())} · فروش‌های انجام‌شده (FIFO)` : "فروش‌های انجام‌شده (FIFO)"}
+              hint={fx.rate ? `≈ ${formatMoney(realized.abs().toString())} · فروش‌های انجام‌شده` : "فروش‌های انجام‌شده"}
             />
           </section>
 

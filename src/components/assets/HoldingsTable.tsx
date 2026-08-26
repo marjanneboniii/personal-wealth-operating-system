@@ -81,8 +81,7 @@ export default function HoldingsTable({
                   )}
                 </td>
                 <td className="td-num hidden lg:table-cell money-nowrap text-[11px]" dir="rtl">
-                  <div>{formatMoney(a.costBasis)}</div>
-                  <div className="mt-1"><span className="chip text-[9px]">FIFO</span></div>
+                  {formatMoney(a.costBasis)}
                 </td>
                 <td className="td-num money-nowrap" dir="rtl">
                   <div className="num text-[11px] font-bold money-nowrap sm:text-[12px]">{formatMoney(a.currentValueToman, "IRT")}</div>
