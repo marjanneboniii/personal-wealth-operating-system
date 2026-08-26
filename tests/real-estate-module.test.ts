@@ -60,7 +60,8 @@ import {
   setNeighborhoodActive,
   seedRealEstateMasterData,
 } from "../src/features/rwa/realEstate/masterData";
-import { getAccountBalances, getNetWorth, getRecent } from "../src/features/ledger/queries";
+import { getAccountBalances, getLedger, getNetWorth, getRecent, getTransactions } from "../src/features/ledger/queries";
+import { getPortfolioValuation } from "../src/features/portfolio/service";
 import { humanizeEntry } from "../src/lib/tx";
 import { jalaliToIso } from "../src/lib/format";
 import { D } from "../src/domain/decimal";
@@ -746,7 +747,7 @@ test("repairOrphanedRealEstate hides leftover legacy RE-* symbols from accounts"
   await db.delete(realEstateProperties).where(eq(realEstateProperties.id, created.id));
 
   const before = await getAccountBalances();
-  assert.ok(before.some((b) => b.symbol === "RE-AHZ-SDU-APT-0001" && !D(b.quantity).isZero()));
+  assert.ok(!before.some((b) => b.symbol === "RE-AHZ-SDU-APT-0001"), "orphaned property must be hidden before repair");
 
   const outcome = await repairOrphanedRealEstate();
   assert.ok(outcome.cleaned >= 1);
@@ -772,11 +773,27 @@ test("repairOrphanedRealEstate soft-deletes leftover RWA assets after a property
     currentValueToman: CURRENT_TOMAN,
   });
 
+  const entryId = await ledgerEntryOf(created.id);
+  assert.ok(entryId);
   await db.delete(realEstateProperties).where(eq(realEstateProperties.id, created.id));
 
   const before = await getNetWorth();
   const ghost = before.byClass.find((c) => c.className === "دارایی واقعی");
-  assert.ok(ghost && Number(ghost.value) > 0, "orphaned asset still inflates net worth before repair");
+  assert.ok(!ghost || Number(ghost.value) === 0, "orphaned asset must not inflate net worth before repair");
+
+  const portfolioBeforeRepair = await getPortfolioValuation();
+  assert.ok(
+    !portfolioBeforeRepair.assetValuations.some((row) => row.assetId === created.assetId),
+    "orphaned real-estate assets must be excluded from Investment Profit/Loss before repair",
+  );
+  assert.ok(
+    !(await getTransactions()).some((row) => row.id === entryId),
+    "orphaned property activity must be hidden before repair",
+  );
+  assert.ok(
+    !(await getLedger()).some((row) => row.id === entryId),
+    "Financial History must not present a deleted property's journal reference",
+  );
 
   const outcome = await repairOrphanedRealEstate();
   assert.ok(outcome.cleaned >= 1);

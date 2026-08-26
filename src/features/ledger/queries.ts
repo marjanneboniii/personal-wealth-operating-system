@@ -98,12 +98,28 @@ export async function getAccountBalances(userId?: string): Promise<AccountBalanc
     from accounts a
       left join postings p on p.account_id = a.id
         -- Presentation only: omit postings of entries that reference a
-        -- soft-deleted asset (deleted property). Ledger rows stay intact.
+        -- deleted or orphaned real-estate asset. Ledger rows stay intact.
         and not exists (
           select 1 from postings p_ghost
           join assets ast_ghost on ast_ghost.id = p_ghost.asset_id
           where p_ghost.entry_id = p.entry_id
-            and ast_ghost.deleted_at is not null
+            and (
+              ast_ghost.deleted_at is not null
+              or (
+                exists (
+                  select 1 from asset_classes ac_ghost
+                  where ac_ghost.id = ast_ghost.class_id
+                    and ac_ghost.code = 'RWA'
+                )
+                and (ast_ghost.symbol ~ '^[0-9]+$' or ast_ghost.symbol ~ '^RE-')
+                and not exists (select 1 from real_estate_properties rep where rep.asset_id = ast_ghost.id)
+                and not exists (select 1 from vehicle_assets va where va.asset_id = ast_ghost.id)
+                and not exists (
+                  select 1 from rwa_ownership_records rwo
+                  where rwo.asset_id = ast_ghost.id and rwo.is_active = true
+                )
+              )
+            )
         )
       left join journal_entries je on je.id = p.entry_id
       left join assets ast on ast.id = coalesce(p.asset_id, a.asset_id)
@@ -153,7 +169,21 @@ export async function getHoldings(userId?: string): Promise<Holding[]> {
       left join journal_entries je on je.id = p.entry_id ${u ? sql`and je.user_id = ${u}` : sql``}
       left join accounts a on a.id = p.account_id and a.type = 'asset' ${u ? sql`and a.user_id = ${u}` : sql``}
       left join latest l on l.asset_id = ast.id
-    where ast.deleted_at is null and (a.type = 'asset' or p.id is null) ${u ? sql`and (a.user_id = ${u} or p.id is null)` : sql``}
+    where ast.deleted_at is null
+      -- A legacy property-only delete leaves an active RWA asset behind.
+      -- Treat that identity-less property asset as inactive in read models;
+      -- do not alter its immutable journal history.
+      and not (
+        ac.code = 'RWA'
+        and (ast.symbol ~ '^[0-9]+$' or ast.symbol ~ '^RE-')
+        and not exists (select 1 from real_estate_properties rep where rep.asset_id = ast.id)
+        and not exists (select 1 from vehicle_assets va where va.asset_id = ast.id)
+        and not exists (
+          select 1 from rwa_ownership_records rwo
+          where rwo.asset_id = ast.id and rwo.is_active = true
+        )
+      )
+      and (a.type = 'asset' or p.id is null) ${u ? sql`and (a.user_id = ${u} or p.id is null)` : sql``}
     group by ast.id, ast.symbol, ast.name, ast.decimals, ac.name, ac.color, l.price_base
     order by ast.symbol
   `);
@@ -260,6 +290,27 @@ export async function getLedger(limit = 60, userId?: string): Promise<LedgerRow[
       left join accounts a on a.id = p.account_id
       left join assets ast on ast.id = p.asset_id
     where 1=1 ${u ? sql`and je.user_id = ${u}` : sql``}
+      and not exists (
+        select 1 from postings p_ghost
+        join assets ast_ghost on ast_ghost.id = p_ghost.asset_id
+        where p_ghost.entry_id = je.id
+          and (
+            ast_ghost.deleted_at is not null
+            or (
+              exists (
+                select 1 from asset_classes ac_ghost
+                where ac_ghost.id = ast_ghost.class_id and ac_ghost.code = 'RWA'
+              )
+              and (ast_ghost.symbol ~ '^[0-9]+$' or ast_ghost.symbol ~ '^RE-')
+              and not exists (select 1 from real_estate_properties rep where rep.asset_id = ast_ghost.id)
+              and not exists (select 1 from vehicle_assets va where va.asset_id = ast_ghost.id)
+              and not exists (
+                select 1 from rwa_ownership_records rwo
+                where rwo.asset_id = ast_ghost.id and rwo.is_active = true
+              )
+            )
+          )
+      )
     group by je.id
     order by je.entry_date desc, je.created_at desc
     limit ${safeLimit}
@@ -289,6 +340,27 @@ export async function getLedgerById(entryId: string, userId?: string): Promise<L
       left join accounts a on a.id = p.account_id
       left join assets ast on ast.id = p.asset_id
     where je.id = ${entryId} ${u ? sql`and je.user_id = ${u}` : sql``}
+      and not exists (
+        select 1 from postings p_ghost
+        join assets ast_ghost on ast_ghost.id = p_ghost.asset_id
+        where p_ghost.entry_id = je.id
+          and (
+            ast_ghost.deleted_at is not null
+            or (
+              exists (
+                select 1 from asset_classes ac_ghost
+                where ac_ghost.id = ast_ghost.class_id and ac_ghost.code = 'RWA'
+              )
+              and (ast_ghost.symbol ~ '^[0-9]+$' or ast_ghost.symbol ~ '^RE-')
+              and not exists (select 1 from real_estate_properties rep where rep.asset_id = ast_ghost.id)
+              and not exists (select 1 from vehicle_assets va where va.asset_id = ast_ghost.id)
+              and not exists (
+                select 1 from rwa_ownership_records rwo
+                where rwo.asset_id = ast_ghost.id and rwo.is_active = true
+              )
+            )
+          )
+      )
     group by je.id
     limit 1
   `);
@@ -330,7 +402,21 @@ export async function getRealizedPnl(userId?: string): Promise<{ total: string; 
     from lot_consumptions lc
       join lots l on l.id = lc.lot_id
       join assets ast on ast.id = l.asset_id
-    where 1=1 ${u ? sql`and l.user_id = ${u}` : sql``}
+    where ast.deleted_at is null
+      and not (
+        exists (
+          select 1 from asset_classes ac
+          where ac.id = ast.class_id and ac.code = 'RWA'
+        )
+        and (ast.symbol ~ '^[0-9]+$' or ast.symbol ~ '^RE-')
+        and not exists (select 1 from real_estate_properties rep where rep.asset_id = ast.id)
+        and not exists (select 1 from vehicle_assets va where va.asset_id = ast.id)
+        and not exists (
+          select 1 from rwa_ownership_records rwo
+          where rwo.asset_id = ast.id and rwo.is_active = true
+        )
+      )
+      ${u ? sql`and l.user_id = ${u}` : sql``}
     group by ast.symbol order by 2 desc
   `);
   return {
@@ -478,15 +564,31 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
       }
       ${filter.review === "reviewed" ? sql`and er.entry_id is not null` : sql``}
       ${filter.review === "unreviewed" ? sql`and er.entry_id is null` : sql``}
-      -- CONSISTENCY FIX: hide activity for assets that have been soft-deleted
-      -- (e.g. a real-estate property). Opening entries also credit USD/equity,
-      -- so we cannot require ALL asset postings to be deleted.
+      -- Presentation-only consistency filter. Hide activity for a deleted
+      -- real-estate asset or a legacy property-only delete that left an RWA
+      -- asset orphaned. Opening entries also credit USD/equity, so we filter
+      -- by the referenced property asset, never by every posting in the entry.
       -- The journal row itself is never mutated.
       and not exists (
         select 1 from postings p_del
         join assets ast_del on ast_del.id = p_del.asset_id
         where p_del.entry_id = je.id
-          and ast_del.deleted_at is not null
+          and (
+            ast_del.deleted_at is not null
+            or (
+              exists (
+                select 1 from asset_classes ac_del
+                where ac_del.id = ast_del.class_id and ac_del.code = 'RWA'
+              )
+              and (ast_del.symbol ~ '^[0-9]+$' or ast_del.symbol ~ '^RE-')
+              and not exists (select 1 from real_estate_properties rep where rep.asset_id = ast_del.id)
+              and not exists (select 1 from vehicle_assets va where va.asset_id = ast_del.id)
+              and not exists (
+                select 1 from rwa_ownership_records rwo
+                where rwo.asset_id = ast_del.id and rwo.is_active = true
+              )
+            )
+          )
       )
     group by je.id, er.entry_id, ec.name, epc.name, ec.nature
     ${orderBy}

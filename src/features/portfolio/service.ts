@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   assetClasses,
@@ -123,7 +123,10 @@ async function loadUnheldRealAssets(input: {
     .from(realEstateProperties)
     .innerJoin(assets, eq(assets.id, realEstateProperties.assetId))
     .innerJoin(assetClasses, eq(assetClasses.id, assets.classId))
-    .where(userId ? eq(realEstateProperties.userId, userId) : sql`1=1`);
+    .where(and(
+      isNull(assets.deletedAt),
+      userId ? eq(realEstateProperties.userId, userId) : sql`1=1`,
+    ));
 
   for (const row of propertyRows) {
     const currentValue = row.currentValueUsd?.toString()
@@ -180,6 +183,7 @@ async function loadUnheldRealAssets(input: {
     .innerJoin(assets, eq(assets.id, vehicleAssets.assetId))
     .innerJoin(assetClasses, eq(assetClasses.id, assets.classId))
     .where(and(
+      isNull(assets.deletedAt),
       userId ? eq(vehicleAssets.userId, userId) : sql`1=1`,
       sql`coalesce(${vehicleAssets.status}, 'active') <> 'sold'`,
     ));
@@ -253,6 +257,7 @@ async function loadUnheldRealAssets(input: {
     .innerJoin(assets, eq(assets.id, rwaOwnershipRecords.assetId))
     .innerJoin(assetClasses, eq(assetClasses.id, assets.classId))
     .where(and(
+      isNull(assets.deletedAt),
       eq(rwaOwnershipRecords.isActive, true),
       userId ? eq(rwaOwnershipRecords.userId, userId) : sql`1=1`,
     ));
