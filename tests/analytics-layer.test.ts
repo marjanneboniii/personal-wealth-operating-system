@@ -32,6 +32,7 @@ import { calculateRiskMetrics } from "../src/features/analytics/risk";
 import {
   ensureBenchmarkDefinitions,
   getAnalyticsSummary,
+  recordAnalyticsRun,
 } from "../src/features/analytics/service";
 import { DefaultExternalCapitalFlowProvider } from "../src/features/analytics/capitalFlows";
 import { todayIso } from "../src/lib/format";
@@ -326,14 +327,20 @@ test("Test 11 — Missing Data Protection (Missing historical market prices -> R
   assert.equal(growth.adjustedWealthReturnPercentage, "0.00");
 });
 
-test("Test 12 — Analytics execution tracking & versioning (analytics_runs records run with calculationVersion = v1.0)", async () => {
+test("Test 12 — Analytics execution tracking is a separate mutation (page reads do not write analytics_runs)", async () => {
   await setupAnalyticsDb();
 
   const runsBefore = await db.select().from(analyticsRuns);
   const initialCount = runsBefore.length;
 
-  // Run analytics
-  await getAnalyticsSummary();
+  const summary = await getAnalyticsSummary();
+  const afterRead = await db.select().from(analyticsRuns);
+  assert.equal(afterRead.length, initialCount, "getAnalyticsSummary must not insert analytics_runs");
+
+  await recordAnalyticsRun({
+    periodStart: summary.growth.periodStart,
+    periodEnd: summary.growth.periodEnd,
+  });
 
   const runsAfter = await db.select().from(analyticsRuns);
   assert.equal(runsAfter.length, initialCount + 1);
@@ -344,7 +351,11 @@ test("Test 12 — Analytics execution tracking & versioning (analytics_runs reco
 test("Test 3 — Analytics Append Only (Attempt UPDATE or DELETE on analytics_runs is blocked by DB rule)", async () => {
   await setupAnalyticsDb();
 
-  await getAnalyticsSummary();
+  const summary = await getAnalyticsSummary();
+  await recordAnalyticsRun({
+    periodStart: summary.growth.periodStart,
+    periodEnd: summary.growth.periodEnd,
+  });
   const runsBefore = await db.select().from(analyticsRuns);
   assert.ok(runsBefore.length > 0);
 

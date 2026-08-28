@@ -10,7 +10,7 @@
  *   - each user's analytics is scoped to their own snapshots;
  *   - with multiple users and no resolvable identity, analytics is DENIED
  *     (never a global read);
- *   - analytics_runs rows are user-scoped for authenticated tenants.
+ *   - analytics_runs rows recorded via recordAnalyticsRun are user-scoped.
  *
  * NOTE: analytics_runs is append-only at the DB level (UPDATE/DELETE are
  * no-ops via CREATE RULE), so these tests never delete it or the users it
@@ -27,7 +27,7 @@ import {
   users,
   userFxSettings,
 } from "../src/db/schema";
-import { getAnalyticsSummary } from "../src/features/analytics/service";
+import { getAnalyticsSummary, recordAnalyticsRun } from "../src/features/analytics/service";
 
 let seq = 0;
 
@@ -65,6 +65,9 @@ test("Phase 1 — analytics is tenant-scoped: A never sees B's snapshot values",
     { userId: userB.id, snapshotDate: "2026-08-01", totalPortfolioValue: "9999.00" },
   ] as any);
 
+  const runsBefore = await db.select().from(analyticsRuns);
+  const countBefore = runsBefore.length;
+
   const summaryA = await getAnalyticsSummary(userA.id);
   const summaryB = await getAnalyticsSummary(userB.id);
 
@@ -76,7 +79,23 @@ test("Phase 1 — analytics is tenant-scoped: A never sees B's snapshot values",
   assert.ok(valuesB.includes(9999), "B must see only B's snapshot values");
   assert.ok(!valuesB.includes(1111), "B must never see A's snapshot values");
 
-  // analytics_runs must be user-scoped (never null) for these tenants.
+  assert.equal(
+    (await db.select().from(analyticsRuns)).length,
+    countBefore,
+    "getAnalyticsSummary must not insert analytics_runs",
+  );
+
+  await recordAnalyticsRun({
+    userId: userA.id,
+    periodStart: summaryA.growth.periodStart,
+    periodEnd: summaryA.growth.periodEnd,
+  });
+  await recordAnalyticsRun({
+    userId: userB.id,
+    periodStart: summaryB.growth.periodStart,
+    periodEnd: summaryB.growth.periodEnd,
+  });
+
   const runsA = await db.select().from(analyticsRuns).where(eq(analyticsRuns.userId, userA.id));
   const runsB = await db.select().from(analyticsRuns).where(eq(analyticsRuns.userId, userB.id));
   assert.ok(runsA.length >= 1, "user A's run must be recorded under A");

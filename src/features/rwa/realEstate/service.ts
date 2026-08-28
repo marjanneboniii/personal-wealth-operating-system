@@ -40,6 +40,7 @@ import { postEntry } from "@/features/ledger/service";
 import { resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { formatMoney } from "@/lib/format";
 import { buildRwaSymbol, nextRwaSymbol } from "@/features/rwa/symbol";
+import { isOrphanedRwaAsset } from "@/features/rwa/orphanFilter";
 import {
   getCity,
   getNeighborhood,
@@ -1071,25 +1072,8 @@ export async function repairOrphanedRealEstate(): Promise<{ cleaned: number; det
   const orphanedRows = await db.execute(sql`
     SELECT a.id AS asset_id, a.symbol
     FROM assets a
-    JOIN asset_classes ac ON ac.id = a.class_id
-    WHERE ac.code = 'RWA'
-      AND a.deleted_at IS NULL
-      AND a.symbol <> 'USD'
-      AND a.symbol NOT LIKE '__del_%'
-      AND (a.symbol ~ '^[0-9]+$' OR a.symbol ~ '^RE-')
-      AND NOT EXISTS (
-        SELECT 1 FROM real_estate_properties rep WHERE rep.asset_id = a.id
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM vehicle_assets va WHERE va.asset_id = a.id
-      )
-      AND (
-        a.symbol ~ '^RE-'
-        OR NOT EXISTS (
-          SELECT 1 FROM rwa_ownership_records rwa
-          WHERE rwa.asset_id = a.id AND rwa.is_active = true
-        )
-      )
+    WHERE a.deleted_at IS NULL
+      AND ${isOrphanedRwaAsset("a")}
   `);
 
   const rows = orphanedRows.rows as Array<{ asset_id: string; symbol: string }>;
@@ -1142,9 +1126,10 @@ let readyPromise: Promise<void> | null = null;
  * Read paths must never trigger a write. Orphan filtering is handled in
  * read queries (getHoldings, getAccountBalances, getLedger, getTransactions,
  * getRealizedPnl, getOpenLots, historicalTomanCostByAsset, etc.), so reports
- * stay correct even before an explicit repair. The repair itself is a
- * separate mutation (see repairOrphanedRealEstateAction) that soft-deletes
- * the orphan asset and cleans price caches to reclaim identifiers like 001.
+ * stay correct even before an explicit repair. Identifier reuse (e.g. 001)
+ * also no longer depends on repair: nextRwaSymbol ignores orphans. The
+ * repair itself is a separate mutation (see repairOrphanedRealEstateAction)
+ * that soft-deletes the orphan asset and cleans price caches.
  */
 export async function ensureRealEstateModuleReady(): Promise<void> {
   readyPromise ??= (async () => {

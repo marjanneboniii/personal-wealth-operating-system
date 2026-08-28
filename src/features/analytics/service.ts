@@ -7,6 +7,8 @@ import {
 } from "@/db/schema";
 import { getPortfolioValuation } from "@/features/portfolio/service";
 import { hasMultipleUsers } from "@/features/ledger/queries";
+import { isInactiveOrOrphanedRwaAsset } from "@/features/rwa/orphanFilter";
+import { D } from "@/domain/decimal";
 import { calculateGrowth } from "./performance";
 import { calculateAttribution } from "./attribution";
 import { calculateBenchmarkComparison } from "./benchmark";
@@ -66,11 +68,59 @@ async function resolveAnalyticsUserId(explicitUserId?: string): Promise<string |
 }
 
 /**
+ * Explicit append-only tracking of an analytics run.
+ *
+ * Separated from getAnalyticsSummary so rendering Net Worth / Reports never
+ * writes. Callers that WANT a run recorded (a user-triggered action) invoke
+ * this after computing the summary. journal_entries / postings / lots are
+ * never touched.
+ */
+export async function recordAnalyticsRun(input: {
+  userId?: string | null;
+  periodStart: string;
+  periodEnd: string;
+  sourceSnapshotReference?: string | null;
+  runType?: string;
+}): Promise<void> {
+  await db.insert(analyticsRuns).values({
+    userId: input.userId ?? null,
+    runType: input.runType ?? "dashboard",
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    calculationVersion: "v1.0",
+    sourceSnapshotReference: input.sourceSnapshotReference ?? null,
+  });
+}
+
+/**
+ * Subtract inactive/orphaned RWA contributions from stored portfolio
+ * snapshot totals — presentation only. Snapshot rows are never rewritten.
+ */
+async function ghostRwaValueBySnapshotDate(userId?: string): Promise<Map<string, string>> {
+  const res = await db.execute(sql`
+    select pv.valuation_date::text as "valuationDate",
+           coalesce(sum(pv.total_value), 0)::text as "ghostValue"
+    from portfolio_valuations pv
+      join assets ast on ast.id = pv.asset_id
+    where ${isInactiveOrOrphanedRwaAsset("ast")}
+      ${userId ? sql`and pv.user_id = ${userId}` : sql``}
+    group by pv.valuation_date
+  `);
+  return new Map(
+    (res.rows as Array<{ valuationDate: string; ghostValue: string }>).map((row) => [
+      String(row.valuationDate ?? "").slice(0, 10),
+      row.ghostValue,
+    ]),
+  );
+}
+
+/**
  * Service: Wealth Analytics & Performance Intelligence Engine (Phase 2.5)
  *
  * READ-ONLY SYSTEM GUARANTEE:
  * This service consumes data from Portfolio Valuation, Market Data, and Accounting Core.
  * It NEVER creates journal entries, postings, FIFO lots, or account modifications.
+ * It NEVER inserts analytics_runs — that is a separate mutation (recordAnalyticsRun).
  *
  * APPEND-ONLY GUARANTEE:
  * Analytics tables (analytics_runs, wealth_performance_snapshots, etc.) behave strictly as APPEND-ONLY.
@@ -79,7 +129,7 @@ async function resolveAnalyticsUserId(explicitUserId?: string): Promise<string |
 export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDashboardSummary> {
   const u = await resolveAnalyticsUserId(userId);
 
-  const [valuationSummary, rawSnapshots, benchmarks] = await Promise.all([
+  const [valuationSummary, rawSnapshots, _benchmarks, ghostByDate] = await Promise.all([
     getPortfolioValuation(undefined, u),
     db
       .select()
@@ -87,10 +137,27 @@ export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDas
       .where(u ? eq(portfolioSnapshots.userId, u) : sql`1=1`)
       .orderBy(desc(portfolioSnapshots.snapshotDate)),
     ensureBenchmarkDefinitions(),
+    ghostRwaValueBySnapshotDate(u),
   ]);
 
-  const periodStart = rawSnapshots.length > 0
-    ? rawSnapshots[rawSnapshots.length - 1].snapshotDate
+  // Presentation adjustment: a deleted/orphaned property must not inflate
+  // historical snapshot totals used for wealth-metric comparison.
+  const dateKey = (value: unknown) => {
+    if (typeof value === "string") return value.slice(0, 10);
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return String(value ?? "").slice(0, 10);
+  };
+
+  const adjustedSnapshots = rawSnapshots.map((s) => {
+    const ghost = ghostByDate.get(dateKey(s.snapshotDate)) ?? "0";
+    return {
+      ...s,
+      totalPortfolioValue: D(s.totalPortfolioValue).sub(ghost).toString(),
+    };
+  });
+
+  const periodStart = adjustedSnapshots.length > 0
+    ? adjustedSnapshots[adjustedSnapshots.length - 1].snapshotDate
     : "2025-01-01";
   const periodEnd = valuationSummary.valuationDate;
 
@@ -99,14 +166,14 @@ export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDas
   const capitalFlows = await flowProvider.getExternalCapitalFlows(u, periodStart, periodEnd);
 
   const timeline = generateWealthTimeline(
-    rawSnapshots.map((s) => ({
+    adjustedSnapshots.map((s) => ({
       snapshotDate: s.snapshotDate,
       totalPortfolioValue: s.totalPortfolioValue,
     })),
   );
 
-  const startingVal = rawSnapshots.length > 0
-    ? rawSnapshots[rawSnapshots.length - 1].totalPortfolioValue
+  const startingVal = adjustedSnapshots.length > 0
+    ? adjustedSnapshots[adjustedSnapshots.length - 1].totalPortfolioValue
     : valuationSummary.totalCostBasis;
 
   const endingVal = valuationSummary.totalNetWorth;
@@ -145,25 +212,13 @@ export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDas
   );
 
   // Risk Metrics
-  const historicalValuesList = rawSnapshots.map((s) => s.totalPortfolioValue);
+  const historicalValuesList = adjustedSnapshots.map((s) => s.totalPortfolioValue);
   const risk = calculateRiskMetrics(
     valuationSummary.assetValuations,
     valuationSummary.totalNetWorth,
     historicalValuesList,
     valuationSummary.valuationDate,
   );
-
-  // APPEND-ONLY Execution Tracking: Insert new run metadata into analytics_runs.
-  // The run is scoped to the resolved tenant (never null for an authenticated
-  // multi-tenant user); null is reserved for legacy single-tenant mode.
-  await db.insert(analyticsRuns).values({
-    userId: u ?? null,
-    runType: "dashboard",
-    periodStart: growth.periodStart,
-    periodEnd: growth.periodEnd,
-    calculationVersion: "v1.0",
-    sourceSnapshotReference: rawSnapshots[0]?.id ?? null,
-  });
 
   return {
     growth,

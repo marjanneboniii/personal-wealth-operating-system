@@ -22,10 +22,11 @@ export const metadata = { title: "بینش‌ها" };
  *   Read → Analyze → Explain → Alert.
  *
  * This page must never create a journal entry, posting, lot or account
- * mutation, and must never write derived state. It deliberately does NOT call
- * `getAnalyticsSummary()`, because that service appends a row to
- * `analytics_runs` on every invocation — rendering an insight page must not
- * produce writes (§62/§65). All figures come from existing read primitives:
+ * mutation, and must never write derived state. It does not call
+ * `getAnalyticsSummary()` — that engine is reserved for the wealth page,
+ * and run tracking is an explicit mutation (`recordAnalyticsRun` /
+ * `fetchAnalyticsSummaryAction`), never a page render. All figures come
+ * from existing read primitives:
  *   getCurrentNetWorth · getCashflow · getFlowByCategory ·
  *   listDebts · projectCashflow · getLiabilitiesTotal · countUnreviewed
  */
