@@ -27,6 +27,7 @@ import { calculateAssetAllocation } from "./allocation";
 import type { AssetValuation, PortfolioSummary, ValuationBasis } from "./types";
 import { REAL_ESTATE_LOGO } from "@/features/branding/persianIcons";
 import { resolveAssetLogo } from "@/features/branding/assetLogo";
+import { isOrphanedRwaAssetWithClass } from "@/features/rwa/orphanFilter";
 
 /**
  * Vehicle logo. `existing` is the STORED asset logo and always wins, so a
@@ -82,16 +83,7 @@ async function historicalTomanCostByAsset(userId: string | null): Promise<Map<st
       join entry_fx_snapshots fx on fx.entry_id = l.open_entry_id
     where l.qty_remaining > 0
       and ast.deleted_at is null
-      and not (
-        ac.code = 'RWA'
-        and (ast.symbol ~ '^[0-9]+$' or ast.symbol ~ '^RE-')
-        and not exists (select 1 from real_estate_properties rep where rep.asset_id = ast.id)
-        and not exists (select 1 from vehicle_assets va where va.asset_id = ast.id)
-        and not exists (
-          select 1 from rwa_ownership_records rwo
-          where rwo.asset_id = ast.id and rwo.is_active = true
-        )
-      )
+      and not ${isOrphanedRwaAssetWithClass("ast", "ac")}
       ${userId ? sql`and l.user_id = ${userId}` : sql``}
     group by l.asset_id
   `);

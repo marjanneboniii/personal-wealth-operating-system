@@ -4,7 +4,6 @@ import { seedIfEmpty } from "@/db/seed";
 import {
   getAccountBalances,
   getCashflow,
-  getHoldings,
   getRealizedPnl,
 } from "@/features/ledger/queries";
 import { listDebts, projectCashflow } from "@/features/planning/service";
@@ -22,12 +21,11 @@ export const dynamic = "force-dynamic";
 export default async function ReportsPage() {
   await ensureAuth();
   await seedIfEmpty();
-  const [nw, flow, pnl, balances, holdings, debts, projection, fx] = await Promise.all([
+  const [nw, flow, pnl, balances, debts, projection, fx] = await Promise.all([
     getCurrentNetWorth(),
     getCashflow(12),
     getRealizedPnl(),
     getAccountBalances(),
-    getHoldings(),
     listDebts(),
     projectCashflow(12),
     getLatestUsdIrtRate(),
@@ -40,7 +38,10 @@ export default async function ReportsPage() {
   const incomes = balances.filter((b) => b.type === "income" && !D(b.baseValue).isZero());
   const totalIncome = Decimal.sum(incomes.map((i) => D(i.baseValue).neg().toString()));
   const totalExpense = Decimal.sum(expenses.map((e) => e.baseValue));
-  const unrealized = Decimal.sum(holdings.map((h) => D(h.quantity).mul(h.price ?? "0").sub(h.costBase).toString()));
+  // SSOT: portfolio valuation already excludes orphaned/deleted RWA assets
+  // and never treats a missing price as zero (which would fake a full write-off).
+  const unrealized = D(nw.valuation.totalUnrealizedPnl);
+  const unrealizedToman = nw.valuation.totalUnrealizedPnlToman;
   const savingsRate = totalIncome.isZero() ? "0" : totalIncome.sub(totalExpense).div(totalIncome).mul(100).toFixed(1);
 
   // Expense Toman is authoritative from the immutable entry FX snapshot.
@@ -182,7 +183,7 @@ export default async function ReportsPage() {
             />
             <Metric
               label="تحقق‌نیافته"
-              value={`${unrealized.gte(0) ? "+" : "−"}${toIrt(unrealized.abs().toString()) ?? formatMoney(unrealized.abs().toString())}`}
+              value={`${unrealized.gte(0) ? "+" : "−"}${unrealizedToman ? formatMoney(D(unrealizedToman).abs().toString(), "IRT") : toIrt(unrealized.abs().toString()) ?? formatMoney(unrealized.abs().toString())}`}
               tone={trendTone(unrealized.toString())}
               hint={rate ? `${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}` : undefined}
             />

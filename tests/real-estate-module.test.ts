@@ -60,8 +60,9 @@ import {
   setNeighborhoodActive,
   seedRealEstateMasterData,
 } from "../src/features/rwa/realEstate/masterData";
-import { getAccountBalances, getLedger, getNetWorth, getRecent, getTransactions } from "../src/features/ledger/queries";
-import { getPortfolioValuation } from "../src/features/portfolio/service";
+import { getAccountBalances, getHoldings, getLedger, getNetWorth, getRecent, getTransactions } from "../src/features/ledger/queries";
+import { createPortfolioSnapshot, getPortfolioValuation } from "../src/features/portfolio/service";
+import { getAnalyticsSummary } from "../src/features/analytics/service";
 import { humanizeEntry } from "../src/lib/tx";
 import { jalaliToIso } from "../src/lib/format";
 import { D } from "../src/domain/decimal";
@@ -786,6 +787,16 @@ test("repairOrphanedRealEstate soft-deletes leftover RWA assets after a property
     !portfolioBeforeRepair.assetValuations.some((row) => row.assetId === created.assetId),
     "orphaned real-estate assets must be excluded from Investment Profit/Loss before repair",
   );
+  assert.equal(
+    D(portfolioBeforeRepair.totalUnrealizedPnl).toFixed(2),
+    "0.00",
+    "orphaned property must not contribute unrealized P/L before repair",
+  );
+  const holdingsBeforeRepair = await getHoldings();
+  assert.ok(
+    !holdingsBeforeRepair.some((h) => h.assetId === created.assetId),
+    "orphaned property must not appear in holdings used by Financial Reports",
+  );
   assert.ok(
     !(await getTransactions()).some((row) => row.id === entryId),
     "orphaned property activity must be hidden before repair",
@@ -794,6 +805,9 @@ test("repairOrphanedRealEstate soft-deletes leftover RWA assets after a property
     !(await getLedger()).some((row) => row.id === entryId),
     "Financial History must not present a deleted property's journal reference",
   );
+
+  const previewBeforeRepair = await previewRealEstateIdentity(ids.cityId, ids.neighborhoodId, ids.propertyTypeId);
+  assert.equal(previewBeforeRepair?.symbol, "001", "orphaned asset must not occupy identifier 001");
 
   const outcome = await repairOrphanedRealEstate();
   assert.ok(outcome.cleaned >= 1);
@@ -804,6 +818,33 @@ test("repairOrphanedRealEstate soft-deletes leftover RWA assets after a property
 
   const preview = await previewRealEstateIdentity(ids.cityId, ids.neighborhoodId, ids.propertyTypeId);
   assert.equal(preview?.symbol, "001");
+});
+
+test("orphaned property does not distort wealth metrics via historical snapshots", async () => {
+  await reset();
+  const ids = await pickAhvazKianparsEastApartment();
+  await setFxRate(ACQUISITION, "100000");
+  await setFxRate(VALUATION, "100000");
+
+  const created = await createRealEstateAsset({
+    cityId: ids.cityId,
+    neighborhoodId: ids.neighborhoodId,
+    propertyTypeId: ids.propertyTypeId,
+    acquisitionDate: ACQUISITION,
+    valuationDate: VALUATION,
+    purchasePriceToman: PURCHASE_TOMAN,
+    currentValueToman: CURRENT_TOMAN,
+  });
+
+  await createPortfolioSnapshot();
+  await db.delete(realEstateProperties).where(eq(realEstateProperties.id, created.id));
+
+  const summary = await getAnalyticsSummary();
+  assert.ok(
+    Math.abs(Number(summary.growth.netInvestmentReturn)) < 1,
+    `wealth metrics must not treat a deleted property as an investment loss (got ${summary.growth.netInvestmentReturn})`,
+  );
+  assert.equal(summary.growth.adjustedWealthReturnPercentage, "0.00");
 });
 
 test("buildAssetName and compact buildSymbol follow the identity spec", () => {

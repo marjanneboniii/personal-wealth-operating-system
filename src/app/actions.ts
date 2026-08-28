@@ -54,7 +54,7 @@ import { completeSetup, getSetupState } from "@/features/setup/service";
 import { rootCauseOf } from "@/db/init-schema";
 import { registerMoneyAccount } from "@/features/accounts/service";
 import { createPortfolioSnapshot, getCurrentNetWorth, getPortfolioValuation } from "@/features/portfolio/service";
-import { getAnalyticsSummary } from "@/features/analytics/service";
+import { getAnalyticsSummary, recordAnalyticsRun } from "@/features/analytics/service";
 import { addMonthsIso, todayIso } from "@/lib/format";
 
 export type ActionResult = { ok: boolean; message: string };
@@ -1396,5 +1396,16 @@ export async function fetchAnalyticsSummaryAction() {
   // requests). Calculation logic stays untouched.
   const { user, hasAuth } = await getAuthContext();
   if (hasAuth && !user) throw new Error("Unauthorized: login required");
-  return getAnalyticsSummary(user?.id);
+  const summary = await getAnalyticsSummary(user?.id);
+  // Tracking is an explicit mutation on this action, never on page render.
+  try {
+    await recordAnalyticsRun({
+      userId: user?.id ?? null,
+      periodStart: summary.growth.periodStart,
+      periodEnd: summary.growth.periodEnd,
+    });
+  } catch {
+    // Tracking must never fail the read.
+  }
+  return summary;
 }

@@ -79,6 +79,7 @@ mock.module("@/features/portfolio/service", {
       totalLiabilitiesToman: "0",
       liquid: "24611.85697",
       liquidToman: START_LIQUIDITY_TOMAN,
+      valuation: { totalUnrealizedPnl: "0", totalUnrealizedPnlToman: "0" },
     }),
   },
 });
