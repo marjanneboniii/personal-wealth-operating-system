@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { getTurnstileSiteKey } from "@/lib/turnstile";
 import { seedIfEmpty } from "@/db/seed";
 import LoginForm from "@/components/auth/LoginForm";
 import BrandMark, { BrandWordmark } from "@/components/layout/BrandMark";
@@ -63,7 +64,7 @@ export default async function LoginPage({
         <LoginForm
           claimMode={isClaim}
           googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID}
-          turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+          turnstileSiteKey={getTurnstileSiteKey()}
           initialTwoFactor={params.twoFactor === "1"}
         />
 
