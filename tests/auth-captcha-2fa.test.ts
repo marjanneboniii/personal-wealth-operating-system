@@ -100,3 +100,28 @@ test("TOTP — secrets and partial-login challenges are authenticated and encryp
   assert.equal(readChallenge(`${challenge}tampered`), null);
   delete process.env.TOTP_ENCRYPTION_KEY;
 });
+
+test("CAPTCHA — verification diagnostics are logged safely and never include the secret", async () => {
+  process.env.TURNSTILE_SECRET_KEY = "super-secret-value-xyz";
+  const original = global.fetch;
+  const originalError = console.error;
+  const lines: string[] = [];
+  console.error = (...args: unknown[]) => { lines.push(args.map(String).join(" ")); };
+  global.fetch = (async () =>
+    new Response(JSON.stringify({ success: false, "error-codes": ["invalid-input-response"] }), { status: 200 })
+  ) as typeof fetch;
+  try {
+    const result = await verifyTurnstile("some-token");
+    assert.equal(result.ok, false);
+    const joined = lines.join("\n");
+    assert.equal(joined.includes("super-secret-value-xyz"), false);
+    assert.equal(joined.includes("some-token"), false);
+    assert.match(joined, /secretConfigured=yes/);
+    assert.match(joined, /errorCodes=invalid-input-response/);
+    assert.match(joined, /reason=verify-failed/);
+  } finally {
+    global.fetch = original;
+    console.error = originalError;
+    delete process.env.TURNSTILE_SECRET_KEY;
+  }
+});

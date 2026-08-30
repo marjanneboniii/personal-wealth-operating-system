@@ -50,11 +50,44 @@ function getTurnstileSecret(): string | undefined {
   return isProduction() ? undefined : DEV_TEST_SECRET_KEY;
 }
 
+/**
+ * Safe diagnostic logging for the verification pipeline.
+ *
+ * Only non-sensitive facts are ever logged:
+ *   - `tokenPresent` — whether the client submitted a captcha token (yes/no).
+ *   - `secretConfigured` — whether a server secret key exists (yes/no).
+ *   - `httpStatus` — the HTTP status Cloudflare's siteverify returned.
+ *   - `errorCodes` — Cloudflare's documented error codes (e.g. timeout-or-duplicate).
+ *   - `reason` — a generic failure classification (missing-token / no-secret /
+ *     network / http-<status> / verify-failed).
+ *
+ * The secret value and the token value are NEVER logged or exposed.
+ */
+function logVerify(label: string, details: Record<string, string | number | null | undefined>): void {
+  const safe: Record<string, string | number | null | undefined> = { ...details };
+  // Belt-and-suspenders: drop any key that could carry a credential.
+  for (const key of ["secret", "token", "response", "remoteip"]) {
+    if (key in safe) safe[key] = "[redacted]";
+  }
+  const fields = Object.entries(safe)
+    .map(([k, v]) => `${k}=${v === null || v === undefined ? "" : String(v)}`)
+    .join(" ");
+  console.error(`[turnstile] ${label}: ${fields}`);
+}
+
 /** Server-only Cloudflare verification. Tokens are validated during the auth request. */
 export async function verifyTurnstile(token: string, remoteIp?: string | null): Promise<TurnstileResult> {
   const secret = getTurnstileSecret();
-  if (!token) return { ok: false, message: "لطفاً تأیید کنید که ربات نیستید." };
-  if (!secret) return { ok: false, message: "تأیید امنیتی در حال حاضر در دسترس نیست." };
+  if (!token) {
+    logVerify("reject", { reason: "missing-token", tokenPresent: "no", secretConfigured: secret ? "yes" : "no" });
+    return { ok: false, message: "لطفاً تأیید کنید که ربات نیستید." };
+  }
+  logVerify("verify", { tokenPresent: "yes", secretConfigured: secret ? "yes" : "no" });
+  if (!secret) {
+    // Fail-closed: production without a configured secret must refuse auth.
+    logVerify("reject", { reason: "no-secret", tokenPresent: "yes", secretConfigured: "no" });
+    return { ok: false, message: "تأیید امنیتی در حال حاضر در دسترس نیست." };
+  }
 
   try {
     const body = new URLSearchParams({ secret, response: token });
@@ -65,12 +98,26 @@ export async function verifyTurnstile(token: string, remoteIp?: string | null): 
       cache: "no-store",
       signal: AbortSignal.timeout(8_000),
     });
-    if (!response.ok) return { ok: false, message: "تأیید امنیتی ناموفق بود. لطفاً دوباره تلاش کنید." };
-    const result = (await response.json()) as { success?: boolean };
-    return result.success
-      ? { ok: true }
-      : { ok: false, message: "تأیید امنیتی ناموفق بود. لطفاً دوباره تلاش کنید." };
-  } catch {
+    if (!response.ok) {
+      logVerify("reject", { reason: `http-${response.status}`, httpStatus: response.status, tokenPresent: "yes", secretConfigured: "yes" });
+      return { ok: false, message: "تأیید امنیتی ناموفق بود. لطفاً دوباره تلاش کنید." };
+    }
+    const result = (await response.json()) as { success?: boolean; "error-codes"?: string[] };
+    if (result.success) {
+      logVerify("ok", { httpStatus: response.status, tokenPresent: "yes", secretConfigured: "yes" });
+      return { ok: true };
+    }
+    logVerify("reject", {
+      reason: "verify-failed",
+      httpStatus: response.status,
+      errorCodes: Array.isArray(result["error-codes"]) ? result["error-codes"].join(",") : null,
+      tokenPresent: "yes",
+      secretConfigured: "yes",
+    });
+    return { ok: false, message: "تأیید امنیتی ناموفق بود. لطفاً دوباره تلاش کنید." };
+  } catch (error) {
+    const reason = error instanceof Error && error.name ? error.name : "unknown";
+    logVerify("reject", { reason, tokenPresent: "yes", secretConfigured: "yes" });
     return { ok: false, message: "تأیید امنیتی ناموفق بود. لطفاً دوباره تلاش کنید." };
   }
 }
