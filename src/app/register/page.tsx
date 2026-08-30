@@ -48,7 +48,10 @@ export default async function RegisterPage() {
           </p>
         )}
 
-        <RegisterForm googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID} />
+        <RegisterForm
+          googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID}
+          turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+        />
 
         <div className="mt-6 flex items-center gap-3">
           <span className="h-px flex-1" style={{ background: "var(--border)" }} />
