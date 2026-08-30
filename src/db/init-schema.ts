@@ -827,6 +827,13 @@ const STATEMENTS = [
   );`,
   `CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);`,
   `CREATE INDEX IF NOT EXISTS sessions_token_idx ON sessions(token);`,
+  `CREATE TABLE IF NOT EXISTS user_totp_credentials (
+    user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    secret_encrypted text NOT NULL,
+    enabled_at timestamptz NOT NULL DEFAULT now(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz
+  );`,
   `CREATE TABLE IF NOT EXISTS user_fx_settings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,

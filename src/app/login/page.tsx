@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; claim?: string }>;
+  searchParams: Promise<{ next?: string; claim?: string; twoFactor?: string }>;
 }) {
   // The auth pages must stay reachable even when the database is unavailable.
   // Otherwise a stale session cookie plus a sleeping database traps the user:
@@ -63,6 +63,8 @@ export default async function LoginPage({
         <LoginForm
           claimMode={isClaim}
           googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID}
+          turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+          initialTwoFactor={params.twoFactor === "1"}
         />
 
         <div className="mt-6 flex items-center gap-3">

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { backupRuns, settings } from "@/db/schema";
+import { backupRuns, settings, userTotpCredentials } from "@/db/schema";
 import { desc } from "drizzle-orm";
 import { seedIfEmpty } from "@/db/seed";
 import { Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
@@ -17,6 +17,8 @@ import FxSettings from "@/components/settings/FxSettings";
 import ProModeToggle from "@/components/settings/ProModeToggle";
 import UserPanel from "@/components/settings/UserPanel";
 import AuthAccessCard from "@/components/auth/AuthAccessCard";
+import TwoFactorPanel from "@/components/settings/TwoFactorPanel";
+import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -46,15 +48,23 @@ export default async function SettingsPage() {
     getUserProMode(uid),
   ]);
   const c = counts.rows[0] as Record<string, string>;
+  const [totpCredential] = user
+    ? await db.select({ userId: userTotpCredentials.userId }).from(userTotpCredentials).where(eq(userTotpCredentials.userId, user.id)).limit(1)
+    : [];
 
   return (
     <div className="space-y-8">
       <PageHeader title="تنظیمات" />
 
       {user && (
-        <Section title="حساب کاربری">
-          <UserPanel user={user as any} />
-        </Section>
+        <>
+          <Section title="حساب کاربری">
+            <UserPanel user={user as any} />
+          </Section>
+          <Section title="امنیت حساب">
+            <TwoFactorPanel enabled={Boolean(totpCredential)} />
+          </Section>
+        </>
       )}
 
       <Section title="نمایش و حالت حرفه‌ای" hint="سراسری — روی همه صفحات اعمال می‌شود">

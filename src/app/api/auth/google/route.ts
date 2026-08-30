@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { users, userFxSettings } from "@/db/schema";
+import { users, userFxSettings, userTotpCredentials } from "@/db/schema";
+import { signChallenge } from "@/lib/totp";
 import { eq } from "drizzle-orm";
 import { createSession, setSessionCookie, getCurrentUserFromRequest } from "@/lib/auth";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 import { recordAuditEvent } from "@/lib/audit";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 /**
  * SECURITY: self-service Google sign-up always receives the low-privilege
@@ -35,6 +37,8 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const idToken: string | null = body.idToken || body.credential || null;
+    const captcha = await verifyTurnstile(String(body.turnstileToken || ""), getClientIp(req));
+    if (!captcha.ok) return NextResponse.json({ ok: false, error: captcha.message }, { status: 400 });
 
     if (!idToken) {
       return NextResponse.json({ ok: false, error: "توکن Google ارائه نشده است." }, { status: 401 });
@@ -110,6 +114,12 @@ export async function POST(req: Request) {
         .update(users)
         .set({ emailVerified: true, updatedAt: new Date() } as any)
         .where(eq(users.id, existingByGoogle.id));
+      const [totp] = await db.select({ userId: userTotpCredentials.userId }).from(userTotpCredentials).where(eq(userTotpCredentials.userId, existingByGoogle.id)).limit(1);
+      if (totp) {
+        const response = NextResponse.json({ ok: false, requiresTwoFactor: true, error: "کد ۶ رقمی برنامه تأییدکننده را وارد کنید." }, { status: 401 });
+        response.cookies.set("pwos_2fa_challenge", signChallenge(existingByGoogle.id), { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/login", maxAge: 300 });
+        return response;
+      }
       const { token, expiresAt } = await createSession(existingByGoogle.id);
       await setSessionCookie(token, expiresAt);
       await recordAuditEvent({

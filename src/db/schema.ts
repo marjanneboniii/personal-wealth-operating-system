@@ -1323,6 +1323,16 @@ export const exchangeRates = pgTable(
 /* Authentication & Per-User FX (New: username/password + Google)      */
 /* ------------------------------------------------------------------ */
 
+export const userTotpCredentials = pgTable("user_totp_credentials", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  secretEncrypted: text("secret_encrypted").notNull(),
+  enabledAt: timestamp("enabled_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+});
+
 export const sessions = pgTable(
   "sessions",
   {

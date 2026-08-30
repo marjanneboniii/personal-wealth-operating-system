@@ -3,13 +3,15 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { users, userFxSettings } from "@/db/schema";
+import { users, userFxSettings, userTotpCredentials } from "@/db/schema";
 import { eq, isNull, or } from "drizzle-orm";
+import { verifyTurnstile } from "@/lib/turnstile";
+import { decryptTotpSecret, readChallenge, signChallenge, verifyTotp } from "@/lib/totp";
 import { hashPassword, verifyPassword, createSession, setSessionCookie, clearSessionCookie, destroySession, getCurrentUser } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { recordAuditEvent } from "@/lib/audit";
 
-export type AuthResult = { ok: boolean; message: string; redirectTo?: string };
+export type AuthResult = { ok: boolean; message: string; redirectTo?: string; requiresTwoFactor?: boolean };
 
 /**
  * SECURITY: roles are assigned exclusively by the backend.
@@ -61,6 +63,8 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
   if (ip && !checkRateLimit(`register-ip:${ip}`, 20, 60).ok) {
     return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
   }
+  const captcha = await verifyTurnstile(String(formData.get("cf-turnstile-response") || ""), ip);
+  if (!captcha.ok) return { ok: false, message: captcha.message };
 
   if (!username || username.length < 3) return { ok: false, message: "نام کاربری باید حداقل ۳ کاراکتر باشد." };
   if (!/^[a-zA-Z0-9_.\-]+$/.test(username)) return { ok: false, message: "نام کاربری فقط می‌تواند شامل حروف انگلیسی، عدد، _ و - باشد." };
@@ -114,8 +118,6 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
     await db.insert(userFxSettings).values({ userId, currentRate: "190000" }).onConflictDoNothing();
   } catch {}
 
-  const { token, expiresAt } = await createSession(userId);
-  await setSessionCookie(token, expiresAt);
   await recordAuditEvent({
     action: "REGISTER",
     entityType: "user",
@@ -125,7 +127,7 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
     metadata: { username },
   });
 
-  return { ok: true, message: "حساب با موفقیت ایجاد شد.", redirectTo: "/" };
+  return { ok: true, message: "حساب با موفقیت ایجاد شد. اکنون وارد شوید.", redirectTo: "/login" };
 }
 
 // ───────────── Login ─────────────
@@ -133,67 +135,60 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
 export async function loginAction(prev: AuthResult | null, formData: FormData): Promise<AuthResult> {
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
+  const otp = String(formData.get("totpCode") || "");
+  const cookieStore = await cookies();
 
   const { checkRateLimit, getRequestIp } = await import("@/lib/rateLimit");
-  if (!checkRateLimit(`login:${username || "anon"}`, 10, 60).ok) {
-    return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
-  }
   const ip = await getRequestIp();
-  if (ip && !checkRateLimit(`login-ip:${ip}`, 30, 60).ok) {
-    return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
+  if (otp) {
+    if (!checkRateLimit(`login-2fa:${ip || "unknown"}`, 10, 60).ok) {
+      return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید.", requiresTwoFactor: true };
+    }
+    try {
+      const challenge = cookieStore.get("pwos_2fa_challenge")?.value || "";
+      const userId = readChallenge(challenge);
+      if (!userId) return { ok: false, message: "زمان تأیید به پایان رسیده است. دوباره وارد شوید." };
+      const [credential] = await db.select().from(userTotpCredentials).where(eq(userTotpCredentials.userId, userId)).limit(1);
+      if (!credential || !verifyTotp(decryptTotpSecret(credential.secretEncrypted), otp)) {
+        return { ok: false, message: "کد واردشده صحیح نیست.", requiresTwoFactor: true };
+      }
+      const { token, expiresAt } = await createSession(userId);
+      await setSessionCookie(token, expiresAt);
+      cookieStore.delete("pwos_2fa_challenge");
+      await recordAuditEvent({ action: "LOGIN_SUCCESS", entityType: "user", entityId: userId, userId, result: "SUCCESS" });
+      return { ok: true, message: "ورود موفق.", redirectTo: "/" };
+    } catch {
+      return { ok: false, message: "تأیید دو مرحله‌ای انجام نشد. لطفاً دوباره تلاش کنید.", requiresTwoFactor: true };
+    }
   }
 
+  if (!checkRateLimit(`login:${username || "anon"}`, 10, 60).ok ||
+      (ip && !checkRateLimit(`login-ip:${ip}`, 30, 60).ok)) {
+    return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
+  }
+  const captcha = await verifyTurnstile(String(formData.get("cf-turnstile-response") || ""), ip);
+  if (!captcha.ok) return { ok: false, message: captcha.message };
   if (!username || !password) return { ok: false, message: "نام کاربری و رمز عبور را وارد کنید." };
 
   try {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(or(eq(users.username, username), eq(users.email, username)))
-      .limit(1);
-    if (!user || !(user as any).passwordHash) {
-      console.warn("[auth failure] login failed for user:", username);
-      await recordAuditEvent({
-        action: "LOGIN_FAILURE",
-        entityType: "user",
-        result: "FAILURE",
-        metadata: { username },
-      });
+    const [user] = await db.select().from(users).where(or(eq(users.username, username), eq(users.email, username))).limit(1);
+    if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
+      await recordAuditEvent({ action: "LOGIN_FAILURE", entityType: "user", userId: user?.id, result: "FAILURE", metadata: { username } });
       return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
     }
-    const hash = (user as any).passwordHash as string;
-    if (!verifyPassword(password, hash)) {
-      console.warn("[auth failure] invalid password for user:", username);
-      await recordAuditEvent({
-        action: "LOGIN_FAILURE",
-        entityType: "user",
-        userId: user.id,
-        result: "FAILURE",
-        metadata: { username },
+    const [credential] = await db.select({ userId: userTotpCredentials.userId }).from(userTotpCredentials).where(eq(userTotpCredentials.userId, user.id)).limit(1);
+    if (credential) {
+      cookieStore.set("pwos_2fa_challenge", signChallenge(user.id), {
+        httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/login", maxAge: 300,
       });
-      return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
+      return { ok: false, message: "کد ۶ رقمی برنامه تأییدکننده را وارد کنید.", requiresTwoFactor: true };
     }
-
     const { token, expiresAt } = await createSession(user.id);
     await setSessionCookie(token, expiresAt);
-    await recordAuditEvent({
-      action: "LOGIN_SUCCESS",
-      entityType: "user",
-      entityId: user.id,
-      userId: user.id,
-      result: "SUCCESS",
-    });
+    await recordAuditEvent({ action: "LOGIN_SUCCESS", entityType: "user", entityId: user.id, userId: user.id, result: "SUCCESS" });
     return { ok: true, message: "ورود موفق.", redirectTo: "/" };
-  } catch (err: any) {
-    // A database outage must surface as a readable message on the form itself.
-    // Throwing here would escalate to the global error boundary and leave the
-    // user with no way back to /login. Credentials are never echoed back.
-    if (err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
-    console.warn("[auth failure] login unavailable:", err instanceof Error ? err.message : String(err));
-    return {
-      ok: false,
-      message: "ارتباط با پایگاه داده برقرار نیست. داده‌های شما امن‌اند — چند لحظه دیگر دوباره تلاش کنید.",
-    };
+  } catch {
+    return { ok: false, message: "ارتباط با پایگاه داده برقرار نیست. داده‌های شما امن‌اند — چند لحظه دیگر دوباره تلاش کنید." };
   }
 }
 

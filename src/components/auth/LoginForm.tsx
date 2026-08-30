@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { loginAction, type AuthResult } from "@/lib/auth-actions";
 import { purgeClientCaches } from "@/lib/swClient";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
 
-export default function LoginForm({ claimMode, googleClientId }: { claimMode?: boolean; googleClientId?: string }) {
+export default function LoginForm({ claimMode, googleClientId, turnstileSiteKey, initialTwoFactor = false }: { claimMode?: boolean; googleClientId?: string; turnstileSiteKey?: string; initialTwoFactor?: boolean }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<AuthResult | null, FormData>(loginAction, null);
 
@@ -21,6 +22,13 @@ export default function LoginForm({ claimMode, googleClientId }: { claimMode?: b
 
   return (
     <form action={formAction} className="space-y-4" dir="rtl">
+      {state?.requiresTwoFactor || initialTwoFactor ? (
+        <div>
+          <label className="label" htmlFor="login-totp">کد دو عاملی</label>
+          <input id="login-totp" name="totpCode" required autoFocus inputMode="numeric" autoComplete="one-time-code" pattern="[0-9۰-۹٠-٩]{6}" maxLength={6} placeholder="کد ۶ رقمی" className="field auth-otp" dir="ltr" />
+          <p className="muted mt-2 text-[12px]">کدی که در برنامه Google Authenticator می‌بینید را وارد کنید.</p>
+        </div>
+      ) : <>
       <div>
         <label className="label" htmlFor="login-username">نام کاربری یا ایمیل</label>
         <input
@@ -52,6 +60,8 @@ export default function LoginForm({ claimMode, googleClientId }: { claimMode?: b
           style={{ touchAction: "manipulation" }}
         />
       </div>
+      <TurnstileWidget siteKey={turnstileSiteKey} resetKey={state?.message} />
+      </>}
 
       {state && !state.ok && (
         <p role="alert" className="rounded-[var(--r-md)] px-3 py-2 text-[12px] font-medium" style={{ background: "var(--negative-soft)", color: "var(--negative)" }}>
@@ -65,7 +75,7 @@ export default function LoginForm({ claimMode, googleClientId }: { claimMode?: b
         className="btn btn-primary w-full"
         style={{ touchAction: "manipulation" }}
       >
-        {pending ? "در حال ورود…" : claimMode ? "تأیید و حفظ داده‌ها" : "ورود"}
+        {pending ? "در حال بررسی…" : state?.requiresTwoFactor || initialTwoFactor ? "تأیید و ورود" : claimMode ? "تأیید و حفظ داده‌ها" : "ورود"}
       </button>
 
       <GoogleAuthButton clientId={googleClientId} label="ورود با Google" />

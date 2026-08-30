@@ -74,9 +74,17 @@ export default function GoogleAuthButton({ clientId, label = "ورود با Goog
             const result = await fetch("/api/auth/google", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ credential }),
+              body: JSON.stringify({
+                credential,
+                turnstileToken: buttonRef.current?.closest("form")?.querySelector<HTMLInputElement>("[name='cf-turnstile-response']")?.value || "",
+              }),
             });
-            const data = (await result.json()) as { ok?: boolean; error?: string };
+            const data = (await result.json()) as { ok?: boolean; error?: string; requiresTwoFactor?: boolean };
+            if (data.requiresTwoFactor) {
+              router.replace("/login?twoFactor=1");
+              router.refresh();
+              return;
+            }
             if (!result.ok || !data.ok) {
               throw new Error(data.error || "ورود با Google انجام نشد.");
             }
