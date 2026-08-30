@@ -47,9 +47,20 @@ export default function TurnstileWidget({ siteKey, resetKey }: { siteKey?: strin
       <p id={`${id}-help`} className="muted mb-2 text-[11px]">لطفاً تأیید کنید که ربات نیستید.</p>
       {siteKey ? (
         <>
-          <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" onLoad={render} />
+          <Script
+            src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+            strategy="afterInteractive"
+            onLoad={render}
+            onError={() => setStatus("error")}
+          />
           <div ref={ref} className="turnstile-slot" dir="ltr" />
-          <span className="sr-only" aria-live="polite">{status === "loading" ? "در حال بررسی..." : status === "error" ? "تأیید امنیتی ناموفق بود" : "تأیید امنیتی انجام شد"}</span>
+          {status === "error" ? (
+            <p role="status" className="mt-2 text-[11px]" style={{ color: "var(--negative)" }}>
+              بارگذاری تأیید امنیتی ناموفق بود؛ اتصال به سرویس امنیتی را بررسی کنید.
+            </p>
+          ) : (
+            <span className="sr-only" aria-live="polite">{status === "loading" ? "در حال بررسی..." : "تأیید امنیتی انجام شد"}</span>
+          )}
         </>
       ) : (
         <p role="status" className="text-[11px]" style={{ color: "var(--warning)" }}>تأیید امنیتی در حال حاضر در دسترس نیست.</p>
