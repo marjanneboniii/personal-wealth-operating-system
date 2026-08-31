@@ -17,7 +17,7 @@ export default function TurnstileWidget({ siteKey, resetKey }: { siteKey?: strin
   const ref = useRef<HTMLDivElement>(null);
   const widget = useRef<string | undefined>(undefined);
   const id = useId();
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "expired" | "error">("loading");
 
   const render = () => {
     if (!siteKey || !ref.current || !window.turnstile || widget.current) return;
@@ -27,7 +27,10 @@ export default function TurnstileWidget({ siteKey, resetKey }: { siteKey?: strin
       theme: "auto",
       size: "flexible",
       callback: () => setStatus("ready"),
-      "expired-callback": () => { setStatus("error"); if (widget.current) window.turnstile?.reset(widget.current); },
+      // The token expired before the form was submitted: re-arm the widget and
+      // ask the user to verify again (distinct from a load/network failure).
+      "expired-callback": () => { setStatus("expired"); if (widget.current) window.turnstile?.reset(widget.current); },
+      // The widget could not reach / run the challenge (network or provider).
       "error-callback": () => setStatus("error"),
     });
   };
@@ -56,10 +59,14 @@ export default function TurnstileWidget({ siteKey, resetKey }: { siteKey?: strin
           <div ref={ref} className="turnstile-slot" dir="ltr" />
           {status === "error" ? (
             <p role="status" className="mt-2 text-[11px]" style={{ color: "var(--negative)" }}>
-              بارگذاری تأیید امنیتی ناموفق بود؛ اتصال به سرویس امنیتی را بررسی کنید.
+              ارتباط با سرویس تأیید امنیتی برقرار نشد. لطفاً دوباره تلاش کنید.
+            </p>
+          ) : status === "expired" ? (
+            <p role="status" aria-live="polite" className="mt-2 text-[11px]" style={{ color: "var(--warning)" }}>
+              تأیید امنیتی منقضی شده است. لطفاً دوباره تأیید کنید.
             </p>
           ) : (
-            <span className="sr-only" aria-live="polite">{status === "loading" ? "در حال بررسی..." : "تأیید امنیتی انجام شد"}</span>
+            <span className="sr-only" aria-live="polite">{status === "loading" ? "در حال بررسی..." : "تأیید شد"}</span>
           )}
         </>
       ) : (

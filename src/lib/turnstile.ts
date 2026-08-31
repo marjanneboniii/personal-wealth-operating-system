@@ -3,6 +3,17 @@ const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 export type TurnstileResult = { ok: true } | { ok: false; message: string };
 
 /**
+ * User-facing Persian messages for each distinct verification outcome.
+ * Kept as a single source of truth so /login and /register stay consistent and
+ * so a technical/provider detail is never leaked to the user (only logged).
+ */
+const MSG_MISSING = "لطفاً تأیید کنید که ربات نیستید.";
+const MSG_UNAVAILABLE = "تأیید امنیتی در حال حاضر در دسترس نیست.";
+const MSG_FAILED = "تأیید امنیتی ناموفق بود. لطفاً دوباره تلاش کنید.";
+const MSG_EXPIRED = "تأیید امنیتی منقضی شده است. لطفاً دوباره تأیید کنید.";
+const MSG_PROVIDER = "ارتباط با سرویس تأیید امنیتی برقرار نشد. لطفاً دوباره تلاش کنید.";
+
+/**
  * Cloudflare's officially documented Turnstile **testing** keys.
  * https://developers.cloudflare.com/turnstile/troubleshooting/testing/
  *
@@ -80,13 +91,13 @@ export async function verifyTurnstile(token: string, remoteIp?: string | null): 
   const secret = getTurnstileSecret();
   if (!token) {
     logVerify("reject", { reason: "missing-token", tokenPresent: "no", secretConfigured: secret ? "yes" : "no" });
-    return { ok: false, message: "لطفاً تأیید کنید که ربات نیستید." };
+    return { ok: false, message: MSG_MISSING };
   }
   logVerify("verify", { tokenPresent: "yes", secretConfigured: secret ? "yes" : "no" });
   if (!secret) {
     // Fail-closed: production without a configured secret must refuse auth.
     logVerify("reject", { reason: "no-secret", tokenPresent: "yes", secretConfigured: "no" });
-    return { ok: false, message: "تأیید امنیتی در حال حاضر در دسترس نیست." };
+    return { ok: false, message: MSG_UNAVAILABLE };
   }
 
   try {
@@ -99,25 +110,36 @@ export async function verifyTurnstile(token: string, remoteIp?: string | null): 
       signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) {
+      // The provider was reachable but returned an unexpected HTTP status —
+      // classify as a provider/network problem, not a user verification failure.
       logVerify("reject", { reason: `http-${response.status}`, httpStatus: response.status, tokenPresent: "yes", secretConfigured: "yes" });
-      return { ok: false, message: "تأیید امنیتی ناموفق بود. لطفاً دوباره تلاش کنید." };
+      return { ok: false, message: MSG_PROVIDER };
     }
     const result = (await response.json()) as { success?: boolean; "error-codes"?: string[] };
     if (result.success) {
       logVerify("ok", { httpStatus: response.status, tokenPresent: "yes", secretConfigured: "yes" });
       return { ok: true };
     }
+    const errorCodes = Array.isArray(result["error-codes"]) ? result["error-codes"] : [];
     logVerify("reject", {
       reason: "verify-failed",
       httpStatus: response.status,
-      errorCodes: Array.isArray(result["error-codes"]) ? result["error-codes"].join(",") : null,
+      errorCodes: errorCodes.length ? errorCodes.join(",") : null,
       tokenPresent: "yes",
       secretConfigured: "yes",
     });
-    return { ok: false, message: "تأیید امنیتی ناموفق بود. لطفاً دوباره تلاش کنید." };
+    // Cloudflare returns `timeout-or-duplicate` when a token has already been
+    // consumed or has expired — that is a distinct, recoverable state the user
+    // resolves by re-verifying, not a hard failure.
+    if (errorCodes.includes("timeout-or-duplicate")) {
+      return { ok: false, message: MSG_EXPIRED };
+    }
+    return { ok: false, message: MSG_FAILED };
   } catch (error) {
+    // fetch threw: timeout (AbortError / TimeoutError) or a transport error —
+    // i.e. we could not reach the verification provider at all.
     const reason = error instanceof Error && error.name ? error.name : "unknown";
     logVerify("reject", { reason, tokenPresent: "yes", secretConfigured: "yes" });
-    return { ok: false, message: "تأیید امنیتی ناموفق بود. لطفاً دوباره تلاش کنید." };
+    return { ok: false, message: MSG_PROVIDER };
   }
 }

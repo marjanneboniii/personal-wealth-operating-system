@@ -80,6 +80,67 @@ test("CAPTCHA — invalid/expired token is rejected and valid token proceeds", a
   }
 });
 
+test("CAPTCHA — an expired/duplicate token maps to the distinct re-verify message", async () => {
+  process.env.TURNSTILE_SECRET_KEY = "server-secret";
+  const original = global.fetch;
+  global.fetch = (async () =>
+    new Response(JSON.stringify({ success: false, "error-codes": ["timeout-or-duplicate"] }), { status: 200 })
+  ) as typeof fetch;
+  try {
+    const result = await verifyTurnstile("expired-token");
+    assert.equal(result.ok, false);
+    assert.equal(result.ok === false && result.message, "تأیید امنیتی منقضی شده است. لطفاً دوباره تأیید کنید.");
+  } finally {
+    global.fetch = original;
+    delete process.env.TURNSTILE_SECRET_KEY;
+  }
+});
+
+test("CAPTCHA — a network/provider failure maps to the distinct connectivity message", async () => {
+  process.env.TURNSTILE_SECRET_KEY = "server-secret";
+  const original = global.fetch;
+  // fetch throws — provider unreachable / request aborted.
+  global.fetch = (async () => { throw new Error("network down"); }) as typeof fetch;
+  try {
+    const result = await verifyTurnstile("some-token");
+    assert.equal(result.ok, false);
+    assert.equal(result.ok === false && result.message, "ارتباط با سرویس تأیید امنیتی برقرار نشد. لطفاً دوباره تلاش کنید.");
+  } finally {
+    global.fetch = original;
+    delete process.env.TURNSTILE_SECRET_KEY;
+  }
+});
+
+test("CAPTCHA — a non-OK HTTP status maps to the connectivity message (provider problem)", async () => {
+  process.env.TURNSTILE_SECRET_KEY = "server-secret";
+  const original = global.fetch;
+  global.fetch = (async () => new Response("upstream error", { status: 502 })) as typeof fetch;
+  try {
+    const result = await verifyTurnstile("some-token");
+    assert.equal(result.ok, false);
+    assert.equal(result.ok === false && result.message, "ارتباط با سرویس تأیید امنیتی برقرار نشد. لطفاً دوباره تلاش کنید.");
+  } finally {
+    global.fetch = original;
+    delete process.env.TURNSTILE_SECRET_KEY;
+  }
+});
+
+test("CAPTCHA — a generic verification failure still maps to the retry message", async () => {
+  process.env.TURNSTILE_SECRET_KEY = "server-secret";
+  const original = global.fetch;
+  global.fetch = (async () =>
+    new Response(JSON.stringify({ success: false, "error-codes": ["invalid-input-response"] }), { status: 200 })
+  ) as typeof fetch;
+  try {
+    const result = await verifyTurnstile("bad-token");
+    assert.equal(result.ok, false);
+    assert.equal(result.ok === false && result.message, "تأیید امنیتی ناموفق بود. لطفاً دوباره تلاش کنید.");
+  } finally {
+    global.fetch = original;
+    delete process.env.TURNSTILE_SECRET_KEY;
+  }
+});
+
 test("TOTP — Persian digits normalize and invalid codes are rejected", () => {
   assert.equal(normalizeOtp("۱۲۳۴۵۶"), "123456");
   assert.equal(verifyTotp("JBSWY3DPEHPK3PXP", "000000", 0), false);
