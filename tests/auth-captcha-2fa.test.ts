@@ -46,10 +46,12 @@ test("CAPTCHA — development falls back to Cloudflare test keys (widget renders
 test("CAPTCHA — production stays fail-closed when keys are unset (no dev fallback)", async () => {
   const originalEnv = process.env.NODE_ENV;
   const originalSite = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const originalSiteAlias = process.env.TURNSTILE_SITE_KEY;
   const originalSecret = process.env.TURNSTILE_SECRET_KEY;
   try {
     (process.env as Record<string, string>).NODE_ENV = "production";
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    delete process.env.TURNSTILE_SITE_KEY;
     delete process.env.TURNSTILE_SECRET_KEY;
     assert.equal(getTurnstileSiteKey(), undefined);
     const result = await verifyTurnstile("any-token");
@@ -59,8 +61,31 @@ test("CAPTCHA — production stays fail-closed when keys are unset (no dev fallb
     (process.env as Record<string, string>).NODE_ENV = originalEnv as string;
     if (originalSite === undefined) delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
     else process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = originalSite;
+    if (originalSiteAlias === undefined) delete process.env.TURNSTILE_SITE_KEY;
+    else process.env.TURNSTILE_SITE_KEY = originalSiteAlias;
     if (originalSecret === undefined) delete process.env.TURNSTILE_SECRET_KEY;
     else process.env.TURNSTILE_SECRET_KEY = originalSecret;
+  }
+});
+
+test("CAPTCHA — site key configured under the non-public name is honored (NEXT_PUBLIC_ not required)", () => {
+  const originalEnv = process.env.NODE_ENV;
+  const originalSite = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const originalSiteAlias = process.env.TURNSTILE_SITE_KEY;
+  try {
+    (process.env as Record<string, string>).NODE_ENV = "production";
+    delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    process.env.TURNSTILE_SITE_KEY = "0x4AAAAAAEi9TyCQb-kc837g";
+    assert.equal(getTurnstileSiteKey(), "0x4AAAAAAEi9TyCQb-kc837g");
+    // The public name still wins when both are present.
+    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = "public-wins";
+    assert.equal(getTurnstileSiteKey(), "public-wins");
+  } finally {
+    (process.env as Record<string, string>).NODE_ENV = originalEnv as string;
+    if (originalSite === undefined) delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    else process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = originalSite;
+    if (originalSiteAlias === undefined) delete process.env.TURNSTILE_SITE_KEY;
+    else process.env.TURNSTILE_SITE_KEY = originalSiteAlias;
   }
 });
 

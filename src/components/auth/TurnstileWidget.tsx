@@ -16,6 +16,11 @@ declare global {
 export default function TurnstileWidget({ siteKey, resetKey }: { siteKey?: string; resetKey?: unknown }) {
   const ref = useRef<HTMLDivElement>(null);
   const widget = useRef<string | undefined>(undefined);
+  // Explicit rendering does NOT auto-inject a hidden `cf-turnstile-response`
+  // input (implicit rendering does). We must surface the token returned by the
+  // `callback` to the surrounding form ourselves, otherwise `verifyTurnstile`
+  // always sees an empty token and rejects every login/register.
+  const tokenInput = useRef<HTMLInputElement | null>(null);
   const id = useId();
   const [status, setStatus] = useState<"loading" | "ready" | "expired" | "error">("loading");
 
@@ -26,23 +31,39 @@ export default function TurnstileWidget({ siteKey, resetKey }: { siteKey?: strin
       language: "fa",
       theme: "auto",
       size: "flexible",
-      callback: () => setStatus("ready"),
+      // `callback(token)` is the ONLY place the challenge token is delivered in
+      // explicit mode. Write it into the hidden input so the form submits it.
+      callback: (token: string) => {
+        if (tokenInput.current) tokenInput.current.value = token;
+        setStatus("ready");
+      },
       // The token expired before the form was submitted: re-arm the widget and
       // ask the user to verify again (distinct from a load/network failure).
-      "expired-callback": () => { setStatus("expired"); if (widget.current) window.turnstile?.reset(widget.current); },
+      "expired-callback": () => {
+        if (tokenInput.current) tokenInput.current.value = "";
+        setStatus("expired");
+        if (widget.current) window.turnstile?.reset(widget.current);
+      },
       // The widget could not reach / run the challenge (network or provider).
-      "error-callback": () => setStatus("error"),
+      "error-callback": () => {
+        if (tokenInput.current) tokenInput.current.value = "";
+        setStatus("error");
+      },
     });
   };
 
   useEffect(() => {
     if (widget.current) {
+      if (tokenInput.current) tokenInput.current.value = "";
       window.turnstile?.reset(widget.current);
       setStatus("loading");
     }
   }, [resetKey]);
 
-  useEffect(() => () => { if (widget.current) window.turnstile?.remove(widget.current); }, []);
+  useEffect(() => () => {
+    if (tokenInput.current) tokenInput.current.value = "";
+    if (widget.current) window.turnstile?.remove(widget.current);
+  }, []);
 
   return (
     <fieldset className="captcha-panel min-w-0" aria-describedby={`${id}-help`}>
@@ -50,6 +71,8 @@ export default function TurnstileWidget({ siteKey, resetKey }: { siteKey?: strin
       <p id={`${id}-help`} className="muted mb-2 text-[11px]">لطفاً تأیید کنید که ربات نیستید.</p>
       {siteKey ? (
         <>
+          {/* Holds the challenge token for explicit rendering (see above). */}
+          <input ref={tokenInput} type="hidden" name="cf-turnstile-response" />
           <Script
             src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
             strategy="afterInteractive"

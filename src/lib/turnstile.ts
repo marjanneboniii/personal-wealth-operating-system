@@ -44,7 +44,12 @@ function isProduction(): boolean {
  * local development even before real credentials are provisioned.
  */
 export function getTurnstileSiteKey(): string | undefined {
-  const configured = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim();
+  // Site keys are public by design. We read the key server-side and pass it to
+  // the client widget as a prop, so a value set under the non-public name
+  // (`TURNSTILE_SITE_KEY`) also works without being inlined by Next.js. This
+  // guards against the common misconfiguration of omitting the `NEXT_PUBLIC_`
+  // prefix, which otherwise leaves the widget in the "unavailable" state.
+  const configured = (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || process.env.TURNSTILE_SITE_KEY?.trim());
   if (configured) return configured;
   return isProduction() ? undefined : DEV_TEST_SITE_KEY;
 }
