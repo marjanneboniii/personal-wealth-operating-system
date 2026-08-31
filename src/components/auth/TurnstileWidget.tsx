@@ -9,6 +9,7 @@ declare global {
       render: (element: HTMLElement, options: Record<string, unknown>) => string;
       reset: (id: string) => void;
       remove: (id: string) => void;
+      ready: (callback: () => void) => void;
     };
   }
 }
@@ -25,30 +26,40 @@ export default function TurnstileWidget({ siteKey, resetKey }: { siteKey?: strin
   const [status, setStatus] = useState<"loading" | "ready" | "expired" | "error">("loading");
 
   const render = () => {
-    if (!siteKey || !ref.current || !window.turnstile || widget.current) return;
-    widget.current = window.turnstile.render(ref.current, {
-      sitekey: siteKey,
-      language: "fa",
-      theme: "auto",
-      size: "flexible",
-      // `callback(token)` is the ONLY place the challenge token is delivered in
-      // explicit mode. Write it into the hidden input so the form submits it.
-      callback: (token: string) => {
-        if (tokenInput.current) tokenInput.current.value = token;
-        setStatus("ready");
-      },
-      // The token expired before the form was submitted: re-arm the widget and
-      // ask the user to verify again (distinct from a load/network failure).
-      "expired-callback": () => {
-        if (tokenInput.current) tokenInput.current.value = "";
-        setStatus("expired");
-        if (widget.current) window.turnstile?.reset(widget.current);
-      },
-      // The widget could not reach / run the challenge (network or provider).
-      "error-callback": () => {
-        if (tokenInput.current) tokenInput.current.value = "";
-        setStatus("error");
-      },
+    const turnstile = window.turnstile;
+    if (!siteKey || !ref.current || !turnstile || widget.current) return;
+    // Explicit rendering must wait until Turnstile's runtime has fully
+    // initialized — not merely until the api.js <script> tag has finished
+    // loading. Rendering before the runtime is ready silently produces no
+    // widget (and therefore no challenge token), which left the hidden input
+    // empty and rejected every login/register with "please confirm you are not
+    // a robot". `turnstile.ready()` is the canonical guard for this.
+    turnstile.ready(() => {
+      if (!ref.current || widget.current) return;
+      widget.current = turnstile.render(ref.current, {
+        sitekey: siteKey,
+        language: "fa",
+        theme: "auto",
+        size: "flexible",
+        // `callback(token)` is the ONLY place the challenge token is delivered in
+        // explicit mode. Write it into the hidden input so the form submits it.
+        callback: (token: string) => {
+          if (tokenInput.current) tokenInput.current.value = token;
+          setStatus("ready");
+        },
+        // The token expired before the form was submitted: re-arm the widget and
+        // ask the user to verify again (distinct from a load/network failure).
+        "expired-callback": () => {
+          if (tokenInput.current) tokenInput.current.value = "";
+          setStatus("expired");
+          if (widget.current) turnstile.reset(widget.current);
+        },
+        // The widget could not reach / run the challenge (network or provider).
+        "error-callback": () => {
+          if (tokenInput.current) tokenInput.current.value = "";
+          setStatus("error");
+        },
+      });
     });
   };
 
@@ -76,7 +87,11 @@ export default function TurnstileWidget({ siteKey, resetKey }: { siteKey?: strin
           <Script
             src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
             strategy="afterInteractive"
-            onLoad={render}
+            // `onReady` (not `onLoad`) is the correct hook here: it runs after the
+            // script loads AND re-runs whenever the widget re-mounts after the
+            // script is already cached. `onLoad` silently never fires in that
+            // second case, leaving the widget blank and the token empty.
+            onReady={render}
             onError={() => setStatus("error")}
           />
           <div ref={ref} className="turnstile-slot" dir="ltr" />
