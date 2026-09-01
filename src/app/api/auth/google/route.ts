@@ -35,8 +35,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json();
-    const idToken: string | null = body.idToken || body.credential || null;
+    let body: Record<string, unknown>;
+    try {
+      body = (await req.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ ok: false, error: "درخواست ورود Google نامعتبر است." }, { status: 400 });
+    }
+    const idToken: string | null = (typeof body.idToken === "string" && body.idToken) || (typeof body.credential === "string" && body.credential) || null;
     const captcha = await verifyTurnstile(String(body.turnstileToken || ""), getClientIp(req));
     if (!captcha.ok) return NextResponse.json({ ok: false, error: captcha.message }, { status: 400 });
 
@@ -47,9 +52,13 @@ export async function POST(req: Request) {
     // Verify token via Google tokeninfo endpoint
     let info: Record<string, unknown>;
     try {
-      const verifyRes = await fetch(
-        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
-      );
+      // POST keeps the JWT out of the URL (length limits / access logs).
+      const verifyRes = await fetch("https://oauth2.googleapis.com/tokeninfo", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ id_token: idToken }),
+        cache: "no-store",
+      });
       if (!verifyRes.ok) {
         return NextResponse.json({ ok: false, error: "توکن Google نامعتبر است." }, { status: 401 });
       }
@@ -116,8 +125,17 @@ export async function POST(req: Request) {
         .where(eq(users.id, existingByGoogle.id));
       const [totp] = await db.select({ userId: userTotpCredentials.userId }).from(userTotpCredentials).where(eq(userTotpCredentials.userId, existingByGoogle.id)).limit(1);
       if (totp) {
+        let challenge: string;
+        try {
+          challenge = signChallenge(existingByGoogle.id);
+        } catch {
+          return NextResponse.json(
+            { ok: false, error: "ورود دو مرحله‌ای پیکربندی نشده است. TOTP_ENCRYPTION_KEY را در سرور تنظیم کنید." },
+            { status: 503 },
+          );
+        }
         const response = NextResponse.json({ ok: false, requiresTwoFactor: true, error: "کد ۶ رقمی برنامه تأییدکننده را وارد کنید." }, { status: 401 });
-        response.cookies.set("pwos_2fa_challenge", signChallenge(existingByGoogle.id), { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/login", maxAge: 300 });
+        response.cookies.set("pwos_2fa_challenge", challenge, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/login", maxAge: 300 });
         return response;
       }
       const { token, expiresAt } = await createSession(existingByGoogle.id);
@@ -137,7 +155,13 @@ export async function POST(req: Request) {
     if (existingByEmail) {
       // Prevent Account Takeover: DO NOT automatically link to an existing account with matching email.
       // Require the user to be currently authenticated as that account to link their Google account.
-      const currentUser = await getCurrentUserFromRequest(req);
+      // A broken existing session must not abort Google sign-in with a generic 500.
+      let currentUser: Awaited<ReturnType<typeof getCurrentUserFromRequest>> = null;
+      try {
+        currentUser = await getCurrentUserFromRequest(req);
+      } catch {
+        currentUser = null;
+      }
       if (currentUser && currentUser.id === existingByEmail.id) {
         await db
           .update(users)
