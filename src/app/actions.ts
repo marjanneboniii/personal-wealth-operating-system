@@ -50,6 +50,7 @@ import {
   getMiscCategory,
 } from "@/features/categories/service";
 import { executePlanned, payInstallment } from "@/features/planning/service";
+import { buildInstallmentPaymentSnapshot } from "@/features/planning/installmentFx";
 import { completeSetup, getSetupState } from "@/features/setup/service";
 import { rootCauseOf } from "@/db/init-schema";
 import { registerMoneyAccount } from "@/features/accounts/service";
@@ -754,9 +755,25 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
 
       // Debt / Installment linkage — update status within same transaction (Transactional Integrity)
       if (linkedInst) {
+        // Freeze the payment: amount actually paid + the FX rate valid at this
+        // moment + the USD equivalent it produces. Written in the SAME
+        // transaction as the status flip, so a `paid` row can never exist
+        // without its historical USD snapshot. A later FX change is irrelevant
+        // to these three columns — nothing recomputes them.
+        const paymentSnapshot = buildInstallmentPaymentSnapshot({
+          paidToman: irtAmountStr,
+          fxRate: serverRate.toString(),
+        });
         await tx
           .update(installments)
-          .set({ status: "paid", paidAt: input.entryDate, paidEntryId: entry.id })
+          .set({
+            status: "paid",
+            paidAt: input.entryDate,
+            paidEntryId: entry.id,
+            paidToman: paymentSnapshot.paidToman,
+            paidFxRate: paymentSnapshot.paidFxRate,
+            paidUsd: paymentSnapshot.paidUsd,
+          })
           .where(eq(installments.id, linkedInst.id));
         // Check if debt settled
         const pending = await tx
@@ -1005,6 +1022,11 @@ export async function createDebtAction(_prev: ActionResult | null, fd: FormData)
     // Legacy dual-write (kept ONLY for Phase 4 migration compatibility).
     const principalBase = principalUsdCreated;
     const installmentBase = installmentUsdCreated;
+    // Creation-time FX snapshot of the installment schedule. Frozen: a later
+    // rate change never rewrites it, it only moves the DERIVED current
+    // equivalent shown for a pending installment.
+    const installmentOriginalFxRate = rate.toString();
+    const installmentOriginalFxCapturedAt = new Date();
 
     const debt = await db.transaction(async (tx) => {
       const [created] = await tx
@@ -1034,6 +1056,8 @@ export async function createDebtAction(_prev: ActionResult | null, fd: FormData)
             amountBase: installmentBase,
             amountToman: installmentToman,
             amountUsdCreated: installmentUsdCreated,
+            originalFxRate: installmentOriginalFxRate,
+            originalFxRateCapturedAt: installmentOriginalFxCapturedAt,
             status: "pending",
           })),
         );

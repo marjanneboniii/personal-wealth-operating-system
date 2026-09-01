@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, assets, debts, installments } from "@/db/schema";
+import { accounts, assets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import RowAction from "@/components/RowAction";
@@ -10,11 +10,12 @@ import {
   formatDualDate,
   todayIso,
   faCount,
+  formatMoney,
+  formatPct,
   formatTomanPrimary,
-  resolveTomanAmount,
   sumToman,
 } from "@/lib/format";
-import { getLatestUsdIrtRate } from "@/lib/fx";
+import { listInstallmentSchedule } from "@/features/planning/service";
 
 export const dynamic = "force-dynamic";
 
@@ -25,23 +26,13 @@ function daysUntil(iso: string) {
 export default async function InstallmentsPage() {
   const authUser = await ensureAuth();
   await seedIfEmpty();
-  const rows = await db
-    .select({
-      id: installments.id,
-      seq: installments.seq,
-      dueDate: installments.dueDate,
-      amountBase: installments.amountBase,
-      amountToman: installments.amountToman,
-      status: installments.status,
-      paidAt: installments.paidAt,
-      debtId: debts.id,
-      title: debts.title,
-      creditor: debts.creditor,
-    })
-    .from(installments)
-    .innerJoin(debts, eq(debts.id, installments.debtId))
-    .where(and(sql`${debts.deletedAt} is null`, authUser ? sql`(${debts.userId} = ${authUser.id} or ${debts.userId} is null)` : sql`1=1`))
-    .orderBy(asc(installments.dueDate));
+  // Backend is the source of truth for the money rules: the schedule already
+  // arrives with the frozen Toman amount and the correct USD figure per state
+  // (pending → current rate, paid → payment snapshot). This page only formats.
+  const schedule = await listInstallmentSchedule(authUser?.id);
+  const rows = schedule.rows;
+  const rate = schedule.rate;
+  const insight = schedule.pendingUsdInsight;
 
   const cashAccount = await db
     .select({ id: accounts.id })
@@ -56,30 +47,28 @@ export default async function InstallmentsPage() {
     .orderBy(asc(accounts.code))
     .limit(1);
 
-  const fx = await getLatestUsdIrtRate();
-
   const today = todayIso();
-  const pending = rows.filter((r) => r.status === "pending");
-  const paid = rows.filter((r) => r.status === "paid");
+  const pending = rows.filter((r) => !r.fx.isPaid);
+  const paid = rows.filter((r) => r.fx.isPaid);
   const overdueList = pending.filter((r) => r.dueDate < today);
   const next30 = pending.filter((r) => r.dueDate >= today && daysUntil(r.dueDate) <= 30);
 
-  // Resolve each row's contractual Toman once; never USD×rate as primary.
-  const resolved = rows.map((r) => ({
-    ...r,
-    toman: resolveTomanAmount(r.amountToman, r.amountBase, fx.rate),
-  }));
-  const pendingResolved = resolved.filter((r) => r.status === "pending");
-  const remainingTotalToman = sumToman(pendingResolved.map((r) => r.toman));
-  const next30Toman = sumToman(
-    pendingResolved.filter((r) => r.dueDate >= today && daysUntil(r.dueDate) <= 30).map((r) => r.toman),
-  );
-  const remainingDisp = formatTomanPrimary(remainingTotalToman, fx.rate);
-  const next30Disp = formatTomanPrimary(next30Toman, fx.rate);
+  // Pending totals only — a paid installment's Toman is history, not a balance.
+  const remainingTotalToman = sumToman(pending.map((r) => r.fx.amountToman));
+  const next30Toman = sumToman(next30.map((r) => r.fx.amountToman));
+  const remainingDisp = formatTomanPrimary(remainingTotalToman, rate);
+  const next30Disp = formatTomanPrimary(next30Toman, rate);
+
+  const insightLabel =
+    insight?.direction === "decrease"
+      ? "کاهش معادل دلاری"
+      : insight?.direction === "increase"
+        ? "افزایش معادل دلاری"
+        : "معادل دلاری بدون تغییر";
 
   return (
     <div className="space-y-8">
-      <PageHeader title="اقساط" subtitle="مبلغ تومان هر قسط ثابت است؛ معادل دلاری فقط نمایشی است و با نرخ روز تغییر می‌کند." />
+      <PageHeader title="اقساط" subtitle="مبلغ تومان هر قسط ثابت است؛ معادل دلاری قسط پرداخت‌نشده با نرخ روز محاسبه می‌شود و برای قسط پرداخت‌شده روی نرخ لحظه پرداخت منجمد می‌ماند." />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="معوق" value={faCount(overdueList.length)} tone={overdueList.length ? "down" : "neutral"} />
@@ -91,10 +80,33 @@ export default async function InstallmentsPage() {
         <Metric
           label="مانده اقساط"
           value={remainingDisp.primary}
-          hint={remainingDisp.usdHint ? `معادل: ${remainingDisp.usdHint}` : undefined}
+          hint={remainingDisp.usdHint ? `معادل فعلی: ${remainingDisp.usdHint}` : undefined}
         />
         <Metric label="پرداخت‌شده" value={faCount(paid.length)} tone={paid.length > 0 ? "up" : "neutral"} hint={`از ${faCount(rows.length)} قسط`} />
       </section>
+
+      {insight && (
+        <div className="card flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
+          <div>
+            <div className="muted text-[10px] sm:text-[11px] font-medium">{insightLabel}</div>
+            <div className="muted mt-0.5 text-[9.5px]">از زمان ثبت قسط · فقط اقساط پرداخت‌نشده</div>
+          </div>
+          {insight.direction === "unchanged" ? (
+            <div className="text-[13px] font-bold" dir="rtl">
+              بدون تغییر
+            </div>
+          ) : (
+            <div
+              className="text-[13px] font-bold money-nowrap"
+              dir="rtl"
+              style={{ color: insight.direction === "decrease" ? "var(--negative)" : "var(--positive)" }}
+            >
+              {formatMoney(insight.amountUsd, "USD")}
+              <span className="num mr-2 text-[11px]">{formatPct(insight.percent, 0)}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <Section title="زمان‌بندی اقساط">
         {rows.length === 0 ? (
@@ -124,15 +136,19 @@ export default async function InstallmentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {resolved.map((r) => {
-                  const late = r.status === "pending" && r.dueDate < today;
-                  const soon = !late && r.status === "pending" && daysUntil(r.dueDate) <= 14;
+                {rows.map((r) => {
+                  const late = !r.fx.isPaid && r.dueDate < today;
+                  const soon = !late && !r.fx.isPaid && daysUntil(r.dueDate) <= 14;
                   const d = daysUntil(r.dueDate);
-                  const disp = formatTomanPrimary(r.toman, fx.rate);
+                  // Toman is always the frozen obligation. The USD line comes
+                  // from the backend view: payment snapshot for a paid row,
+                  // current-rate equivalent for a pending one.
+                  const primary = r.fx.displayToman != null ? formatMoney(r.fx.displayToman, "IRT") : "—";
+                  const usdLine = r.fx.displayUsd != null ? formatMoney(r.fx.displayUsd, "USD") : null;
                   return (
-                    <tr key={r.id} className={r.status === "paid" ? "opacity-50" : ""}>
+                    <tr key={r.id} className={r.fx.isPaid ? "opacity-50" : ""}>
                       <td>
-                        {r.status === "paid" ? (
+                        {r.fx.isPaid ? (
                           <span className="badge badge-pos">پرداخت‌شده</span>
                         ) : late ? (
                           <span className="badge badge-neg">معوق</span>
@@ -152,8 +168,8 @@ export default async function InstallmentsPage() {
                       <td>
                         <span className="num block text-[12px]">{formatDualDate(r.dueDate)}</span>
                         <span className="muted num text-[9.5px]">
-                          {r.status === "paid" && r.paidAt
-                            ? `پرداخت در ${formatDualDate(r.paidAt)}`
+                          {r.fx.isPaid && r.fx.paidAt
+                            ? `پرداخت در ${formatDualDate(r.fx.paidAt)}`
                             : d < 0
                               ? `${faCount(Math.abs(d))} روز گذشته`
                               : d === 0
@@ -162,13 +178,16 @@ export default async function InstallmentsPage() {
                         </span>
                       </td>
                       <td className="td-num font-bold" dir="rtl">
-                        <div>{disp.primary}</div>
-                        {disp.usdHint && (
-                          <div className="muted num text-[9.5px]">معادل: {disp.usdHint}</div>
+                        <div>{primary}</div>
+                        {usdLine && (
+                          <div className="muted num text-[9.5px]">
+                            {r.fx.isPaid ? "معادل هنگام پرداخت: " : "معادل فعلی: "}
+                            {usdLine}
+                          </div>
                         )}
                       </td>
                       <td className="text-left">
-                        {r.status === "pending" && (
+                        {!r.fx.isPaid && (
                           <span className="flex justify-end gap-1">
                             <Link
                               href={`/new?type=debt_repayment&installmentId=${r.id}&entryDate=${r.dueDate}&title=${encodeURIComponent(`قسط ${r.seq} — ${r.title}`)}`}

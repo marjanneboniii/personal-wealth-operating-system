@@ -865,6 +865,21 @@ const STATEMENTS = [
   `ALTER TABLE installments ADD COLUMN IF NOT EXISTS paid_toman numeric(38,18);`,
   `ALTER TABLE installments ADD COLUMN IF NOT EXISTS paid_usd numeric(38,18);`,
   `ALTER TABLE installments ADD COLUMN IF NOT EXISTS paid_fx_rate numeric(38,18);`,
+  // Phase 6 — creation-time FX snapshot for a PENDING installment (additive;
+  // nullable). Historical: it is never rewritten by a later rate.
+  `ALTER TABLE installments ADD COLUMN IF NOT EXISTS original_fx_rate numeric(38,18);`,
+  `ALTER TABLE installments ADD COLUMN IF NOT EXISTS original_fx_rate_captured_at timestamptz;`,
+  // Deterministic, non-destructive backfill: the creation rate is recovered
+  // from the two frozen creation-time figures already stored on the row
+  // (amount_toman ÷ amount_usd_created). The CURRENT rate is never used, and
+  // rows that already carry a value are left untouched.
+  `UPDATE installments
+     SET original_fx_rate = amount_toman / amount_usd_created,
+         original_fx_rate_captured_at = created_at
+   WHERE original_fx_rate IS NULL
+     AND amount_toman IS NOT NULL
+     AND amount_usd_created IS NOT NULL
+     AND amount_usd_created > 0;`,
   `ALTER TABLE obligations ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
   `ALTER TABLE funds ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
   `ALTER TABLE snapshots ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,

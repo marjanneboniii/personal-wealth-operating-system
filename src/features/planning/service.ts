@@ -18,6 +18,12 @@ import { getAccountBalances, hasMultipleUsers } from "@/features/ledger/queries"
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { addMonthsIso, todayIso } from "@/lib/format";
+import {
+  buildInstallmentFxView,
+  buildInstallmentPaymentSnapshot,
+  summarizePendingUsdChange,
+  type InstallmentFxView,
+} from "@/features/planning/installmentFx";
 
 async function resolvePlanningUserId(explicitUserId?: string): Promise<string | undefined> {
   if (explicitUserId) return explicitUserId;
@@ -340,6 +346,82 @@ export async function upcomingInstallments(limit = 8, userId?: string) {
 }
 
 /**
+ * Full installment schedule for one tenant, with the state-aware FX view
+ * resolved in the BACKEND (§ business rule):
+ *
+ *   pending → Toman frozen, USD equivalent derived from the CURRENT rate
+ *   paid    → Toman and USD both read from the payment snapshot (immutable)
+ *
+ * The UI only formats what this returns; it never re-derives a USD figure.
+ */
+export async function listInstallmentSchedule(userId?: string) {
+  const u = await resolvePlanningUserId(userId);
+  if (!u && (await hasMultipleUsers())) {
+    return { rate: null as string | null, rows: [] as InstallmentScheduleRow[], pendingUsdInsight: null };
+  }
+  const fx = await getLatestUsdIrtRateForUser(u ?? null);
+  const rows = await db
+    .select({
+      id: installments.id,
+      seq: installments.seq,
+      dueDate: installments.dueDate,
+      amountBase: installments.amountBase,
+      amountToman: installments.amountToman,
+      amountUsdCreated: installments.amountUsdCreated,
+      originalFxRate: installments.originalFxRate,
+      originalFxRateCapturedAt: installments.originalFxRateCapturedAt,
+      paidToman: installments.paidToman,
+      paidUsd: installments.paidUsd,
+      paidFxRate: installments.paidFxRate,
+      paidAt: installments.paidAt,
+      status: installments.status,
+      debtId: debts.id,
+      title: debts.title,
+      creditor: debts.creditor,
+    })
+    .from(installments)
+    .innerJoin(debts, eq(debts.id, installments.debtId))
+    .where(
+      and(
+        sql`${debts.deletedAt} is null`,
+        u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`,
+      ),
+    )
+    .orderBy(asc(installments.dueDate));
+
+  const mapped: InstallmentScheduleRow[] = rows.map((r) => ({
+    ...r,
+    fx: buildInstallmentFxView(r, fx.rate),
+  }));
+
+  return {
+    rate: fx.rate,
+    rows: mapped,
+    pendingUsdInsight: summarizePendingUsdChange(mapped.map((r) => r.fx)),
+  };
+}
+
+export type InstallmentScheduleRow = {
+  id: string;
+  seq: number;
+  dueDate: string;
+  amountBase: string;
+  amountToman: string | null;
+  amountUsdCreated: string | null;
+  originalFxRate: string | null;
+  originalFxRateCapturedAt: Date | string | null;
+  paidToman: string | null;
+  paidUsd: string | null;
+  paidFxRate: string | null;
+  paidAt: string | null;
+  status: string;
+  debtId: string;
+  title: string;
+  creditor: string;
+  fx: InstallmentFxView;
+};
+
+/**
  * SECURITY (M-03): atomic installment payment.
  *
  * Before the fix the sequence was: read installment -> post ledger entry (own
@@ -391,6 +473,27 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     if (!debt.accountId) throw new Error("حساب بدهی تعریف نشده است");
 
     const amount = D(inst.amountBase);
+    // 3b) Capture the FX rate valid AT THIS MOMENT, from the project's existing
+    //     per-user FX source of truth and INSIDE this transaction, so the
+    //     payment snapshot below can never be rebuilt from a later rate.
+    const paymentFx = await getLatestUsdIrtRateForUser(u ?? null, tx);
+    const paymentRate = D(paymentFx.rate);
+    // The obligation being settled: contractual Toman (Phase 3+) or, for a
+    // legacy USD-only row, its book amount converted once at the payment rate.
+    const settledToman =
+      inst.amountToman != null
+        ? D(inst.amountToman)
+        : paymentRate.gt(0)
+          ? amount.mul(paymentRate)
+          : null;
+    if (!settledToman) throw new Error("نرخ تبدیل دلار به تومان برای ثبت پرداخت این قسط موجود نیست.");
+    // Throws (and rolls the whole payment back) rather than leaving a `paid`
+    // row without a USD snapshot.
+    const paymentSnapshot = buildInstallmentPaymentSnapshot({
+      paidToman: settledToman.toString(),
+      fxRate: paymentFx.rate,
+    });
+
     // Reference reads run INSIDE the transaction (single-connection drivers
     // hold an exclusive lock during it) — keeps the read set consistent too.
     const cashUnits = await unitsFor(cashAccountId, amount.toString(), tx, u);
@@ -424,9 +527,17 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     );
 
     // 5) Update installment status + payment metadata (same transaction).
+    //    Toman, FX rate and USD equivalent are frozen here, once, forever.
     await tx
       .update(installments)
-      .set({ status: "paid", paidAt: todayIso(), paidEntryId: entry.id })
+      .set({
+        status: "paid",
+        paidAt: todayIso(),
+        paidEntryId: entry.id,
+        paidToman: paymentSnapshot.paidToman,
+        paidFxRate: paymentSnapshot.paidFxRate,
+        paidUsd: paymentSnapshot.paidUsd,
+      })
       .where(eq(installments.id, installmentId));
 
     // 6) Settle the debt once its last pending installment is paid.

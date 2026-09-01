@@ -654,6 +654,14 @@ export const installments = pgTable(
     amountToman: money("amount_toman"),
     /** Creation-time USD snapshot (audit / display only). */
     amountUsdCreated: money("amount_usd_created"),
+    /**
+     * Creation-time FX rate (IRT per 1 USD) that produced `amount_usd_created`.
+     * Historical snapshot — never overwritten by a later rate. Used to show how
+     * much the USD equivalent of a PENDING obligation moved since it was booked.
+     */
+    originalFxRate: money("original_fx_rate"),
+    /** When the creation-time FX snapshot above was captured. */
+    originalFxRateCapturedAt: timestamp("original_fx_rate_captured_at", { withTimezone: true }),
     /** Frozen at settlement (Phase 5): actual Toman paid. */
     paidToman: money("paid_toman"),
     /** Frozen at settlement (Phase 5): USD equivalent at the payment rate. */
