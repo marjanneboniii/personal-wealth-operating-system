@@ -241,7 +241,28 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ ok: true, message: "ثبت‌نام با Google موفق." });
   } catch (e) {
-    console.warn("[google auth failure] verification failed");
+    const err = e as { code?: string; message?: string };
+    const code = String(err?.code || "");
+    const message = String(err?.message || "");
+    console.warn("[google auth failure]", code || "no-code", message.slice(0, 180));
+    if (code === "42703" || /column .* does not exist/i.test(message)) {
+      return NextResponse.json({ ok: false, error: "ساختار پایگاه داده برای ورود Google کامل نیست. مهاجرت‌ها را اجرا کنید." }, { status: 503 });
+    }
+    if (code === "42P01" || /relation .* does not exist/i.test(message)) {
+      return NextResponse.json({ ok: false, error: "جدول‌های پایگاه داده پیدا نشد. مهاجرت‌ها را اجرا کنید." }, { status: 503 });
+    }
+    if (code === "23505") {
+      return NextResponse.json({ ok: false, error: "این حساب Google قبلاً ثبت شده است. دوباره تلاش کنید." }, { status: 409 });
+    }
+    if (code === "23502") {
+      return NextResponse.json({ ok: false, error: "ثبت حساب Google به‌خاطر محدودیت پایگاه داده ناموفق بود." }, { status: 500 });
+    }
+    if (/TOTP encryption/i.test(message)) {
+      return NextResponse.json({ ok: false, error: "ورود دو مرحله‌ای پیکربندی نشده است. TOTP_ENCRYPTION_KEY را در سرور تنظیم کنید." }, { status: 503 });
+    }
+    if (/Authentication\/Database error/i.test(message)) {
+      return NextResponse.json({ ok: false, error: "ارتباط با پایگاه داده برقرار نشد. کمی بعد دوباره تلاش کنید." }, { status: 503 });
+    }
     return NextResponse.json({ ok: false, error: "خطای سرور در احراز هویت Google." }, { status: 500 });
   }
 }
