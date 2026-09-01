@@ -321,16 +321,6 @@ input[type="radio"] {
   font-size: clamp(1rem, 6vw, 2.1rem);
 }
 
-/* Authentication challenges stay within 320px PWA viewports. */
-.captcha-panel { max-width: 100%; border: 0; padding: 0; }
-.turnstile-slot { width: 100%; max-width: 100%; min-height: 65px; overflow: visible; }
-.turnstile-slot iframe { max-width: 100% !important; }
-.auth-otp { text-align: center; letter-spacing: 0.45em; font-size: 1.15rem; }
-
-@media (max-width: 359px) {
-  .auth-otp { letter-spacing: 0.3em; }
-}
-
 .money-hero-sm {
   font-size: clamp(1.15rem, 5vw, 1.55rem);
   line-height: 1.2;
