@@ -36,6 +36,35 @@ function isProduction(): boolean {
 }
 
 /**
+ * Is CAPTCHA a hard requirement?
+ *
+ * Historically the answer was "always in production", which meant a deployment
+ * without Turnstile credentials locked every user out of /login and /register
+ * with «تأیید امنیتی در حال حاضر در دسترس نیست.» — the CAPTCHA became a denial
+ * of service against the legitimate owner rather than a defense.
+ *
+ * New behaviour:
+ *   - Keys configured  → CAPTCHA is rendered and STRICTLY enforced (unchanged).
+ *   - Keys NOT configured → the CAPTCHA step is skipped (the widget is hidden
+ *     instead of showing an error) and auth proceeds on the remaining
+ *     protections: per-username and per-IP rate limiting, password policy,
+ *     hashed credentials and optional TOTP two-factor.
+ *   - Operators who want the old strict behaviour set TURNSTILE_REQUIRED=true;
+ *     then a missing/failed CAPTCHA refuses authentication as before.
+ */
+function isTurnstileRequired(): boolean {
+  return process.env.TURNSTILE_REQUIRED?.trim().toLowerCase() === "true";
+}
+
+/**
+ * True when a real (or dev-fallback) credential pair exists, i.e. the widget
+ * can be rendered AND the token can actually be verified server-side.
+ */
+export function isTurnstileConfigured(): boolean {
+  return Boolean(getTurnstileSiteKey() && getTurnstileSecret());
+}
+
+/**
  * Resolve the PUBLIC Turnstile site key.
  *
  * Safe to expose to the browser (site keys are public by design). Prefers the
@@ -94,16 +123,38 @@ function logVerify(label: string, details: Record<string, string | number | null
 /** Server-only Cloudflare verification. Tokens are validated during the auth request. */
 export async function verifyTurnstile(token: string, remoteIp?: string | null): Promise<TurnstileResult> {
   const secret = getTurnstileSecret();
+  const siteKey = getTurnstileSiteKey();
+
+  // ── Not configured ────────────────────────────────────────────────────────
+  // No usable credential pair: there is no widget in the browser, so the user
+  // cannot possibly produce a token. Blocking here would lock everyone out of
+  // their own account. Skip the step (unless the operator opted into strict
+  // mode) and record it, so the situation is visible in the logs.
+  if (!secret || !siteKey) {
+    if (isTurnstileRequired()) {
+      logVerify("reject", {
+        reason: "not-configured-strict",
+        tokenPresent: token ? "yes" : "no",
+        secretConfigured: secret ? "yes" : "no",
+        siteKeyConfigured: siteKey ? "yes" : "no",
+      });
+      return { ok: false, message: MSG_UNAVAILABLE };
+    }
+    logVerify("skip", {
+      reason: "not-configured",
+      secretConfigured: secret ? "yes" : "no",
+      siteKeyConfigured: siteKey ? "yes" : "no",
+      note: "captcha disabled; rate-limiting and 2FA still apply",
+    });
+    return { ok: true };
+  }
+
+  // ── Configured → strict enforcement (unchanged behaviour) ─────────────────
   if (!token) {
-    logVerify("reject", { reason: "missing-token", tokenPresent: "no", secretConfigured: secret ? "yes" : "no" });
+    logVerify("reject", { reason: "missing-token", tokenPresent: "no", secretConfigured: "yes" });
     return { ok: false, message: MSG_MISSING };
   }
-  logVerify("verify", { tokenPresent: "yes", secretConfigured: secret ? "yes" : "no" });
-  if (!secret) {
-    // Fail-closed: production without a configured secret must refuse auth.
-    logVerify("reject", { reason: "no-secret", tokenPresent: "yes", secretConfigured: "no" });
-    return { ok: false, message: MSG_UNAVAILABLE };
-  }
+  logVerify("verify", { tokenPresent: "yes", secretConfigured: "yes" });
 
   try {
     const body = new URLSearchParams({ secret, response: token });
@@ -147,4 +198,15 @@ export async function verifyTurnstile(token: string, remoteIp?: string | null): 
     logVerify("reject", { reason, tokenPresent: "yes", secretConfigured: "yes" });
     return { ok: false, message: MSG_PROVIDER };
   }
+}
+
+/**
+ * Site key to hand to the browser widget.
+ *
+ * Returns the key ONLY when the server can also verify the resulting token
+ * (i.e. a secret exists). A half-configured deployment would otherwise render a
+ * challenge whose token is never checked — confusing UI for zero security.
+ */
+export function getTurnstileWidgetSiteKey(): string | undefined {
+  return isTurnstileConfigured() ? getTurnstileSiteKey() : undefined;
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getTurnstileSiteKey } from "@/lib/turnstile";
+import { getTurnstileWidgetSiteKey } from "@/lib/turnstile";
 import { seedIfEmpty } from "@/db/seed";
 import RegisterForm from "@/components/auth/RegisterForm";
 import BrandMark, { BrandWordmark } from "@/components/layout/BrandMark";
@@ -51,7 +51,7 @@ export default async function RegisterPage() {
 
         <RegisterForm
           googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID}
-          turnstileSiteKey={getTurnstileSiteKey()}
+          turnstileSiteKey={getTurnstileWidgetSiteKey()}
         />
 
         <div className="mt-6 flex items-center gap-3">

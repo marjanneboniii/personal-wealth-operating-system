@@ -1,11 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { getTurnstileSiteKey, verifyTurnstile } from "../src/lib/turnstile";
+import { getTurnstileSiteKey, getTurnstileWidgetSiteKey, isTurnstileConfigured, verifyTurnstile } from "../src/lib/turnstile";
 import { decryptTotpSecret, encryptTotpSecret, normalizeOtp, readChallenge, signChallenge, verifyTotp } from "../src/lib/totp";
 
-test("CAPTCHA — missing token is rejected without a network request", async () => {
-  assert.equal((await verifyTurnstile("")).ok, false);
+test("CAPTCHA — missing token is rejected without a network request (when configured)", async () => {
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = "site-key";
+  process.env.TURNSTILE_SECRET_KEY = "server-secret";
+  try {
+    assert.equal((await verifyTurnstile("")).ok, false);
+  } finally {
+    delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    delete process.env.TURNSTILE_SECRET_KEY;
+  }
 });
 
 test("CAPTCHA — development falls back to Cloudflare test keys (widget renders, no bypass)", async () => {
@@ -43,17 +50,57 @@ test("CAPTCHA — development falls back to Cloudflare test keys (widget renders
   }
 });
 
-test("CAPTCHA — production stays fail-closed when keys are unset (no dev fallback)", async () => {
+test("CAPTCHA — production without keys degrades gracefully instead of locking users out", async () => {
   const originalEnv = process.env.NODE_ENV;
   const originalSite = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const originalSiteAlias = process.env.TURNSTILE_SITE_KEY;
   const originalSecret = process.env.TURNSTILE_SECRET_KEY;
+  const originalRequired = process.env.TURNSTILE_REQUIRED;
+  const originalFetch = global.fetch;
   try {
     (process.env as Record<string, string>).NODE_ENV = "production";
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
     delete process.env.TURNSTILE_SITE_KEY;
     delete process.env.TURNSTILE_SECRET_KEY;
+    delete process.env.TURNSTILE_REQUIRED;
+
+    // No widget is offered to the browser…
     assert.equal(getTurnstileSiteKey(), undefined);
+    assert.equal(getTurnstileWidgetSiteKey(), undefined);
+    assert.equal(isTurnstileConfigured(), false);
+
+    // …so the step is skipped rather than refusing every login/registration,
+    // and no request is made to the provider.
+    global.fetch = (async () => {
+      throw new Error("siteverify must not be called when Turnstile is unconfigured");
+    }) as typeof fetch;
+    assert.equal((await verifyTurnstile("")).ok, true);
+  } finally {
+    (process.env as Record<string, string>).NODE_ENV = originalEnv as string;
+    if (originalSite === undefined) delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    else process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = originalSite;
+    if (originalSiteAlias === undefined) delete process.env.TURNSTILE_SITE_KEY;
+    else process.env.TURNSTILE_SITE_KEY = originalSiteAlias;
+    if (originalSecret === undefined) delete process.env.TURNSTILE_SECRET_KEY;
+    else process.env.TURNSTILE_SECRET_KEY = originalSecret;
+    if (originalRequired === undefined) delete process.env.TURNSTILE_REQUIRED;
+    else process.env.TURNSTILE_REQUIRED = originalRequired;
+    global.fetch = originalFetch;
+  }
+});
+
+test("CAPTCHA — TURNSTILE_REQUIRED=true restores strict fail-closed behaviour", async () => {
+  const originalEnv = process.env.NODE_ENV;
+  const originalSite = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const originalSiteAlias = process.env.TURNSTILE_SITE_KEY;
+  const originalSecret = process.env.TURNSTILE_SECRET_KEY;
+  const originalRequired = process.env.TURNSTILE_REQUIRED;
+  try {
+    (process.env as Record<string, string>).NODE_ENV = "production";
+    delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    delete process.env.TURNSTILE_SITE_KEY;
+    delete process.env.TURNSTILE_SECRET_KEY;
+    process.env.TURNSTILE_REQUIRED = "true";
     const result = await verifyTurnstile("any-token");
     assert.equal(result.ok, false);
     assert.equal(result.ok === false && result.message, "تأیید امنیتی در حال حاضر در دسترس نیست.");
@@ -65,6 +112,8 @@ test("CAPTCHA — production stays fail-closed when keys are unset (no dev fallb
     else process.env.TURNSTILE_SITE_KEY = originalSiteAlias;
     if (originalSecret === undefined) delete process.env.TURNSTILE_SECRET_KEY;
     else process.env.TURNSTILE_SECRET_KEY = originalSecret;
+    if (originalRequired === undefined) delete process.env.TURNSTILE_REQUIRED;
+    else process.env.TURNSTILE_REQUIRED = originalRequired;
   }
 });
 
