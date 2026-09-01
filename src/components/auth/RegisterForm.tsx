@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { registerAction, type AuthResult } from "@/lib/auth-actions";
 import { purgeClientCaches } from "@/lib/swClient";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
-import TurnstileWidget from "@/components/auth/TurnstileWidget";
 
-export default function RegisterForm({ googleClientId, turnstileSiteKey }: { googleClientId?: string; turnstileSiteKey?: string }) {
+export default function RegisterForm({ googleClientId }: { googleClientId?: string }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<AuthResult | null, FormData>(registerAction, null);
 
@@ -74,8 +73,6 @@ export default function RegisterForm({ googleClientId, turnstileSiteKey }: { goo
           style={{ touchAction: "manipulation" }}
         />
       </div>
-
-      <TurnstileWidget siteKey={turnstileSiteKey} resetKey={state?.message} />
 
       {state && (
         <p

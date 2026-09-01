@@ -3,15 +3,13 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { users, userFxSettings, userTotpCredentials } from "@/db/schema";
+import { users, userFxSettings } from "@/db/schema";
 import { eq, isNull, or } from "drizzle-orm";
-import { verifyTurnstile } from "@/lib/turnstile";
-import { decryptTotpSecret, readChallenge, signChallenge, verifyTotp } from "@/lib/totp";
 import { hashPassword, verifyPassword, createSession, setSessionCookie, clearSessionCookie, destroySession, getCurrentUser } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { recordAuditEvent } from "@/lib/audit";
 
-export type AuthResult = { ok: boolean; message: string; redirectTo?: string; requiresTwoFactor?: boolean };
+export type AuthResult = { ok: boolean; message: string; redirectTo?: string };
 
 /**
  * SECURITY: roles are assigned exclusively by the backend.
@@ -63,8 +61,6 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
   if (ip && !checkRateLimit(`register-ip:${ip}`, 20, 60).ok) {
     return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
   }
-  const captcha = await verifyTurnstile(String(formData.get("cf-turnstile-response") || ""), ip);
-  if (!captcha.ok) return { ok: false, message: captcha.message };
 
   if (!username || username.length < 3) return { ok: false, message: "نام کاربری باید حداقل ۳ کاراکتر باشد." };
   if (!/^[a-zA-Z0-9_.\-]+$/.test(username)) return { ok: false, message: "نام کاربری فقط می‌تواند شامل حروف انگلیسی، عدد، _ و - باشد." };
@@ -135,39 +131,13 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
 export async function loginAction(prev: AuthResult | null, formData: FormData): Promise<AuthResult> {
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
-  const otp = String(formData.get("totpCode") || "");
-  const cookieStore = await cookies();
 
   const { checkRateLimit, getRequestIp } = await import("@/lib/rateLimit");
   const ip = await getRequestIp();
-  if (otp) {
-    if (!checkRateLimit(`login-2fa:${ip || "unknown"}`, 10, 60).ok) {
-      return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید.", requiresTwoFactor: true };
-    }
-    try {
-      const challenge = cookieStore.get("pwos_2fa_challenge")?.value || "";
-      const userId = readChallenge(challenge);
-      if (!userId) return { ok: false, message: "زمان تأیید به پایان رسیده است. دوباره وارد شوید." };
-      const [credential] = await db.select().from(userTotpCredentials).where(eq(userTotpCredentials.userId, userId)).limit(1);
-      if (!credential || !verifyTotp(decryptTotpSecret(credential.secretEncrypted), otp)) {
-        return { ok: false, message: "کد واردشده صحیح نیست.", requiresTwoFactor: true };
-      }
-      const { token, expiresAt } = await createSession(userId);
-      await setSessionCookie(token, expiresAt);
-      cookieStore.delete("pwos_2fa_challenge");
-      await recordAuditEvent({ action: "LOGIN_SUCCESS", entityType: "user", entityId: userId, userId, result: "SUCCESS" });
-      return { ok: true, message: "ورود موفق.", redirectTo: "/" };
-    } catch {
-      return { ok: false, message: "تأیید دو مرحله‌ای انجام نشد. لطفاً دوباره تلاش کنید.", requiresTwoFactor: true };
-    }
-  }
-
   if (!checkRateLimit(`login:${username || "anon"}`, 10, 60).ok ||
       (ip && !checkRateLimit(`login-ip:${ip}`, 30, 60).ok)) {
     return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
   }
-  const captcha = await verifyTurnstile(String(formData.get("cf-turnstile-response") || ""), ip);
-  if (!captcha.ok) return { ok: false, message: captcha.message };
   if (!username || !password) return { ok: false, message: "نام کاربری و رمز عبور را وارد کنید." };
 
   try {
@@ -175,13 +145,6 @@ export async function loginAction(prev: AuthResult | null, formData: FormData): 
     if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
       await recordAuditEvent({ action: "LOGIN_FAILURE", entityType: "user", userId: user?.id, result: "FAILURE", metadata: { username } });
       return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
-    }
-    const [credential] = await db.select({ userId: userTotpCredentials.userId }).from(userTotpCredentials).where(eq(userTotpCredentials.userId, user.id)).limit(1);
-    if (credential) {
-      cookieStore.set("pwos_2fa_challenge", signChallenge(user.id), {
-        httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/login", maxAge: 300,
-      });
-      return { ok: false, message: "کد ۶ رقمی برنامه تأییدکننده را وارد کنید.", requiresTwoFactor: true };
     }
     const { token, expiresAt } = await createSession(user.id);
     await setSessionCookie(token, expiresAt);

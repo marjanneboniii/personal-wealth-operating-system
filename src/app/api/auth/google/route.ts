@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { users, userFxSettings, userTotpCredentials } from "@/db/schema";
-import { signChallenge } from "@/lib/totp";
+import { users, userFxSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createSession, setSessionCookie, getCurrentUserFromRequest } from "@/lib/auth";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 import { recordAuditEvent } from "@/lib/audit";
-import { verifyTurnstile } from "@/lib/turnstile";
 
 /**
  * SECURITY: self-service Google sign-up always receives the low-privilege
@@ -42,9 +40,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "درخواست ورود Google نامعتبر است." }, { status: 400 });
     }
     const idToken: string | null = (typeof body.idToken === "string" && body.idToken) || (typeof body.credential === "string" && body.credential) || null;
-    const captcha = await verifyTurnstile(String(body.turnstileToken || ""), getClientIp(req));
-    if (!captcha.ok) return NextResponse.json({ ok: false, error: captcha.message }, { status: 400 });
-
     if (!idToken) {
       return NextResponse.json({ ok: false, error: "توکن Google ارائه نشده است." }, { status: 401 });
     }
@@ -123,21 +118,6 @@ export async function POST(req: Request) {
         .update(users)
         .set({ emailVerified: true, updatedAt: new Date() } as any)
         .where(eq(users.id, existingByGoogle.id));
-      const [totp] = await db.select({ userId: userTotpCredentials.userId }).from(userTotpCredentials).where(eq(userTotpCredentials.userId, existingByGoogle.id)).limit(1);
-      if (totp) {
-        let challenge: string;
-        try {
-          challenge = signChallenge(existingByGoogle.id);
-        } catch {
-          return NextResponse.json(
-            { ok: false, error: "ورود دو مرحله‌ای پیکربندی نشده است. TOTP_ENCRYPTION_KEY را در سرور تنظیم کنید." },
-            { status: 503 },
-          );
-        }
-        const response = NextResponse.json({ ok: false, requiresTwoFactor: true, error: "کد ۶ رقمی برنامه تأییدکننده را وارد کنید." }, { status: 401 });
-        response.cookies.set("pwos_2fa_challenge", challenge, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/login", maxAge: 300 });
-        return response;
-      }
       const { token, expiresAt } = await createSession(existingByGoogle.id);
       await setSessionCookie(token, expiresAt);
       await recordAuditEvent({
@@ -256,9 +236,6 @@ export async function POST(req: Request) {
     }
     if (code === "23502") {
       return NextResponse.json({ ok: false, error: "ثبت حساب Google به‌خاطر محدودیت پایگاه داده ناموفق بود." }, { status: 500 });
-    }
-    if (/TOTP encryption/i.test(message)) {
-      return NextResponse.json({ ok: false, error: "ورود دو مرحله‌ای پیکربندی نشده است. TOTP_ENCRYPTION_KEY را در سرور تنظیم کنید." }, { status: 503 });
     }
     if (/Authentication\/Database error/i.test(message)) {
       return NextResponse.json({ ok: false, error: "ارتباط با پایگاه داده برقرار نشد. کمی بعد دوباره تلاش کنید." }, { status: 503 });
