@@ -76,39 +76,39 @@ export default function TurnstileWidget({ siteKey, resetKey }: { siteKey?: strin
     if (widget.current) window.turnstile?.remove(widget.current);
   }, []);
 
+  // Turnstile is not configured for this deployment (no site key). Rendering an
+  // error panel here would tell the user something is broken and block nothing:
+  // the CAPTCHA step is simply skipped server-side, so the form stays usable.
+  // Hooks above always run, so hook order is stable across renders.
+  if (!siteKey) return null;
+
   return (
     <fieldset className="captcha-panel min-w-0" aria-describedby={`${id}-help`}>
       <legend className="label">تأیید امنیتی</legend>
       <p id={`${id}-help`} className="muted mb-2 text-[11px]">لطفاً تأیید کنید که ربات نیستید.</p>
-      {siteKey ? (
-        <>
-          {/* Holds the challenge token for explicit rendering (see above). */}
-          <input ref={tokenInput} type="hidden" name="cf-turnstile-response" />
-          <Script
-            src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
-            strategy="afterInteractive"
-            // `onReady` (not `onLoad`) is the correct hook here: it runs after the
-            // script loads AND re-runs whenever the widget re-mounts after the
-            // script is already cached. `onLoad` silently never fires in that
-            // second case, leaving the widget blank and the token empty.
-            onReady={render}
-            onError={() => setStatus("error")}
-          />
-          <div ref={ref} className="turnstile-slot" dir="ltr" />
-          {status === "error" ? (
-            <p role="status" className="mt-2 text-[11px]" style={{ color: "var(--negative)" }}>
-              ارتباط با سرویس تأیید امنیتی برقرار نشد. لطفاً دوباره تلاش کنید.
-            </p>
-          ) : status === "expired" ? (
-            <p role="status" aria-live="polite" className="mt-2 text-[11px]" style={{ color: "var(--warning)" }}>
-              تأیید امنیتی منقضی شده است. لطفاً دوباره تأیید کنید.
-            </p>
-          ) : (
-            <span className="sr-only" aria-live="polite">{status === "loading" ? "در حال بررسی..." : "تأیید شد"}</span>
-          )}
-        </>
+      {/* Holds the challenge token for explicit rendering (see above). */}
+      <input ref={tokenInput} type="hidden" name="cf-turnstile-response" />
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+        strategy="afterInteractive"
+        // `onReady` (not `onLoad`) is the correct hook here: it runs after the
+        // script loads AND re-runs whenever the widget re-mounts after the
+        // script is already cached. `onLoad` silently never fires in that
+        // second case, leaving the widget blank and the token empty.
+        onReady={render}
+        onError={() => setStatus("error")}
+      />
+      <div ref={ref} className="turnstile-slot" dir="ltr" />
+      {status === "error" ? (
+        <p role="status" className="mt-2 text-[11px]" style={{ color: "var(--negative)" }}>
+          ارتباط با سرویس تأیید امنیتی برقرار نشد. لطفاً دوباره تلاش کنید.
+        </p>
+      ) : status === "expired" ? (
+        <p role="status" aria-live="polite" className="mt-2 text-[11px]" style={{ color: "var(--warning)" }}>
+          تأیید امنیتی منقضی شده است. لطفاً دوباره تأیید کنید.
+        </p>
       ) : (
-        <p role="status" className="text-[11px]" style={{ color: "var(--warning)" }}>تأیید امنیتی در حال حاضر در دسترس نیست.</p>
+        <span className="sr-only" aria-live="polite">{status === "loading" ? "در حال بررسی..." : "تأیید شد"}</span>
       )}
     </fieldset>
   );
