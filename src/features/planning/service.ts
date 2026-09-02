@@ -21,6 +21,8 @@ import { addMonthsIso, jalaliToIso, toJalali, todayIso } from "@/lib/format";
 import {
   buildInstallmentFxView,
   buildInstallmentPaymentSnapshot,
+  isInstallmentPaid,
+  resolveInstallmentToman,
   summarizePendingUsdChange,
   type InstallmentFxView,
 } from "@/features/planning/installmentFx";
@@ -266,26 +268,63 @@ export async function listDebts(userId?: string) {
   return rows.map((d) => {
     const bal = balances.find((b) => b.accountId === d.accountId);
     const own = inst.filter((i) => i.debtId === d.id);
-    const paid = own.filter((i) => i.status === "paid");
+    const paid = own.filter((i) => isInstallmentPaid(i.status));
+
+    // Amount already repaid, in Toman. Exposed so views can show
+    // «بازپرداخت‌شده» without re-deriving it from the principal (that identity
+    // is false for an interest-bearing schedule — see below).
+    const paidToman = paid.reduce((sum, i) => {
+      if (i.amountToman != null) return sum.add(D(i.amountToman));
+      // Paid legacy installment without Toman: convert its frozen USD book
+      // amount at the CURRENT rate only for residual math (display path).
+      return sum.add(rate.gt(0) ? D(i.amountBase).mul(rate) : Decimal.zero());
+    }, Decimal.zero());
+
+    // «مانده قابل پرداخت» — what is still owed on this debt.
+    //
+    // The repayment schedule is the source of truth: the still-unpaid rows,
+    // resolved with the SAME helper the «اقساط» page uses
+    // (`resolveInstallmentToman`), so /debts, /debts/loans and /installments
+    // can never disagree about a single debt's remaining balance.
+    //
+    // This deliberately replaced `principal_toman − Σ(paid)`, a *principal
+    // amortisation* view that was wrong for three reasons:
+    //   1. A schedule totals MORE than its principal (it carries interest), so
+    //      the interest component silently vanished from the debt total.
+    //   2. `principal_toman` is never written back on payment —
+    //      `payInstallment` only flips the installment status and settles the
+    //      debt — so the figure was not a maintained balance at all.
+    //   3. Once Σ(paid) passed the principal, the subtraction went negative and
+    //      was clamped to ZERO while unpaid installments were still outstanding.
+    //
+    // No double counting is possible: a debt contributes EITHER its schedule
+    // OR (only when it has no schedule) its principal — never both.
+    const pendingRows = own.filter((i) => !isInstallmentPaid(i.status));
+    const scheduleRemainingToman = pendingRows.reduce((sum, i) => {
+      const t = resolveInstallmentToman(i, fx.rate);
+      return t != null ? sum.add(D(t)) : sum;
+    }, Decimal.zero());
+    const hasSchedule = own.length > 0;
 
     // Contractual Toman is the SOURCE OF TRUTH. USD is always live ÷ rate.
     // Never reconstruct Toman from USD × current rate for Phase-3+ rows.
     if (d.principalToman != null) {
       const principalToman = D(d.principalToman);
-      const paidToman = paid.reduce((sum, i) => {
-        if (i.amountToman != null) return sum.add(D(i.amountToman));
-        // Paid legacy installment without Toman: convert its frozen USD book
-        // amount at the CURRENT rate only for residual math (display path).
-        return sum.add(rate.gt(0) ? D(i.amountBase).mul(rate) : Decimal.zero());
-      }, Decimal.zero());
-      const remaining = principalToman.sub(paidToman);
-      const outstandingToman = remaining.isNegative() ? Decimal.zero() : remaining;
+      // A debt without any schedule has nothing left to fall back on but its
+      // own principal minus what has been repaid against it.
+      const outstandingToman = hasSchedule
+        ? scheduleRemainingToman
+        : (() => {
+            const remaining = principalToman.sub(paidToman);
+            return remaining.isNegative() ? Decimal.zero() : remaining;
+          })();
       const principalUsd = principalToman.div(rate).toString();
       const outstandingUsd = outstandingToman.div(rate).toString();
       return {
         ...d,
         principalToman: principalToman.toFixed(0),
         outstandingToman: outstandingToman.toFixed(0),
+        paidToman: paidToman.toFixed(0),
         // USD fields are display-only equivalents at the live rate.
         principalBase: principalUsd,
         outstandingBase: outstandingUsd,
@@ -303,18 +342,29 @@ export async function listDebts(userId?: string) {
     // a USD figure a second time (which would inflate Toman when FX rises).
     const paidScheduled = paid.reduce((sum, i) => sum.add(i.amountBase), Decimal.zero());
     const planningOutstanding = D(d.principalBase).sub(paidScheduled);
-    const outstandingUsd = bal
-      ? D(bal.baseValue).neg()
-      : planningOutstanding.isNegative()
-        ? Decimal.zero()
-        : planningOutstanding;
+    // Same rule as the Toman branch above: a schedule wins over the
+    // principal/ledger fallback, so «مانده اقساط» and «مانده کل بدهی» agree.
+    const outstandingUsd = hasSchedule
+      ? rate.gt(0)
+        ? scheduleRemainingToman.div(rate)
+        : Decimal.zero()
+      : bal
+        ? D(bal.baseValue).neg()
+        : planningOutstanding.isNegative()
+          ? Decimal.zero()
+          : planningOutstanding;
     const principalUsd = D(d.principalBase);
     const principalTomanDisp = rate.gt(0) ? principalUsd.mul(rate).toFixed(0) : null;
-    const outstandingTomanDisp = rate.gt(0) ? outstandingUsd.mul(rate).toFixed(0) : null;
+    const outstandingTomanDisp = hasSchedule
+      ? scheduleRemainingToman.toFixed(0)
+      : rate.gt(0)
+        ? outstandingUsd.mul(rate).toFixed(0)
+        : null;
     return {
       ...d,
       principalToman: principalTomanDisp,
       outstandingToman: outstandingTomanDisp,
+      paidToman: paidToman.toFixed(0),
       outstandingBase: outstandingUsd.toString(),
       principalUsd: principalUsd.toString(),
       outstandingUsd: outstandingUsd.toString(),
