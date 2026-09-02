@@ -106,9 +106,12 @@ export default async function LoansPage() {
                 const progress = d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0;
                 const isSettled = d.status === "settled";
                 const late = d.nextDue && d.nextDue.dueDate < today;
-                const principalT = D(d.principalToman ?? "0");
                 const outstandingT = D(isSettled ? "0" : (d.outstandingToman ?? "0"));
-                const repaidT = principalT.sub(outstandingT);
+                // «بازپرداخت‌شده» is what was ACTUALLY paid, not
+                // `principal − outstanding`: an interest-bearing schedule
+                // totals more than its principal, so that identity would
+                // understate the repaid figure by the whole interest share.
+                const repaidT = D(d.paidToman ?? "0");
                 const outD = formatTomanPrimary(outstandingT.toFixed(0), fx.rate);
                 const repaidD = formatTomanPrimary(repaidT.toFixed(0), fx.rate);
                 const nextToman = d.nextDue?.amountToman != null ? String(d.nextDue.amountToman) : null;
