@@ -119,17 +119,10 @@ test("forward liquidity renders Toman AS-IS — no second FX multiplication", as
     !html.includes("۱۸۱٬۸۱۸٬۰۰۰٬۰۰۰"),
     "outflow must never be re-multiplied by the FX rate (181,818,000,000 = 909,090 × 200,000)",
   );
-  // Cumulative liquidity renders the real ≈4.9B-Toman figure…
-  assert.ok(
-    html.includes(`۴٬۹۲۲٬۳۷۱٬۳۹۴${NBSP}تومان`),
-    "starting cumulative liquidity must render as «۴٬۹۲۲٬۳۷۱٬۳۹۴ تومان»",
-  );
-  assert.ok(html.includes(`۴٬۹۲۱٬۴۶۲٬۳۰۴${NBSP}تومان`), "post-installment cumulative (Shahrivar)");
-  assert.ok(html.includes(`۴٬۹۲۰٬۵۵۳٬۲۱۴${NBSP}تومان`), "post-installment cumulative (Mehr)");
-  // …never the ×200,000 explosion.
-  assert.ok(!html.includes("۹۸۴٬۴۷۴٬۲۷۸٬۸۰۰٬۰۰۰"), "cumulative must never be re-multiplied by the FX rate");
-  assert.ok(!html.includes("۹۸۴٬۲۹۲٬۴۶۰٬۸۰۰٬۰۰۰"), "cumulative must never be re-multiplied by the FX rate");
-  assert.ok(!html.includes("۹۸۴٬۱۱۰٬۶۴۲٬۸۰۰٬۰۰۰"), "cumulative must never be re-multiplied by the FX rate");
+  // «نقدینگی تجمیعی» was removed from the forward-liquidity UI entirely
+  // (its computation stays in the service for /planning's end-of-year KPI).
+  assert.ok(!html.includes("نقدینگی تجمعی"), "the نقدینگی تجمیعی column must be gone from the UI");
+  assert.ok(!html.includes(`۴٬۹۲۲٬۳۷۱٬۳۹۴${NBSP}تومان`), "cumulative figures must not be rendered as a column");
 
   // The USD hint is the Toman amount ÷ rate (909,090 ÷ 200,000 = 4.55 USD)…
   assert.ok(html.includes(`۴.۵۵${NBSP}دلار`), "USD hint must be the ÷-rate equivalent (≈ ۴.۵۵ دلار)");
@@ -141,9 +134,9 @@ test("forward liquidity renders Toman AS-IS — no second FX multiplication", as
 test("forward liquidity USD hints follow the rate (display-only, Toman stays fixed)", async () => {
   const { default: ReportsPage } = await import("../src/app/reports/page");
   const html = forwardLiquiditySection(renderToStaticMarkup(await (ReportsPage as any)()));
-  // Cumulative hint: 4,922,371,394 ÷ 200,000 = 24,611.86 USD.
-  assert.ok(
-    html.includes(`۲۴٬۶۱۱.۸۶${NBSP}دلار`),
-    "cumulative USD hint must be the ÷-rate equivalent (≈ ۲۴٬۶۱۱.۸۶ دلار)",
-  );
+  // The monthly outflow hint is 909,090 ÷ 200,000 = 4.55 USD.
+  assert.ok(html.includes(`۴.۵۵${NBSP}دلار`), "outflow USD hint must be the ÷-rate equivalent");
+  // The removed cumulative column must not reappear with any stale hints.
+  assert.ok(!html.includes("نقدینگی تجمعی"), "نقدینگی تجمیعی must not be rendered");
+  assert.ok(!html.includes("۲۴٬۶۱۱.۸۶"), "cumulative USD hint must be gone with the column");
 });

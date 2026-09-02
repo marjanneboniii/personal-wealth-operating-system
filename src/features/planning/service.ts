@@ -17,7 +17,7 @@ import { postEntry, unitsFor } from "@/features/ledger/service";
 import { getAccountBalances, hasMultipleUsers } from "@/features/ledger/queries";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
-import { addMonthsIso, todayIso } from "@/lib/format";
+import { addMonthsIso, jalaliToIso, toJalali, todayIso } from "@/lib/format";
 import {
   buildInstallmentFxView,
   buildInstallmentPaymentSnapshot,
@@ -224,6 +224,28 @@ export async function listBudgets(userId?: string) {
 }
 
 /* ---------------- Debts & installments ---------------- */
+
+/**
+ * Loan-vs-installment separation («قسط ≠ وام»).
+ *
+ * A record that is ONLY an installment / repayment schedule / payment
+ * commitment is NOT a loan and must never appear in the Loans UI, no matter
+ * how many installments it has. A real Loan / Facility is one of:
+ *   • a debt with financing (interestRate > 0), or
+ *   • a debt already booked in the double-entry ledger against a liability
+ *     account (accountId set — the money was actually received).
+ *
+ * Planning-only debts (created with `accountId = null` and 0% interest, e.g.
+ * a store installment plan for a rug) remain visible in «بدهیها» and their
+ * schedule stays in «اقساط»; no data is hidden or deleted.
+ */
+export function isRealLoanDebt(d: {
+  interestRate?: string | number | null;
+  accountId?: string | null;
+  totalCount?: number | null;
+}): boolean {
+  return Number(d.interestRate ?? 0) > 0 || (d.accountId != null && d.accountId !== "");
+}
 
 export async function listDebts(userId?: string) {
   const u = await resolvePlanningUserId(userId);
@@ -628,6 +650,44 @@ export async function executePlanned(id: string) {
 
 /* ---------------- Projection engine ---------------- */
 
+/**
+ * KEY OF THE CASH-FLOW MONTH BUCKET FOR A DUE DATE.
+ *
+ * A projection bucket is the JALALI calendar month containing the due date:
+ *
+ *   due_date → calendar month of due_date → that month's bucket
+ *
+ * Bucketing by the Gregorian month start (`YYYY-MM-01`) is WRONG: Jalali
+ * months begin ~11 days after each Gregorian month start, so a due date such
+ * as ۱۴۰۵/۰۸/۰۱ (2026-10-23) landed in the Gregorian bucket 2026-10-01 and
+ * was displayed under مهر (1405/07) instead of آبان (1405/08) — the off-by-one
+ * month bug. The key below is derived from the due date's own conventional
+ * calendar month, with no rounding, no ±1-day shift and no timezone
+ * conversion (dates are plain ISO date strings).
+ */
+export function jalaliMonthBucketKey(iso: string): string {
+  const { y, m } = toJalali(iso);
+  return `${y}/${String(m).padStart(2, "0")}`;
+}
+
+/** ISO first-days of the next `months` Jalali months (starting at `fromIso`'s own month). */
+export function jalaliMonthStarts(months: number, fromIso?: string): { key: string; iso: string }[] {
+  const { y, m } = toJalali(fromIso ?? todayIso());
+  const out: { key: string; iso: string }[] = [];
+  let yy = y;
+  let mm = m;
+  for (let i = 0; i < months; i++) {
+    const iso = jalaliToIso(yy, mm, 1);
+    out.push({ key: `${yy}/${String(mm).padStart(2, "0")}`, iso });
+    mm += 1;
+    if (mm > 12) {
+      mm = 1;
+      yy += 1;
+    }
+  }
+  return out;
+}
+
 export type ProjectionPoint = {
   month: string;
   /** Toman (authoritative for the planning module). */
@@ -688,16 +748,18 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
    * liquidity (ledger USD book) is converted once at the live rate for the
    * opening balance. FX changes therefore move the USD preview of the opening
    * line — never the Toman scheduled outflows.
+   *
+   * MONTH BUCKETING: each obligation is bucketed into the JALALI calendar
+   * month of its own due_date (see jalaliMonthBucketKey). `month` on each
+   * point is the ISO first day of that Jalali month, so every label derives
+   * the correct month (۱۴۰۵/۰۸/۰۱ → آبان, never مهر).
    */
-  const start = todayIso().slice(0, 8) + "01";
-  const buckets = new Map<string, { inflow: Decimal; outflow: Decimal }>();
-  for (let i = 0; i < months; i++) {
-    buckets.set(addMonthsIso(start, i), { inflow: Decimal.zero(), outflow: Decimal.zero() });
+  const buckets = new Map<string, { iso: string; inflow: Decimal; outflow: Decimal }>();
+  for (const def of jalaliMonthStarts(months)) {
+    buckets.set(def.key, { iso: def.iso, inflow: Decimal.zero(), outflow: Decimal.zero() });
   }
-  const bucketKey = (iso: string) => iso.slice(0, 8) + "01";
   const push = (iso: string, amountToman: Decimal, dir: "inflow" | "outflow") => {
-    const key = bucketKey(iso);
-    const b = buckets.get(key);
+    const b = buckets.get(jalaliMonthBucketKey(iso));
     if (!b) return;
     if (dir === "inflow") b.inflow = b.inflow.add(amountToman.mul(String(factorIn)));
     else b.outflow = b.outflow.add(amountToman.mul(String(factorOut)));
@@ -722,7 +784,9 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
     if (o.status !== "pending") continue;
     // amountBase stores contractual Toman.
     if (o.recurrence === "monthly") {
-      for (let k = 0; k < months; k++) push(addMonthsIso(bucketKey(o.dueDate), k), D(o.amountBase), "outflow");
+      // Recurrence follows JALALI calendar months of the obligation (same
+      // month-arithmetic as the buckets — never Gregorian month shifting).
+      for (const { iso } of jalaliMonthStarts(months, o.dueDate)) push(iso, D(o.amountBase), "outflow");
     } else {
       push(o.dueDate, D(o.amountBase), "outflow");
     }
@@ -738,13 +802,16 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
   const netWorthToman = rate.gt(0) ? D(nw.netWorth).mul(rate) : Decimal.zero();
   let cumulative = startingLiquidityToman;
   const points: ProjectionPoint[] = [];
-  for (const [month, b] of buckets) {
+  for (const [, b] of buckets) {
     const net = b.inflow.sub(b.outflow);
     cumulative = cumulative.add(net);
     const inflowT = b.inflow;
     const outflowT = b.outflow;
     points.push({
-      month,
+      // ISO first day of the JALALI month this bucket represents (e.g.
+      // 1405/08/01 → 2026-10-23), so toJalali()/jalaliMonthKey() never shift
+      // an obligation into the previous Jalali month.
+      month: b.iso,
       // Primary figures are Toman (authoritative for the planning module).
       inflow: inflowT.toFixed(0),
       outflow: outflowT.toFixed(0),

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
-import { listDebts } from "@/features/planning/service";
+import { isRealLoanDebt, listDebts } from "@/features/planning/service";
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { D } from "@/domain/decimal";
@@ -35,8 +35,12 @@ export default async function LoansPage() {
   const [debts, fx] = await Promise.all([listDebts(), getLatestUsdIrtRate()]);
 
   const today = todayIso();
-  // Presentation split only — the stored records are identical.
-  const loans = debts.filter((d) => Number(d.interestRate) > 0 || d.totalCount > 0);
+  // «قسط ≠ وام»: a real Loan / Facility is a debt with financing (interest
+  // rate) or one already booked against a ledger liability account. A record
+  // that is only a repayment schedule / installment plan (planning-only debt
+  // with 0% interest, e.g. a store installment for a rug) is NOT a loan and
+  // stays in «بدهی‌ها»/«اقساط» — it must never be rendered as a Loan here.
+  const loans = debts.filter(isRealLoanDebt);
   const active = loans.filter((d) => d.status !== "settled");
   const settled = loans.filter((d) => d.status === "settled");
 
@@ -51,7 +55,7 @@ export default async function LoansPage() {
     <div className="space-y-8">
       <PageHeader
         title="وام‌ها"
-        subtitle="تسهیلات و بدهی‌های دارای برنامه بازپرداخت. مبلغ تومان ثابت است؛ معادل دلاری فقط نمایشی است."
+        subtitle="تسهیلات واقعی (با نرخ سود یا متصل به حساب بدهی دفترکل). برنامه‌های صرفاً قسطی در «بدهی‌ها» و «اقساط» هستند. مبلغ تومان ثابت است؛ معادل دلاری فقط نمایشی است."
         action={
           <Link href="/debts" className="btn btn-soft">
             <Icon name="debts" size={16} />
@@ -86,7 +90,7 @@ export default async function LoansPage() {
             <EmptyState
               icon="card"
               title="وامی ثبت نشده است"
-              body="بدهی‌های دارای نرخ سود یا برنامه اقساط، به‌عنوان وام در این بخش دیده می‌شوند."
+              body="تسهیلات واقعی (دارای نرخ سود یا متصل به حساب بدهی دفترکل) در این بخش دیده می‌شوند. برنامه‌های قسطی خرید، وام نیستند و در «بدهی‌ها» و «اقساط» نمایش داده می‌شوند."
               action={
                 <Link href="/debts" className="btn btn-primary">
                   ثبت بدهی جدید

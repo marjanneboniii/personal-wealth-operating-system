@@ -244,7 +244,6 @@ export default async function ReportsPage() {
                 <th>ماه</th>
                 <th className="td-num">ورودی</th>
                 <th className="td-num">خروجی</th>
-                <th className="td-num">نقدینگی تجمعی</th>
               </tr>
             </thead>
             <tbody>
@@ -258,10 +257,6 @@ export default async function ReportsPage() {
                   <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
                     <div>{formatMoney(p.outflow, "IRT")}</div>
                     {rate && p.outflowUsd != null && <div className="muted num text-[9.5px]">≈ {formatMoney(p.outflowUsd)}</div>}
-                  </td>
-                  <td className="td-num font-bold" dir="rtl" style={{ color: p.deficit ? "var(--negative)" : undefined }}>
-                    <div>{formatMoney(p.cumulative, "IRT")}</div>
-                    {rate && p.cumulativeUsd != null && <div className="muted num text-[9.5px]">≈ {formatMoney(p.cumulativeUsd)}</div>}
                   </td>
                 </tr>
               ))}
