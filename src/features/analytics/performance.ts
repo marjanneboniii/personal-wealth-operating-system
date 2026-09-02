@@ -57,7 +57,15 @@ export function calculateGrowth(input: GrowthCalculationInput): GrowthSummary {
     : absoluteChange.div(start).mul("100").toFixed(2);
 
   // Adjusted Wealth Return % (Excludes capital flows; reserves future TWR & MWR support)
-  const capitalBase = start.add(D(input.externalInflows || (netExternalFlows.gt(0) ? netExternalFlows.toString() : "0")));
+  //
+  // The denominator is the invested capital base for the period:
+  // starting value adjusted by NET external capital flows (deposits minus
+  // withdrawals). Using gross inflows here — while the numerator subtracts
+  // NET flows — was internally inconsistent: a withdrawal kept a stale
+  // (too large) base and distorted the percentage, and a non-capital flow
+  // could inflate the denominator. With a genuine starting snapshot (no
+  // missing data) this yields: deposit-only ⇒ 0%, withdrawal-only ⇒ 0%.
+  const capitalBase = start.add(netExternalFlows);
   const adjustedWealthReturnPct = capitalBase.isZero() || capitalBase.isNegative()
     ? "0.00"
     : netInvestmentReturn.div(capitalBase).mul("100").toFixed(2);

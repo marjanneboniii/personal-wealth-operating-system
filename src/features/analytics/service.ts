@@ -6,7 +6,7 @@ import {
   portfolioSnapshots,
 } from "@/db/schema";
 import { getPortfolioValuation } from "@/features/portfolio/service";
-import { hasMultipleUsers } from "@/features/ledger/queries";
+import { getSnapshotSeries, hasMultipleUsers } from "@/features/ledger/queries";
 import { isInactiveOrOrphanedRwaAsset } from "@/features/rwa/orphanFilter";
 import { D } from "@/domain/decimal";
 import { calculateGrowth } from "./performance";
@@ -92,6 +92,14 @@ export async function recordAnalyticsRun(input: {
   });
 }
 
+/** ISO date one day after `iso` (flow window start — flows inside the
+ *  starting snapshot must not be subtracted a second time). */
+function dayAfterIso(iso: string): string {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /**
  * Subtract inactive/orphaned RWA contributions from stored portfolio
  * snapshot totals — presentation only. Snapshot rows are never rewritten.
@@ -129,13 +137,24 @@ async function ghostRwaValueBySnapshotDate(userId?: string): Promise<Map<string,
 export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDashboardSummary> {
   const u = await resolveAnalyticsUserId(userId);
 
-  const [valuationSummary, rawSnapshots, _benchmarks, ghostByDate] = await Promise.all([
+  // SNAPSHOT HISTORY SOURCE OF TRUTH (root cause fix):
+  // The «ثبت اسنپ‌شات» button in the UI writes the legacy `snapshots` history
+  // (takeSnapshotAction), NOT `portfolio_snapshots` (which nothing in the UI
+  // writes). Analytics therefore used to see ZERO starting snapshots, fell
+  // back to TODAY's total cost basis as the "period start", and then
+  // subtracted the same capital flows from that already-flow-inclusive value
+  // a second time — manufacturing a fake negative «بازده سرمایه‌گذاری خالص»
+  // equal to −(net deposits), e.g. −۶٬۷۵۷٬۳۷۴٬۷۷۷ تومان (≈ −۳۲٬۱۷۷.۹۸ دلار at
+  // 210,000 IRT/USD). Both histories are now merged (portfolio snapshot wins
+  // on the same date); both are tenant-scoped and ghost-filtered.
+  const [valuationSummary, rawSnapshots, legacyHistory, _benchmarks, ghostByDate] = await Promise.all([
     getPortfolioValuation(undefined, u),
     db
       .select()
       .from(portfolioSnapshots)
       .where(u ? eq(portfolioSnapshots.userId, u) : sql`1=1`)
       .orderBy(desc(portfolioSnapshots.snapshotDate)),
+    getSnapshotSeries(5000, u),
     ensureBenchmarkDefinitions(),
     ghostRwaValueBySnapshotDate(u),
   ]);
@@ -156,26 +175,41 @@ export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDas
     };
   });
 
-  const periodStart = adjustedSnapshots.length > 0
-    ? adjustedSnapshots[adjustedSnapshots.length - 1].snapshotDate
-    : "2025-01-01";
+  // Unified, date-sorted snapshot history (portfolio snapshot wins per date).
+  const historyByDate = new Map<string, { snapshotDate: string; totalPortfolioValue: string }>();
+  for (const s of adjustedSnapshots) {
+    const date = dateKey(s.snapshotDate);
+    historyByDate.set(date, { snapshotDate: date, totalPortfolioValue: s.totalPortfolioValue });
+  }
+  for (const s of legacyHistory) {
+    const date = String(s.asOf).slice(0, 10);
+    if (!historyByDate.has(date)) {
+      historyByDate.set(date, { snapshotDate: date, totalPortfolioValue: s.totalAssets });
+    }
+  }
+  const history = [...historyByDate.values()].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+
+  // A REAL period-start value is required. Without any historical snapshot
+  // the current cost basis must never be used as "starting value": it already
+  // embeds every deposit/withdrawal of the period, so subtracting the flows
+  // again created the fake negative adjusted return. Report missing data
+  // instead of a fabricated number.
+  const hasStartingSnapshot = history.length > 0;
+  const periodStart = hasStartingSnapshot ? history[0].snapshotDate : "2025-01-01";
   const periodEnd = valuationSummary.valuationDate;
+
+  // Capital flows strictly AFTER the starting snapshot date: a flow that is
+  // already captured inside the starting snapshot must never be subtracted
+  // again (that double subtraction is exactly the −(net deposits) fake loss).
+  const flowStart = hasStartingSnapshot ? dayAfterIso(history[0].snapshotDate) : periodStart;
 
   // Use explicit ExternalCapitalFlowProvider abstraction
   const flowProvider = new DefaultExternalCapitalFlowProvider();
-  const capitalFlows = await flowProvider.getExternalCapitalFlows(u, periodStart, periodEnd);
+  const capitalFlows = await flowProvider.getExternalCapitalFlows(u, flowStart, periodEnd);
 
-  const timeline = generateWealthTimeline(
-    adjustedSnapshots.map((s) => ({
-      snapshotDate: s.snapshotDate,
-      totalPortfolioValue: s.totalPortfolioValue,
-    })),
-  );
+  const timeline = generateWealthTimeline(history);
 
-  const startingVal = adjustedSnapshots.length > 0
-    ? adjustedSnapshots[adjustedSnapshots.length - 1].totalPortfolioValue
-    : valuationSummary.totalCostBasis;
-
+  const startingVal = hasStartingSnapshot ? history[0].totalPortfolioValue : "0";
   const endingVal = valuationSummary.totalNetWorth;
 
   // Growth Analysis with External Capital Flow Awareness & Versioning
@@ -185,6 +219,9 @@ export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDas
     netExternalFlow: capitalFlows.netExternalCapitalFlow,
     periodStart,
     periodEnd,
+    hasMissingData: !hasStartingSnapshot,
+    missingDataReason:
+      "برای محاسبه «بازده تعدیل‌شده» به حداقل یک اسنپ‌شات تاریخی نیاز است؛ بدون نقطه شروع واقعی، بازده قابل محاسبه نیست. با «ثبت اسنپ‌شات امروز» شروع کنید.",
   });
 
   // Asset Attribution
@@ -211,8 +248,8 @@ export async function getAnalyticsSummary(userId?: string): Promise<AnalyticsDas
     benchmarkReturnData,
   );
 
-  // Risk Metrics
-  const historicalValuesList = adjustedSnapshots.map((s) => s.totalPortfolioValue);
+  // Risk Metrics — use the same unified real history (legacy + portfolio snapshots).
+  const historicalValuesList = history.map((s) => s.totalPortfolioValue);
   const risk = calculateRiskMetrics(
     valuationSummary.assetValuations,
     valuationSummary.totalNetWorth,
