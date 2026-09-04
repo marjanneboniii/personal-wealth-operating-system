@@ -5,8 +5,10 @@ import { getPortfolioValuation } from "@/features/portfolio/service";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import HoldingsTable from "@/components/assets/HoldingsTable";
+import AssetValuationSummary, { valuationTotalsOf } from "@/components/assets/AssetValuationSummary";
+import { splitAssetFamilies } from "@/features/portfolio/assetFamilies";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatNumber, formatPct, faCount, toIrtMoney, trendTone } from "@/lib/format";
+import { formatMoney, formatNumber, formatPct, formatSignedMoney, faCount, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -28,12 +30,6 @@ export const metadata = { title: "همه دارایی‌ها" };
  */
 
 /** Product classification of an asset class — presentation grouping only. */
-const REAL_ASSET_CLASSES = new Set(["دارایی واقعی", "املاک", "خودرو", "طلا", "کالا", "RWA"]);
-
-function isRealAsset(className: string) {
-  return REAL_ASSET_CLASSES.has(className);
-}
-
 export default async function AssetsPage() {
   await ensureAuth();
   await seedIfEmpty();
@@ -42,13 +38,19 @@ export default async function AssetsPage() {
   const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
   const all = valuation.assetValuations;
-  const financial = all.filter((a) => !isRealAsset(a.className));
-  const real = all.filter((a) => isRealAsset(a.className));
+  // مالی/واقعی are a product grouping over the SAME read-model rows — one
+  // definition for every asset view (src/features/portfolio/assetFamilies).
+  const { financial, real } = splitAssetFamilies(all);
 
   const financialValue = Decimal.sum(financial.map((a) => a.currentValue));
   const realValue = Decimal.sum(real.map((a) => a.currentValue));
   const totalValue = D(valuation.totalNetWorth);
-  const unrealized = D(valuation.totalUnrealizedPnl);
+  // THE ONE VALUATION SOURCE for this view. The summary card and the
+  // «ارزش‌گذاری دارایی‌ها» box below read the same Toman-canonical figures, so
+  // the page can never state a value twice with two different numbers (the old
+  // strip scaled the USD aggregate by TODAY's rate while the table showed the
+  // stored Toman — they disagreed for every Toman-anchored asset).
+  const totals = valuationTotalsOf(all);
 
   const share = (v: Decimal) =>
     formatNumber(totalValue.isZero() ? "0.0" : v.div(totalValue).mul(100).toFixed(1), { decimals: 1 });
@@ -94,13 +96,13 @@ export default async function AssetsPage() {
       />
 
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش کل دارایی‌ها" value={toIrt(totalValue.toString()) ?? formatMoney(totalValue.toString())} hint={fx.rate ? formatMoney(totalValue.toString()) : undefined} />
+        <Metric label="ارزش کل دارایی‌ها" value={formatMoney(totals.valueToman, "IRT")} hint={formatMoney(totals.valueUsd, "USD")} />
         <Metric label="تعداد دارایی" value={faCount(all.length)} hint={`${faCount(financial.length)} مالی · ${faCount(real.length)} واقعی`} />
         <Metric
-          label="سود/زیان محقق‌نشده"
-          value={toIrt(unrealized.toString()) ?? formatMoney(unrealized.toString())}
-          tone={trendTone(unrealized.toString())}
-          hint={fx.rate ? formatMoney(unrealized.toString()) : undefined}
+          label="سود/زیان تحقق‌نیافته"
+          value={formatSignedMoney(totals.pnlToman, "IRT")}
+          tone={trendTone(totals.pnlToman)}
+          hint={formatSignedMoney(totals.pnlUsd, "USD")}
         />
         <Metric
           label="وضعیت قیمت‌ها"
@@ -109,6 +111,11 @@ export default async function AssetsPage() {
           hint={`${faCount(valuation.priceStatus.stale)} قدیمی · ${faCount(valuation.priceStatus.unavailable)} بدون قیمت`}
         />
       </section>
+
+      <AssetValuationSummary
+        totals={totals}
+        hint={`برای ${faCount(all.length)} دارایی · تومان ملاک محاسبه، دلار معادل نمایشی`}
+      />
 
       <Section title="دارایی‌های شما در چه خانواده‌هایی هستند؟">
         <ul className="grid gap-2.5 sm:grid-cols-3">

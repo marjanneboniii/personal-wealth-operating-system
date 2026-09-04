@@ -37,6 +37,12 @@ export default function HoldingsTable({
             // assets (ملک/خودرو/نقد تومانی) the market price is the asset's own
             // static Toman value — never a frozen USD figure re-scaled by the
             // current rate (that used to inflate the Toman price when USD rose).
+            // The unit line under the asset name is only useful when it adds
+            // something: once «ETH» reads «اتریوم», printing it again under an
+            // asset already named «اتریوم» (or «تومان» under «تومان») is noise.
+            const unitLabel = currencyLabel(a.symbol) || null;
+            const sameAsName = unitLabel != null && unitLabel === a.name;
+
             const pnlToman = D(a.unrealizedPnlToman);
             const pnlToneToman = trendTone(a.unrealizedPnlToman);
             const qtyD = D(a.quantity);
@@ -70,9 +76,11 @@ export default function HoldingsTable({
                       <div className="truncate text-[12px] font-semibold tracking-tight sm:text-[13px]" dir="rtl">
                         {a.name}
                       </div>
-                      <div className="muted truncate text-[10px] font-normal sm:text-[10.5px]" dir="ltr">
-                        {currencyLabel(a.symbol)}
-                      </div>
+                      {unitLabel && !sameAsName && (
+                        <div className="muted truncate text-[10px] font-normal sm:text-[10.5px]" dir="ltr">
+                          {unitLabel}
+                        </div>
+                      )}
                       <div className="mt-1 flex flex-wrap items-center gap-1">
                         {a.valuationBase === "toman" && (
                           <span className="chip text-[9px]" title="ارزش این دارایی در تومان ثابت است و دلار از آن مشتق می‌شود">
@@ -84,9 +92,21 @@ export default function HoldingsTable({
                             مبنای دلار
                           </span>
                         )}
-                        {a.priceFreshness === "fresh" && <span className="chip text-[9px]">Fresh</span>}
-                        {a.priceFreshness === "stale" && <span className="chip text-[9px]" style={{ color: "var(--warning)" }}>Stale</span>}
-                        {a.priceFreshness === "unavailable" && <span className="chip text-[9px]" style={{ color: "var(--negative)" }}>Unavailable</span>}
+                        {/* A price that is current needs no badge — it is the
+                            normal case. Only an exception is announced, and in
+                            Persian: the Latin «Fresh» chip used to sit right
+                            next to the basis chip and read as one word
+                            («مبنای دلارFresh»). */}
+                        {a.priceFreshness === "stale" && (
+                          <span className="chip text-[9px]" style={{ color: "var(--warning)" }} title="قیمت این دارایی قدیمی است و باید تازه‌سازی شود">
+                            قیمت قدیمی
+                          </span>
+                        )}
+                        {a.priceFreshness === "unavailable" && (
+                          <span className="chip text-[9px]" style={{ color: "var(--negative)" }} title="قیمت بازار برای این دارایی در دسترس نیست">
+                            قیمت در دسترس نیست
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

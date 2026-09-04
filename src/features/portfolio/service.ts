@@ -848,6 +848,45 @@ export async function getCurrentNetWorth(userId?: string) {
     futureObligationsToman = futureObligationsToman.add(outToman ?? outUsd.mul(rate));
   }
 
+  // ── TOTAL DEBT — the human-facing «کل بدهی‌ها» ────────────────────────────
+  // BUG THIS FIXES: the overview's «کل بدهی‌ها» tile read ONLY the ledger
+  // liability accounts above. A debt registered in the debt module is a
+  // PLANNING row (`debts.account_id = null` — see createDebtAction) until a
+  // real movement is booked against a liability account, so the ledger carried
+  // nothing for it and the tile displayed ۰ تومان while «بدهی‌ها» showed a live
+  // outstanding balance for the very same debt. Two modules, two truths.
+  //
+  // The debt figure the whole app agrees on is therefore built the way /debts
+  // builds it — `listDebts().outstandingToman` (contractual, schedule-based,
+  // booked or not) — plus every ledger liability account that NO debt row owns
+  // (a balance booked directly in the ledger, invisible to the planning
+  // module). Accounts a debt row already owns are skipped so the same debt can
+  // never be counted twice.
+  //
+  // Net worth deliberately keeps the ACCOUNTING figure above: an unbooked
+  // planning debt must not reduce net worth before its proceeds exist in the
+  // ledger (that is the invariant the liability-separation fix established).
+  const debtAccountIds = new Set(
+    (debts as any[])
+      .map((d) => (d as any).accountId)
+      .filter((id): id is string => typeof id === "string" && id !== ""),
+  );
+  let registeredDebtToman = Decimal.zero();
+  for (const d of debts as any[]) {
+    const rawToman = (d as any).outstandingToman;
+    const toman = rawToman != null && rawToman !== "" ? D(rawToman) : null;
+    const usd = D((d as any).outstandingUsd ?? (d as any).outstandingBase ?? "0");
+    registeredDebtToman = registeredDebtToman.add(toman ?? usd.mul(rate));
+  }
+  let unbookedLedgerDebtToman = Decimal.zero();
+  for (const b of ledgerLiabilities) {
+    if (debtAccountIds.has(b.accountId)) continue;
+    unbookedLedgerDebtToman = unbookedLedgerDebtToman.add(D(b.baseValue).neg().mul(rate));
+  }
+  const totalDebtToman = registeredDebtToman.add(unbookedLedgerDebtToman);
+  // Toman is authoritative for debts; USD is always the display equivalent.
+  const totalDebtUsd = totalDebtToman.div(rate);
+
   const liquidAssets = valuation.assetValuations.filter((asset) =>
     ["نقد و بانک", "Cash", "استیبل‌کوین", "Stablecoin"].includes(asset.className),
   );
@@ -859,6 +898,14 @@ export async function getCurrentNetWorth(userId?: string) {
     totalAssetsToman: valuation.totalNetWorthToman,
     totalLiabilities: totalLiabilitiesUsd.toString(),
     totalLiabilitiesToman: totalLiabilitiesToman.toFixed(0),
+    /**
+     * What the user actually owes right now — ledger liabilities AND debts the
+     * planning module knows about but the ledger does not (yet). This is what
+     * «کل بدهی‌ها» on the overview and on every debt-facing view must render;
+     * `totalLiabilities*` stays the pure accounting figure behind net worth.
+     */
+    totalDebtUsd: totalDebtUsd.toFixed(6),
+    totalDebtToman: totalDebtToman.toFixed(0),
     netWorth: D(valuation.totalNetWorth).sub(totalLiabilitiesUsd).toString(),
     netWorthToman: D(valuation.totalNetWorthToman).sub(totalLiabilitiesToman).toFixed(0),
     liquid: liquid.toString(),

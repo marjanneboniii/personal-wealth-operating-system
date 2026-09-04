@@ -6,8 +6,10 @@ import { getRealizedPnl } from "@/features/ledger/queries";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import HoldingsTable from "@/components/assets/HoldingsTable";
+import AssetValuationSummary, { valuationTotalsOf } from "@/components/assets/AssetValuationSummary";
+import { splitAssetFamilies } from "@/features/portfolio/assetFamilies";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatPct, toIrtMoney, faCount, trendTone } from "@/lib/format";
+import { formatMoney, formatPct, formatSignedMoney, toIrtMoney, faCount, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +24,6 @@ export const metadata = { title: "دارایی‌های مالی" };
  * `getPortfolioValuation()`. Realised P&L is read from the existing ledger
  * query. Nothing here re-computes cost basis, touches FIFO, or writes state.
  */
-
-const REAL_ASSET_CLASSES = new Set(["دارایی واقعی", "املاک", "خودرو", "طلا", "کالا", "RWA"]);
 
 /** Map an accounting asset class onto a human product bucket. */
 const BUCKET_OF: Record<string, string> = {
@@ -61,7 +61,7 @@ export default async function FinancialAssetsPage() {
   ]);
   const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
-  const financial = valuation.assetValuations.filter((a) => !REAL_ASSET_CLASSES.has(a.className));
+  const { financial } = splitAssetFamilies(valuation.assetValuations);
 
   const buckets = new Map<string, typeof financial>();
   for (const a of financial) {
@@ -75,9 +75,12 @@ export default async function FinancialAssetsPage() {
     value: Decimal.sum(buckets.get(b)!.map((a) => a.currentValue)),
   }));
 
-  const totalValue = Decimal.sum(financial.map((a) => a.currentValue));
-  const totalCost = Decimal.sum(financial.map((a) => a.costBasis));
-  const unrealized = totalValue.sub(totalCost);
+  // The strip on the summary card and the «ارزش‌گذاری دارایی‌ها» box below are
+  // fed by ONE set of totals, so a figure is never stated twice with two
+  // different numbers (Toman-canonical value/cost/P&L; USD stays the read
+  // model's own figure, never a Toman amount re-scaled at today's rate).
+  const totals = valuationTotalsOf(financial);
+  const totalValue = D(totals.valueUsd);
   const financialSymbols = new Set(financial.map((a) => a.symbol));
   const realized = Decimal.sum(pnl.bySymbol.filter((p) => financialSymbols.has(p.symbol)).map((p) => p.pnl));
 
@@ -101,11 +104,16 @@ export default async function FinancialAssetsPage() {
       />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش روز" value={toIrt(totalValue.toString()) ?? formatMoney(totalValue.toString())} hint={fx.rate ? formatMoney(totalValue.toString()) : undefined} />
-        <Metric label="بهای تمام‌شده" value={toIrt(totalCost.toString()) ?? formatMoney(totalCost.toString())} hint={fx.rate ? formatMoney(totalCost.toString()) : undefined} />
-        <Metric label="سود/زیان محقق‌نشده" value={toIrt(unrealized.toString()) ?? formatMoney(unrealized.toString())} tone={trendTone(unrealized.toString())} hint={fx.rate ? formatMoney(unrealized.toString()) : undefined} />
-        <Metric label="سود/زیان محقق‌شده" value={toIrt(realized.toString()) ?? formatMoney(realized.toString())} tone={trendTone(realized.toString())} hint="از فروش‌های ثبت‌شده" />
+        <Metric label="ارزش روز" value={formatMoney(totals.valueToman, "IRT")} hint={formatMoney(totals.valueUsd, "USD")} />
+        <Metric label="بهای تمام‌شده" value={formatMoney(totals.costToman, "IRT")} hint={formatMoney(totals.costUsd, "USD")} />
+        <Metric label="سود/زیان تحقق‌نیافته" value={formatSignedMoney(totals.pnlToman, "IRT")} tone={trendTone(totals.pnlToman)} hint={formatSignedMoney(totals.pnlUsd, "USD")} />
+        <Metric label="سود/زیان تحقق‌یافته" value={toIrt(realized.toString()) ?? formatMoney(realized.toString())} tone={trendTone(realized.toString())} hint="از فروش‌های ثبت‌شده" />
       </section>
+
+      <AssetValuationSummary
+        totals={totals}
+        hint={`برای ${faCount(financial.length)} دارایی مالی · تومان ملاک محاسبه، دلار معادل نمایشی`}
+      />
 
       {ordered.length === 0 ? (
         <div className="card">

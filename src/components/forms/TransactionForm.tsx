@@ -7,7 +7,7 @@ import {
   registerMarketAssetAction,
   searchMarketCatalogAction,
 } from "@/app/actions/pricing";
-import { currencyLabel, formatMoney, getDualDate, faCount } from "@/lib/format";
+import { currencyLabel, formatMoney, getDualDate, faCount, hasPersianCurrencyLabel } from "@/lib/format";
 import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
@@ -364,7 +364,7 @@ export default function TransactionForm({
     );
     if (existing) {
       setPrimaryAccountId(existing.id);
-      setCatalogMessage(`${asset.symbol} از حساب‌های شما انتخاب شد.`);
+      setCatalogMessage(`${asset.displayName} از حساب‌های شما انتخاب شد.`);
       return;
     }
 
@@ -691,7 +691,10 @@ export default function TransactionForm({
                     />
                     <span className="min-w-0 flex-1">
                       <b className="block truncate text-xs">
-                        {asset.displayName} <span dir="ltr">({asset.symbol})</span>
+                        {asset.displayName}
+                        {!hasPersianCurrencyLabel(asset.symbol) && (
+                          <span dir="ltr">({asset.symbol})</span>
+                        )}
                       </b>
                       <small className="muted block truncate" dir="ltr">{asset.name}</small>
                       <small className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[9.5px]">
@@ -700,14 +703,17 @@ export default function TransactionForm({
                         ) : (
                           <span style={{ color: "var(--negative)" }}>{priceFailureLabel(asset.priceFailureCode)}</span>
                         )}
-                        <span
-                          className="chip"
-                          style={asset.priceFreshness === "fresh"
-                            ? undefined
-                            : { color: asset.priceFreshness === "stale" ? "var(--warning)" : "var(--negative)" }}
-                        >
-                          {asset.priceFreshness === "fresh" ? "Fresh" : asset.priceFreshness === "stale" ? "Stale" : "Unavailable"}
-                        </span>
+                        {/* Only a price problem is announced; a current price is
+                            the normal case and needs no badge (and «Fresh» must
+                            never be glued onto a Persian label). */}
+                        {asset.priceFreshness !== "fresh" && (
+                          <span
+                            className="chip"
+                            style={{ color: asset.priceFreshness === "stale" ? "var(--warning)" : "var(--negative)" }}
+                          >
+                            {asset.priceFreshness === "stale" ? "قیمت قدیمی" : "قیمت در دسترس نیست"}
+                          </span>
+                        )}
                       </small>
                     </span>
                     <span className="chip">{registered ? "انتخاب" : "ثبت"}</span>
@@ -894,7 +900,7 @@ export default function TransactionForm({
             </div>
           ) : (
             <div className="rounded-[var(--r-md)] p-3 text-[11px] leading-5" style={{ background: "var(--warning-soft)", border: "1px solid var(--warning)" }} role="note">
-              تبدیل مستقیم {primaryAccount?.symbol} به {counterAccount?.symbol} در حال حاضر پشتیبانی نمی‌شود.
+              تبدیل مستقیم {currencyLabel(primaryAccount?.symbol)} به {currencyLabel(counterAccount?.symbol)} در حال حاضر پشتیبانی نمی‌شود.
               برای این تبدیل ابتدا به تومان، دلار یا تتر تبدیل کنید.
             </div>
           )

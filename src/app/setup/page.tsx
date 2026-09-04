@@ -461,7 +461,7 @@ export default function SetupWizardPage() {
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="label">مقدار اتریوم (ETH)</label>
+                      <label className="label">مقدار اتریوم</label>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -571,7 +571,7 @@ export default function SetupWizardPage() {
 
                   {D(previewData.ethQty).gt(0) && (
                     <div className="flex justify-between py-2">
-                      <span>به کیف رمزارز ({formatQty(previewData.ethQty, 8)} ETH)</span>
+                      <span>به کیف پول اتریوم (مقدار: {formatQty(previewData.ethQty, 8)})</span>
                       <span className="num font-bold" dir="rtl">
                         {formatMoney(previewData.ethVal, "USD")}
                       </span>

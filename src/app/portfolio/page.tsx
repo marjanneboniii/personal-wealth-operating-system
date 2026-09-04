@@ -2,10 +2,10 @@ import { seedIfEmpty } from "@/db/seed";
 import { ensureAuth } from "@/lib/authGuard";
 import { getRealizedPnl } from "@/features/ledger/queries";
 import { getPortfolioValuation } from "@/features/portfolio/service";
-import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
+import { Alert, EmptyState, PageHeader, Section } from "@/components/ui/Card";
 import { Donut } from "@/components/charts/Charts";
 import HoldingsTable from "@/components/assets/HoldingsTable";
-import { D } from "@/domain/decimal";
+import AssetValuationSummary from "@/components/assets/AssetValuationSummary";
 import { faCount, formatMoney, formatPct, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
@@ -27,12 +27,11 @@ export default async function PortfolioPage() {
     const t = tomanOf(usd);
     return t ? formatMoney(t, "IRT") : null;
   };
-  // The Toman headline figures are Toman-canonical and internally consistent
-  // (value = cost + unrealized P&L). They come straight from the read model,
-  // never by re-scaling the frozen USD aggregates at the current rate, which
-  // is what used to produce a positive «سود/زیان» next to a value below cost.
-  const unrealizedToman = D(valuation.totalUnrealizedPnlToman);
-  const unrealizedUsd = D(valuation.totalUnrealizedPnl);
+  // The headline Toman/USD figures live in <AssetValuationSummary> below. They
+  // are Toman-canonical and internally consistent (value = cost + unrealized
+  // P&L) because they come straight from the read model — never by re-scaling
+  // the frozen USD aggregates at the current rate, which is what used to
+  // produce a positive «سود/زیان» next to a value below cost.
 
   return (
     <div className="space-y-8">
@@ -44,32 +43,29 @@ export default async function PortfolioPage() {
 
       {(valuation.priceStatus.stale > 0 || valuation.priceStatus.unavailable > 0) && (
         <Alert tone="warn" title="بخشی از قیمت‌های جاری قطعی نیست">
-          {valuation.priceStatus.stale > 0 ? `${faCount(valuation.priceStatus.stale)} قیمت Stale است. ` : ""}
-          {valuation.priceStatus.unavailable > 0 ? `${faCount(valuation.priceStatus.unavailable)} ارزش‌گذاری Unavailable است و با Cost Basis مشخص نمایش داده می‌شود.` : ""}
-          هیچ fallback دستی برای قیمت جاری Crypto استفاده نشده است.
+          {valuation.priceStatus.stale > 0 ? `${faCount(valuation.priceStatus.stale)} قیمت قدیمی است. ` : ""}
+          {valuation.priceStatus.unavailable > 0 ? `${faCount(valuation.priceStatus.unavailable)} ارزش‌گذاری بدون قیمت بازار است و با بهای تمام‌شده نمایش داده می‌شود.` : ""}
+          هیچ مقدار دستی جایگزین قیمت جاری رمزارزها نشده است.
         </Alert>
       )}
 
-      <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش روز سبد" value={formatMoney(valuation.totalNetWorthToman, "IRT")} hint={formatMoney(valuation.totalNetWorth)} />
-        <Metric
-          label="بهای تمام‌شده"
-          value={formatMoney(valuation.totalCostBasisToman, "IRT")}
-          hint={formatMoney(valuation.totalCostBasis)}
-        />
-        <Metric
-          label="سود/زیان تحقق‌نیافته"
-          value={formatSignedMoney(unrealizedToman.toString(), "IRT")}
-          tone={trendTone(unrealizedToman.toString())}
-          hint={formatSignedMoney(unrealizedUsd.toString())}
-        />
-        <Metric
-          label="سود تحقق‌یافته"
-          value={tomanOf(pnl.total) != null ? formatSignedMoney(tomanOf(pnl.total)!, "IRT") : formatSignedMoney(pnl.total)}
-          tone={trendTone(pnl.total)}
-          hint={fx.rate ? formatSignedMoney(pnl.total) : undefined}
-        />
-      </section>
+      <AssetValuationSummary
+        totals={{
+          valueToman: valuation.totalNetWorthToman,
+          valueUsd: valuation.totalNetWorth,
+          costToman: valuation.totalCostBasisToman,
+          costUsd: valuation.totalCostBasis,
+          pnlToman: valuation.totalUnrealizedPnlToman,
+          pnlUsd: valuation.totalUnrealizedPnl,
+        }}
+        hint={`برای ${faCount(valuation.assetValuations.length)} دارایی · نرخ مرجع ${fx.rate ? formatMoney(fx.rate, "IRT") : "—"} ≈ ۱ دلار`}
+        extra={{
+          name: "سود/زیان تحقق‌یافته",
+          toman: tomanOf(pnl.total),
+          usd: pnl.total,
+          signed: true,
+        }}
+      />
 
       {valuation.assetValuations.length === 0 ? (
         <div className="card">
@@ -149,7 +145,7 @@ export default async function PortfolioPage() {
             )}
           </Section>
 
-          <Section title="ارزش‌گذاری دارایی‌ها" hint={`به‌روزرسانی با آخرین قیمت‌ها · نرخ مرجع ${fx.rate ? formatMoney(fx.rate, "IRT") : "—"}`}>
+          <Section title="فهرست ارزش‌گذاری دارایی‌ها" hint="به‌روزرسانی با آخرین قیمت‌ها — جمع همین سطرها، کارت خلاصه وضعیت بالای همین‌جا است.">
             <HoldingsTable rows={valuation.assetValuations} toIrt={toIrt} />
           </Section>
 

@@ -21,14 +21,42 @@ import AccountListItem from "@/components/accounts/AccountListItem";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Wallet-kind chips. Custody jargon is gone from the UI: a software (hot)
+ * wallet is simply «کیف پول» — whether the keys sit on a device or with an
+ * exchange is an implementation detail the user never has to decode to read
+ * their own balances.
+ */
 const WALLET_KIND: Record<string, string> = {
   bank: "بانک",
   exchange: "صرافی",
-  hot: "کیف داغ",
+  hot: "کیف پول",
   cold: "کیف سرد",
   cash: "نقد",
   fund: "صندوق/کارگزاری",
 };
+
+/**
+ * Subtitle under a wallet/bank card title.
+ *
+ * A bank's own name already carries the word «بانک» («بانک پاسارگاد»,
+ * «بانک سامان — سپرده», «بانک تجارت - قرض الحسنه»), so prefixing the
+ * `bank` kind label produced «بانک · بانک پاسارگاد» — the same word twice in
+ * a row, once in the title and once directly under it. When the kind label is
+ * already part of the title it is dropped and only the institution/network that
+ * still adds information is kept; if nothing is left, there is no subtitle.
+ */
+function walletSubtitleOf(wallet: { name: string | null; kind: string | null; institution: string | null; network: string | null } | undefined) {
+  if (!wallet) return null;
+  const kindLabel = WALLET_KIND[wallet.kind ?? ""] ?? wallet.kind ?? "";
+  const title = wallet.name ?? "";
+  const detail = wallet.institution ?? wallet.network ?? "";
+  // Never repeat the institution either: «بانک سامان — سپرده» IS «بانک سامان».
+  const detailAddsAnything = !!detail && detail !== title && !title.includes(detail);
+  const kindAddsAnything = !!kindLabel && !title.includes(kindLabel) && kindLabel !== detail;
+  const parts = [kindAddsAnything ? kindLabel : null, detailAddsAnything ? detail : null].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
 
 export default async function AccountsPage() {
   const user = await ensureAuth();
@@ -213,7 +241,12 @@ export default async function AccountsPage() {
                 name: walletName,
               });
               const walletSubtitle = walletMeta
-                ? `${WALLET_KIND[walletMeta.kind] ?? walletMeta.kind}${walletMeta?.institution ? ` · ${walletMeta.institution}` : walletMeta?.network ? ` · ${walletMeta.network}` : ""}`
+                ? walletSubtitleOf({
+                    name: walletName,
+                    kind: walletMeta.kind,
+                    institution: walletMeta.institution ?? null,
+                    network: walletMeta.network ?? null,
+                  })
                 : null;
               // ── Single-account wallets: one summary card, no duplicate sub-row.
               // Amounts reuse the exact same helpers (canonicalBalance /
