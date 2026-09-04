@@ -145,11 +145,18 @@ test("/accounts renders money accounts without the RSC serialisation crash", asy
   assert.ok(!html.includes("مشکلی در نمایش این صفحه پیش آمد"), "no generic render-error card");
   assert.ok(!html.includes("یک خطای غیرمنتظره رخ داد"), "no unexpected-error copy");
 
-  // The real content rendered.
+  // The real content rendered (front-end cleanup: single-account wallets
+  // render as one summary card with full titles, no duplicate sub-row and
+  // no «مانده اصلی» / «ارزش:» / «حساب» labels).
   assert.ok(html.includes("حساب‌ها"), "page title present");
   assert.ok(html.includes("بانک ملت"), "bank account row present");
-  assert.ok(html.includes("تتر نوبیتکس"), "USDT account row present");
-  assert.ok(html.includes("مانده اصلی"), "canonical balance label rendered");
+  assert.ok(html.includes("نوبیتکس"), "exchange wallet present");
+  assert.ok(html.includes("تتر"), "USDT amount unit present in Persian");
+  assert.ok(!html.includes("مانده اصلی"), "redundant «مانده اصلی» label removed");
+  assert.ok(!html.includes("مانده ارزش"), "redundant «مانده ارزش» label removed");
+  assert.ok(!html.includes("ارزش:"), "redundant «ارزش:» prefix removed");
+  // Full titles are never cut to «…» — the wallet name renders in full.
+  assert.ok(html.includes("بانک ملت — جاری"), "wallet title renders in full");
 
   // Logos: PersianLabs bank mark + official Tether artwork from CoinGecko.
   assert.ok(html.includes("/ir-icons/banks/mellat.svg"), "Bank Mellat logo rendered");

@@ -13,8 +13,17 @@
 // already-formatted strings it computed with its own helpers. No balance,
 // rate or valuation logic moved — the numbers are produced by exactly the
 // same ledger/FX code paths as before.
+//
+// UI CLEANUP (front-end only, ledger/FIFO untouched):
+//   • Redundant labels («— مانده اصلی», «ارزش:») removed — the row shows the
+//     primary amount + a single muted secondary line, no explanatory suffix.
+//   • Amounts reuse the server's formatMoney strings (Persian digits, max 2
+//     decimals, RLI…PDI bidi isolates), so crypto tickers (ETH…) keep the
+//     number-first order and never flip in RTL.
+//   • Title is never truncated to «…» — it wraps and uses the free space.
+//   • Icon is vertically centred with the title; padding/line-height are
+//     balanced so the two columns can never overlap.
 import AssetLogo from "@/components/ui/AssetLogo";
-import { currencyLabel, formatQty } from "@/lib/format";
 
 interface AccountListItemProps {
   accountId: string;
@@ -40,8 +49,6 @@ interface AccountListItemProps {
 export default function AccountListItem({
   name,
   symbol,
-  quantity,
-  assetDecimals,
   balanceLabel,
   valuationLabel,
   baseValueLabel,
@@ -52,40 +59,47 @@ export default function AccountListItem({
 }: AccountListItemProps) {
   const safeName = name ?? "بدون نام";
   const safeSymbol = symbol ?? "USD";
-  const safeQuantity = quantity ?? "0";
+
+  // Display-only mapping (no recalculation — strings come from the server):
+  //   • valuation exists (USDT/USD/crypto) → primary is the Toman valuation,
+  //     secondary is the exact canonical quantity (e.g. «۹۴۶.۴۸ تتر»).
+  //   • otherwise (IRT) → primary is the Toman balance, secondary is the
+  //     approximate USD equivalent («≈ … دلار»).
+  const primary = valuationLabel ?? balanceLabel;
+  const exactSecondary = valuationLabel ? balanceLabel : null;
+  const approxSecondary = !valuationLabel && baseValueLabel ? baseValueLabel : null;
 
   return (
-    <li className="flex items-center justify-between gap-3 px-4 py-2.5">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <AssetLogo
-          symbol={safeSymbol}
-          name={safeName}
-          logoUrl={logoUrl}
-          assetClassName={assetClassName}
-          brandName={brandName}
-          coingeckoId={coingeckoId}
-          size={24}
-          radius={12}
-        />
-        <div className="min-w-0">
-          <p className="truncate text-[12.5px] font-medium">{safeName}</p>
-          <p className="muted num text-[10px]" dir="rtl">
-            {formatQty(safeQuantity, assetDecimals ?? undefined)} {currencyLabel(safeSymbol)} — مانده اصلی
-          </p>
+    <li className="acct-row flex items-center justify-between gap-3 px-4 py-3.5">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <span className="acct-icon flex shrink-0 self-center">
+          <AssetLogo
+            symbol={safeSymbol}
+            name={safeName}
+            logoUrl={logoUrl}
+            assetClassName={assetClassName}
+            brandName={brandName}
+            coingeckoId={coingeckoId}
+            size={28}
+            radius={14}
+          />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="acct-title text-[12.5px] font-semibold sm:text-[13px]">{safeName}</p>
         </div>
       </div>
-      <div className="shrink-0 text-left">
-        <p className="num text-[11px] font-bold money-nowrap sm:text-[12px]" dir="rtl">
-          {balanceLabel}
+      <div className="acct-amount max-w-[48%] shrink-0 text-left">
+        <p className="num money-nowrap text-[12px] font-bold leading-6 sm:text-[13px]" dir="rtl">
+          {primary}
         </p>
-        {valuationLabel && (
-          <p className="muted num text-[10.5px]" style={{ color: "var(--text-2)" }}>
-            ارزش: {valuationLabel}
+        {exactSecondary && (
+          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[10.5px] leading-5" dir="rtl">
+            {exactSecondary}
           </p>
         )}
-        {!valuationLabel && baseValueLabel && (
-          <p className="muted num text-[10.5px]" style={{ color: "var(--text-2)" }}>
-            ≈ {baseValueLabel}
+        {!exactSecondary && approxSecondary && (
+          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[10.5px] leading-5" dir="rtl">
+            ≈ {approxSecondary}
           </p>
         )}
       </div>
