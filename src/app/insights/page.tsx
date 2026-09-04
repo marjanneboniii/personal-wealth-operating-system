@@ -79,6 +79,14 @@ export default async function InsightsPage() {
   const avgOutflow = monthsWithFlow.length
     ? Decimal.sum(monthsWithFlow.map((f) => f.outflow)).div(String(monthsWithFlow.length))
     : Decimal.zero();
+  // FROZEN Toman average of the same past outflows — valid only when every
+  // outflow entry of the window carries its commit-time FX snapshot. A dollar
+  // rate change can never move this figure; with partial coverage the UI falls
+  // back to the dynamic current-rate equivalent.
+  const outflowCovered = monthsWithFlow.length > 0 && monthsWithFlow.every((f) => f.outflowEntries === f.outflowEntriesSnap);
+  const avgOutflowToman = outflowCovered
+    ? monthsWithFlow.reduce((sum, f) => sum.add(D(f.outflowToman ?? "0")), Decimal.zero()).div(String(monthsWithFlow.length)).toFixed(0)
+    : null;
   const runwayMonths = avgOutflow.isZero() ? null : liquid.div(avgOutflow);
 
   // Savings rate over the window
@@ -225,7 +233,7 @@ export default async function InsightsPage() {
             label="دوام نقدینگی"
             value={runwayMonths ? `${formatNumber(runwayMonths.toFixed(1), { decimals: 1 })} ماه` : "—"}
             tone={runwayMonths ? (runwayMonths.gte("6") ? "up" : runwayMonths.gte("3") ? "neutral" : "down") : "neutral"}
-            hint={avgOutflow.isZero() ? "هزینه ثبت‌شده‌ای نیست" : `میانگین هزینه ${toIrt(avgOutflow.toString()) ?? formatMoney(avgOutflow.toString())}`}
+            hint={avgOutflow.isZero() ? "هزینه ثبت‌شده‌ای نیست" : `میانگین هزینه ${avgOutflowToman ? formatMoney(avgOutflowToman, "IRT") : toIrt(avgOutflow.toString()) ?? formatMoney(avgOutflow.toString())}`}
           />
           <Metric
             label="سهم دارایی نقدشونده"
@@ -277,6 +285,10 @@ export default async function InsightsPage() {
           <ul className="space-y-3">
             {topCategories.map((c) => {
               const shareNum = spendTotal.isZero() ? 0 : D(c.total).div(spendTotal).mul(100).toNumber();
+              // FROZEN Toman (commit-time snapshot) when every entry of this
+              // category is snapshot-covered — never re-derived via the
+              // current rate; dynamic «≈» only for legacy rows without a freeze.
+              const frozen = c.entries > 0 && c.entries === c.entriesWithSnap && D(c.totalToman).gt(0);
               return (
                 <li key={c.categoryId}>
                   <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
@@ -290,9 +302,9 @@ export default async function InsightsPage() {
                       </span>
                       <span className="flex flex-col items-end">
                         <span className="num font-bold" dir="rtl">
-                          {toIrt(c.total) ?? formatMoney(c.total)}
+                          {frozen ? formatMoney(c.totalToman, "IRT") : toIrt(c.total) ?? formatMoney(c.total)}
                         </span>
-                        {fx.rate && (
+                        {(frozen || fx.rate) && (
                           <span className="muted num text-[9.5px]" dir="rtl">
                             ≈ {formatMoney(c.total)}
                           </span>

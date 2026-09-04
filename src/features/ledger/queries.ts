@@ -15,7 +15,16 @@ async function rows<T>(query: ReturnType<typeof sql>): Promise<T[]> {
   return res.rows as T[];
 }
 
-async function resolveQueryUserId(explicitUserId?: string): Promise<string | undefined> {
+/**
+ * Resolve the tenant identity for a read: explicit caller id → authenticated
+ * session → single-user legacy fallback (undefined = global view, only safe
+ * while the database holds at most one identity).
+ *
+ * Exported so every read service in the cash-flow / reporting family shares
+ * the EXACT same tenant resolution, always paired with the fail-closed
+ * `hasMultipleUsers()` guard.
+ */
+export async function resolveQueryUserId(explicitUserId?: string): Promise<string | undefined> {
   if (explicitUserId) return explicitUserId;
   try {
     const { getCurrentUser } = await import("@/lib/auth");
@@ -375,7 +384,19 @@ export async function getCashflow(months = 6, userId?: string) {
   if (!u && (await hasMultipleUsers())) return [];
   // Two-level aggregation: first per entry (to avoid double-counting snapshot
   // irt_amount when an entry has multiple postings), then per month.
-  return rows<{ month: string; inflow: string; outflow: string; inflowToman: string | null; outflowToman: string | null }>(sql`
+  return rows<{
+    month: string;
+    inflow: string;
+    outflow: string;
+    inflowToman: string | null;
+    outflowToman: string | null;
+    /** How many cash-flow entries of the month — coverage of the Toman freeze. */
+    inflowEntries: number;
+    outflowEntries: number;
+    /** How many of those carry a frozen commit-time FX snapshot. */
+    inflowEntriesSnap: number;
+    outflowEntriesSnap: number;
+  }>(sql`
     with per_entry as (
       select je.id,
              date_trunc('month', je.entry_date)::date as month_trunc,
@@ -400,7 +421,15 @@ export async function getCashflow(months = 6, userId?: string) {
            coalesce(sum(outflow_usd), 0)::text as outflow,
            -- Toman is canonical from snapshot, only when that entry contributed to inflow/outflow
            coalesce(sum(case when inflow_usd > 0 then irt_amount else 0 end), 0)::text as \"inflowToman\",
-           coalesce(sum(case when outflow_usd > 0 then irt_amount else 0 end), 0)::text as \"outflowToman\"
+           coalesce(sum(case when outflow_usd > 0 then irt_amount else 0 end), 0)::text as \"outflowToman\",
+           -- Snapshot coverage: the caller may render the Toman aggregates as
+           -- FROZEN only when every cash-flow entry of the month is covered
+           -- (entries == entries_snap); a partial cover would understate the
+           -- total, so the UI falls back to the dynamic current-rate view.
+           count(*) filter (where inflow_usd > 0)::int as \"inflowEntries\",
+           count(*) filter (where outflow_usd > 0)::int as \"outflowEntries\",
+           count(*) filter (where inflow_usd > 0 and irt_amount is not null)::int as \"inflowEntriesSnap\",
+           count(*) filter (where outflow_usd > 0 and irt_amount is not null)::int as \"outflowEntriesSnap\"
     from per_entry
     group by month_trunc
     order by month_trunc
@@ -529,7 +558,19 @@ export async function countUnreviewed(userId?: string): Promise<number> {
 export async function getFlowByAccount(accountType: "income" | "expense", months = 6, userId?: string) {
   const u = await resolveQueryUserId(userId);
   if (!u && (await hasMultipleUsers())) return [];
-  return rows<{ accountId: string; code: string; name: string; total: string; totalToman: string | null; months: number }>(sql`
+  return rows<{
+    accountId: string;
+    code: string;
+    name: string;
+    total: string;
+    /** FROZEN Toman (commit-time snapshot) — display only, never accounting. */
+    totalToman: string | null;
+    /** Entries contributing a non-zero total in the window. */
+    entries: number;
+    /** How many of those carry a frozen commit-time FX snapshot. */
+    entriesWithSnap: number;
+    months: number;
+  }>(sql`
     with per_entry as (
       select a.id as acc_id, a.code, a.name,
              je.id as entry_id,
@@ -550,6 +591,10 @@ export async function getFlowByAccount(accountType: "income" | "expense", months
     select acc_id as "accountId", code, name,
            coalesce(sum(total_usd),0)::text as total,
            coalesce(sum(case when total_usd != 0 then irt_amount else 0 end),0)::text as \"totalToman\",
+           -- Snapshot coverage: the Toman total is FROZEN only when every
+           -- contributing entry carries its commit-time FX snapshot.
+           count(*) filter (where total_usd != 0)::int as entries,
+           count(*) filter (where total_usd != 0 and irt_amount is not null)::int as \"entriesWithSnap\",
            ${months}::int as months
     from per_entry
     group by acc_id, code, name
