@@ -55,7 +55,7 @@ import {
   getMiscCategory,
 } from "@/features/categories/service";
 import { executePlanned, payInstallment } from "@/features/planning/service";
-import { buildInstallmentPaymentSnapshot } from "@/features/planning/installmentFx";
+import { calculateInstallmentPayment } from "@/features/planning/installmentFx";
 import { completeSetup, getSetupState } from "@/features/setup/service";
 import { rootCauseOf } from "@/db/init-schema";
 import { registerMoneyAccount } from "@/features/accounts/service";
@@ -801,8 +801,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         // transaction as the status flip, so a `paid` row can never exist
         // without its historical USD snapshot. A later FX change is irrelevant
         // to these three columns — nothing recomputes them.
-        const paymentSnapshot = buildInstallmentPaymentSnapshot({
-          paidToman: irtAmountStr,
+        const paymentSnapshot = calculateInstallmentPayment({
+          amountToman: irtAmountStr,
           fxRate: serverRate.toString(),
         });
         await tx

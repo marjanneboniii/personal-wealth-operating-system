@@ -21,7 +21,7 @@
  *   • Current value is updated ONLY by a new valuation — it never rewrites the
  *     immutable purchase history or the ledger.
  */
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   accounts,
@@ -37,6 +37,8 @@ import { D } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
 import { recordAuditEvent } from "@/lib/audit";
 import { postEntry } from "@/features/ledger/service";
+import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
+import { ensureRealizedPnlAccount } from "@/features/accounts/systemAccounts";
 import { resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { formatMoney } from "@/lib/format";
 import { buildRwaSymbol, nextRwaSymbol } from "@/features/rwa/symbol";
@@ -961,6 +963,230 @@ export async function recordRealEstateValuation(input: RecordRealEstateValuation
     currentValueToman: D(updated.currentValueToman ?? "0").toFixed(0),
     currentValueUsd: D(updated.currentValueUsd ?? "0").toFixed(2),
     valuationFxRate: D(updated.valuationFxRate ?? "0").toString(),
+  };
+}
+
+/* ─────────────────────── sale (realized gain → ledger) ─────────────────────── */
+
+/**
+ * The receiving account of a sale must be an ASSET account in a money unit,
+ * owned by this tenant (or a shared global row). Returns null when the id does
+ * not qualify — the caller then refuses the write instead of inventing a cash
+ * destination (audit F-03: no foreign account, ever).
+ */
+async function resolveSalePayoutAccount(
+  accountId: string,
+  userId?: string | null,
+): Promise<{ id: string; assetId: string } | null> {
+  const scope = userId ? or(eq(accounts.userId, userId), isNull(accounts.userId)) : sql`1=1`;
+  const [row] = await db
+    .select({ id: accounts.id, assetId: accounts.assetId, type: accounts.type })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), scope, sql`${accounts.deletedAt} is null`))
+    .limit(1);
+  if (!row || row.type !== "asset" || !row.assetId) return null;
+  return { id: row.id, assetId: row.assetId };
+}
+
+/**
+ * فروش ملک — the property leaves the portfolio through the SAME unified write
+ * path as every other transaction (`postEntry`), in ONE atomic transaction:
+ *
+ *   1. The carrying value is removed from the real-estate asset account (1600)
+ *      with quantity −1 (the opening entry posted +1 — the position is a single
+ *      unit, never a FIFO lot). No lot is created or consumed.
+ *   2. The sale proceeds are credited to the chosen cash account.
+ *   3. The difference (sale value − carrying value) is booked to the realized
+ *      P&L account (4100) — the real-asset gain/loss therefore flows into the
+ *      unified realized P&L read model (`getRealizedPnl`), WITHOUT ever being
+ *      forced through the FIFO engine.
+ *   4. The property row + valuation snapshots are removed and the asset is
+ *      soft-deleted (the same cleanup as `deleteRealEstateAsset`), so the sold
+ *      property stops contributing to holdings / portfolio / net worth — its
+ *      unrealized P&L becomes exactly 0 while the realized result stays in the
+ *      immutable ledger.
+ *
+ * The frozen Toman sale price and the sale-date FX rate are written to
+ * `entry_fx_snapshots` atomically with the ledger entry.
+ */
+export async function sellRealEstateAsset(input: {
+  propertyId: string;
+  saleDate: string;
+  saleDatePersian?: string | null;
+  salePriceToman: string;
+  saleFxRate?: string | null;
+  saleAccountId: string;
+  note?: string | null;
+  userId?: string | null;
+}): Promise<{
+  assetId: string;
+  symbol: string;
+  ledgerEntryId: string;
+  saleValueUsd: string;
+  realizedToman: string;
+  realizedUsd: string;
+}> {
+  // 1. Load the property + asset (tenant-scoped at the DB query level).
+  const [prop] = await db
+    .select({
+      p: realEstateProperties,
+      assetSymbol: assets.symbol,
+    })
+    .from(realEstateProperties)
+    .innerJoin(assets, eq(assets.id, realEstateProperties.assetId))
+    .where(
+      input.userId
+        ? and(eq(realEstateProperties.id, input.propertyId), eq(realEstateProperties.userId, input.userId))
+        : eq(realEstateProperties.id, input.propertyId),
+    )
+    .limit(1);
+  if (!prop) throw new Error("ملک یافت نشد یا متعلق به شما نیست.");
+
+  const saleDate = (input.saleDate || "").slice(0, 10);
+  if (!saleDate) throw new Error("تاریخ فروش الزامی است.");
+  const salePrice = D(String(input.salePriceToman ?? "").replace(/[,٬\s]/g, ""));
+  if (salePrice.lte(0)) throw new Error("قیمت فروش (تومان) الزامی است و باید بزرگ‌تر از صفر باشد.");
+
+  const carrying = D(prop.p.purchaseValueUsd ?? "0");
+  if (carrying.lte(0)) {
+    throw new Error("این ملک سند افتتاحیه حسابداری ندارد و فروش از مسیر دفترکل ممکن نیست.");
+  }
+  const purchaseToman = D(prop.p.purchasePriceToman ?? "0");
+
+  // 2. FX of the sale date, frozen (manual override or historical lookup).
+  let saleFx: FxRateResolution;
+  if (input.saleFxRate && D(input.saleFxRate).gt(0)) {
+    saleFx = { rate: D(input.saleFxRate).toString(), effectiveDate: saleDate, source: "manual", isExact: true };
+  } else {
+    saleFx = await resolveUsdRateForDate(saleDate, input.userId ?? null);
+  }
+  if (D(saleFx.rate).lte(0)) throw new Error("نرخ دلار تاریخ فروش در دسترس نیست.");
+  const saleValueUsd = tomanToUsd(salePrice.toFixed(0), saleFx.rate);
+
+  // 3. Resolve the cash account (asset type, tenant-owned or global).
+  const cashAccount = await resolveSalePayoutAccount(input.saleAccountId, input.userId);
+  if (!cashAccount) throw new Error("حساب دریافت وجه فروش نامعتبر یا متعلق به این کاربر نیست.");
+
+  const realizedUsd = D(saleValueUsd).sub(carrying);
+  const realizedToman = salePrice.sub(purchaseToman);
+  const symbol = prop.assetSymbol;
+  const description = `فروش ملک ${symbol}${input.saleDatePersian ? ` — ${input.saleDatePersian}` : ""}`;
+
+  const entry = await db.transaction(async (tx) => {
+    const { assetAccountId } = await ensureRealEstateLedgerAccounts(tx);
+    const usdAssetId = await ensureUsdAssetId(tx);
+
+    const cashUnitPrice = D(await nativeUnitPriceUsd(cashAccount.assetId, input.userId ?? null, tx));
+    const cashQuantity = cashUnitPrice.gt(0) ? D(saleValueUsd).div(cashUnitPrice).toString() : D(saleValueUsd).toString();
+
+    const postings: any[] = [
+      {
+        accountId: assetAccountId,
+        assetId: prop.p.assetId,
+        quantity: "-1",
+        baseValue: carrying.neg().toString(),
+        memo: `خروج ملک به بهای ثبت‌شده — قیمت خرید: ${formatMoney(prop.p.purchasePriceToman ?? "0", "IRT")}`,
+      },
+      {
+        accountId: cashAccount.id,
+        assetId: cashAccount.assetId,
+        quantity: cashQuantity,
+        baseValue: D(saleValueUsd).toString(),
+        memo: "واریز وجه فروش ملک",
+      },
+    ];
+
+    if (!realizedUsd.isZero()) {
+      const pnlAccount = await ensureRealizedPnlAccount(input.userId ?? null, tx);
+      if (!pnlAccount) throw new Error("حساب سود سرمایه‌ای (۴۱۰۰) در دسترس نیست.");
+      const pnlAssetId = pnlAccount.assetId ?? usdAssetId;
+      const pnlUnitPrice = D(await nativeUnitPriceUsd(pnlAssetId, input.userId ?? null, tx));
+      const pnlUnitsPerUsd = pnlUnitPrice.gt(0) ? D("1").div(pnlUnitPrice) : D("1");
+      const pnlQuantity = realizedUsd.neg().mul(pnlUnitsPerUsd);
+      postings.push({
+        accountId: pnlAccount.id,
+        assetId: pnlAssetId,
+        quantity: pnlQuantity.isZero() ? realizedUsd.neg().toString() : pnlQuantity.toString(),
+        baseValue: realizedUsd.neg().toString(),
+        memo: "سود/زیان تحقق‌یافته از فروش ملک",
+      });
+    }
+
+    const posted = await postEntry(
+      {
+        entryDate: saleDate,
+        type: "sell",
+        description,
+        source: "manual",
+        reference: symbol,
+        userId: input.userId ?? undefined,
+        idempotencyKey: `real-estate-sale:${prop.p.id}`,
+        postings,
+      },
+      tx,
+    );
+
+    // Freeze the sale Toman + rate next to the ledger entry (audit + display).
+    await tx
+      .insert(entryFxSnapshots)
+      .values({
+        entryId: posted.id,
+        irtAmount: salePrice.toFixed(0),
+        usdAmount: D(saleValueUsd).toString(),
+        fxRate: D(saleFx.rate).toString(),
+        rateSource: saleFx.source,
+        rateDate: saleFx.effectiveDate,
+      })
+      .onConflictDoNothing();
+
+    // Remove the sold property from the portfolio (same cleanup as delete):
+    // property row (cascade → valuation snapshots), soft-delete the asset and
+    // release its identifier, drop the valuation cache. The ledger rows
+    // (opening + sale) are immutable and stay intact.
+    await tx.delete(realEstateProperties).where(eq(realEstateProperties.id, prop.p.id));
+    await tx
+      .update(assets)
+      .set({
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+        symbol: `__del_${prop.p.assetId.replace(/-/g, "").slice(0, 16)}`,
+      })
+      .where(eq(assets.id, prop.p.assetId));
+    await tx.delete(prices).where(eq(prices.assetId, prop.p.assetId));
+
+    await recordAuditEvent(
+      {
+        action: "SELL_REAL_ESTATE_ASSET",
+        entityType: "real_estate_property",
+        entityId: prop.p.id,
+        userId: input.userId ?? null,
+        result: "SUCCESS",
+        payload: {
+          symbol,
+          assetId: prop.p.assetId,
+          saleDate,
+          salePriceToman: salePrice.toFixed(0),
+          saleValueUsd,
+          saleFxRate: D(saleFx.rate).toString(),
+          carryingUsd: carrying.toString(),
+          realizedToman: realizedToman.toFixed(0),
+          realizedUsd: realizedUsd.toString(),
+          ledgerEntryId: posted.id,
+        },
+      },
+      tx,
+    );
+
+    return { entryId: posted.id };
+  });
+
+  return {
+    assetId: prop.p.assetId,
+    symbol,
+    ledgerEntryId: entry.entryId,
+    saleValueUsd: D(saleValueUsd).toString(),
+    realizedToman: realizedToman.toFixed(0),
+    realizedUsd: realizedUsd.toString(),
   };
 }
 
