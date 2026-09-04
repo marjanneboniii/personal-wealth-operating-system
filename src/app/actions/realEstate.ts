@@ -13,6 +13,7 @@ import {
   previewRealEstateIdentity,
   recordRealEstateValuation,
   repairOrphanedRealEstate,
+  sellRealEstateAsset,
 } from "@/features/rwa/realEstate/service";
 import { formatMoney, toFaDigits } from "@/lib/format";
 import { tomanToUsd } from "@/features/rwa/vehicle/fx";
@@ -177,6 +178,50 @@ export async function deleteRealEstateAction(propertyId: string): Promise<RealEs
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "حذف ملک ناموفق بود." };
+  }
+}
+
+/**
+ * فروش ملک — booked through the unified journal-entry write path.
+ *
+ * The sale posts the realized gain/loss to the ledger (asset out at carrying
+ * value, cash in at the sale value, difference to the realized P&L account)
+ * and removes the property from holdings/portfolio/net worth in the same
+ * atomic transaction. There is no UI form yet; the service is callable and
+ * fully covered by tests, and this action makes the write available to the
+ * next UI layer without changing the accounting core.
+ */
+export async function sellRealEstateAction(input: {
+  propertyId: string;
+  saleDate: string;
+  saleDatePersian?: string;
+  salePriceToman: string;
+  saleFxRate?: string;
+  saleAccountId: string;
+  note?: string;
+}): Promise<RealEstateResult> {
+  const denied = await guardRealEstate();
+  if (denied) return { ok: false, message: denied };
+  try {
+    await ensureRealEstateModuleReady();
+    const userId = await currentUserId();
+    const result = await sellRealEstateAsset({
+      propertyId: input.propertyId,
+      saleDate: input.saleDate,
+      saleDatePersian: input.saleDatePersian,
+      salePriceToman: input.salePriceToman,
+      saleFxRate: input.saleFxRate || undefined,
+      saleAccountId: input.saleAccountId,
+      note: input.note,
+      userId,
+    });
+    refresh();
+    return {
+      ok: true,
+      message: `ملک ${toFaDigits(result.symbol)} فروخته شد؛ سود/زیان تحقق‌یافته ${formatMoney(result.realizedToman, "IRT")} (≈ ${formatMoney(result.realizedUsd, "USD")}) در دفترکل ثبت شد.`,
+    };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "فروش ملک ناموفق بود." };
   }
 }
 

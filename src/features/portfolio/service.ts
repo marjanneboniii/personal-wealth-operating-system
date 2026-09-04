@@ -825,30 +825,28 @@ export async function getCurrentNetWorth(userId?: string) {
 
   const rate = D(valuation.currentFxRate).gt(0) ? D(valuation.currentFxRate) : D("1");
 
-  // Ledger liabilities
+  // ACCOUNTING LIABILITIES — the double-entry ledger, ALWAYS. A debt's future
+  // installment schedule (principal + future interest) is a CONTRACTUAL
+  // obligation, not a balance-sheet liability: it must never be subtracted from
+  // net worth before the actual payment is booked in the ledger. Folding the
+  // schedule in (the old `otherLedgerUsd + debtsUsd` path) replaced the
+  // ledger-principal liability with the full future-payments total and inflated
+  // net worth's liability side by the unaccrued interest.
   const ledgerLiabilities = balances.filter((b) => b.type === "liability");
-  const debtAccountIds = new Set(
-    (debts as any[]).filter((d: any) => d.accountId).map((d: any) => d.accountId as string),
-  );
-  const otherLedgerLiabilities = ledgerLiabilities.filter((b) => !debtAccountIds.has(b.accountId));
-  const otherLedgerUsd = otherLedgerLiabilities.reduce((sum, b) => sum.add(D(b.baseValue).neg()), Decimal.zero());
-  const otherLedgerToman = otherLedgerUsd.mul(rate);
+  const totalLiabilitiesUsd = ledgerLiabilities.reduce((sum, b) => sum.add(D(b.baseValue).neg()), Decimal.zero());
+  const totalLiabilitiesToman = totalLiabilitiesUsd.mul(rate);
 
-  let debtsUsd = Decimal.zero();
-  let debtsToman = Decimal.zero();
+  // FUTURE CONTRACTUAL OBLIGATIONS — reporting-only companion, exposed so
+  // reports can show «بدهی حسابداری» vs «تعهدات قراردادی آینده» separately.
+  // Never folded into net worth.
+  let futureObligationsUsd = Decimal.zero();
+  let futureObligationsToman = Decimal.zero();
   for (const d of debts as any[]) {
-    const outBase = D((d as any).outstandingBase ?? "0");
+    const outUsd = D((d as any).outstandingUsd ?? (d as any).outstandingBase ?? "0");
     const outToman = (d as any).outstandingToman != null ? D((d as any).outstandingToman) : null;
-    debtsUsd = debtsUsd.add(outBase);
-    if (outToman != null) {
-      debtsToman = debtsToman.add(outToman);
-    } else {
-      debtsToman = debtsToman.add(outBase.mul(rate));
-    }
+    futureObligationsUsd = futureObligationsUsd.add(outUsd);
+    futureObligationsToman = futureObligationsToman.add(outToman ?? outUsd.mul(rate));
   }
-
-  const totalLiabilitiesUsd = debts.length > 0 ? otherLedgerUsd.add(debtsUsd) : ledgerLiabilities.reduce((sum, b) => sum.add(D(b.baseValue).neg()), Decimal.zero());
-  const totalLiabilitiesToman = debts.length > 0 ? otherLedgerToman.add(debtsToman) : totalLiabilitiesUsd.mul(rate);
 
   const liquidAssets = valuation.assetValuations.filter((asset) =>
     ["نقد و بانک", "Cash", "استیبل‌کوین", "Stablecoin"].includes(asset.className),
@@ -865,6 +863,9 @@ export async function getCurrentNetWorth(userId?: string) {
     netWorthToman: D(valuation.totalNetWorthToman).sub(totalLiabilitiesToman).toFixed(0),
     liquid: liquid.toString(),
     liquidToman: liquidToman.toFixed(0),
+    // Contractual obligations (schedule) — NOT accounting liabilities.
+    futureObligationsUsd: futureObligationsUsd.toString(),
+    futureObligationsToman: futureObligationsToman.toFixed(0),
     byClass: valuation.allocationByClass.map((group) => ({
       className: group.className,
       color: group.color,

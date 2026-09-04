@@ -20,7 +20,7 @@ import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { addMonthsIso, jalaliToIso, toJalali, todayIso } from "@/lib/format";
 import {
   buildInstallmentFxView,
-  buildInstallmentPaymentSnapshot,
+  calculateInstallmentPayment,
   isInstallmentPaid,
   resolveInstallmentToman,
   summarizePendingUsdChange,
@@ -561,15 +561,23 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     if (!settledToman) throw new Error("نرخ تبدیل دلار به تومان برای ثبت پرداخت این قسط موجود نیست.");
     // Throws (and rolls the whole payment back) rather than leaving a `paid`
     // row without a USD snapshot.
-    const paymentSnapshot = buildInstallmentPaymentSnapshot({
-      paidToman: settledToman.toString(),
+    //
+    // QUICK PAY FIX: the ledger base value of this settlement is the USD
+    // equivalent AT THE PAYMENT RATE (`settled_toman ÷ payment_fx_rate`),
+    // computed by the SAME shared `calculateInstallmentPayment` the Payment
+    // Form uses. It is never the creation-time `amount_base` /
+    // `amount_usd_created` (the stale 3.24675-USD figure) — a later FX move
+    // must not change the 909,090-Toman obligation, only its USD equivalent.
+    const paymentSnapshot = calculateInstallmentPayment({
+      amountToman: settledToman.toString(),
       fxRate: paymentFx.rate,
     });
+    const paymentUsd = D(paymentSnapshot.paidUsd);
 
     // Reference reads run INSIDE the transaction (single-connection drivers
     // hold an exclusive lock during it) — keeps the read set consistent too.
-    const cashUnits = await unitsFor(cashAccountId, amount.toString(), tx, u);
-    const debtUnits = await unitsFor(debt.accountId, amount.toString(), tx, u);
+    const cashUnits = await unitsFor(cashAccountId, paymentUsd.toString(), tx, u);
+    const debtUnits = await unitsFor(debt.accountId, paymentUsd.toString(), tx, u);
 
     // 4) Post the ledger movement through the EXISTING single write path,
     //    inside this same transaction so it commits or rolls back atomically.
@@ -584,13 +592,13 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
             accountId: cashAccountId,
             assetId: cashUnits.assetId,
             quantity: D(cashUnits.quantity).neg().toString(),
-            baseValue: amount.neg().toString(),
+            baseValue: paymentUsd.neg().toString(),
           },
           {
             accountId: debt.accountId,
             assetId: debtUnits.assetId,
             quantity: debtUnits.quantity,
-            baseValue: amount.toString(),
+            baseValue: paymentUsd.toString(),
             memo: "کاهش مانده بدهی",
           },
         ],

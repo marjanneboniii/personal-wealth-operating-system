@@ -258,23 +258,34 @@ export function summarizePendingUsdChange(views: InstallmentFxView[]): PendingUs
   return { ...change, originalUsd: original.toString(), currentUsd: current.toString(), count };
 }
 
-export type InstallmentPaymentSnapshot = {
+export type InstallmentPaymentSnapshot = InstallmentPayment;
+
+export type InstallmentPayment = {
+  /** Actual Toman paid — the contractual `amount_toman`, frozen forever. */
   paidToman: string;
+  /** FX rate (IRT per 1 USD) valid AT PAYMENT TIME, frozen forever. */
   paidFxRate: string;
+  /** USD equivalent at the payment rate: paid_toman ÷ paid_fx_rate. */
   paidUsd: string;
 };
 
 /**
- * The values a payment must freeze, computed from the amount actually paid and
- * the FX rate valid AT THAT MOMENT. Callers persist all three inside the same
- * database transaction that flips the row to `paid` (see payInstallment /
- * createTransaction), so a PAID row can never exist without its USD snapshot.
+ * THE single deterministic payment calculation shared by EVERY installment
+ * payment path (Quick Pay `payInstallment` and the Payment Form
+ * `createTransactionAction`).
+ *
+ * Contractual Toman is the source of truth. The USD equivalent is ALWAYS
+ * `amount_toman ÷ payment_fx_rate` — computed from the rate valid at the
+ * moment of payment, never from `amount_base` / `amount_usd_created` (the
+ * creation-time figures). This guarantees a 909,090-Toman installment created
+ * at 280,000 IRT/USD but paid at 300,000 posts exactly 909,090 IRT and
+ * 3.0303 USD — never the stale 3.24675 USD creation-time equivalent.
  */
-export function buildInstallmentPaymentSnapshot(input: {
-  paidToman: string | number;
+export function calculateInstallmentPayment(input: {
+  amountToman: string | number;
   fxRate: string | number;
-}): InstallmentPaymentSnapshot {
-  const toman = dec(input.paidToman);
+}): InstallmentPayment {
+  const toman = dec(input.amountToman);
   const rate = positive(input.fxRate);
   if (!toman) throw new Error("مبلغ پرداخت قسط نامعتبر است");
   if (!rate) throw new Error("نرخ تبدیل دلار به تومان برای ثبت پرداخت این قسط موجود نیست.");
@@ -283,4 +294,23 @@ export function buildInstallmentPaymentSnapshot(input: {
     paidFxRate: rate.toString(),
     paidUsd: toman.div(rate).toString(),
   };
+}
+
+/**
+ * The values a payment must freeze, computed from the amount actually paid and
+ * the FX rate valid AT THAT MOMENT. Callers persist all three inside the same
+ * database transaction that flips the row to `paid` (see payInstallment /
+ * createTransaction), so a PAID row can never exist without its USD snapshot.
+ *
+ * Delegates to `calculateInstallmentPayment` so every payment path shares the
+ * exact same arithmetic.
+ */
+export function buildInstallmentPaymentSnapshot(input: {
+  paidToman: string | number;
+  fxRate: string | number;
+}): InstallmentPaymentSnapshot {
+  return calculateInstallmentPayment({
+    amountToman: input.paidToman,
+    fxRate: input.fxRate,
+  });
 }

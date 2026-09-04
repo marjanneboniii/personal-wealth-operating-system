@@ -373,8 +373,41 @@ export async function getRealizedPnl(userId?: string): Promise<{ total: string; 
       ${u ? sql`and l.user_id = ${u}` : sql``}
     group by ast.symbol order by 2 desc
   `);
+
+  // ── Real-asset realized P&L (NEVER forced through FIFO) ───────────────────
+  // A real-estate disposal posts its realized result to the 4100 account with
+  // NO lot consumption (a registry position has no FIFO history). A FIFO sell
+  // always consumes lots, so `not exists(lot_consumptions)` cleanly separates
+  // the two. Sold vehicles keep their realized result in the vehicle registry.
+  // Both are folded into `total` so the unified realized P&L metric covers
+  // financial (FIFO) AND real assets; `bySymbol` stays the FIFO breakdown.
+  const realAssetRows = await rows<{ pnl: string }>(sql`
+    select coalesce(-sum(p.base_value), 0)::text as pnl
+    from postings p
+      join journal_entries je on je.id = p.entry_id and je.status = 'posted'
+      join accounts a on a.id = p.account_id and a.code = '4100'
+    where je.type = 'sell'
+      and not exists (select 1 from lot_consumptions lc where lc.entry_id = je.id)
+      ${u ? sql`and je.user_id = ${u}` : sql``}
+  `);
+  const realEstatePnl = D(realAssetRows[0]?.pnl ?? "0");
+
+  const vehicleRows = await rows<{ pnl: string }>(sql`
+    select coalesce(sum(
+      case
+        when va.sale_value_usd is not null and va.purchase_value_usd is not null
+          then va.sale_value_usd - va.purchase_value_usd
+        else 0
+      end
+    ), 0)::text as pnl
+    from vehicle_assets va
+    where coalesce(va.status, 'active') = 'sold'
+      ${u ? sql`and va.user_id = ${u}` : sql``}
+  `);
+  const vehiclePnl = D(vehicleRows[0]?.pnl ?? "0");
+
   return {
-    total: Decimal.sum(data.map((d) => d.pnl)).toString(),
+    total: Decimal.sum(data.map((d) => d.pnl)).add(realEstatePnl).add(vehiclePnl).toString(),
     bySymbol: data,
   };
 }
