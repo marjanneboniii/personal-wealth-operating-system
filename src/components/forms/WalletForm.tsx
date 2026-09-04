@@ -6,7 +6,7 @@ import { BankLogo } from "@/components/ui/IranLogo";
 
 const kinds = [
   ["bank", "حساب بانکی"], ["cash", "نقد"], ["exchange", "صرافی"],
-  ["hot", "کیف پول گرم"], ["cold", "کیف پول سرد"], ["fund", "صندوق / کارگزاری"],
+  ["hot", "کیف پول"], ["cold", "کیف پول سرد"], ["fund", "صندوق / کارگزاری"],
 ] as const;
 
 export default function WalletForm() {

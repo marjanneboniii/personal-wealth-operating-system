@@ -220,16 +220,31 @@ export default async function OverviewDashboard() {
         <div className="overview-summary mt-5 grid grid-cols-3 divide-x divide-x-reverse border-t pt-3 sm:mt-6 sm:pt-4" style={{ borderColor: "var(--border)" }}>
             {[
               { label: "کل دارایی‌ها", value: nw.totalAssets, toman: nw.totalAssetsToman, tone: "var(--color-module-wealth)" },
-              { label: "کل بدهی‌ها", value: D(nw.totalLiabilities).neg().toString(), toman: D(nw.totalLiabilitiesToman).neg().toString(), tone: "var(--color-module-commitments)" },
+              // «کل بدهی‌ها» is the DEBT the user can see and pay — `totalDebt*`,
+              // which unifies the ledger liability accounts with the debts the
+              // planning module owns. It used to read `totalLiabilities*` (the
+              // ledger only) and flipped its sign twice: a debt registered in
+              // «بدهی‌ها» never created a ledger account, so this tile showed
+              // ۰, and its USD line rendered a negative amount.
+              { label: "کل بدهی‌ها", value: nw.totalDebtUsd, toman: nw.totalDebtToman, tone: "var(--color-module-commitments)" },
               { label: "نقدشونده", value: nw.liquid, toman: nw.liquidToman, tone: "var(--color-module-expenses)" },
             ].map((m) => (
-            <div key={m.label} className="min-w-0 px-2.5 first:pr-0 last:pl-0 sm:px-4" style={{ borderColor: "var(--border)" }}>
+            <div
+              key={m.label}
+              className="min-w-0 px-2.5 first:pr-0 last:pl-0 sm:px-4"
+              style={{ borderColor: "var(--border)" }}
+              title={
+                m.label === "کل بدهی‌ها"
+                  ? "مانده قابل پرداخت همه بدهی‌ها — همان عددی که در «بدهی‌ها» با برچسب «مانده کل بدهی» می‌بینید. ارزش خالص دارایی مطابق اصول دوطرفه فقط بدهی ثبت‌شده در سوابق مالی را کم می‌کند."
+                  : undefined
+              }
+            >
               <p className="muted truncate text-[10px] sm:text-[11px]">{m.label}</p>
               <p className="num mt-1 text-[12px] font-bold leading-[1.3] money-nowrap sm:text-[14px]" dir="rtl" style={{ color: m.tone }}>
                 {formatMoney(D(m.toman).abs().toString(), "IRT")}
               </p>
-              <p className="muted num mt-0.5 hidden text-[10px] money-nowrap sm:block sm:text-[10.5px]">
-                ≈ {formatMoney(m.value)}
+              <p className="muted num mt-0.5 hidden text-[10px] money-nowrap sm:block sm:text-[10.5px]" dir="rtl">
+                ≈ {formatMoney(D(m.value).abs().toString())}
               </p>
             </div>
           ))}

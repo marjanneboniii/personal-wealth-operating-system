@@ -59,6 +59,11 @@ export function formatQty(
  * Persian display label for currency/asset codes. Money rendered for the user
  * NEVER shows a Latin ticker or a currency sign ($ / € / ₮) — it uses the
  * Persian word instead. Unknown codes (e.g. crypto tickers) pass through.
+ *
+ * `ETH` is deliberately NOT left as the Latin ticker: in every table, card and
+ * asset list that renders through this map the user reads «اتریوم», matching
+ * the asset's own Persian name (assets.name) instead of showing a code only a
+ * developer recognises.
  */
 export const CURRENCY_LABELS: Record<string, string> = {
   USD: "دلار",
@@ -66,6 +71,7 @@ export const CURRENCY_LABELS: Record<string, string> = {
   IRT: "تومان",
   IRR: "تومان",
   EUR: "یورو",
+  ETH: "اتریوم",
 };
 
 export function currencyLabel(currency: string | null | undefined): string {
@@ -73,6 +79,16 @@ export function currencyLabel(currency: string | null | undefined): string {
   const code = String(currency).trim().toUpperCase();
   return CURRENCY_LABELS[code] ?? String(currency);
 }
+
+/**
+ * True when a code has a Persian display word (so a Latin ticker shown
+ * alongside it would be a duplicate, e.g. «اتریوم (ETH)»).
+ */
+export function hasPersianCurrencyLabel(currency: string | null | undefined): boolean {
+  if (!currency) return false;
+  return CURRENCY_LABELS[String(currency).trim().toUpperCase()] !== undefined;
+}
+
 
 /*
  * Unicode bidi isolates (RLI … PDI). Every money string produced by

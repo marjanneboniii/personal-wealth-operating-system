@@ -324,7 +324,7 @@ export async function completeSetup(
       ...(wantsCashWallet
         ? [{ code: "1020", name: input.cashWalletName?.trim() || "صندوق نقد", type: "asset", assetId: cashAssetId }]
         : []),
-      { code: "1200", name: "کیف رمزارز (ETH)", type: "asset", assetId: assetMap.ETH },
+      { code: "1200", name: "کیف پول اتریوم", type: "asset", assetId: assetMap.ETH },
       { code: "1300", name: "طلای ۱۸ عیار", type: "asset", assetId: assetMap.GOLD18 },
       { code: "2000", name: "بدهی‌ها", type: "liability" },
       { code: "2010", name: "وام / بدهی عمومی", type: "liability", assetId: baseAssetId },

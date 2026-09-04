@@ -8,7 +8,7 @@ import {
 } from "@/app/actions/registry";
 import { compareDates, type SnapshotPoint } from "@/features/rwa/vehicle/analytics";
 import type { VehicleDashboardItem } from "@/features/rwa/vehicle/dto";
-import { formatMoney, toFaDigits, todayIso } from "@/lib/format";
+import { currencyLabel, formatMoney, toFaDigits, todayIso } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
 import { AutomobileLogo } from "@/components/ui/IranLogo";
 import VehicleChart from "./VehicleChart";
@@ -459,7 +459,7 @@ function ManagePanel({
               {payoutAccounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
-                  {a.symbol && a.symbol !== "IRT" ? ` — ${a.symbol}` : ""}
+                  {a.symbol && a.symbol !== "IRT" ? ` — ${currencyLabel(a.symbol)}` : ""}
                 </option>
               ))}
             </select>

@@ -72,7 +72,14 @@ test("currencyLabel maps codes (case-insensitive) and passes unknown tickers thr
   assert.equal(currencyLabel("USD"), "دلار");
   assert.equal(currencyLabel("USDT"), "تتر");
   assert.equal(currencyLabel("usdt"), "تتر");
-  assert.equal(currencyLabel("ETH"), "ETH");
+  // «ETH» is no longer left as a Latin ticker: tables, cards and asset lists
+  // read the asset's Persian name.
+  assert.equal(currencyLabel("ETH"), "اتریوم");
+  assert.equal(currencyLabel("eth"), "اتریوم");
+  const ethMoney = formatMoney("4", "ETH");
+  assert.ok(/۴[\s\u00a0]اتریوم/.test(ethMoney), "number → space → unit, in Persian");
+  assert.ok(!ethMoney.includes("ETH"), "the Latin ticker never reaches the screen");
+  assert.equal(currencyLabel("GOLD18"), "GOLD18", "an unmapped code still passes through");
   assert.equal(currencyLabel(null), "");
 });
 

@@ -24,6 +24,10 @@ import { listOwnershipRecords } from "@/features/rwa/ownership/service";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { isLiquidAccount } from "@/features/accounts/classification";
 import { PageHeader } from "@/components/ui/Card";
+import { faCount } from "@/lib/format";
+import { getPortfolioValuation } from "@/features/portfolio/service";
+import { splitAssetFamilies } from "@/features/portfolio/assetFamilies";
+import AssetValuationSummary, { valuationTotalsOf } from "@/components/assets/AssetValuationSummary";
 import RegistryWorkspace from "@/components/registry/RegistryWorkspace";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +70,7 @@ export default async function AssetRegistryPage() {
     cities,
     neighborhoods,
     propertyTypes,
+    portfolioValuation,
   ] = await Promise.all([
     // SECURITY: pass the tenant id so reads are scoped at the DB level.
     listVehicleAssets(userId ?? undefined),
@@ -108,11 +113,23 @@ export default async function AssetRegistryPage() {
         .filter((r) => r.type === "asset" && isLiquidAccount(r))
         .map((r) => ({ id: r.accountId, name: r.name, symbol: r.symbol })),
     ),
+    // Read model only — the same valuation every other asset view reads, so
+    // «دارایی‌های واقعی» values a property exactly as «همه دارایی‌ها» does.
+    getPortfolioValuation(undefined, userId ?? undefined),
   ]);
+
+  // The real-asset slice of the portfolio valuation (املاک / خودرو / طلا /
+  // کالا) — same classification as every other asset view.
+  const { real: realValuations } = splitAssetFamilies(portfolioValuation.assetValuations);
 
   return (
     <div className="space-y-6">
       <PageHeader title="دارایی واقعی و کالا" />
+
+      <AssetValuationSummary
+        totals={valuationTotalsOf(realValuations)}
+        hint={`برای ${faCount(realValuations.length)} دارایی واقعی · تومان ملاک محاسبه، دلار معادل نمایشی`}
+      />
       <RegistryWorkspace
         vehicles={vehicles}
         ownerships={ownerships}

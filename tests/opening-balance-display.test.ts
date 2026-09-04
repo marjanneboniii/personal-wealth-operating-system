@@ -90,7 +90,7 @@ test("opening entry with «۳٫۳۳ اتریوم + ۱۴۵۶ تتر + ۶٬۰۰۰�
   assert.notEqual(h.nativeIrt, "6000000", "a lone Toman leg is one component, not the entry amount");
   assert.equal(h.nativeIrt, null, "no native Toman side exists → full base total is shown with «≈»");
   assert.equal(D(h.amountExact).toFixed(2), "11506.00", "Ethereum + Tether + cash all count");
-  assert.ok(h.qtyLabel?.includes("ETH"), "the Ethereum quantity is surfaced");
+  assert.ok(h.qtyLabel?.includes("اتریوم"), "the Ethereum quantity is surfaced (in Persian, per the UI standard)");
 });
 
 test("mixed entries never hide non-Toman assets (seed-style opening: several Toman banks + Tether)", () => {

@@ -82,7 +82,8 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
 
   const qtyLeg = positives[0] ?? e.lines[0];
   // Display only: the asset label is shown to the user in Persian
-  // (USD→دلار, USDT→تتر, IRT→تومان); unknown tickers (ETH, BTC, …) pass through.
+  // (USD→دلار, USDT→تتر, IRT→تومان, ETH→اتریوم); tickers without a Persian
+  // display name (BTC, GOLD18, …) pass through unchanged.
   const qtyLabel = qtyLeg && qtyLeg.symbol && qtyLeg.symbol !== "USD" && qtyLeg.symbol !== "IRT" ? `${formatQty(qtyLeg.quantity, qtyLeg.decimals ?? 8)} ${currencyLabel(qtyLeg.symbol)}` : null;
 
   return {

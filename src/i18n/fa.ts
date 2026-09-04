@@ -18,7 +18,7 @@ export const fa = {
     step2Desc: "حساب‌های بانکی، نقد و دسته‌های درآمد و هزینه خود را مشخص کنید.",
     mainBankAccount: "حساب بانکی اصلی",
     cashWallet: "صندوق نقد / کیف پول نقد",
-    cryptoWallet: "کیف پول رمزارز (سرد/داغ)",
+    cryptoWallet: "کیف پول رمزارز",
     goldHolding: "حساب طلا و مسکوکات",
     loanLiability: "وام / بدهی شخصی",
 
@@ -26,7 +26,7 @@ export const fa = {
     step3Desc: "ثروت فعلی خود را وارد کنید تا تصویر شروع ساخته شود.",
     openingBalanceHelp: "مبلغ هر حساب را با واحد همان حساب وارد کنید. معادل دلاری فقط برای جمع‌بندی داخلی محاسبه می‌شود.",
     cashAmount: "موجودی نقد و بانک",
-    cryptoAmount: "مقدار رمزارز (مثلاً ETH)",
+    cryptoAmount: "مقدار رمزارز (مثلاً اتریوم)",
     goldAmount: "مقدار طلا (گرم)",
     accountDenominationLabel: "واحد حساب (Denomination)",
     bookCurrencyChip: "واحد جمع‌بندی داخلی: دلار (فقط خواندنی)",

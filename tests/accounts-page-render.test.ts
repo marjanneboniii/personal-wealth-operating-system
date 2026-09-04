@@ -18,6 +18,7 @@
  */
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
+import { eq } from "drizzle-orm";
 import { createElement } from "react";
 
 let sessionToken: string | null = null;
@@ -164,6 +165,85 @@ test("/accounts renders money accounts without the RSC serialisation crash", asy
     html.includes("coin-images.coingecko.com/coins/images/325/large/Tether.png"),
     "USDT row uses the official Tether logo",
   );
+
+  sessionToken = null;
+});
+
+/* ──────────────────────────────────────────────────────────────────────
+   Requested UI cleanup on the SAME page: wallet wording + bank subtitles.
+
+   • A software wallet was labelled «کیف داغ» (hot wallet) — custody jargon
+     the user never asked for. It now reads «کیف پول» everywhere.
+   • A bank card printed «بانک» AGAIN under its own name: the subtitle was
+     `kind label · institution`, so «بانک پاسارگاد» got «بانک · بانک
+     پاسارگاد» and «بانک تجارت - قرض الحسنه» / «بانک سامان» the same
+     duplication. The redundant word is gone; the subtitle only survives when
+     it still says something the title does not.
+   ────────────────────────────────────────────────────────────────────── */
+
+test("/accounts labels wallets in plain Persian and never repeats «بانک» under a bank", async () => {
+  await modulesReady;
+  const { users, wallets, accounts, assets, assetClasses, currencies, institutions } = schema;
+
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.username, "logo-accounts"))
+    .limit(1);
+  assert.ok(user, "fixture user from the previous test");
+  sessionToken = (await createSession(user.id)).token;
+
+  const [irtAsset] = await db.select().from(assets).where(eq(assets.symbol, "IRT")).limit(1);
+  const [usdtAsset] = await db.select().from(assets).where(eq(assets.symbol, "USDT")).limit(1);
+
+  const [pasargad] = await db
+    .insert(institutions)
+    .values({ kind: "bank", name: "بانک پاسارگاد", country: "IR" })
+    .returning();
+  const [tejarat] = await db
+    .insert(institutions)
+    .values({ kind: "bank", name: "بانک تجارت", country: "IR" })
+    .returning();
+
+  // Bank whose name already carries the word «بانک» + a network-only wallet.
+  const [pasargadWallet] = await db
+    .insert(wallets)
+    .values({ userId: user.id, name: "بانک پاسارگاد", kind: "bank", institutionId: pasargad.id })
+    .returning();
+  const [tejaratWallet] = await db
+    .insert(wallets)
+    .values({ userId: user.id, name: "بانک تجارت - قرض الحسنه", kind: "bank", institutionId: tejarat.id })
+    .returning();
+  const [samanWallet] = await db
+    .insert(wallets)
+    .values({ userId: user.id, name: "بانک سامان — سپرده", kind: "bank" })
+    .returning();
+  const [hotWallet] = await db
+    .insert(wallets)
+    .values({ userId: user.id, name: "متامسک", kind: "hot" })
+    .returning();
+
+  await db.insert(accounts).values([
+    { userId: user.id, code: "1040", name: "پاسارگاد جاری", type: "asset", assetId: irtAsset.id, walletId: pasargadWallet.id },
+    { userId: user.id, code: "1050", name: "تجارت قرض‌الحسنه", type: "asset", assetId: irtAsset.id, walletId: tejaratWallet.id },
+    { userId: user.id, code: "1060", name: "سامان سپرده", type: "asset", assetId: irtAsset.id, walletId: samanWallet.id },
+    { userId: user.id, code: "1110", name: "تتر متامسک", type: "asset", assetId: usdtAsset.id, walletId: hotWallet.id },
+  ]);
+
+  const html = await renderAccounts();
+
+  // Titles are intact…
+  for (const name of ["بانک پاسارگاد", "بانک تجارت - قرض الحسنه", "بانک سامان — سپرده", "متامسک"]) {
+    assert.ok(html.includes(name), `wallet card «${name}» renders`);
+  }
+  // …and no card repeats the word «بانک» underneath its own name.
+  assert.ok(!html.includes("بانک · بانک"), "the duplicated «بانک» subtitle is gone");
+  assert.ok(!html.includes(">بانک</p>"), "a lone «بانک» subtitle adds nothing");
+  // The hot-wallet label is gone from the chip too.
+  assert.ok(!html.includes("کیف داغ"), "no «hot wallet» wording in the UI");
+  assert.ok(html.includes("کیف پول"), "a software wallet is simply «کیف پول»");
+  // Stablecoin in a software wallet still renders its Persian unit word.
+  assert.ok(html.includes("تتر"), "USDT keeps its Persian label");
 
   sessionToken = null;
 });
