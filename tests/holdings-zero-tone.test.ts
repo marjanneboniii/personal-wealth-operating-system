@@ -85,8 +85,8 @@ test("§2 a zero-PnL holding renders NEUTRAL — no green, no «+», no «↑»"
 test("§2 non-zero PnL keeps its semantic colour, sign and arrow", async () => {
   await modulesReady;
   const html = await render([
-    row({ assetId: "g1", symbol: "ETH", name: "اتریوم", unrealizedPnl: "12.5", roiPercentage: "25" }),
-    row({ assetId: "l1", symbol: "SOL", name: "سولانا", unrealizedPnl: "-4.5", roiPercentage: "-9" }),
+    row({ assetId: "g1", symbol: "ETH", name: "اتریوم", unrealizedPnl: "12.5", unrealizedPnlToman: "2500000", costBasisToman: "10000000", roiPercentage: "25" }),
+    row({ assetId: "l1", symbol: "SOL", name: "سولانا", unrealizedPnl: "-4.5", unrealizedPnlToman: "-900000", costBasisToman: "10000000", roiPercentage: "-9" }),
   ]);
   const body = html.split("سود/زیان")[1] ?? "";
 

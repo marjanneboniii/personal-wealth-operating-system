@@ -153,6 +153,7 @@ async function loadUnheldRealAssets(input: {
       quantity: "1",
       marketPrice: currentValue,
       marketCurrencyCode: "USD",
+      costBasisToman: "0",
       currentValue,
       currentValueToman,
       costBasis,
@@ -232,6 +233,7 @@ async function loadUnheldRealAssets(input: {
       quantity: "1",
       marketPrice: currentValue,
       marketCurrencyCode: "USD",
+      costBasisToman: "0",
       currentValue,
       currentValueToman,
       costBasis,
@@ -313,6 +315,7 @@ async function loadUnheldRealAssets(input: {
       quantity: "1",
       marketPrice: currentValue,
       marketCurrencyCode: "USD",
+      costBasisToman: "0",
       currentValue,
       currentValueToman,
       costBasis,
@@ -353,6 +356,7 @@ export async function getPortfolioValuation(
       totalNetWorth: "0",
       totalNetWorthToman: "0",
       totalCostBasis: "0",
+      totalCostBasisToman: "0",
       totalUnrealizedPnl: "0",
       totalUnrealizedPnlToman: "0",
       overallRoiPercentage: "0",
@@ -599,6 +603,7 @@ export async function getPortfolioValuation(
       className: holding.className,
       classColor: holding.classColor,
       decimals: holding.decimals,
+      costBasisToman: "0",
       quantity: qty.toString(),
       marketPrice,
       marketCurrencyCode: "USD",
@@ -630,6 +635,24 @@ export async function getPortfolioValuation(
     totalUnrealizedPnlToman = totalUnrealizedPnlToman.add(extra.unrealizedPnlToman);
     assetValuations.push(extra);
   }
+
+  // ── Presentation-layer Toman consistency (read-model only — no accounting,
+  // FIFO or GL change) ────────────────────────────────────────────────────────
+  // Every row carries a canonical Toman cost basis equal to
+  // `currentValueToman − unrealizedPnlToman`. For inherently-Toman assets
+  // (ملک، خودرو، نقد تومانی) `unrealizedPnlToman` is already the static
+  // Toman P&L (current − purchase, frozen), so `costBasisToman` resolves back
+  // to the static purchase Toman. For USD-denominated assets it is their USD
+  // cost translated at the reference rate. Either way the three Toman figures
+  // per row and the headline aggregate are consistent, so the «سبد دارایی»
+  // page can never show a positive unrealized P&L next to a value below cost.
+  for (const valuation of assetValuations) {
+    valuation.costBasisToman = D(valuation.currentValueToman)
+      .sub(valuation.unrealizedPnlToman)
+      .toFixed(0);
+  }
+  // Enforce the identity on the headline totals: value = cost + P&L (Toman).
+  const totalCostBasisToman = totalNetWorthToman.sub(totalUnrealizedPnlToman);
 
   const logoAssetIds = assetValuations.map((row) => row.assetId);
   if (logoAssetIds.length) {
@@ -665,6 +688,7 @@ export async function getPortfolioValuation(
     totalNetWorth: totalValue,
     totalNetWorthToman: totalNetWorthToman.toFixed(0),
     totalCostBasis: totalCostBasis.toString(),
+    totalCostBasisToman: totalCostBasisToman.toFixed(0),
     totalUnrealizedPnl: totalUnrealizedPnl.toString(),
     totalUnrealizedPnlToman: totalUnrealizedPnlToman.toFixed(0),
     overallRoiPercentage: calculateRoi(totalValue, totalCostBasis.toString()),

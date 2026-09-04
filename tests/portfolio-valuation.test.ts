@@ -19,6 +19,7 @@ import {
 import { postEntry, recordBuy, recordSell } from "../src/features/ledger/service";
 import { getAccountBalances, getRealizedPnl } from "../src/features/ledger/queries";
 import { getPortfolioValuation } from "../src/features/portfolio/service";
+import { D } from "../src/domain/decimal";
 import { clearCoinGeckoPriceCache } from "../src/features/pricing/service";
 import { calculateMarketValuation } from "../src/features/valuation/service";
 
@@ -206,6 +207,26 @@ test("sale realization remains FIFO/accounting-derived, never CoinGecko-derived"
   await getPortfolioValuation("2026-08-11", user.id);
 
   assert.deepEqual(await getRealizedPnl(user.id), realizedBefore);
+});
+
+test("read-model Toman totals are internally consistent (value = cost + unrealized P&L)", async () => {
+  const { user } = await setupBtcHolding();
+  mockCoinGeckoPrice(() => 100000);
+  const s = await getPortfolioValuation("2026-08-11", user.id);
+
+  // Headline identity that the «سبد دارایی» metrics rely on — no value/cost/
+  // unrealized combination may ever contradict one another.
+  const net = D(s.totalNetWorthToman);
+  const cost = D(s.totalCostBasisToman);
+  const pnl = D(s.totalUnrealizedPnlToman);
+  const residual = net.sub(cost).sub(pnl).abs().toNumber();
+  assert.ok(residual <= 1, `value ≠ cost + P&L in Toman (residual ${residual})`);
+
+  // Per-row canonical Toman cost basis must equal current − unrealized P&L.
+  for (const a of s.assetValuations) {
+    const expected = D(a.currentValueToman).sub(a.unrealizedPnlToman).toFixed(0);
+    assert.equal(D(a.costBasisToman).toFixed(0), expected, `row cost basis mismatch: ${a.symbol}`);
+  }
 });
 
 test("pure FX calculation never rewrites USD cost basis", () => {

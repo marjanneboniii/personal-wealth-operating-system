@@ -27,7 +27,12 @@ export default async function PortfolioPage() {
     const t = tomanOf(usd);
     return t ? formatMoney(t, "IRT") : null;
   };
-  const unrealized = D(valuation.totalUnrealizedPnl);
+  // The Toman headline figures are Toman-canonical and internally consistent
+  // (value = cost + unrealized P&L). They come straight from the read model,
+  // never by re-scaling the frozen USD aggregates at the current rate, which
+  // is what used to produce a positive «سود/زیان» next to a value below cost.
+  const unrealizedToman = D(valuation.totalUnrealizedPnlToman);
+  const unrealizedUsd = D(valuation.totalUnrealizedPnl);
 
   return (
     <div className="space-y-8">
@@ -47,12 +52,16 @@ export default async function PortfolioPage() {
 
       <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش روز سبد" value={formatMoney(valuation.totalNetWorthToman, "IRT")} hint={formatMoney(valuation.totalNetWorth)} />
-        <Metric label="بهای تمام‌شده" value={toIrt(valuation.totalCostBasis) ?? formatMoney(valuation.totalCostBasis)} hint={fx.rate ? formatMoney(valuation.totalCostBasis) : undefined} />
+        <Metric
+          label="بهای تمام‌شده"
+          value={formatMoney(valuation.totalCostBasisToman, "IRT")}
+          hint={formatMoney(valuation.totalCostBasis)}
+        />
         <Metric
           label="سود/زیان تحقق‌نیافته"
-          value={tomanOf(unrealized.toString()) != null ? formatSignedMoney(tomanOf(unrealized.toString())!, "IRT") : formatSignedMoney(unrealized.toString())}
-          tone={trendTone(unrealized.toString())}
-          hint={fx.rate ? formatSignedMoney(unrealized.toString()) : undefined}
+          value={formatSignedMoney(unrealizedToman.toString(), "IRT")}
+          tone={trendTone(unrealizedToman.toString())}
+          hint={formatSignedMoney(unrealizedUsd.toString())}
         />
         <Metric
           label="سود تحقق‌یافته"

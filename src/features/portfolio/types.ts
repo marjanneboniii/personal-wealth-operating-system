@@ -31,6 +31,14 @@ export type AssetValuation = {
   currentValue: string;
   currentValueToman: string;
   costBasis: string;
+  /** Presentation-layer Toman cost basis, consistent with `currentValueToman`
+   *  and `unrealizedPnlToman` (cost = current − unrealized P&L). For assets
+   *  that are inherently Toman-denominated (ملک، خودرو، نقد تومانی) this is
+   *  the static purchase Toman; for USD-denominated assets it is their USD
+   *  cost translated at the reference rate. Never derived by re-scaling a
+   *  frozen USD figure with today's rate, so it cannot contradict the other
+   *  two Toman figures. */
+  costBasisToman: string;
   historicalCostToman: string | null;
   unrealizedPnl: string;
   unrealizedPnlToman: string;
@@ -53,6 +61,12 @@ export type PortfolioSummary = {
   totalNetWorth: string;
   totalNetWorthToman: string;
   totalCostBasis: string;
+  /** Presentation-layer aggregate Toman cost basis. Computed so that the
+   *  headline Toman figures are always internally consistent:
+   *  `totalNetWorthToman = totalCostBasisToman + totalUnrealizedPnlToman`.
+   *  This is what the «بهای تمامشده» metric displays (never a re-scale of
+   *  the frozen USD cost basis at today's rate). */
+  totalCostBasisToman: string;
   totalUnrealizedPnl: string;
   totalUnrealizedPnlToman: string;
   overallRoiPercentage: string;
