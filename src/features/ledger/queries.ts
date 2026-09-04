@@ -84,18 +84,33 @@ export type AccountBalance = {
   assetName: string | null;
   assetDecimals: number;
   walletName: string | null;
+  /** `wallets.kind` (bank | cash | exchange | hot | cold | fund) — classification input. */
+  walletKind: string | null;
   className: string | null;
   classColor: string | null;
+  /** `asset_classes.code` — the stable classification key (cash/stable/crypto/…). */
+  classCode: string | null;
   quantity: string;
   baseValue: string;
 };
 
-/** Balances are ALWAYS derived from the immutable ledger — never stored. */
+/**
+ * Balances are ALWAYS derived from the immutable ledger — never stored.
+ *
+ * TENANT ISOLATION (audit F-04): a POSTING is owned by the tenant indirectly,
+ * through its journal entry. `accounts` is filtered to the tenant (own rows +
+ * the whitelisted shared chart rows), but the aggregate MUST also be filtered
+ * through `journal_entries.user_id`, otherwise the posted balance of a SHARED
+ * account (1000 cash, 1600 real estate, 4100 P&L, 5040 fees, …) would show
+ * every tenant's money. `getHoldings()` already applied this rule; this was
+ * the one read path that did not.
+ */
 export async function getAccountBalances(userId?: string): Promise<AccountBalance[]> {
   const u = await resolveQueryUserId(userId);
   // Fail-closed: in a multi-tenant database an unresolved identity must not
   // read every tenant's balances.
   if (!u && (await hasMultipleUsers())) return [];
+  const entryTenantScope = u ? sql`and (je.user_id = ${u} or je.user_id is null)` : sql``;
   return rows<AccountBalance>(sql`
     select a.id            as "accountId",
            a.code          as "code",
@@ -106,8 +121,10 @@ export async function getAccountBalances(userId?: string): Promise<AccountBalanc
            ast.name        as "assetName",
            coalesce(ast.decimals, 2) as "assetDecimals",
            w.name          as "walletName",
+           w.kind          as "walletKind",
            ac.name         as "className",
            ac.color        as "classColor",
+           ac.code         as "classCode",
            coalesce(sum(case when je.status = 'posted' then p.quantity else 0 end), 0)::text  as "quantity",
            coalesce(sum(case when je.status = 'posted' then p.base_value else 0 end), 0)::text as "baseValue"
     from accounts a
@@ -115,13 +132,13 @@ export async function getAccountBalances(userId?: string): Promise<AccountBalanc
         -- Presentation only: omit postings of entries that reference a
         -- deleted or orphaned real-estate asset. Ledger rows stay intact.
         and not ${entryReferencesInactiveRwa(sql`p.entry_id`)}
-      left join journal_entries je on je.id = p.entry_id
+      left join journal_entries je on je.id = p.entry_id ${entryTenantScope}
       left join assets ast on ast.id = coalesce(p.asset_id, a.asset_id)
       left join wallets w on w.id = a.wallet_id
       left join asset_classes ac on ac.id = ast.class_id
     where a.deleted_at is null
       and (ast.id is null or ast.deleted_at is null) ${u ? sql`and (a.user_id = ${u} or (a.user_id is null and a.code in ('1000','1300','1400','1600','1610','1620','2000','3000','3010','3015','3200','4000','4010','4100','4900','5000','5010','5020','5030','5040','5050','5900')))` : sql``}
-    group by a.id, a.code, a.name, a.type, ast.id, ast.symbol, ast.name, ast.decimals, w.name, ac.name, ac.color
+    group by a.id, a.code, a.name, a.type, ast.id, ast.symbol, ast.name, ast.decimals, w.name, w.kind, ac.name, ac.color, ac.code
     order by a.code
   `);
 }

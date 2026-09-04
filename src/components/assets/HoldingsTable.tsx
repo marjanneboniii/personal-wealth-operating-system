@@ -23,6 +23,7 @@ export default function HoldingsTable({
             <th className="td-num">مقدار</th>
             <th className="td-num">قیمت بازار</th>
             <th className="td-num hidden lg:table-cell">بهای تمام‌شده</th>
+            <th className="td-num hidden lg:table-cell">میانگین قیمت خرید</th>
             <th className="td-num">ارزش روز</th>
             <th className="td-num hidden sm:table-cell">سود/زیان</th>
             <th className="td-num hidden sm:table-cell">سهم</th>
@@ -43,6 +44,13 @@ export default function HoldingsTable({
               ? D(a.currentValueToman)
               : D(a.currentValueToman).div(qtyD);
             const costToman = D(a.costBasisToman ?? a.currentValueToman);
+            // Mixed-currency DCA: Σ(qty × unit cost × FX frozen at the buy) over
+            // the lots still held. Shown next to the cost basis so the user can
+            // see WHICH unit the average was measured in, and whether any lot
+            // had to be estimated with today's rate (pre-snapshot buys).
+            const dca = a.dca;
+            const dcaHeld = dca ? D(dca.quantityHeld) : D("0");
+            const dcaUsable = !!dca && dcaHeld.gt(0);
             const roiToman = costToman.isZero() || costToman.isNegative()
               ? "0"
               : pnlToman.div(costToman).mul("100").toFixed(2);
@@ -66,6 +74,16 @@ export default function HoldingsTable({
                         {currencyLabel(a.symbol)}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-1">
+                        {a.valuationBase === "toman" && (
+                          <span className="chip text-[9px]" title="ارزش این دارایی در تومان ثابت است و دلار از آن مشتق می‌شود">
+                            مبنای تومان
+                          </span>
+                        )}
+                        {a.valuationBase === "usd" && (
+                          <span className="chip text-[9px]" title="ارزش این دارایی در دلار (قیمت بازار) ثابت است و تومان از آن مشتق می‌شود">
+                            مبنای دلار
+                          </span>
+                        )}
                         {a.priceFreshness === "fresh" && <span className="chip text-[9px]">Fresh</span>}
                         {a.priceFreshness === "stale" && <span className="chip text-[9px]" style={{ color: "var(--warning)" }}>Stale</span>}
                         {a.priceFreshness === "unavailable" && <span className="chip text-[9px]" style={{ color: "var(--negative)" }}>Unavailable</span>}
@@ -101,6 +119,24 @@ export default function HoldingsTable({
                   <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
                     ≈ {formatMoney(a.costBasis)}
                   </div>
+                </td>
+                <td className="td-num hidden lg:table-cell money-nowrap text-[11px]" dir="rtl">
+                  {dcaUsable ? (
+                    <>
+                      <div className="text-[11px] font-medium money-nowrap sm:text-[12px]">
+                        {formatMoney(dca!.dcaUnitPriceToman, "IRT")}
+                      </div>
+                      <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
+                        ≈ {formatMoney(dca!.dcaUnitPriceUsd)}
+                      </div>
+                      <div className="muted text-[9px] leading-4 sm:text-[9.5px]">
+                        {formatQty(dca!.quantityHeld, a.decimals)} واحد
+                        {dca!.hasEstimatedFx ? " · با برآورد نرخ" : ""}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="muted text-[11px]">—</div>
+                  )}
                 </td>
                 <td className="td-num money-nowrap" dir="rtl">
                   <div className="num text-[11px] font-bold money-nowrap sm:text-[12px]">{formatMoney(a.currentValueToman, "IRT")}</div>

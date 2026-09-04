@@ -15,6 +15,7 @@ import Icon from "@/components/ui/Icon";
 import AssetLogo from "@/components/ui/AssetLogo";
 import DebtInstallmentExplorer, { type DebtOption } from "./DebtInstallmentExplorer";
 import { D } from "@/domain/decimal";
+import { isLiquidAccount } from "@/features/accounts/classification";
 import type { PriceFailureCode, PriceFreshness } from "@/features/pricing/types";
 
 export type AccountOption = {
@@ -26,6 +27,15 @@ export type AccountOption = {
   decimals: number;
   logoUrl?: string | null;
   coingeckoId?: string | null;
+  /**
+   * Optional classification hints (`asset_classes.code`, its name and
+   * `wallets.kind`). When present, the Money/Assets separation defined in
+   * `@/features/accounts/classification` decides where the account may be
+   * used; when absent the account is treated by its symbol only.
+   */
+  classCode?: string | null;
+  className?: string | null;
+  walletKind?: string | null;
 };
 
 export type MarketAssetOption = {
@@ -90,6 +100,35 @@ const TYPES = [
 ] as const;
 
 type TxType = (typeof TYPES)[number]["key"];
+
+/**
+ * ONE source of truth for both the option lists and the stale-selection
+ * cleanup in `pickType`, so a select can never offer an account the submit path
+ * would refuse. Pure + module-level, hence no hook dependencies to track:
+ *   • the payment side of EVERY daily flow (هزینه، درآمد، بازپرداخت، پرداختِ
+ *     خرید و دریافتِ فروش) is restricted to liquid accounts — bank, cash box,
+ *     fund and stablecoin wallets (audit F-11);
+ *   • a transfer may still move any position between two of the user's own
+ *     accounts; buy/sell target a position, never a fiat wallet.
+ */
+function primaryOptionsFor(key: TxType, cash: AccountOption[], liquidCash: AccountOption[]): AccountOption[] {
+  if (key === "buy" || key === "sell") return cash.filter((a) => !["IRT", "USD"].includes(a.symbol ?? ""));
+  if (key === "expense" || key === "income" || key === "debt_repayment") return liquidCash;
+  return cash;
+}
+
+function counterOptionsFor(
+  key: TxType,
+  accountOptions: AccountOption[],
+  cash: AccountOption[],
+  liquidCash: AccountOption[],
+): AccountOption[] {
+  if (key === "expense") return [];
+  if (key === "income") return accountOptions.filter((a) => a.type === "income");
+  if (key === "debt_repayment") return accountOptions.filter((a) => a.type === "expense");
+  // buy / sell are paid from — or credited to — a money account only.
+  return key === "buy" || key === "sell" ? liquidCash : cash;
+}
 
 type Props = {
   accounts: AccountOption[];
@@ -185,16 +224,15 @@ export default function TransactionForm({
 
   const meta = TYPES.find((t) => t.key === type)!;
   const cash = accountOptions.filter((a) => a.type === "asset");
-  const primaryOptions = useMemo(() => {
-    if (type === "buy" || type === "sell") return cash.filter((a) => !["IRT", "USD"].includes(a.symbol ?? ""));
-    return cash;
-  }, [type, cash]);
-  const counterOptions = useMemo(() => {
-    if (type === "expense") return [];
-    if (type === "income") return accountOptions.filter((a) => a.type === "income");
-    if (type === "debt_repayment") return accountOptions.filter((a) => a.type === "expense");
-    return cash;
-  }, [type, accountOptions, cash]);
+  const liquidCash = useMemo(() => cash.filter((a) => isLiquidAccount(a)), [cash]);
+  const primaryOptions = useMemo(
+    () => primaryOptionsFor(type, cash, liquidCash),
+    [type, cash, liquidCash],
+  );
+  const counterOptions = useMemo(
+    () => counterOptionsFor(type, accountOptions, cash, liquidCash),
+    [type, accountOptions, cash, liquidCash],
+  );
   const isAssetPicker = type === "buy" || type === "sell";
 
   /* ── Expense category derivation ── */
@@ -217,9 +255,7 @@ export default function TransactionForm({
     if (key === "debt_repayment") {
       setShowExplorer(true);
     }
-    const targetPrimaryOptions = (key === "buy" || key === "sell")
-      ? cash.filter((a) => !["IRT", "USD"].includes(a.symbol ?? ""))
-      : cash;
+    const targetPrimaryOptions = primaryOptionsFor(key, cash, liquidCash);
     if (primaryAccountId && !targetPrimaryOptions.some((a) => a.id === primaryAccountId)) {
       setPrimaryAccountId("");
     }
@@ -240,8 +276,8 @@ export default function TransactionForm({
         if (expAcc) setCounterAccountId(expAcc.id);
       }
     } else {
-      // For buy, sell, transfer: counter account must be an asset account (cash/bank)
-      const valid = cash.some((a) => a.id === counterAccountId);
+      // buy / sell: a money account. transfer: any of the user's accounts.
+      const valid = counterOptionsFor(key, accountOptions, cash, liquidCash).some((a) => a.id === counterAccountId);
       if (!valid) {
         setCounterAccountId("");
       }
@@ -436,6 +472,19 @@ export default function TransactionForm({
 
   const primaryAccount = accountOptions.find((a) => a.id === primaryAccountId);
   const counterAccount = accountOptions.find((a) => a.id === counterAccountId);
+
+  /**
+   * Fee unit follows the PAYING account so the ledger converts it with exactly
+   * the same unit price as the rest of the entry: Toman for a bank account,
+   * USDT for a stablecoin wallet, USD for a dollar account. The `feeMode`
+   * field tells the server which reading applies (`native` = the account's own
+   * unit). Without it a "5 USDT" commission was converted as 5 Toman.
+   */
+  const feePayAccount =
+    type === "buy" || type === "sell" ? counterAccount : primaryAccount ?? counterAccount;
+  const feeSymbol = (feePayAccount?.symbol ?? "IRT").toUpperCase();
+  const feeInToman = !feePayAccount || feeSymbol === "IRT" || feeSymbol === "IRR";
+  const feeUnitLabel = feeInToman ? "toman" : feeSymbol;
   const isCrossCurrencyTransfer =
     type === "transfer" &&
     !!primaryAccount?.symbol &&
@@ -770,6 +819,16 @@ export default function TransactionForm({
                 ))}
               </select>
             )}
+            {primaryOptions.length === 0 && !(type === "expense" && isNonCashCategory) ? (
+              <p className="muted mt-1.5 text-[10.5px] leading-5">
+                {type === "buy" || type === "sell"
+                  ? "برای خرید یا فروش، اول حساب دارایی را بسازید (دارایی‌ها ← ثبت دارایی). حساب‌های نقد و استیبل‌کوین در این فهرست نیامده‌اند."
+                  : "برای ثبت هزینه یا درآمد به یک حساب نقد نیاز دارید — بانک، صندوق یا کیف‌پول استیبل‌کوین. حساب‌های سرمایه‌گذاری (رمزارز نوسانی، طلا، ملک، خودرو) عمداً اینجا فهرست نمی‌شوند؛ آن‌ها فقط با خرید/فروش/انتقال جابه‌جا می‌شوند."}{' '}
+                <a href="/accounts" style={{ color: "var(--brand)" }}>
+                  افزودن حساب نقد
+                </a>
+              </p>
+            ) : null}
           </div>
           <div>
             {type === "debt_repayment" ? (
@@ -850,21 +909,32 @@ export default function TransactionForm({
           </summary>
           <div className="grid gap-3 border-t pb-3 pt-3 sm:grid-cols-2" style={{ borderColor: "var(--border)" }}>
             <div>
-              <label className="label">کارمزد (اختیاری) — به تومان</label>
+              <label className="label">
+                {feeInToman ? "کارمزد (اختیاری) — به تومان" : `کارمزد (اختیاری) — به ${feeSymbol}`}
+              </label>
               <AmountInput
                 name="fee"
                 value={fee}
-                onChange={(e) => setFee(e.target.value.replace(/[^0-9]/g, ""))}
-                inputMode="numeric"
+                onChange={(e) =>
+                  setFee(e.target.value.replace(feeInToman ? /[^0-9]/g : /[^0-9.]/g, ""))
+                }
+                inputMode="decimal"
                 className="field num"
                 dir="ltr"
-                unit="toman"
+                unit={feeUnitLabel}
                 placeholder="0"
                 style={{ touchAction: "manipulation" }}
               />
-              {fee && effectiveRate && <p className="muted mt-1 text-[10px]">کارمزد دلاری ≈ {formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD")}</p>}
+              {fee && feeInToman && effectiveRate && (
+                <p className="muted mt-1 text-[10px]">کارمزد دلاری ≈ {formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD")}</p>
+              )}
             </div>
-            <p className="muted self-end text-[11px] leading-5">کارمزد نیز با همین نرخ تبدیل و در همان سند ثبت می‌شود.</p>
+            <p className="muted self-end text-[11px] leading-5">
+              {feeInToman
+                ? "کارمزد نیز با همین نرخ تبدیل و در همان سند ثبت می‌شود."
+                : "کارمزد با نرخ رسمی همین حساب (واحد بومی) به دلار تبدیل و در همان سند ثبت می‌شود."}
+            </p>
+            <input type="hidden" name="feeMode" value={feeInToman ? "irt" : "native"} />
           </div>
         </details>
 

@@ -23,12 +23,15 @@ export default function VehicleModule({
   dashboard,
   summary,
   ownerName,
+  payoutAccounts = [],
 }: {
   brands: VehicleBrand[];
   models: VehicleCatalogModel[];
   dashboard: VehicleDashboardItem[];
   summary: VehiclePortfolioSummary;
   ownerName: string;
+  /** Liquid accounts the sale proceeds may be credited to (unified ledger write). */
+  payoutAccounts?: { id: string; name: string; symbol: string | null }[];
 }) {
   const [tab, setTab] = useState<Tab>(dashboard.length ? "vehicles" : "add");
 
@@ -103,7 +106,9 @@ export default function VehicleModule({
               </button>
             </div>
           ) : (
-            dashboard.map((item) => <VehicleCard key={item.vehicle.id} item={item} />)
+            dashboard.map((item) => (
+              <VehicleCard key={item.vehicle.id} item={item} payoutAccounts={payoutAccounts} />
+            ))
           )}
         </div>
       )}

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import {
   accounts,
   auditLog,
+  entryFxSnapshots,
   journalEntries,
   lotConsumptions,
   lots,
@@ -15,6 +16,17 @@ import { D, Decimal } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
 import { recordAuditEvent } from "@/lib/audit";
 import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
+import {
+  assertSystemAccount,
+  ensureFeeExpenseAccount,
+  ensureRealizedPnlAccount,
+  ensureSystemAccount,
+  FEE_EXPENSE_CODE,
+  OPENING_EQUITY_CODE,
+  REALIZED_PNL_CODE,
+  resolveSystemAccount,
+  resolveSystemAccountById,
+} from "@/features/accounts/systemAccounts";
 
 export type PostEntryInput = {
   entryDate: string;
@@ -203,12 +215,19 @@ export async function postEntry(
 
     // 2. Overdraft Prevention (when explicitly enabled)
     if (input.preventOverdraft) {
+      // The probe is scoped to the tenant's OWN postings (+ legacy unowned
+      // ones): a SHARED system account (e.g. a global 1600/1000 row) must not
+      // let another tenant's balance hide an overdraft, and — symmetrically —
+      // must not block a legitimate write because a foreign tenant is short.
+      const tenantScope = resolvedUserId
+        ? sql`and (je.user_id = ${resolvedUserId} or je.user_id is null)`
+        : sql``;
       for (const p of input.postings) {
         if (D(p.baseValue).isNegative()) {
           const balRes = await tx.execute(sql`
             select coalesce(sum(p2.base_value), 0)::text as bal
             from postings p2 join journal_entries je on je.id = p2.entry_id
-            where p2.account_id = ${p.accountId} and je.status = 'posted'
+            where p2.account_id = ${p.accountId} and je.status = 'posted' ${tenantScope}
           `);
           const currentBal = D((balRes.rows[0] as { bal?: string })?.bal ?? "0");
           const newBal = currentBal.add(D(p.baseValue));
@@ -512,9 +531,15 @@ export async function reverseEntry(entryId: string): Promise<{ id: string }> {
   });
 }
 
-export async function accountByCode(code: string) {
-  const found = await db.select().from(accounts).where(eq(accounts.code, code)).limit(1);
-  return found[0] ?? null;
+/**
+ * @deprecated System chart lookups must be tenant-scoped; use
+ * `resolveSystemAccount(code, userId)` from `@/features/accounts/systemAccounts`
+ * so a code can never resolve to ANOTHER tenant's row (audit F-03). The
+ * tenant-less form below is retained only for callers that provably run in a
+ * single-tenant (no-auth) deployment and is now ordered + soft-delete aware.
+ */
+export async function accountByCode(code: string, userId?: string | null) {
+  return await resolveSystemAccount(code, userId);
 }
 
 /**
@@ -802,14 +827,56 @@ export type TradeCmd = {
   preventOverdraft?: boolean;
 };
 
+/**
+ * Native units of ONE base-currency (USD) unit of an account's denomination.
+ * Used so every leg of a trade is quantified in the unit that account actually
+ * carries (Toman for a bank account, USD for the fee/P&L accounts) instead of
+ * inheriting the cash account's unit — the source of the mixed-unit quantities
+ * the audit reported (F-09).
+ */
+async function nativeUnitsPerUsd(
+  assetId: string | null | undefined,
+  fallbackPerUsd: Decimal,
+  userId: string | null | undefined,
+  client: any,
+): Promise<Decimal> {
+  if (!assetId) return fallbackPerUsd;
+  try {
+    const unit = await nativeUnitPriceUsd(assetId, userId, client);
+    const unitDec = D(unit);
+    if (unitDec.gt(0)) return D("1").div(unitDec);
+  } catch {
+    /* fall through to the caller-provided rate */
+  }
+  return fallbackPerUsd;
+}
+
+/** A posting quantity must never be zero (`assertBalanced`); guard tiny legs. */
+const safeQty = (value: Decimal, fallback: Decimal): string =>
+  value.isZero() ? fallback.abs().toString() : value.toString();
+
+/**
+ * BUY — asset at trade value, commission expensed, one cash debit.
+ *
+ * F-01/F-05 alignment (this is the whole point of the shape below):
+ *   asset account  +value            ← MUST equal the lot cost basis
+ *   cash account   −(value + fee)     ← everything that actually left the wallet
+ *   5040 fee       +fee              ← commission is an expense, never capitalised
+ * so Σ = 0 by construction AND the FIFO cost basis of the lot equals the amount
+ * the asset account is credited with. Selling the position in full therefore
+ * returns the asset account to exactly zero instead of leaving a ghost balance
+ * equal to the commission (the F-05 defect).
+ */
 export async function recordBuy(cmd: TradeCmd, txClient?: any) {
   const value = D(cmd.baseValue);
   const fee = D(cmd.feeBase ?? "0");
   const dbClient = txClient ?? db;
 
-  const cashUnit = D(cmd.cashQuantity).isZero()
+  // `cashQuantity` is the native-unit counterpart of `baseValue`; from it the
+  // per-USD rate of the payment account is derived and reused for every leg.
+  const cashUnitsPerUsd = value.isZero()
     ? Decimal.zero()
-    : value.add(fee).div(cmd.cashQuantity);
+    : D(cmd.cashQuantity).div(value);
 
   const lines: DraftPosting[] = [
     {
@@ -821,25 +888,34 @@ export async function recordBuy(cmd: TradeCmd, txClient?: any) {
     {
       accountId: cmd.cashAccountId,
       assetId: cmd.cashAssetId,
-      quantity: D(cmd.cashQuantity).neg().toString(),
+      quantity: value.add(fee).mul(cashUnitsPerUsd).neg().toString(),
       baseValue: value.add(fee).neg().toString(),
     },
   ];
 
   if (fee.gt(0)) {
-    const feeAcctId =
-      cmd.feeAccountId ??
-      (await dbClient.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id;
+    // F-03: the fee account is resolved for THIS tenant (own row first, then
+    // the shared global one) and F-02: it is provisioned when absent — an
+    // omitted fee leg is exactly what used to produce an unbalanced entry.
+    const feeAccount =
+      (cmd.feeAccountId
+        ? await resolveSystemAccountById(cmd.feeAccountId, cmd.userId, dbClient)
+        : null) ?? (await ensureFeeExpenseAccount(cmd.userId ?? null, dbClient));
+    const feeAsset = assertSystemAccount(feeAccount, FEE_EXPENSE_CODE, "کارمزد و بانک");
 
-    if (feeAcctId) {
-      lines.push({
-        accountId: feeAcctId,
-        assetId: cmd.cashAssetId,
-        quantity: cashUnit.isZero() ? fee.toString() : fee.div(cashUnit).toString(),
-        baseValue: fee.toString(),
-        memo: "کارمزد معامله",
-      });
-    }
+    // The commission is quantified in the fee account's own denomination when
+    // that is known (usually USD), otherwise in the payment account's unit.
+    const feeUnitsPerUsd = cashUnitsPerUsd.isZero()
+      ? D("1")
+      : await nativeUnitsPerUsd(feeAsset.assetId, cashUnitsPerUsd, cmd.userId, dbClient);
+
+    lines.push({
+      accountId: feeAsset.id,
+      assetId: feeAsset.assetId ?? cmd.cashAssetId,
+      quantity: safeQty(fee.mul(feeUnitsPerUsd), fee),
+      baseValue: fee.toString(),
+      memo: "کارمزد معامله",
+    });
   }
 
   return postEntry(
@@ -851,7 +927,8 @@ export async function recordBuy(cmd: TradeCmd, txClient?: any) {
         accountId: cmd.assetAccountId,
         assetId: cmd.assetId,
         quantity: cmd.quantity,
-        costBase: value.add(fee).toString(),
+        // The lot basis tracks the asset-account posting exactly (F-05).
+        costBase: value.toString(),
       },
       idempotencyKey: cmd.idempotencyKey,
       preventOverdraft: cmd.preventOverdraft,
@@ -913,10 +990,19 @@ export async function recordSell(cmd: TradeCmd & { pnlAccountId: string }, txCli
     )
     .orderBy(lots.openedAt);
 
-  const preview = consumeFifo(open, cmd.quantity, proceeds.sub(fee).toString());
-  const costBasis = D(preview.totalCost);
   const netProceeds = proceeds.sub(fee);
+  // F-01: the commission is applied EXACTLY ONCE. `netProceeds` is what the
+  // wallet actually receives and it is also the figure the realized P&L is
+  // measured against, so there is no second pair of "fee" legs (which used to
+  // debit the cash account again and left it 2× the fee away from reality).
+  const preview = consumeFifo(open, cmd.quantity, netProceeds.toString());
+  const costBasis = D(preview.totalCost);
   const realized = netProceeds.sub(costBasis);
+
+  // The cash leg is quantified in the payment account's own unit: the caller
+  // supplied `cashQuantity` for the GROSS value, so it is scaled by the net.
+  const cashUnitsPerUsd = proceeds.isZero() ? Decimal.zero() : D(cmd.cashQuantity).div(proceeds);
+  const cashQuantity = netProceeds.mul(cashUnitsPerUsd);
 
   const lines: DraftPosting[] = [
     {
@@ -929,41 +1015,33 @@ export async function recordSell(cmd: TradeCmd & { pnlAccountId: string }, txCli
     {
       accountId: cmd.cashAccountId,
       assetId: cmd.cashAssetId,
-      quantity: cmd.cashQuantity,
+      quantity: safeQty(cashQuantity, netProceeds),
       baseValue: netProceeds.toString(),
+      memo: fee.gt(0) ? `واریز خالص وجه (کسر کارمزد ${fee.toString()})` : "واریز وجه فروش",
     },
   ];
 
   if (!realized.isZero()) {
+    // F-03: the realized-P&L counter is resolved for THIS tenant (own row,
+    // else the shared global row) and provisioned if the chart lacks it, so a
+    // foreign tenant's 4100 can never absorb the credit.
+    const pnlAccount =
+      (cmd.pnlAccountId
+        ? await resolveSystemAccountById(cmd.pnlAccountId, resolvedUserId, dbClient)
+        : null) ?? (await ensureRealizedPnlAccount(resolvedUserId, dbClient));
+    const pnlAcct = assertSystemAccount(pnlAccount, REALIZED_PNL_CODE, "سود سرمایه‌ای تحقق‌یافته");
+
+    const pnlUnitsPerUsd = cashUnitsPerUsd.isZero()
+      ? D("1")
+      : await nativeUnitsPerUsd(pnlAcct.assetId, cashUnitsPerUsd, resolvedUserId, dbClient);
+
     lines.push({
-      accountId: cmd.pnlAccountId,
-      assetId: cmd.cashAssetId,
-      quantity: realized.neg().toString(),
+      accountId: pnlAcct.id,
+      assetId: pnlAcct.assetId ?? cmd.cashAssetId,
+      quantity: safeQty(realized.neg().mul(pnlUnitsPerUsd), realized),
       baseValue: realized.neg().toString(),
       memo: "سود/زیان تحقق‌یافته",
     });
-  }
-  if (fee.gt(0)) {
-    const feeAcctId =
-      cmd.feeAccountId ??
-      (await dbClient.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id;
-
-    if (feeAcctId) {
-      lines.push({
-        accountId: feeAcctId,
-        assetId: cmd.cashAssetId,
-        quantity: fee.toString(),
-        baseValue: fee.toString(),
-        memo: "کارمزد معامله",
-      });
-      lines.push({
-        accountId: cmd.cashAccountId,
-        assetId: cmd.cashAssetId,
-        quantity: fee.neg().toString(),
-        baseValue: fee.neg().toString(),
-        memo: "کسر کارمزد",
-      });
-    }
   }
 
   return postEntry(
@@ -977,6 +1055,178 @@ export async function recordSell(cmd: TradeCmd & { pnlAccountId: string }, txCli
     },
     txClient,
   );
+}
+
+/**
+ * A LIQUIDATION OF A REGISTRY-HELD POSITION (real estate / vehicle / any asset
+ * tracked outside the trade flow) through the SAME write path as every other
+ * transaction — `postEntry`. Audit F-08: an asset must never leave the
+ * portfolio by only flipping a status column, because the ledger would then
+ * disagree with the registry forever.
+ *
+ * Deliberately LOT-FREE: these positions were never bought through the trade
+ * flow, so there is no FIFO history to consume and NOTHING here touches the lot
+ * engine. The carrying value, when the position does have a ledger account, is
+ * that account's own posted balance and is removed exactly; the difference to
+ * the sale proceeds is the realized result (4100). When the position has no
+ * ledger presence at all, the proceeds are booked against opening equity (3010)
+ * instead of pretending to be income — net worth rises by the cash that
+ * actually arrives, and the income statement stays clean.
+ */
+export type RegistryDisposalCmd = {
+  entryDate: string;
+  description: string;
+  /** the asset that was liquidated (the registry row's `asset_id`). */
+  assetId: string;
+  /** optional explicit account holding the position; otherwise resolved. */
+  assetAccountId?: string | null;
+  /** where the sale proceeds are credited. */
+  cashAccountId: string;
+  cashAssetId: string;
+  /** native units credited to the cash account (its own denomination). */
+  cashQuantity: string;
+  /** gross sale value in the USD book currency. */
+  proceedsBase: string;
+  feeBase?: string;
+  /** Toman actually received + the rate frozen for the entry snapshot. */
+  irtAmount?: string | null;
+  fxRate?: string | null;
+  userId?: string;
+  idempotencyKey?: string | null;
+  memo?: string;
+};
+
+export async function recordRegistryDisposal(cmd: RegistryDisposalCmd, txClient?: any) {
+  const dbClient = txClient ?? db;
+  const proceeds = D(cmd.proceedsBase);
+  const fee = D(cmd.feeBase ?? "0");
+  const net = proceeds.sub(fee);
+  if (!net.gt(0)) throw new Error("مبلغ خالص فروش باید بزرگ‌تر از صفر باشد.");
+
+  const resolvedUserId = await resolveServiceUserId(dbClient, cmd.userId, [cmd.cashAccountId]);
+
+  // Carrying value: the position's own ledger account, if it has one.
+  let carrying = Decimal.zero();
+  let assetAccountId = cmd.assetAccountId ?? null;
+  if (assetAccountId) {
+    const bal = await dbClient.execute(sql`
+      select coalesce(sum(p.base_value), 0)::text as v
+      from postings p join journal_entries je on je.id = p.entry_id
+      where p.account_id = ${assetAccountId} and je.status = 'posted'
+    `);
+    carrying = D((bal.rows[0] as { v?: string })?.v ?? "0");
+  } else {
+    const candidate = await dbClient.execute(sql`
+      select a.id as "accountId", coalesce(sum(p.base_value), 0)::text as v
+      from accounts a
+        left join postings p on p.account_id = a.id
+        left join journal_entries je on je.id = p.entry_id and je.status = 'posted'
+      where a.type = 'asset' and a.deleted_at is null
+        and coalesce(p.asset_id, a.asset_id) = ${cmd.assetId}
+        ${resolvedUserId ? sql`and (a.user_id = ${resolvedUserId} or a.user_id is null)` : sql``}
+      group by a.id
+      order by abs(coalesce(sum(p.base_value), 0)) desc, a.code asc
+      limit 1
+    `);
+    const row = candidate.rows[0] as { accountId?: string; v?: string } | undefined;
+    if (row?.accountId && D(row.v ?? "0").abs().gt("0.00000001")) {
+      assetAccountId = row.accountId;
+      carrying = D(row.v ?? "0");
+    }
+  }
+
+  const cashUnitsPerUsd = proceeds.isZero() ? Decimal.zero() : D(cmd.cashQuantity).div(proceeds);
+  const lines: DraftPosting[] = [];
+
+  if (!carrying.isZero() && assetAccountId) {
+    lines.push({
+      accountId: assetAccountId,
+      assetId: cmd.assetId,
+      quantity: carrying.neg().toString(),
+      baseValue: carrying.neg().toString(),
+      memo: cmd.memo ?? "خروج دارایی به بهای ثبت‌شده در دفتر",
+    });
+  }
+
+  lines.push({
+    accountId: cmd.cashAccountId,
+    assetId: cmd.cashAssetId,
+    quantity: safeQty(net.mul(cashUnitsPerUsd), net),
+    baseValue: net.toString(),
+    memo: fee.gt(0) ? `واریز خالص وجه (کسر کارمزد ${fee.toString()})` : "واریز وجه فروش",
+  });
+
+  const result = net.sub(carrying);
+  if (!result.isZero()) {
+    // The offsetting leg depends on whether the position was ever carried in
+    // the ledger. With a carrying value the difference IS a realized result →
+    // 4100. Without one, booking the whole proceeds as a "gain" would fabricate
+    // income that never existed, so the credit goes to opening equity — the
+    // same account class the registry uses when it records a historical
+    // acquisition. Net worth rises by the cash either way; the income statement
+    // stays honest.
+    const useEquity = carrying.isZero();
+    const counter = useEquity
+      ? await ensureSystemAccount({
+          code: OPENING_EQUITY_CODE,
+          name: "سرمایه افتتاحیه",
+          type: "equity",
+          userId: resolvedUserId ?? null,
+          client: dbClient,
+        })
+      : await ensureRealizedPnlAccount(resolvedUserId, dbClient);
+    const counterAccount =
+      counter ??
+      (await ensureSystemAccount({
+        code: OPENING_EQUITY_CODE,
+        name: "سرمایه افتتاحیه",
+        type: "equity",
+        userId: resolvedUserId ?? null,
+        client: dbClient,
+      }));
+    if (!counterAccount) {
+      throw new Error("حساب سیستمی سود/زیان یا سرمایه افتتاحیه در دسترس نیست.");
+    }
+    lines.push({
+      accountId: counterAccount.id,
+      assetId: counterAccount.assetId ?? cmd.cashAssetId,
+      quantity: safeQty(result.neg(), result),
+      baseValue: result.neg().toString(),
+      memo: useEquity
+        ? "ورود دارایی ثبت‌نشده در دفتر (سرمایه افتتاحیه)"
+        : "سود/زیان تحقق‌یافته از فروش دارایی",
+    });
+  }
+
+  const entry = await postEntry(
+    {
+      entryDate: cmd.entryDate,
+      type: "sell",
+      description: cmd.description,
+      postings: lines,
+      userId: cmd.userId,
+      idempotencyKey: cmd.idempotencyKey,
+    },
+    txClient,
+  );
+
+  // Same historical freeze the unified transaction path performs: the Toman
+  // actually received and the rate that converted it, written with the entry.
+  if (cmd.irtAmount && cmd.fxRate && entry?.id) {
+    await dbClient
+      .insert(entryFxSnapshots)
+      .values({
+        entryId: entry.id,
+        irtAmount: D(cmd.irtAmount).toFixed(0),
+        usdAmount: proceeds.toString(),
+        fxRate: D(cmd.fxRate).toString(),
+        rateSource: "manual",
+        rateDate: cmd.entryDate,
+      })
+      .onConflictDoNothing();
+  }
+
+  return { ...entry, carryingBase: carrying.toString(), realizedBase: result.toString() };
 }
 
 export type FlowCmd = {

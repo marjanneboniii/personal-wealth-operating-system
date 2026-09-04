@@ -269,10 +269,18 @@ export async function sellVehicleAction(_previous: RegistryResult | null, form: 
       saleDate: val(form, "saleDate"),
       salePriceToman: numeric(form, "salePriceToman"),
       saleUsdRate: numeric(form, "saleUsdRate") || undefined,
+      // Optional unified-ledger routing (audit F-08): when a receiving account
+      // is chosen, the sale is booked through the same journal-entry write path
+      // as every other transaction, inside the same transaction as the status
+      // change. Left empty, the registry-only behaviour is preserved.
+      saleAccountId: optional(form, "saleAccountId") || undefined,
       userId,
     });
     refresh();
-    return { ok: true, message: "فروش خودرو ثبت شد. بازدهی نهایی بر اساس قیمت واقعی فروش محاسبه می‌شود." };
+    return {
+      ok: true,
+      message: "فروش خودرو ثبت شد. بازدهی نهایی بر اساس قیمت واقعی فروش محاسبه می‌شود.",
+    };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت فروش ناموفق بود." };
   }

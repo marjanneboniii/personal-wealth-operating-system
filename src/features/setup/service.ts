@@ -336,9 +336,17 @@ export async function completeSetup(
       { code: "4000", name: "درآمدها", type: "income" },
       { code: "4010", name: "حقوق و درآمد", type: "income", assetId: baseAssetId },
       { code: "4100", name: "سود سرمایه‌ای تحقق‌یافته", type: "income", assetId: baseAssetId },
+      { code: "4900", name: "درآمد متفرقه", type: "income", assetId: baseAssetId },
       { code: "5000", name: "هزینه‌ها", type: "expense" },
       { code: "5010", name: "خوراک و خانه", type: "expense", assetId: baseAssetId },
       { code: "5020", name: "مسکن و اجاره", type: "expense", assetId: baseAssetId },
+      { code: "5030", name: "حمل‌ونقل", type: "expense", assetId: baseAssetId },
+      // FEE ACCOUNT — NOT optional. The buy/sell entry builders debit the
+      // commission here; when the row is absent the entry cannot balance and
+      // the whole transaction fails («سند تراز نیست» — audit F-02). It must
+      // therefore be part of the chart created at setup, for every tenant.
+      { code: "5040", name: "کارمزد و بانک", type: "expense", assetId: baseAssetId },
+      { code: "5050", name: "سفر و رویداد", type: "expense", assetId: baseAssetId },
       { code: "5900", name: "هزینه متفرقه", type: "expense", assetId: baseAssetId },
     ];
 

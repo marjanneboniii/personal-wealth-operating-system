@@ -1,4 +1,5 @@
 import type { PriceFreshness } from "@/features/pricing/types";
+import type { AssetDca } from "./dca";
 
 export type AssetClassValuationModel =
   | "crypto"
@@ -48,6 +49,23 @@ export type AssetValuation = {
   priceFreshness: PriceFreshness;
   priceObservedAt: string | null;
   priceFailureCode?: string;
+  /**
+   * Which currency is the ANCHOR of this row's valuation — the multi-currency
+   * rule the read model must never mix up:
+   *   • "toman" → the Toman figure is the recorded, static value (real estate,
+   *     a car, a rial cash position) and `currentValue` (USD) is DERIVED as
+   *     Toman ÷ current USD rate;
+   *   • "usd"  → the USD figure comes from a market/API price and is fixed,
+   *     and `currentValueToman` is DERIVED as USD × current rate.
+   * Absent means "usd" (the historical default).
+   */
+  valuationBase?: "toman" | "usd";
+  /**
+   * Mixed-currency average acquisition cost of this asset, aggregated from the
+   * FIFO lots with the FX rate FROZEN at each buy (`entry_fx_snapshots`).
+   * Read-model only: it never replaces `costBasis`, it explains it.
+   */
+  dca?: AssetDca;
 };
 
 export type AllocationGroup = {
@@ -67,6 +85,14 @@ export type PortfolioSummary = {
    *  This is what the «بهای تمامشده» metric displays (never a re-scale of
    *  the frozen USD cost basis at today's rate). */
   totalCostBasisToman: string;
+  /**
+   * Σ across the portfolio of the LIFETIME cost of every buy (all lots, sold
+   * ones included) — «کل سرمایه‌گذاری انجام‌شده». Unlike `totalCostBasis`
+   * (the cost of what is still held) it never shrinks when a position is
+   * partially sold, so a user can reconcile it against their own records.
+   */
+  totalInvestedUsd?: string;
+  totalInvestedToman?: string;
   totalUnrealizedPnl: string;
   totalUnrealizedPnlToman: string;
   overallRoiPercentage: string;

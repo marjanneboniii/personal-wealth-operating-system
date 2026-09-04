@@ -23,6 +23,7 @@ import { todayIso } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { calculateMarketValuation, valueCoinGeckoAssets } from "@/features/valuation/service";
 import { calculateRoi, calculateUnrealizedPnl } from "./valuation";
+import { loadDcaForAssets } from "./dca";
 import { calculateAssetAllocation } from "./allocation";
 import type { AssetValuation, PortfolioSummary, ValuationBasis } from "./types";
 import { REAL_ESTATE_LOGO } from "@/features/branding/persianIcons";
@@ -491,6 +492,10 @@ export async function getPortfolioValuation(
     let unrealizedPnl = "0";
     let unrealizedPnlToman = "0";
     let valuationBasis: ValuationBasis = "cost_basis_fallback";
+    // Which side is the anchor of THIS row (see AssetValuation.valuationBase):
+    // "usd" = a market/face USD figure with Toman derived, "toman" = a stored
+    // Toman figure with USD derived. Default is the USD-anchored market path.
+    let valuationBase: NonNullable<AssetValuation["valuationBase"]> = "usd";
     let priceFreshness: AssetValuation["priceFreshness"] = "unavailable";
     let priceObservedAt: string | null = null;
     let priceFailureCode: string | undefined;
@@ -517,6 +522,7 @@ export async function getPortfolioValuation(
         : D(unrealizedPnl).mul(fx.rate).toFixed(0);
       valuationBasis = "face_value";
       priceFreshness = "fresh";
+      valuationBase = "usd"; // USD balance is canonical; Toman is derived ×rate
     } else if (holding.symbol === "IRT" || holding.symbol === "IRR") {
       // IRT Balance = X IRT (canonical from ledger, fixed vs FX), USD Valuation = X / Rate (derived)
       const tomanQuantity = holding.symbol === "IRR" ? qty.div("10") : qty;
@@ -529,6 +535,7 @@ export async function getPortfolioValuation(
         : D(unrealizedPnl).mul(fx.rate).toFixed(0);
       valuationBasis = "face_value";
       priceFreshness = "fresh";
+      valuationBase = "toman"; // the rial balance IS the value; USD = Toman ÷ rate
     } else if (property?.currentValueUsd && property.currentValueToman) {
       currentValue = property.currentValueUsd.toString();
       currentValueToman = D(property.currentValueToman).toFixed(0);
@@ -541,6 +548,8 @@ export async function getPortfolioValuation(
       valuationBasis = "manual_real_asset";
       priceFreshness = "fresh";
       priceObservedAt = property.valuationDate ? `${property.valuationDate}T00:00:00.000Z` : null;
+      // A property is valued in Toman by its owner; the USD figure is derived.
+      valuationBase = "toman";
     } else if (generic && (generic.priceUSD || generic.priceIRR || generic.priceBase)) {
       const unitUsd = generic.priceUSD?.toString() ?? generic.priceBase?.toString() ?? null;
       if (unitUsd) {
@@ -572,6 +581,7 @@ export async function getPortfolioValuation(
       valuationBasis = "manual_real_asset";
       priceFreshness = "fresh";
       priceObservedAt = `${generic.valuationDate}T00:00:00.000Z`;
+      valuationBase = !unitUsd && generic.priceIRR ? "toman" : "usd";
     } else if (!isMarketClass && holding.price && D(holding.price).gt(0)) {
       marketPrice = holding.price;
       const calculated = calculateMarketValuation({
@@ -616,10 +626,37 @@ export async function getPortfolioValuation(
       roiPercentage: calculateRoi(currentValue, costBasis),
       sharePercentage: "0",
       valuationBasis,
+      valuationBase,
       priceFreshness,
       priceObservedAt,
       priceFailureCode,
     });
+  }
+
+  // ── Mixed-currency DCA (presentation layer) ───────────────────────────────
+  // Aggregated from `lots` with the FX rate frozen on each BUY entry, so an
+  // average acquisition cost measured in Toman is the Toman actually paid at
+  // the time — never today's rate applied to yesterday's purchase. Additive
+  // only: `costBasis`, `unrealizedPnl*` and the headline totals above are
+  // untouched, and no lot is opened, consumed or re-costed.
+  const dcaByAsset = await loadDcaForAssets(assetIds, userId, fx.rate);
+  let investedUsd = Decimal.zero();
+  let investedToman = Decimal.zero();
+  for (const valuation of assetValuations) {
+    const dca = dcaByAsset.get(valuation.assetId);
+    if (!dca) continue;
+    valuation.dca = dca;
+    // Toman-anchored rows are those whose value was taken from a stored Toman
+    // figure (rial cash, a property or vehicle recorded in Toman); USD-anchored
+    // rows come from an API price / face value in dollars.
+    if (!valuation.valuationBase) {
+      valuation.valuationBase =
+        valuation.symbol === "IRT" || valuation.symbol === "IRR" || valuation.valuationBasis === "manual_real_asset"
+          ? "toman"
+          : "usd";
+    }
+    investedUsd = investedUsd.add(dca.totalInvestedUsd);
+    investedToman = investedToman.add(dca.totalInvestedToman);
   }
 
   const extras = await loadUnheldRealAssets({
@@ -688,6 +725,8 @@ export async function getPortfolioValuation(
     totalNetWorth: totalValue,
     totalNetWorthToman: totalNetWorthToman.toFixed(0),
     totalCostBasis: totalCostBasis.toString(),
+    totalInvestedUsd: investedUsd.toString(),
+    totalInvestedToman: investedToman.toFixed(0),
     totalCostBasisToman: totalCostBasisToman.toFixed(0),
     totalUnrealizedPnl: totalUnrealizedPnl.toString(),
     totalUnrealizedPnlToman: totalUnrealizedPnlToman.toFixed(0),

@@ -21,6 +21,8 @@ import {
 } from "@/features/rwa/vehicle/service";
 import { listVehicleBrands, listVehicleCatalogModels } from "@/features/rwa/vehicle/catalog";
 import { listOwnershipRecords } from "@/features/rwa/ownership/service";
+import { getAccountBalances } from "@/features/ledger/queries";
+import { isLiquidAccount } from "@/features/accounts/classification";
 import { PageHeader } from "@/components/ui/Card";
 import RegistryWorkspace from "@/components/registry/RegistryWorkspace";
 
@@ -58,6 +60,7 @@ export default async function AssetRegistryPage() {
     vehicleModels,
     vehicleDashboard,
     vehicleSummary,
+    payoutAccounts,
     realEstateDashboard,
     realEstateSummary,
     cities,
@@ -98,6 +101,13 @@ export default async function AssetRegistryPage() {
     listCities(true), // include inactive so the admin tab can manage them
     listNeighborhoods(undefined, true),
     listPropertyTypes(true),
+    // Receiving accounts for a vehicle sale (audit F-08): a liquid account of
+    // THIS tenant only, so the proceeds land in a wallet the user actually owns.
+    getAccountBalances(userId ?? undefined).then((rows) =>
+      rows
+        .filter((r) => r.type === "asset" && isLiquidAccount(r))
+        .map((r) => ({ id: r.accountId, name: r.name, symbol: r.symbol })),
+    ),
   ]);
 
   return (
@@ -119,6 +129,7 @@ export default async function AssetRegistryPage() {
         vehicleModels={vehicleModels}
         vehicleDashboard={vehicleDashboard}
         vehicleSummary={vehicleSummary}
+        payoutAccounts={payoutAccounts}
         realEstateDashboard={realEstateDashboard}
         realEstateSummary={realEstateSummary}
         cities={cities}

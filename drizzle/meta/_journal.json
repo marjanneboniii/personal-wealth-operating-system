@@ -78,6 +78,13 @@
       "when": 1788296713170,
       "tag": "0010_installment_original_fx",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788480000000,
+      "tag": "0011_fee_expense_account",
+      "breakpoints": true
     }
   ]
 }
