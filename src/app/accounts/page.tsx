@@ -172,36 +172,135 @@ export default async function AccountsPage() {
                 brandName: walletMeta?.institution ?? walletName,
                 name: walletName,
               });
+              const walletSubtitle = walletMeta
+                ? `${WALLET_KIND[walletMeta.kind] ?? walletMeta.kind}${walletMeta?.institution ? ` · ${walletMeta.institution}` : walletMeta?.network ? ` · ${walletMeta.network}` : ""}`
+                : null;
+              // ── Single-account wallets: one summary card, no duplicate sub-row.
+              // Amounts reuse the exact same helpers (canonicalBalance /
+              // valuationToman) — only the redundant header+row split and the
+              // «حساب» / «مانده…» labels are gone.
+              if (rows.length === 1) {
+                const b = rows[0];
+                const singleValuation = valuationToman(b);
+                const singlePrimary = singleValuation ?? canonicalBalance(b);
+                const singleExact = singleValuation ? canonicalBalance(b) : null;
+                const singleApprox =
+                  !singleValuation && toIrt(D(b.baseValue).abs().toString())
+                    ? formatMoney(D(b.baseValue).abs().toString())
+                    : null;
+                // Single summary keeps both marks when both are informative
+                // (e.g. Nobitex wallet + Tether asset) so merging the two
+                // rows never loses artwork. Pure flex, no absolute overlay.
+                const singleMeta = b.assetId ? assetMeta.get(b.assetId) : undefined;
+                const useWalletMark = walletLogo.source === "persianlabs";
+                const showAssetBadge =
+                  useWalletMark &&
+                  b.symbol !== "IRT" &&
+                  b.symbol !== "IRR" &&
+                  (!!singleMeta?.logoUrl || !!singleMeta?.coingeckoId);
+                return (
+                  <div key={walletKey} className="acct-card card overflow-hidden">
+                    <div className="acct-head flex items-center justify-between gap-3 px-4 py-3.5">
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        {useWalletMark ? (
+                          <span className="acct-icon flex shrink-0 items-center self-center">
+                            <AssetLogo
+                              assetType={walletMeta?.kind === "exchange" ? "company" : "bank"}
+                              brandName={walletMeta?.institution ?? walletName}
+                              name={walletName}
+                              size={32}
+                              radius={16}
+                            />
+                            {showAssetBadge && (
+                              <span style={{ marginInlineStart: -10, alignSelf: "flex-end", border: "2px solid var(--surface)", borderRadius: 999 }}>
+                                <AssetLogo
+                                  symbol={b.symbol}
+                                  name={b.name ?? walletName}
+                                  logoUrl={singleMeta?.logoUrl ?? null}
+                                  assetClassName={b.className}
+                                  coingeckoId={singleMeta?.coingeckoId ?? null}
+                                  size={20}
+                                  radius={10}
+                                />
+                              </span>
+                            )}
+                          </span>
+                        ) : singleMeta?.logoUrl || singleMeta?.coingeckoId || b.symbol ? (
+                          <span className="acct-icon flex shrink-0 self-center">
+                            <AssetLogo
+                              symbol={b.symbol}
+                              name={b.name ?? walletName}
+                              logoUrl={singleMeta?.logoUrl ?? null}
+                              assetClassName={b.className}
+                              coingeckoId={singleMeta?.coingeckoId ?? null}
+                              size={32}
+                              radius={16}
+                            />
+                          </span>
+                        ) : (
+                          <span
+                            className="acct-icon flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full"
+                            style={{ background: "var(--surface)", color: "var(--brand)", border: "1px solid var(--border)" }}
+                          >
+                            <Icon name="wallet" size={15} />
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="acct-title text-[12.5px] font-semibold sm:text-[13px]">{walletName}</p>
+                          {walletSubtitle && <p className="acct-subtitle muted mt-0.5 text-[10.5px] leading-5">{walletSubtitle}</p>}
+                        </div>
+                      </div>
+                      <div className="acct-amount max-w-[48%] shrink-0 text-left">
+                        <p className="num money-nowrap text-[12px] font-bold leading-6 sm:text-[13px]" dir="rtl">
+                          {singlePrimary}
+                        </p>
+                        {singleExact && (
+                          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[10.5px] leading-5" dir="rtl">
+                            {singleExact}
+                          </p>
+                        )}
+                        {!singleExact && singleApprox && (
+                          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[10.5px] leading-5" dir="rtl">
+                            ≈ {singleApprox}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
               return (
-                <div key={walletKey} className="card overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--sunken)" }}>
-                    <div className="flex items-center gap-2.5">
+                <div key={walletKey} className="acct-card card overflow-hidden">
+                  <div className="acct-head flex items-center justify-between gap-3 px-4 py-3.5" style={{ background: "var(--sunken)" }}>
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                       {walletLogo.source === "persianlabs" ? (
-                        <AssetLogo
-                          assetType={walletMeta?.kind === "exchange" ? "company" : "bank"}
-                          brandName={walletMeta?.institution ?? walletName}
-                          name={walletName}
-                          size={32}
-                          radius={16}
-                        />
+                        <span className="acct-icon flex shrink-0 self-center">
+                          <AssetLogo
+                            assetType={walletMeta?.kind === "exchange" ? "company" : "bank"}
+                            brandName={walletMeta?.institution ?? walletName}
+                            name={walletName}
+                            size={32}
+                            radius={16}
+                          />
+                        </span>
                       ) : (
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "var(--surface)", color: "var(--brand)" }}>
+                        <span
+                          className="acct-icon flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full"
+                          style={{ background: "var(--surface)", color: "var(--brand)" }}
+                        >
                           <Icon name="wallet" size={15} />
                         </span>
                       )}
-                      <div>
-                        <p className="text-[12px] sm:text-[13px] font-semibold">{walletName}</p>
-                        <p className="muted text-[10px]">
-                          {walletMeta ? WALLET_KIND[walletMeta.kind] ?? walletMeta.kind : "حساب"}
-                          {walletMeta?.institution ? ` · ${walletMeta.institution}` : walletMeta?.network ? ` · ${walletMeta.network}` : ""}
-                        </p>
+                      <div className="min-w-0 flex-1">
+                        <p className="acct-title text-[12px] font-semibold sm:text-[13px]">{walletName}</p>
+                        {walletSubtitle && <p className="acct-subtitle muted mt-0.5 text-[10px] leading-5">{walletSubtitle}</p>}
                       </div>
                     </div>
-                    <div className="text-left">
-                      <p className="num text-[12px] sm:text-[12px] sm:text-[13px] font-bold money-nowrap money-nowrap" dir="rtl">
+                    <div className="acct-amount max-w-[46%] shrink-0 text-left">
+                      <p className="num money-nowrap text-[12px] font-bold leading-6 sm:text-[13px]" dir="rtl">
                         {walletPrimary}
                       </p>
-                      {!irtOnly && toIrt(walletTotal.toString()) && <p className="muted num text-[10.5px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(walletTotal.toString())}</p>}
+                      {!irtOnly && toIrt(walletTotal.toString()) && <p className="acct-secondary muted num money-nowrap mt-0.5 text-[10.5px] leading-5" dir="rtl">≈ {formatMoney(walletTotal.toString())}</p>}
                     </div>
                   </div>
                   <ul className="divide-y" style={{ borderColor: "var(--border)" }}>

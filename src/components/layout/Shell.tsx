@@ -419,9 +419,14 @@ export default function Shell({
     window.dispatchEvent(new CustomEvent(NAV_EVENT));
   };
 
-  const moreActive = ![MOBILE_TABS[0], MOBILE_TABS[1], MOBILE_TABS.find((t) => t.href === "/net-worth")]
-    .filter(Boolean)
-    .some((t) => t!.match?.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m))));
+  // Bottom-tab sync (presentation only): «بیشتر» is active only when NONE of
+  // the real tabs matches the current page, so the highlight always follows
+  // the page the user is on (money → /transactions·/accounts·/cash-flow,
+  // assets → /assets·/portfolio·/crypto·/asset-registry, …).
+  const anyTabActive = MOBILE_TABS.some((t) =>
+    t.match?.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m))),
+  );
+  const moreActive = !anyTabActive;
 
   const isAuthRoute = pathname === "/login" || pathname === "/register";
   const isMarketing = MARKETING_PATHS.has(pathname);

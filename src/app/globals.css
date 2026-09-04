@@ -1927,6 +1927,67 @@ body {
   overflow-x: clip;
 }
 
+/* ─────────────────── Accounts (پول → حساب‌ها) — scoped UI cleanup ───────────────────
+   Front-end only: no ledger/FIFO/valuation change. Fixes the overlap +
+   truncate bugs from the screenshot without touching global money rules:
+   • titles wrap (never «…»), use the free space, line-height 1.9 for Persian
+   • no absolute positioning anywhere in these rows — pure flex + min-w-0
+   • icons vertically centred with the title, balanced inner padding
+   • amounts keep Persian digits + RLI isolates from formatMoney (max 2dp);
+     the muted secondary line is a single ellipsis-safe line, never two
+     overlapping strings («مانده اصلی» / «ارزش:» labels removed in JSX) */
+.acct-card {
+  padding: 0 !important;
+  overflow: hidden;
+}
+.acct-card > .acct-head,
+.acct-card > ul > .acct-row {
+  position: static;
+}
+.acct-title {
+  white-space: normal !important;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  line-height: 1.9 !important;
+  min-width: 0;
+}
+.acct-subtitle {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  line-height: 1.9 !important;
+}
+.acct-icon {
+  align-self: center;
+  flex-shrink: 0;
+}
+.acct-amount {
+  min-width: 0;
+  line-height: 1.6;
+}
+.acct-secondary {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.9 !important;
+}
+@media (max-width: 640px) {
+  .acct-card {
+    padding: 0 !important;
+    border-radius: 10px;
+  }
+  .acct-head,
+  .acct-row {
+    padding: 0.875rem 0.9rem !important;
+  }
+  .acct-amount {
+    max-width: 46% !important;
+  }
+}
+
 /* Improve tap targets & spacing on mobile for all cards */
 @media (max-width: 640px) {
   .card, .soft {
