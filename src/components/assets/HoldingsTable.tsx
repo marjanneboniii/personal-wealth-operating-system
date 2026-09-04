@@ -30,8 +30,22 @@ export default function HoldingsTable({
         </thead>
         <tbody>
           {rows.map((a) => {
-            const pnl = D(a.unrealizedPnl);
-            const pnlTone = trendTone(a.unrealizedPnl);
+            // ── Presentation-layer Toman figures ──────────────────────────────
+            // The row is shown Toman-canonical so every column is internally
+            // consistent and cannot contradict the others. For inherently-Toman
+            // assets (ملک/خودرو/نقد تومانی) the market price is the asset's own
+            // static Toman value — never a frozen USD figure re-scaled by the
+            // current rate (that used to inflate the Toman price when USD rose).
+            const pnlToman = D(a.unrealizedPnlToman);
+            const pnlToneToman = trendTone(a.unrealizedPnlToman);
+            const qtyD = D(a.quantity);
+            const priceToman = qtyD.isZero()
+              ? D(a.currentValueToman)
+              : D(a.currentValueToman).div(qtyD);
+            const costToman = D(a.costBasisToman ?? a.currentValueToman);
+            const roiToman = costToman.isZero() || costToman.isNegative()
+              ? "0"
+              : pnlToman.div(costToman).mul("100").toFixed(2);
             return (
               <tr key={a.assetId}>
                 <td className="min-w-0">
@@ -63,10 +77,12 @@ export default function HoldingsTable({
                   {formatQty(a.quantity, a.decimals)}
                 </td>
                 <td className="td-num money-nowrap" dir="rtl">
-                  {a.marketPrice !== "0" && toIrt(a.marketPrice) ? (
+                  {a.marketPrice !== "0" ? (
                     <>
                       <div className="text-[11px] font-medium money-nowrap sm:text-[12px]">
-                        {a.symbol === "IRT" || a.symbol === "IRR" ? formatMoney(a.currentValueToman, "IRT") : toIrt(a.marketPrice)}
+                        {a.symbol === "IRT" || a.symbol === "IRR"
+                          ? formatMoney(a.currentValueToman, "IRT")
+                          : formatMoney(priceToman.toFixed(0), "IRT")}
                       </div>
                       <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
                         ≈ {formatMoney(a.marketPrice)}
@@ -81,7 +97,10 @@ export default function HoldingsTable({
                   )}
                 </td>
                 <td className="td-num hidden lg:table-cell money-nowrap text-[11px]" dir="rtl">
-                  {formatMoney(a.costBasis)}
+                  <div className="text-[11px] font-medium money-nowrap sm:text-[12px]">{formatMoney(costToman.toFixed(0), "IRT")}</div>
+                  <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
+                    ≈ {formatMoney(a.costBasis)}
+                  </div>
                 </td>
                 <td className="td-num money-nowrap" dir="rtl">
                   <div className="num text-[11px] font-bold money-nowrap sm:text-[12px]">{formatMoney(a.currentValueToman, "IRT")}</div>
@@ -89,13 +108,13 @@ export default function HoldingsTable({
                     ≈ {formatMoney(a.currentValue)}
                   </div>
                 </td>
-                <td className="td-num hidden sm:table-cell money-nowrap" dir="rtl" style={{ color: trendColor(a.unrealizedPnl) }}>
+                <td className="td-num hidden sm:table-cell money-nowrap" dir="rtl" style={{ color: trendColor(a.unrealizedPnlToman) }}>
                   <div className="text-[11px] font-semibold money-nowrap sm:text-[12px]">
-                    {pnlTone === "up" ? "+" : pnlTone === "down" ? "−" : ""}
-                    {formatMoney(pnl.abs().toString())}
+                    {pnlToneToman === "up" ? "+" : pnlToneToman === "down" ? "−" : ""}
+                    {formatMoney(pnlToman.abs().toString(), "IRT")}
                   </div>
                   <div className="num text-[9px] money-nowrap sm:text-[10px]">
-                    {trendArrow(a.roiPercentage)} {formatQty(D(a.roiPercentage).abs().toString(), 2)}٪
+                    {trendArrow(roiToman)} {formatQty(D(roiToman).abs().toString(), 2)}٪
                   </div>
                 </td>
                 <td className="td-num hidden sm:table-cell money-nowrap text-[11px]" dir="rtl">
