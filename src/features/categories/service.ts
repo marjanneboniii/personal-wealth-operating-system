@@ -16,6 +16,7 @@ import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, expenseCategories, journalEntries } from "@/db/schema";
 import { D } from "@/domain/decimal";
+import { hasMultipleUsers, resolveQueryUserId } from "@/features/ledger/queries";
 import {
   EXPENSE_CATEGORY_CATALOG,
   LEGACY_ACCOUNT_CATEGORY_MAP,
@@ -263,38 +264,81 @@ export type CategoryFlowRow = {
   parentId: string | null;
   parentCode: string | null;
   parentName: string | null;
+  /** Total in the base (USD) book currency — canonical accounting view. */
   total: string;
+  /**
+   * FROZEN Toman aggregate (display only — never accounting): the sum of the
+   * commit-time `entry_fx_snapshots.irt_amount` over the window's entries,
+   * derived at read time. A later FX-rate change can NEVER move this figure;
+   * recorded past expenses keep the exact Toman the user entered.
+   * "0" when no entry of the window carries a snapshot (legacy data) — the
+   * caller then falls back to a dynamic current-rate equivalent.
+   */
+  totalToman: string;
+  /** Number of journal entries contributing a non-zero total in the window. */
+  entries: number;
+  /** How many of those entries carry a frozen commit-time FX snapshot. */
+  entriesWithSnap: number;
 };
 
 /**
  * Expense totals grouped by category leaf for the last N months.
  * Counts ONLY real expenses (je.type = 'expense'); debt repayments and
  * transfers are excluded by definition of the transaction-type separation.
+ *
+ * TENANT ISOLATION — same fail-closed rule as the ledger read primitives:
+ * the identity is resolved (explicit id → authenticated session → single-user
+ * legacy), and in a multi-tenant database an unresolved identity must NEVER
+ * degrade to a global (cross-tenant) read. One user's expense history can
+ * never leak into another user's category report.
+ *
+ * FROZEN TOMAN — `totalToman` is aggregated in a first per-entry pass (so an
+ * entry with several postings never double-counts its snapshot), then per
+ * category. It is read from the immutable commit-time snapshot — it is never
+ * stored as a derived figure and never re-derived from the current rate.
  */
 export async function getFlowByCategory(months = 6, userId?: string): Promise<CategoryFlowRow[]> {
   await ensureCategoryCatalog();
+  const u = await resolveQueryUserId(userId);
+  // Fail-closed: never blend tenants' expense history.
+  if (!u && (await hasMultipleUsers())) return [];
   const res = await db.execute(sql`
-    SELECT c.id::text AS "categoryId",
+    with per_entry as (
+      select c.id as cat_id,
+             je.id as entry_id,
+             coalesce(sum(p.base_value), 0) as total_usd,
+             s.irt_amount::numeric as irt_amount
+      from postings p
+        join journal_entries je on je.id = p.entry_id
+        join accounts a on a.id = p.account_id
+        join expense_categories c on c.id = je.category_id
+        left join entry_fx_snapshots s on s.entry_id = je.id
+      where a.type = 'expense'
+        and je.status = 'posted'
+        and je.type = 'expense'
+        and je.entry_date >= (current_date - (${months} || ' months')::interval)
+        ${u ? sql`and je.user_id = ${u}` : sql``}
+      group by c.id, je.id, s.irt_amount
+    )
+    select c.id::text as "categoryId",
            c.code,
            c.name,
            c.nature,
-           pc.id::text AS "parentId",
-           pc.code AS "parentCode",
-           pc.name AS "parentName",
-           coalesce(sum(p.base_value), 0)::text AS total
-    FROM postings p
-      JOIN journal_entries je ON je.id = p.entry_id
-      JOIN accounts a ON a.id = p.account_id
-      JOIN expense_categories c ON c.id = je.category_id
-      LEFT JOIN expense_categories pc ON pc.id = c.parent_id
-    WHERE a.type = 'expense'
-      AND je.status = 'posted'
-      AND je.type = 'expense'
-      AND je.entry_date >= (current_date - (${months} || ' months')::interval)
-      ${userId ? sql`AND je.user_id = ${userId}` : sql``}
-    GROUP BY c.id, c.code, c.name, c.nature, pc.id, pc.code, pc.name
-    HAVING abs(coalesce(sum(p.base_value), 0)) > 0.000000001
-    ORDER BY sum(p.base_value) DESC
+           pc.id::text as "parentId",
+           pc.code as "parentCode",
+           pc.name as "parentName",
+           coalesce(sum(pe.total_usd), 0)::text as total,
+           -- FROZEN Toman: derived at read time from the immutable
+           -- commit-time snapshot. An FX-rate change can never move it.
+           coalesce(sum(case when pe.total_usd != 0 then pe.irt_amount else 0 end), 0)::text as "totalToman",
+           count(*) filter (where pe.total_usd != 0)::int as entries,
+           count(*) filter (where pe.total_usd != 0 and pe.irt_amount is not null)::int as "entriesWithSnap"
+    from per_entry pe
+      join expense_categories c on c.id = pe.cat_id
+      left join expense_categories pc on pc.id = c.parent_id
+    group by c.id, c.code, c.name, c.nature, pc.id, pc.code, pc.name
+    having abs(coalesce(sum(pe.total_usd), 0)) > 0.000000001
+    order by sum(pe.total_usd) desc
   `);
   return res.rows as CategoryFlowRow[];
 }

@@ -12,7 +12,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatDualDate, formatMoney, formatPct, jalaliMonthKey, jalaliMonthLabel, faCount, inflowTone, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
+import { currencyLabel, formatDualDate, formatMoney, formatPct, formatSignedMoney, jalaliMonthKey, jalaliMonthLabel, faCount, inflowTone, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -46,20 +46,19 @@ export default async function ReportsPage() {
 
   // Expense Toman is authoritative from the immutable entry FX snapshot.
   // Never convert the historical USD book total with today's rate: doing so
-  // changes a recorded expense when the dollar rate rises (e.g. ۹۰۹٬۰۹۰ →
-  // ۹۵۶٬۹۳۷). Legacy rows without a snapshot retain the old display fallback.
-  const fixedExpenseToman = Decimal.sum(
-    flow.map((f) =>
-      f.outflowToman != null && D(f.outflowToman).gt(0)
-        ? f.outflowToman
-        : rate
-          ? D(f.outflow).mul(rate).toString()
-          : "0",
-    ),
-  );
-  const expenseToman = fixedExpenseToman.isZero() && !totalExpense.isZero()
-    ? D(totalExpense).mul(rate).toString()
-    : fixedExpenseToman.toString();
+  // changes a recorded expense when the dollar rate rises. The frozen sum is
+  // valid only when EVERY outflow entry of the window carries its commit-time
+  // snapshot (full coverage); a partial cover would understate the total, so
+  // legacy rows without a snapshot retain the dynamic current-rate fallback.
+  const outflowCovered = flow.length > 0 && flow.every((f) => f.outflowEntries === f.outflowEntriesSnap);
+  const frozenExpenseToman = outflowCovered
+    ? Decimal.sum(flow.map((f) => f.outflowToman ?? "0"))
+    : null;
+  const expenseToman = frozenExpenseToman
+    ? frozenExpenseToman.toString()
+    : rate
+      ? D(totalExpense).mul(rate).toString()
+      : totalExpense.toString();
 
   const monthly = flow.map((f) => ({
     month: f.month,
@@ -68,6 +67,10 @@ export default async function ReportsPage() {
     outflow: f.outflow,
     inflowToman: f.inflowToman,
     outflowToman: f.outflowToman,
+    // Frozen Toman for the month is valid only under full snapshot coverage —
+    // a dollar rate change can never move a fully covered month.
+    inflowFrozen: f.inflowEntries === f.inflowEntriesSnap,
+    outflowFrozen: f.outflowEntries === f.outflowEntriesSnap,
     net: D(f.inflow).sub(f.outflow).toString(),
   }));
 
@@ -129,26 +132,28 @@ export default async function ReportsPage() {
                     <tr key={m.month}>
                       <td className="font-medium">{m.jalaliLabel}</td>
                       <td className="td-num" dir="rtl" style={{ color: "var(--positive)" }}>
-                        <div>{toIrt(m.inflow) ?? formatMoney(m.inflow)}</div>
+                        <div>
+                          {m.inflowFrozen && m.inflowToman != null && D(m.inflowToman).gt(0)
+                            ? formatMoney(m.inflowToman, "IRT")
+                            : toIrt(m.inflow) ?? formatMoney(m.inflow)}
+                        </div>
                         {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(m.inflow)}</div>}
                       </td>
                       <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
                         <div>
-                          {rate
-                            ? formatMoney(
-                                m.outflowToman != null && D(m.outflowToman).gt(0)
-                                  ? m.outflowToman
-                                  : D(m.outflow).mul(rate).toString(),
-                                "IRT",
-                              )
-                            : formatMoney(m.outflow)}
+                          {m.outflowFrozen && m.outflowToman != null && D(m.outflowToman).gt(0)
+                            ? formatMoney(m.outflowToman, "IRT")
+                            : rate
+                              ? formatMoney(D(m.outflow).mul(rate).toString(), "IRT")
+                              : formatMoney(m.outflow)}
                         </div>
                         {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(m.outflow)}</div>}
                       </td>
                       <td className="td-num font-bold" dir="rtl" style={{ color: D(m.net).gte(0) ? "var(--positive)" : "var(--negative)" }}>
                         <div>
-                          {D(m.net).gte(0) ? "+" : "−"}
-                          {toIrt(D(m.net).abs().toString()) ?? formatMoney(D(m.net).abs().toString())}
+                          {m.inflowFrozen && m.outflowFrozen
+                            ? formatSignedMoney(D(m.inflowToman ?? "0").sub(D(m.outflowToman ?? "0")).toString(), "IRT")
+                            : `${D(m.net).gte(0) ? "+" : "−"}${toIrt(D(m.net).abs().toString()) ?? formatMoney(D(m.net).abs().toString())}`}
                         </div>
                         {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(D(m.net).abs().toString())}</div>}
                       </td>
