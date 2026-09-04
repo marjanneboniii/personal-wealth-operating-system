@@ -26,6 +26,11 @@ import { getLatestUsdIrtRateForUser, getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentUser } from "@/lib/auth";
 import { validateAccountOwnership } from "@/lib/validation";
 import {
+  ensureFeeExpenseAccount,
+  ensureRealizedPnlAccount,
+  resolveExpenseCounterAccount,
+} from "@/features/accounts/systemAccounts";
+import {
   assertDebtOwnership,
   assertInstallmentOwnership,
   assertJournalEntryOwnership,
@@ -383,6 +388,14 @@ const txSchema = z.object({
   installmentId: z.string().optional(),
   quantity: z.string().optional(),
   fee: z.string().optional(),
+  /**
+   * Unit of the `fee` field. `irt` (default, historical) reads it as Toman;
+   * `native` reads it in the DENOMINATION OF THE PAYING ACCOUNT — Toman for an
+   * IRT bank, USDT for a stablecoin wallet, USD for a dollar account. Without
+   * this a "5 USDT" commission on a USDT-funded purchase was converted as if it
+   * were 5 Toman, i.e. the fee leg was ~190 000× too small.
+   */
+  feeMode: z.enum(["irt", "native"]).optional(),
 });
 
 function isUuid(v: string | undefined): v is string {
@@ -420,10 +433,15 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
 
     // SECURITY (Authorization boundary): validate ownership of EVERY
     // client-provided account / reference id BEFORE the accounting service is
-    // invoked. System-derived accounts (fee 5040 / PnL 4100 / reserve 3200
-    // looked up by code server-side) are shared chart-of-accounts records and
-    // never come from the client. On violation we throw (403 semantics) and
-    // NO journal entry, posting, FIFO lot or balance is created or mutated.
+    // invoked. On violation we throw (403 semantics) and NO journal entry,
+    // posting, FIFO lot or balance is created or mutated.
+    //
+    // System-derived counters (fee 5040 / realized P&L 4100 / expense bucket /
+    // reserve 3200) never come from the client — but they are NOT implicitly
+    // "shared" rows either: each one is resolved for THIS tenant (own row
+    // first, shared global row only as a legacy fallback) by
+    // `@/features/accounts/systemAccounts`, so a counter-leg can never be
+    // posted into another user's chart of accounts.
     if (authUser) {
       if (isUuid(input.primaryAccountId)) await validateAccountOwnership(input.primaryAccountId, authUser.id);
       if (isUuid(input.counterAccountId)) await validateAccountOwnership(input.counterAccountId, authUser.id);
@@ -452,11 +470,23 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     }
     if (usdAmount.lte(0)) throw new Error("مبلغ باید بزرگ‌تر از صفر باشد");
     const amount = usdAmount; // keep variable name for downstream logic
-    // Fee is entered in IRT (toman) — convert to USD for ledger
+    // Commission → USD for the ledger. `feeMode: "native"` reads the field in
+    // the paying account's own denomination (Toman for a bank, USDT for a
+    // stablecoin wallet, USD for a dollar account); the default `irt` keeps the
+    // historical behaviour. Both paths use the SAME authoritative unit price as
+    // every quantity in this handler, so a fee can never be converted twice.
     let feeUsd = "0";
     if (input.fee && D(input.fee).gt(0)) {
-      // fee field from form is IRT
-      feeUsd = D(input.fee).div(serverRate).toString();
+      const rawFee = D(input.fee);
+      const payAccountId =
+        input.type === "buy" || input.type === "sell" ? input.counterAccountId : input.primaryAccountId;
+      const payAssetId =
+        input.feeMode === "native" && payAccountId && isUuid(payAccountId)
+          ? ((await db.select({ a: accounts.assetId }).from(accounts).where(eq(accounts.id, payAccountId)).limit(1))[0]
+              ?.a ?? null)
+          : null;
+      const unitUsd = payAssetId ? D(await nativeUnitPriceUsd(payAssetId, authUser?.id ?? null)) : null;
+      feeUsd = unitUsd && unitUsd.gt(0) ? rawFee.mul(unitUsd).toString() : rawFee.div(serverRate).toString();
     }
     const fee = feeUsd;
     // Debt/Installment linkage — validate before ledger write (prevent duplicate, exceed outstanding, already paid)
@@ -510,8 +540,11 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     // submitted, or exposed in the UI.
     let resolvedExpenseAccountId: string | null = null;
     if (input.type === "expense") {
-      const [expenseAccount] = await db.select({ id: accounts.id }).from(accounts)
-        .where(eq(accounts.type, "expense")).limit(1);
+      // TENANT-SCOPED (F-03): the bucket is this tenant's own 5900 «متفرقه»
+      // when it exists, else the first expense row of their chart — never an
+      // arbitrary `type='expense' limit 1` across the whole database, which
+      // posted one user's expenses into another user's account.
+      const expenseAccount = await resolveExpenseCounterAccount(authUser?.id ?? null);
       if (!expenseAccount) throw new Error("حساب سیستمی هزینه در دسترس نیست");
       resolvedExpenseAccountId = expenseAccount.id;
     }
@@ -674,9 +707,10 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
               bookValue: legs.bookValue,
               rateIrtPerUsd: serverRate.toString(),
               feeBase: fee,
-              feeAccountId: (await tx.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id,
+              feeAccountId: (await ensureFeeExpenseAccount(authUser?.id ?? null, tx))?.id,
               userId: authUser?.id ?? undefined,
               idempotencyKey,
+              preventOverdraft: true,
             },
             tx,
           );
@@ -693,9 +727,10 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
               quantity: qty,
               unitPrice: price,
               feeBase: fee,
-              feeAccountId: (await tx.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id,
+              feeAccountId: (await ensureFeeExpenseAccount(authUser?.id ?? null, tx))?.id,
               userId: authUser?.id ?? undefined,
               idempotencyKey,
+              preventOverdraft: true,
             },
             tx,
           );
@@ -714,7 +749,10 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : "0";
         if (D(qty).lte(0)) throw new Error("مقدار دارایی را وارد کنید");
         const cashQuantity = amount.div(cashPrice).toString();
-        const feeAccountId = (await tx.select().from(accounts).where(eq(accounts.code, "5040")).limit(1))[0]?.id ?? null;
+        // F-02/F-03: the commission counter is resolved for THIS tenant and
+        // provisioned when the chart lacks it — a buy with a fee and no 5040
+        // row used to produce an unbalanced entry («سند تراز نیست»).
+        const feeAccountId = (await ensureFeeExpenseAccount(authUser?.id ?? null, tx))?.id ?? null;
         const common = {
           entryDate: input.entryDate,
           description: input.description,
@@ -730,11 +768,14 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           userId: authUser?.id ?? undefined,
           idempotencyKey,
         };
-        if (input.type === "buy") entry = await recordBuy(common, tx);
+        // A purchase must never push the paying wallet below zero: the guard is
+        // evaluated SERVER-SIDE inside the same transaction (the client can
+        // always edit the form), scoped to this tenant's own postings.
+        if (input.type === "buy") entry = await recordBuy({ ...common, preventOverdraft: true }, tx);
         else {
-          const pnl = (await tx.select().from(accounts).where(eq(accounts.code, "4100")).limit(1))[0];
-          if (!pnl) throw new Error("حساب سود سرمایه‌ای تعریف نشده است");
-          entry = await recordSell({ ...common, pnlAccountId: pnl.id }, tx);
+          const pnl = await ensureRealizedPnlAccount(authUser?.id ?? null, tx);
+          if (!pnl) throw new Error("حساب سود سرمایه‌ای (۴۱۰۰) تعریف نشده است");
+          entry = await recordSell({ ...common, pnlAccountId: pnl.id, preventOverdraft: false }, tx);
         }
       }
 

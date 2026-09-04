@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
-import { accounts, assets } from "@/db/schema";
+import { accounts, assetClasses, assets, wallets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { PageHeader } from "@/components/ui/Card";
 import TransactionForm from "@/components/forms/TransactionForm";
@@ -47,9 +47,16 @@ export default async function NewTransactionPage({
         decimals: assets.decimals,
         logoUrl: assets.logoUrl,
         coingeckoId: assets.coingeckoId,
+        // Liquid vs Investment hints — the form uses them to keep investment
+        // positions out of the daily income/expense payment lists (F-11).
+        classCode: assetClasses.code,
+        className: assetClasses.name,
+        walletKind: wallets.kind,
       })
       .from(accounts)
       .leftJoin(assets, eq(assets.id, accounts.assetId))
+      .leftJoin(assetClasses, eq(assetClasses.id, assets.classId))
+      .leftJoin(wallets, eq(wallets.id, accounts.walletId))
       .where(and(
         sql`${accounts.deletedAt} is null and ${accounts.assetId} is not null`,
         userId

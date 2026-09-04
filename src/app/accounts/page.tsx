@@ -1,10 +1,12 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
 import { accounts, assets, institutions, networks, wallets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { listMoneyAccountCurrencies } from "@/features/accounts/service";
 import { getAccountBalances } from "@/features/ledger/queries";
+import { classifyAccountFamily, isLiquidAccount } from "@/features/accounts/classification";
 import { EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import AssetLogo from "@/components/ui/AssetLogo";
@@ -59,7 +61,13 @@ export default async function AccountsPage() {
     getLatestUsdIrtRate(),
   ]);
 
-  const toIrt = (usd: string | number) => toIrtMoney(D(usd).abs().toString(), fx.rate);
+  /**
+   * USD → Toman display helper. NO absolute value: a wallet that is short
+   * (overdrawn, or an asset account with a residual debit after a fee-bearing
+   * full exit) must READ as short. Masking the sign here is what let a broken
+   * balance look like a healthy balance (audit F-06).
+   */
+  const toIrt = (usd: string | number) => toIrtMoney(D(usd).toString(), fx.rate);
 
   /**
    * Asset display metadata (stored logo + CoinGecko identity), read separately
@@ -84,26 +92,41 @@ export default async function AccountsPage() {
   // USDT Balance = quantity (USDT) canonical, Toman Valuation = qty * rate
   // USD Balance = quantity (USD) canonical, Toman Valuation = qty * rate
   const canonicalBalance = (b: (typeof balances)[number]) => {
-    if (b.symbol === "IRT") return formatMoney(D(b.quantity).abs().toFixed(0), "IRT");
-    if (b.symbol === "IRR") return formatMoney(D(b.quantity).abs().div(10).toFixed(0), "IRT");
-    if (b.symbol === "USDT") return formatMoney(D(b.quantity).abs().toString(), "USDT");
-    if (b.symbol === "USD") return formatMoney(D(b.quantity).abs().toString(), "USD");
+    const q = D(b.quantity);
+    if (b.symbol === "IRT") return formatMoney(q.toFixed(0), "IRT");
+    if (b.symbol === "IRR") return formatMoney(q.div(10).toFixed(0), "IRT");
+    if (b.symbol === "USDT") return formatMoney(q.toString(), "USDT");
+    if (b.symbol === "USD") return formatMoney(q.toString(), "USD");
     // Fallback for other assets: quantity in its own symbol
-    return formatMoney(D(b.quantity).abs().toString(), b.symbol ?? "USD");
+    return formatMoney(q.toString(), b.symbol ?? "USD");
   };
 
   const valuationToman = (b: (typeof balances)[number]) => {
     if (b.symbol === "IRT" || b.symbol === "IRR") return null; // IRT balance IS Toman, no separate valuation needed for primary
     if (b.symbol === "USDT" || b.symbol === "USD") {
-      // Toman valuation = canonical qty * current rate
-      return toIrt(D(b.quantity).abs().toString()) ?? formatMoney(D(b.baseValue).abs().toString(), "IRT");
+      // Toman valuation = canonical qty * current rate (sign preserved)
+      return toIrt(D(b.quantity).toString()) ?? formatMoney(D(b.baseValue).toString(), "IRT");
     }
     return toIrt(b.baseValue) ?? null;
   };
 
+  /**
+   * MONEY MODULE SCOPE (audit F-11). This page renders LIQUID accounts only:
+   * bank / cash box / fund plus stablecoin (USDT, USDC, …) hot & cold wallets —
+   * the places money rests. Investment positions (volatile crypto, equities,
+   * funds, gold, commodities, real estate, vehicles) belong to the Assets
+   * module, which values them (market price, P&L, lots) instead of listing them
+   * as balances. The two modules therefore never show the same thing twice.
+   */
+  const isInvestmentRow = (b: (typeof balances)[number]) =>
+    b.type === "asset" && classifyAccountFamily(b) === "investment";
   const moneyAccountsRaw = balances.filter(
-    (b) => b.type === "asset" && (!!b.walletName || !D(b.quantity).isZero()),
+    (b) =>
+      b.type === "asset" &&
+      isLiquidAccount(b) &&
+      (!!b.walletName || !D(b.quantity).isZero()),
   );
+  const investmentAccounts = balances.filter(isInvestmentRow);
   const moneyById = new Map<string, (typeof moneyAccountsRaw)[number]>();
   for (const row of moneyAccountsRaw) {
     const prev = moneyById.get(row.accountId);
@@ -131,10 +154,23 @@ export default async function AccountsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="حساب‌ها" />
+      <PageHeader
+        title="حساب‌های نقد"
+        subtitle="بانک، صندوق و کیف‌پول‌های استیبل‌کوین — همان‌جا که پول نگه‌داشته می‌شود. دارایی‌های سرمایه‌گذاری (رمزارز نوسانی، سهام، طلا، ملک و خودرو) در بخش دارایی‌ها ارزش‌گذاری می‌شوند."
+        action={
+          <Link
+            href="/assets"
+            className="inline-flex items-center gap-1 text-[11.5px] font-medium sm:text-[12px]"
+            style={{ color: "var(--brand)" }}
+          >
+            دارایی‌ها و سرمایه‌گذاری
+            <Icon name="chevronLeft" size={14} />
+          </Link>
+        }
+      />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-3" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش پایه حساب‌های پول" value={toIrt(totalCash.toString()) ?? formatMoney(totalCash.toString())} hint={fx.rate ? formatMoney(totalCash.toString()) : undefined} />
+        <Metric label="ارزش پایه حساب‌های نقد" value={toIrt(totalCash.toString()) ?? formatMoney(totalCash.toString())} hint={fx.rate ? formatMoney(totalCash.toString()) : undefined} />
         <Metric label="حساب‌های فعال" value={faCount(moneyAccounts.length + liabilityAccounts.length)} hint={`${faCount(byWallet.size)} کیف‌پول / نهاد`} />
         <Metric
           label="جمع کنترلی دفتر"
@@ -149,8 +185,12 @@ export default async function AccountsPage() {
           <div className="card">
             <EmptyState
               icon="accounts"
-              title="هنوز حساب فعالی نیست"
-              body="با راه‌اندازی اولیه یا ثبت موجودی، حساب‌ها و مانده‌هایشان اینجا نمایش داده می‌شوند."
+              title="هنوز حساب نقدی فعال نیست"
+              body={
+                investmentAccounts.length > 0
+                  ? `${faCount(investmentAccounts.length)} حساب سرمایه‌گذاری دارید؛ آن‌ها در بخش دارایی‌ها ارزش‌گذاری می‌شوند. برای پول نقد، یک حساب بانکی یا کیف‌پول استیبل‌کوین اضافه کنید.`
+                  : "با راه‌اندازی اولیه یا ثبت موجودی، حساب‌های نقد و مانده‌هایشان اینجا نمایش داده می‌شوند."
+              }
             />
           </div>
         ) : (
@@ -162,7 +202,7 @@ export default async function AccountsPage() {
               const irtOnly = rows.every((r) => r.symbol === "IRT" || r.symbol === "IRR");
               const walletPrimary = irtOnly
                 ? formatMoney(
-                    rows.reduce((s, r) => s.add(r.symbol === "IRR" ? D(r.quantity).abs().div(10) : D(r.quantity).abs()), Decimal.zero()).toFixed(0),
+                    rows.reduce((s, r) => s.add(r.symbol === "IRR" ? D(r.quantity).div(10) : D(r.quantity)), Decimal.zero()).toFixed(0),
                     "IRT",
                   )
                 : toIrt(walletTotal.toString()) ?? formatMoney(walletTotal.toString());
@@ -185,8 +225,8 @@ export default async function AccountsPage() {
                 const singlePrimary = singleValuation ?? canonicalBalance(b);
                 const singleExact = singleValuation ? canonicalBalance(b) : null;
                 const singleApprox =
-                  !singleValuation && toIrt(D(b.baseValue).abs().toString())
-                    ? formatMoney(D(b.baseValue).abs().toString())
+                  !singleValuation && toIrt(D(b.baseValue).toString())
+                    ? formatMoney(D(b.baseValue).toString())
                     : null;
                 // Single summary keeps both marks when both are informative
                 // (e.g. Nobitex wallet + Tether asset) so merging the two
@@ -320,7 +360,7 @@ export default async function AccountsPage() {
                           assetDecimals={b.assetDecimals}
                           balanceLabel={canonicalBalance(b)}
                           valuationLabel={valuationToman(b)}
-                          baseValueLabel={formatMoney(D(b.baseValue).abs().toString())}
+                          baseValueLabel={formatMoney(D(b.baseValue).toString())}
                           walletName={b.walletName}
                           logoUrl={meta?.logoUrl ?? null}
                           assetClassName={b.className}
@@ -351,12 +391,16 @@ export default async function AccountsPage() {
                     )}
                   </div>
                   <div className="text-left">
+                    {/* Outstanding debt = −baseValue (a liability is a credit,
+                        hence stored negative). Flipping the sign is meaningful;
+                        an absolute value would silently render an over-paid
+                        (debit) liability as a debt of the same size. */}
                     <p className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl" style={{ color: "var(--negative)" }}>
-                      {toIrt(D(b.baseValue).abs().toString()) ?? formatMoney(D(b.baseValue).abs().toString())}
+                      {toIrt(D(b.baseValue).neg().toString()) ?? formatMoney(D(b.baseValue).neg().toString())}
                     </p>
-                    {toIrt(D(b.baseValue).abs().toString()) && (
+                    {toIrt(D(b.baseValue).neg().toString()) && (
                       <p className="muted num text-[9.5px]" dir="rtl">
-                        ≈ {formatMoney(D(b.baseValue).abs().toString())}
+                        ≈ {formatMoney(D(b.baseValue).neg().toString())}
                       </p>
                     )}
                   </div>
@@ -391,7 +435,14 @@ export default async function AccountsPage() {
                             {b.name}
                           </span>
                           <span className="num" dir="rtl">
-                            {formatMoney(D(b.baseValue).abs().toString())}
+                            {/* normal-side display: credit accounts are stored
+                                negative, so they are flipped, never abs()'d */}
+                            {formatMoney(
+                              (g.t === "income" || g.t === "equity" || g.t === "liability"
+                                ? D(b.baseValue).neg()
+                                : D(b.baseValue)
+                              ).toString(),
+                            )}
                           </span>
                         </li>
                       ))}

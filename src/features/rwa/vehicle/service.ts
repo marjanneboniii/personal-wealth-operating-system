@@ -3,7 +3,12 @@
  *
  * The vehicle is managed as a personal asset that can be analysed as an
  * investment. It is isolated from the accounting ledger (no FK to
- * journal_entries / postings / lots) and from the real-estate ownership model:
+ * journal_entries / postings / lots) and from the real-estate ownership model —
+ * with ONE deliberate exception: a SALE moves real money, so when the caller
+ * names the receiving account (`sellVehicle({ saleAccountId })`) the proceeds
+ * are booked through the unified journal-entry write path (see F-08 below).
+ * No lot is created or consumed: a registry vehicle has no FIFO history, and
+ * the ledger never invents one.
  *
  *   User → Vehicle Asset            (exactly ONE owner)
  *   NO ownership_percentage, NO co_owner, NO ownership_type,
@@ -14,9 +19,11 @@
  *   Current Value   = the latest valuation SNAPSHOT (never today's FX rate)
  */
 
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { assetClasses, assets, rwaOwnershipRecords, vehicleAssets } from "@/db/schema";
+import { accounts, assetClasses, assets, rwaOwnershipRecords, vehicleAssets } from "@/db/schema";
+import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
+import { recordRegistryDisposal } from "@/features/ledger/service";
 import { ensureSchemaOnce } from "@/db/init-schema";
 import { D } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
@@ -307,8 +314,23 @@ function assertOwnership(row: typeof vehicleAssets.$inferSelect, userId?: string
   }
 }
 
-/** فروش خودرو — قیمت واقعی فروش، مبنای بازدهی نهایی (نه ارزش فعلی). */
-export async function sellVehicle(input: SellVehicleInput & { userId?: string | null }): Promise<void> {
+/**
+ * فروش خودرو — قیمت واقعی فروش، مبنای بازدهی نهایی (نه ارزش فعلی).
+ *
+ * LEDGER (audit F-08): the vehicle registry is intentionally isolated from the
+ * accounting core. A SALE, however, moves real money, so when the caller names
+ * the receiving account (`saleAccountId`) the proceeds are booked through the
+ * SAME unified write path as any other transaction — `recordRegistryDisposal`
+ * → `postEntry` — in the same database transaction as the status flip. A sale
+ * can therefore never exist in the registry while being invisible in the
+ * ledger *by accident*: if an account is chosen, the journal document (with its
+ * frozen Toman/FX snapshot) is mandatory and rolls back together with the
+ * status update. Without `saleAccountId` the historical registry-only behaviour
+ * is preserved (no cash movement is asserted that nobody recorded).
+ */
+export async function sellVehicle(
+  input: SellVehicleInput & { userId?: string | null; saleAccountId?: string | null },
+): Promise<{ ledgerEntryId: string | null; ledgerSkippedReason?: string }> {
   const [row] = await db.select().from(vehicleAssets).where(eq(vehicleAssets.id, input.vehicleId)).limit(1);
   if (!row) throw new Error("خودرو یافت نشد.");
   assertOwnership(row, input.userId);
@@ -325,17 +347,77 @@ export async function sellVehicle(input: SellVehicleInput & { userId?: string | 
   }
   const saleValueUsd = tomanToUsd(salePrice.toFixed(0), saleUsdRate);
 
-  await db
-    .update(vehicleAssets)
-    .set({
-      status: "sold",
-      saleDate,
-      salePriceToman: salePrice.toFixed(0),
-      saleUsdRate: D(saleUsdRate).toString(),
-      saleValueUsd,
-      updatedAt: new Date(),
-    })
-    .where(eq(vehicleAssets.id, input.vehicleId));
+  // ── LEDGER EFFECT (opt-in, unified write path) ────────────────────────────
+  const netUsd = D(saleValueUsd);
+  const cashAccount = input.saleAccountId
+    ? await resolvePayoutAccount(input.saleAccountId, input.userId)
+    : null;
+
+  const description = `فروش خودرو ${row.brand ?? ""} ${row.model ?? ""} ${row.year ?? ""}`.replace(/\s+/g, " ").trim();
+
+  return db.transaction(async (tx) => {
+    await tx
+      .update(vehicleAssets)
+      .set({
+        status: "sold",
+        saleDate,
+        salePriceToman: salePrice.toFixed(0),
+        saleUsdRate: D(saleUsdRate).toString(),
+        saleValueUsd,
+        updatedAt: new Date(),
+      })
+      .where(eq(vehicleAssets.id, input.vehicleId));
+
+    if (!input.saleAccountId) {
+      return { ledgerEntryId: null, ledgerSkippedReason: "no-account" };
+    }
+    if (!cashAccount) {
+      throw new Error("حساب دریافت وجه فروش نامعتبر یا متعلق به این کاربر نیست.");
+    }
+
+    const unitPriceUsd = D(await nativeUnitPriceUsd(cashAccount.assetId, input.userId ?? null));
+    const cashQuantity = unitPriceUsd.gt(0) ? netUsd.div(unitPriceUsd).toString() : netUsd.toString();
+
+    const entry = await recordRegistryDisposal(
+      {
+        entryDate: saleDate,
+        description,
+        assetId: row.assetId,
+        cashAccountId: cashAccount.id,
+        cashAssetId: cashAccount.assetId,
+        cashQuantity,
+        proceedsBase: netUsd.toString(),
+        irtAmount: salePrice.toFixed(0),
+        fxRate: D(saleUsdRate).toString(),
+        userId: input.userId ?? undefined,
+        idempotencyKey: `vehicle-sale:${input.vehicleId}`,
+        memo: "خروج خودرو از دفتر (بهای ثبت‌شده: صفر — ثبت تاریخی در دفتر کل)",
+      },
+      tx,
+    );
+
+    return { ledgerEntryId: entry?.id ?? null };
+  });
+}
+
+/**
+ * The receiving account of a sale must be an ASSET account denominated in a
+ * money unit, owned by this tenant (or a shared global row). Returns null when
+ * the id does not qualify — the caller then refuses the write instead of
+ * inventing a cash destination (audit F-03: no foreign account, ever).
+ */
+async function resolvePayoutAccount(
+  accountId: string,
+  userId?: string | null,
+): Promise<{ id: string; assetId: string } | null> {
+  const scope = userId ? or(eq(accounts.userId, userId), isNull(accounts.userId)) : sql`1=1`;
+  const [row] = await db
+    .select({ id: accounts.id, assetId: accounts.assetId, type: accounts.type })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), scope, sql`${accounts.deletedAt} is null`))
+    .limit(1);
+  if (!row || row.type !== "asset" || !row.assetId) return null;
+  return { id: row.id, assetId: row.assetId };
 }
 
 /* ───────────────────────────── read model ───────────────────────────── */

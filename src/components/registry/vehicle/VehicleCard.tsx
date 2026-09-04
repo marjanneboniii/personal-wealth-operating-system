@@ -30,7 +30,13 @@ import {
 
 type Tab = "performance" | "history" | "compare" | "valuation" | "manage";
 
-export default function VehicleCard({ item }: { item: VehicleDashboardItem }) {
+export default function VehicleCard({
+  item,
+  payoutAccounts = [],
+}: {
+  item: VehicleDashboardItem;
+  payoutAccounts?: { id: string; name: string; symbol: string | null }[];
+}) {
   const { vehicle, catalog, valuation, gains, purchasePoint, history, periods, holding } = item;
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("performance");
@@ -182,7 +188,7 @@ export default function VehicleCard({ item }: { item: VehicleDashboardItem }) {
 
           {tab === "valuation" && <ValuationForm item={item} />}
 
-          {tab === "manage" && <ManagePanel item={item} />}
+          {tab === "manage" && <ManagePanel item={item} payoutAccounts={payoutAccounts} />}
         </div>
       )}
     </article>
@@ -399,7 +405,13 @@ function ValuationForm({ item }: { item: VehicleDashboardItem }) {
 
 /* ───────────────────────── manage / sell ───────────────────────── */
 
-function ManagePanel({ item }: { item: VehicleDashboardItem }) {
+function ManagePanel({
+  item,
+  payoutAccounts = [],
+}: {
+  item: VehicleDashboardItem;
+  payoutAccounts?: { id: string; name: string; symbol: string | null }[];
+}) {
   const [detailState, detailAction, detailPending] = useActionState(updateVehicleDetailsAction, null);
   const [saleState, saleAction, salePending] = useActionState(sellVehicleAction, null);
 
@@ -441,7 +453,22 @@ function ManagePanel({ item }: { item: VehicleDashboardItem }) {
           <Labeled label="نرخ دلار فروش (اختیاری)">
             <input className="field num" name="saleUsdRate" inputMode="numeric" dir="ltr" placeholder="نرخ تاریخ فروش" />
           </Labeled>
+          <Labeled label="واریز وجه فروش به حساب (اختیاری)">
+            <select className="field" name="saleAccountId" defaultValue="">
+              <option value="">بدون ثبت در دفتر کل</option>
+              {payoutAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                  {a.symbol && a.symbol !== "IRT" ? ` — ${a.symbol}` : ""}
+                </option>
+              ))}
+            </select>
+          </Labeled>
           <Hint tone="warn">قیمت واقعی فروش هرگز با «ارزش فعلی» یکی فرض نمی‌شود و مبنای بازدهی نهایی است.</Hint>
+          <Hint>
+            با انتخاب حساب دریافت، سند فروش در همان لحظه از مسیر یکپارچه دفتر کل ثبت می‌شود (واریز خالص، نرخ دلار
+            فریزشده آن تاریخ و مانده‌ی نقد شما). بدون انتخاب، فروش فقط در شناسنامه خودرو ثبت می‌ماند.
+          </Hint>
           <button className="btn" disabled={salePending}>
             {salePending ? "در حال ثبت…" : "ثبت فروش"}
           </button>
