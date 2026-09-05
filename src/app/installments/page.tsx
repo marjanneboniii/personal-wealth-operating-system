@@ -158,14 +158,14 @@ export default async function InstallmentsPage() {
                           <span className="badge badge-neutral">در انتظار</span>
                         )}
                       </td>
-                      <td>
+                      <td style={{ minWidth: "9rem" }}>
                         <span className="block text-[12.5px] font-medium">{r.title}</span>
-                        <span className="muted text-[10px]">{r.creditor}</span>
+                        <span className="muted block text-[10px]">{r.creditor}</span>
                       </td>
                       <td className="num hidden sm:table-cell" dir="ltr">
                         #{r.seq}
                       </td>
-                      <td>
+                      <td style={{ whiteSpace: "nowrap" }}>
                         <span className="num block text-[12px]">{formatDualDate(r.dueDate)}</span>
                         <span className="muted num text-[9.5px]">
                           {r.fx.isPaid && r.fx.paidAt

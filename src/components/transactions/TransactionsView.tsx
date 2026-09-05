@@ -247,7 +247,7 @@ export default function TransactionsView({
                     type="button"
                     onClick={() => setExpanded(open ? null : e.id)}
                     aria-expanded={open}
-                    className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-[10px] py-0.5 text-right"
+                    className="tx-row flex min-h-11 min-w-0 flex-1 items-start gap-3 rounded-[10px] py-0.5 text-right sm:items-center"
                     style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" } as any}
                   >
                     <span className="muted hidden w-[74px] shrink-0 flex-col leading-tight sm:flex" dir="rtl">
@@ -258,8 +258,8 @@ export default function TransactionsView({
                     </span>
 
                     <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2">
-                        <span className={`tx-description truncate text-[13px] font-medium ${isVoid ? "line-through" : ""}`}>{e.description}</span>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className={`tx-description min-w-0 truncate text-[13px] font-medium ${isVoid ? "line-through" : ""}`}>{e.description}</span>
                         {!e.reviewed && <span className="badge badge-warn shrink-0">بررسی‌نشده</span>}
                         {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
                       </span>
@@ -281,9 +281,9 @@ export default function TransactionsView({
                       </span>
                     </span>
 
-                    <span className="shrink-0 text-left min-w-0 max-w-[44%] sm:max-w-none">
+                    <span className="tx-amount-col shrink-0 text-left sm:max-w-none">
                       <span
-                        className="num block text-[12px] font-bold money-nowrap leading-[1.3] sm:text-[13px]"
+                        className="num tx-amount block text-[12px] font-bold money-nowrap leading-[1.3] sm:text-[13px]"
                         dir="rtl"
                         style={{ color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)" }}
                       >
