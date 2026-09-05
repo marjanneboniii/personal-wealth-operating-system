@@ -188,7 +188,7 @@ export default async function InstallmentsPage() {
                       </td>
                       <td className="text-left">
                         {!r.fx.isPaid && (
-                          <span className="flex justify-end gap-1">
+                          <span className="row-actions flex justify-end gap-1">
                             <Link
                               href={`/new?type=debt_repayment&installmentId=${r.id}&entryDate=${r.dueDate}&title=${encodeURIComponent(`قسط ${r.seq} — ${r.title}`)}`}
                               className="btn btn-ghost !min-h-8 !px-2.5 !py-1 text-[11px]"

@@ -2372,10 +2372,15 @@ input {
   word-break: normal;
 }
 /* Single-token cells (status badges, row actions, dates) stay on one line so
-   they never steal wrapping space from the title column. */
+   they never steal wrapping space from the title column. `white-space` is
+   inherited into the buttons/links inside `.row-actions`, so their labels can
+   never wrap: the column's min-content becomes the full label width and the
+   table (already `width: max-content`) scrolls horizontally instead of
+   shredding the labels letter-by-letter in a squeezed column. */
 .table td:has(> .badge:only-child),
 .table td:has(> a:only-child),
-.table td:has(> button:only-child) {
+.table td:has(> button:only-child),
+.table td:has(> .row-actions:only-child) {
   white-space: nowrap;
   width: 1%;
 }
