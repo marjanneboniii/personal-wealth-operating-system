@@ -8,7 +8,7 @@ import {
   searchMarketCatalogAction,
 } from "@/app/actions/pricing";
 import { currencyLabel, formatMoney, getDualDate, faCount, hasPersianCurrencyLabel } from "@/lib/format";
-import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
+import { SmartAmountPreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";

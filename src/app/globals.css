@@ -710,6 +710,21 @@ select.field {
   padding-left: 2rem;
 }
 
+/*
+ * Jalali date picker — three <select>s share one row (سال / ماه / روز), so each
+ * gets a tighter box than a normal field. The chevron drawn by `select.field`
+ * sits on the physical LEFT (the RTL "end"), so the left padding is the larger
+ * one. `font-size` is NOT reduced below the 16px iOS-zoom floor (see the
+ * mobile media query below).
+ */
+.jalali-date-picker select.jalali-picker-select {
+  min-height: 42px;
+  padding: 0.4rem 0.5rem 0.4rem 1.5rem;
+  background-position: calc(0% + 12px) 50%, calc(0% + 7px) 50%;
+  text-align: right;
+  text-overflow: ellipsis;
+}
+
 .kbd {
   display: inline-flex;
   align-items: center;

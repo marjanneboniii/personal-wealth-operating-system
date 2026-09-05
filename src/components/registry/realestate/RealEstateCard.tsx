@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
 import { deleteRealEstateAction, recordRealEstateValuationAction } from "@/app/actions/realEstate";
 import JalaliDateInput from "@/components/ui/JalaliDateInput";
+import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import AmountInput from "@/components/ui/AmountInput";
 import { formatJalaliIso, toFaDigits, todayIso } from "@/lib/format";
 import { compareRealEstateDates } from "@/features/rwa/realEstate/analytics";
@@ -381,11 +382,11 @@ function ComparePanel({ item }: { item: RealEstateDashboardItem }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Labeled label="از تاریخ (میلادی)">
-          <input className="field num" type="date" dir="ltr" value={from} onChange={(e) => setFrom(e.target.value)} />
+        <Labeled label="از تاریخ">
+          <JalaliDatePicker value={from} onChange={setFrom} ariaLabel="از تاریخ" showToday={false} />
         </Labeled>
-        <Labeled label="تا تاریخ (میلادی)">
-          <input className="field num" type="date" dir="ltr" value={to} onChange={(e) => setTo(e.target.value)} />
+        <Labeled label="تا تاریخ">
+          <JalaliDatePicker value={to} onChange={setTo} ariaLabel="تا تاریخ" />
         </Labeled>
       </div>
 

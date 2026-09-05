@@ -160,6 +160,74 @@ const FA_MONTHS = [
   "مهر","آبان","آذر","دی","بهمن","اسفند",
 ];
 
+/**
+ * Persian month names, index 0 = فروردین. Exported for the Jalali date picker
+ * so the month <select> and every formatter read from ONE list.
+ */
+export const JALALI_MONTHS: readonly string[] = FA_MONTHS;
+
+const FA_WEEKDAYS = [
+  "یکشنبه","دوشنبه","سه‌شنبه","چهارشنبه","پنجشنبه","جمعه","شنبه",
+];
+
+/**
+ * Jalali leap year. Derived from the converter itself (`jalaliToIso` /
+ * `toJalali`) instead of re-implementing the 33-year arithmetic: اسفند has ۳۰
+ * days exactly when the ۳۰th round-trips back into the same year.
+ * e.g. ۱۳۹۹ and ۱۴۰۳ are leap; ۱۴۰۰, ۱۴۰۴ and ۱۳۰۸ are not.
+ */
+export function isJalaliLeapYear(jy: number): boolean {
+  return jalaliMonthLength(jy, 12) === 30;
+}
+
+/**
+ * Number of days in a Jalali month (1-12).
+ *
+ * فروردین..شهریور = ۳۱, مهر..بهمن = ۳۰, اسفند = ۲۹/۳۰. اسفند is asked from
+ * the converter so this can never disagree with `jalaliToIso` — a mismatch
+ * would let the picker offer a day that silently rolls into the next year.
+ */
+export function jalaliMonthLength(jy: number, jm: number): number {
+  if (jm >= 1 && jm <= 6) return 31;
+  if (jm >= 7 && jm <= 11) return 30;
+  const back = toJalali(jalaliToIso(jy, 12, 30));
+  return back.y === jy && back.m === 12 && back.d === 30 ? 30 : 29;
+}
+
+/**
+ * Keeps an already-chosen day valid when the year or month changes:
+ * ۳۱ مرداد → switching to شهریور yields ۳۰ شهریور, and ۳۰ اسفند ۱۴۰۳ →
+ * switching to ۱۴۰۴ (a common year) yields ۲۹ اسفند. Exported so the rule is
+ * unit-testable outside the picker component.
+ */
+export function clampJalaliDay(
+  jy: number | null,
+  jm: number | null,
+  jd: number | null,
+): number | null {
+  if (jd == null) return null;
+  if (jy == null || jm == null) return Math.min(jd, 31);
+  return Math.min(jd, jalaliMonthLength(jy, jm));
+}
+
+/** Persian weekday name of a Gregorian ISO date (calendar date, TZ-independent). */
+export function jalaliWeekdayName(iso: string): string {
+  if (!iso) return "";
+  const day = new Date(`${iso.slice(0, 10)}T00:00:00Z`).getUTCDay();
+  return FA_WEEKDAYS[day] ?? "";
+}
+
+/** Jalali parts of a Gregorian ISO date, or null when empty. */
+export function isoToJalaliParts(iso: string): { y: number; m: number; d: number } | null {
+  if (!iso) return null;
+  return toJalali(iso);
+}
+
+/** Jalali year of the current date — the picker's default window anchor. */
+export function currentJalaliYear(): number {
+  return toJalali(todayIso()).y;
+}
+
 /** Gregorian ISO date -> Persian (Jalali) label, computed locally, no deps. */
 export function toJalali(iso: string): { y: number; m: number; d: number } {
   const [gy, gm, gd] = iso.slice(0, 10).split("-").map(Number);

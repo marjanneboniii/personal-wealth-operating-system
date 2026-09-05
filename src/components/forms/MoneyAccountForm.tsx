@@ -6,6 +6,7 @@ import { createMoneyAccountAction } from "@/app/actions";
 import { D } from "@/domain/decimal";
 import { formatMoney } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
+import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import { BankLogo } from "@/components/ui/IranLogo";
 
 export type MoneyCurrencyOption = {
@@ -140,16 +141,14 @@ export default function MoneyAccountForm({
         </label>
       </div>
 
-      <label className="block space-y-1 sm:max-w-[calc(50%-0.375rem)]">
+      <div className="block space-y-1 sm:max-w-[calc(50%-0.375rem)]">
         <span className="label">تاریخ افتتاحیه (اختیاری)</span>
-        <input
-          className="field num"
-          dir="ltr"
-          type="date"
+        <JalaliDatePicker
           value={openingDate}
-          onChange={(e) => setOpeningDate(e.target.value)}
+          onChange={setOpeningDate}
+          ariaLabel="تاریخ افتتاحیه"
         />
-      </label>
+      </div>
 
       <label className="block space-y-1">
         <span className="label">یادداشت (اختیاری)</span>
