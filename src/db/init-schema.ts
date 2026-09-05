@@ -762,26 +762,45 @@ const STATEMENTS = [
   );`,
   `CREATE INDEX IF NOT EXISTS coingecko_price_cache_updated_idx ON coingecko_price_cache(updated_at);`,
 
-  /* Commodities Domain — Dynamic Price Tracking & Inflation Analytics — Isolated, No FK to Financial Core */
+  /* Commodities Domain — Dynamic Price Tracking & Inflation Analytics — Isolated, No FK to Financial Core
+     0012 tenancy: user_id NULL = shared/global row (legacy + suggested catalog),
+     set = owned by one tenant. Legacy UNIQUE(name) replaced by partial uniques. */
   `CREATE TABLE IF NOT EXISTS commodity_categories (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    name text NOT NULL UNIQUE,
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    name text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
   );`,
+  `ALTER TABLE commodity_categories ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE commodity_categories DROP CONSTRAINT IF EXISTS commodity_categories_name_unique;`,
+  `ALTER TABLE commodity_categories DROP CONSTRAINT IF EXISTS commodity_categories_name_key;`,
+  `DROP INDEX IF EXISTS commodity_categories_name_unique;`,
   `CREATE INDEX IF NOT EXISTS commodity_categories_name_idx ON commodity_categories(name);`,
+  `CREATE INDEX IF NOT EXISTS commodity_categories_user_idx ON commodity_categories(user_id);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS commodity_categories_shared_name_uq ON commodity_categories(name) WHERE user_id IS NULL;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS commodity_categories_user_name_uq ON commodity_categories(user_id, name) WHERE user_id IS NOT NULL;`,
 
   `CREATE TABLE IF NOT EXISTS commodity_items (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    name text NOT NULL UNIQUE,
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    name text NOT NULL,
     category_id uuid REFERENCES commodity_categories(id) ON DELETE SET NULL,
     default_unit text NOT NULL DEFAULT 'piece',
     created_at timestamptz NOT NULL DEFAULT now()
   );`,
+  `ALTER TABLE commodity_items ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE commodity_items DROP CONSTRAINT IF EXISTS commodity_items_name_unique;`,
+  `ALTER TABLE commodity_items DROP CONSTRAINT IF EXISTS commodity_items_name_key;`,
+  `DROP INDEX IF EXISTS commodity_items_name_unique;`,
   `CREATE INDEX IF NOT EXISTS commodity_items_name_idx ON commodity_items(name);`,
   `CREATE INDEX IF NOT EXISTS commodity_items_category_idx ON commodity_items(category_id);`,
+  `CREATE INDEX IF NOT EXISTS commodity_items_user_idx ON commodity_items(user_id);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS commodity_items_shared_name_uq ON commodity_items(name) WHERE user_id IS NULL;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS commodity_items_user_name_uq ON commodity_items(user_id, name) WHERE user_id IS NOT NULL;`,
 
   `CREATE TABLE IF NOT EXISTS commodity_price_records (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
     commodity_id uuid NOT NULL REFERENCES commodity_items(id) ON DELETE CASCADE,
     unit_price numeric(38,18) NOT NULL,
     unit text NOT NULL DEFAULT 'piece',
@@ -789,12 +808,16 @@ const STATEMENTS = [
     total_amount numeric(38,18) NOT NULL,
     purchased_at timestamptz NOT NULL DEFAULT now(),
     merchant_name text,
+    region text,
     notes text,
     created_at timestamptz NOT NULL DEFAULT now()
   );`,
+  `ALTER TABLE commodity_price_records ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
+  `ALTER TABLE commodity_price_records ADD COLUMN IF NOT EXISTS region text;`,
   `CREATE INDEX IF NOT EXISTS commodity_price_commodity_idx ON commodity_price_records(commodity_id);`,
   `CREATE INDEX IF NOT EXISTS commodity_price_purchased_idx ON commodity_price_records(purchased_at);`,
   `CREATE INDEX IF NOT EXISTS commodity_price_merchant_idx ON commodity_price_records(merchant_name);`,
+  `CREATE INDEX IF NOT EXISTS commodity_price_user_idx ON commodity_price_records(user_id);`,
 
   /* FX Engine & Display Layer (Phase 2.6) — valuation reference data only */
   `CREATE TABLE IF NOT EXISTS exchange_rates (

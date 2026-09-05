@@ -70,7 +70,7 @@ export default async function AssetsPage() {
       href: "/asset-registry",
       count: real.length,
       value: realValue.toString(),
-      hint: "املاک، خودرو، طلا و کالا",
+      hint: "املاک، خودرو، طلا و سایر دارایی‌های واقعی",
     },
     {
       label: "سبد دارایی",

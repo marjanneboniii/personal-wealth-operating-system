@@ -1,5 +1,8 @@
 /**
- * Data loader for the «دارایی واقعی و کالا» workspace (`/asset-registry`).
+ * Data loader for the «دارایی‌های واقعی» workspace (`/asset-registry`).
+ *
+ * NOTE: consumable price tracking («ردیاب تورم شخصی», `/inflation`) is an
+ * independent analytical module — it is not a real asset and is not loaded here.
  *
  * WHY THIS FILE EXISTS
  * --------------------
@@ -20,7 +23,6 @@
  * guarantees (never destructive), exactly as they were on the page.
  */
 import { desc, eq } from "drizzle-orm";
-import { db } from "@/db";
 import { commodityCategories, commodityItems, commodityPriceRecords } from "@/db/schema";
 import {
   ensureRealEstateModuleReady,
@@ -43,41 +45,6 @@ import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { allNamed } from "@/lib/namedPromises";
 
 export type PayoutAccount = { id: string; name: string; symbol: string | null };
-
-export type CommodityItemRow = Awaited<ReturnType<typeof loadCommodityItems>>;
-export type CommodityPriceRow = Awaited<ReturnType<typeof loadCommodityPrices>>;
-
-function loadCommodityItems() {
-  return db
-    .select({
-      id: commodityItems.id,
-      name: commodityItems.name,
-      unit: commodityItems.defaultUnit,
-      category: commodityCategories.name,
-    })
-    .from(commodityItems)
-    .leftJoin(commodityCategories, eq(commodityItems.categoryId, commodityCategories.id));
-}
-
-function loadCommodityPrices() {
-  return db
-    .select({
-      id: commodityPriceRecords.id,
-      commodityId: commodityPriceRecords.commodityId,
-      item: commodityItems.name,
-      unitPrice: commodityPriceRecords.unitPrice,
-      quantity: commodityPriceRecords.quantity,
-      total: commodityPriceRecords.totalAmount,
-      unit: commodityPriceRecords.unit,
-      merchant: commodityPriceRecords.merchantName,
-      notes: commodityPriceRecords.notes,
-      purchasedAt: commodityPriceRecords.purchasedAt,
-    })
-    .from(commodityPriceRecords)
-    .innerJoin(commodityItems, eq(commodityPriceRecords.commodityId, commodityItems.id))
-    .orderBy(desc(commodityPriceRecords.purchasedAt))
-    .limit(30);
-}
 
 /** Current USD/IRT rate of this tenant, as a plain string. */
 async function loadFxRate(userId?: string | null): Promise<string> {
@@ -130,9 +97,6 @@ export async function loadAssetRegistryData(
     // SECURITY: pass the tenant id so reads are scoped at the DB level.
     vehicles: listVehicleAssets(userId ?? undefined),
     ownerships: listOwnershipRecords(userId ?? undefined),
-    categories: db.select().from(commodityCategories),
-    items: loadCommodityItems(),
-    prices: loadCommodityPrices(),
     vehicleBrands: listVehicleBrands(),
     vehicleModels: listVehicleCatalogModels(),
     vehicleDashboard: getVehicleDashboard(userId ?? null),

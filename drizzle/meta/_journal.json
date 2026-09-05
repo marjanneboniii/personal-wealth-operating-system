@@ -85,6 +85,13 @@
       "when": 1788480000000,
       "tag": "0011_fee_expense_account",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788576000000,
+      "tag": "0012_inflation_tracker",
+      "breakpoints": true
     }
   ]
 }

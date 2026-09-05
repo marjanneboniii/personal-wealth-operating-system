@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { assetClasses, assets, commodityCategories, commodityItems, commodityPriceRecords } from "@/db/schema";
+import { assetClasses, assets } from "@/db/schema";
 import { createRealEstateProperty } from "@/features/rwa/realEstate/service";
 import {
   createUserVehicle,
@@ -23,7 +23,9 @@ import { resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { nextRwaSymbol } from "@/features/rwa/symbol";
 import { createOwnershipRecord } from "@/features/rwa/ownership/service";
 import { createValuationEvent } from "@/features/rwa/valuation/service";
-import { createCategory, createCommodityItem, recordPricePoint } from "@/features/commodities/service";
+// NOTE: consumable price tracking moved to the independent «ردیاب تورم شخصی»
+// module (`src/app/actions/inflation.ts` + `/inflation`). The registry keeps
+// no commodity write path: groceries are not real assets.
 
 import { getCurrentUser } from "@/lib/auth";
 import { isAdminOrOwner } from "@/lib/authGuard";
@@ -340,23 +342,4 @@ export async function createVehicleModelAction(_previous: RegistryResult | null,
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت خودرو در کاتالوگ ناموفق بود." };
   }
-}
-
-export async function saveCommodityAction(_previous: RegistryResult | null, form: FormData): Promise<RegistryResult> {
- const denied = await guardRegistry(); if (denied) return { ok: false, message: denied }; try {
-  let categoryId = optional(form,"categoryId"); const categoryName=optional(form,"newCategory");
-  if (categoryName) categoryId=(await createCategory(categoryName)).id;
-  let commodityId=optional(form,"commodityId");
-  if (!commodityId) commodityId=(await createCommodityItem(val(form,"itemName"),categoryId, val(form,"unit") || "عدد")).id;
-  await recordPricePoint({commodityId,unitPrice:val(form,"unitPrice"),unit:val(form,"unit")||"عدد",quantity:val(form,"quantity")||"1",purchasedAt:val(form,"purchasedAt"),merchantName:optional(form,"merchant"),notes:optional(form,"notes")});
-  refresh(); return {ok:true,message:"قلم کالا و رکورد قیمت ثبت شد."};
- } catch(e) {return {ok:false,message:e instanceof Error?e.message:"ثبت قیمت ناموفق بود."};}
-}
-
-export async function updateCommodityItemAction(_previous: RegistryResult | null, form: FormData): Promise<RegistryResult> {
- const denied = await guardRegistry(); if (denied) return { ok: false, message: denied }; try { const id=val(form,"id"), name=val(form,"name"), unit=val(form,"unit"); if(!id||!name) throw new Error("اطلاعات قلم ناقص است."); await db.update(commodityItems).set({name,defaultUnit:unit||"عدد"}).where(eq(commodityItems.id,id)); refresh(); return {ok:true,message:"قلم کالا ویرایش شد."}; } catch(e){return {ok:false,message:e instanceof Error?e.message:"ویرایش ناموفق بود."};}
-}
-
-export async function updateCommodityPriceAction(_previous: RegistryResult | null, form: FormData): Promise<RegistryResult> {
- const denied = await guardRegistry(); if (denied) return { ok: false, message: denied }; try {const id=val(form,"id"), price=val(form,"unitPrice"), qty=val(form,"quantity")||"1"; if(!id||!price)throw new Error("قیمت را وارد کنید."); await db.update(commodityPriceRecords).set({unitPrice:price,quantity:qty,totalAmount:String(Number(price)*Number(qty)),merchantName:optional(form,"merchant"),notes:optional(form,"notes")}).where(eq(commodityPriceRecords.id,id)); refresh();return {ok:true,message:"رکورد قیمت ویرایش شد."};}catch(e){return {ok:false,message:e instanceof Error?e.message:"ویرایش ناموفق بود."};}
 }
