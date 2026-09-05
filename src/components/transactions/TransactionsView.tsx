@@ -259,7 +259,7 @@ export default function TransactionsView({
 
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
-                        <span className={`truncate text-[13px] font-medium ${isVoid ? "line-through" : ""}`}>{e.description}</span>
+                        <span className={`tx-description truncate text-[13px] font-medium ${isVoid ? "line-through" : ""}`}>{e.description}</span>
                         {!e.reviewed && <span className="badge badge-warn shrink-0">بررسی‌نشده</span>}
                         {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
                       </span>
@@ -417,7 +417,7 @@ export default function TransactionsView({
       {/* ─────────── Bulk action bar ─────────── */}
       {selectedRows.length > 0 && (
         <div
-          className="pop-in fixed inset-x-3 bottom-[76px] z-50 mx-auto flex max-w-lg items-center justify-between gap-2 rounded-[var(--r-lg)] border px-4 py-2.5 lg:bottom-6"
+          className="bulk-action-bar pop-in fixed inset-x-3 bottom-[76px] z-50 mx-auto flex max-w-lg items-center justify-between gap-2 rounded-[var(--r-lg)] border px-4 py-2.5 lg:bottom-6"
           style={{ background: "var(--surface-elev)", borderColor: "var(--border-strong)", boxShadow: "var(--shadow-lg)", touchAction: "manipulation" }}
           role="region"
           aria-label="اقدامات گروهی"
