@@ -9,9 +9,39 @@ import MasterDataAdmin from "./MasterDataAdmin";
 import RealEstateCard from "./RealEstateCard";
 import RealEstateForm from "./RealEstateForm";
 import { DeltaPct, DeltaToman, DeltaUsd, Hint, Metric, Toman, Usd, faNum } from "./shared";
-import { getRealEstateDisplayLabel } from "@/features/rwa/realEstate/display";
 
 type Tab = "list" | "add" | "master";
+
+/**
+ * The module is a client component fed by a server read model. If a value ever
+ * arrives with the wrong shape, the previous behaviour was to throw
+ * (`dashboard.map is not a function`) and take the WHOLE page down behind the
+ * global error boundary — the user lost «خودرو», «کالا» and everything else
+ * with it. Never let a read-model shape problem become a page-wide failure:
+ * coerce to a safe empty value and render the module in its empty state.
+ */
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+const EMPTY_SUMMARY: RealEstatePortfolioSummary = {
+  count: 0,
+  unvaluedCount: 0,
+  totalCurrentToman: "0",
+  totalCurrentUsd: "0",
+  totalPurchaseToman: "0",
+  totalPurchaseUsd: "0",
+  totalGainToman: "0",
+  totalGainUsd: "0",
+  roiToman: null,
+  roiUsd: null,
+};
+
+function asSummary(value: unknown): RealEstatePortfolioSummary {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return EMPTY_SUMMARY;
+  const s = value as Partial<RealEstatePortfolioSummary>;
+  return typeof s.count === "number" ? (s as RealEstatePortfolioSummary) : EMPTY_SUMMARY;
+}
 
 export default function RealEstateModule({
   dashboard,
@@ -22,15 +52,21 @@ export default function RealEstateModule({
   ownerName,
   fxRate,
 }: {
-  dashboard: RealEstateDashboardItem[];
-  summary: RealEstatePortfolioSummary;
-  cities: City[];
-  neighborhoods: Neighborhood[];
-  propertyTypes: PropertyType[];
-  ownerName: string;
-  fxRate: string;
+  dashboard?: RealEstateDashboardItem[] | null;
+  summary?: RealEstatePortfolioSummary | null;
+  cities?: City[] | null;
+  neighborhoods?: Neighborhood[] | null;
+  propertyTypes?: PropertyType[] | null;
+  ownerName?: string;
+  fxRate?: string | null;
 }) {
-  const [tab, setTab] = useState<Tab>(dashboard.length ? "list" : "add");
+  const items = asArray<RealEstateDashboardItem>(dashboard);
+  const totals = asSummary(summary);
+  const cityList = asArray<City>(cities);
+  const neighborhoodList = asArray<Neighborhood>(neighborhoods);
+  const propertyTypeList = asArray<PropertyType>(propertyTypes);
+
+  const [tab, setTab] = useState<Tab>(items.length ? "list" : "add");
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
@@ -52,17 +88,17 @@ export default function RealEstateModule({
         </div>
       </header>
 
-      {summary.count > 0 && (
+      {totals.count > 0 && (
         <div className="mb-5 grid grid-cols-2 gap-4 border-y py-4 sm:grid-cols-3 lg:grid-cols-6" style={{ borderColor: "var(--border)" }}>
           <Metric
             label="مجموع ارزش املاک"
-            value={<Toman value={summary.totalCurrentToman} />}
-            sub={<>≈ <Usd value={summary.totalCurrentUsd} /></>}
+            value={<Toman value={totals.totalCurrentToman} />}
+            sub={<>≈ <Usd value={totals.totalCurrentUsd} /></>}
           />
-          <Metric label="مجموع قیمت خرید" value={<Toman value={summary.totalPurchaseToman} />} sub={<>≈ <Usd value={summary.totalPurchaseUsd} /></>} />
-          <Metric label="سود/زیان تومانی کل" value={<DeltaToman value={summary.totalGainToman} />} sub={<>بازده: <DeltaPct value={summary.roiToman} /></>} />
-          <Metric label="سود/زیان دلاری کل" value={<DeltaUsd value={summary.totalGainUsd} />} sub={<>بازده: <DeltaPct value={summary.roiUsd} /></>} />
-          <Metric label="تعداد ملک" value={<span className="num">{faNum(summary.count)}</span>} sub="ثبت‌شده در سیستم" />
+          <Metric label="مجموع قیمت خرید" value={<Toman value={totals.totalPurchaseToman} />} sub={<>≈ <Usd value={totals.totalPurchaseUsd} /></>} />
+          <Metric label="سود/زیان تومانی کل" value={<DeltaToman value={totals.totalGainToman} />} sub={<>بازده: <DeltaPct value={totals.roiToman} /></>} />
+          <Metric label="سود/زیان دلاری کل" value={<DeltaUsd value={totals.totalGainUsd} />} sub={<>بازده: <DeltaPct value={totals.roiUsd} /></>} />
+          <Metric label="تعداد ملک" value={<span className="num">{faNum(totals.count)}</span>} sub="ثبت‌شده در سیستم" />
           <Metric
             label="نرخ جاری سیستم"
             value={<span className="num">{faNum(fxRate)}</span>}
@@ -73,13 +109,13 @@ export default function RealEstateModule({
 
       {tab === "list" && (
         <div className="space-y-4">
-          {summary.unvaluedCount > 0 && (
+          {totals.unvaluedCount > 0 && (
             <Hint tone="warn">
-              {faNum(summary.unvaluedCount)} ملک ارزش‌گذاری ثبت‌شده ندارد؛ تا ثبت ارزش‌گذاری، ارزش فعلی و سود/زیان از مبلغ
+              {faNum(totals.unvaluedCount)} ملک ارزش‌گذاری ثبت‌شده ندارد؛ تا ثبت ارزش‌گذاری، ارزش فعلی و سود/زیان از مبلغ
               خرید محاسبه نمی‌شود.
             </Hint>
           )}
-          {dashboard.length === 0 ? (
+          {items.length === 0 ? (
             <div className="py-10 text-center">
               <p className="text-[13px] font-semibold">هنوز ملکی ثبت نشده است</p>
               <p className="muted mx-auto mt-1 max-w-md text-[11.5px] leading-6">
@@ -113,7 +149,7 @@ export default function RealEstateModule({
                   </tr>
                 </thead>
                 <tbody>
-                  {dashboard.map((item) => {
+                  {items.map((item) => {
                     const open = openId === item.id;
                     const p = item.performance;
                     return (
@@ -187,11 +223,11 @@ export default function RealEstateModule({
             <span className="muted">مالک:</span>
             <strong>{ownerName}</strong>
           </div>
-          <RealEstateForm cities={cities} neighborhoods={neighborhoods} propertyTypes={propertyTypes} />
+          <RealEstateForm cities={cityList} neighborhoods={neighborhoodList} propertyTypes={propertyTypeList} />
         </div>
       )}
 
-      {tab === "master" && <MasterDataAdmin cities={cities} neighborhoods={neighborhoods} propertyTypes={propertyTypes} />}
+      {tab === "master" && <MasterDataAdmin cities={cityList} neighborhoods={neighborhoodList} propertyTypes={propertyTypeList} />}
     </section>
   );
 }

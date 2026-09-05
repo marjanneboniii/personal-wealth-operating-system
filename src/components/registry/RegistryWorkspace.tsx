@@ -6,6 +6,10 @@ import AmountInput from "@/components/ui/AmountInput";
 import { formatMoney } from "@/lib/format";
 import VehicleModule from "@/components/registry/vehicle/VehicleModule";
 import RealEstateModule from "@/components/registry/realestate/RealEstateModule";
+import ErrorBoundary from "@/components/ui/ErrorBoundary";
+import type { PayoutAccount } from "@/features/registry/loadAssetRegistryData";
+import type { RealEstateDashboardItem, RealEstatePortfolioSummary } from "@/features/rwa/realEstate/service";
+import type { City, Neighborhood, PropertyType } from "@/features/rwa/realEstate/types";
 const today = new Date().toISOString().slice(0, 10);
 function Result({ state }: { state: RegistryResult | null }) {
   return state ? (
@@ -128,6 +132,35 @@ function InlineEdit({ item, price }: { item?: any; price?: any }) {
     </form>
   );
 }
+type RegistryWorkspaceProps = {
+  /** legacy alias kept for older call-sites */
+  properties?: any;
+  vehicles?: any;
+  ownerships?: any;
+  categories?: any;
+  items?: any;
+  prices?: any;
+  vehicleBrands?: any;
+  vehicleModels?: any;
+  vehicleDashboard?: any;
+  vehicleSummary?: any;
+  payoutAccounts?: PayoutAccount[];
+  /**
+   * LIST of properties — an ARRAY. It is the single most confusing prop here:
+   * `realEstateSummary` is the TOTALS object for the very same rows. They were
+   * once swapped by a positional `Promise.all` destructure, which hid
+   * «املاک من» and crashed the tab with `dashboard.map is not a function`.
+   * The types below make that swap a compile error instead of a blank page.
+   */
+  realEstateDashboard?: RealEstateDashboardItem[];
+  realEstateSummary?: RealEstatePortfolioSummary;
+  cities?: City[];
+  neighborhoods?: Neighborhood[];
+  propertyTypes?: PropertyType[];
+  ownerName?: string;
+  fxRate?: string;
+};
+
 export default function RegistryWorkspace({
   properties,
   vehicles,
@@ -147,19 +180,23 @@ export default function RegistryWorkspace({
   propertyTypes = [],
   ownerName = "کاربر فعلی",
   fxRate = "0",
-}: any) {
+}: RegistryWorkspaceProps) {
   return (
     <>
       <div id="real-estate" className="scroll-mt-24">
-        <RealEstateModule
-          dashboard={realEstateDashboard}
-          summary={realEstateSummary}
-          cities={cities}
-          neighborhoods={neighborhoods}
-          propertyTypes={propertyTypes}
-          ownerName={ownerName}
-          fxRate={fxRate}
-        />
+        {/* A failure inside the property module must not blank the whole
+            workspace (vehicles, commodities, …) behind the route error page. */}
+        <ErrorBoundary title="بخش املاک در دسترس نیست">
+          <RealEstateModule
+            dashboard={realEstateDashboard}
+            summary={realEstateSummary}
+            cities={cities}
+            neighborhoods={neighborhoods}
+            propertyTypes={propertyTypes}
+            ownerName={ownerName}
+            fxRate={fxRate}
+          />
+        </ErrorBoundary>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
