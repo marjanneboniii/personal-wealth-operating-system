@@ -1,6 +1,6 @@
 import { ensureAuth } from "@/lib/authGuard";
 import { ensureSchemaOnce } from "@/db/init-schema";
-import { loadAssetRegistryData, type CommodityPriceRow } from "@/features/registry/loadAssetRegistryData";
+import { loadAssetRegistryData } from "@/features/registry/loadAssetRegistryData";
 import { PageHeader } from "@/components/ui/Card";
 import { faCount } from "@/lib/format";
 import { splitAssetFamilies } from "@/features/portfolio/assetFamilies";
@@ -23,27 +23,21 @@ export default async function AssetRegistryPage() {
   // there handed the real-estate module the portfolio summary instead of the
   // property list, which hid «املاک من» and threw `dashboard.map is not a
   // function` when the tab was opened. Names make that class of bug impossible.
+  //
+  // NOTE: consumable price tracking («ردیاب تورم شخصی») lives at `/inflation`
+  // as an independent analytical module — it is not a real asset and is not
+  // loaded here.
   const data = await loadAssetRegistryData(userId, {
     vehicleDemo: process.env.PWOS_VEHICLE_DEMO === "1",
   });
 
-  // The real-asset slice of the portfolio valuation (املاک / خودرو / طلا /
-  // کالا) — same classification as every other asset view.
+  // The real-asset slice of the portfolio valuation (املاک / خودرو / طلا) —
+  // same classification as every other asset view.
   const { real: realValuations } = splitAssetFamilies(data.portfolioValuation.assetValuations);
-
-  // `Date` is not serialisable across the server→client boundary — the
-  // workspace is a client component, so timestamps cross as ISO strings.
-  const prices: (Omit<CommodityPriceRow[number], "purchasedAt"> & { purchasedAt: string })[] = data.prices.map((p) => ({
-    ...p,
-    unitPrice: String(p.unitPrice),
-    quantity: String(p.quantity),
-    total: String(p.total),
-    purchasedAt: p.purchasedAt.toISOString(),
-  }));
 
   return (
     <div className="space-y-6">
-      <PageHeader title="دارایی واقعی و کالا" />
+      <PageHeader title="دارایی‌های واقعی" />
 
       <AssetValuationSummary
         totals={valuationTotalsOf(realValuations)}
@@ -52,9 +46,6 @@ export default async function AssetRegistryPage() {
       <RegistryWorkspace
         vehicles={data.vehicles}
         ownerships={data.ownerships}
-        categories={data.categories}
-        items={data.items}
-        prices={prices}
         vehicleBrands={data.vehicleBrands}
         vehicleModels={data.vehicleModels}
         vehicleDashboard={data.vehicleDashboard}

@@ -4,12 +4,26 @@
  * Uses D() from domain/decimal.ts for all unit price, total amount, inflation percentage calculations to preserve 18-decimal precision
  * No hardcoded fixed list or Enum of specific groceries/items or rigid categories — all user-defined dynamic
  * ALL configuration from process.env, no hardcoded secrets, graceful handling if missing
+ *
+ * TENANCY (0012): every table carries a nullable `user_id`. NULL = shared/global
+ * row (legacy data + suggested catalog) readable by every tenant; set = owned by
+ * one tenant. Reads scope to (owner OR shared); writes stamp the author when one
+ * is known. Legacy single-tenant installs (no user id) keep working unchanged.
  */
 
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { commodityCategories, commodityItems, commodityPriceRecords } from "./schema";
 import { D, Decimal } from "@/domain/decimal";
+
+/** Authenticated owner id, or null/undefined for legacy single-tenant mode. */
+export type TenantId = string | null | undefined;
+
+/** Rows readable by this tenant: owned rows + shared (legacy/catalog) rows. */
+function visibleTo(userIdColumn: AnyPgColumn, userId: TenantId) {
+  return userId ? or(eq(userIdColumn, userId), isNull(userIdColumn)) : isNull(userIdColumn);
+}
 
 // Configuration from env — no hardcode, graceful handling
 function getConfig() {
@@ -45,8 +59,10 @@ export type PriceRecordData = {
   unit?: string;
   quantity?: string; // decimal string
   totalAmount?: string; // if not provided, calculated as unitPrice * quantity
-  purchasedAt?: Date | string; // date of purchase
+  purchasedAt?: Date | string; // date of the price observation («تاریخ ثبت قیمت»)
   merchantName?: string;
+  /** Optional free-text «منطقه یا شهر» of the observation (0012). */
+  region?: string;
   notes?: string;
 };
 
@@ -61,6 +77,7 @@ export type PriceHistoryPoint = {
   totalAmount: string;
   purchasedAt: string;
   merchantName: string | null;
+  region: string | null;
   notes: string | null;
   createdAt: string;
 };
@@ -116,15 +133,23 @@ export type InflationSummaryReport = {
   topDeflatedLastMonth: InflationItemResult[]; // negative growth
 };
 
+/** True when a unique-violation bubbled up from the driver (concurrent insert race). */
+function isUniqueViolation(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return /unique|duplicate|23505/i.test(msg);
+}
+
 export class CommodityAnalyticsService {
   /**
    * Create dynamic user-defined category
-   * No hardcoded enum — user provides any name
+   * No hardcoded enum — user provides any name.
+   * Reuses a visible row with the same name (shared catalog preferred).
    */
-  async createCategory(name: string): Promise<{ id: string }> {
+  async createCategory(name: string, userId?: TenantId): Promise<{ id: string }> {
     const trimmed = name.trim();
     if (!trimmed || trimmed.length < 1) throw new Error("Category name is required");
     if (trimmed.length > 100) throw new Error("Category name too long (max 100 chars)");
+    const owner = userId ?? null;
 
     // Check env for max categories limit (optional config)
     const maxCategoriesEnv = process.env.COMMODITY_MAX_CATEGORIES
@@ -145,67 +170,100 @@ export class CommodityAnalyticsService {
       );
     }
 
-    const [inserted] = await db
-      .insert(commodityCategories)
-      .values({ name: trimmed })
-      .onConflictDoNothing({ target: commodityCategories.name })
-      .returning();
+    const findVisible = () =>
+      db
+        .select()
+        .from(commodityCategories)
+        .where(and(eq(commodityCategories.name, trimmed), visibleTo(commodityCategories.userId, owner)))
+        .limit(1);
 
-    // If conflict (existing), return existing
-    if (!inserted) {
-      const [existing] = await db.select().from(commodityCategories).where(eq(commodityCategories.name, trimmed)).limit(1);
-      if (existing) return { id: existing.id };
+    const [existing] = await findVisible();
+    if (existing) return { id: existing.id };
+
+    try {
+      const [inserted] = await db
+        .insert(commodityCategories)
+        .values({ name: trimmed, userId: owner })
+        .returning();
+      return { id: inserted.id };
+    } catch (e) {
+      // Concurrent insert race — re-read instead of failing.
+      if (isUniqueViolation(e)) {
+        const [retry] = await findVisible();
+        if (retry) return { id: retry.id };
+      }
       throw new Error("Failed to create category");
     }
-
-    return { id: inserted.id };
   }
 
   /**
    * Create dynamic user-defined commodity item
    * No hardcoded grocery list — user provides any name, category optional, defaultUnit custom string
    */
-  async createCommodityItem(name: string, categoryId?: string, defaultUnit?: string): Promise<{ id: string }> {
+  async createCommodityItem(
+    name: string,
+    categoryId?: string,
+    defaultUnit?: string,
+    userId?: TenantId,
+  ): Promise<{ id: string }> {
     const trimmedName = name.trim();
     if (!trimmedName || trimmedName.length < 1) throw new Error("Commodity item name is required");
     if (trimmedName.length > 200) throw new Error("Commodity item name too long (max 200 chars)");
+    const owner = userId ?? null;
 
     const unit = (defaultUnit || "piece").trim().slice(0, 50) || "piece";
 
     if (categoryId) {
       const [cat] = await db.select().from(commodityCategories).where(eq(commodityCategories.id, categoryId)).limit(1);
       if (!cat) throw new Error(`Category not found: ${categoryId}`);
+      if (cat.userId && cat.userId !== owner) throw new Error("Category is not accessible");
     }
 
-    const [inserted] = await db
-      .insert(commodityItems)
-      .values({
-        name: trimmedName,
-        categoryId: categoryId ?? null,
-        defaultUnit: unit,
-      })
-      .onConflictDoNothing({ target: commodityItems.name })
-      .returning();
+    const findVisible = () =>
+      db
+        .select()
+        .from(commodityItems)
+        .where(and(eq(commodityItems.name, trimmedName), visibleTo(commodityItems.userId, owner)))
+        .limit(1);
 
-    if (!inserted) {
-      const [existing] = await db.select().from(commodityItems).where(eq(commodityItems.name, trimmedName)).limit(1);
-      if (existing) return { id: existing.id };
+    const [existing] = await findVisible();
+    if (existing) return { id: existing.id };
+
+    try {
+      const [inserted] = await db
+        .insert(commodityItems)
+        .values({
+          name: trimmedName,
+          categoryId: categoryId ?? null,
+          defaultUnit: unit,
+          userId: owner,
+        })
+        .returning();
+      return { id: inserted.id };
+    } catch (e) {
+      if (isUniqueViolation(e)) {
+        const [retry] = await findVisible();
+        if (retry) return { id: retry.id };
+      }
       throw new Error("Failed to create commodity item");
     }
-
-    return { id: inserted.id };
   }
 
   /**
    * Store a unit price observation for any item
    * Uses D() for all unit price, total amount calculations to preserve 18-decimal precision
    */
-  async recordPricePoint(recordData: PriceRecordData): Promise<{ id: string }> {
-    const { commodityId, unitPrice, unit, quantity, totalAmount, purchasedAt, merchantName, notes } = recordData;
+  async recordPricePoint(recordData: PriceRecordData, userId?: TenantId): Promise<{ id: string }> {
+    const { commodityId, unitPrice, unit, quantity, totalAmount, purchasedAt, merchantName, region, notes } = recordData;
+    const owner = userId ?? null;
 
     if (!commodityId) throw new Error("commodityId is required");
 
-    const [commodity] = await db.select().from(commodityItems).where(eq(commodityItems.id, commodityId)).limit(1);
+    const [commodity] = await db
+      .select()
+      .from(commodityItems)
+      .where(and(eq(commodityItems.id, commodityId), visibleTo(commodityItems.userId, owner)))
+      .limit(1);
     if (!commodity) throw new Error(`Commodity item not found: ${commodityId}`);
 
     // Use D() for precise decimal handling
@@ -245,12 +303,14 @@ export class CommodityAnalyticsService {
       .insert(commodityPriceRecords)
       .values({
         commodityId,
+        userId: owner,
         unitPrice: unitPriceDec.toString(),
         unit: (unit || commodity.defaultUnit || "piece").trim().slice(0, 50),
         quantity: quantityDec.toString(),
         totalAmount: totalAmountDec.toString(),
         purchasedAt: purchasedAtDate,
         merchantName: merchantName?.trim().slice(0, 200) || null,
+        region: region?.trim().slice(0, 200) || null,
         notes: notes?.trim().slice(0, 1000) || null,
       })
       .returning();
@@ -261,11 +321,20 @@ export class CommodityAnalyticsService {
   /**
    * Fetch historical price points for trend visualization
    */
-  async getCommodityPriceHistory(commodityId: string, daysLookback?: number): Promise<PriceHistoryPoint[]> {
+  async getCommodityPriceHistory(
+    commodityId: string,
+    daysLookback?: number,
+    userId?: TenantId,
+  ): Promise<PriceHistoryPoint[]> {
     const config = getConfig();
     const lookback = daysLookback ?? config.defaultLookbackDays;
+    const owner = userId ?? null;
 
-    const [commodity] = await db.select().from(commodityItems).where(eq(commodityItems.id, commodityId)).limit(1);
+    const [commodity] = await db
+      .select()
+      .from(commodityItems)
+      .where(and(eq(commodityItems.id, commodityId), visibleTo(commodityItems.userId, owner)))
+      .limit(1);
     if (!commodity) throw new Error(`Commodity not found: ${commodityId}`);
 
     const cutoffDate = new Date();
@@ -283,13 +352,20 @@ export class CommodityAnalyticsService {
         totalAmount: commodityPriceRecords.totalAmount,
         purchasedAt: commodityPriceRecords.purchasedAt,
         merchantName: commodityPriceRecords.merchantName,
+        region: commodityPriceRecords.region,
         notes: commodityPriceRecords.notes,
         createdAt: commodityPriceRecords.createdAt,
       })
       .from(commodityPriceRecords)
       .innerJoin(commodityItems, eq(commodityItems.id, commodityPriceRecords.commodityId))
       .leftJoin(commodityCategories, eq(commodityCategories.id, commodityItems.categoryId))
-      .where(and(eq(commodityPriceRecords.commodityId, commodityId), gte(commodityPriceRecords.purchasedAt, cutoffDate)))
+      .where(
+        and(
+          eq(commodityPriceRecords.commodityId, commodityId),
+          gte(commodityPriceRecords.purchasedAt, cutoffDate),
+          visibleTo(commodityPriceRecords.userId, owner),
+        ),
+      )
       .orderBy(desc(commodityPriceRecords.purchasedAt));
 
     return rows.map((r) => ({
@@ -303,6 +379,7 @@ export class CommodityAnalyticsService {
       totalAmount: r.totalAmount.toString(),
       purchasedAt: r.purchasedAt?.toISOString() ?? new Date().toISOString(),
       merchantName: r.merchantName,
+      region: r.region,
       notes: r.notes,
       createdAt: r.createdAt?.toISOString() ?? new Date().toISOString(),
     }));
@@ -313,10 +390,11 @@ export class CommodityAnalyticsService {
    * Compare weighted average unit prices of all user-tracked items between baseline period (N months ago) and current period
    * Uses D() for all percentage calculations
    */
-  async calculatePersonalInflationIndex(timeRangeMonths: number): Promise<InflationIndexResult> {
+  async calculatePersonalInflationIndex(timeRangeMonths: number, userId?: TenantId): Promise<InflationIndexResult> {
     if (!Number.isInteger(timeRangeMonths) || timeRangeMonths <= 0) {
       throw new Error("timeRangeMonths must be positive integer");
     }
+    const owner = userId ?? null;
 
     const config = getConfig();
     const currentPeriodDays = config.currentPeriodDays;
@@ -331,8 +409,11 @@ export class CommodityAnalyticsService {
     const baselinePeriodStart = new Date(baselinePeriodEnd);
     baselinePeriodStart.setDate(baselinePeriodEnd.getDate() - currentPeriodDays);
 
-    // Fetch all commodity items
-    const allItems = await db.select().from(commodityItems);
+    // Fetch visible commodity items (owned + shared)
+    const allItems = await db
+      .select()
+      .from(commodityItems)
+      .where(visibleTo(commodityItems.userId, owner));
 
     const inflationItems: InflationItemResult[] = [];
     let totalBaselineAmount = Decimal.zero();
@@ -352,6 +433,7 @@ export class CommodityAnalyticsService {
             eq(commodityPriceRecords.commodityId, item.id),
             gte(commodityPriceRecords.purchasedAt, baselinePeriodStart),
             lte(commodityPriceRecords.purchasedAt, baselinePeriodEnd),
+            visibleTo(commodityPriceRecords.userId, owner),
           ),
         );
 
@@ -364,6 +446,7 @@ export class CommodityAnalyticsService {
             eq(commodityPriceRecords.commodityId, item.id),
             gte(commodityPriceRecords.purchasedAt, currentPeriodStart),
             lte(commodityPriceRecords.purchasedAt, currentPeriodEnd),
+            visibleTo(commodityPriceRecords.userId, owner),
           ),
         );
 
@@ -488,12 +571,12 @@ export class CommodityAnalyticsService {
   /**
    * Generate top inflated items analysis over 1, 3, 6, and 12 months
    */
-  async getInflationSummaryReport(): Promise<InflationSummaryReport> {
+  async getInflationSummaryReport(userId?: TenantId): Promise<InflationSummaryReport> {
     const [report1m, report3m, report6m, report12m] = await Promise.all([
-      this.calculatePersonalInflationIndex(1),
-      this.calculatePersonalInflationIndex(3),
-      this.calculatePersonalInflationIndex(6),
-      this.calculatePersonalInflationIndex(12),
+      this.calculatePersonalInflationIndex(1, userId),
+      this.calculatePersonalInflationIndex(3, userId),
+      this.calculatePersonalInflationIndex(6, userId),
+      this.calculatePersonalInflationIndex(12, userId),
     ]);
 
     const topInflatedLastMonth = [...report1m.items]
@@ -525,11 +608,17 @@ export class CommodityAnalyticsService {
     };
   }
 
-  async listCategories() {
-    return db.select().from(commodityCategories).orderBy(commodityCategories.name);
+  async listCategories(userId?: TenantId) {
+    const owner = userId ?? null;
+    return db
+      .select()
+      .from(commodityCategories)
+      .where(visibleTo(commodityCategories.userId, owner))
+      .orderBy(commodityCategories.name);
   }
 
-  async listItems() {
+  async listItems(userId?: TenantId) {
+    const owner = userId ?? null;
     const rows = await db
       .select({
         id: commodityItems.id,
@@ -541,6 +630,7 @@ export class CommodityAnalyticsService {
       })
       .from(commodityItems)
       .leftJoin(commodityCategories, eq(commodityCategories.id, commodityItems.categoryId))
+      .where(visibleTo(commodityItems.userId, owner))
       .orderBy(commodityItems.name);
 
     return rows;
@@ -550,26 +640,31 @@ export class CommodityAnalyticsService {
 // Export singleton instance and standalone functions for convenience
 export const commodityAnalyticsService = new CommodityAnalyticsService();
 
-export async function createCategory(name: string) {
-  return commodityAnalyticsService.createCategory(name);
+export async function createCategory(name: string, userId?: TenantId) {
+  return commodityAnalyticsService.createCategory(name, userId);
 }
 
-export async function createCommodityItem(name: string, categoryId?: string, defaultUnit?: string) {
-  return commodityAnalyticsService.createCommodityItem(name, categoryId, defaultUnit);
+export async function createCommodityItem(
+  name: string,
+  categoryId?: string,
+  defaultUnit?: string,
+  userId?: TenantId,
+) {
+  return commodityAnalyticsService.createCommodityItem(name, categoryId, defaultUnit, userId);
 }
 
-export async function recordPricePoint(recordData: PriceRecordData) {
-  return commodityAnalyticsService.recordPricePoint(recordData);
+export async function recordPricePoint(recordData: PriceRecordData, userId?: TenantId) {
+  return commodityAnalyticsService.recordPricePoint(recordData, userId);
 }
 
-export async function getCommodityPriceHistory(commodityId: string, daysLookback?: number) {
-  return commodityAnalyticsService.getCommodityPriceHistory(commodityId, daysLookback);
+export async function getCommodityPriceHistory(commodityId: string, daysLookback?: number, userId?: TenantId) {
+  return commodityAnalyticsService.getCommodityPriceHistory(commodityId, daysLookback, userId);
 }
 
-export async function calculatePersonalInflationIndex(timeRangeMonths: number) {
-  return commodityAnalyticsService.calculatePersonalInflationIndex(timeRangeMonths);
+export async function calculatePersonalInflationIndex(timeRangeMonths: number, userId?: TenantId) {
+  return commodityAnalyticsService.calculatePersonalInflationIndex(timeRangeMonths, userId);
 }
 
-export async function getInflationSummaryReport() {
-  return commodityAnalyticsService.getInflationSummaryReport();
+export async function getInflationSummaryReport(userId?: TenantId) {
+  return commodityAnalyticsService.getInflationSummaryReport(userId);
 }
