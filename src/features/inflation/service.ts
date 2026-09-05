@@ -28,6 +28,7 @@ import {
   type InflationComparisonWindowKey,
 } from "./constants";
 import { commodityAnalyticsService, type TenantId } from "@/features/commodities/service";
+import { ensureInflationSchema } from "./ensureSchema";
 
 export type InflationItemRow = {
   id: string;
@@ -107,6 +108,11 @@ function visibleTo(userIdColumn: AnyPgColumn, userId: TenantId) {
  * shared rows only when missing — never destructive, never duplicated.
  */
 export async function ensureInflationModuleReady(): Promise<void> {
+  // Additive self-heal FIRST: on a database where migration 0012 has not run
+  // yet, every read below filters on `user_id` and would throw, blanking the
+  // whole «ردیاب تورم شخصی» page. See ./ensureSchema.ts for the safety contract.
+  await ensureInflationSchema();
+
   for (const name of INFLATION_CATEGORY_SUGGESTIONS) {
     const [existing] = await db
       .select({ id: commodityCategories.id })
@@ -125,6 +131,7 @@ export async function ensureInflationModuleReady(): Promise<void> {
 
 /** All items visible to this tenant, newest-price-first metadata attached. */
 export async function listInflationItems(userId?: TenantId): Promise<InflationItemRow[]> {
+  await ensureInflationSchema();
   const owner = userId ?? null;
   const items = await db
     .select({
@@ -236,6 +243,7 @@ export async function getInflationHistory(
   userId?: TenantId,
   limit = 200,
 ): Promise<InflationHistoryPoint[]> {
+  await ensureInflationSchema();
   const owner = userId ?? null;
   const [item] = await db
     .select({ id: commodityItems.id })
@@ -287,6 +295,7 @@ function growthOf(current: Decimal, baseline: Decimal): string | null {
  * simple average of the items that have data on both ends.
  */
 export async function getInflationDashboard(userId?: TenantId): Promise<InflationDashboard> {
+  await ensureInflationSchema();
   const owner = userId ?? null;
   const now = Date.now();
 

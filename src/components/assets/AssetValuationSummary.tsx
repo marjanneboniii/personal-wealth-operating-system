@@ -51,6 +51,16 @@ export function valuationTotalsOf(rows: AssetValuation[]): AssetValuationTotals 
   };
 }
 
+/**
+ * One figure of a valuation group.
+ *
+ * LAYOUT (the fix): the label and the amount are STACKED, never squeezed onto
+ * one baseline. The previous side-by-side row put a long Persian label
+ * («سود/زیان تحقق‌نیافته تومانی») and a long Persian-digit amount
+ * («+۷٬۰۵۸٬۴۱۵٬۱۸۹ تومان») on the same 10px line, so on a phone the two
+ * collided and the whole box read as one unbroken run of text. Stacking gives
+ * every amount its own line, its own breathing room, and a readable size.
+ */
 function Measure({
   label,
   value,
@@ -61,10 +71,10 @@ function Measure({
   tone?: string;
 }) {
   return (
-    <div className="flex min-w-0 items-baseline justify-between gap-2 border-b py-1.5 last:border-b-0" style={{ borderColor: "var(--border)" }}>
-      <span className="muted min-w-0 shrink-0 text-[10px] leading-5 sm:text-[10.5px]">{label}</span>
+    <div className="valuation-measure">
+      <span className="valuation-measure-label">{label}</span>
       <span
-        className="num min-w-0 text-[11.5px] font-bold leading-5 money-nowrap sm:text-[12.5px]"
+        className="num valuation-measure-value money-nowrap"
         dir="rtl"
         style={tone ? { color: tone } : undefined}
       >
@@ -149,30 +159,35 @@ export default function AssetValuationSummary({
   }
 
   return (
-    <div className={`card p-3.5 sm:p-4 ${className}`}>
+    <div className={`card valuation-summary p-4 sm:p-5 ${className}`}>
       {showTitle && (
-        <header className="mb-2 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="flex items-center gap-1.5 text-[12.5px] font-semibold tracking-tight sm:text-[13px]">
-              <span style={{ color: "var(--brand)" }}>
-                <Icon name="coins" size={14} />
-              </span>
-              {title}
-            </h3>
-            {hint && <p className="muted mt-0.5 text-[10.5px] leading-5">{hint}</p>}
-          </div>
+        <header className="valuation-summary-header">
+          <h3 className="valuation-summary-title">
+            <span style={{ color: "var(--brand)" }}>
+              <Icon name="coins" size={15} />
+            </span>
+            {title}
+          </h3>
+          {hint && <p className="valuation-summary-hint">{hint}</p>}
         </header>
       )}
-      <div className={`grid gap-x-6 gap-y-3 ${groups.length >= 4 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
+      {/* One column on a phone, two on a tablet, one per group on a desktop —
+          each group is a self-contained tile with its own border and padding,
+          so groups can never visually run into each other. */}
+      <div
+        className={`valuation-grid ${
+          groups.length >= 4 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-3"
+        }`}
+      >
         {groups.map((g) => (
-          <div key={g.name} className="min-w-0">
-            <p className="muted mb-1 text-[10px] font-medium sm:text-[10.5px]">{g.name}</p>
-            <div>
+          <section key={g.name} className="valuation-group">
+            <h4 className="valuation-group-title">{g.name}</h4>
+            <div className="valuation-group-lines">
               {g.lines.map((l) => (
                 <Measure key={l.label} label={l.label} value={l.value} tone={l.tone} />
               ))}
             </div>
-          </div>
+          </section>
         ))}
       </div>
     </div>
