@@ -2209,7 +2209,10 @@ dt,
 .sub,
 .muted,
 .type-body {
-  overflow-wrap: anywhere;
+  /* `anywhere` shatters Persian words letter-by-letter in narrow columns.
+     `break-word` only breaks when a single word truly cannot fit. */
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .num,
@@ -2344,6 +2347,7 @@ input {
 .card.overflow-x-auto > .table {
   width: max-content;
   min-width: 100%;
+  max-width: none; /* must beat `.table { max-width: 100% }`, which squeezes columns */
 }
 .table {
   max-width: 100%;
@@ -2355,8 +2359,25 @@ input {
 .table td:not(.td-num),
 .table th:not(.td-num) {
   max-width: clamp(8rem, 42vw, 18rem);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
   unicode-bidi: plaintext;
+}
+/* Text columns must never collapse to a sliver — the table lives inside an
+   `.overflow-x-auto` wrapper, so give them a readable floor and let the
+   container scroll instead of shredding words vertically. */
+.table td > *,
+.table th > * {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+/* Single-token cells (status badges, row actions, dates) stay on one line so
+   they never steal wrapping space from the title column. */
+.table td:has(> .badge:only-child),
+.table td:has(> a:only-child),
+.table td:has(> button:only-child) {
+  white-space: nowrap;
+  width: 1%;
 }
 .table .td-num,
 .table .num {
@@ -2434,6 +2455,20 @@ input {
     -webkit-box-orient: vertical;
     overflow: hidden;
     line-height: 1.55;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  /* The amount column is the fixed anchor of a transaction row: it reserves
+     its own track so a long Persian description can never run under it. */
+  .tx-amount-col {
+    flex: 0 0 auto;
+    max-width: 42%;
+    text-align: left;
+  }
+  .tx-row {
+    align-items: flex-start;
+    gap: 0.75rem !important;
   }
 
   .bulk-action-bar {

@@ -57,7 +57,9 @@ export default function AccountListItem({
   brandName,
   coingeckoId,
 }: AccountListItemProps) {
-  const safeName = name ?? "بدون نام";
+  // A trailing separator left in a stored account name («بانک سامان ·»)
+  // otherwise renders as a lone dot next to the title.
+  const safeName = (name ?? "").replace(/^[\s·•\-—–|,]+|[\s·•\-—–|,]+$/g, "").trim() || "بدون نام";
   const safeSymbol = symbol ?? "USD";
 
   // Display-only mapping (no recalculation — strings come from the server):

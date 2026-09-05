@@ -174,11 +174,11 @@ export default async function ObligationsPage() {
                       <td>
                         <span className={late ? "badge badge-neg" : soon ? "badge badge-warn" : "badge badge-neutral"}>{r.badge}</span>
                       </td>
-                      <td>
+                      <td style={{ minWidth: "9rem" }}>
                         <span className="block text-[12.5px] font-medium">{r.title}</span>
-                        {r.detail && <span className="muted text-[10px]">{r.detail}</span>}
+                        {r.detail && <span className="muted block text-[10px]">{r.detail}</span>}
                       </td>
-                      <td>
+                      <td style={{ whiteSpace: "nowrap" }}>
                         <span className="num block text-[12px]">{formatDualDate(r.date)}</span>
                         <span className="muted num text-[9.5px]">
                           {d < 0 ? `${faCount(Math.abs(d))} روز گذشته` : d === 0 ? "امروز" : `${faCount(d)} روز دیگر`}

@@ -82,21 +82,13 @@ export default function HoldingsTable({
                         </div>
                       )}
                       <div className="mt-1 flex flex-wrap items-center gap-1">
-                        {a.valuationBase === "toman" && (
-                          <span className="chip text-[9px]" title="ارزش این دارایی در تومان ثابت است و دلار از آن مشتق می‌شود">
-                            مبنای تومان
-                          </span>
-                        )}
-                        {a.valuationBase === "usd" && (
-                          <span className="chip text-[9px]" title="ارزش این دارایی در دلار (قیمت بازار) ثابت است و تومان از آن مشتق می‌شود">
-                            مبنای دلار
-                          </span>
-                        )}
-                        {/* A price that is current needs no badge — it is the
-                            normal case. Only an exception is announced, and in
-                            Persian: the Latin «Fresh» chip used to sit right
-                            next to the basis chip and read as one word
-                            («مبنای دلارFresh»). */}
+                        {/* Valuation-basis chips («مبنای تومان» / «مبنای دلار»)
+                            and the price-freshness chip are internal accounting
+                            metadata, not something the user reads a balance
+                            from. They are removed from the UI; the underlying
+                            `valuationBase` / `priceFreshness` fields are
+                            untouched and still drive the numbers. Only a real
+                            price PROBLEM is still surfaced below. */}
                         {a.priceFreshness === "stale" && (
                           <span className="chip text-[9px]" style={{ color: "var(--warning)" }} title="قیمت این دارایی قدیمی است و باید تازه‌سازی شود">
                             قیمت قدیمی
