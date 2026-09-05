@@ -8,6 +8,7 @@ import {
   listInflationItems,
 } from "@/features/inflation/service";
 import { commodityAnalyticsService } from "@/features/commodities/service";
+import { EMPTY_INFLATION_DASHBOARD } from "@/features/inflation/emptyDashboard";
 import InflationTracker from "@/components/inflation/InflationTracker";
 
 export const dynamic = "force-dynamic";
@@ -30,14 +31,32 @@ export default async function InflationPage() {
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? null;
 
-  // Idempotent shared-catalog seed (suggested Persian categories). Never
-  // destructive; production PostgreSQL is seeded by migration 0012.
-  await ensureInflationModuleReady();
+  // Idempotent additive schema self-heal + shared-catalog seed (suggested
+  // Persian categories). Never destructive; production PostgreSQL is seeded by
+  // migration 0012. A failure here must never blank the page.
+  try {
+    await ensureInflationModuleReady();
+  } catch (err) {
+    console.error("[inflation] module bootstrap failed:", err);
+  }
 
+  // FAIL-SOFT READ MODEL. Previously a single rejected query (typically a
+  // database still missing migration 0012's `user_id`/`region` columns) took
+  // the whole route down and the user saw an empty screen. Now every source
+  // degrades independently and the page always renders.
   const [items, dashboard, categoryRows] = await Promise.all([
-    listInflationItems(userId),
-    getInflationDashboard(userId),
-    commodityAnalyticsService.listCategories(userId),
+    listInflationItems(userId).catch((err) => {
+      console.error("[inflation] listInflationItems failed:", err);
+      return [] as Awaited<ReturnType<typeof listInflationItems>>;
+    }),
+    getInflationDashboard(userId).catch((err) => {
+      console.error("[inflation] getInflationDashboard failed:", err);
+      return null;
+    }),
+    commodityAnalyticsService.listCategories(userId).catch((err) => {
+      console.error("[inflation] listCategories failed:", err);
+      return [] as Awaited<ReturnType<typeof commodityAnalyticsService.listCategories>>;
+    }),
   ]);
 
   // `createdAt` is a Date — not serialisable across the server→client
@@ -46,8 +65,17 @@ export default async function InflationPage() {
 
   const histories: Record<string, Awaited<ReturnType<typeof getInflationHistory>>> = {};
   for (const item of items) {
-    histories[item.id] = await getInflationHistory(item.id, userId, 200);
+    try {
+      histories[item.id] = await getInflationHistory(item.id, userId, 200);
+    } catch (err) {
+      console.error(`[inflation] history failed for ${item.id}:`, err);
+      histories[item.id] = [];
+    }
   }
+
+  // Empty-but-valid dashboard: the analysis tabs render their own «داده‌ای
+  // ثبت نشده» state instead of the route throwing.
+  const safeDashboard = dashboard ?? EMPTY_INFLATION_DASHBOARD;
 
   return (
     <div className="space-y-6">
@@ -55,7 +83,7 @@ export default async function InflationPage() {
         title="ردیاب تورم شخصی"
         subtitle="قیمت کالاهای مصرفی را در طول زمان ثبت کنید و تورم سبد خود را بسنجید. این یک ابزار تحلیلی است: کالا دارایی نیست و هیچ اثری در ثروت خالص، سبد دارایی یا سوابق مالی ندارد."
       />
-      <InflationTracker items={items} histories={histories} dashboard={dashboard} categories={categories} />
+      <InflationTracker items={items} histories={histories} dashboard={safeDashboard} categories={categories} />
     </div>
   );
 }

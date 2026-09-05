@@ -2012,3 +2012,134 @@ body {
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   کادر «ارزش‌گذاری دارایی‌ها» — AssetValuationSummary
+   ───────────────────────────────────────────────────────────────────────────
+   BUG FIXED HERE: the box used to render each figure as a single flex row with
+   a 10px label and the amount on the SAME baseline. With long Persian labels
+   («سود/زیان تحقق‌نیافته تومانی») next to long Persian-digit amounts
+   («+۷٬۰۵۸٬۴۱۵٬۱۸۹ تومان»), the two collided on narrow screens and all four
+   groups ran together into one dense, unreadable block in the PWA.
+
+   The layout is now: card → grid of GROUP TILES → stacked label/amount pairs.
+   Each tile owns its border and padding, each amount owns its own line, and
+   the whole thing scales from one column on a phone to four on a desktop.
+   Presentation only — no figure, currency or rounding is changed.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.valuation-summary-header {
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.valuation-summary-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+}
+
+.valuation-summary-hint {
+  margin-top: 0.3rem;
+  font-size: 0.7rem;
+  line-height: 1.7;
+  color: var(--text-3);
+}
+
+.valuation-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.7rem;
+}
+
+.valuation-group {
+  min-width: 0;
+  padding: 0.7rem 0.8rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 10px);
+  background: var(--sunken);
+}
+
+.valuation-group-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--text-2, var(--text-3));
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.valuation-group-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* Stacked label → amount. The amount never shares a line with its label. */
+.valuation-measure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.valuation-measure-label {
+  font-size: 0.66rem;
+  line-height: 1.6;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.valuation-measure-value {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+  /* Very long amounts scroll inside their own tile instead of overflowing the
+     card or being clipped — the figure always stays fully reachable. */
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.valuation-measure-value::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .valuation-grid {
+    gap: 0.8rem;
+  }
+}
+
+/* Phone / PWA: the mobile block above shrinks every `.card` and `.num`; these
+   rules keep the valuation box legible and, above all, well spaced there. */
+@media (max-width: 640px) {
+  .card.valuation-summary {
+    padding: 0.85rem !important;
+  }
+  .valuation-summary-header {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.6rem;
+  }
+  .valuation-group {
+    padding: 0.65rem 0.7rem 0.7rem;
+  }
+  .valuation-group-lines {
+    gap: 0.5rem;
+  }
+  .valuation-measure-value {
+    font-size: clamp(0.82rem, 3.9vw, 0.95rem) !important;
+  }
+  .valuation-measure-label {
+    font-size: 0.66rem !important;
+  }
+}
