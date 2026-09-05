@@ -7,7 +7,7 @@ import { seedIfEmpty } from "@/db/seed";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import RowAction from "@/components/RowAction";
 import {
-  formatDualDate,
+  formatJalaliIso,
   todayIso,
   faCount,
   formatMoney,
@@ -166,10 +166,10 @@ export default async function InstallmentsPage() {
                         #{r.seq}
                       </td>
                       <td style={{ whiteSpace: "nowrap" }}>
-                        <span className="num block text-[12px]">{formatDualDate(r.dueDate)}</span>
+                        <span className="num block text-[12px]">{formatJalaliIso(r.dueDate)}</span>
                         <span className="muted num text-[9.5px]">
                           {r.fx.isPaid && r.fx.paidAt
-                            ? `پرداخت در ${formatDualDate(r.fx.paidAt)}`
+                            ? `پرداخت در ${formatJalaliIso(r.fx.paidAt)}`
                             : d < 0
                               ? `${faCount(Math.abs(d))} روز گذشته`
                               : d === 0

@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { jalaliToIso, parseJalaliString, formatJalaliIso, toFaDigits } from "@/lib/format";
+import {
+  jalaliToIso,
+  parseJalaliString,
+  formatJalaliIso,
+  toFaDigits,
+  toLatinDigits,
+} from "@/lib/format";
 import { DualDatePreview } from "./SmartPreview";
 
 type Props = {
@@ -11,11 +17,29 @@ type Props = {
   onChange?: (iso: string) => void;
   label?: string;
   required?: boolean;
+  /**
+   * تاریخ فقط شمسی تایپ و نمایش داده می‌شود؛ معادل میلادی (ISO) محاسبه شده و
+   * در فیلد مخفی برای سرور ارسال می‌شود، اما هیچ‌جای UI نشان داده نمی‌شود.
+   * با `jalaliOnly={false}` انتخاب‌گر میلادی و پیش‌نمایش دوگانه برمی‌گردند.
+   */
+  jalaliOnly?: boolean;
 };
 
-export default function DualDateInput({ name, defaultValue, value, onChange, label = "تاریخ", required }: Props) {
+const VALID_JALALI = /^\d{4}[/\-]\d{1,2}[/\-]\d{1,2}$/;
+
+export default function DualDateInput({
+  name,
+  defaultValue,
+  value,
+  onChange,
+  label = "تاریخ",
+  required,
+  jalaliOnly = true,
+}: Props) {
   const [isoInternal, setIsoInternal] = useState<string>(value ?? defaultValue ?? "");
-  const [jalali, setJalali] = useState<string>((value ?? defaultValue) ? formatJalaliIso((value ?? defaultValue) as string, "en") : "");
+  const [jalali, setJalali] = useState<string>(
+    (value ?? defaultValue) ? formatJalaliIso((value ?? defaultValue) as string, "en") : "",
+  );
 
   const iso = value !== undefined ? value : isoInternal;
 
@@ -41,46 +65,83 @@ export default function DualDateInput({ name, defaultValue, value, onChange, lab
     else setJalali("");
   };
 
-  const onJalaliChange = (v: string) => {
+  const onJalaliChange = (raw: string) => {
+    // Persian digits are accepted on input and normalised for parsing.
+    const v = toLatinDigits(raw);
     setJalali(v);
     const parsed = parseJalaliString(v);
     if (parsed) {
-      const newIso = jalaliToIso(parsed.y, parsed.m, parsed.d);
-      setIso(newIso);
-    } else if (!v) {
+      setIso(jalaliToIso(parsed.y, parsed.m, parsed.d));
+    } else if (!v.trim()) {
       setIso("");
     }
   };
 
+  const clean = jalali.trim().replace(/-/g, "/");
+  const valid = VALID_JALALI.test(clean) && parseJalaliString(clean) !== null;
+
   return (
     <div className="space-y-2">
       <label className="label">{label}</label>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+      {jalaliOnly ? (
         <div>
-          <div className="muted text-[10px] mb-1">میلادی (LTR)</div>
-          <input
-            type="date"
-            value={iso}
-            onChange={(e) => onIsoChange(e.target.value)}
-            className="field num"
-            dir="ltr"
-            required={required}
-          />
-        </div>
-        <div>
-          <div className="muted text-[10px] mb-1">شمسی (RTL) — YYYY/MM/DD</div>
+          <div className="muted text-[10px] mb-1">شمسی — YYYY/MM/DD</div>
           <input
             value={jalali}
             onChange={(e) => onJalaliChange(e.target.value)}
-            placeholder="۱۴۰۳/۰۲/۱۵"
+            placeholder="۱۴۰۴/۰۶/۱۴"
             className="field num"
             dir="rtl"
+            inputMode="numeric"
+            required={required}
           />
+          {jalali.trim() && !valid && (
+            <div className="mt-1 text-[10px]" style={{ color: "var(--warning)" }}>
+              تاریخ شمسی نامعتبر است — نمونه: ۱۴۰۴/۰۶/۱۴
+            </div>
+          )}
         </div>
-      </div>
-      {/* hidden field submitted to server */}
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <div className="muted text-[10px] mb-1">میلادی (LTR)</div>
+            <input
+              type="date"
+              value={iso}
+              onChange={(e) => onIsoChange(e.target.value)}
+              className="field num"
+              dir="ltr"
+              required={required}
+            />
+          </div>
+          <div>
+            <div className="muted text-[10px] mb-1">شمسی (RTL) — YYYY/MM/DD</div>
+            <input
+              value={jalali}
+              onChange={(e) => onJalaliChange(e.target.value)}
+              placeholder="۱۴۰۳/۰۲/۱۵"
+              className="field num"
+              dir="rtl"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* hidden field submitted to server — always the Gregorian ISO value */}
       <input type="hidden" name={name} value={iso} required={required} />
-      <DualDatePreview iso={iso} />
+
+      {jalaliOnly ? (
+        valid ? (
+          <div className="muted text-[10.5px]">
+            <span className="num" dir="rtl" style={{ color: "var(--text-2)" }}>
+              {toFaDigits(formatJalaliIso(iso, "en"))}
+            </span>
+          </div>
+        ) : null
+      ) : (
+        <DualDatePreview iso={iso} />
+      )}
     </div>
   );
 }
