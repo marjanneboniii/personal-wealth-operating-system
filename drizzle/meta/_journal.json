@@ -92,6 +92,13 @@
       "when": 1788576000000,
       "tag": "0012_inflation_tracker",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788704020165,
+      "tag": "0013_assets_symbol_active_unique",
+      "breakpoints": true
     }
   ]
 }
