@@ -5,6 +5,7 @@ import {
   JALALI_MONTHS,
   clampJalaliDay,
   currentJalaliYear,
+  formatGregorianIso,
   formatJalaliIso,
   jalaliMonthLength,
   jalaliToIso,
@@ -20,8 +21,9 @@ import {
  * The ONLY date-entry widget in the app. The user picks three values from
  * native <select> lists (Persian digits, Persian month names); the Gregorian
  * ISO equivalent is computed with `jalaliToIso` and leaves the component
- * through `onChange` and/or a hidden form field. No Latin date is ever shown
- * and no date string is ever typed.
+ * through `onChange` and/or a hidden form field. No date string is ever typed,
+ * and the user can never PICK a Gregorian date — outside the debt domain the
+ * widget only echoes the ISO equivalent the app derived on its own.
  *
  * Contract with the server is unchanged: forms still receive the Gregorian
  * `YYYY-MM-DD` value under `name`, plus — when `submitPersian` is set — the
@@ -47,6 +49,15 @@ export type JalaliDatePickerProps = {
   yearTo?: number;
   /** Show the «امروز» shortcut. Default true. */
   showToday?: boolean;
+  /**
+   * Echo the Gregorian equivalent the app computed for the chosen Jalali day.
+   *
+   * Default TRUE: the user only ever PICKS a Jalali date, but outside the debt
+   * domain the app shows the ISO equivalent it derived automatically. The debt
+   * screens (اقساط، تعهدات، سررسیدها) pass `showGregorian={false}` — there the
+   * Jalali date is the whole story.
+   */
+  showGregorian?: boolean;
   id?: string;
   /** Accessible name of the whole control (also used by the group role). */
   ariaLabel?: string;
@@ -72,6 +83,7 @@ export default function JalaliDatePicker({
   yearFrom,
   yearTo,
   showToday = true,
+  showGregorian = true,
   id,
   ariaLabel,
   className,
@@ -196,27 +208,37 @@ export default function JalaliDatePicker({
         </select>
       </div>
 
-      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-        <span className="muted text-[10.5px] leading-4">
-          {complete ? (
-            <>
-              <span className="num" dir="rtl" style={{ color: "var(--text-2)" }}>
-                {toFaDigits(formatJalaliIso(iso, "en"))}
-              </span>
-              {weekday && <> — {weekday}</>}
-            </>
-          ) : (
-            "روز، ماه و سال را انتخاب کنید"
+      <div className="mt-1 space-y-0.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <span className="muted text-[10.5px] leading-4">
+            {complete ? (
+              <>
+                <span className="num" dir="rtl" style={{ color: "var(--text-2)" }}>
+                  {toFaDigits(formatJalaliIso(iso, "en"))}
+                </span>
+                {weekday && <> — {weekday}</>}
+              </>
+            ) : (
+              "روز، ماه و سال را انتخاب کنید"
+            )}
+          </span>
+          {showToday && !disabled && (
+            <button
+              type="button"
+              className="btn btn-ghost !min-h-7 !px-2 !py-0.5 text-[10.5px]"
+              onClick={() => emit(partsFromIso(todayIso()))}
+            >
+              امروز
+            </button>
           )}
-        </span>
-        {showToday && !disabled && (
-          <button
-            type="button"
-            className="btn btn-ghost !min-h-7 !px-2 !py-0.5 text-[10.5px]"
-            onClick={() => emit(partsFromIso(todayIso()))}
-          >
-            امروز
-          </button>
+        </div>
+        {showGregorian && complete && (
+          <div className="muted text-[10px] leading-4">
+            میلادی (خودکار):{" "}
+            <b className="num ltr-isolate" dir="ltr" style={{ color: "var(--text-2)" }}>
+              {formatGregorianIso(iso)}
+            </b>
+          </div>
         )}
       </div>
 

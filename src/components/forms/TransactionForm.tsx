@@ -1025,9 +1025,10 @@ export default function TransactionForm({
               {type !== "expense" && <div><span className="muted">حساب مقابل:</span> <strong>{accountOptions.find(a=>a.id===counterAccountId)?.name ?? "—"}</strong> <span className="chip">{accountOptions.find(a=>a.id===counterAccountId)?.code ?? ""}</span></div>}
             </div>
             <div>
-              <span className="muted">تاریخ سند (شمسی):</span>
+              <span className="muted">تاریخ سند:</span>
               <div className="soft rounded-xl p-2 mt-1 flex flex-wrap gap-3 text-[11px]">
                 <span>شمسی: <strong dir="rtl" className="num">{entryDate ? getDualDate(entryDate).jalali : "—"}</strong></span>
+                <span>میلادی (خودکار): <strong dir="ltr" className="num ltr-isolate">{entryDate || "—"}</strong></span>
               </div>
             </div>
             {needsQty && <div><span className="muted">مقدار دارایی:</span> <strong dir="ltr" className="num">{quantity || "محاسبه خودکار از مبلغ"}</strong></div>}

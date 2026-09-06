@@ -11,6 +11,8 @@ type Props = {
   onChange?: (iso: string) => void;
   required?: boolean;
   hint?: string;
+  /** Echo the auto-computed Gregorian equivalent. Default true. */
+  showGregorian?: boolean;
 };
 
 /**
@@ -18,7 +20,8 @@ type Props = {
  * تاریخی را دستی تایپ نمی‌کند. معادل میلادی (ISO) همان‌جا محاسبه می‌شود و در
  * فیلد مخفی برای سرور ارسال می‌گردد؛ یک کپی نمایشی شمسی هم زیر
  * `${name}Persian` ثبت می‌شود (ماژول املاک آن را نگه می‌دارد).
- * هیچ تاریخ میلادی‌ای در UI نشان داده نمی‌شود.
+ * کاربر هرگز تاریخ میلادی انتخاب نمی‌کند؛ اپ معادل میلادی همان روز را خودش
+ * محاسبه کرده و (به‌صورت پیش‌فرض) زیر ویجت نشان می‌دهد.
  */
 export default function JalaliDateInput({
   name,
@@ -27,6 +30,7 @@ export default function JalaliDateInput({
   onChange,
   required,
   hint,
+  showGregorian = true,
 }: Props) {
   return (
     <div className="min-w-0">
@@ -40,6 +44,7 @@ export default function JalaliDateInput({
         value={value}
         onChange={onChange}
         required={required}
+        showGregorian={showGregorian}
         ariaLabel={label}
       />
       {hint && <div className="muted mt-1 text-[10px] leading-4">{hint}</div>}

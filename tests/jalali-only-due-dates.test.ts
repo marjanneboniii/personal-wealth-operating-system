@@ -12,7 +12,10 @@
  *   • /debts/loans           — loan cards + next instalment
  *   • /reports               — «قسط بعدی» line of the debt report
  *   • DebtForm               — instalment-plan preview
- *   • DualDateInput          — the date widget itself is Jalali-only
+ *   • DualDateInput          — the debt form's date widget, with the automatic
+ *                              Gregorian echo switched off (see
+ *                              tests/jalali-date-picker.test.ts for the
+ *                              app-wide Jalali-only INPUT policy)
  *
  * These tests render the REAL page components (the repo's established pattern,
  * see tests/obligations-90day-scope.test.ts) so a reintroduced `formatDualDate`
@@ -256,11 +259,19 @@ test("گزارش بدهی (/reports) — «قسط بعدی» is formatted Jalali
   );
 });
 
-test("DualDateInput is Jalali-only: no Latin picker, no Gregorian text, ISO still submitted", async () => {
+test("the debt form's date widget is Jalali-only: no picker, no Gregorian text, ISO still submitted", async () => {
   const { default: DualDateInput } = await import("../src/components/ui/DualDateInput");
 
+  // Rendered exactly as DebtForm renders «اولین سررسید»: the debt domain opts out
+  // of the automatic Gregorian echo that the other modules show.
   const html = renderToStaticMarkup(
-    React.createElement(DualDateInput, { name: "firstDueDate", value: DUE_A, label: "اولین سررسید", required: true }),
+    React.createElement(DualDateInput, {
+      name: "firstDueDate",
+      value: DUE_A,
+      label: "اولین سررسید",
+      required: true,
+      showGregorian: false,
+    }),
   );
 
   assert.ok(!html.includes('type="date"'), "the native Gregorian date picker is gone");

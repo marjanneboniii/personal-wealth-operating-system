@@ -134,7 +134,14 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
               <p className="muted mt-1 text-[10.5px]">در این مرحله به‌عنوان اطلاعات بدهی ذخیره می‌شود؛ محاسبه خودکار سود انجام نمی‌گیرد.</p>
             </div>
             <div className="sm:col-span-2">
-              <DualDateInput name="startDatePreview" value={startDate} onChange={setStartDate} label="تاریخ شروع بدهی" required />
+              <DualDateInput
+                name="startDatePreview"
+                value={startDate}
+                onChange={setStartDate}
+                label="تاریخ شروع بدهی"
+                required
+                showGregorian={false}
+              />
             </div>
           </div>
 
@@ -171,7 +178,14 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
               </div>
               {count > 0 && (
                 <div className="sm:col-span-2">
-                  <DualDateInput name="firstDueDatePreview" value={firstDueDate} onChange={setFirstDueDate} label="اولین سررسید" required />
+                  <DualDateInput
+                    name="firstDueDatePreview"
+                    value={firstDueDate}
+                    onChange={setFirstDueDate}
+                    label="اولین سررسید"
+                    required
+                    showGregorian={false}
+                  />
                   {firstDueDate && startDate && firstDueDate < startDate && <p className="neg mt-1 text-[10.5px]">اولین سررسید باید در تاریخ شروع یا بعد از آن باشد.</p>}
                 </div>
               )}

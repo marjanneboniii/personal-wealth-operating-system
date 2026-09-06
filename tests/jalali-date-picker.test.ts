@@ -1,11 +1,14 @@
 /**
  * انتخاب‌گر تاریخ شمسی — day / month / year selects, no typing, no Latin date.
  *
- * Every date in the app is now chosen, never typed:
- *   • JalaliDatePicker is the only date-entry widget;
- *   • DualDateInput and JalaliDateInput are thin wrappers around it, so the
- *     hidden Gregorian ISO field every server action reads is unchanged;
- *   • no `type="date"` (native Gregorian picker) survives anywhere in src/.
+ * The policy has two sides and both are pinned here:
+ *   • INPUT is Jalali-only everywhere — JalaliDatePicker is the only date-entry
+ *     widget, DualDateInput and JalaliDateInput are thin wrappers around it, no
+ *     `type="date"` (native Gregorian picker) survives anywhere in src/, and the
+ *     setup wizard no longer offers a Gregorian calendar;
+ *   • OUTPUT — outside the debt domain the app echoes the Gregorian equivalent it
+ *     computed for the chosen day (`showGregorian`, default true). The debt
+ *     screens pass `showGregorian={false}` and stay Jalali-only.
  *
  * Two things are pinned here:
  *   1. the Jalali calendar arithmetic — month lengths and leap years must agree
@@ -130,15 +133,14 @@ function optionValues(html: string, selectIndex: number): string[] {
   return [...body.matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
 }
 
-test("the picker renders three selects — سال / ماه / روز — and no Latin date", () => {
+test("the picker renders three selects — سال / ماه / روز — nothing is typed", () => {
   const html = render(
     React.createElement(JalaliDatePicker, { name: "dueDate", value: "2026-09-05", ariaLabel: "سررسید" }),
   );
 
   assert.equal(html.split("<select").length - 1, 3, "exactly three selects");
   assert.ok(!html.includes('type="date"'), "no native Gregorian picker");
-  assert.ok(!html.includes("میلادی"), "the word «میلادی» is gone");
-  assert.ok(!LATIN_ISO.test(visibleText(html)), "no Gregorian date is shown to the user");
+  assert.ok(!/<input(?! type="hidden")/.test(html), "no text input — the date is chosen, never typed");
 
   // Month select = placeholder + the 12 Persian month names.
   const months = optionValues(html, 1);
@@ -156,6 +158,45 @@ test("the picker renders three selects — سال / ماه / روز — and no L
     "the chosen date is confirmed back to the user in Persian digits",
   );
   assert.ok(visibleText(html).includes(jalaliWeekdayName("2026-09-05")), "the weekday is confirmed too");
+});
+
+test("showGregorian echoes the auto-computed equivalent; the debt domain hides it", () => {
+  const ISO = "2026-09-05";
+
+  // Default (non-debt modules): the user picks Jalali, the APP shows the ISO it
+  // derived — clearly labelled as automatic, never as an input.
+  const auto = render(React.createElement(JalaliDatePicker, { value: ISO }));
+  assert.ok(auto.includes("میلادی (خودکار)"), "the echo is labelled as automatic");
+  assert.ok(LATIN_ISO.test(visibleText(auto)), `the computed equivalent (${ISO}) is displayed`);
+  assert.ok(auto.includes(ISO), "…and it is exactly the ISO the form submits");
+
+  // Debt screens (اقساط، تعهدات، سررسیدها): Jalali only, no Latin anywhere.
+  const debt = render(React.createElement(JalaliDatePicker, { value: ISO, showGregorian: false }));
+  assert.ok(!debt.includes("میلادی"), "no Gregorian label");
+  assert.ok(!LATIN_ISO.test(visibleText(debt)), "no Gregorian date is shown to the user");
+
+  // Nothing is echoed while the selection is incomplete.
+  const empty = render(React.createElement(JalaliDatePicker, {}));
+  assert.ok(!LATIN_ISO.test(visibleText(empty)), "no equivalent before a date is chosen");
+});
+
+test("DebtForm keeps its two date fields Jalali-only", () => {
+  const src = fs.readFileSync(
+    path.resolve(process.cwd(), "src/components/forms/DebtForm.tsx"),
+    "utf-8",
+  );
+  const uses = src.match(/showGregorian=\{false\}/g) ?? [];
+  assert.equal(uses.length, 2, "«تاریخ شروع بدهی» and «اولین سررسید» both opt out");
+});
+
+test("the setup wizard offers no Gregorian calendar", () => {
+  const page = src("src/app/setup/page.tsx");
+  assert.ok(!page.includes('value="gregorian"'), "the Gregorian option is gone");
+  assert.ok(!page.includes("setDateCalendar"), "the calendar is no longer a user choice");
+  assert.ok(/name="dateCalendar" value=\{dateCalendar\}/.test(page), "the field is still submitted");
+  assert.ok(page.includes('const dateCalendar = "jalali"'), "…and it is always Jalali");
+  assert.ok(!src("src/i18n/fa.ts").includes("dateCalendarGregorian"), "the label is removed (fa)");
+  assert.ok(!src("src/i18n/en.ts").includes("dateCalendarGregorian"), "the label is removed (en)");
 });
 
 test("the picker still submits the Gregorian ISO through the hidden field", () => {
@@ -232,7 +273,9 @@ test("DualDateInput and JalaliDateInput are wrappers around the picker", () => {
   );
   assert.equal(jalali.split("<select").length - 1, 3, "JalaliDateInput renders the three selects");
   assert.ok(!jalali.includes('type="date"'), "JalaliDateInput has no Gregorian picker");
-  assert.ok(!jalali.includes("میلادی"), "JalaliDateInput no longer prints the Gregorian hint");
+  assert.ok(!/<input(?! type="hidden")/.test(jalali), "nothing is typed");
+  // Its modules (املاک، تورم) are outside the debt domain → the equivalent is echoed.
+  assert.ok(jalali.includes("میلادی (خودکار)"), "the computed equivalent is echoed");
   assert.ok(/name="acquisitionDate"[^>]*value="2026-09-05"|value="2026-09-05"[^>]*name="acquisitionDate"/.test(jalali.replace(/<input type="hidden" /g, "|")), "ISO field preserved");
   const persian = formatJalaliIso("2026-09-05", "en");
   assert.ok(

@@ -53,6 +53,7 @@ function PlanningPreview({ title, description, irtAmount, rate, rateDate, rateSo
         </div>
         <div className="flex flex-wrap gap-3">
           <span>تاریخ شمسی: <strong dir="rtl" className="num">{dual?.jalali ?? "—"}</strong></span>
+          <span>میلادی (خودکار): <strong dir="ltr" className="num ltr-isolate">{dual?.gregorian ?? "—"}</strong></span>
         </div>
         {status && <div><span className="muted">وضعیت:</span> <strong>{status}</strong></div>}
         {priority && <div><span className="muted">اولویت:</span> <strong>{priority}</strong></div>}
