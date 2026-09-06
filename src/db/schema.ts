@@ -78,7 +78,7 @@ export const assets = pgTable(
   "assets",
   {
     ...base,
-    symbol: text("symbol").notNull().unique(),
+    symbol: text("symbol").notNull(),
     name: text("name").notNull(),
     classId: uuid("class_id")
       .notNull()
@@ -96,7 +96,11 @@ export const assets = pgTable(
     logoUrl: text("logo_url"),
     isActive: boolean("is_active").notNull().default(true),
   },
-  (t) => [index("assets_class_idx").on(t.classId), index("assets_coingecko_idx").on(t.coingeckoId)],
+  (t) => [
+    uniqueIndex("assets_symbol_active_unique").on(t.symbol).where(sql`${t.deletedAt} IS NULL`),
+    index("assets_class_idx").on(t.classId),
+    index("assets_coingecko_idx").on(t.coingeckoId),
+  ],
 );
 
 export const wallets = pgTable(

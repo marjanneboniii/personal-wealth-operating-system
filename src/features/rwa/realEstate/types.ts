@@ -11,9 +11,10 @@
  *        ↓
  *   General Ledger (opening entry dated at the REAL acquisition date)
  *
- * The symbol is 100% system-generated, unique and immutable. It uses the
- * compact global RWA sequence (`001`, `002`, …); location/type identity stays
- * in the relational master-data fields instead of being duplicated in it.
+ * The symbol is 100% system-generated, unique among active assets and immutable
+ * for its asset row. It uses the compact global RWA sequence (`001`, `002`, …);
+ * location/type identity stays in the relational master-data fields instead of
+ * being duplicated in it.
  */
 
 export type FxRateResolution = {

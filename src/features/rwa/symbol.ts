@@ -5,13 +5,13 @@
  * uniqueness and integrations remain predictable. Persian digits are a UI
  * concern and are rendered with `toFaDigits` at the presentation boundary.
  *
- * The sequence is shared by every RWA subtype. `assets.symbol` is globally
- * unique, so separate property/vehicle counters would both try to claim `001`.
+ * The sequence is shared by every RWA subtype. Active `assets.symbol` values
+ * are globally unique, so separate property/vehicle counters would both try to
+ * claim `001`.
  */
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { assets } from "@/db/schema";
-import { isOrphanedRwaAsset } from "@/features/rwa/orphanFilter";
 
 export const RWA_SYMBOL_MIN_WIDTH = 3;
 
@@ -30,11 +30,12 @@ export function buildRwaSymbol(sequence: number): string {
  * choosing a symbol and inserting it. Preview calls intentionally omit the
  * lock; a preview is advisory and the final write always resolves again.
  *
- * IDENTIFIER REUSE: Only LIVE registry identities occupy identifiers.
- * Soft-deleted assets (deleted_at IS NOT NULL) and orphaned RWA assets
- * (property/vehicle/ownership row gone) release their identifier so the
- * next asset reclaims the lowest free number (e.g. 001 after deleting the
- * only property) — without requiring a write on a read path.
+ * IDENTIFIER REUSE: only rows with deleted_at IS NULL occupy identifiers.
+ * Soft-deleted assets (deleted_at IS NOT NULL) release their identifier so the
+ * next asset reclaims the lowest free number (e.g. 001 after deleting the only
+ * property). Orphaned-but-not-yet-soft-deleted rows still occupy their symbol
+ * until the explicit repair mutation marks them deleted, matching the partial
+ * unique index in the database.
  */
 export async function nextRwaSymbol(tx: any = db, rwaClassId?: string): Promise<string> {
   if (rwaClassId) {
@@ -44,10 +45,10 @@ export async function nextRwaSymbol(tx: any = db, rwaClassId?: string): Promise<
   const rows = await tx
     .select({ symbol: assets.symbol })
     .from(assets)
-    .where(sql`${assets.symbol} ~ '^[0-9]+$' AND ${assets.deletedAt} IS NULL AND NOT ${isOrphanedRwaAsset("assets")}`);
+    .where(sql`${assets.symbol} ~ '^[0-9]+$' AND ${assets.deletedAt} IS NULL`);
   const occupied = new Set(rows.map((row: { symbol: string }) => row.symbol));
 
-  // Active rows occupy identifiers; soft-deleted rows release theirs.
+  // Rows with deleted_at IS NULL occupy identifiers; soft-deleted rows release theirs.
   // Width grows naturally after 999 (`1000`).
   for (let sequence = 1; sequence <= Number.MAX_SAFE_INTEGER; sequence++) {
     const candidate = buildRwaSymbol(sequence);

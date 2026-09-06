@@ -1141,15 +1141,15 @@ export async function sellRealEstateAsset(input: {
 
     // Remove the sold property from the portfolio (same cleanup as delete):
     // property row (cascade → valuation snapshots), soft-delete the asset and
-    // release its identifier, drop the valuation cache. The ledger rows
-    // (opening + sale) are immutable and stay intact.
+    // drop the valuation cache. The partial active-symbol unique index releases
+    // the compact identifier without rewriting the historical asset identity.
+    // The ledger rows (opening + sale) are immutable and stay intact.
     await tx.delete(realEstateProperties).where(eq(realEstateProperties.id, prop.p.id));
     await tx
       .update(assets)
       .set({
         deletedAt: new Date(),
         updatedAt: new Date(),
-        symbol: `__del_${prop.p.assetId.replace(/-/g, "").slice(0, 16)}`,
       })
       .where(eq(assets.id, prop.p.assetId));
     await tx.delete(prices).where(eq(prices.assetId, prop.p.assetId));
@@ -1239,15 +1239,14 @@ export async function deleteRealEstateAsset(input: {
     // 2. Delete the property row (CASCADE → real_estate_valuation_snapshots)
     await tx.delete(realEstateProperties).where(eq(realEstateProperties.id, prop.p.id));
 
-    // 3. Soft-delete the asset and RELEASE its compact identifier.
-    // assets.symbol is globally unique, so a tombstone symbol is required
-    // or the next live property could never reclaim `001`.
+    // 3. Soft-delete the asset and RELEASE its compact identifier. The partial
+    // active-symbol unique index ignores deleted rows, so the historical asset
+    // identity can remain intact while the next live RWA reclaims `001`.
     await tx
       .update(assets)
       .set({
         deletedAt: new Date(),
         updatedAt: new Date(),
-        symbol: `__del_${assetId.replace(/-/g, "").slice(0, 16)}`,
       })
       .where(eq(assets.id, assetId));
 
@@ -1312,7 +1311,6 @@ export async function repairOrphanedRealEstate(): Promise<{ cleaned: number; det
       .set({
         deletedAt: new Date(),
         updatedAt: new Date(),
-        symbol: `__del_${row.asset_id.replace(/-/g, "").slice(0, 16)}`,
       })
       .where(eq(assets.id, row.asset_id));
 
@@ -1353,9 +1351,10 @@ let readyPromise: Promise<void> | null = null;
  * read queries (getHoldings, getAccountBalances, getLedger, getTransactions,
  * getRealizedPnl, getOpenLots, historicalTomanCostByAsset, etc.), so reports
  * stay correct even before an explicit repair. Identifier reuse (e.g. 001)
- * also no longer depends on repair: nextRwaSymbol ignores orphans. The
- * repair itself is a separate mutation (see repairOrphanedRealEstateAction)
- * that soft-deletes the orphan asset and cleans price caches.
+ * follows the database invariant exactly: only assets with deleted_at IS NULL
+ * occupy symbols. Therefore an orphan keeps its identifier until the separate
+ * repair mutation (see repairOrphanedRealEstateAction) soft-deletes the asset
+ * and cleans price caches.
  */
 export async function ensureRealEstateModuleReady(): Promise<void> {
   readyPromise ??= (async () => {

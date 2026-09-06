@@ -15,6 +15,36 @@ test("compact RWA symbols store ASCII and render Persian digits", () => {
   assert.throws(() => buildRwaSymbol(0), /positive integer/);
 });
 
+test("0013 enforces assets.symbol uniqueness only for active rows", async () => {
+  const client = new PGlite();
+  const migrationDb = drizzle(client);
+  await migrate(migrationDb, {
+    migrationsFolder: "./drizzle",
+    migrationsTable: "__drizzle_migrations",
+    migrationsSchema: "public",
+  });
+
+  await client.exec(`
+    INSERT INTO asset_classes (id, code, name)
+    VALUES ('00000000-0000-0000-0000-000000000301', 'RWA-ACTIVE-UQ', 'RWA Active Unique');
+
+    INSERT INTO assets (id, created_at, deleted_at, symbol, name, class_id) VALUES
+      ('00000000-0000-0000-0000-000000000401', '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z', '001', 'Deleted tombstone', '00000000-0000-0000-0000-000000000301'),
+      ('00000000-0000-0000-0000-000000000402', '2026-01-03T00:00:00Z', NULL, '001', 'Live replacement', '00000000-0000-0000-0000-000000000301');
+  `);
+
+  await assert.rejects(
+    () =>
+      client.exec(`
+        INSERT INTO assets (id, created_at, symbol, name, class_id)
+        VALUES ('00000000-0000-0000-0000-000000000403', '2026-01-04T00:00:00Z', '001', 'Duplicate live row', '00000000-0000-0000-0000-000000000301');
+      `),
+    /assets_symbol_active_unique|unique/i,
+  );
+
+  await client.close();
+});
+
 test("0008 renames existing property/vehicle symbols globally and records before/after audit", async () => {
   const client = new PGlite();
   const migrationDb = drizzle(client);
@@ -24,8 +54,9 @@ test("0008 renames existing property/vehicle symbols globally and records before
     migrationsSchema: "public",
   });
 
-  // `001` belongs to an unrelated asset, so the RWA migration must safely use
-  // the next two free values rather than violating assets_symbol_unique.
+  // `001` belongs to an unrelated active asset, so the RWA migration must
+  // safely use the next two free values rather than violating active-symbol
+  // uniqueness.
   await client.exec(`
     INSERT INTO asset_classes (id, code, name)
     VALUES ('00000000-0000-0000-0000-000000000101', 'RWA-TEST', 'RWA Test');
