@@ -26,6 +26,7 @@ import { postEntry, recordBuy, recordExpense, recordIncome, recordSell } from "@
 import { payInstallment } from "@/features/planning/service";
 import { ensureCategoryCatalog, getCategoryByCode } from "@/features/categories/service";
 import { addMonthsIso, todayIso } from "@/lib/format";
+import { invalidateTenantStateCache } from "@/lib/tenantState";
 import { D } from "@/domain/decimal";
 import { ensureSchemaOnce, rootCauseOf } from "@/db/init-schema";
 import { requireSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
@@ -532,6 +533,7 @@ export async function runSeed(): Promise<void> {
   }
 
   await db.insert(users).values({ name: "مالک خانواده", role: "owner" });
+  invalidateTenantStateCache();
   await db.insert(settings).values([
     { key: "base_currency", value: "USD" },
     { key: "digit_style", value: "fa" },

@@ -9,6 +9,7 @@ import {
   isOrphanedRwaAsset,
   isOrphanedRwaAssetWithClass,
 } from "@/features/rwa/orphanFilter";
+import { isMultiTenantCached, readTenantState } from "@/lib/tenantState";
 
 async function rows<T>(query: ReturnType<typeof sql>): Promise<T[]> {
   const res = await db.execute(query);
@@ -42,11 +43,12 @@ export async function resolveQueryUserId(explicitUserId?: string): Promise<strin
   // null-owned legacy rows remain visible until migrated. This keeps the
   // accounting preservation guarantee (netWorth 1456) while multi-user
   // isolation is enforced via explicit userId or authenticated session.
+  //
+  // The probe is served from the shared tenant-state cache (60 s TTL) so a
+  // request that fans out across many read services asks the database once
+  // per window instead of once per query.
   try {
-    const res = await db.execute(sql`select id from users limit 2`);
-    if (res.rows.length === 1) {
-      return undefined;
-    }
+    await readTenantState();
   } catch (e: any) {
     // DB error in isolation check -> fail-closed DENY
     if (e?.message?.includes("Authentication/Database error")) throw e;
@@ -63,11 +65,17 @@ export async function resolveQueryUserId(explicitUserId?: string): Promise<strin
  * Exported so other read services (analytics, planning) apply the SAME
  * fail-closed rule: in a multi-tenant database an unresolved identity must
  * never degrade to a global (tenant-blending) read.
+ *
+ * The probe is served from a short-lived (60 s) in-process cache shared by
+ * every read service, so a single page request no longer fires
+ * `SELECT ... FROM users LIMIT 2` once per ledger query. Registration /
+ * setup / restore invalidate the cache on write, so a single→multi-tenant
+ * transition is visible immediately and can never widen a legacy global
+ * read window.
  */
 export async function hasMultipleUsers(): Promise<boolean> {
   try {
-    const res = await db.execute(sql`select id from users limit 2`);
-    return res.rows.length > 1;
+    return await isMultiTenantCached();
   } catch {
     // Unknown state -> assume multi-tenant and stay fail-closed.
     return true;

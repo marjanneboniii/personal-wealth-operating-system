@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -18,12 +18,12 @@ import {
   plannedTransactions,
   snapshotLines,
   snapshots,
-  users,
   wallets,
 } from "@/db/schema";
 import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
 import { getLatestUsdIrtRateForUser, getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentUser } from "@/lib/auth";
+import { authUsersExistCached } from "@/lib/tenantState";
 import { validateAccountOwnership } from "@/lib/validation";
 import {
   ensureFeeExpenseAccount,
@@ -84,8 +84,11 @@ async function getAuthContext(): Promise<{ user: any; hasAuth: boolean }> {
   const user = await getCurrentUser();
   let hasAuth = false;
   try {
-    const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
-    hasAuth = !!row;
+    // Cached "any username-bearing user exists" probe (60 s TTL) so a burst of
+    // server actions does not fire `users WHERE username IS NOT NULL LIMIT 1`
+    // against the database on every single call. Registration invalidates the
+    // cache on write, so the anonymous → authenticated transition is immediate.
+    hasAuth = await authUsersExistCached();
   } catch (e: any) {
     // DB error -> DENY, never anonymous
     throw new Error("Authentication/Database error: Access denied");
@@ -1013,10 +1016,8 @@ const debtSchema = z.object({
  */
 export async function createDebtAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   try {
-    const { users: usersTable } = await import("@/db/schema");
-    const { isNotNull } = await import("drizzle-orm");
     const user = await getCurrentUser();
-    const [hasAuth] = await db.select().from(usersTable).where(isNotNull(usersTable.username)).limit(1);
+    const hasAuth = await authUsersExistCached();
     if (hasAuth && !user) return { ok: false, message: "برای تعریف بدهی ابتدا وارد شوید." };
 
     const raw = Object.fromEntries(fd) as Record<string, string>;

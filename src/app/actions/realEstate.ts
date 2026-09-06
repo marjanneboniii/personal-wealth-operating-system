@@ -1,11 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdminOrOwner } from "@/lib/authGuard";
+import { authUsersExistCached } from "@/lib/tenantState";
 import {
   createRealEstateAsset,
   deleteRealEstateAsset,
@@ -51,8 +50,7 @@ async function guardRealEstate(): Promise<string | null> {
     const user = await getCurrentUser();
     let hasAuth = false;
     try {
-      const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
-      hasAuth = !!row;
+      hasAuth = await authUsersExistCached();
     } catch {
       throw new Error("Authentication/Database error: Access denied");
     }
@@ -77,8 +75,7 @@ async function guardRealEstateAdmin(): Promise<string | null> {
     const user = await getCurrentUser();
     let hasAuth = false;
     try {
-      const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
-      hasAuth = !!row;
+      hasAuth = await authUsersExistCached();
     } catch {
       throw new Error("Authentication/Database error: Access denied");
     }

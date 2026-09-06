@@ -10,6 +10,47 @@ export interface RuntimeEnvironment {
   NODE_ENV?: string;
   NEXT_PHASE?: string;
   DATABASE_URL?: string;
+  DATABASE_POOL_MAX?: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Connection-pool sizing
+ *
+ * The pool `max` is read from `DATABASE_POOL_MAX` so operators can size a
+ * single instance (or a serverless runtime) without a code change. The
+ * default is environment-aware and deliberately conservative:
+ *
+ *   - production  → 10 (one app instance may serve hundreds of concurrent
+ *                    requests; PgBouncer/Neon pooled endpoints still cap the
+ *                    real backend connections, so a handful per instance is
+ *                    plenty — more than ~10 per instance rarely helps and
+ *                    can exhaust the database when many instances run);
+ *   - development → 5  (previous hard-coded value).
+ *
+ * The value is clamped to [1, 50]: 0/negative/NaN/unparseable values fall
+ * back to the environment default and absurd values are capped so a typo
+ * cannot open hundreds of connections against the database.
+ * ------------------------------------------------------------------ */
+
+export const DEFAULT_DATABASE_POOL_MAX = 5;
+export const PRODUCTION_DATABASE_POOL_MAX = 10;
+export const MAX_DATABASE_POOL_MAX = 50;
+export const MIN_DATABASE_POOL_MAX = 1;
+
+/** Default pool size for the active runtime environment. */
+export function defaultPoolMax(env: RuntimeEnvironment): number {
+  return isProductionRuntime(env) ? PRODUCTION_DATABASE_POOL_MAX : DEFAULT_DATABASE_POOL_MAX;
+}
+
+/** Parse + clamp `DATABASE_POOL_MAX`. Invalid input falls back to the default. */
+export function resolvePoolMax(env: RuntimeEnvironment): number {
+  const raw = env.DATABASE_POOL_MAX?.trim();
+  const fallback = defaultPoolMax(env);
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return fallback;
+  if (parsed < MIN_DATABASE_POOL_MAX) return fallback;
+  return Math.min(Math.floor(parsed), MAX_DATABASE_POOL_MAX);
 }
 
 /**

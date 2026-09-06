@@ -10,12 +10,12 @@ import {
   installments,
   obligations,
   plannedTransactions,
-  users,
 } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import { postEntry, unitsFor } from "@/features/ledger/service";
 import { getAccountBalances, hasMultipleUsers } from "@/features/ledger/queries";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
+import { readTenantState } from "@/lib/tenantState";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { addMonthsIso, jalaliToIso, toJalali, todayIso } from "@/lib/format";
 import {
@@ -35,10 +35,14 @@ async function resolvePlanningUserId(explicitUserId?: string): Promise<string | 
     if (user?.id) return user.id;
   } catch {}
 
+  // Served from the shared tenant-state cache (60 s TTL) so planning reads
+  // never spam the users table per request. Errors keep the old behaviour:
+  // an unresolved identity degrades to undefined, and the caller's own
+  // hasMultipleUsers() guard (also cached, fail-closed) decides afterwards.
   try {
-    const res = await db.execute(sql`select id from users limit 2`);
-    if (res.rows.length === 1) {
-      return (res.rows[0] as { id?: string })?.id;
+    const state = await readTenantState();
+    if (state.userCount === 1) {
+      return state.singleUserId ?? undefined;
     }
   } catch {}
   return undefined;
