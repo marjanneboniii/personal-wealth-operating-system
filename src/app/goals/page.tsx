@@ -8,7 +8,7 @@ import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/
 import Icon from "@/components/ui/Icon";
 import { EventForm, GoalForm } from "@/components/forms/QuickForms";
 import {
-  formatDualDate,
+  formatJalaliIso,
   formatPct,
   faCount,
   formatTomanPrimary,
@@ -110,7 +110,7 @@ export default async function GoalsPage() {
                       <span className="badge badge-neutral">
                         اولویت {g.priority === 1 ? "بالا" : g.priority === 2 ? "متوسط" : "پایین"}
                       </span>
-                      {g.targetDate && <span className="muted num text-[10.5px]">تا {formatDualDate(g.targetDate)}</span>}
+                      {g.targetDate && <span className="muted num text-[10.5px]">تا {formatJalaliIso(g.targetDate)}</span>}
                     </p>
                     <span className="flex flex-col items-end">
                       <span className="num text-[12px] sm:text-[13px] money-nowrap" dir="rtl">
@@ -208,7 +208,7 @@ export default async function GoalsPage() {
                             <span className="badge badge-info">{x.recurrence === "monthly" ? "ماهانه" : "سالانه"}</span>
                           )}
                         </p>
-                        <p className="muted num mt-0.5 text-[10.5px]">{formatDualDate(x.date)}</p>
+                        <p className="muted num mt-0.5 text-[10.5px]">{formatJalaliIso(x.date)}</p>
                       </div>
                       <span className="flex shrink-0 flex-col items-end">
                         <span className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">

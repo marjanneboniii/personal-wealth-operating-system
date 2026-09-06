@@ -4,7 +4,7 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createDebtAction, type ActionResult } from "@/app/actions";
 import { D } from "@/domain/decimal";
-import { addMonthsIso, formatDualDate, formatJalaliIso, formatMoney, formatQty, faCount } from "@/lib/format";
+import { addMonthsIso, formatJalaliIso, formatMoney, formatQty, faCount } from "@/lib/format";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
 import { PreviewCard, SmartAmountPreview } from "@/components/ui/SmartPreview";
@@ -134,7 +134,14 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
               <p className="muted mt-1 text-[10.5px]">در این مرحله به‌عنوان اطلاعات بدهی ذخیره می‌شود؛ محاسبه خودکار سود انجام نمی‌گیرد.</p>
             </div>
             <div className="sm:col-span-2">
-              <DualDateInput name="startDatePreview" value={startDate} onChange={setStartDate} label="تاریخ شروع بدهی" required />
+              <DualDateInput
+                name="startDatePreview"
+                value={startDate}
+                onChange={setStartDate}
+                label="تاریخ شروع بدهی"
+                required
+                showGregorian={false}
+              />
             </div>
           </div>
 
@@ -171,7 +178,14 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
               </div>
               {count > 0 && (
                 <div className="sm:col-span-2">
-                  <DualDateInput name="firstDueDatePreview" value={firstDueDate} onChange={setFirstDueDate} label="اولین سررسید" required />
+                  <DualDateInput
+                    name="firstDueDatePreview"
+                    value={firstDueDate}
+                    onChange={setFirstDueDate}
+                    label="اولین سررسید"
+                    required
+                    showGregorian={false}
+                  />
                   {firstDueDate && startDate && firstDueDate < startDate && <p className="neg mt-1 text-[10.5px]">اولین سررسید باید در تاریخ شروع یا بعد از آن باشد.</p>}
                 </div>
               )}
@@ -191,19 +205,19 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
               <div><span className="muted">اصل بدهی:</span> <strong className="num" dir="rtl">{formatMoney(principalIrt, "IRT")}</strong></div>
               <div><span className="muted">معادل تقریبی پایه:</span> <strong className="num" dir="rtl">{principalUsd ? formatMoney(principalUsd, "USD") : "—"}</strong></div>
               <div><span className="muted">نرخ سود:</span> <strong className="num" dir="rtl">{formatQty(interestRate || "0", 2)}٪</strong></div>
-              <div><span className="muted">شروع:</span> <strong>{formatJalaliIso(startDate)} <span className="muted num" dir="ltr">({startDate})</span></strong></div>
+              <div><span className="muted">شروع:</span> <strong className="num" dir="rtl">{formatJalaliIso(startDate)}</strong></div>
             </div>
 
             {count > 0 && firstDueDate && (
               <div className="soft rounded-[var(--r-md)] p-3">
                 <div className="font-semibold">برنامه اقساط</div>
-                <div className="muted mt-1">{faCount(count)} قسط × <span className="num" dir="rtl">{formatMoney(effectiveInstallmentIrt, "IRT")}</span> · شروع از {formatDualDate(firstDueDate)}</div>
+                <div className="muted mt-1">{faCount(count)} قسط × <span className="num" dir="rtl">{formatMoney(effectiveInstallmentIrt, "IRT")}</span> · شروع از <span className="num" dir="rtl">{formatJalaliIso(firstDueDate)}</span></div>
                 <ul className="mt-2 grid gap-x-4 gap-y-1 text-[11px] sm:grid-cols-2">
                   {Array.from({ length: Math.min(count, 4) }, (_, index) => {
                     const due = addMonthsIso(firstDueDate, index);
-                    return <li key={due} className="flex justify-between gap-2"><span>قسط {index + 1}</span><span className="num" dir="ltr">{formatJalaliIso(due)} · {due}</span></li>;
+                    return <li key={due} className="flex justify-between gap-2"><span>قسط {index + 1}</span><span className="num" dir="rtl">{formatJalaliIso(due)}</span></li>;
                   })}
-                  {count > 4 && <li className="muted sm:col-span-2">… و {faCount(count - 4)} قسط دیگر تا {formatDualDate(addMonthsIso(firstDueDate, count - 1))}</li>}
+                  {count > 4 && <li className="muted sm:col-span-2">… و {faCount(count - 4)} قسط دیگر تا <span className="num" dir="rtl">{formatJalaliIso(addMonthsIso(firstDueDate, count - 1))}</span></li>}
                 </ul>
               </div>
             )}

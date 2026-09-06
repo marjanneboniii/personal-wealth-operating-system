@@ -8,7 +8,7 @@ import {
   searchMarketCatalogAction,
 } from "@/app/actions/pricing";
 import { currencyLabel, formatMoney, getDualDate, faCount, hasPersianCurrencyLabel } from "@/lib/format";
-import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
+import { SmartAmountPreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
@@ -1025,10 +1025,10 @@ export default function TransactionForm({
               {type !== "expense" && <div><span className="muted">حساب مقابل:</span> <strong>{accountOptions.find(a=>a.id===counterAccountId)?.name ?? "—"}</strong> <span className="chip">{accountOptions.find(a=>a.id===counterAccountId)?.code ?? ""}</span></div>}
             </div>
             <div>
-              <span className="muted">تاریخ شمسی / میلادی:</span>
+              <span className="muted">تاریخ سند:</span>
               <div className="soft rounded-xl p-2 mt-1 flex flex-wrap gap-3 text-[11px]">
-                <span>شمسی: <strong dir="rtl">{entryDate ? getDualDate(entryDate).jalali : "—"}</strong></span>
-                <span>میلادی: <strong dir="ltr" className="num">{entryDate || "—"}</strong></span>
+                <span>شمسی: <strong dir="rtl" className="num">{entryDate ? getDualDate(entryDate).jalali : "—"}</strong></span>
+                <span>میلادی (خودکار): <strong dir="ltr" className="num ltr-isolate">{entryDate || "—"}</strong></span>
               </div>
             </div>
             {needsQty && <div><span className="muted">مقدار دارایی:</span> <strong dir="ltr" className="num">{quantity || "محاسبه خودکار از مبلغ"}</strong></div>}
@@ -1037,7 +1037,7 @@ export default function TransactionForm({
               <div className="soft rounded-xl p-2 border" style={{ borderColor:"var(--border)" }}>
                 <div className="font-bold">مرجع بدهی/قسط</div>
                 <div>بدهی: <strong>{selectedDebt?.title}</strong> — {selectedDebt?.creditor}</div>
-                {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید {getDualDate(selectedInst.dueDate).jalali} / <span dir="ltr">{selectedInst.dueDate}</span> — مبلغ <span dir="rtl">{selectedInst.amountToman ? formatMoney(selectedInst.amountToman, "IRT") : formatMoney(selectedInst.amountBase, "USD")}</span></div>}
+                {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید <span dir="rtl" className="num">{getDualDate(selectedInst.dueDate).jalali}</span> — مبلغ <span dir="rtl">{selectedInst.amountToman ? formatMoney(selectedInst.amountToman, "IRT") : formatMoney(selectedInst.amountBase, "USD")}</span></div>}
                 <div>وضعیت پس از پرداخت: <strong style={{ color:"var(--brand)" }}>{debtStatusAfter}</strong></div>
                 <div className="muted text-[10px]">شناسه مرجع در سند حسابداری ذخیره و قابل پیگیری از هر دو سمت خواهد بود.</div>
               </div>

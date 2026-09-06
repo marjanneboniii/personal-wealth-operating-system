@@ -6,7 +6,7 @@ import { EmptyState, Card, Metric, PageHeader, Progress, Section, SectionLink } 
 import DebtForm from "@/components/forms/DebtForm";
 import Icon from "@/components/ui/Icon";
 import {
-  formatDualDate,
+  formatJalaliIso,
   formatMoney,
   formatPct,
   formatQty,
@@ -86,7 +86,7 @@ export default async function DebtsPage() {
           value={nextDisp?.primary ?? "—"}
           hint={
             nextPayment
-              ? `${nextPayment.title} · ${formatDualDate(nextPayment.dueDate)}${nextDisp?.usdHint ? ` · معادل ${nextDisp.usdHint}` : ""}`
+              ? `${nextPayment.title} · ${formatJalaliIso(nextPayment.dueDate)}${nextDisp?.usdHint ? ` · معادل ${nextDisp.usdHint}` : ""}`
               : "قسطی در انتظار نیست"
           }
         />
@@ -139,7 +139,7 @@ export default async function DebtsPage() {
                         {late && <span className="badge badge-neg">قسط معوق</span>}
                       </p>
                       <p className="muted mt-1 text-[11.5px]">
-                        {d.creditor} · شروع {formatDualDate(d.startDate)} · نرخ سود <span className="num" dir="rtl">{formatQty(d.interestRate, 2)}٪</span>
+                        {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود <span className="num" dir="rtl">{formatQty(d.interestRate, 2)}٪</span>
                       </p>
                     </div>
                     <div className="text-left">

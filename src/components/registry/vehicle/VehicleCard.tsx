@@ -10,6 +10,7 @@ import { compareDates, type SnapshotPoint } from "@/features/rwa/vehicle/analyti
 import type { VehicleDashboardItem } from "@/features/rwa/vehicle/dto";
 import { currencyLabel, formatMoney, toFaDigits, todayIso } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
+import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import { AutomobileLogo } from "@/components/ui/IranLogo";
 import VehicleChart from "./VehicleChart";
 import {
@@ -320,10 +321,10 @@ function ComparePanel({ points, purchasePoint }: { points: SnapshotPoint[]; purc
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <Labeled label="از تاریخ">
-          <input className="field num" type="date" dir="ltr" value={from} onChange={(e) => setFrom(e.target.value)} />
+          <JalaliDatePicker value={from} onChange={setFrom} ariaLabel="از تاریخ" showToday={false} />
         </Labeled>
         <Labeled label="تا تاریخ">
-          <input className="field num" type="date" dir="ltr" value={to} onChange={(e) => setTo(e.target.value)} />
+          <JalaliDatePicker value={to} onChange={setTo} ariaLabel="تا تاریخ" />
         </Labeled>
       </div>
 
@@ -379,7 +380,12 @@ function ValuationForm({ item }: { item: VehicleDashboardItem }) {
           <AmountInput className="field num" name="currentValueToman" inputMode="numeric" dir="ltr" placeholder="5300000000" unit="toman" required />
         </Labeled>
         <Labeled label="تاریخ ارزش‌گذاری" required>
-          <input className="field num" type="date" name="snapshotDate" defaultValue={todayIso()} dir="ltr" required />
+          <JalaliDatePicker
+            name="snapshotDate"
+            defaultValue={todayIso()}
+            required
+            ariaLabel="تاریخ ارزش‌گذاری"
+          />
         </Labeled>
         <Labeled label="نرخ دلار (اختیاری)" hint="خالی بماند: نرخ همان تاریخ از سیستم نرخ ارز خوانده می‌شود.">
           <input className="field num" name="usdRate" inputMode="numeric" dir="ltr" placeholder="210000" />
@@ -444,7 +450,7 @@ function ManagePanel({
           <input type="hidden" name="vehicleId" value={item.vehicle.id} />
           <div className="grid gap-3 sm:grid-cols-2">
             <Labeled label="تاریخ فروش" required>
-              <input className="field num" type="date" name="saleDate" defaultValue={todayIso()} dir="ltr" required />
+              <JalaliDatePicker name="saleDate" defaultValue={todayIso()} required ariaLabel="تاریخ فروش" />
             </Labeled>
             <Labeled label="قیمت واقعی فروش (تومان)" required>
               <AmountInput className="field num" name="salePriceToman" inputMode="numeric" dir="ltr" unit="toman" required />

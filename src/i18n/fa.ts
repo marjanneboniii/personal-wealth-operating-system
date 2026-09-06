@@ -8,9 +8,10 @@ export const fa = {
     accountingCurrencyHelp: "ارزی که تراز و ارزش خالص با آن محاسبه می‌شود.",
     displayCurrencyLabel: "ارز نمایش در گزارش‌ها",
     displayCurrencyHelp: "ارز ترجیحی برای نمایش مبالغ. محاسبات داخلی را تغییر نمی‌دهد.",
-    dateCalendarLabel: "تقویم نمایش تاریخ",
+    dateCalendarLabel: "تقویم",
     dateCalendarJalali: "هجری شمسی (جلالی)",
-    dateCalendarGregorian: "میلادی (Gregorian)",
+    dateCalendarFixedBadge: "ثابت",
+    dateCalendarHelp: "تاریخ‌ها همیشه با انتخاب‌گر شمسی (روز / ماه / سال) وارد می‌شوند؛ معادل میلادی همان روز را اپ خودش محاسبه می‌کند.",
     userNameLabel: "نام کاربر یا مالکان خانواده",
     userNamePlaceholder: "مثلاً: علی و سارا",
 
