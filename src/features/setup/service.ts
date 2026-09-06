@@ -16,6 +16,7 @@ import { ensureCategoryCatalog } from "@/features/categories/service";
 import { D, Decimal } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
+import { invalidateTenantStateCache } from "@/lib/tenantState";
 import { rootCauseOf } from "@/db/init-schema";
 import { requireSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
 
@@ -281,6 +282,9 @@ export async function completeSetup(
         .returning();
     }
     if (!user) throw new Error("ایجاد کاربر راه‌اندازی ناموفق بود.");
+    // A (possibly) new user row invalidates the shared tenant-state cache.
+    // Harmless on rollback: the cache is only cleared, never populated.
+    invalidateTenantStateCache();
 
     const configItems = [
       { key: "base_currency", value: input.baseCurrency },

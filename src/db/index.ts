@@ -1,7 +1,11 @@
 import { createRequire } from "node:module";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { assertProductionDatabaseConfig, isMemoryUrl } from "@/db/config";
+import {
+  assertProductionDatabaseConfig,
+  isMemoryUrl,
+  resolvePoolMax,
+} from "@/db/config";
 
 /**
  * Shared runtime database handle.
@@ -56,9 +60,11 @@ function initDb(): Db {
       globalForDb.__pwosPgPool ??
       new Pool({
         connectionString: databaseUrl,
-        // Serverless-safe defaults:
-        //  - `max` bounds the connections a single instance opens (each
-        //    serverless instance only ever holds a handful);
+        // Serverless & scale-out safe defaults:
+        //  - `max` is read from DATABASE_POOL_MAX (env-aware default, clamped
+        //    to a sane ceiling — see resolvePoolMax in db/config.ts). Each
+        //    instance only ever opens a handful of connections, so N replicas
+        //    × pool size stays well below the server's max_connections;
         //  - fail fast on connect so a sleeping/cold database surfaces an
         //    error instead of hanging the request;
         //  - recycle idle sockets quickly so frozen instances do not hold
@@ -66,13 +72,46 @@ function initDb(): Db {
         //  - keepAlive re-checks connections so pooled endpoints (e.g. Neon's
         //    pgbouncer) that silently drop idle connections don't poison the
         //    pool.
-        max: 5,
+        max: resolvePoolMax(process.env),
         connectionTimeoutMillis: 15_000,
         idleTimeoutMillis: 30_000,
         keepAlive: true,
         keepAliveInitialDelayMillis: 10_000,
         application_name: "pwos",
       });
+
+    // PgBouncer (transaction pooling) compatibility.
+    //
+    // node-postgres is safe under external transaction pooling OUT OF THE BOX
+    // as long as the application never holds session-scoped state (SET /
+    // LISTEN / advisory locks / temp tables) across queries — PWOS does not.
+    // Two runtime behaviors matter here and are handled below:
+    //
+    //  1. When the pooler (or the database) terminates an idle backend — e.g.
+    //     pgbouncer `server_idle_timeout`, a Neon/scale-to-zero wake-up, a
+    //     deploy — the pooled client emits an `error`. pg-pool forwards that
+    //     as an `error` event on the Pool AFTER evicting the dead client.
+    //     Without a listener Node treats it as an uncaught exception and the
+    //     whole process crashes. The listener below keeps the process alive;
+    //     the dead client has already been removed, and the next acquisition
+    //     opens a fresh connection. Session are therefore never "frozen" and
+    //     a pooler-side drop can never take the app down.
+    //  2. Queries are always sent through the simple/unnamed-statement
+    //     protocol — node-postgres never PREPAREs a named statement here, so
+    //     a transaction that gets routed to a different backend by the pooler
+    //     can never fail with "prepared statement does not exist".
+    if (!pool.listenerCount("error")) {
+      pool.on("error", (error: Error) => {
+        // Best-effort visibility without pulling in a logging dependency.
+        // The errored idle client is already evicted by pg-pool; the pool
+        // transparently reconnects on next use.
+        try {
+          console.error("[pwos:db] idle database connection error (pool recovered):", error.message);
+        } catch {
+          /* logging must never throw */
+        }
+      });
+    }
 
     // Reuse the pool across hot-reloads in development; in production the pool
     // is kept alive through the globally cached `db` handle above.

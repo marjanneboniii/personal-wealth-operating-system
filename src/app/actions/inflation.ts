@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { commodityItems, commodityPriceRecords, users } from "@/db/schema";
+import { commodityItems, commodityPriceRecords } from "@/db/schema";
 import { D } from "@/domain/decimal";
 import { getCurrentUser } from "@/lib/auth";
-import { isNotNull } from "drizzle-orm";
+import { authUsersExistCached } from "@/lib/tenantState";
 import { recordInflationPrice } from "@/features/inflation/service";
 
 export type InflationResult = { ok: boolean; message: string };
@@ -26,8 +26,7 @@ async function guardInflation(): Promise<string | null> {
     const user = await getCurrentUser();
     let hasAuth = false;
     try {
-      const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
-      hasAuth = !!row;
+      hasAuth = await authUsersExistCached();
     } catch {
       throw new Error("Authentication/Database error: Access denied");
     }

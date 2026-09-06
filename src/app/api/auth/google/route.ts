@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { createSession, setSessionCookie, getCurrentUserFromRequest } from "@/lib/auth";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 import { recordAuditEvent } from "@/lib/audit";
+import { invalidateTenantStateCache } from "@/lib/tenantState";
 
 /**
  * SECURITY: self-service Google sign-up always receives the low-privilege
@@ -103,7 +104,15 @@ export async function POST(req: Request) {
 
     // Rate limit per email identity and per client IP
     const clientIp = getClientIp(req);
-    if (!checkRateLimit(`google:${email}`, 20, 60).ok || !checkRateLimit(`google-ip:${clientIp}`, 30, 60).ok) {
+    const emailLimit = await checkRateLimit(`google:${email}`, 20, 60);
+    if (!emailLimit.ok) {
+      return NextResponse.json(
+        { ok: false, error: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." },
+        { status: 429 }
+      );
+    }
+    const ipLimit = await checkRateLimit(`google-ip:${clientIp}`, 30, 60);
+    if (!ipLimit.ok) {
       return NextResponse.json(
         { ok: false, error: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." },
         { status: 429 }
@@ -205,6 +214,10 @@ export async function POST(req: Request) {
         role: DEFAULT_GOOGLE_ROLE,
       } as any)
       .returning();
+
+    // A brand-new user row changes the tenant count / auth-enabled state —
+    // invalidate the shared tenant-state cache so guards see it immediately.
+    invalidateTenantStateCache();
 
     try {
       await db.insert(userFxSettings).values({ userId: newUser.id, currentRate: "190000" }).onConflictDoNothing();
