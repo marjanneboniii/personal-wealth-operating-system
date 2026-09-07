@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { D } from "@/domain/decimal";
-import { formatMoney, getDualDate, formatDualMoneyFromIrt, toFaDigits } from "@/lib/format";
+import { formatMoney, formatDualMoneyFromIrt, toFaDigits } from "@/lib/format";
 
 type SmartAmountPreviewProps = {
   irtAmount: string;
@@ -42,28 +42,6 @@ export function SmartAmountPreview({ irtAmount, rate, rateDate, rateSource }: Sm
         {rateSource && <span> · منبع: {rateSource}</span>}
       </div>
       <div className="muted text-[10px]">این محاسبه صرفاً نمایشی است و تا قبل از «تأیید نهایی» هیچ سندی در دفترکل ایجاد نمی‌کند.</div>
-    </div>
-  );
-}
-
-type DualDatePreviewProps = {
-  iso: string; // YYYY-MM-DD gregorian
-};
-
-export function DualDatePreview({ iso }: DualDatePreviewProps) {
-  if (!iso) return <div className="muted text-[11px]">تاریخ را انتخاب کنید تا پیش‌نمایش دوگانه نمایش داده شود.</div>;
-  const dual = getDualDate(iso);
-  return (
-    <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-6 flex flex-wrap gap-3">
-      <span className="flex items-center gap-1">
-        <span className="muted">شمسی:</span>
-        <strong dir="rtl" className="num">{dual.jalali}</strong>
-      </span>
-      <span className="muted">·</span>
-      <span className="flex items-center gap-1">
-        <span className="muted">میلادی:</span>
-        <strong dir="ltr" className="num" style={{ fontFamily: "ui-monospace, monospace" }}>{dual.gregorian}</strong>
-      </span>
     </div>
   );
 }

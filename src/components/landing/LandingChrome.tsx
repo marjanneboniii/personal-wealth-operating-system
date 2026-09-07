@@ -5,34 +5,27 @@ import { DownloadIosButton } from "@/components/pwa/IosInstallGuide";
 
 export function LandingHeader() {
   return (
-    <header className="site-header">
-      <div className="container">
-        <Link href="/" className="brand" aria-label="توازن — سیستم‌عامل ثروت شخصی">
-          <BrandMark framed size={34} />
-          <div className="flex flex-col">
-            <BrandWordmark className="text-[1.05rem] font-extrabold tracking-tight" />
-            <span className="text-[0.65rem] font-medium text-[var(--slate-500)] hidden sm:block">
-              سیستم‌عامل ثروت شخصی
-            </span>
-          </div>
+    <header className="landing-header">
+      <div className="landing-wrap landing-header-inner">
+        <Link href="/" className="landing-brand" aria-label="توازن — سیستم‌عامل ثروت شخصی">
+          <BrandMark size={28} style={{ color: "var(--color-accent)" }} />
+          <span className="min-w-0 leading-tight">
+            <BrandWordmark className="block text-[16px] text-[color:var(--on-primary)]" />
+            <span className="landing-on-primary-muted hidden text-[10px] sm:block">سیستم‌عامل ثروت شخصی</span>
+          </span>
         </Link>
-
-        <nav className="main-nav" aria-label="ناوبری اصلی">
-          <a href="#modules">قابلیت‌ها</a>
-          <a href="#insights">راهنما و بینش‌ها</a>
-          <Link href="/watch">تور تعاملی</Link>
-          <Link href="/about">درباره ما</Link>
-        </nav>
-
-        <div className="header-actions">
+        <nav className="landing-header-nav" aria-label="ورود به محصول">
           <ThemeToggleButton />
-          <Link href="/login" className="btn btn-ghost">
+          <span className="hidden sm:inline-flex">
+            <DownloadIosButton className="!min-h-12 !px-3 text-[13px] sm:!px-4" variant="ghost" />
+          </span>
+          <Link href="/login" className="btn btn-ghost !min-h-12 !px-2.5 text-[13px] sm:!px-4">
             ورود
           </Link>
-          <Link href="/register" className="btn btn-primary">
-            شروع رایگان
+          <Link href="/register" className="btn btn-primary !min-h-12 !px-3 text-[13px] sm:!px-4">
+            ایجاد حساب
           </Link>
-        </div>
+        </nav>
       </div>
     </header>
   );
@@ -40,27 +33,32 @@ export function LandingHeader() {
 
 export function LandingFooter() {
   return (
-    <footer className="site-footer">
-      <div className="container">
-        <Link href="/" className="brand" aria-label="توازن">
-          <BrandMark framed size={28} />
-          <span className="text-[0.95rem] font-bold">توازن</span>
-        </Link>
-        <nav className="flex items-center gap-4 text-[0.8rem] text-[var(--slate-500)]" aria-label="پیوندهای پاورقی">
-          <Link href="/about" className="hover:text-[var(--sky-700)]">
+    <footer className="landing-footer">
+      <div className="landing-wrap flex flex-col gap-5 py-8 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2" style={{ color: "var(--color-accent)" }}>
+            <BrandMark size={22} />
+            <BrandWordmark className="text-[15px] text-[color:var(--on-primary)]" />
+          </div>
+          <p className="sub mt-2 max-w-xs text-[13px] leading-6">سیستم‌عامل ثروت شخصی — آرام، خصوصی، دقیق.</p>
+        </div>
+        <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]" aria-label="پاورقی">
+          <Link href="/about" className="sub hover:underline">
             درباره
           </Link>
-          <Link href="/privacy" className="hover:text-[var(--sky-700)]">
+          <Link href="/privacy" className="sub hover:underline">
             حریم خصوصی
           </Link>
-          <Link href="/terms" className="hover:text-[var(--sky-700)]">
-            شرایط استفاده
+          <Link href="/terms" className="sub hover:underline">
+            شرایط
           </Link>
-          <Link href="/watch" className="hover:text-[var(--sky-700)]">
-            تور توازن
+          <Link href="/login" className="sub hover:underline">
+            ورود
           </Link>
         </nav>
-        <p className="footer-note">© ۱۴۰۵ توازن — همهٔ حقوق برای حفظ محرمانگی داده‌ها محفوظ است.</p>
+      </div>
+      <div className="landing-wrap border-t py-4 text-[12px]">
+        <p className="muted">© {new Date().getFullYear()} توازن — سیستم‌عامل ثروت شخصی</p>
       </div>
     </footer>
   );
