@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { jalaliToIso, parseJalaliString, formatJalaliIso, toFaDigits } from "@/lib/format";
+import { jalaliToIso, parseJalaliString, formatJalaliIso } from "@/lib/format";
 import { DualDatePreview } from "./SmartPreview";
+import AppDoranDatePicker from "./DoranDatePicker";
 
 type Props = {
   name: string; // gregorian ISO field name submitted to server
@@ -19,7 +20,7 @@ export default function DualDateInput({ name, defaultValue, value, onChange, lab
 
   const iso = value !== undefined ? value : isoInternal;
 
-  // Sync from parent changes during render (no cascading effect render)
+  // Sync from parent changes during render
   const [prevV, setPrevV] = useState<string | undefined>(value !== undefined ? value : defaultValue);
   const v = value !== undefined ? value : defaultValue;
   if (v !== prevV) {
@@ -30,9 +31,15 @@ export default function DualDateInput({ name, defaultValue, value, onChange, lab
     }
   }
 
-  const setIso = (v: string) => {
-    if (value === undefined) setIsoInternal(v);
-    onChange?.(v);
+  const setIso = (newIso: string) => {
+    if (value === undefined) setIsoInternal(newIso);
+    onChange?.(newIso);
+  };
+
+  const handleDoranChange = (newIso: string) => {
+    setIso(newIso);
+    if (newIso) setJalali(formatJalaliIso(newIso, "en"));
+    else setJalali("");
   };
 
   const onIsoChange = (v: string) => {
@@ -41,23 +48,28 @@ export default function DualDateInput({ name, defaultValue, value, onChange, lab
     else setJalali("");
   };
 
-  const onJalaliChange = (v: string) => {
-    setJalali(v);
-    const parsed = parseJalaliString(v);
-    if (parsed) {
-      const newIso = jalaliToIso(parsed.y, parsed.m, parsed.d);
-      setIso(newIso);
-    } else if (!v) {
-      setIso("");
-    }
-  };
-
   return (
     <div className="space-y-2">
-      <label className="label">{label}</label>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="flex items-center justify-between">
+        <label className="label mb-0">{label}</label>
+        <span className="text-[10px] text-[var(--sky-600)] font-semibold">تقویم جلالی دوران</span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
+        {/* Doran Persian Calendar Date Picker */}
         <div>
-          <div className="muted text-[10px] mb-1">میلادی (LTR)</div>
+          <div className="muted text-[10px] mb-1">انتخابگر تقویم شمسی (دوران)</div>
+          <AppDoranDatePicker
+            value={iso}
+            onChange={handleDoranChange}
+            required={required}
+            placeholder="انتخاب از تقویم…"
+          />
+        </div>
+
+        {/* Gregorian ISO field */}
+        <div>
+          <div className="muted text-[10px] mb-1">معادل میلادی (LTR)</div>
           <input
             type="date"
             value={iso}
@@ -67,17 +79,8 @@ export default function DualDateInput({ name, defaultValue, value, onChange, lab
             required={required}
           />
         </div>
-        <div>
-          <div className="muted text-[10px] mb-1">شمسی (RTL) — YYYY/MM/DD</div>
-          <input
-            value={jalali}
-            onChange={(e) => onJalaliChange(e.target.value)}
-            placeholder="۱۴۰۳/۰۲/۱۵"
-            className="field num"
-            dir="rtl"
-          />
-        </div>
       </div>
+
       {/* hidden field submitted to server */}
       <input type="hidden" name={name} value={iso} required={required} />
       <DualDatePreview iso={iso} />
