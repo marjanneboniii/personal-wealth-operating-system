@@ -381,14 +381,18 @@ export default function TransactionForm({
   const needsQty = type === "buy" || type === "sell" || type === "transfer";
 
   /**
-   * Counter expense account for planning-only debts (no ledger liability
-   * account). Prefer the «متفرقه» (miscellaneous) expense account (5900) so
-   * the outflow lands in a meaningful bucket; fall back to any expense
-   * account. The user never sees or chooses this — it is pure plumbing for
-   * the existing double-entry engine.
+   * Counter account for a repayment of a PLANNING-ONLY debt (no ledger
+   * liability account). It prefers 5960 «پرداخت اقساط» — the dedicated
+   * installment bucket — and only if the chart somehow has no such row does it
+   * fall back to any expense account. Never 5900 «هزینه متفرقه»: a loan payment
+   * is not miscellaneous spending, and mixing them is what made the bucket a
+   * grab-bag (audit F-3, 2026-09-07). The bucket is plumbing for the
+   * double-entry engine — the entry type stays `debt_repayment`, so the amount
+   * is reported under «بدهی و بازپرداخت», not as an expense — and the review
+   * row below still shows WHICH account received it.
    */
   const defaultExpenseAccount = () =>
-    accountOptions.find((a) => a.type === "expense" && a.code === "5900") ??
+    accountOptions.find((a) => a.type === "expense" && a.code === "5960") ??
     accountOptions.find((a) => a.type === "expense");
 
   const handleSelectDebt = (d: DebtOption) => {
@@ -854,7 +858,9 @@ export default function TransactionForm({
                   <>
                     <input type="hidden" name="counterAccountId" value={counterAccountId} />
                     <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
-                      مبلغ پرداخت از حساب انتخابی شما کسر می‌شود و مانده این بدهی کاهش پیدا می‌کند. همه جزئیات ثبت به‌صورت خودکار انجام می‌شود.
+                      مبلغ پرداخت از حساب انتخابی شما کسر می‌شود و مانده این بدهی کاهش پیدا می‌کند. همه جزئیات ثبت به‌صورت خودکار انجام
+                      می‌شود؛ خروج وجه در سرفصل «پرداخت اقساط» بایگانی می‌شود — نه در «هزینه متفرقه» — و به همین دلیل در گزارش
+                      هزینه‌ها و در سقف بودجه‌های خرج شمارش نمی‌شود.
                     </div>
                   </>
                 )}

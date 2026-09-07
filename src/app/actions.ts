@@ -27,6 +27,7 @@ import { authUsersExistCached } from "@/lib/tenantState";
 import { validateAccountOwnership } from "@/lib/validation";
 import {
   ensureFeeExpenseAccount,
+  ensureInstallmentPaymentAccount,
   ensureRealizedPnlAccount,
   resolveExpenseCounterAccount,
 } from "@/features/accounts/systemAccounts";
@@ -620,9 +621,9 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         //  - debt WITH a liability account: cash ↓ / liability ↓ (net worth
         //    effect only, excluded from every expense report);
         //  - planning-only debt (no liability account yet): the outflow is
-        //    booked against the chosen expense account so money stays
-        //    tracked, but the entry type remains 'debt_repayment' and is
-        //    excluded from expense/cash-flow aggregations.
+        //    booked against the dedicated «پرداخت اقساط» bucket (5960) so the
+        //    money stays tracked, and the entry type remains 'debt_repayment',
+        //    which keeps it out of expense / cash-flow / budget aggregations.
         if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
         const cashAsset = await accountAsset(input.primaryAccountId);
         const price = await latestPrice(cashAsset, authUser?.id ?? null);
@@ -656,11 +657,24 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
             tx,
           );
         } else {
-          if (!isUuid(input.counterAccountId)) {
-            throw new Error("این بدهی حساب بدهی جداگانه ندارد؛ حساب هزینه مقابل را انتخاب کنید");
+          // WHICH account receives the outflow is plumbing, not a user
+          // decision, and it must never be 5900 «هزینه متفرقه» (audit F-3):
+          // the Payment Form prefills the tenant's «پرداخت اقساط» bucket and
+          // whatever it sent is honoured (ownership was validated above). If
+          // nothing usable came from the client — e.g. an API caller that only
+          // knows the debt — the bucket is resolved and provisioned
+          // server-side, exactly like the Quick Pay path, so the two entry
+          // points can never classify the same movement differently.
+          const contraAccountId = isUuid(input.counterAccountId)
+            ? input.counterAccountId
+            : ((await ensureInstallmentPaymentAccount(authUser?.id ?? null, tx))?.id ?? null);
+          if (!contraAccountId) {
+            throw new Error(
+              "این بدهی حساب بدهی جداگانه ندارد و سرفصل «پرداخت اقساط» هم ساخته نشد؛ در «تنظیمات ← حساب‌ها» یک حساب هزینه بسازید.",
+            );
           }
           lines.push({
-            accountId: input.counterAccountId,
+            accountId: contraAccountId,
             assetId: cashAsset,
             quantity: qty,
             baseValue: amount.toString(),
@@ -991,6 +1005,9 @@ export async function payInstallmentAction(id: string, cashAccountId: string): P
       id?: string;
       alreadyPaid?: boolean;
       contra?: "expense" | "liability" | null;
+      /** name of the chart row that received the outflow, when it was not a
+       *  liability account (the message must name it, not a hardcoded label). */
+      contraName?: string | null;
     };
     refreshAll();
     // The message follows the ACCOUNTING FACT, not a generic success string:
@@ -1003,7 +1020,7 @@ export async function payInstallmentAction(id: string, cashAccountId: string): P
       ok: true,
       message:
         paid?.contra === "expense"
-          ? "قسط پرداخت و از حساب کم شد. این بدهی حساب بدهی جداگانه ندارد، پس خروج وجه در سرفصل «هزینه متفرقه» طبقه‌بندی شد — و در گزارش‌های هزینه شمارش نمی‌شود."
+          ? `قسط پرداخت و از حساب کم شد. این بدهی حساب بدهی جداگانه ندارد، پس خروج وجه در سرفصل «${paid.contraName ?? "پرداخت اقساط"}» بایگانی شد — بازپرداخت بدهی است، نه هزینه؛ در گزارش هزینه‌ها و در سقف بودجه‌ها شمارش نمی‌شود.`
           : "قسط پرداخت و مانده بدهی به‌روزرسانی شد.",
     };
   } catch (e) {

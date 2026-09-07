@@ -11,10 +11,12 @@
  * follows (createTransactionAction → debt_repayment branch):
  *
  *   debt WITH a liability account   → cash ↓ / liability ↓, type 'installment'
- *   debt WITHOUT one (planning-only) → cash ↓ / expense bucket ↑, type
+ *   debt WITHOUT one (planning-only) → cash ↓ / «پرداخت اقساط» (5960) ↑, type
  *                                     'debt_repayment', bucket resolved
- *                                     server-side (tenant 5900, provisioned if
- *                                     the chart has none)
+ *                                     server-side by CODE (the tenant's own
+ *                                     row, else a fresh one) — never 5900
+ *                                     «هزینه متفرقه», see the 2026-09-07
+ *                                     classification audit F-3
  *
  * `debt_repayment` is the type getCashflow / getFlowByAccount exclude, so
  * paying an installment never enters the expense report — and the wallet still
@@ -178,6 +180,8 @@ test("quick pay on a planning-only debt books the outflow instead of erroring", 
 
   const bucket = lines.find((l: any) => l.accountId !== cash.id)!;
   const [bucketRow] = await db.select().from(accounts).where(eq(accounts.id, bucket.accountId));
+  assert.equal(bucketRow.code, "5960", "the dedicated installment bucket, not a generic expense row");
+  assert.equal(bucketRow.name, "پرداخت اقساط", "which is what the report and the message will call it");
   assert.equal(bucketRow.type, "expense", "the contra row is an expense-type account of THIS tenant");
   assert.equal(bucketRow.userId, user.id, "and never another tenant's bucket");
 
@@ -194,13 +198,20 @@ test("quick pay on a planning-only debt books the outflow instead of erroring", 
   assert.ok(D(cashBal.baseValue).isNegative(), `cash balance after paying: ${cashBal.baseValue}`);
 });
 
-test("the expense bucket is provisioned when the tenant has no expense row", async () => {
+test("the installment bucket is provisioned when the tenant has no expense row", async () => {
   await modulesReady;
-  // Same DB as the previous test: the 5900 created there is this tenant's now.
+  // Same DB as the previous test: the fixture owned NO expense account at all,
+  // so the row below was created by the payment — on its OWN code, the way 5040
+  // is provisioned. The point of the 2026-09-07 fix: a repayment gets a bucket
+  // with meaning, and «هزینه متفرقه» is never invented as a dumping ground.
   const rows = await db.select().from(accounts);
   const [user] = await db.select().from(users);
-  const bucket = rows.find((r: any) => r.userId === user.id && r.type === "expense" && r.code === "5900");
-  assert.ok(bucket, "5900 «هزینه متفرقه» exists for the tenant and received the posting");
+  const bucket = rows.find((r: any) => r.userId === user.id && r.type === "expense" && r.code === "5960");
+  assert.ok(bucket, "5960 «پرداخت اقساط» exists for the tenant and received the posting");
+  assert.ok(
+    !rows.some((r: any) => r.code === "5900"),
+    "no 5900 «هزینه متفرقه» row was created to absorb a loan payment (F-3)",
+  );
 });
 
 test("paying again is a no-op, not a second journal entry", async () => {

@@ -13,7 +13,11 @@ import {
 } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import { postEntry, unitsFor } from "@/features/ledger/service";
-import { ensureMiscExpenseAccount } from "@/features/accounts/systemAccounts";
+import {
+  ensureInstallmentPaymentAccount,
+  INSTALLMENT_PAYMENT_CODE,
+  INSTALLMENT_PAYMENT_NAME,
+} from "@/features/accounts/systemAccounts";
 import { getAccountBalances, hasMultipleUsers } from "@/features/ledger/queries";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { readTenantState } from "@/lib/tenantState";
@@ -176,7 +180,7 @@ export async function listBudgets(userId?: string) {
     const minStart = rows.reduce((min, r) => (r.periodStart < min ? r.periodStart : min), rows[0].periodStart);
     const maxEnd = rows.reduce((max, r) => (r.periodEnd > max ? r.periodEnd : max), rows[0].periodEnd);
     const postingsRes = await db.execute(sql`
-      select p.account_id as account_id, je.entry_date::text as entry_date, p.base_value::text as val
+      select p.account_id as account_id, je.entry_date::text as entry_date, je.type::text as entry_type, p.base_value::text as val
       from postings p
         join journal_entries je on je.id = p.entry_id
       where je.status = 'posted'
@@ -188,12 +192,26 @@ export async function listBudgets(userId?: string) {
         and je.entry_date >= ${minStart}
         and je.entry_date <= ${maxEnd}
     `);
-    const postingRows = postingsRes.rows as { account_id: string; entry_date: string; val: string }[];
+    const postingRows = postingsRes.rows as {
+      account_id: string;
+      entry_date: string;
+      entry_type: string;
+      val: string;
+    }[];
     for (const b of rows) {
       if (!b.accountId) continue;
+      // AUDIT F-2 (2026-09-07): a debt repayment is NOT spend. Its contra leg
+      // lives on an expense-type account (5960), so a posting-level SUM alone
+      // counted it and a budget on «هزینه متفرقه» reported false overspend the
+      // day an installment was paid. A repayment is measured only by a budget
+      // that was DELIBERATELY bound to «پرداخت اقساط» — the one ceiling for
+      // which installment outflow is the thing being capped.
+      const installmentBudget = b.accountCode === INSTALLMENT_PAYMENT_CODE;
       let sumSpendUsd = Decimal.zero();
       for (const pr of postingRows) {
-        if (pr.account_id === b.accountId && pr.entry_date >= b.periodStart && pr.entry_date <= b.periodEnd) {
+        if (pr.account_id !== b.accountId) continue;
+        if (pr.entry_type === "debt_repayment" && !installmentBudget) continue;
+        if (pr.entry_date >= b.periodStart && pr.entry_date <= b.periodEnd) {
           sumSpendUsd = sumSpendUsd.add(D(pr.val));
         }
       }
@@ -560,26 +578,29 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     //      created in «بدهی‌ها» is stored, because createDebtAction deliberately
     //      leaves the ledger untouched until a real movement happens — has no
     //      liability to reduce. The money nevertheless left the wallet, so the
-    //      outflow is classified against the tenant's expense bucket with entry
-    //      type `debt_repayment`: the SAME two legs, the SAME type and the SAME
-    //      bucket the Payment Form produces for this case
-    //      (createTransactionAction → debt_repayment branch), and that type is
-    //      excluded from every expense / cash-flow aggregation
-    //      (see getCashflow / getFlowByAccount), so an installment payment can
-    //      never be mistaken for consumption.
+    //      outflow is classified against the dedicated «پرداخت اقساط» bucket
+    //      (5960) with entry type `debt_repayment`: never 5900 «هزینه متفرقه»,
+    //      because a repayment is not groceries. The type is excluded from every
+    //      expense / cash-flow aggregation (getCashflow, getFlowByAccount,
+    //      getFlowByCategory and the reports KPI via getExpenseIncomeTotals), so
+    //      an installment payment can never be mistaken for consumption — and
+    //      since 2026-09-07 neither can a budget eat it (see listBudgets).
     //
     //    Quick Pay used to throw «حساب بدهی تعریف نشده است» here, which made the
     //    one-click button on every UI-created installment dead on arrival.
     let contraAccountId: string | null = debt.accountId;
     let contraIsExpense = false;
+    let contraBucketName: string | null = null;
     if (!contraAccountId) {
-      contraAccountId = (await ensureMiscExpenseAccount(u ?? null, tx))?.id ?? null;
+      const bucket = await ensureInstallmentPaymentAccount(u ?? null, tx);
+      contraAccountId = bucket?.id ?? null;
+      contraBucketName = bucket?.name ?? null;
       contraIsExpense = true;
       if (!contraAccountId) {
         // A genuine accounting precondition, not a design dead-end: with no
         // expense row at all the entry would post unbalanced.
         throw new Error(
-          "برای ثبت این قسط به یک حساب هزینه نیاز است؛ در «تنظیمات ← حساب‌ها» یک حساب هزینه بسازید.",
+          "سرفصل «پرداخت اقساط» در دفتر این کاربر ساخته نشد؛ در «تنظیمات ← حساب‌ها» یک حساب هزینه بسازید.",
         );
       }
     }
@@ -644,7 +665,7 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
             quantity: contraUnits.quantity,
             baseValue: paymentUsd.toString(),
             memo: contraIsExpense
-              ? "بدهیِ بدون حساب بدهی — طبقه‌بندی خروج وجه در سرفصل هزینه (خارج از گزارش هزینه‌ها)"
+              ? `بدهیِ بدون حساب بدهی — خروج وجه در سرفصل «${contraBucketName ?? INSTALLMENT_PAYMENT_NAME}»، نه «هزینه متفرقه»؛ خارج از گزارش هزینه‌ها و خارج از بودجه‌ها`
               : "کاهش مانده بدهی",
           },
         ],
@@ -676,8 +697,14 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     }
     // `.id` keeps every existing caller working (the entry is what they read);
     // `.contra` says which side absorbed the outflow so the UI can be explicit
-    // about a classification the user never chose themselves.
-    return { ...entry, contra: (contraIsExpense ? "expense" : "liability") as "expense" | "liability" };
+    // about a classification the user never chose themselves, and `.contraName`
+    // names the bucket that actually received it (the chart row's own name —
+    // a renamed account must never be described by a hardcoded string).
+    return {
+      ...entry,
+      contra: (contraIsExpense ? "expense" : "liability") as "expense" | "liability",
+      contraName: contraBucketName,
+    };
   });
 }
 

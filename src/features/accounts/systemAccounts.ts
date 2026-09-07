@@ -8,7 +8,9 @@
  *   • 5040  «کارمزد و بانک»            — the fee leg of a buy/sell
  *   • 4100  «سود سرمایه‌ای تحقق‌یافته» — the realized P&L leg of a sell
  *   • 3200  «ذخیره استهلاک …»          — the counter of a non-cash expense
- *   • 5xxx  «اولین حساب هزینه»          — the ledger counterpart of an expense
+ *   • 5900  «هزینه متفرقه»            — the fallback counterpart of an expense
+ *   • 5960  «پرداخت اقساط»           — the bucket an installment payment of a
+ *                                      PLANNING-ONLY debt is classified against
  * Historically those lookups were `where code = ? limit 1` with NO tenant
  * filter and NO ordering, which meant (a) an arbitrary OTHER tenant's account
  * could receive the posting, and (b) on a fresh install (whose chart comes from
@@ -44,6 +46,27 @@ export const RESERVE_ACCOUNT_CODE = "3200";
 export const OPENING_EQUITY_CODE = "3010";
 /** Miscellaneous expense account (legacy fallback counterpart). */
 export const MISC_EXPENSE_CODE = "5900";
+/**
+ * Installment-payment bucket (audit F-3, 2026-09-07).
+ *
+ * When a debt has NO ledger liability account (every debt created in the UI is
+ * planning-only until a real movement happens), the debit side of a payment
+ * needs a home. It gets a dedicated 5xxx row — «پرداخت اقساط» — instead of
+ * landing on 5900 «هزینه متفرقه» with the groceries.
+ *
+ * The row is expense-TYPED (that is what a debit can legally hit here; a
+ * liability row would invert net worth, see the audit's F-5) but it is NOT
+ * consumption, and nothing treats it as such:
+ *   • getCashflow / getFlowByAccount / getFlowByCategory / getNetSavingsBetween
+ *     already filter `je.type not in ('debt_repayment')`;
+ *   • `getExpenseIncomeTotals` (the reports KPI) is built on the same filter,
+ *     so a repayment never inflates «کل هزینه» or the savings rate;
+ *   • `listBudgets` measures a repayment only for a budget DELIBERATELY bound
+ *     to this code — an ordinary expense budget can no longer be eaten alive by
+ *     a loan payment.
+ */
+export const INSTALLMENT_PAYMENT_CODE = "5960";
+export const INSTALLMENT_PAYMENT_NAME = "پرداخت اقساط";
 
 export type SystemAccount = {
   id: string;
@@ -200,25 +223,23 @@ export async function ensureSystemAccount(
 }
 
 /**
- * The expense bucket a SERVER-resolved counter-leg falls back to — the tenant's
- * own 5900 «هزینه متفرقه», else the first expense row of their chart, else a
- * freshly provisioned 5900 (the module's own rule: never skip a leg that an
- * in-flight entry needs, because skipping is what breaks Σ = 0).
+ * The installment-payment bucket (5960) for a tenant, provisioned on demand —
+ * the SAME pattern as 5040, because the leg is required by an in-flight entry.
  *
- * Used by Quick Pay on a PLANNING-ONLY debt: such a debt has no liability
- * account to reduce, so the outflow is classified against this bucket with
- * entry type `debt_repayment` — exactly what the Payment Form does when the
- * user picks the counter account themselves.
+ * Deliberately NOT `resolveExpenseCounterAccount`: that helper exists to give a
+ * plain EXPENSE entry a counterpart, and its fallthrough ("the first expense
+ * row of the chart") is exactly what turned 5900 into a repayment grab-bag.
+ * Here the CODE is the contract: this tenant's own 5960 row, else the shared
+ * global 5960 (legacy single-tenant and seeded charts), else a freshly
+ * provisioned 5960 owned by this tenant. Never another tenant's row.
  */
-export async function ensureMiscExpenseAccount(
+export async function ensureInstallmentPaymentAccount(
   userId?: string | null,
   client: any = db,
 ): Promise<SystemAccount | null> {
-  const found = await resolveExpenseCounterAccount(userId, client);
-  if (found) return found;
   return ensureSystemAccount({
-    code: MISC_EXPENSE_CODE,
-    name: "هزینه متفرقه",
+    code: INSTALLMENT_PAYMENT_CODE,
+    name: INSTALLMENT_PAYMENT_NAME,
     type: "expense",
     userId,
     client,
