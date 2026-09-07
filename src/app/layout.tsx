@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import "@doranjs/ui/styles.css";
+import "@doranjs/react/styles.css";
 import "./globals.css";
 import Shell from "@/components/layout/Shell";
 import { ProModeProvider } from "@/components/layout/ProModeProvider";

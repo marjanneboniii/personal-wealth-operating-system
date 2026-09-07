@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { previewPurchaseUsdAction, saveVehicleAction } from "@/app/actions/registry";
 import DualDateInput from "@/components/ui/DualDateInput";
-import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
+import AppDoranDatePicker from "@/components/ui/DoranDatePicker";
 import AmountInput from "@/components/ui/AmountInput";
 import { formatMoney, toFaDigits, toJalali, todayIso } from "@/lib/format";
 import type { VehicleBrand, VehicleCatalogModel } from "@/features/rwa/vehicle/types";
@@ -278,10 +278,10 @@ export default function VehicleForm({
               <AmountInput className="field num" name="initialValuation" inputMode="numeric" dir="ltr" placeholder="4200000000" unit="toman" />
             </Labeled>
             <Labeled label="تاریخ ارزش‌گذاری">
-              <JalaliDatePicker
+              <AppDoranDatePicker
                 name="initialValuationDate"
                 defaultValue={today}
-                ariaLabel="تاریخ ارزش‌گذاری"
+                placeholder="تاریخ ارزش‌گذاری…"
               />
             </Labeled>
             <Labeled label="نرخ دلار (اختیاری)" hint="خالی بماند: نرخ همان تاریخ از سیستم نرخ ارز خوانده می‌شود.">
