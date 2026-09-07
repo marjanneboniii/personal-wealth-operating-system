@@ -8,6 +8,7 @@ import { eq, isNull, or } from "drizzle-orm";
 import { hashPassword, verifyPassword, createSession, setSessionCookie, clearSessionCookie, destroySession, getCurrentUser } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { recordAuditEvent } from "@/lib/audit";
+import { invalidateTenantStateCache } from "@/lib/tenantState";
 
 export type AuthResult = { ok: boolean; message: string; redirectTo?: string };
 
@@ -54,12 +55,16 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
   const name = String(formData.get("name") || "").trim() || username;
 
   const { checkRateLimit, getRequestIp } = await import("@/lib/rateLimit");
-  if (!checkRateLimit(`register:${username || "anon"}`, 10, 60).ok) {
+  const userLimit = await checkRateLimit(`register:${username || "anon"}`, 10, 60);
+  if (!userLimit.ok) {
     return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
   }
   const ip = await getRequestIp();
-  if (ip && !checkRateLimit(`register-ip:${ip}`, 20, 60).ok) {
-    return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
+  if (ip) {
+    const ipLimit = await checkRateLimit(`register-ip:${ip}`, 20, 60);
+    if (!ipLimit.ok) {
+      return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
+    }
   }
 
   if (!username || username.length < 3) return { ok: false, message: "نام کاربری باید حداقل ۳ کاراکتر باشد." };
@@ -109,6 +114,12 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
     userId = newUser.id;
   }
 
+  // Registration changes the user count and/or the "auth enabled" flag, so the
+  // shared tenant-state cache (used by every auth guard / ledger read) must be
+  // invalidated immediately — a stale "single user / no auth" answer could
+  // otherwise widen the legacy global-view window for up to the cache TTL.
+  invalidateTenantStateCache();
+
   // Ensure user has fx settings with default 190000
   try {
     await db.insert(userFxSettings).values({ userId, currentRate: "190000" }).onConflictDoNothing();
@@ -133,10 +144,16 @@ export async function loginAction(prev: AuthResult | null, formData: FormData): 
   const password = String(formData.get("password") || "");
 
   const { checkRateLimit, getRequestIp } = await import("@/lib/rateLimit");
-  const ip = await getRequestIp();
-  if (!checkRateLimit(`login:${username || "anon"}`, 10, 60).ok ||
-      (ip && !checkRateLimit(`login-ip:${ip}`, 30, 60).ok)) {
+  const userLimit = await checkRateLimit(`login:${username || "anon"}`, 10, 60);
+  if (!userLimit.ok) {
     return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
+  }
+  const ip = await getRequestIp();
+  if (ip) {
+    const ipLimit = await checkRateLimit(`login-ip:${ip}`, 30, 60);
+    if (!ipLimit.ok) {
+      return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
+    }
   }
   if (!username || !password) return { ok: false, message: "نام کاربری و رمز عبور را وارد کنید." };
 

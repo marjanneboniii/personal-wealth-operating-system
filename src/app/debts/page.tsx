@@ -6,12 +6,13 @@ import { EmptyState, Card, Metric, PageHeader, Progress, Section, SectionLink } 
 import DebtForm from "@/components/forms/DebtForm";
 import Icon from "@/components/ui/Icon";
 import {
-  formatDualDate,
+  formatJalaliIso,
   formatMoney,
   formatPct,
   formatQty,
   todayIso,
   faCount,
+  formatDaysUntil,
   formatTomanPrimary,
   sumToman,
 } from "@/lib/format";
@@ -86,7 +87,7 @@ export default async function DebtsPage() {
           value={nextDisp?.primary ?? "—"}
           hint={
             nextPayment
-              ? `${nextPayment.title} · ${formatDualDate(nextPayment.dueDate)}${nextDisp?.usdHint ? ` · معادل ${nextDisp.usdHint}` : ""}`
+              ? `${nextPayment.title} · ${formatJalaliIso(nextPayment.dueDate)}${nextDisp?.usdHint ? ` · معادل ${nextDisp.usdHint}` : ""}`
               : "قسطی در انتظار نیست"
           }
         />
@@ -139,7 +140,7 @@ export default async function DebtsPage() {
                         {late && <span className="badge badge-neg">قسط معوق</span>}
                       </p>
                       <p className="muted mt-1 text-[11.5px]">
-                        {d.creditor} · شروع {formatDualDate(d.startDate)} · نرخ سود <span className="num" dir="rtl">{formatQty(d.interestRate, 2)}٪</span>
+                        {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود <span className="num" dir="rtl">{formatQty(d.interestRate, 2)}٪</span>
                       </p>
                     </div>
                     <div className="text-left">
@@ -181,13 +182,12 @@ export default async function DebtsPage() {
                               : "—"}
                           </b>{" "}
                           ·{" "}
-                          {dDays != null && dDays < 0 ? (
-                            <b>{faCount(Math.abs(dDays))} روز گذشته</b>
-                          ) : dDays === 0 ? (
-                            <b>امروز</b>
-                          ) : (
-                            <span className="num">{faCount(dDays ?? 0)} روز دیگر</span>
-                          )}
+                          {/* Shared helper: the number must sit BEFORE «روز»
+                              («۱۷ روز دیگر»); hand-written variants of this
+                              phrase kept getting shuffled by the bidi rules. */}
+                          <b className="num" style={dDays != null && dDays < 0 ? { color: "var(--negative)" } : undefined}>
+                            {dDays != null ? formatDaysUntil(dDays) : "—"}
+                          </b>
                         </>
                       ) : settled ? (
                         "همه اقساط پرداخت شدند."

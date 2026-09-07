@@ -10,9 +10,10 @@ export const en: Translations = {
     accountingCurrencyHelp: "Base currency used internally for normalized double-entry ledger calculations.",
     displayCurrencyLabel: "User Display Currency",
     displayCurrencyHelp: "Preferred currency for UI presentation. Does not change ledger values.",
-    dateCalendarLabel: "Date Calendar Preference",
+    dateCalendarLabel: "Date Calendar",
     dateCalendarJalali: "Persian (Jalali)",
-    dateCalendarGregorian: "Gregorian",
+    dateCalendarFixedBadge: "Fixed",
+    dateCalendarHelp: "Dates are always picked with the Jalali day / month / year selector; the app computes the Gregorian equivalent of that day itself.",
     userNameLabel: "User / Family Name",
     userNamePlaceholder: "e.g., John & Family",
 

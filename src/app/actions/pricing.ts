@@ -1,10 +1,11 @@
 "use server";
 
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { accounts, assetClasses, assets, coingeckoAssetCatalog, users } from "@/db/schema";
+import { accounts, assetClasses, assets, coingeckoAssetCatalog } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { authUsersExistCached } from "@/lib/tenantState";
 import {
   getMarketCatalogStatus,
   listPricedCoinGeckoCatalog,
@@ -30,11 +31,8 @@ export type RegisterMarketAssetResult = {
 
 async function requireRegistrationIdentity() {
   const user = await getCurrentUser();
-  const [authEnabled] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(isNotNull(users.username))
-    .limit(1);
+  // Cached "any username-bearing user exists" probe — see lib/tenantState.ts.
+  const authEnabled = await authUsersExistCached();
   if (authEnabled && !user) throw new Error("برای افزودن دارایی ابتدا وارد شوید.");
   return user;
 }

@@ -34,7 +34,7 @@ export default async function NewTransactionPage({
 
   const sharedAccountingCodes = [
     "3000", "3010", "3200", "4000", "4010", "4100", "4900",
-    "5000", "5010", "5020", "5030", "5040", "5050", "5900",
+    "5000", "5010", "5020", "5030", "5040", "5050", "5900", "5960",
   ];
   const [rows, fxSnap, debts, marketAssets, categoryTree] = await Promise.all([
     db

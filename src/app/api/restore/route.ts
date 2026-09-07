@@ -6,6 +6,7 @@ import { auditLog, backupRuns, sessions, users } from "@/db/schema";
 import { authorizeOwnerOrAdmin } from "@/lib/authGuard";
 import { clearSessionCookie } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
+import { invalidateTenantStateCache } from "@/lib/tenantState";
 
 export const dynamic = "force-dynamic";
 
@@ -185,6 +186,11 @@ export async function POST(request: Request) {
         tx,
       );
     });
+
+    // Restore replaced the whole `users` table — the shared tenant-state
+    // cache (user count / auth-enabled) must not survive from the pre-restore
+    // database.
+    invalidateTenantStateCache();
 
     // 10. Clear session cookie to force caller re-login
     try {

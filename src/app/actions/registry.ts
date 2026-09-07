@@ -29,8 +29,7 @@ import { createValuationEvent } from "@/features/rwa/valuation/service";
 
 import { getCurrentUser } from "@/lib/auth";
 import { isAdminOrOwner } from "@/lib/authGuard";
-import { users } from "@/db/schema";
-import { isNotNull } from "drizzle-orm";
+import { authUsersExistCached } from "@/lib/tenantState";
 
 export type RegistryResult = { ok: boolean; message: string };
 const refresh = () => {
@@ -52,8 +51,7 @@ async function guardRegistry(): Promise<string | null> {
     const user = await getCurrentUser();
     let hasAuth = false;
     try {
-      const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
-      hasAuth = !!row;
+      hasAuth = await authUsersExistCached();
     } catch {
       throw new Error("Authentication/Database error: Access denied");
     }
@@ -77,8 +75,7 @@ async function guardCatalogAdmin(): Promise<string | null> {
     const user = await getCurrentUser();
     let hasAuth = false;
     try {
-      const [row] = await db.select().from(users).where(isNotNull(users.username)).limit(1);
-      hasAuth = !!row;
+      hasAuth = await authUsersExistCached();
     } catch {
       throw new Error("Authentication/Database error: Access denied");
     }

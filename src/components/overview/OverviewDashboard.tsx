@@ -21,6 +21,7 @@ import {
   formatSignedMoney,
   toJalali,
   faCount,
+  formatDaysUntil,
   inflowTone,
   outflowTone,
   toneColor,
@@ -118,7 +119,10 @@ export default async function OverviewDashboard() {
     attention.push({
       icon: "clock",
       tone: d < 0 ? "neg" : "info",
-      text: d < 0 ? `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» سررسید گذشته است` : `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${d === 0 ? "امروز" : `${faCount(d)} روز دیگر`} سر می‌رسد`,
+      text:
+        d < 0
+          ? `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${formatDaysUntil(d)}`
+          : `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${formatDaysUntil(d)} سر می‌رسد`,
       detail: `${instToman ? formatMoney(instToman, "IRT") : "—"} — ${soonInst.creditor}`,
       href: "/installments",
       action: "مشاهده",
@@ -338,9 +342,9 @@ export default async function OverviewDashboard() {
                 // estate acquisition booked in USD) into a current-rate guess.
                 const displayUsd = h.amountExact;
                 return (
-                  <li key={e.id} className="flex items-center gap-2.5 py-2.5 sm:gap-3 sm:py-3">
+                  <li key={e.id} className="tx-row flex items-start gap-2.5 py-2.5 sm:gap-3 sm:py-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12px] font-medium sm:text-[13px]">{e.description}</p>
+                      <p className="tx-description truncate text-[12px] font-medium sm:text-[13px]">{e.description}</p>
                       <p className="muted mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] sm:text-[11px]">
                         <span>{formatShortDate(e.entryDate)}</span>
                         <span className="opacity-40">·</span>
@@ -353,9 +357,9 @@ export default async function OverviewDashboard() {
                         )}
                       </p>
                     </div>
-                    <div className="shrink-0 text-left min-w-0">
+                    <div className="tx-amount-col shrink-0 text-left">
                       <span
-                        className="num block text-[12px] font-bold money-nowrap sm:text-[13px]"
+                        className="num tx-amount block text-[12px] font-bold money-nowrap sm:text-[13px]"
                         dir="rtl"
                         style={{
                           color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)",

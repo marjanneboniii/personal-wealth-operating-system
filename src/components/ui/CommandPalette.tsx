@@ -115,7 +115,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[90]" role="dialog" aria-modal="true" aria-label="مرکز فرمان">
+    <div className="command-palette fixed inset-0 z-[90]" role="dialog" aria-modal="true" aria-label="مرکز فرمان">
       <button
         aria-label="بستن"
         className="fade-in absolute inset-0 cursor-default"
@@ -123,7 +123,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         onClick={onClose}
       />
       <div
-        className="pop-in absolute inset-x-3 top-[12dvh] mx-auto flex max-h-[66dvh] w-full max-w-xl flex-col overflow-hidden rounded-[var(--r-xl)] border sm:inset-x-0"
+        className="command-palette-panel pop-in absolute inset-x-3 top-[12dvh] mx-auto flex max-h-[66dvh] w-full max-w-xl flex-col overflow-hidden rounded-[var(--r-xl)] border sm:inset-x-0"
         style={{ background: "var(--surface-elev)", borderColor: "var(--border-strong)", boxShadow: "var(--shadow-lg)" }}
       >
         <h2 id="cmdk-title" className="sr-only">

@@ -1,14 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  formatGregorianIso,
-  formatJalaliIso,
-  jalaliToIso,
-  parseJalaliString,
-  toFaDigits,
-  toLatinDigits,
-} from "@/lib/format";
+import { formatGregorianIso, formatJalaliIso } from "@/lib/format";
+import AppDoranDatePicker from "./DoranDatePicker";
 
 type Props = {
   /** base field name — submits {name} (Gregorian ISO) + {name}Persian (display) */
@@ -19,35 +13,41 @@ type Props = {
   onChange?: (iso: string) => void;
   required?: boolean;
   hint?: string;
+  /** Echo the auto-computed Gregorian equivalent. Default true. */
+  showGregorian?: boolean;
 };
 
-const VALID_JALALI = /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/;
-
 /**
- * ورودی تاریخ شمسی — فقط شمسی تایپ می‌شود؛
- * سیستم معادل میلادی (Gregorian) را همان‌جا محاسبه و نمایش می‌دهد و مقدار ISO
- * را در فیلد مخفی برای سرور ارسال می‌کند. ورود دستی میلادی ممکن نیست.
+ * ورودی تاریخ شمسی — کاربر تاریخ را با «تقویم فارسی دوران» (Doran) انتخاب
+ * می‌کند و هیچ تاریخی را دستی تایپ نمی‌کند. معادل میلادی (ISO) همان‌جا محاسبه
+ * می‌شود و در فیلد مخفی برای سرور ارسال می‌گردد؛ یک کپی نمایشی شمسی هم زیر
+ * `${name}Persian` ثبت می‌شود (ماژول املاک آن را نگه می‌دارد).
  */
-export default function JalaliDateInput({ name, label = "تاریخ (شمسی)", value, onChange, required, hint }: Props) {
-  const [jalali, setJalali] = useState(value ? formatJalaliIso(value, "en") : "");
-  const [iso, setIso] = useState(value ?? "");
+export default function JalaliDateInput({
+  name,
+  label = "تاریخ (شمسی)",
+  value,
+  onChange,
+  required,
+  hint,
+  showGregorian = true,
+}: Props) {
+  const [iso, setIsoState] = useState(value ?? "");
 
-  const onInput = (raw: string) => {
-    const v = toLatinDigits(raw);
-    setJalali(v);
-    const parsed = parseJalaliString(v);
-    if (parsed) {
-      const nextIso = jalaliToIso(parsed.y, parsed.m, parsed.d);
-      setIso(nextIso);
-      onChange?.(nextIso);
-    } else if (!v.trim()) {
-      setIso("");
-      onChange?.("");
-    }
+  // Follow a controlled parent when the value changes from the outside —
+  // during render, so there is no extra commit and no cascading effect.
+  const [prevV, setPrevV] = useState<string | undefined>(value);
+  if (value !== prevV) {
+    setPrevV(value);
+    setIsoState(value ?? "");
+  }
+
+  const setIso = (next: string) => {
+    setIsoState(next);
+    onChange?.(next);
   };
 
-  const clean = jalali.trim().replace(/-/g, "/");
-  const valid = VALID_JALALI.test(clean) && parseJalaliString(clean) !== null;
+  const persian = iso ? formatJalaliIso(iso, "en") : "";
 
   return (
     <div className="min-w-0">
@@ -55,31 +55,25 @@ export default function JalaliDateInput({ name, label = "تاریخ (شمسی)",
         {label}
         {required && <span style={{ color: "var(--negative)" }}> *</span>}
       </label>
-      <input
-        className="field num"
-        dir="rtl"
-        inputMode="numeric"
-        value={jalali}
-        onChange={(e) => onInput(e.target.value)}
-        placeholder="۱۴۰۴/۰۵/۲۰"
+      <AppDoranDatePicker
+        name={name}
+        value={iso}
+        onChange={setIso}
         required={required}
+        placeholder="انتخاب از تقویم…"
       />
-      <div className="muted mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] leading-4">
-        <span>
+      {showGregorian && iso && (
+        <div className="muted mt-1 text-[10px] leading-4">
           میلادی (خودکار):{" "}
-          <b className="num ltr-isolate" dir="ltr" style={{ color: valid ? "var(--text-2)" : "var(--warning)" }}>
-            {valid ? formatGregorianIso(iso) : "—"}
+          <b className="num ltr-isolate" dir="ltr" style={{ color: "var(--text-2)" }}>
+            {formatGregorianIso(iso)}
           </b>
-        </span>
-        {valid && (
-          <span className="num" style={{ color: "var(--text-3)" }}>
-            {toFaDigits(formatJalaliIso(iso, "en"))}
-          </span>
-        )}
-      </div>
+        </div>
+      )}
       {hint && <div className="muted mt-1 text-[10px] leading-4">{hint}</div>}
-      <input type="hidden" name={name} value={iso} />
-      <input type="hidden" name={`${name}Persian`} value={valid ? clean : ""} />
+      {/* The server keeps receiving the Gregorian ISO (inside the picker) plus
+          the Jalali display copy the real-estate module persists. */}
+      <input type="hidden" name={`${name}Persian`} value={persian} />
     </div>
   );
 }

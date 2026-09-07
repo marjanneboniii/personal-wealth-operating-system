@@ -9,6 +9,7 @@ import {
   isOrphanedRwaAsset,
   isOrphanedRwaAssetWithClass,
 } from "@/features/rwa/orphanFilter";
+import { isMultiTenantCached, readTenantState } from "@/lib/tenantState";
 
 async function rows<T>(query: ReturnType<typeof sql>): Promise<T[]> {
   const res = await db.execute(query);
@@ -42,11 +43,12 @@ export async function resolveQueryUserId(explicitUserId?: string): Promise<strin
   // null-owned legacy rows remain visible until migrated. This keeps the
   // accounting preservation guarantee (netWorth 1456) while multi-user
   // isolation is enforced via explicit userId or authenticated session.
+  //
+  // The probe is served from the shared tenant-state cache (60 s TTL) so a
+  // request that fans out across many read services asks the database once
+  // per window instead of once per query.
   try {
-    const res = await db.execute(sql`select id from users limit 2`);
-    if (res.rows.length === 1) {
-      return undefined;
-    }
+    await readTenantState();
   } catch (e: any) {
     // DB error in isolation check -> fail-closed DENY
     if (e?.message?.includes("Authentication/Database error")) throw e;
@@ -63,11 +65,17 @@ export async function resolveQueryUserId(explicitUserId?: string): Promise<strin
  * Exported so other read services (analytics, planning) apply the SAME
  * fail-closed rule: in a multi-tenant database an unresolved identity must
  * never degrade to a global (tenant-blending) read.
+ *
+ * The probe is served from a short-lived (60 s) in-process cache shared by
+ * every read service, so a single page request no longer fires
+ * `SELECT ... FROM users LIMIT 2` once per ledger query. Registration /
+ * setup / restore invalidate the cache on write, so a single→multi-tenant
+ * transition is visible immediately and can never widen a legacy global
+ * read window.
  */
 export async function hasMultipleUsers(): Promise<boolean> {
   try {
-    const res = await db.execute(sql`select id from users limit 2`);
-    return res.rows.length > 1;
+    return await isMultiTenantCached();
   } catch {
     // Unknown state -> assume multi-tenant and stay fail-closed.
     return true;
@@ -137,10 +145,121 @@ export async function getAccountBalances(userId?: string): Promise<AccountBalanc
       left join wallets w on w.id = a.wallet_id
       left join asset_classes ac on ac.id = ast.class_id
     where a.deleted_at is null
-      and (ast.id is null or ast.deleted_at is null) ${u ? sql`and (a.user_id = ${u} or (a.user_id is null and a.code in ('1000','1300','1400','1600','1610','1620','2000','3000','3010','3015','3200','4000','4010','4100','4900','5000','5010','5020','5030','5040','5050','5900')))` : sql``}
+      and (ast.id is null or ast.deleted_at is null) ${u ? sql`and (a.user_id = ${u} or (a.user_id is null and a.code in ('1000','1300','1400','1600','1610','1620','2000','3000','3010','3015','3200','4000','4010','4100','4900','5000','5010','5020','5030','5040','5050','5900','5960')))` : sql``}
     group by a.id, a.code, a.name, a.type, ast.id, ast.symbol, ast.name, ast.decimals, w.name, w.kind, ac.name, ac.color, ac.code
     order by a.code
   `);
+}
+
+/**
+ * LIFETIME income / expense totals for the reporting KPI strip — derived from
+ * ENTRIES, never from account balances.
+ *
+ * WHY THIS EXISTS (audit F-1, 2026-09-07): «کل هزینهٔ ثبت‌شده» and «نرخ
+ * پس‌انداز» on /reports were sums of `getAccountBalances()` rows filtered by
+ * account TYPE. That is sound for every leg except one: when a debt has no
+ * ledger liability account, the contra leg of a repayment lands on an
+ * EXPENSE-typed account (5960 «پرداخت اقساط», and 5900 «هزینه متفرقه» before
+ * that bucket existed), so every installment payment inflated total expense and
+ * pushed the savings rate down — while every other report in the same app
+ * (getCashflow, getFlowByAccount, getFlowByCategory, getNetSavingsBetween)
+ * insists a repayment is not an expense. Two definitions of "expense" existed.
+ *
+ * These totals apply the app's existing rule (`je.type not in
+ * ('debt_repayment')`) so the KPI strip and the cash-flow page agree. What is
+ * excluded is not hidden: it comes back as `repayments` (plus the frozen
+ * contractual Toman behind it) for the report to DISCLOSE under
+ * «بدهی و بازپرداخت», and it is removed from the expense side only — never
+ * re-added to income.
+ *
+ * Deliberately NOT a filter inside `getAccountBalances`: /accounts must keep
+ * showing the bucket's real balance, and `adjustment` / `opening` legs on
+ * expense accounts must keep counting exactly as they did before.
+ */
+export async function getExpenseIncomeTotals(
+  userId?: string,
+): Promise<{
+  /** USD base value — household expenses, repayments excluded. */
+  expense: string;
+  /** USD base value — income. */
+  income: string;
+  /** USD base value — the repayment legs excluded from `expense`. */
+  repayments: string;
+  /** How many `debt_repayment` entries were excluded. */
+  repaymentEntries: number;
+  /** FROZEN contractual Toman of the installment those entries settled, when
+   *  every excluded entry is linked to one (`installments.paid_toman`). */
+  repaymentsToman: string;
+  /** How many excluded entries carry that frozen Toman. */
+  repaymentsTomanEntries: number;
+}> {
+  const zero = {
+    expense: "0",
+    income: "0",
+    repayments: "0",
+    repaymentEntries: 0,
+    repaymentsToman: "0",
+    repaymentsTomanEntries: 0,
+  };
+  const u = await resolveQueryUserId(userId);
+  // Fail-closed: an unresolved identity in a multi-tenant database reads nothing.
+  if (!u && (await hasMultipleUsers())) return zero;
+  const [row] = await rows<Record<string, string | number | null>>(sql`
+    with legs as (
+      select je.id as entry_id,
+             a.type as acc_type,
+             je.type as entry_type,
+             p.base_value as val
+      from postings p
+        join journal_entries je on je.id = p.entry_id
+        join accounts a on a.id = p.account_id
+      where je.status = 'posted'
+        and a.deleted_at is null
+        and a.type in ('expense','income')
+        -- same presentation-only omissions as getAccountBalances, so the two
+        -- views of one chart can never disagree about a total
+        and not ${entryReferencesInactiveRwa(sql`p.entry_id`)}
+        and not exists (
+          select 1 from assets ast
+           where ast.id = coalesce(p.asset_id, a.asset_id) and ast.deleted_at is not null
+        )
+        ${u ? sql`and (je.user_id = ${u} or je.user_id is null)` : sql``}
+    ),
+    flow as (
+      select coalesce(sum(case when acc_type = 'expense' and entry_type not in ('debt_repayment') then val else 0 end), 0)::text as "expense",
+             coalesce(sum(case when acc_type = 'income'  and entry_type not in ('debt_repayment') then -val else 0 end), 0)::text as "income"
+      from legs
+    ),
+    -- One row per EXCLUDED entry (a repayment hits the expense bucket once, but
+    -- the SUM is taken per entry so a multi-leg entry can never be counted
+    -- twice). installments.paid_entry_id is the traceability link: the
+    -- contractual Toman frozen at payment time, never a ÷-rate reconstruction.
+    repay as (
+      select coalesce(sum(l.total), 0)::text as "repayments",
+             count(*)::int as "repaymentEntries",
+             coalesce(sum(i.paid_toman), 0)::text as "repaymentsToman",
+             count(*) filter (where i.paid_toman is not null)::int as "repaymentsTomanEntries"
+      from (
+        select entry_id, sum(val) as total
+        from legs
+        where acc_type = 'expense' and entry_type = 'debt_repayment'
+        group by entry_id
+      ) l
+      left join installments i on i.paid_entry_id = l.entry_id
+    )
+    select flow."expense", flow."income", repay."repayments", repay."repaymentEntries",
+           repay."repaymentsToman", repay."repaymentsTomanEntries"
+    from flow, repay
+  `);
+  if (!row) return zero;
+  return {
+    expense: String(row.expense ?? "0"),
+    income: String(row.income ?? "0"),
+    repayments: String(row.repayments ?? "0"),
+    repaymentEntries: Number(row.repaymentEntries ?? 0),
+    repaymentsToman: String(row.repaymentsToman ?? "0"),
+    repaymentsTomanEntries: Number(row.repaymentsTomanEntries ?? 0),
+  };
 }
 
 export type Holding = {

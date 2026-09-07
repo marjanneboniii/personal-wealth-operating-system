@@ -46,6 +46,18 @@ const WALLET_KIND: Record<string, string> = {
  * already part of the title it is dropped and only the institution/network that
  * still adds information is kept; if nothing is left, there is no subtitle.
  */
+/**
+ * Strips a dangling separator from a display name.
+ *
+ * Wallet/institution names arrive from seeds and user input as «بانک سامان —
+ * سپرده», «بانک تجارت - قرض الحسنه» and sometimes with the qualifier deleted
+ * but its separator left behind («بانک سامان ·»). Rendered as-is that orphan
+ * glyph looks like a stray dot pinned to the account title.
+ */
+function cleanDisplayName(value: string): string {
+  return value.replace(/[\s·•\-—–|,]+$/g, "").replace(/^[\s·•\-—–|,]+/g, "").trim();
+}
+
 function walletSubtitleOf(wallet: { name: string | null; kind: string | null; institution: string | null; network: string | null } | undefined) {
   if (!wallet) return null;
   const kindLabel = WALLET_KIND[wallet.kind ?? ""] ?? wallet.kind ?? "";
@@ -54,7 +66,12 @@ function walletSubtitleOf(wallet: { name: string | null; kind: string | null; in
   // Never repeat the institution either: «بانک سامان — سپرده» IS «بانک سامان».
   const detailAddsAnything = !!detail && detail !== title && !title.includes(detail);
   const kindAddsAnything = !!kindLabel && !title.includes(kindLabel) && kindLabel !== detail;
-  const parts = [kindAddsAnything ? kindLabel : null, detailAddsAnything ? detail : null].filter(Boolean);
+  const parts = [kindAddsAnything ? kindLabel : null, detailAddsAnything ? detail : null]
+    // A part that is only punctuation/whitespace (a stray «·», «—», «-» left in
+    // an institution or wallet name) must not survive: joined with the
+    // separator it renders as a lone dot hanging next to the account title.
+    .map((part) => (part ?? "").replace(/^[\s·•\-—–|,]+|[\s·•\-—–|,]+$/g, "").trim())
+    .filter((part) => part.length > 0);
   return parts.length ? parts.join(" · ") : null;
 }
 
@@ -226,7 +243,9 @@ export default async function AccountsPage() {
             {[...byWallet.entries()].map(([walletKey, rows]) => {
               const walletTotal = rows.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
               const walletMeta = walletRows.find((w) => w.id === walletKey);
-              const walletName = walletMeta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف‌پول";
+              const walletName = cleanDisplayName(
+                walletMeta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف‌پول",
+              ) || "بدون کیف‌پول";
               const irtOnly = rows.every((r) => r.symbol === "IRT" || r.symbol === "IRR");
               const walletPrimary = irtOnly
                 ? formatMoney(

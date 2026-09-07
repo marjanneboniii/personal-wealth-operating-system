@@ -155,10 +155,122 @@ export function formatPct(value: string | number, decimals = 1): string {
   return `${formatNumber(value, { decimals })}٪`;
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   Day counts & percents — Persian phrases with a FORCED visual order.
+   Same isolate technique formatMoney uses: the phrase is wrapped in
+   RLI … PDI so its visual order is always «number → روز → قید»
+   («۱۷ روز دیگر»), never «روز ۱۷ دیگر». The mobile installment card
+   keeps its date row in a `dir="ltr"` flex (dates are Latin-ordered
+   YYYY/MM/DD), and without the isolate the bidi algorithm breaks the
+   Persian countdown phrase apart inside that LTR container.
+   ════════════════════════════════════════════════════════════════════ */
+
+/** Wrap an already-correct Persian phrase in a right-to-left isolate. */
+export function rtlPhrase(text: string): string {
+  return `${RLI}${text}${PDI}`;
+}
+
+/**
+ * Countdown label for a due date — number FIRST, then «روز», then the qualifier:
+ *   formatDaysUntil(17) → «۱۷ روز دیگر»
+ *   formatDaysUntil(-3) → «۳ روز گذشته»
+ *   formatDaysUntil(0)  → «امروز»
+ */
+export function formatDaysUntil(days: number): string {
+  if (!Number.isFinite(days)) return rtlPhrase("زمان نامشخص");
+  if (days === 0) return rtlPhrase("امروز");
+  const n = faCount(Math.abs(Math.trunc(days)));
+  return days < 0
+    ? rtlPhrase(`${n}${NBSP}روز${NBSP}گذشته`)
+    : rtlPhrase(`${n}${NBSP}روز${NBSP}دیگر`);
+}
+
+/** Window label for KPI captions — «۳۰ روز آینده», never «در ۳۰ روز آینده». */
+export function formatDaysWindow(days: number): string {
+  return rtlPhrase(`${faCount(days)}${NBSP}روز${NBSP}آینده`);
+}
+
+/**
+ * Percent with a forced «number then ٪» order inside any container.
+ * formatPct alone can trail its sign when it sits next to a Latin/number run
+ * in a flex row (e.g. «۵٪ ۱۹.۷ دلار» reading backwards).
+ */
+export function formatPctIsolated(value: string | number, decimals = 1): string {
+  return rtlPhrase(formatPct(value, decimals));
+}
+
 const FA_MONTHS = [
   "فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور",
   "مهر","آبان","آذر","دی","بهمن","اسفند",
 ];
+
+/**
+ * Persian month names, index 0 = فروردین. Exported for the Jalali date picker
+ * so the month <select> and every formatter read from ONE list.
+ */
+export const JALALI_MONTHS: readonly string[] = FA_MONTHS;
+
+const FA_WEEKDAYS = [
+  "یکشنبه","دوشنبه","سه‌شنبه","چهارشنبه","پنجشنبه","جمعه","شنبه",
+];
+
+/**
+ * Jalali leap year. Derived from the converter itself (`jalaliToIso` /
+ * `toJalali`) instead of re-implementing the 33-year arithmetic: اسفند has ۳۰
+ * days exactly when the ۳۰th round-trips back into the same year.
+ * e.g. ۱۳۹۹ and ۱۴۰۳ are leap; ۱۴۰۰, ۱۴۰۴ and ۱۳۰۸ are not.
+ */
+export function isJalaliLeapYear(jy: number): boolean {
+  return jalaliMonthLength(jy, 12) === 30;
+}
+
+/**
+ * Number of days in a Jalali month (1-12).
+ *
+ * فروردین..شهریور = ۳۱, مهر..بهمن = ۳۰, اسفند = ۲۹/۳۰. اسفند is asked from
+ * the converter so this can never disagree with `jalaliToIso` — a mismatch
+ * would let the picker offer a day that silently rolls into the next year.
+ */
+export function jalaliMonthLength(jy: number, jm: number): number {
+  if (jm >= 1 && jm <= 6) return 31;
+  if (jm >= 7 && jm <= 11) return 30;
+  const back = toJalali(jalaliToIso(jy, 12, 30));
+  return back.y === jy && back.m === 12 && back.d === 30 ? 30 : 29;
+}
+
+/**
+ * Keeps an already-chosen day valid when the year or month changes:
+ * ۳۱ مرداد → switching to شهریور yields ۳۰ شهریور, and ۳۰ اسفند ۱۴۰۳ →
+ * switching to ۱۴۰۴ (a common year) yields ۲۹ اسفند. Exported so the rule is
+ * unit-testable outside the picker component.
+ */
+export function clampJalaliDay(
+  jy: number | null,
+  jm: number | null,
+  jd: number | null,
+): number | null {
+  if (jd == null) return null;
+  if (jy == null || jm == null) return Math.min(jd, 31);
+  return Math.min(jd, jalaliMonthLength(jy, jm));
+}
+
+/** Persian weekday name of a Gregorian ISO date (calendar date, TZ-independent). */
+export function jalaliWeekdayName(iso: string): string {
+  if (!iso) return "";
+  const day = new Date(`${iso.slice(0, 10)}T00:00:00Z`).getUTCDay();
+  return FA_WEEKDAYS[day] ?? "";
+}
+
+/** Jalali parts of a Gregorian ISO date, or null when empty. */
+export function isoToJalaliParts(iso: string): { y: number; m: number; d: number } | null {
+  if (!iso) return null;
+  return toJalali(iso);
+}
+
+/** Jalali year of the current date — the picker's default window anchor. */
+export function currentJalaliYear(): number {
+  return toJalali(todayIso()).y;
+}
 
 /** Gregorian ISO date -> Persian (Jalali) label, computed locally, no deps. */
 export function toJalali(iso: string): { y: number; m: number; d: number } {

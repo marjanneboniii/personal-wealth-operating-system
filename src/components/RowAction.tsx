@@ -19,6 +19,7 @@ export default function RowAction({
   label,
   primary,
   confirmText,
+  className,
 }: {
   kind: Kind;
   id?: string;
@@ -26,6 +27,8 @@ export default function RowAction({
   label: string;
   primary?: boolean;
   confirmText?: string;
+  /** Extra classes for the wrapper — e.g. "w-full" inside a mobile card grid. */
+  className?: string;
 }) {
   const [pending, start] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -47,7 +50,7 @@ export default function RowAction({
   };
 
   return (
-    <span className="inline-flex flex-col items-stretch gap-1">
+    <span className={`inline-flex flex-col items-stretch gap-1 ${className ?? ""}`}>
       <button
         type="button"
         onClick={run}

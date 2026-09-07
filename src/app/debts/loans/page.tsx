@@ -6,7 +6,7 @@ import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/
 import Icon from "@/components/ui/Icon";
 import { D } from "@/domain/decimal";
 import {
-  formatDualDate,
+  formatJalaliIso,
   formatMoney,
   formatPct,
   formatQty,
@@ -125,7 +125,7 @@ export default async function LoansPage() {
                           {late && <span className="badge badge-neg">قسط معوق</span>}
                         </p>
                         <p className="muted mt-1 text-[11.5px]">
-                          {d.creditor} · شروع {formatDualDate(d.startDate)} · نرخ سود{" "}
+                          {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود{" "}
                           <span className="num" dir="rtl">
                             {formatQty(d.interestRate, 2)}٪
                           </span>
@@ -168,7 +168,7 @@ export default async function LoansPage() {
                             <b className="num">
                               {nextToman != null ? formatMoney(nextToman, "IRT") : "—"}
                             </b>{" "}
-                            · {formatDualDate(d.nextDue.dueDate)}
+                            · {formatJalaliIso(d.nextDue.dueDate)}
                           </>
                         ) : isSettled ? (
                           "همه اقساط پرداخت شدند."

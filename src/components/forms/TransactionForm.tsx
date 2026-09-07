@@ -8,7 +8,7 @@ import {
   searchMarketCatalogAction,
 } from "@/app/actions/pricing";
 import { currencyLabel, formatMoney, getDualDate, faCount, hasPersianCurrencyLabel } from "@/lib/format";
-import { SmartAmountPreview, DualDatePreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
+import { SmartAmountPreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
@@ -381,14 +381,18 @@ export default function TransactionForm({
   const needsQty = type === "buy" || type === "sell" || type === "transfer";
 
   /**
-   * Counter expense account for planning-only debts (no ledger liability
-   * account). Prefer the «متفرقه» (miscellaneous) expense account (5900) so
-   * the outflow lands in a meaningful bucket; fall back to any expense
-   * account. The user never sees or chooses this — it is pure plumbing for
-   * the existing double-entry engine.
+   * Counter account for a repayment of a PLANNING-ONLY debt (no ledger
+   * liability account). It prefers 5960 «پرداخت اقساط» — the dedicated
+   * installment bucket — and only if the chart somehow has no such row does it
+   * fall back to any expense account. Never 5900 «هزینه متفرقه»: a loan payment
+   * is not miscellaneous spending, and mixing them is what made the bucket a
+   * grab-bag (audit F-3, 2026-09-07). The bucket is plumbing for the
+   * double-entry engine — the entry type stays `debt_repayment`, so the amount
+   * is reported under «بدهی و بازپرداخت», not as an expense — and the review
+   * row below still shows WHICH account received it.
    */
   const defaultExpenseAccount = () =>
-    accountOptions.find((a) => a.type === "expense" && a.code === "5900") ??
+    accountOptions.find((a) => a.type === "expense" && a.code === "5960") ??
     accountOptions.find((a) => a.type === "expense");
 
   const handleSelectDebt = (d: DebtOption) => {
@@ -854,7 +858,9 @@ export default function TransactionForm({
                   <>
                     <input type="hidden" name="counterAccountId" value={counterAccountId} />
                     <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
-                      مبلغ پرداخت از حساب انتخابی شما کسر می‌شود و مانده این بدهی کاهش پیدا می‌کند. همه جزئیات ثبت به‌صورت خودکار انجام می‌شود.
+                      مبلغ پرداخت از حساب انتخابی شما کسر می‌شود و مانده این بدهی کاهش پیدا می‌کند. همه جزئیات ثبت به‌صورت خودکار انجام
+                      می‌شود؛ خروج وجه در سرفصل «پرداخت اقساط» بایگانی می‌شود — نه در «هزینه متفرقه» — و به همین دلیل در گزارش
+                      هزینه‌ها و در سقف بودجه‌های خرج شمارش نمی‌شود.
                     </div>
                   </>
                 )}
@@ -1025,10 +1031,10 @@ export default function TransactionForm({
               {type !== "expense" && <div><span className="muted">حساب مقابل:</span> <strong>{accountOptions.find(a=>a.id===counterAccountId)?.name ?? "—"}</strong> <span className="chip">{accountOptions.find(a=>a.id===counterAccountId)?.code ?? ""}</span></div>}
             </div>
             <div>
-              <span className="muted">تاریخ شمسی / میلادی:</span>
+              <span className="muted">تاریخ سند:</span>
               <div className="soft rounded-xl p-2 mt-1 flex flex-wrap gap-3 text-[11px]">
-                <span>شمسی: <strong dir="rtl">{entryDate ? getDualDate(entryDate).jalali : "—"}</strong></span>
-                <span>میلادی: <strong dir="ltr" className="num">{entryDate || "—"}</strong></span>
+                <span>شمسی: <strong dir="rtl" className="num">{entryDate ? getDualDate(entryDate).jalali : "—"}</strong></span>
+                <span>میلادی (خودکار): <strong dir="ltr" className="num ltr-isolate">{entryDate || "—"}</strong></span>
               </div>
             </div>
             {needsQty && <div><span className="muted">مقدار دارایی:</span> <strong dir="ltr" className="num">{quantity || "محاسبه خودکار از مبلغ"}</strong></div>}
@@ -1037,7 +1043,7 @@ export default function TransactionForm({
               <div className="soft rounded-xl p-2 border" style={{ borderColor:"var(--border)" }}>
                 <div className="font-bold">مرجع بدهی/قسط</div>
                 <div>بدهی: <strong>{selectedDebt?.title}</strong> — {selectedDebt?.creditor}</div>
-                {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید {getDualDate(selectedInst.dueDate).jalali} / <span dir="ltr">{selectedInst.dueDate}</span> — مبلغ <span dir="rtl">{selectedInst.amountToman ? formatMoney(selectedInst.amountToman, "IRT") : formatMoney(selectedInst.amountBase, "USD")}</span></div>}
+                {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید <span dir="rtl" className="num">{getDualDate(selectedInst.dueDate).jalali}</span> — مبلغ <span dir="rtl">{selectedInst.amountToman ? formatMoney(selectedInst.amountToman, "IRT") : formatMoney(selectedInst.amountBase, "USD")}</span></div>}
                 <div>وضعیت پس از پرداخت: <strong style={{ color:"var(--brand)" }}>{debtStatusAfter}</strong></div>
                 <div className="muted text-[10px]">شناسه مرجع در سند حسابداری ذخیره و قابل پیگیری از هر دو سمت خواهد بود.</div>
               </div>

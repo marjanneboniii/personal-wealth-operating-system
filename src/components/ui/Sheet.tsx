@@ -53,7 +53,7 @@ export default function Sheet({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex flex-col justify-end sm:items-center sm:justify-center"
+      className="sheet-overlay fixed inset-0 z-[80] flex flex-col justify-end sm:items-center sm:justify-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? "sheet-title" : undefined}
@@ -78,7 +78,7 @@ export default function Sheet({
       />
       <div
         ref={ref}
-        className={`sheet-in relative flex w-full flex-col overflow-hidden rounded-t-[var(--r-xl)] border sm:rounded-[var(--r-xl)] ${
+        className={`sheet-panel sheet-in relative flex w-full flex-col overflow-hidden rounded-t-[var(--r-xl)] border sm:rounded-[var(--r-xl)] ${
           wide ? "sm:w-[640px]" : "sm:w-[440px]"
         }`}
         style={{

@@ -72,7 +72,7 @@ const STATEMENTS = [
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz,
     deleted_at timestamptz,
-    symbol text NOT NULL UNIQUE,
+    symbol text NOT NULL,
     name text NOT NULL,
     class_id uuid NOT NULL REFERENCES asset_classes(id),
     network_id uuid REFERENCES networks(id),
@@ -87,6 +87,12 @@ const STATEMENTS = [
   `ALTER TABLE assets ADD COLUMN IF NOT EXISTS pricing_method text NOT NULL DEFAULT 'manual';`,
   `ALTER TABLE assets ADD COLUMN IF NOT EXISTS coingecko_id text;`,
   `ALTER TABLE assets ADD COLUMN IF NOT EXISTS logo_url text;`,
+  // Active assets keep unique symbols; soft-deleted rows release theirs.
+  `ALTER TABLE assets DROP CONSTRAINT IF EXISTS assets_symbol_key;`,
+  `ALTER TABLE assets DROP CONSTRAINT IF EXISTS assets_symbol_unique;`,
+  `DROP INDEX IF EXISTS assets_symbol_key;`,
+  `DROP INDEX IF EXISTS assets_symbol_unique;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS assets_symbol_active_unique ON assets(symbol) WHERE deleted_at IS NULL;`,
   `CREATE UNIQUE INDEX IF NOT EXISTS assets_coingecko_uq ON assets(coingecko_id) WHERE coingecko_id IS NOT NULL;`,
   `CREATE INDEX IF NOT EXISTS assets_coingecko_idx ON assets(coingecko_id);`,
   // Existing canonical assets receive identity mappings only. Historical

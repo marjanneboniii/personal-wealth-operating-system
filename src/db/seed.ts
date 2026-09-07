@@ -26,6 +26,7 @@ import { postEntry, recordBuy, recordExpense, recordIncome, recordSell } from "@
 import { payInstallment } from "@/features/planning/service";
 import { ensureCategoryCatalog, getCategoryByCode } from "@/features/categories/service";
 import { addMonthsIso, todayIso } from "@/lib/format";
+import { invalidateTenantStateCache } from "@/lib/tenantState";
 import { D } from "@/domain/decimal";
 import { ensureSchemaOnce, rootCauseOf } from "@/db/init-schema";
 import { requireSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
@@ -254,6 +255,9 @@ export async function runSeed(): Promise<void> {
     { code: "5040", name: "کارمزد و بانک", type: "expense", assetId: A.USD },
     { code: "5050", name: "سفر و رویداد", type: "expense", assetId: A.USD },
     { code: "5900", name: "هزینه متفرقه", type: "expense", assetId: A.USD },
+    // The bucket an installment payment of a planning-only debt lands in
+    // (never 5900) — see src/features/accounts/systemAccounts.ts.
+    { code: "5960", name: "پرداخت اقساط", type: "expense", assetId: A.USD },
   ];
   const acc = await db.insert(accounts).values(acctRows).returning();
   const C = Object.fromEntries(acc.map((a) => [a.code, a.id]));
@@ -532,6 +536,7 @@ export async function runSeed(): Promise<void> {
   }
 
   await db.insert(users).values({ name: "مالک خانواده", role: "owner" });
+  invalidateTenantStateCache();
   await db.insert(settings).values([
     { key: "base_currency", value: "USD" },
     { key: "digit_style", value: "fa" },

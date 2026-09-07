@@ -1,51 +1,58 @@
 "use client";
 
 import { useState } from "react";
-import { jalaliToIso, parseJalaliString, formatJalaliIso } from "@/lib/format";
 import { DualDatePreview } from "./SmartPreview";
 import AppDoranDatePicker from "./DoranDatePicker";
 
 type Props = {
-  name: string; // gregorian ISO field name submitted to server
+  /** Form field name — submits the Gregorian ISO value to the server. */
+  name: string;
   defaultValue?: string; // ISO YYYY-MM-DD
   value?: string;
   onChange?: (iso: string) => void;
   label?: string;
   required?: boolean;
+  /**
+   * Echo the auto-computed Gregorian equivalent under the Doran calendar.
+   * Default true; the debt screens (اقساط / تعهدات / سررسید) pass false and
+   * stay Jalali-only.
+   */
+  showGregorian?: boolean;
 };
 
-export default function DualDateInput({ name, defaultValue, value, onChange, label = "تاریخ", required }: Props) {
+/**
+ * ورودی تاریخ فرم‌ها بر پایه «تقویم فارسی دوران» (Doran):
+ * کاربر تاریخ را با انتخاب‌گر شمسی دوران برمی‌دارد و معادل میلادی (ISO)
+ * به‌صورت خودکار محاسبه می‌شود و در فیلد مخفی به سرور می‌رود، همان‌طور که
+ * همه server actionها انتظار دارند؛ بیرون از دامنه بدهی همان معادلِ
+ * محاسبه‌شده کنار تقویم نمایش داده می‌شود (`showGregorian={false}` آن را
+ * خاموش می‌کند).
+ */
+export default function DualDateInput({
+  name,
+  defaultValue,
+  value,
+  onChange,
+  label = "تاریخ",
+  required,
+  showGregorian = true,
+}: Props) {
   const [isoInternal, setIsoInternal] = useState<string>(value ?? defaultValue ?? "");
-  const [jalali, setJalali] = useState<string>((value ?? defaultValue) ? formatJalaliIso((value ?? defaultValue) as string, "en") : "");
-
   const iso = value !== undefined ? value : isoInternal;
 
-  // Sync from parent changes during render
+  // Follow the parent when the value changes from the outside (e.g. a form
+  // auto-filling an instalment's due date) — during render, so there is no
+  // extra commit and no cascading effect.
   const [prevV, setPrevV] = useState<string | undefined>(value !== undefined ? value : defaultValue);
   const v = value !== undefined ? value : defaultValue;
   if (v !== prevV) {
     setPrevV(v);
-    if (v) {
-      if (value === undefined) setIsoInternal(v);
-      setJalali(formatJalaliIso(v, "en"));
-    }
+    if (v && value === undefined) setIsoInternal(v);
   }
 
   const setIso = (newIso: string) => {
     if (value === undefined) setIsoInternal(newIso);
     onChange?.(newIso);
-  };
-
-  const handleDoranChange = (newIso: string) => {
-    setIso(newIso);
-    if (newIso) setJalali(formatJalaliIso(newIso, "en"));
-    else setJalali("");
-  };
-
-  const onIsoChange = (v: string) => {
-    setIso(v);
-    if (v) setJalali(formatJalaliIso(v, "en"));
-    else setJalali("");
   };
 
   return (
@@ -55,35 +62,37 @@ export default function DualDateInput({ name, defaultValue, value, onChange, lab
         <span className="text-[10px] text-[var(--sky-600)] font-semibold">تقویم جلالی دوران</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
-        {/* Doran Persian Calendar Date Picker */}
+      <div className={`grid grid-cols-1 ${showGregorian ? "sm:grid-cols-2" : ""} gap-2.5 items-start`}>
+        {/* Doran Persian calendar picker */}
         <div>
           <div className="muted text-[10px] mb-1">انتخابگر تقویم شمسی (دوران)</div>
           <AppDoranDatePicker
             value={iso}
-            onChange={handleDoranChange}
+            onChange={setIso}
             required={required}
             placeholder="انتخاب از تقویم…"
           />
         </div>
 
-        {/* Gregorian ISO field */}
-        <div>
-          <div className="muted text-[10px] mb-1">معادل میلادی (LTR)</div>
-          <input
-            type="date"
-            value={iso}
-            onChange={(e) => onIsoChange(e.target.value)}
-            className="field num"
-            dir="ltr"
-            required={required}
-          />
-        </div>
+        {/* Auto-computed Gregorian equivalent (hidden in the debt domain) */}
+        {showGregorian && (
+          <div>
+            <div className="muted text-[10px] mb-1">معادل میلادی (LTR)</div>
+            <input
+              type="date"
+              value={iso}
+              onChange={(e) => setIso(e.target.value)}
+              className="field num"
+              dir="ltr"
+              required={required}
+            />
+          </div>
+        )}
       </div>
 
       {/* hidden field submitted to server */}
       <input type="hidden" name={name} value={iso} required={required} />
-      <DualDatePreview iso={iso} />
+      {showGregorian && <DualDatePreview iso={iso} />}
     </div>
   );
 }

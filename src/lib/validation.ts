@@ -69,6 +69,9 @@ const SYSTEM_ACCOUNT_CODES = new Set([
   "5040",
   "5050",
   "5900",
+  // Installment-payment bucket: resolved by CODE server-side (never chosen from
+  // client input), so its global row is legitimately shared — like 5040.
+  "5960",
 ]);
 
 function isSystemAccount(acc: { code?: string | null; type?: string | null; userId: string | null }): boolean {

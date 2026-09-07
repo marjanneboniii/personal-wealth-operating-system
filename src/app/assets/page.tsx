@@ -104,9 +104,16 @@ export default async function AssetsPage() {
           tone={trendTone(totals.pnlToman)}
           hint={formatSignedMoney(totals.pnlUsd, "USD")}
         />
+        {/* Price status reports EXCEPTIONS only. A fresh price is the normal
+            case, so the «… تازه» headline is gone from the UI; the counts
+            themselves are unchanged in the valuation layer. */}
         <Metric
           label="وضعیت قیمت‌ها"
-          value={`${faCount(valuation.priceStatus.fresh)} تازه`}
+          value={
+            valuation.priceStatus.stale + valuation.priceStatus.unavailable === 0
+              ? "بدون اشکال"
+              : `${faCount(valuation.priceStatus.stale + valuation.priceStatus.unavailable)} نیازمند بررسی`
+          }
           tone={valuation.priceStatus.unavailable > 0 ? "down" : "neutral"}
           hint={`${faCount(valuation.priceStatus.stale)} قدیمی · ${faCount(valuation.priceStatus.unavailable)} بدون قیمت`}
         />

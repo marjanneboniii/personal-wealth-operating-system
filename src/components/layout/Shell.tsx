@@ -435,7 +435,8 @@ export default function Shell({
 
   return (
     <div
-      className="min-h-dvh"
+      className="shell-root min-h-dvh"
+      data-chrome={isPublicChrome ? "public" : "app"}
       style={{ ["--nav-w" as never]: isPublicChrome ? "0px" : collapsed ? "76px" : "264px" }}
     >
       {/* Offline banner — trust first: never lose context */}
@@ -443,7 +444,7 @@ export default function Shell({
         <div
           role="status"
           aria-live="polite"
-          className="fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-2 px-4 py-1.5 text-[11.5px] font-medium"
+          className="offline-banner fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-2 px-4 py-1.5 text-[11.5px] font-medium"
           style={{ background: "var(--warning-soft)", color: "var(--warning)" }}
         >
           <Icon name="alert" size={14} />
@@ -454,7 +455,7 @@ export default function Shell({
       {/* ───────────── Desktop sidebar (hidden on public/marketing/auth) ───────────── */}
       {!isPublicChrome && (
       <aside
-        className={`fixed inset-y-0 right-0 z-40 hidden flex-col border-l transition-[width] duration-200 lg:flex ${collapsed ? "nav-collapsed w-[76px]" : "w-[264px]"}`}
+        className={`desktop-sidebar fixed inset-y-0 right-0 z-40 hidden flex-col border-l transition-[width] duration-200 lg:flex ${collapsed ? "nav-collapsed w-[76px]" : "w-[264px]"}`}
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         aria-label="ناوبری اصلی"
       >
@@ -543,7 +544,7 @@ export default function Shell({
       {/* ───────────── Mobile top bar (app only) ───────────── */}
       {!isPublicChrome && (
       <header
-        className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 backdrop-blur-xl lg:hidden"
+        className="app-topbar sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 backdrop-blur-xl lg:hidden"
         style={{
           background: "color-mix(in oklab, var(--bg) 82%, transparent)",
           borderBottom: "1px solid var(--border)",
@@ -573,8 +574,8 @@ export default function Shell({
         id="main"
         className={
           isLanding || isMarketing
-            ? "w-full max-w-none p-0"
-            : `mx-auto w-full max-w-[1180px] px-4 pt-4 transition-[padding] duration-200 sm:px-6 ${
+            ? "app-main app-main-public w-full max-w-none p-0"
+            : `app-main mx-auto w-full max-w-[1180px] px-4 pt-4 transition-[padding] duration-200 sm:px-6 ${
                 isAuthRoute ? "pb-8 lg:pb-10 lg:px-6 lg:pt-8" : "pb-28 lg:pb-16 lg:pl-10 lg:pr-[var(--nav-w)] lg:pt-7"
               }`
         }
@@ -594,7 +595,7 @@ export default function Shell({
       {/* ───────────── Mobile bottom nav (app only — never on landing/auth/legal) ───────────── */}
       {!isPublicChrome && (
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 lg:hidden"
+        className="app-bottom-nav fixed inset-x-0 bottom-0 z-40 lg:hidden"
         aria-label="ناوبری اصلی موبایل"
         style={{
           background: "color-mix(in oklab, var(--surface) 92%, transparent)",

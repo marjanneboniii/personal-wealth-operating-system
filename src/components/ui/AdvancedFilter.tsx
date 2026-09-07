@@ -107,10 +107,10 @@ export default function AdvancedFilter({
   const hasCollapsible = selects.length > 0 || chips.length > 0 || !!children;
 
   return (
-    <div className="card sticky top-[52px] z-20 space-y-2 p-2 lg:top-0" style={{ touchAction: "manipulation" }}>
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="advanced-filter card sticky top-[52px] z-20 space-y-2 p-2 lg:top-0" style={{ touchAction: "manipulation" }}>
+      <div className="advanced-filter-row flex flex-wrap items-center gap-2">
         {search && (
-          <div className="relative min-w-[180px] flex-1">
+          <div className="advanced-filter-search relative min-w-[180px] flex-1">
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 opacity-40">
               <Icon name="search" size={15} />
             </span>
@@ -125,7 +125,7 @@ export default function AdvancedFilter({
           </div>
         )}
         {hasCollapsible && (
-          <details className="group">
+          <details className="advanced-filter-details group">
             <summary className="chip cursor-pointer list-none [&::-webkit-details-marker]:hidden">
               <Icon name="filter" size={12} />
               فیلترها
@@ -135,7 +135,7 @@ export default function AdvancedFilter({
                 </span>
               )}
             </summary>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="advanced-filter-panel mt-2 flex flex-wrap items-center gap-2">
               {selects.map((f) => (
                 <select
                   key={f.key}

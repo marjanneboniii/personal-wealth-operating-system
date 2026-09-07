@@ -2,8 +2,8 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import {
-  getAccountBalances,
   getCashflow,
+  getExpenseIncomeTotals,
   getRealizedPnl,
 } from "@/features/ledger/queries";
 import { listDebts, projectCashflow } from "@/features/planning/service";
@@ -12,7 +12,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatDualDate, formatMoney, formatPct, formatSignedMoney, jalaliMonthKey, jalaliMonthLabel, faCount, inflowTone, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
+import { currencyLabel, formatJalaliIso, formatMoney, formatPct, formatSignedMoney, jalaliMonthKey, jalaliMonthLabel, faCount, inflowTone, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -21,11 +21,11 @@ export const dynamic = "force-dynamic";
 export default async function ReportsPage() {
   await ensureAuth();
   await seedIfEmpty();
-  const [nw, flow, pnl, balances, debts, projection, fx] = await Promise.all([
+  const [nw, flow, pnl, totals, debts, projection, fx] = await Promise.all([
     getCurrentNetWorth(),
     getCashflow(12),
     getRealizedPnl(),
-    getAccountBalances(),
+    getExpenseIncomeTotals(),
     listDebts(),
     projectCashflow(12),
     getLatestUsdIrtRate(),
@@ -34,10 +34,27 @@ export default async function ReportsPage() {
   const rate = fx.rate;
   const toIrt = (usd: string | number) => toIrtMoney(usd, rate);
 
-  const expenses = balances.filter((b) => b.type === "expense" && !D(b.baseValue).isZero());
-  const incomes = balances.filter((b) => b.type === "income" && !D(b.baseValue).isZero());
-  const totalIncome = Decimal.sum(incomes.map((i) => D(i.baseValue).neg().toString()));
-  const totalExpense = Decimal.sum(expenses.map((e) => e.baseValue));
+  /* EXPENSE / INCOME KPIs — from ENTRIES, not from account balances (audit
+     F-1, 2026-09-07). A repayment of a debt that has no ledger liability
+     account is booked onto the expense-typed «پرداخت اقساط» bucket, so summing
+     expense balances turned every installment paid into household consumption
+     and deflated «نرخ پس‌انداز». `getExpenseIncomeTotals` applies the same
+     `debt_repayment` exclusion the cash-flow page already uses, so the two
+     reports finally share ONE definition of "expense"; what it excludes is
+     disclosed under «بدهی و بازپرداخت» instead of disappearing. */
+  const totalIncome = D(totals.income);
+  const totalExpense = D(totals.expense);
+  /* WHAT THE EXCLUSION WAS WORTH, disclosed under «بدهی و بازپرداخت» so a
+     filtered-out number never just vanishes. Prefer the CONTRACTUAL Toman
+     frozen at payment time (`installments.paid_toman`, read by
+     getExpenseIncomeTotals) — it cannot drift with the dollar. When the excluded
+     entries are not all backed by such a row (e.g. a hand-written repayment),
+     the ledger's own USD base value is shown INSTEAD, unconverted: multiplying
+     it by today's rate would invent a Toman figure that no one ever agreed to. */
+  const repaymentsExcluded = totals.repaymentEntries > 0 && !D(totals.repayments).isZero();
+  const repaymentsFullyFrozen =
+    totals.repaymentsTomanEntries > 0 && totals.repaymentsTomanEntries === totals.repaymentEntries;
+  const repaymentsTomanValue = repaymentsFullyFrozen ? totals.repaymentsToman : null;
   // SSOT: portfolio valuation already excludes orphaned/deleted RWA assets
   // and never treats a missing price as zero (which would fake a full write-off).
   const unrealized = D(nw.valuation.totalUnrealizedPnl);
@@ -228,12 +245,22 @@ export default async function ReportsPage() {
                 <Progress value={d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0} color={d.status === "settled" ? "var(--positive)" : "var(--warning)"} />
                 <p className="muted num mt-1.5 text-[10.5px]" dir="rtl">
                   {faCount(d.paidCount)} / {faCount(d.totalCount)} قسط
-                  {d.nextDue && <span dir="rtl"> · قسط بعدی {formatDualDate(d.nextDue.dueDate)}</span>}
+                  {d.nextDue && <span dir="rtl"> · قسط بعدی {formatJalaliIso(d.nextDue.dueDate)}</span>}
                 </p>
               </li>
             ))}
             {!debts.length && <li className="muted py-4 text-center text-xs">بدهی‌ای ثبت نشده است</li>}
           </ul>
+          {repaymentsExcluded && (
+            <p className="muted num mt-3 text-[10.5px] leading-5" dir="rtl">
+              {repaymentsTomanValue
+                ? `${formatMoney(repaymentsTomanValue, "IRT")} از پرداخت اقساط، از «کل هزینه ثبت‌شده» خارج شد`
+                : `${formatMoney(totals.repayments)} از پرداخت اقساط (ارز پایهٔ دفتر، بدون تبدیل به نرخ امروز)، از «کل هزینه ثبت‌شده» خارج شد`}{" "}
+              — چون بازپرداخت بدهی، مصرف نیست. این مبلغ در سرفصل «پرداخت اقساط»
+              بایگانی می‌شود و در سقف بودجه‌های خرج ماه هم شمرده نمی‌شود؛ تنها
+              بودجه‌ای آن را می‌سنجد که عمداً به همین سرفصل بسته شده باشد.
+            </p>
+          )}
         </Section>
       </div>
 

@@ -61,7 +61,10 @@ export default function SetupWizardPage() {
   const [userName, setUserName] = useState("مالک خانواده");
   const [baseCurrency, setBaseCurrency] = useState("USD");
   const [displayCurrency, setDisplayCurrency] = useState("IRT");
-  const [dateCalendar, setDateCalendar] = useState<"jalali" | "gregorian">("jalali");
+  // The calendar is NOT a preference: dates are always picked in Jalali and the
+  // Gregorian equivalent is computed by the app. The value is still submitted so
+  // the stored `date_calendar` config stays explicit (and legacy rows valid).
+  const dateCalendar = "jalali" as const;
   const [digitStyle, setDigitStyle] = useState<"fa" | "en">("fa");
 
   // Step 2 State — names + native denomination (independent of book USD).
@@ -271,14 +274,12 @@ export default function SetupWizardPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="label">{t.dateCalendarLabel}</label>
-                  <select
-                    value={dateCalendar}
-                    onChange={(e) => setDateCalendar(e.target.value as "jalali" | "gregorian")}
-                    className="field"
-                  >
-                    <option value="jalali">{t.dateCalendarJalali}</option>
-                    <option value="gregorian">{t.dateCalendarGregorian}</option>
-                  </select>
+                  {/* Read-only on purpose: the Gregorian calendar is not an option. */}
+                  <div className="field flex items-center justify-between gap-2">
+                    <span className="text-[13px] font-medium">{t.dateCalendarJalali}</span>
+                    <span className="badge badge-neutral">{t.dateCalendarFixedBadge}</span>
+                  </div>
+                  <p className="muted mt-1 text-[10px]">{t.dateCalendarHelp}</p>
                 </div>
 
                 <div>
