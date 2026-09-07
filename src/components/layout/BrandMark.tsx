@@ -53,16 +53,15 @@ export default function BrandMark({
           justifyContent: "center",
           width: size,
           height: size,
-          borderRadius: "var(--r-sm)",
-          background: "linear-gradient(160deg, var(--sky-500), var(--sky-700))",
-          color: "#ffffff",
-          boxShadow: "var(--shadow-sm)",
+          borderRadius: Math.max(8, Math.round(size * 0.22)),
+          background: "var(--color-primary)",
+          color: "var(--color-accent)",
           flexShrink: 0,
           ...style,
         }}
         aria-hidden="true"
       >
-        <ScaleGlyph size={Math.round(size * 0.68)} />
+        <ScaleGlyph size={Math.round(size * 0.72)} />
       </span>
     );
   }

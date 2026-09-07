@@ -6,7 +6,7 @@ import { createMoneyAccountAction } from "@/app/actions";
 import { D } from "@/domain/decimal";
 import { formatMoney } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
-import AppDoranDatePicker from "@/components/ui/DoranDatePicker";
+import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import { BankLogo } from "@/components/ui/IranLogo";
 
 export type MoneyCurrencyOption = {
@@ -143,10 +143,10 @@ export default function MoneyAccountForm({
 
       <div className="block space-y-1 sm:max-w-[calc(50%-0.375rem)]">
         <span className="label">تاریخ افتتاحیه (اختیاری)</span>
-        <AppDoranDatePicker
+        <JalaliDatePicker
           value={openingDate}
           onChange={setOpeningDate}
-          placeholder="انتخاب از تقویم…"
+          ariaLabel="تاریخ افتتاحیه"
         />
       </div>
 
