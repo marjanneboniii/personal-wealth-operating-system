@@ -199,6 +199,32 @@ export async function ensureSystemAccount(
   return await resolveSystemAccount(input.code, input.userId, client);
 }
 
+/**
+ * The expense bucket a SERVER-resolved counter-leg falls back to — the tenant's
+ * own 5900 «هزینه متفرقه», else the first expense row of their chart, else a
+ * freshly provisioned 5900 (the module's own rule: never skip a leg that an
+ * in-flight entry needs, because skipping is what breaks Σ = 0).
+ *
+ * Used by Quick Pay on a PLANNING-ONLY debt: such a debt has no liability
+ * account to reduce, so the outflow is classified against this bucket with
+ * entry type `debt_repayment` — exactly what the Payment Form does when the
+ * user picks the counter account themselves.
+ */
+export async function ensureMiscExpenseAccount(
+  userId?: string | null,
+  client: any = db,
+): Promise<SystemAccount | null> {
+  const found = await resolveExpenseCounterAccount(userId, client);
+  if (found) return found;
+  return ensureSystemAccount({
+    code: MISC_EXPENSE_CODE,
+    name: "هزینه متفرقه",
+    type: "expense",
+    userId,
+    client,
+  });
+}
+
 /** The fee-expense account (5040) for a tenant, provisioned on demand. */
 export async function ensureFeeExpenseAccount(
   userId?: string | null,

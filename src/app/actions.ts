@@ -987,9 +987,25 @@ export async function payInstallmentAction(id: string, cashAccountId: string): P
     }
     // SECURITY (M-03): tenant id flows into the service so ownership is also
     // verified at the DB query level inside the atomic payment transaction.
-    await payInstallment(id, cashAccountId, user?.id ?? undefined);
+    const paid = (await payInstallment(id, cashAccountId, user?.id ?? undefined)) as {
+      id?: string;
+      alreadyPaid?: boolean;
+      contra?: "expense" | "liability" | null;
+    };
     refreshAll();
-    return { ok: true, message: "قسط پرداخت و مانده بدهی به‌روزرسانی شد." };
+    // The message follows the ACCOUNTING FACT, not a generic success string:
+    // a planning-only debt has no liability account, so the outflow landed on
+    // the expense bucket — the user must be told, because they never chose it.
+    if (paid?.alreadyPaid) {
+      return { ok: true, message: "این قسط پیش‌تر پرداخت شده بود؛ ثبت تکراری انجام نشد." };
+    }
+    return {
+      ok: true,
+      message:
+        paid?.contra === "expense"
+          ? "قسط پرداخت و از حساب کم شد. این بدهی حساب بدهی جداگانه ندارد، پس خروج وجه در سرفصل «هزینه متفرقه» طبقه‌بندی شد — و در گزارش‌های هزینه شمارش نمی‌شود."
+          : "قسط پرداخت و مانده بدهی به‌روزرسانی شد.",
+    };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "خطا" };
   }

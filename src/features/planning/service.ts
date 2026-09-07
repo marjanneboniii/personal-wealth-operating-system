@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import { postEntry, unitsFor } from "@/features/ledger/service";
+import { ensureMiscExpenseAccount } from "@/features/accounts/systemAccounts";
 import { getAccountBalances, hasMultipleUsers } from "@/features/ledger/queries";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { readTenantState } from "@/lib/tenantState";
@@ -549,10 +550,39 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
       .limit(1);
     if (!row.length) throw new Error("قسط یافت نشد یا متعلق به شما نیست");
     const { inst, debt } = row[0];
-    if (inst.status === "paid") return { id: inst.paidEntryId ?? "", alreadyPaid: true };
+    if (inst.status === "paid") return { id: inst.paidEntryId ?? "", alreadyPaid: true, contra: null as string | null };
 
-    // 3) Validate accounting preconditions.
-    if (!debt.accountId) throw new Error("حساب بدهی تعریف نشده است");
+    // 3) Resolve the CONTRA LEG — and never refuse the payment over it.
+    //
+    //    • debt WITH a ledger liability account → cash ↓ / liability ↓,
+    //      entry type `installment` (the classical settlement).
+    //    • PLANNING-ONLY debt (`account_id IS NULL`) — which is how EVERY debt
+    //      created in «بدهی‌ها» is stored, because createDebtAction deliberately
+    //      leaves the ledger untouched until a real movement happens — has no
+    //      liability to reduce. The money nevertheless left the wallet, so the
+    //      outflow is classified against the tenant's expense bucket with entry
+    //      type `debt_repayment`: the SAME two legs, the SAME type and the SAME
+    //      bucket the Payment Form produces for this case
+    //      (createTransactionAction → debt_repayment branch), and that type is
+    //      excluded from every expense / cash-flow aggregation
+    //      (see getCashflow / getFlowByAccount), so an installment payment can
+    //      never be mistaken for consumption.
+    //
+    //    Quick Pay used to throw «حساب بدهی تعریف نشده است» here, which made the
+    //    one-click button on every UI-created installment dead on arrival.
+    let contraAccountId: string | null = debt.accountId;
+    let contraIsExpense = false;
+    if (!contraAccountId) {
+      contraAccountId = (await ensureMiscExpenseAccount(u ?? null, tx))?.id ?? null;
+      contraIsExpense = true;
+      if (!contraAccountId) {
+        // A genuine accounting precondition, not a design dead-end: with no
+        // expense row at all the entry would post unbalanced.
+        throw new Error(
+          "برای ثبت این قسط به یک حساب هزینه نیاز است؛ در «تنظیمات ← حساب‌ها» یک حساب هزینه بسازید.",
+        );
+      }
+    }
 
     const amount = D(inst.amountBase);
     // 3b) Capture the FX rate valid AT THIS MOMENT, from the project's existing
@@ -587,14 +617,18 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     // Reference reads run INSIDE the transaction (single-connection drivers
     // hold an exclusive lock during it) — keeps the read set consistent too.
     const cashUnits = await unitsFor(cashAccountId, paymentUsd.toString(), tx, u);
-    const debtUnits = await unitsFor(debt.accountId, paymentUsd.toString(), tx, u);
+    const contraUnits = await unitsFor(contraAccountId, paymentUsd.toString(), tx, u);
 
     // 4) Post the ledger movement through the EXISTING single write path,
     //    inside this same transaction so it commits or rolls back atomically.
+    //    `debt_repayment` (not `installment`) whenever the counter leg is an
+    //    EXPENSE bucket — that type is what keeps a planning-only debt payment
+    //    out of the expense / cash-flow reports; the liability branch keeps the
+    //    historical `installment` type so existing entries stay comparable.
     const entry = await postEntry(
       {
         entryDate: todayIso(),
-        type: "installment",
+        type: contraIsExpense ? "debt_repayment" : "installment",
         description: `پرداخت قسط ${inst.seq} — ${debt.title}`,
         userId: u,
         postings: [
@@ -605,11 +639,13 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
             baseValue: paymentUsd.neg().toString(),
           },
           {
-            accountId: debt.accountId,
-            assetId: debtUnits.assetId,
-            quantity: debtUnits.quantity,
+            accountId: contraAccountId,
+            assetId: contraUnits.assetId,
+            quantity: contraUnits.quantity,
             baseValue: paymentUsd.toString(),
-            memo: "کاهش مانده بدهی",
+            memo: contraIsExpense
+              ? "بدهیِ بدون حساب بدهی — طبقه‌بندی خروج وجه در سرفصل هزینه (خارج از گزارش هزینه‌ها)"
+              : "کاهش مانده بدهی",
           },
         ],
       },
@@ -638,7 +674,10 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     if ((pending[0]?.c ?? 0) === 0) {
       await tx.update(debts).set({ status: "settled" }).where(eq(debts.id, debt.id));
     }
-    return entry;
+    // `.id` keeps every existing caller working (the entry is what they read);
+    // `.contra` says which side absorbed the outflow so the UI can be explicit
+    // about a classification the user never chose themselves.
+    return { ...entry, contra: (contraIsExpense ? "expense" : "liability") as "expense" | "liability" };
   });
 }
 
