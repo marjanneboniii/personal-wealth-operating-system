@@ -352,6 +352,13 @@ export async function completeSetup(
       { code: "5040", name: "کارمزد و بانک", type: "expense", assetId: baseAssetId },
       { code: "5050", name: "سفر و رویداد", type: "expense", assetId: baseAssetId },
       { code: "5900", name: "هزینه متفرقه", type: "expense", assetId: baseAssetId },
+      // INSTALLMENT-PAYMENT BUCKET — NOT optional, and NOT the same thing as
+      // 5900. A repayment of a planning-only debt has no liability account to
+      // reduce, so its debit needs a home; putting it on «هزینه متفرقه» made a
+      // loan payment look like groceries (audit F-3). It is reported as a debt
+      // movement, never as consumption (see the 5960 note in
+      // src/features/accounts/systemAccounts.ts).
+      { code: "5960", name: "پرداخت اقساط", type: "expense", assetId: baseAssetId },
     ];
 
     const ownedAcctRows = acctRows.map((row) => ({ ...row, userId: userId ?? null }));

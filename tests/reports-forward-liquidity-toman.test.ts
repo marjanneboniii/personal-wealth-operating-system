@@ -59,6 +59,14 @@ mock.module("@/features/ledger/queries", {
     getAccountBalances: async () => [],
     getCashflow: async () => [],
     getHoldings: async () => [],
+    getExpenseIncomeTotals: async () => ({
+      expense: "0",
+      income: "0",
+      repayments: "0",
+      repaymentEntries: 0,
+      repaymentsToman: "0",
+      repaymentsTomanEntries: 0,
+    }),
     getRealizedPnl: async () => ({ total: "0", bySymbol: [] }),
   },
 });

@@ -510,7 +510,7 @@ test("SEC/M-02 Accounts — DELETE: used account archived (never deleted), unuse
 /* M-03 — atomic installment payment                                    */
 /* ------------------------------------------------------------------ */
 
-test("SEC/M-03 — payInstallment: atomic success, idempotent replay, rollback on precondition failure, tenant-scoped", async () => {
+test("SEC/M-03 — payInstallment: atomic success, idempotent replay, planning-only contra, tenant-scoped", async () => {
   const { userA, userB, cashAccA, cashAccB, liabAccA } = await setupScenario();
 
   const [debt] = await db
@@ -553,8 +553,17 @@ test("SEC/M-03 — payInstallment: atomic success, idempotent replay, rollback o
   const allEntries = await db.select().from(journalEntries);
   assert.equal(allEntries.length, 1, "double payment must never post twice");
 
-  // Failure path: debt without ledger account → precondition fails INSIDE the
-  // transaction → installment untouched, zero accounting side-effects
+  // A PLANNING-ONLY debt (account_id IS NULL — the shape every debt created in
+  // «بدهی‌ها» has) used to be REFUSED here with «حساب بدهی تعریف نشده است», which
+  // killed Quick Pay on every installment the UI can create. It now books the
+  // outflow against the tenant's expense bucket with entry type
+  // 'debt_repayment' — the same legs the Payment Form produces (full contract:
+  // tests/installment-quick-pay-planning-only.test.ts). The atomicity this test
+  // is about still holds: exactly ONE entry, exactly TWO legs, nothing else.
+  await db
+    .insert(userFxSettings)
+    .values({ userId: userA.id, currentRate: "200000" } as any)
+    .onConflictDoNothing();
   const [debt2] = await db
     .insert(debts)
     .values({ userId: userA.id, title: "وام دستی", creditor: "X", principalBase: "10", startDate: "2026-01-01" } as any)
@@ -563,12 +572,24 @@ test("SEC/M-03 — payInstallment: atomic success, idempotent replay, rollback o
     .insert(installments)
     .values({ debtId: debt2.id, seq: 1, dueDate: "2026-08-02", amountBase: "10" } as any)
     .returning();
-  await assert.rejects(payInstallment(inst2.id, cashAccA.id, userA.id), /حساب بدهی تعریف نشده/);
+  const paid2: any = await payInstallment(inst2.id, cashAccA.id, userA.id);
+  assert.ok(paid2.id, "the payment is posted, not refused");
+  assert.equal(paid2.contra, "expense", "and the caller is told which side absorbed it");
   [instCheck] = await db.select().from(installments).where(eq(installments.id, inst2.id));
-  assert.equal(instCheck.status, "pending");
-  assert.equal(instCheck.paidEntryId, null);
-  const entriesAfterFail = await db.select().from(journalEntries);
-  assert.equal(entriesAfterFail.length, 1, "failed payment must leave no ledger rows (atomic rollback)");
+  assert.equal(instCheck.status, "paid");
+  assert.equal(instCheck.paidEntryId, paid2.id);
+  const [entry2] = await db.select().from(journalEntries).where(eq(journalEntries.id, paid2.id));
+  assert.equal(entry2.type, "debt_repayment", "never an 'expense'/'installment' type on an expense leg");
+  const legs2 = await db.select().from(postings).where(eq(postings.entryId, paid2.id));
+  assert.equal(legs2.length, 2, "one entry, two balanced legs");
+  const contraRow = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.id, legs2.find((l: any) => l.accountId !== cashAccA.id)!.accountId));
+  assert.equal(contraRow[0].type, "expense", "the contra leg is an expense row of the tenant's own chart");
+  assert.equal(contraRow[0].userId, userA.id, "never another tenant's bucket");
+  const entriesAfterPay = await db.select().from(journalEntries);
+  assert.equal(entriesAfterPay.length, 2, "no extra ledger rows beyond this payment and the fixture entry");
 });
 
 /* ------------------------------------------------------------------ */

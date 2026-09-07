@@ -13,6 +13,11 @@ import {
 } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import { postEntry, unitsFor } from "@/features/ledger/service";
+import {
+  ensureInstallmentPaymentAccount,
+  INSTALLMENT_PAYMENT_CODE,
+  INSTALLMENT_PAYMENT_NAME,
+} from "@/features/accounts/systemAccounts";
 import { getAccountBalances, hasMultipleUsers } from "@/features/ledger/queries";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { readTenantState } from "@/lib/tenantState";
@@ -175,7 +180,7 @@ export async function listBudgets(userId?: string) {
     const minStart = rows.reduce((min, r) => (r.periodStart < min ? r.periodStart : min), rows[0].periodStart);
     const maxEnd = rows.reduce((max, r) => (r.periodEnd > max ? r.periodEnd : max), rows[0].periodEnd);
     const postingsRes = await db.execute(sql`
-      select p.account_id as account_id, je.entry_date::text as entry_date, p.base_value::text as val
+      select p.account_id as account_id, je.entry_date::text as entry_date, je.type::text as entry_type, p.base_value::text as val
       from postings p
         join journal_entries je on je.id = p.entry_id
       where je.status = 'posted'
@@ -187,12 +192,26 @@ export async function listBudgets(userId?: string) {
         and je.entry_date >= ${minStart}
         and je.entry_date <= ${maxEnd}
     `);
-    const postingRows = postingsRes.rows as { account_id: string; entry_date: string; val: string }[];
+    const postingRows = postingsRes.rows as {
+      account_id: string;
+      entry_date: string;
+      entry_type: string;
+      val: string;
+    }[];
     for (const b of rows) {
       if (!b.accountId) continue;
+      // AUDIT F-2 (2026-09-07): a debt repayment is NOT spend. Its contra leg
+      // lives on an expense-type account (5960), so a posting-level SUM alone
+      // counted it and a budget on «هزینه متفرقه» reported false overspend the
+      // day an installment was paid. A repayment is measured only by a budget
+      // that was DELIBERATELY bound to «پرداخت اقساط» — the one ceiling for
+      // which installment outflow is the thing being capped.
+      const installmentBudget = b.accountCode === INSTALLMENT_PAYMENT_CODE;
       let sumSpendUsd = Decimal.zero();
       for (const pr of postingRows) {
-        if (pr.account_id === b.accountId && pr.entry_date >= b.periodStart && pr.entry_date <= b.periodEnd) {
+        if (pr.account_id !== b.accountId) continue;
+        if (pr.entry_type === "debt_repayment" && !installmentBudget) continue;
+        if (pr.entry_date >= b.periodStart && pr.entry_date <= b.periodEnd) {
           sumSpendUsd = sumSpendUsd.add(D(pr.val));
         }
       }
@@ -473,7 +492,13 @@ export async function listInstallmentSchedule(userId?: string) {
   return {
     rate: fx.rate,
     rows: mapped,
-    pendingUsdInsight: summarizePendingUsdChange(mapped.map((r) => r.fx)),
+    // The rate is passed along purely so the UI can LABEL its arithmetic (which
+    // IRT-per-USD figure each side of the comparison was divided by); the money
+    // figures themselves already come from the views and are never re-derived.
+    pendingUsdInsight: summarizePendingUsdChange(
+      mapped.map((r) => r.fx),
+      fx.rate,
+    ),
   };
 }
 
@@ -543,10 +568,42 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
       .limit(1);
     if (!row.length) throw new Error("قسط یافت نشد یا متعلق به شما نیست");
     const { inst, debt } = row[0];
-    if (inst.status === "paid") return { id: inst.paidEntryId ?? "", alreadyPaid: true };
+    if (inst.status === "paid") return { id: inst.paidEntryId ?? "", alreadyPaid: true, contra: null as string | null };
 
-    // 3) Validate accounting preconditions.
-    if (!debt.accountId) throw new Error("حساب بدهی تعریف نشده است");
+    // 3) Resolve the CONTRA LEG — and never refuse the payment over it.
+    //
+    //    • debt WITH a ledger liability account → cash ↓ / liability ↓,
+    //      entry type `installment` (the classical settlement).
+    //    • PLANNING-ONLY debt (`account_id IS NULL`) — which is how EVERY debt
+    //      created in «بدهی‌ها» is stored, because createDebtAction deliberately
+    //      leaves the ledger untouched until a real movement happens — has no
+    //      liability to reduce. The money nevertheless left the wallet, so the
+    //      outflow is classified against the dedicated «پرداخت اقساط» bucket
+    //      (5960) with entry type `debt_repayment`: never 5900 «هزینه متفرقه»,
+    //      because a repayment is not groceries. The type is excluded from every
+    //      expense / cash-flow aggregation (getCashflow, getFlowByAccount,
+    //      getFlowByCategory and the reports KPI via getExpenseIncomeTotals), so
+    //      an installment payment can never be mistaken for consumption — and
+    //      since 2026-09-07 neither can a budget eat it (see listBudgets).
+    //
+    //    Quick Pay used to throw «حساب بدهی تعریف نشده است» here, which made the
+    //    one-click button on every UI-created installment dead on arrival.
+    let contraAccountId: string | null = debt.accountId;
+    let contraIsExpense = false;
+    let contraBucketName: string | null = null;
+    if (!contraAccountId) {
+      const bucket = await ensureInstallmentPaymentAccount(u ?? null, tx);
+      contraAccountId = bucket?.id ?? null;
+      contraBucketName = bucket?.name ?? null;
+      contraIsExpense = true;
+      if (!contraAccountId) {
+        // A genuine accounting precondition, not a design dead-end: with no
+        // expense row at all the entry would post unbalanced.
+        throw new Error(
+          "سرفصل «پرداخت اقساط» در دفتر این کاربر ساخته نشد؛ در «تنظیمات ← حساب‌ها» یک حساب هزینه بسازید.",
+        );
+      }
+    }
 
     const amount = D(inst.amountBase);
     // 3b) Capture the FX rate valid AT THIS MOMENT, from the project's existing
@@ -581,14 +638,18 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     // Reference reads run INSIDE the transaction (single-connection drivers
     // hold an exclusive lock during it) — keeps the read set consistent too.
     const cashUnits = await unitsFor(cashAccountId, paymentUsd.toString(), tx, u);
-    const debtUnits = await unitsFor(debt.accountId, paymentUsd.toString(), tx, u);
+    const contraUnits = await unitsFor(contraAccountId, paymentUsd.toString(), tx, u);
 
     // 4) Post the ledger movement through the EXISTING single write path,
     //    inside this same transaction so it commits or rolls back atomically.
+    //    `debt_repayment` (not `installment`) whenever the counter leg is an
+    //    EXPENSE bucket — that type is what keeps a planning-only debt payment
+    //    out of the expense / cash-flow reports; the liability branch keeps the
+    //    historical `installment` type so existing entries stay comparable.
     const entry = await postEntry(
       {
         entryDate: todayIso(),
-        type: "installment",
+        type: contraIsExpense ? "debt_repayment" : "installment",
         description: `پرداخت قسط ${inst.seq} — ${debt.title}`,
         userId: u,
         postings: [
@@ -599,11 +660,13 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
             baseValue: paymentUsd.neg().toString(),
           },
           {
-            accountId: debt.accountId,
-            assetId: debtUnits.assetId,
-            quantity: debtUnits.quantity,
+            accountId: contraAccountId,
+            assetId: contraUnits.assetId,
+            quantity: contraUnits.quantity,
             baseValue: paymentUsd.toString(),
-            memo: "کاهش مانده بدهی",
+            memo: contraIsExpense
+              ? `بدهیِ بدون حساب بدهی — خروج وجه در سرفصل «${contraBucketName ?? INSTALLMENT_PAYMENT_NAME}»، نه «هزینه متفرقه»؛ خارج از گزارش هزینه‌ها و خارج از بودجه‌ها`
+              : "کاهش مانده بدهی",
           },
         ],
       },
@@ -632,7 +695,16 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     if ((pending[0]?.c ?? 0) === 0) {
       await tx.update(debts).set({ status: "settled" }).where(eq(debts.id, debt.id));
     }
-    return entry;
+    // `.id` keeps every existing caller working (the entry is what they read);
+    // `.contra` says which side absorbed the outflow so the UI can be explicit
+    // about a classification the user never chose themselves, and `.contraName`
+    // names the bucket that actually received it (the chart row's own name —
+    // a renamed account must never be described by a hardcoded string).
+    return {
+      ...entry,
+      contra: (contraIsExpense ? "expense" : "liability") as "expense" | "liability",
+      contraName: contraBucketName,
+    };
   });
 }
 

@@ -106,8 +106,12 @@ test("scroll contract: the schedule table can reach max-content inside its card 
   );
 
   const src = page();
-  assert.ok(
-    src.includes('className="card overflow-x-auto"'),
+  // The wrapper may carry more utilities than these two (the responsive card
+  // layout hides the table below `sm:`), so match the classes, not one exact
+  // string — the contract is "a .card that is also overflow-x-auto".
+  assert.match(
+    src,
+    /className="[^"]*\bcard\b[^"]*\boverflow-x-auto\b[^"]*"/,
     "the schedule table must live in a `card overflow-x-auto` wrapper for the " +
       "max-content rule to apply",
   );

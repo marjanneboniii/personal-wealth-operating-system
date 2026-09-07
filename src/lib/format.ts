@@ -155,6 +155,50 @@ export function formatPct(value: string | number, decimals = 1): string {
   return `${formatNumber(value, { decimals })}٪`;
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   Day counts & percents — Persian phrases with a FORCED visual order.
+   Same isolate technique formatMoney uses: the phrase is wrapped in
+   RLI … PDI so its visual order is always «number → روز → قید»
+   («۱۷ روز دیگر»), never «روز ۱۷ دیگر». The mobile installment card
+   keeps its date row in a `dir="ltr"` flex (dates are Latin-ordered
+   YYYY/MM/DD), and without the isolate the bidi algorithm breaks the
+   Persian countdown phrase apart inside that LTR container.
+   ════════════════════════════════════════════════════════════════════ */
+
+/** Wrap an already-correct Persian phrase in a right-to-left isolate. */
+export function rtlPhrase(text: string): string {
+  return `${RLI}${text}${PDI}`;
+}
+
+/**
+ * Countdown label for a due date — number FIRST, then «روز», then the qualifier:
+ *   formatDaysUntil(17) → «۱۷ روز دیگر»
+ *   formatDaysUntil(-3) → «۳ روز گذشته»
+ *   formatDaysUntil(0)  → «امروز»
+ */
+export function formatDaysUntil(days: number): string {
+  if (!Number.isFinite(days)) return rtlPhrase("زمان نامشخص");
+  if (days === 0) return rtlPhrase("امروز");
+  const n = faCount(Math.abs(Math.trunc(days)));
+  return days < 0
+    ? rtlPhrase(`${n}${NBSP}روز${NBSP}گذشته`)
+    : rtlPhrase(`${n}${NBSP}روز${NBSP}دیگر`);
+}
+
+/** Window label for KPI captions — «۳۰ روز آینده», never «در ۳۰ روز آینده». */
+export function formatDaysWindow(days: number): string {
+  return rtlPhrase(`${faCount(days)}${NBSP}روز${NBSP}آینده`);
+}
+
+/**
+ * Percent with a forced «number then ٪» order inside any container.
+ * formatPct alone can trail its sign when it sits next to a Latin/number run
+ * in a flex row (e.g. «۵٪ ۱۹.۷ دلار» reading backwards).
+ */
+export function formatPctIsolated(value: string | number, decimals = 1): string {
+  return rtlPhrase(formatPct(value, decimals));
+}
+
 const FA_MONTHS = [
   "فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور",
   "مهر","آبان","آذر","دی","بهمن","اسفند",
