@@ -20,7 +20,7 @@ import {
   type NavGroup,
 } from "@/lib/nav";
 
-const MARKETING_PATHS = new Set(["/about", "/privacy", "/terms"]);
+const MARKETING_PATHS = new Set(["/about", "/privacy", "/terms", "/watch"]);
 
 /* ───────────────────────── Theme ───────────────────────── */
 
