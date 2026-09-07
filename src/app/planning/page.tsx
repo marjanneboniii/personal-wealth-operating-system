@@ -17,6 +17,7 @@ import { EventForm, GoalForm, PlannedForm } from "@/components/forms/QuickForms"
 import RowAction from "@/components/RowAction";
 import Icon from "@/components/ui/Icon";
 import {
+  formatDaysUntil,
   formatShortDate,
   getDualDate,
   toJalali,
@@ -168,7 +169,7 @@ export default async function PlanningPage() {
                     <p className="muted mt-0.5 text-[11px]">
                       {q.extra} · {dual.jalali} ·{" "}
                       <span style={{ color: d < 0 ? "var(--negative)" : undefined }} className="num">
-                        {d < 0 ? `${faCount(Math.abs(d))} روز گذشته` : d === 0 ? "امروز" : `${faCount(d)} روز دیگر`}
+                        {formatDaysUntil(d)}
                       </span>
                     </p>
                   </div>

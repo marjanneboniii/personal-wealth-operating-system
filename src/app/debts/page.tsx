@@ -12,6 +12,7 @@ import {
   formatQty,
   todayIso,
   faCount,
+  formatDaysUntil,
   formatTomanPrimary,
   sumToman,
 } from "@/lib/format";
@@ -181,13 +182,12 @@ export default async function DebtsPage() {
                               : "—"}
                           </b>{" "}
                           ·{" "}
-                          {dDays != null && dDays < 0 ? (
-                            <b>{faCount(Math.abs(dDays))} روز گذشته</b>
-                          ) : dDays === 0 ? (
-                            <b>امروز</b>
-                          ) : (
-                            <span className="num">{faCount(dDays ?? 0)} روز دیگر</span>
-                          )}
+                          {/* Shared helper: the number must sit BEFORE «روز»
+                              («۱۷ روز دیگر»); hand-written variants of this
+                              phrase kept getting shuffled by the bidi rules. */}
+                          <b className="num" style={dDays != null && dDays < 0 ? { color: "var(--negative)" } : undefined}>
+                            {dDays != null ? formatDaysUntil(dDays) : "—"}
+                          </b>
                         </>
                       ) : settled ? (
                         "همه اقساط پرداخت شدند."

@@ -230,32 +230,80 @@ export type PendingUsdInsight = UsdEquivalentChange & {
   originalUsd: string;
   /** Sum of their current USD equivalents. */
   currentUsd: string;
+  /**
+   * The frozen Toman balance those two USD figures are the equivalents of.
+   * The UI needs it to spell the arithmetic out («۸۶۸۱۸۱۸۰ تومان ÷ نرخ …»),
+   * because a bare «۱۹.۷ دلار» with no visible base is unreadable.
+   */
+  amountToman: string;
+  /**
+   * Weighted-average booking rate implied by `amountToman ÷ originalUsd`
+   * (each row carries its own creation rate, so this is an average, never a
+   * rate that was ever quoted on its own). Null when it cannot be derived.
+   */
+  avgOriginalFxRate: string | null;
+  /** The live rate the `currentUsd` side was divided by. */
+  currentFxRate: string | null;
   /** How many pending installments carry both figures. */
   count: number;
+  /**
+   * Pending installments with NO creation-time USD snapshot — they are
+   * excluded from the comparison, and the UI must say so instead of letting
+   * the user assume the balance above is fully covered.
+   */
+  missingOriginalCount: number;
 };
 
 /**
  * Small insight over the PENDING installments only: how much the USD
  * equivalent of the remaining obligation moved since each row was booked.
  * Paid rows are excluded by construction — their values are historical.
+ *
+ * `currentFxRate` is passed in by the caller (the same rate every pending
+ * view was built with) purely so the UI can label its arithmetic; no
+ * conversion is performed from it here.
  */
-export function summarizePendingUsdChange(views: InstallmentFxView[]): PendingUsdInsight | null {
+export function summarizePendingUsdChange(
+  views: InstallmentFxView[],
+  currentFxRate?: string | number | null,
+): PendingUsdInsight | null {
   let original = D("0");
   let current = D("0");
+  let toman = D("0");
   let count = 0;
+  let missingOriginal = 0;
   for (const v of views) {
     if (v.isPaid) continue;
     const o = dec(v.originalUsdEquivalent);
     const c = dec(v.currentUsdEquivalent);
-    if (!o || !c || !o.gt(0)) continue;
+    const t = positive(v.amountToman);
+    if (!t) continue;
+    // A pending obligation with no booking-time snapshot (or with no live
+    // rate to compare against) cannot be compared — count it so the UI can
+    // disclose the gap instead of silently shrinking the balance behind it.
+    if (!o || !o.gt(0) || !c) {
+      missingOriginal += 1;
+      continue;
+    }
     original = original.add(o);
     current = current.add(c);
+    toman = toman.add(t);
     count += 1;
   }
   if (count === 0 || !original.gt(0)) return null;
   const change = computeUsdEquivalentChange(original.toString(), current.toString());
   if (!change) return null;
-  return { ...change, originalUsd: original.toString(), currentUsd: current.toString(), count };
+  const rate = positive(currentFxRate);
+  return {
+    ...change,
+    originalUsd: original.toString(),
+    currentUsd: current.toString(),
+    amountToman: toman.toFixed(0),
+    avgOriginalFxRate: toman.gt(0) ? toman.div(original).toFixed(0) : null,
+    currentFxRate: rate ? rate.toString() : null,
+    count,
+    missingOriginalCount: missingOriginal,
+  };
 }
 
 export type InstallmentPaymentSnapshot = InstallmentPayment;

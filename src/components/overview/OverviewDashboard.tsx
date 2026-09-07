@@ -21,6 +21,7 @@ import {
   formatSignedMoney,
   toJalali,
   faCount,
+  formatDaysUntil,
   inflowTone,
   outflowTone,
   toneColor,
@@ -118,7 +119,10 @@ export default async function OverviewDashboard() {
     attention.push({
       icon: "clock",
       tone: d < 0 ? "neg" : "info",
-      text: d < 0 ? `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» سررسید گذشته است` : `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${d === 0 ? "امروز" : `${faCount(d)} روز دیگر`} سر می‌رسد`,
+      text:
+        d < 0
+          ? `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${formatDaysUntil(d)}`
+          : `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${formatDaysUntil(d)} سر می‌رسد`,
       detail: `${instToman ? formatMoney(instToman, "IRT") : "—"} — ${soonInst.creditor}`,
       href: "/installments",
       action: "مشاهده",

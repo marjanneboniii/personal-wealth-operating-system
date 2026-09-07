@@ -473,7 +473,13 @@ export async function listInstallmentSchedule(userId?: string) {
   return {
     rate: fx.rate,
     rows: mapped,
-    pendingUsdInsight: summarizePendingUsdChange(mapped.map((r) => r.fx)),
+    // The rate is passed along purely so the UI can LABEL its arithmetic (which
+    // IRT-per-USD figure each side of the comparison was divided by); the money
+    // figures themselves already come from the views and are never re-derived.
+    pendingUsdInsight: summarizePendingUsdChange(
+      mapped.map((r) => r.fx),
+      fx.rate,
+    ),
   };
 }
 

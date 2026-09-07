@@ -5,6 +5,7 @@ import { listEvents, listObligations, upcomingInstallments } from "@/features/pl
 import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import {
+  formatDaysUntil,
   formatJalaliIso,
   todayIso,
   faCount,
@@ -180,9 +181,7 @@ export default async function ObligationsPage() {
                       </td>
                       <td style={{ whiteSpace: "nowrap" }}>
                         <span className="num block text-[12px]">{formatJalaliIso(r.date)}</span>
-                        <span className="muted num text-[9.5px]">
-                          {d < 0 ? `${faCount(Math.abs(d))} روز گذشته` : d === 0 ? "امروز" : `${faCount(d)} روز دیگر`}
-                        </span>
+                        <span className="muted num text-[9.5px]">{formatDaysUntil(d)}</span>
                       </td>
                       <td className="td-num font-bold" dir="rtl">
                         <div>{disp.primary}</div>
