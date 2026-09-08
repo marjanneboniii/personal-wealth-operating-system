@@ -34,6 +34,7 @@ test("RLS defaults closed and binds financial rows to auth.uid()", () => {
   assert.match(sql, /REVOKE ALL ON TABLE public\.%I FROM anon, authenticated/);
   assert.match(sql, /ENABLE ROW LEVEL SECURITY/);
   assert.match(sql, /auth\.uid\(\)/);
+  assert.doesNotMatch(sql, /GRANT SELECT, INSERT, UPDATE, DELETE/);
   assert.match(sql, /DROP TABLE IF EXISTS public\.sessions/);
   assert.match(sql, /UPDATE public\.users SET pin_hash = NULL, password_hash = NULL, google_id = NULL/);
   assert.doesNotMatch(sql, /'institutions','assets'/);

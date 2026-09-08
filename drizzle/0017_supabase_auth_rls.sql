@@ -120,15 +120,14 @@ BEGIN
   ] LOOP
     IF to_regclass('public.' || t) IS NOT NULL THEN
       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
-      EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.%I TO authenticated', t);
+      -- Financial writes stay behind trusted Server Actions/APIs so validation,
+      -- row locks, ledger invariants and audit cannot be bypassed via Data API.
+      EXECUTE format('GRANT SELECT ON TABLE public.%I TO authenticated', t);
       EXECUTE format('DROP POLICY IF EXISTS tenant_select ON public.%I', t);
       EXECUTE format('DROP POLICY IF EXISTS tenant_insert ON public.%I', t);
       EXECUTE format('DROP POLICY IF EXISTS tenant_update ON public.%I', t);
       EXECUTE format('DROP POLICY IF EXISTS tenant_delete ON public.%I', t);
       EXECUTE format('CREATE POLICY tenant_select ON public.%I FOR SELECT TO authenticated USING ((SELECT auth.uid()) = user_id)', t);
-      EXECUTE format('CREATE POLICY tenant_insert ON public.%I FOR INSERT TO authenticated WITH CHECK ((SELECT auth.uid()) = user_id)', t);
-      EXECUTE format('CREATE POLICY tenant_update ON public.%I FOR UPDATE TO authenticated USING ((SELECT auth.uid()) = user_id) WITH CHECK ((SELECT auth.uid()) = user_id)', t);
-      EXECUTE format('CREATE POLICY tenant_delete ON public.%I FOR DELETE TO authenticated USING ((SELECT auth.uid()) = user_id)', t);
     END IF;
   END LOOP;
 
@@ -139,7 +138,7 @@ BEGIN
   ) AS x(child_table) LOOP
     IF to_regclass('public.' || t) IS NOT NULL THEN
       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
-      EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.%I TO authenticated', t);
+      EXECUTE format('GRANT SELECT ON TABLE public.%I TO authenticated', t);
       EXECUTE format('DROP POLICY IF EXISTS tenant_parent ON public.%I', t);
     END IF;
   END LOOP;
@@ -152,30 +151,22 @@ DROP POLICY IF EXISTS expense_categories_shared_select ON public.expense_categor
 CREATE POLICY expense_categories_shared_select ON public.expense_categories FOR SELECT TO authenticated
 USING (user_id IS NULL);--> statement-breakpoint
 
-CREATE POLICY tenant_parent ON public.postings FOR ALL TO authenticated
-USING (EXISTS (SELECT 1 FROM public.journal_entries p WHERE p.id = postings.entry_id AND p.user_id = (SELECT auth.uid())))
-WITH CHECK (EXISTS (SELECT 1 FROM public.journal_entries p WHERE p.id = postings.entry_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
-CREATE POLICY tenant_parent ON public.entry_reviews FOR ALL TO authenticated
-USING (EXISTS (SELECT 1 FROM public.journal_entries p WHERE p.id = entry_reviews.entry_id AND p.user_id = (SELECT auth.uid())))
-WITH CHECK (EXISTS (SELECT 1 FROM public.journal_entries p WHERE p.id = entry_reviews.entry_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
-CREATE POLICY tenant_parent ON public.entry_fx_snapshots FOR ALL TO authenticated
-USING (EXISTS (SELECT 1 FROM public.journal_entries p WHERE p.id = entry_fx_snapshots.entry_id AND p.user_id = (SELECT auth.uid())))
-WITH CHECK (EXISTS (SELECT 1 FROM public.journal_entries p WHERE p.id = entry_fx_snapshots.entry_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
-CREATE POLICY tenant_parent ON public.lot_consumptions FOR ALL TO authenticated
-USING (EXISTS (SELECT 1 FROM public.lots p WHERE p.id = lot_consumptions.lot_id AND p.user_id = (SELECT auth.uid())))
-WITH CHECK (EXISTS (SELECT 1 FROM public.lots p WHERE p.id = lot_consumptions.lot_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
-CREATE POLICY tenant_parent ON public.snapshot_lines FOR ALL TO authenticated
-USING (EXISTS (SELECT 1 FROM public.snapshots p WHERE p.id = snapshot_lines.snapshot_id AND p.user_id = (SELECT auth.uid())))
-WITH CHECK (EXISTS (SELECT 1 FROM public.snapshots p WHERE p.id = snapshot_lines.snapshot_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
-CREATE POLICY tenant_parent ON public.goal_contributions FOR ALL TO authenticated
-USING (EXISTS (SELECT 1 FROM public.goals p WHERE p.id = goal_contributions.goal_id AND p.user_id = (SELECT auth.uid())))
-WITH CHECK (EXISTS (SELECT 1 FROM public.goals p WHERE p.id = goal_contributions.goal_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
-CREATE POLICY tenant_parent ON public.event_items FOR ALL TO authenticated
-USING (EXISTS (SELECT 1 FROM public.events p WHERE p.id = event_items.event_id AND p.user_id = (SELECT auth.uid())))
-WITH CHECK (EXISTS (SELECT 1 FROM public.events p WHERE p.id = event_items.event_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
-CREATE POLICY tenant_parent ON public.installments FOR ALL TO authenticated
-USING (EXISTS (SELECT 1 FROM public.debts p WHERE p.id = installments.debt_id AND p.user_id = (SELECT auth.uid())))
-WITH CHECK (EXISTS (SELECT 1 FROM public.debts p WHERE p.id = installments.debt_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
+CREATE POLICY tenant_parent ON public.postings FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM public.journal_entries p WHERE p.id = postings.entry_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
+CREATE POLICY tenant_parent ON public.entry_reviews FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM public.journal_entries p WHERE p.id = entry_reviews.entry_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
+CREATE POLICY tenant_parent ON public.entry_fx_snapshots FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM public.journal_entries p WHERE p.id = entry_fx_snapshots.entry_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
+CREATE POLICY tenant_parent ON public.lot_consumptions FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM public.lots p WHERE p.id = lot_consumptions.lot_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
+CREATE POLICY tenant_parent ON public.snapshot_lines FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM public.snapshots p WHERE p.id = snapshot_lines.snapshot_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
+CREATE POLICY tenant_parent ON public.goal_contributions FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM public.goals p WHERE p.id = goal_contributions.goal_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
+CREATE POLICY tenant_parent ON public.event_items FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM public.events p WHERE p.id = event_items.event_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
+CREATE POLICY tenant_parent ON public.installments FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM public.debts p WHERE p.id = installments.debt_id AND p.user_id = (SELECT auth.uid())));--> statement-breakpoint
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 REVOKE ALL ON TABLE public.users FROM anon, authenticated;--> statement-breakpoint
