@@ -208,9 +208,8 @@ export async function postEntry(
     // 1. Concurrency Safety: Lock account rows FOR UPDATE in ascending ID order to prevent deadlocks
     const uniqueAccountIds = Array.from(new Set(input.postings.map((p) => p.accountId))).sort();
     for (const accId of uniqueAccountIds) {
-      try {
-        await tx.execute(sql`SELECT id FROM accounts WHERE id = ${accId} FOR UPDATE`);
-      } catch {}
+      const locked = await tx.execute(sql`SELECT id FROM accounts WHERE id = ${accId} FOR UPDATE`);
+      if (locked.rows.length !== 1) throw new Error("Account lock failed");
     }
 
     // 2. Overdraft Prevention (when explicitly enabled)
@@ -321,8 +320,7 @@ export async function postEntry(
     }
 
     if (input.closeLot && D(input.closeLot.quantity).gt(0)) {
-      try {
-        await tx.execute(sql`
+      await tx.execute(sql`
           SELECT id FROM lots
           WHERE asset_id = ${input.closeLot.assetId}
             ${resolvedUserId ? sql`AND user_id = ${resolvedUserId}` : sql``}
@@ -330,7 +328,6 @@ export async function postEntry(
           ORDER BY opened_at ASC, id ASC
           FOR UPDATE
         `);
-      } catch {}
 
       const open = await tx
         .select({

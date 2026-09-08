@@ -133,7 +133,7 @@ export default function SetupWizardPage() {
     cashOpeningBalance,
     bankAssetSymbol,
     cashAssetSymbol,
-    usdIrtRate,
+    fxRate,
     cryptoOpeningQty,
     cryptoUnitPrice,
     goldOpeningQty,

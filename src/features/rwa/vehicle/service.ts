@@ -28,6 +28,7 @@ import { ensureSchemaOnce } from "@/db/init-schema";
 import { D } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
 import { nextRwaSymbol } from "@/features/rwa/symbol";
+import { decryptSensitive, encryptSensitive } from "@/lib/fieldEncryption";
 import type { CreateVehicleInput, VehicleAsset } from "../types";
 import {
   getCatalogModel,
@@ -84,10 +85,10 @@ export async function createVehicleAsset(input: CreateVehicleInput): Promise<{ i
       brand: input.brand,
       model: input.model,
       year: input.year,
-      licensePlate: input.licensePlate ?? null,
-      chassisNumber: input.chassisNumber ?? null,
+      licensePlate: encryptSensitive(input.licensePlate, "vehicle.licensePlate"),
+      chassisNumber: encryptSensitive(input.chassisNumber, "vehicle.chassisNumber"),
       mileage: input.mileage ?? null,
-      notes: input.notes ?? null,
+      notes: encryptSensitive(input.notes, "vehicle.notes"),
     })
     .onConflictDoUpdate({
       target: vehicleAssets.assetId,
@@ -96,10 +97,10 @@ export async function createVehicleAsset(input: CreateVehicleInput): Promise<{ i
         brand: input.brand,
         model: input.model,
         year: input.year,
-        licensePlate: input.licensePlate ?? null,
-        chassisNumber: input.chassisNumber ?? null,
+        licensePlate: encryptSensitive(input.licensePlate, "vehicle.licensePlate"),
+        chassisNumber: encryptSensitive(input.chassisNumber, "vehicle.chassisNumber"),
         mileage: input.mileage ?? null,
-        notes: input.notes ?? null,
+        notes: encryptSensitive(input.notes, "vehicle.notes"),
         updatedAt: new Date(),
       },
     })
@@ -117,10 +118,10 @@ function mapVehicleAsset(r: typeof vehicleAssets.$inferSelect & { assetSymbol?: 
     brand: r.brand,
     model: r.model,
     year: r.year,
-    licensePlate: r.licensePlate,
-    chassisNumber: r.chassisNumber,
+    licensePlate: decryptSensitive(r.licensePlate, "vehicle.licensePlate"),
+    chassisNumber: decryptSensitive(r.chassisNumber, "vehicle.chassisNumber"),
     mileage: r.mileage,
-    notes: r.notes,
+    notes: decryptSensitive(r.notes, "vehicle.notes"),
     createdAt: r.createdAt?.toISOString() ?? new Date().toISOString(),
     updatedAt: r.updatedAt?.toISOString() ?? null,
   };
@@ -166,14 +167,14 @@ function mapUserVehicle(r: typeof vehicleAssets.$inferSelect, assetSymbol?: stri
     purchasePriceToman: tomanStr(r.purchasePriceToman),
     purchaseUsdRate: rateStr(r.purchaseUsdRate),
     purchaseValueUsd: usdStr(r.purchaseValueUsd),
-    licensePlate: r.licensePlate,
+    licensePlate: decryptSensitive(r.licensePlate, "vehicle.licensePlate"),
     mileage: r.mileage,
     status: ((r.status as VehicleStatus) ?? "active") satisfies VehicleStatus,
     saleDate: r.saleDate ?? null,
     salePriceToman: tomanStr(r.salePriceToman),
     saleUsdRate: rateStr(r.saleUsdRate),
     saleValueUsd: usdStr(r.saleValueUsd),
-    notes: r.notes,
+    notes: decryptSensitive(r.notes, "vehicle.notes"),
     createdAt: r.createdAt?.toISOString() ?? new Date().toISOString(),
     updatedAt: r.updatedAt?.toISOString() ?? null,
   };
@@ -252,10 +253,10 @@ export async function createUserVehicle(input: CreateUserVehicleInput): Promise<
         purchasePriceToman: purchase.toFixed(0),
         purchaseUsdRate: D(purchaseUsdRate).toString(),
         purchaseValueUsd,
-        licensePlate: input.plate?.trim() || null,
+        licensePlate: encryptSensitive(input.plate?.trim(), "vehicle.licensePlate"),
         mileage: Number.isFinite(Number(input.mileage)) && input.mileage != null ? Number(input.mileage) : null,
         status: "active",
-        notes: input.notes?.trim() || null,
+        notes: encryptSensitive(input.notes?.trim(), "vehicle.notes"),
       })
       .returning();
     if (!row) throw new Error("ثبت خودروی کاربر ناموفق بود.");
@@ -294,9 +295,9 @@ export async function updateVehicleDetails(input: {
   await db
     .update(vehicleAssets)
     .set({
-      licensePlate: input.plate?.trim() || null,
+      licensePlate: encryptSensitive(input.plate?.trim(), "vehicle.licensePlate"),
       mileage: input.mileage ?? null,
-      notes: input.notes?.trim() || null,
+      notes: encryptSensitive(input.notes?.trim(), "vehicle.notes"),
       updatedAt: new Date(),
     })
     .where(eq(vehicleAssets.id, input.vehicleId));

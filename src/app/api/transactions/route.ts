@@ -3,6 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { journalEntries, accounts } from "@/db/schema";
 import { authenticateApi } from "@/lib/authGuard";
+import { z } from "zod";
+import { boundedLimit, isTrustedMutation } from "@/lib/requestSecurity";
 import {
   stripClientControlledFields,
   validateAccountOwnership,
@@ -10,6 +12,11 @@ import {
 } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
+const transactionUpdateSchema = z.object({
+  description: z.string().trim().min(1).max(500).optional(),
+  reference: z.string().trim().max(200).nullable().optional(),
+}).strict().refine((v) => v.description !== undefined || v.reference !== undefined);
+const transactionFields = { id: journalEntries.id, entryDate: journalEntries.entryDate, type: journalEntries.type, description: journalEntries.description, reference: journalEntries.reference, status: journalEntries.status, source: journalEntries.source };
 
 async function accountAsset(accountId: string): Promise<string> {
   const row = await db
@@ -36,14 +43,15 @@ export async function GET(req: Request) {
   if (!id) {
     // Return all for user
     const list = await db
-      .select()
+      .select(transactionFields)
       .from(journalEntries)
-      .where(eq(journalEntries.userId, auth.user.id));
+      .where(eq(journalEntries.userId, auth.user.id))
+      .limit(boundedLimit(req));
     return NextResponse.json({ ok: true, transactions: list });
   }
 
   const [je] = await db
-    .select()
+    .select(transactionFields)
     .from(journalEntries)
     .where(and(eq(journalEntries.id, id), eq(journalEntries.userId, auth.user.id)))
     .limit(1);
@@ -56,6 +64,7 @@ export async function GET(req: Request) {
 }
 
 export async function PUT(req: Request) {
+  if (!isTrustedMutation(req)) return NextResponse.json({ ok: false, error: "درخواست نامعتبر است." }, { status: 403 });
   const auth = await authenticateApi(req);
   if (!auth.authenticated || !auth.user) {
     return NextResponse.json({ ok: false, error: "نیاز به ورود (401)" }, { status: 401 });
@@ -78,12 +87,13 @@ export async function PUT(req: Request) {
     return NextResponse.json({ ok: false, error: "سند یافت نشد یا متعلق به شما نیست." }, { status: 404 });
   }
 
-  const body = await req.json();
+  const parsed = transactionUpdateSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ ok: false, error: "اطلاعات ویرایش نامعتبر است." }, { status: 400 });
   const [updated] = await db
     .update(journalEntries)
     .set({
-      description: body.description ?? je.description,
-      reference: body.reference ?? je.reference,
+      description: parsed.data.description ?? je.description,
+      reference: parsed.data.reference === undefined ? je.reference : parsed.data.reference,
     })
     .where(eq(journalEntries.id, je.id))
     .returning();
@@ -92,6 +102,7 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  if (!isTrustedMutation(req)) return NextResponse.json({ ok: false, error: "درخواست نامعتبر است." }, { status: 403 });
   const auth = await authenticateApi(req);
   if (!auth.authenticated || !auth.user) {
     return NextResponse.json({ ok: false, error: "نیاز به ورود (401)" }, { status: 401 });
@@ -132,6 +143,7 @@ export async function DELETE(req: Request) {
 }
 
 export async function POST(req: Request) {
+  if (!isTrustedMutation(req)) return NextResponse.json({ ok: false, error: "درخواست نامعتبر است." }, { status: 403 });
   const auth = await authenticateApi(req);
   if (!auth.authenticated || !auth.user) {
     return NextResponse.json({ ok: false, error: "نیاز به ورود (401)" }, { status: 401 });

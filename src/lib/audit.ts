@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { auditLog } from "@/db/schema";
 
@@ -125,13 +125,18 @@ export async function getAuditLogs(userId?: string | null, limit = 50) {
       const { getCurrentUser } = await import("@/lib/auth");
       const cur = await getCurrentUser();
       u = cur?.id ?? null;
-    } catch {}
+    } catch {
+      throw new Error("Authentication/Database error: Access denied");
+    }
   }
+
+  // Never degrade an unresolved identity to a global audit query.
+  if (!u) return [];
 
   return db
     .select()
     .from(auditLog)
-    .where(u ? eq(auditLog.userId, u) : sql`1=1`)
+    .where(eq(auditLog.userId, u))
     .orderBy(desc(auditLog.createdAt))
     .limit(safeLimit);
 }

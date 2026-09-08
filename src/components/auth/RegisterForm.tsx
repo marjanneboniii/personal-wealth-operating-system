@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { registerAction, type AuthResult } from "@/lib/auth-actions";
 import { purgeClientCaches } from "@/lib/swClient";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
 
-export default function RegisterForm({ googleClientId }: { googleClientId?: string }) {
+export default function RegisterForm({ googleClientId, turnstileSiteKey }: { googleClientId?: string; turnstileSiteKey?: string }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<AuthResult | null, FormData>(registerAction, null);
 
@@ -49,7 +50,8 @@ export default function RegisterForm({ googleClientId }: { googleClientId?: stri
           name="password"
           type="password"
           required
-          minLength={6}
+          minLength={8}
+          maxLength={128}
           autoComplete="new-password"
           placeholder="••••••••"
           className="field"
@@ -65,7 +67,8 @@ export default function RegisterForm({ googleClientId }: { googleClientId?: stri
           name="confirmPassword"
           type="password"
           required
-          minLength={6}
+          minLength={8}
+          maxLength={128}
           autoComplete="new-password"
           placeholder="••••••••"
           className="field"
@@ -86,6 +89,7 @@ export default function RegisterForm({ googleClientId }: { googleClientId?: stri
         </p>
       )}
 
+      <TurnstileWidget siteKey={turnstileSiteKey} />
       <button type="submit" disabled={pending} className="btn btn-primary w-full" style={{ touchAction: "manipulation" }}>
         {pending ? "در حال ثبت‌نام…" : "ثبت‌نام"}
       </button>

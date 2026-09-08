@@ -3,8 +3,10 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { lots } from "@/db/schema";
 import { authenticateApi } from "@/lib/authGuard";
+import { boundedLimit } from "@/lib/requestSecurity";
 
 export const dynamic = "force-dynamic";
+const lotFields = { id: lots.id, assetId: lots.assetId, accountId: lots.accountId, openedAt: lots.openedAt, qtyOpened: lots.qtyOpened, qtyRemaining: lots.qtyRemaining, unitCostBase: lots.unitCostBase };
 
 /**
  * Security-Hardened Lots REST Endpoint with 100% IDOR Protection.
@@ -19,14 +21,15 @@ export async function GET(req: Request) {
   const id = url.searchParams.get("id");
   if (!id) {
     const list = await db
-      .select()
+      .select(lotFields)
       .from(lots)
-      .where(eq(lots.userId, auth.user.id));
+      .where(eq(lots.userId, auth.user.id))
+      .limit(boundedLimit(req));
     return NextResponse.json({ ok: true, lots: list });
   }
 
   const [lot] = await db
-    .select()
+    .select(lotFields)
     .from(lots)
     .where(and(eq(lots.id, id), eq(lots.userId, auth.user.id)))
     .limit(1);

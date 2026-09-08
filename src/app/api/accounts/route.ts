@@ -3,8 +3,12 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, lots, postings } from "@/db/schema";
 import { authenticateApi } from "@/lib/authGuard";
+import { z } from "zod";
+import { boundedLimit, isTrustedMutation } from "@/lib/requestSecurity";
 
 export const dynamic = "force-dynamic";
+const accountUpdateSchema = z.object({ name: z.string().trim().min(1).max(120) }).strict();
+const accountFields = { id: accounts.id, name: accounts.name, code: accounts.code, type: accounts.type, assetId: accounts.assetId, isActive: accounts.isActive };
 
 /**
  * Security-Hardened Accounts REST Endpoint with 100% IDOR Protection.
@@ -19,14 +23,15 @@ export async function GET(req: Request) {
   const id = url.searchParams.get("id");
   if (!id) {
     const list = await db
-      .select()
+      .select(accountFields)
       .from(accounts)
-      .where(eq(accounts.userId, auth.user.id));
+      .where(eq(accounts.userId, auth.user.id))
+      .limit(boundedLimit(req));
     return NextResponse.json({ ok: true, accounts: list });
   }
 
   const [acc] = await db
-    .select()
+    .select(accountFields)
     .from(accounts)
     .where(and(eq(accounts.id, id), eq(accounts.userId, auth.user.id)))
     .limit(1);
@@ -39,6 +44,7 @@ export async function GET(req: Request) {
 }
 
 export async function PUT(req: Request) {
+  if (!isTrustedMutation(req)) return NextResponse.json({ ok: false, error: "درخواست نامعتبر است." }, { status: 403 });
   const auth = await authenticateApi(req);
   if (!auth.authenticated || !auth.user) {
     return NextResponse.json({ ok: false, error: "نیاز به ورود (401)" }, { status: 401 });
@@ -60,11 +66,12 @@ export async function PUT(req: Request) {
     return NextResponse.json({ ok: false, error: "حساب یافت نشد یا متعلق به شما نیست." }, { status: 404 });
   }
 
-  const body = await req.json();
+  const parsed = accountUpdateSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ ok: false, error: "نام حساب نامعتبر است." }, { status: 400 });
   const [updated] = await db
     .update(accounts)
     .set({
-      name: body.name ?? acc.name,
+      name: parsed.data.name,
     })
     .where(eq(accounts.id, acc.id))
     .returning();
@@ -73,6 +80,7 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  if (!isTrustedMutation(req)) return NextResponse.json({ ok: false, error: "درخواست نامعتبر است." }, { status: 403 });
   const auth = await authenticateApi(req);
   if (!auth.authenticated || !auth.user) {
     return NextResponse.json({ ok: false, error: "نیاز به ورود (401)" }, { status: 401 });

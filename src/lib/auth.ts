@@ -6,20 +6,24 @@ import crypto from "node:crypto";
 
 const SESSION_COOKIE = "pwos_session";
 const SESSION_TTL_DAYS = 30;
+const PASSWORD_SCRYPT = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 } as const;
 
 // ───────────────── Password hashing (scrypt, no extra dep) ─────────────────
 
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
-  const derived = crypto.scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${derived}`;
+  const derived = crypto.scryptSync(password, salt, 64, PASSWORD_SCRYPT).toString("hex");
+  return `s2:${salt}:${derived}`;
 }
 
 export function verifyPassword(password: string, stored: string): boolean {
   if (!stored || !stored.includes(":")) return false;
-  const [salt, hash] = stored.split(":");
+  const parts = stored.split(":");
+  const version = parts.length === 3 ? parts[0] : "s1";
+  const salt = parts.length === 3 ? parts[1] : parts[0];
+  const hash = parts.length === 3 ? parts[2] : parts[1];
   if (!salt || !hash) return false;
-  const derived = crypto.scryptSync(password, salt, 64).toString("hex");
+  const derived = crypto.scryptSync(password, salt, 64, version === "s2" ? PASSWORD_SCRYPT : undefined).toString("hex");
   // timingSafeEqual requires same length buffers
   const a = Buffer.from(hash, "hex");
   const b = Buffer.from(derived, "hex");
@@ -62,9 +66,7 @@ export async function createSession(userId: string): Promise<{ token: string; ex
 
 export async function destroySession(token: string): Promise<void> {
   if (!token) return;
-  // Delete by hash (current format) and by raw value (legacy rows only).
   await db.delete(sessions).where(eq(sessions.token, hashSessionToken(token)));
-  await db.delete(sessions).where(eq(sessions.token, token));
 }
 
 export async function getSessionUser(token: string) {
@@ -72,18 +74,15 @@ export async function getSessionUser(token: string) {
   const hashed = hashSessionToken(token);
   let row: { user: typeof users.$inferSelect; session: typeof sessions.$inferSelect } | undefined;
   try {
+    // Never compare the caller-provided value directly with the database.
+    // Doing so would make a stolen database hash usable as a bearer token.
     row = await lookupSessionRow(hashed);
     if (!row) {
-      // Transitional compatibility: sessions created before hash-at-rest
-      // stored the raw token. If such a legacy row is presented, upgrade it
-      // in place to hash storage on first use. Only pre-existing rows can
-      // ever match the raw path — new sessions are hashed on creation.
-      const legacyRow = await lookupSessionRow(token);
-      if (legacyRow) {
-        try {
-          await db.update(sessions).set({ token: hashed }).where(eq(sessions.token, token));
-        } catch {}
-        row = legacyRow;
+      // Cleanup-only compatibility for already-expired raw legacy rows. A
+      // live raw row is never authenticated or upgraded.
+      const legacyExpired = await lookupSessionRow(token);
+      if (legacyExpired?.session.expiresAt && new Date(legacyExpired.session.expiresAt) < new Date()) {
+        await db.delete(sessions).where(eq(sessions.token, token));
       }
     }
   } catch (e) {
@@ -91,10 +90,9 @@ export async function getSessionUser(token: string) {
   }
   if (!row) return null;
   if (row.session.expiresAt && new Date(row.session.expiresAt) < new Date()) {
-    // expired — clean up (hash form first, raw form for any legacy row)
+    // expired — clean up the hash-at-rest row
     try {
       await db.delete(sessions).where(eq(sessions.token, hashed));
-      await db.delete(sessions).where(eq(sessions.token, token));
     } catch {}
     return null;
   }

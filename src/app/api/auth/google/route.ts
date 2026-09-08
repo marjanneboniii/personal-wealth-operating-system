@@ -6,6 +6,7 @@ import { createSession, setSessionCookie, getCurrentUserFromRequest } from "@/li
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 import { recordAuditEvent } from "@/lib/audit";
 import { invalidateTenantStateCache } from "@/lib/tenantState";
+import { isTrustedMutation } from "@/lib/requestSecurity";
 
 /**
  * SECURITY: self-service Google sign-up always receives the low-privilege
@@ -23,6 +24,7 @@ export const dynamic = "force-dynamic";
  * Prevents account takeover by requiring active session authentication before linking to an existing email account.
  */
 export async function POST(req: Request) {
+  if (!isTrustedMutation(req)) return NextResponse.json({ ok: false, error: "درخواست نامعتبر است." }, { status: 403 });
   try {
     // A Google OAuth client id is public by design. Accept the public-prefixed
     // variable too so the browser button and server verifier cannot drift.

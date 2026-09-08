@@ -9,7 +9,7 @@ import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import RestorePanel from "@/components/RestorePanel";
 import { faCount, formatDate } from "@/lib/format";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, sanitizeUser } from "@/lib/auth";
 import { ensureAuth } from "@/lib/authGuard";
 import { getUserFxRate } from "@/features/fx/userRate";
 import { getUserProMode } from "@/features/preferences/service";
@@ -54,7 +54,7 @@ export default async function SettingsPage() {
       {user && (
         <>
           <Section title="حساب کاربری">
-            <UserPanel user={user as any} />
+            <UserPanel user={sanitizeUser(user) as any} />
           </Section>
         </>
       )}

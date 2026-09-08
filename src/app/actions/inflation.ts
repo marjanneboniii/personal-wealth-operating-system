@@ -129,9 +129,8 @@ export async function updateInflationItemAction(
     const unit = val(form, "unit");
     if (!id || !name) throw new Error("اطلاعات قلم ناقص است.");
     const userId = await currentUserId();
-    const scope = userId
-      ? or(eq(commodityItems.userId, userId), isNull(commodityItems.userId))
-      : isNull(commodityItems.userId);
+    if (!userId) throw new Error("برای ویرایش ابتدا وارد شوید.");
+    const scope = eq(commodityItems.userId, userId);
     const [existing] = await db
       .select({ id: commodityItems.id })
       .from(commodityItems)
@@ -141,7 +140,7 @@ export async function updateInflationItemAction(
     await db
       .update(commodityItems)
       .set({ name, defaultUnit: unit || "عدد" })
-      .where(eq(commodityItems.id, id));
+      .where(and(eq(commodityItems.id, id), eq(commodityItems.userId, userId)));
     refresh();
     return { ok: true, message: "قلم کالا ویرایش شد." };
   } catch (e) {
@@ -149,7 +148,7 @@ export async function updateInflationItemAction(
   }
 }
 
-/** Correct a price observation (own or shared rows only; precise D() math). */
+/** Correct an owned price observation; shared catalog rows are read-only. */
 export async function updateInflationPriceAction(
   _previous: InflationResult | null,
   form: FormData,
@@ -163,9 +162,8 @@ export async function updateInflationPriceAction(
     const unitPriceDec = D(price);
     if (unitPriceDec.lte(0)) throw new Error("قیمت باید بزرگ‌تر از صفر باشد.");
     const userId = await currentUserId();
-    const scope = userId
-      ? or(eq(commodityPriceRecords.userId, userId), isNull(commodityPriceRecords.userId))
-      : isNull(commodityPriceRecords.userId);
+    if (!userId) throw new Error("برای ویرایش ابتدا وارد شوید.");
+    const scope = eq(commodityPriceRecords.userId, userId);
     const [existing] = await db
       .select({ id: commodityPriceRecords.id, quantity: commodityPriceRecords.quantity })
       .from(commodityPriceRecords)
@@ -183,7 +181,7 @@ export async function updateInflationPriceAction(
         region: optional(form, "region") || null,
         notes: optional(form, "notes") || null,
       })
-      .where(eq(commodityPriceRecords.id, id));
+      .where(and(eq(commodityPriceRecords.id, id), eq(commodityPriceRecords.userId, userId)));
     refresh();
     return { ok: true, message: "رکورد قیمت ویرایش شد." };
   } catch (e) {

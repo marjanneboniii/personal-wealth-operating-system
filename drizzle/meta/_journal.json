@@ -106,6 +106,20 @@
       "when": 1788833620165,
       "tag": "0014_installment_payment_account",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1788868800000,
+      "tag": "0015_security_session_reset",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788868860000,
+      "tag": "0016_tenant_rls",
+      "breakpoints": true
     }
   ]
 }

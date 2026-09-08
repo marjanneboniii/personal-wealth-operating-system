@@ -50,6 +50,7 @@ export default async function RegisterPage() {
 
         <RegisterForm
           googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID}
+          turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
         />
 
         <div className="mt-6 flex items-center gap-3">

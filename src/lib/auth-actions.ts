@@ -53,13 +53,18 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
   const name = String(formData.get("name") || "").trim() || username;
+  if (username.length > 64 || name.length > 120 || password.length > 128) return { ok: false, message: "طول اطلاعات واردشده مجاز نیست." };
 
   const { checkRateLimit, getRequestIp } = await import("@/lib/rateLimit");
+  const ip = await getRequestIp();
+  const { verifyBotChallenge } = await import("@/lib/botProtection");
+  if (!(await verifyBotChallenge(formData.get("turnstileToken"), ip))) {
+    return { ok: false, message: "تأیید امنیتی انجام نشد؛ دوباره تلاش کنید." };
+  }
   const userLimit = await checkRateLimit(`register:${username || "anon"}`, 10, 60);
   if (!userLimit.ok) {
     return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
   }
-  const ip = await getRequestIp();
   if (ip) {
     const ipLimit = await checkRateLimit(`register-ip:${ip}`, 20, 60);
     if (!ipLimit.ok) {
@@ -142,13 +147,18 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
 export async function loginAction(prev: AuthResult | null, formData: FormData): Promise<AuthResult> {
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
+  if (username.length > 254 || password.length > 128) return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
 
   const { checkRateLimit, getRequestIp } = await import("@/lib/rateLimit");
+  const ip = await getRequestIp();
+  const { verifyBotChallenge } = await import("@/lib/botProtection");
+  if (!(await verifyBotChallenge(formData.get("turnstileToken"), ip))) {
+    return { ok: false, message: "تأیید امنیتی انجام نشد؛ دوباره تلاش کنید." };
+  }
   const userLimit = await checkRateLimit(`login:${username || "anon"}`, 10, 60);
   if (!userLimit.ok) {
     return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
   }
-  const ip = await getRequestIp();
   if (ip) {
     const ipLimit = await checkRateLimit(`login-ip:${ip}`, 30, 60);
     if (!ipLimit.ok) {
@@ -162,6 +172,9 @@ export async function loginAction(prev: AuthResult | null, formData: FormData): 
     if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
       await recordAuditEvent({ action: "LOGIN_FAILURE", entityType: "user", userId: user?.id, result: "FAILURE", metadata: { username } });
       return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
+    }
+    if (!user.passwordHash.startsWith("s2:")) {
+      await db.update(users).set({ passwordHash: hashPassword(password), updatedAt: new Date() } as any).where(eq(users.id, user.id));
     }
     const { token, expiresAt } = await createSession(user.id);
     await setSessionCookie(token, expiresAt);
