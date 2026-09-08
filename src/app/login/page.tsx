@@ -62,7 +62,6 @@ export default async function LoginPage({
 
         <LoginForm
           claimMode={isClaim}
-          googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID}
           turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
         />
 

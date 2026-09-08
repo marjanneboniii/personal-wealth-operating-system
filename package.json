@@ -8,7 +8,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-test-module-mocks --import tsx --test tests/**/*.test.ts",
-    "test:security": "node --experimental-test-module-mocks --import tsx --test tests/security-*.test.ts tests/audit-specific.test.ts",
+    "test:security": "node --experimental-test-module-mocks --import tsx --test tests/security-accounting-invariant.test.ts tests/security-backup-restore.test.ts tests/security-fail-closed.test.ts tests/security-isolation-hardening.test.ts tests/security-supabase-auth.test.ts tests/audit-specific.test.ts",
     "seed": "tsx src/scripts/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/scripts/migrate.ts",
@@ -19,6 +19,8 @@
     "db:legacy-claim": "tsx src/scripts/migrate-multiuser.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
     "next": "^16.3.0",

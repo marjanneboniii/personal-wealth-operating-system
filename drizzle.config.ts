@@ -15,7 +15,7 @@ import { defineConfig } from "drizzle-kit";
  *
  * (In `memory://` mode there is no server to migrate — `db:migrate` refuses it.)
  */
-const url = process.env.DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/pwos";
+const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/pwos";
 
 if (url.startsWith("memory://")) {
   throw new Error(

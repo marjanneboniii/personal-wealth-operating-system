@@ -2,11 +2,9 @@ import Link from "next/link";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
 
 export default function AuthAccessCard({
-  googleClientId,
   title = "حساب کاربری و ورود",
   body = "برای ثبت نرخ شخصی، حفظ مالکیت داده‌ها و استفاده از ورود Google، ابتدا وارد شوید یا حساب بسازید.",
 }: {
-  googleClientId?: string;
   title?: string;
   body?: string;
 }) {
@@ -25,7 +23,7 @@ export default function AuthAccessCard({
         </Link>
       </div>
       <div className="border-t pt-3" style={{ borderColor: "var(--border)" }}>
-        <GoogleAuthButton clientId={googleClientId} label="ورود با Google" />
+        <GoogleAuthButton label="ورود با Google" />
       </div>
     </div>
   );

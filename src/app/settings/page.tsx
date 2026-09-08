@@ -55,6 +55,7 @@ export default async function SettingsPage() {
         <>
           <Section title="حساب کاربری">
             <UserPanel user={sanitizeUser(user) as any} />
+            {(user.role === "owner" || user.role === "admin") && <Link href="/admin" className="btn btn-ghost mt-3">مدیریت کاربران</Link>}
           </Section>
         </>
       )}
@@ -80,7 +81,6 @@ export default async function SettingsPage() {
           />
         ) : (
           <AuthAccessCard
-            googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID}
             title="ورود و Auth کاربر در دسترس است"
             body="برای فعال‌کردن ثبت دستی نرخ ارز و جداسازی داده‌ها، از همین‌جا وارد شوید یا حساب بسازید. ورود با Google نیز در همین کارت نمایش داده می‌شود."
           />

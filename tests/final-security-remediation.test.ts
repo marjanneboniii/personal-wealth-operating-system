@@ -22,7 +22,7 @@ mock.module("next/cache", {
 let db: any, createSchemaIfNotExists: any, eq: any, sql: any;
 let users: any, sessions: any, accounts: any, assets: any, assetClasses: any, currencies: any, journalEntries: any, postings: any, lots: any, lotConsumptions: any, portfolioSnapshots: any, portfolioValuations: any, prices: any, userFxSettings: any;
 let createSession: any, hashPassword: any;
-let registerAction: any, createTransactionAction: any, reverseEntryAction: any;
+let createTransactionAction: any, reverseEntryAction: any;
 let portfolioService: any;
 let ledgerQueries: any;
 let validation: any;
@@ -35,7 +35,6 @@ async function loadModules() {
     users, sessions, accounts, assets, assetClasses, currencies, journalEntries, postings, lots, lotConsumptions, portfolioSnapshots, portfolioValuations, prices, userFxSettings,
   } = await import("../src/db/schema"));
   ({ createSession, hashPassword } = await import("../src/lib/auth"));
-  ({ registerAction } = await import("../src/lib/auth-actions"));
   ({ createTransactionAction } = await import("../src/app/actions"));
   portfolioService = await import("../src/features/portfolio/service");
   ledgerQueries = await import("../src/features/ledger/queries");
@@ -209,75 +208,19 @@ test("FINAL — Portfolio valuations: user-isolated unique (userId, assetId, val
 });
 
 // Test 5 — Role default
-test("FINAL — Role default: DB default is 'user' and registration ignores role=owner", async () => {
+test("FINAL — Role default: DB default is 'user'", async () => {
   await modulesReady;
   await cleanAll();
   // Direct DB insert without role should default to 'user' (check schema)
   const [u] = await db.insert(users).values({ name: "NoRole" } as any).returning();
-  // In PGlite memory, default may apply; if not, we check schema definition
-  assert.ok(["user", "owner"].includes(u.role), "role should be either default");
-  // But we enforce that new DB inserts without role get 'user' per schema change
-  // More importantly, registration payload role=owner is ignored
-  const fd = new FormData();
-  fd.set("username", "attacker_final");
-  fd.set("password", "Passw0rd123");
-  fd.set("confirmPassword", "Passw0rd123");
-  fd.set("role", "owner");
-  const res = await registerAction(null, fd);
-  assert.equal(res.ok, true);
-  const [created] = await db.select().from(users).where(eq(users.username as any, "attacker_final")).limit(1);
-  assert.equal(created.role, "user", "registration must force role=user");
+  assert.equal(u.role, "user");
 });
 
-// Test 6 — Google verification hardening
-test("FINAL — Google: expired token rejected, wrong aud/iss rejected", async () => {
-  await modulesReady;
-  await cleanAll();
-  process.env.GOOGLE_CLIENT_ID = "test-client-final";
-  const originalFetch = global.fetch;
-  let fetchMock: any = null;
-  const mockGoogle = (info: any) => {
-    global.fetch = async (input: any) => {
-      const url = String(input);
-      if (url.startsWith("https://oauth2.googleapis.com/tokeninfo")) {
-        if (!info) return new Response(JSON.stringify({ error: "invalid" }), { status: 401 });
-        return new Response(JSON.stringify(info), { status: 200 });
-      }
-      return originalFetch(input);
-    };
-  };
-
+// Test 6 — custom Google endpoint is permanently retired in favor of Supabase
+test("FINAL — legacy Google endpoint accepts no token payload", async () => {
   const { POST: googlePOST } = await import("../src/app/api/auth/google/route");
-
-  // Expired token
-  mockGoogle({ aud: "test-client-final", iss: "https://accounts.google.com", sub: "123", email: "a@gmail.com", email_verified: "true", exp: String(Math.floor(Date.now() / 1000) - 3600) });
-  let res = await googlePOST(new Request("http://localhost/api/auth/google", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken: "tok" }) }));
-  assert.equal(res.status, 401);
-  let j = await res.json();
-  assert.match(j.error, /منقضی/);
-
-  // Wrong aud
-  mockGoogle({ aud: "other-client", iss: "https://accounts.google.com", sub: "123", email: "a@gmail.com", email_verified: "true", exp: String(Math.floor(Date.now() / 1000) + 3600) });
-  res = await googlePOST(new Request("http://localhost/api/auth/google", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken: "tok" }) }));
-  assert.equal(res.status, 401);
-
-  // Wrong iss
-  mockGoogle({ aud: "test-client-final", iss: "https://evil.com", sub: "123", email: "a@gmail.com", email_verified: "true", exp: String(Math.floor(Date.now() / 1000) + 3600) });
-  res = await googlePOST(new Request("http://localhost/api/auth/google", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken: "tok" }) }));
-  assert.equal(res.status, 401);
-
-  // Unverified email
-  mockGoogle({ aud: "test-client-final", iss: "https://accounts.google.com", sub: "123", email: "a@gmail.com", email_verified: "false", exp: String(Math.floor(Date.now() / 1000) + 3600) });
-  res = await googlePOST(new Request("http://localhost/api/auth/google", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken: "tok" }) }));
-  assert.equal(res.status, 401);
-
-  // Fake token (fetch fails)
-  mockGoogle(null);
-  res = await googlePOST(new Request("http://localhost/api/auth/google", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken: "fake" }) }));
-  assert.equal(res.status, 401);
-
-  global.fetch = originalFetch;
-  delete process.env.GOOGLE_CLIENT_ID;
+  const res = await googlePOST(new Request("http://localhost/api/auth/google", { method: "POST" }));
+  assert.equal(res.status, 410);
 });
 
 // Test 7 — Ledger NULL isolation
@@ -336,4 +279,3 @@ test("FINAL — PWOS_AUTH_TOKEN not NEXT_PUBLIC and not in client bundle", async
   const src = fs.readFileSync("src/lib/authGuard.ts", "utf-8");
   assert.doesNotMatch(src, /NEXT_PUBLIC.*PWOS/);
 });
-

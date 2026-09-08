@@ -7,7 +7,7 @@ import { purgeClientCaches } from "@/lib/swClient";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 
-export default function LoginForm({ claimMode, googleClientId, turnstileSiteKey }: { claimMode?: boolean; googleClientId?: string; turnstileSiteKey?: string }) {
+export default function LoginForm({ claimMode, turnstileSiteKey }: { claimMode?: boolean; turnstileSiteKey?: string }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<AuthResult | null, FormData>(loginAction, null);
 
@@ -72,7 +72,9 @@ export default function LoginForm({ claimMode, googleClientId, turnstileSiteKey 
         {pending ? "در حال بررسی…" : claimMode ? "تأیید و حفظ داده‌ها" : "ورود"}
       </button>
 
-      <GoogleAuthButton clientId={googleClientId} label="ورود با Google" />
+      <a href="/forgot-password" className="muted block text-center text-[11px] underline underline-offset-4">رمز عبور را فراموش کرده‌اید؟</a>
+
+      <GoogleAuthButton label="ورود با Google" />
     </form>
   );
 }

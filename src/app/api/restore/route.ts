@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { auditLog, backupRuns, sessions, users } from "@/db/schema";
+import { auditLog, backupRuns, users } from "@/db/schema";
 import { authorizeOwnerOrAdmin } from "@/lib/authGuard";
-import { clearSessionCookie } from "@/lib/auth";
+import { clearSessionCookie, invalidateAllSessions } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { invalidateTenantStateCache } from "@/lib/tenantState";
 import { isTrustedMutation } from "@/lib/requestSecurity";
@@ -72,8 +72,7 @@ const backupPayloadSchema = z.object({
 /**
  * Security-Hardened Transactional Restore Endpoint.
  * Requires Authenticated Owner or Admin user.
- * Invalidation rule: deletes all sessions within the transaction and clears the session cookie to force re-login.
- * Rollback guarantee: Any failure rolls back all table modifications and preserves existing sessions.
+ * Supabase Auth identities are never imported, overwritten, or deleted.
  */
 export async function POST(request: Request) {
   if (!isTrustedMutation(request)) {
@@ -173,9 +172,6 @@ export async function POST(request: Request) {
         }
       }
 
-      // 7. Security Hardening: Invalidate all sessions in database upon successful restore
-      await tx.delete(sessions);
-
       let auditUserId: string | null = null;
       try {
         if (auth.user?.id) {
@@ -209,8 +205,11 @@ export async function POST(request: Request) {
     // continue to reference an existing, authenticated account.
     invalidateTenantStateCache();
 
-    // 10. Clear session cookie to force caller re-login
+    // 10. Supabase owns production sessions and local sign-out revokes the
+    // caller's refresh token. The legacy invalidation remains only for the
+    // embedded test/development auth fallback.
     try {
+      await invalidateAllSessions();
       await clearSessionCookie();
     } catch {}
 

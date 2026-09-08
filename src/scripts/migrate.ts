@@ -20,7 +20,7 @@ import { isMemoryUrl } from "@/db/config";
  * a request, and never from the build.
  */
 async function main() {
-  const url = process.env.DATABASE_URL;
+  const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL;
   if (isMemoryUrl(url)) {
     console.error(
       "db:migrate requires a real PostgreSQL DATABASE_URL. " +

@@ -3,6 +3,9 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions, users } from "@/db/schema";
 import crypto from "node:crypto";
+import { createClient as createRawSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
+import { hasSupabaseConfig, publicSupabaseConfig } from "@/lib/supabase/config";
 
 const SESSION_COOKIE = "pwos_session";
 const SESSION_TTL_DAYS = 30;
@@ -57,6 +60,7 @@ async function lookupSessionRow(tokenValue: string) {
 }
 
 export async function createSession(userId: string): Promise<{ token: string; expiresAt: Date }> {
+  if (hasSupabaseConfig()) throw new Error("Custom sessions are disabled; use Supabase Auth");
   const token = generateToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
   // Store only the hash — never the raw token.
@@ -65,11 +69,13 @@ export async function createSession(userId: string): Promise<{ token: string; ex
 }
 
 export async function destroySession(token: string): Promise<void> {
+  if (hasSupabaseConfig()) return;
   if (!token) return;
   await db.delete(sessions).where(eq(sessions.token, hashSessionToken(token)));
 }
 
 export async function getSessionUser(token: string) {
+  if (hasSupabaseConfig()) return getSupabaseProfile(token);
   if (!token) return null;
   const hashed = hashSessionToken(token);
   let row: { user: typeof users.$inferSelect; session: typeof sessions.$inferSelect } | undefined;
@@ -100,6 +106,7 @@ export async function getSessionUser(token: string) {
 }
 
 export async function getCurrentUser() {
+  if (hasSupabaseConfig()) return getSupabaseProfile();
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE)?.value;
@@ -114,6 +121,10 @@ export async function getCurrentUser() {
 }
 
 export async function getCurrentUserFromRequest(request: Request) {
+  if (hasSupabaseConfig()) {
+    const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+    return getSupabaseProfile(bearer);
+  }
   try {
     const cookieHeader = request.headers.get("cookie");
     if (cookieHeader) {
@@ -131,10 +142,12 @@ export async function getCurrentUserFromRequest(request: Request) {
 }
 
 export async function invalidateAllSessions(txDb: any = db): Promise<void> {
+  if (hasSupabaseConfig()) return;
   await txDb.delete(sessions);
 }
 
 export async function setSessionCookie(token: string, expiresAt: Date) {
+  if (hasSupabaseConfig()) throw new Error("Custom session cookies are disabled; use Supabase Auth");
   try {
     const cookieStore = await cookies();
     cookieStore.set(SESSION_COOKIE, token, {
@@ -150,6 +163,11 @@ export async function setSessionCookie(token: string, expiresAt: Date) {
 }
 
 export async function clearSessionCookie() {
+  if (hasSupabaseConfig()) {
+    const supabase = await createSupabaseServerClient();
+    await supabase.auth.signOut({ scope: "local" });
+    return;
+  }
   try {
     const cookieStore = await cookies();
     cookieStore.set(SESSION_COOKIE, "", {
@@ -178,9 +196,28 @@ export function sanitizeUser(u: typeof users.$inferSelect) {
     username: (u as any).username ?? null,
     email: (u as any).email ?? null,
     role: u.role,
-    googleId: (u as any).googleId ?? null,
   };
 }
 
 // For middleware (edge not available, but use same logic)
 export const SESSION_COOKIE_NAME = SESSION_COOKIE;
+
+async function getSupabaseProfile(accessToken?: string) {
+  try {
+    const supabase = accessToken
+      ? (() => {
+          const { url, key } = publicSupabaseConfig();
+          return createRawSupabaseClient(url, key, {
+            global: { headers: { Authorization: `Bearer ${accessToken}` } },
+            auth: { persistSession: false, autoRefreshToken: false },
+          });
+        })()
+      : await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser(accessToken);
+    if (error || !data.user) return null;
+    const [profile] = await db.select().from(users).where(eq(users.id, data.user.id)).limit(1);
+    return profile ?? null;
+  } catch {
+    throw new Error("Authentication/Database error: Access denied");
+  }
+}

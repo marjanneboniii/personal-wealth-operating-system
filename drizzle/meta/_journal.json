@@ -120,6 +120,13 @@
       "when": 1788868860000,
       "tag": "0016_tenant_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788900000000,
+      "tag": "0017_supabase_auth_rls",
+      "breakpoints": true
     }
   ]
 }

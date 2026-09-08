@@ -63,21 +63,6 @@ async function loadModules() {
 }
 const modulesReady = loadModules();
 
-const originalFetch = global.fetch;
-
-function mockGoogleTokeninfo(info: Record<string, unknown> | null) {
-  global.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = input.toString();
-    if (url.startsWith("https://oauth2.googleapis.com/tokeninfo")) {
-      if (!info) {
-        return new Response(JSON.stringify({ error: "invalid_token" }), { status: 401 });
-      }
-      return new Response(JSON.stringify(info), { status: 200 });
-    }
-    return originalFetch(input, init);
-  };
-}
-
 async function cleanAll() {
   await createSchemaIfNotExists();
   await db.delete(lotConsumptions);
@@ -162,30 +147,12 @@ function incomeFormData(primaryAccountId: string, counterAccountId: string) {
 
 // ───────────────────────── 27. Role escalation ─────────────────────────
 
-test("SEC-REMEDIATION — Role escalation: register payload role=owner is ignored; user gets 'user'", async () => {
-  await modulesReady;
-  await cleanAll();
-  const fd = new FormData();
-  fd.set("username", "attacker1");
-  fd.set("password", "Passw0rd123");
-  fd.set("confirmPassword", "Passw0rd123");
-  fd.set("name", "Attacker");
-  fd.set("role", "owner"); // must be completely ignored
-  fd.set("userId", "00000000-0000-0000-0000-00000000dead"); // must be ignored
-
-  const res = await registerAction(null, fd);
-  assert.equal(res.ok, true, res.message);
-
-  const [u] = await db.select().from(users).where(eq(users.username as any, "attacker1")).limit(1);
-  assert.ok(u);
-  assert.equal(u.role, "user", "self-registration must never create owner/admin");
-});
-
 test("SEC-REMEDIATION — Password policy: weak passwords rejected at registration", async () => {
   await modulesReady;
   await cleanAll();
   const fd = new FormData();
   fd.set("username", "weakpass");
+  fd.set("email", "weakpass@example.com");
   fd.set("password", "123456"); // old minimum — no longer acceptable
   fd.set("confirmPassword", "123456");
   const res = await registerAction(null, fd);
@@ -193,79 +160,12 @@ test("SEC-REMEDIATION — Password policy: weak passwords rejected at registrati
 
   const fd2 = new FormData();
   fd2.set("username", "weakpass");
+  fd2.set("email", "weakpass@example.com");
   fd2.set("password", "onlyletters"); // no digit
   fd2.set("confirmPassword", "onlyletters");
   const res2 = await registerAction(null, fd2);
   assert.equal(res2.ok, false);
 
-  const fd3 = new FormData();
-  fd3.set("username", "strongpass");
-  fd3.set("password", "Passw0rd9");
-  fd3.set("confirmPassword", "Passw0rd9");
-  const res3 = await registerAction(null, fd3);
-  assert.equal(res3.ok, true, res3.message);
-});
-
-test("SEC-REMEDIATION — Google sign-up assigns low-privilege role 'user'", async () => {
-  await modulesReady;
-  await cleanAll();
-  process.env.GOOGLE_CLIENT_ID = "test-google-client-id";
-  mockGoogleTokeninfo({
-    aud: "test-google-client-id",
-    iss: "https://accounts.google.com",
-    sub: "google-sub-role-check",
-    email: "roletest@gmail.com",
-    email_verified: "true",
-    name: "Role Test",
-  });
-
-  const req = new Request("http://localhost/api/auth/google", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ idToken: "valid-token", role: "owner" }),
-  });
-  const res = await googleAuthApi(req);
-  assert.equal(res.status, 200);
-  const [u] = await db.select().from(users).where(eq(users.googleId as any, "google-sub-role-check")).limit(1);
-  assert.ok(u);
-  assert.equal(u.role, "user");
-  global.fetch = originalFetch;
-});
-
-// ─────────────────── 5. Legacy owner claim gating ───────────────────
-
-test("SEC-REMEDIATION — Legacy owner claim is denied unless explicitly authorized", async () => {
-  await modulesReady;
-  await cleanAll();
-  // Legacy single-tenant owner (no username) with data.
-  const [legacy] = await db.insert(users).values({ name: "مالک خانواده", role: "owner" } as any).returning();
-  delete process.env.PWOS_ALLOW_LEGACY_CLAIM;
-
-  const fd = new FormData();
-  fd.set("username", "visitor1");
-  fd.set("password", "Passw0rd123");
-  fd.set("confirmPassword", "Passw0rd123");
-  const res = await registerAction(null, fd);
-  assert.equal(res.ok, true, res.message);
-
-  const allUsers = await db.select().from(users);
-  assert.equal(allUsers.length, 2, "anonymous visitor must NOT claim the legacy owner");
-  const [legacyAfter] = await db.select().from(users).where(eq(users.id, legacy.id)).limit(1);
-  assert.equal(legacyAfter.username, null, "legacy owner row untouched");
-  const [visitor] = await db.select().from(users).where(eq(users.username as any, "visitor1")).limit(1);
-  assert.equal(visitor.role, "user");
-
-  // Explicit bootstrap authorization (operator opt-in) — migration preserved.
-  process.env.PWOS_ALLOW_LEGACY_CLAIM = "true";
-  const fd2 = new FormData();
-  fd2.set("username", "claimant1");
-  fd2.set("password", "Passw0rd123");
-  fd2.set("confirmPassword", "Passw0rd123");
-  const res2 = await registerAction(null, fd2);
-  assert.equal(res2.ok, true, res2.message);
-  const [claimed] = await db.select().from(users).where(eq(users.id, legacy.id)).limit(1);
-  assert.equal(claimed.username, "claimant1", "opt-in legacy claim path still works");
-  delete process.env.PWOS_ALLOW_LEGACY_CLAIM;
 });
 
 // ─────────────── 25. Cross-user accounting (createTransaction) ───────────────
@@ -456,7 +356,7 @@ test("SEC-REMEDIATION — Backup/Restore: normal user 403, admin/owner allowed",
 
 // ─────────────── 28. Fake Google identity rejection ───────────────
 
-test("SEC-REMEDIATION — Google: email-only request (no token) is rejected 401", async () => {
+test("SEC-REMEDIATION — retired custom Google endpoint accepts no identity payload", async () => {
   await modulesReady;
   await cleanAll();
   process.env.GOOGLE_CLIENT_ID = "test-google-client-id";
@@ -467,59 +367,7 @@ test("SEC-REMEDIATION — Google: email-only request (no token) is rejected 401"
       body: JSON.stringify({ email: "real-victim@gmail.com" }),
     }),
   );
-  assert.equal(res.status, 401);
-});
-
-test("SEC-REMEDIATION — Google: token for a different client id is rejected", async () => {
-  await modulesReady;
-  await cleanAll();
-  process.env.GOOGLE_CLIENT_ID = "test-google-client-id";
-  mockGoogleTokeninfo({
-    aud: "another-app-client-id",
-    iss: "https://accounts.google.com",
-    sub: "google-sub-other-app",
-    email: "other-app@gmail.com",
-    email_verified: "true",
-  });
-  const res = await googleAuthApi(
-    new Request("http://localhost/api/auth/google", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ idToken: "some-token" }),
-    }),
-  );
-  assert.equal(res.status, 401);
-  global.fetch = originalFetch;
-});
-
-test("SEC-REMEDIATION — Account takeover: Google login with existing email is rejected", async () => {
-  await modulesReady;
-  await cleanAll();
-  process.env.GOOGLE_CLIENT_ID = "test-google-client-id";
-  const [victim] = await db
-    .insert(users)
-    .values({ name: "Victim", username: "victim_sec", email: "victim29@gmail.com", passwordHash: hashPassword("Passw0rd123"), role: "user" } as any)
-    .returning();
-
-  mockGoogleTokeninfo({
-    aud: "test-google-client-id",
-    iss: "https://accounts.google.com",
-    sub: "attacker-google-sub",
-    email: "victim29@gmail.com",
-    email_verified: "true",
-  });
-  const res = await googleAuthApi(
-    new Request("http://localhost/api/auth/google", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ idToken: "attacker-token" }),
-    }),
-  );
-  assert.equal(res.status, 409);
-  const [check] = await db.select().from(users).where(eq(users.id, victim.id)).limit(1);
-  assert.equal(check.googleId, null, "victim account not linked/taken over");
-  assert.equal(check.role, "user");
-  global.fetch = originalFetch;
+  assert.equal(res.status, 410);
 });
 
 // ─────────────── 13. Session tokens hashed at rest ───────────────
