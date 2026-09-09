@@ -1245,37 +1245,232 @@ select.field {
   }
 }
 
-/* ─────────────────────── Public landing ─────────────────────── */
+/* ─────────────────────── Public landing ───────────────────────
+   Scoped design-token layer for the public surface (landing + legal pages).
+   Identity: dark premium fintech · sky/cyan interaction · emerald positive ·
+   amber negative · pale lavender reserved for investment accents only.
+
+   IMPORTANT: every token here is scoped to `.landing` (and `.landing-ink`).
+   The application palette in :root/.dark is deliberately NOT modified, so the
+   authenticated product keeps its existing appearance.
+
+   Contrast notes (WCAG AA):
+     • Light theme uses cyan-700 (#0E7490, 5.4:1 on white) rather than the
+       bright sky range, which cannot pass AA as text on a light surface.
+     • Dark theme uses the bright range (#38BDF8, 8.9:1 on #080B11).
+     • Lavender stays pale (#C4B5FD) only on dark surfaces; on light surfaces
+       the investment role falls back to a muted indigo (#4C4A9E, 7.6:1).
+   ──────────────────────────────────────────────────────────── */
 
 .landing {
+  /* — Light landing palette (independent, not an inversion of dark) — */
+  --l-ink: #0a1018;
+  --l-bg: #f5f7fa;
+  --l-surface: #ffffff;
+  --l-surface-raised: #ffffff;
+  --l-text: #0b1220;
+  --l-text-muted: #46536b;
+  --l-text-subtle: #5c6980;
+  --l-border: #e1e7ef;
+  --l-border-strong: #c9d3e0;
+
+  --l-accent: #0e7490;
+  --l-accent-strong: #155e75;
+  --l-accent-soft: rgba(6, 182, 212, 0.1);
+  --l-on-accent: #ffffff;
+
+  --l-positive: #047857;
+  --l-positive-soft: rgba(16, 185, 129, 0.12);
+  --l-negative: #b45309;
+  --l-negative-soft: rgba(245, 158, 11, 0.14);
+  --l-investment: #4c4a9e;
+  --l-investment-soft: rgba(165, 180, 252, 0.2);
+
+  --l-glow-primary: rgba(14, 116, 144, 0.12);
+  --l-glow-positive: rgba(4, 120, 87, 0.08);
+  --l-elev-rest: 0 1px 2px rgba(11, 18, 32, 0.04), 0 8px 24px -18px rgba(11, 18, 32, 0.28);
+  --l-elev-hover: 0 1px 2px rgba(11, 18, 32, 0.05), 0 14px 32px -18px rgba(11, 18, 32, 0.34);
+  --l-blur: 14px;
+
+  /* — Remap the shared utility tokens inside the landing subtree only — */
+  --bg: var(--l-bg);
+  --surface: var(--l-surface);
+  --surface-elev: var(--l-surface-raised);
+  --sunken: #eef2f7;
+  --hover: rgba(11, 18, 32, 0.05);
+  --text: var(--l-text);
+  --text-2: var(--l-text-muted);
+  --text-3: var(--l-text-subtle);
+  --border: var(--l-border);
+  --border-strong: var(--l-border-strong);
+  --brand: var(--l-accent);
+  --brand-strong: var(--l-accent-strong);
+  --brand-soft: var(--l-accent-soft);
+  --color-accent: var(--l-accent);
+  --color-accent-hover: var(--l-accent-strong);
+  --positive: var(--l-positive);
+  --positive-soft: var(--l-positive-soft);
+  --negative: var(--l-negative);
+  --negative-soft: var(--l-negative-soft);
+  --ring: 0 0 0 3px rgba(14, 116, 144, 0.32);
+
   min-height: 100dvh;
   max-width: 100%;
   overflow-x: clip;
-  background: var(--bg-page);
+  background: var(--l-bg);
+  color: var(--l-text);
   padding-bottom: 0;
 }
 
+/* Dark landing palette — near-black, never pure black. */
+.dark .landing,
+.landing-ink {
+  --l-ink: #060910;
+  --l-bg: #080b11;
+  --l-surface: rgba(233, 239, 247, 0.045);
+  --l-surface-raised: rgba(233, 239, 247, 0.075);
+  --l-text: #e9eff7;
+  --l-text-muted: #a3b2c6;
+  --l-text-subtle: #8494a8;
+  --l-border: rgba(233, 239, 247, 0.1);
+  --l-border-strong: rgba(233, 239, 247, 0.2);
+
+  --l-accent: #38bdf8;
+  --l-accent-strong: #7dd3fc;
+  --l-accent-soft: rgba(56, 189, 248, 0.12);
+  --l-on-accent: #04121b;
+
+  --l-positive: #34d399;
+  --l-positive-soft: rgba(52, 211, 153, 0.14);
+  --l-negative: #fbbf24;
+  --l-negative-soft: rgba(251, 191, 36, 0.14);
+  --l-investment: #c4b5fd;
+  --l-investment-soft: rgba(196, 181, 253, 0.14);
+
+  --l-glow-primary: rgba(56, 189, 248, 0.16);
+  --l-glow-positive: rgba(52, 211, 153, 0.07);
+  --l-elev-rest: 0 1px 0 rgba(233, 239, 247, 0.04) inset, 0 12px 32px -22px rgba(0, 0, 0, 0.9);
+  --l-elev-hover: 0 1px 0 rgba(233, 239, 247, 0.07) inset, 0 18px 40px -22px rgba(0, 0, 0, 0.95);
+
+  --sunken: rgba(233, 239, 247, 0.05);
+  --hover: rgba(233, 239, 247, 0.07);
+  --ring: 0 0 0 3px rgba(56, 189, 248, 0.35);
+}
+
+/* The shared-token remap has to be repeated for the ink scope so nested
+   regions (header / hero / footer) hand the new values to .card, .sub, … */
+.landing-ink {
+  --bg: var(--l-ink);
+  --surface: var(--l-surface);
+  --surface-elev: var(--l-surface-raised);
+  --text: var(--l-text);
+  --text-2: var(--l-text-muted);
+  --text-3: var(--l-text-subtle);
+  --border: var(--l-border);
+  --border-strong: var(--l-border-strong);
+  --brand: var(--l-accent);
+  --brand-strong: var(--l-accent-strong);
+  --brand-soft: var(--l-accent-soft);
+  --color-accent: var(--l-accent);
+  --color-accent-hover: var(--l-accent-strong);
+  --positive: var(--l-positive);
+  --positive-soft: var(--l-positive-soft);
+  --negative: var(--l-negative);
+  --negative-soft: var(--l-negative-soft);
+  --on-primary: var(--l-text);
+  background: var(--l-ink);
+  color: var(--l-text);
+}
+
+/* Theme transition — colors only, so nothing can shift the layout. */
+.landing,
+.landing * {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing,
+  .landing * {
+    transition: none;
+  }
+}
+
 .landing-wrap {
-  width: min(1120px, calc(100% - 2rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+  width: min(1180px, calc(100% - 2rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
   margin-inline: auto;
+}
+
+@media (min-width: 1440px) {
+  .landing-wrap {
+    width: min(1240px, calc(100% - 3rem));
+  }
 }
 
 @media (max-width: 359px) {
   .landing-wrap {
-    width: min(1120px, calc(100% - 1.5rem));
+    width: min(1180px, calc(100% - 1.25rem));
   }
 }
+
+/* ── Buttons on the landing surface ──
+   The shared .btn geometry is reused; only the palette is restated so the
+   cyan accent (not the app violet) drives the primary action. */
+
+.landing .btn-primary {
+  background: var(--l-accent);
+  color: var(--l-on-accent);
+  border-color: transparent;
+  font-weight: 600;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.landing .btn-primary:hover {
+  background: var(--l-accent-strong);
+  color: var(--l-on-accent);
+}
+
+.landing .btn:not(.btn-primary) {
+  border-radius: 999px;
+  background: transparent;
+  color: var(--l-text);
+  border-color: var(--l-border-strong);
+}
+
+.landing .btn:not(.btn-primary):hover {
+  background: var(--hover);
+  color: var(--l-text);
+}
+
+.landing .icon-btn {
+  color: var(--l-text-muted);
+  border-radius: 999px;
+}
+
+.landing .icon-btn:hover {
+  background: var(--hover);
+  color: var(--l-text);
+}
+
+.landing :focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: 999px;
+}
+
+/* ─────────────────────────── Header ─────────────────────────── */
 
 .landing-header {
   width: 100%;
   position: sticky;
   top: 0;
   z-index: 30;
-  background: var(--color-primary);
-  color: var(--on-primary);
-  border-bottom: 1px solid rgba(237, 238, 247, 0.12);
+  border-bottom: 1px solid var(--l-border);
   padding-top: env(safe-area-inset-top);
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  background: color-mix(in oklab, var(--l-ink) 88%, transparent);
+  backdrop-filter: blur(var(--l-blur));
+  -webkit-backdrop-filter: blur(var(--l-blur));
 }
 
 .landing-header-inner {
@@ -1283,7 +1478,7 @@ select.field {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding-block: 0.65rem;
+  padding-block: 0.6rem;
   min-height: 3.5rem;
 }
 
@@ -1293,121 +1488,122 @@ select.field {
   min-width: 0;
   align-items: center;
   gap: 0.65rem;
-  color: var(--on-primary);
+  color: var(--l-text);
+  border-radius: 14px;
 }
 
 .landing-header-nav {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0.25rem;
   flex-shrink: 0;
 }
 
-.landing-header .icon-btn {
-  color: var(--on-primary);
-}
-.landing-header .btn-ghost,
-.landing-header .btn:not(.btn-primary) {
-  background: transparent;
-  color: var(--on-primary);
-  border-color: rgba(237, 238, 247, 0.28);
-}
-.landing-header .btn-ghost:hover,
-.landing-header .btn:not(.btn-primary):hover {
-  background: rgba(237, 238, 247, 0.08);
-  color: var(--on-primary);
+.landing-on-primary-muted {
+  color: var(--l-text-subtle);
 }
 
+/* ──────────────────────────── Hero ──────────────────────────── */
+
 .landing-hero-band {
-  background: var(--color-primary);
-  color: var(--on-primary);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* Interactive background — cyan spotlight with a faint emerald tint.
+   Never interactive itself, never affects layout (absolute + pointer-events). */
+.landing-ambience {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      42rem 26rem at var(--mx, 70%) var(--my, 12%),
+      var(--l-glow-primary),
+      transparent 70%
+    ),
+    radial-gradient(34rem 22rem at 8% 96%, var(--l-glow-positive), transparent 72%);
+}
+
+.landing-ambience::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--l-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--l-border) 1px, transparent 1px);
+  background-size: 72px 72px;
+  opacity: 0.35;
+  mask-image: radial-gradient(60rem 34rem at 60% 0%, #000 10%, transparent 78%);
+  -webkit-mask-image: radial-gradient(60rem 34rem at 60% 0%, #000 10%, transparent 78%);
 }
 
 .landing-hero {
   display: grid;
   gap: 1.75rem;
-  padding: 1.5rem 0 2.5rem;
+  padding: clamp(1.5rem, 4vw, 2.25rem) 0 clamp(2rem, 6vw, 3rem);
 }
 
 @media (min-width: 960px) {
   .landing-hero {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
     align-items: center;
-    padding: 3.25rem 0 4rem;
-    gap: 3.5rem;
+    padding: 3.5rem 0 4.25rem;
+    gap: clamp(2.5rem, 4vw, 4rem);
   }
 }
 
-/* Fix mobile hero stacking and text size */
-@media (max-width: 640px) {
-  .landing-hero {
-    gap: 1.25rem;
-    padding: 1.25rem 0 1.75rem;
-  }
-  .landing-display {
-    font-size: clamp(1.35rem, 6.8vw, 2.1rem);
-  }
-  .landing-lede {
-    font-size: 0.88rem;
-    line-height: 1.7;
-  }
+.landing-hero-copy {
+  min-width: 0;
 }
 
 .landing-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--l-border);
+  background: var(--l-accent-soft);
   font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--color-accent);
+  letter-spacing: 0.01em;
+  color: var(--l-accent);
   line-height: 1.6;
 }
 
 .landing-display {
-  margin-top: 0.55rem;
-  font-size: clamp(1.55rem, 6.4vw, 3.05rem);
+  margin-top: 0.9rem;
+  font-size: clamp(1.65rem, 5.6vw, 3.1rem);
   font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.35;
+  letter-spacing: -0.025em;
+  line-height: 1.32;
   text-wrap: balance;
-  color: var(--on-primary);
+  color: var(--l-text);
 }
 
 .landing-lede {
-  margin-top: 0.75rem;
-  max-width: 34rem;
-  font-size: 0.92rem;
-  line-height: 1.8;
-  color: rgba(237, 238, 247, 0.82);
+  margin-top: 0.9rem;
+  max-width: 36rem;
+  font-size: clamp(0.9rem, 1.6vw, 1rem);
+  line-height: 1.85;
+  color: var(--l-text-muted);
   text-wrap: pretty;
 }
 
-@media (min-width: 640px) {
-  .landing-lede {
-    font-size: 0.98rem;
-    line-height: 1.75;
-  }
-}
-
-.landing-hero .btn:not(.btn-primary) {
-  background: transparent;
-  color: var(--on-primary);
-  border-color: rgba(237, 238, 247, 0.28);
-}
-.landing-hero .btn-ghost {
-  border-color: transparent;
-  color: rgba(237, 238, 247, 0.88);
-}
-
 .landing-cta-cluster {
-  margin-top: 1.35rem;
+  margin-top: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.65rem;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 480px) {
   .landing-cta-cluster {
     flex-direction: row;
     align-items: center;
+    flex-wrap: wrap;
   }
 }
 
@@ -1416,168 +1612,34 @@ select.field {
 }
 
 .landing-hero-note {
-  margin-top: 0.85rem;
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   font-size: 0.78rem;
   line-height: 1.7;
-  color: rgba(237, 238, 247, 0.7);
+  color: var(--l-text-subtle);
 }
 
-.landing-band {
-  background: var(--bg-page);
-}
-
-.landing-band-surface {
-  background: var(--bg-surface);
-  border-block: 1px solid var(--border);
-}
-
-.landing-section {
-  padding: 2rem 0;
-}
-
-@media (min-width: 960px) {
-  .landing-section {
-    padding: 3rem 0;
-  }
-}
-
-.landing-h2 {
-  font-size: clamp(1.12rem, 2.4vw, 1.55rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.45;
-  text-wrap: balance;
-}
-
-.landing-support {
-  margin-top: 0.65rem;
-  max-width: 36rem;
-  color: var(--text-2);
-  font-size: 0.92rem;
-  line-height: 1.8;
-}
-
-.landing-trust-links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.55rem 0.75rem;
-}
-
-.landing-trust-links a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-}
-
-.landing-card {
-  display: flex;
-  gap: 1rem;
-  padding: 1.15rem 1.2rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface);
-}
-
-.landing-icon {
-  display: flex;
-  height: 2.25rem;
-  width: 2.25rem;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: var(--brand-soft);
-  color: var(--brand);
-}
-
-.landing-icon-wealth {
-  background: var(--color-module-wealth-bg);
-  color: var(--color-module-wealth);
-}
-.landing-icon-commitments {
-  background: var(--color-module-commitments-bg);
-  color: var(--color-module-commitments);
-}
-.landing-icon-expenses {
-  background: var(--color-module-expenses-bg);
-  color: var(--color-module-expenses);
-}
-
-.landing-outcomes {
-  margin-top: 0.35rem;
-  max-width: 40rem;
-}
-
-@media (min-width: 800px) {
-  .landing-outcomes {
-    max-width: none;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: 2.75rem;
-  }
-}
-
-/* Mobile tightening for landing benefits */
-@media (max-width: 640px) {
-  .landing-benefit {
-    padding: 0.75rem 0;
-    gap: 0.65rem;
-  }
-  .landing-h2 {
-    font-size: clamp(1.0rem, 4.8vw, 1.35rem);
-  }
-}
-
-.landing-benefit {
-  display: flex;
-  gap: 0.85rem;
-  padding: 0.95rem 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.landing-benefit:last-child {
-  border-bottom: none;
-}
-
-.landing-trust {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.35rem;
-  padding: 1rem 0;
-}
-
-.landing-trust span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 0.2rem 0.7rem;
+.landing-hero-note::before {
+  content: "";
+  inline-size: 6px;
+  block-size: 6px;
   border-radius: 999px;
-  background: var(--sunken);
-  color: var(--text-2);
-  font-size: 0.78rem;
-  font-weight: 500;
+  background: var(--l-positive);
+  flex: none;
 }
 
-.landing-cta-final {
-  padding: 0.25rem 0 0.5rem;
-  text-align: center;
-}
-
-.landing-cta-final .landing-support {
-  margin-inline: auto;
-}
-
-.landing-on-primary-muted {
-  color: rgba(237, 238, 247, 0.7);
-}
+/* ───────────────────────── Product preview ───────────────────────── */
 
 .landing-preview {
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--bg-surface);
-  color: var(--text);
-  box-shadow: none;
+  border: 1px solid var(--l-border);
+  border-radius: 20px;
+  background: var(--l-surface);
+  backdrop-filter: blur(var(--l-blur));
+  -webkit-backdrop-filter: blur(var(--l-blur));
+  box-shadow: var(--l-elev-rest);
+  color: var(--l-text);
   overflow: hidden;
   max-width: 100%;
   min-width: 0;
@@ -1587,9 +1649,9 @@ select.field {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.55rem 0.9rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--sunken);
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--l-border);
+  background: var(--l-surface-raised);
 }
 
 .landing-preview-dots {
@@ -1601,105 +1663,412 @@ select.field {
   width: 8px;
   height: 8px;
   border-radius: 99px;
-  background: var(--border-strong);
+  background: var(--l-border-strong);
 }
 
 .landing-preview-badge {
   margin-inline-start: auto;
   font-size: 0.68rem;
   font-weight: 500;
-  color: var(--text-3);
+  color: var(--l-text-subtle);
   line-height: 1.4;
 }
 
 .landing-preview-body {
-  padding: 1rem 1.05rem 1.15rem;
+  padding: 1.15rem 1.15rem 1.25rem;
   min-width: 0;
 }
 
+.landing-preview-label {
+  color: var(--l-text-subtle);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
 .landing-preview-hero-amount {
-  margin-top: 0.2rem;
-  font-size: clamp(1.2rem, 4.6vw, 1.85rem);
+  margin-top: 0.3rem;
+  font-size: clamp(1.25rem, 4.4vw, 1.9rem);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.5;
   white-space: nowrap;
   word-break: keep-all;
   overflow-wrap: normal;
-  color: var(--text);
+  color: var(--l-text);
 }
 
+/* Money values are atomic (never wrapped), so the columns only split once
+   there is genuinely room for a full amount beside another one. */
 .landing-preview-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-  margin-top: 1rem;
-  padding-top: 0.9rem;
-  border-top: 1px solid var(--border);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem 1.25rem;
+  margin-top: 1.15rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--l-border);
   min-width: 0;
+}
+
+@media (min-width: 720px) {
+  .landing-preview-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.landing-preview-metric {
+  min-width: 0;
+  padding-inline-start: 0.6rem;
+  border-inline-start: 2px solid var(--l-border-strong);
+}
+
+.landing-preview-metric-assets {
+  border-inline-start-color: var(--l-accent);
+}
+.landing-preview-metric-debts {
+  border-inline-start-color: var(--l-negative);
+}
+.landing-preview-metric-liquidity {
+  border-inline-start-color: var(--l-positive);
 }
 
 .landing-preview-amount {
   margin-top: 0.2rem;
-  font-size: 0.78rem;
+  font-size: clamp(0.74rem, 1.05vw, 0.9rem);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.55;
   white-space: nowrap;
   word-break: keep-all;
   overflow-wrap: normal;
-  color: var(--text);
+  color: var(--l-text);
   max-width: 100%;
 }
 
-@media (min-width: 640px) {
-  .landing-preview-amount {
-    font-size: 0.92rem;
+.landing-preview .comp-bar {
+  margin-top: 1.15rem;
+}
+
+/* Count-up ticker — the ghost copy reserves the final width so an animating
+   value can never move the layout. It is aria-hidden; the live span keeps the
+   accessible text and always settles on the original string. */
+.amount-anim {
+  display: inline-grid;
+  min-width: 0;
+}
+
+.amount-anim > * {
+  grid-area: 1 / 1;
+  justify-self: start;
+  white-space: nowrap;
+}
+
+.amount-anim-ghost {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ───────────────────────── Section bands ───────────────────────── */
+
+.landing-band {
+  background: var(--l-bg);
+}
+
+/* Alternating band: a quiet tint in light mode so the white cards separate
+   from their background without adding another border. */
+.landing-band-surface {
+  background: var(--sunken);
+  border-block: 1px solid var(--l-border);
+}
+
+.dark .landing-band-surface {
+  background: rgba(233, 239, 247, 0.02);
+}
+
+.landing-section {
+  padding: clamp(2rem, 5vw, 2.5rem) 0;
+}
+
+@media (min-width: 960px) {
+  .landing-section {
+    padding: 3.25rem 0;
   }
 }
 
-/* Mobile: make preview metrics more compact to avoid overlap */
-@media (max-width: 640px) {
-  .landing-preview-metrics {
-    grid-template-columns: 1fr;
-    gap: 0.65rem;
-    margin-top: 0.75rem;
-    padding-top: 0.65rem;
-  }
-  .landing-preview-metrics > div { min-width: 0; }
-  .landing-preview-amount {
-    font-size: clamp(0.74rem, 3.8vw, 0.88rem);
-    line-height: 1.4;
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-  .landing-preview-hero-amount {
-    font-size: clamp(1.05rem, 4.2vw, 1.45rem);
+.landing-h2 {
+  font-size: clamp(1.15rem, 2.6vw, 1.7rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.5;
+  text-wrap: balance;
+  color: var(--l-text);
+}
+
+.landing-support {
+  margin-top: 0.75rem;
+  max-width: 40rem;
+  color: var(--l-text-muted);
+  font-size: clamp(0.88rem, 1.5vw, 0.95rem);
+  line-height: 1.9;
+}
+
+.landing-trust-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+}
+
+.landing-trust-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--l-accent);
+  border-radius: 8px;
+}
+
+.landing-trust-links a:hover {
+  color: var(--l-accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ─────────────────── Outcome / step cards ─────────────────── */
+
+.landing-outcomes {
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+@media (min-width: 1280px) {
+  .landing-outcomes-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+.landing-benefit {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  padding: 1.05rem 1.1rem;
+  min-width: 0;
+  border: 1px solid var(--l-border);
+  border-radius: 18px;
+  background: var(--l-surface);
+  box-shadow: var(--l-elev-rest);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dark .landing-benefit {
+  backdrop-filter: blur(var(--l-blur));
+  -webkit-backdrop-filter: blur(var(--l-blur));
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .landing-benefit:hover {
+    transform: translateY(-2px);
+    border-color: var(--l-border-strong);
+    box-shadow: var(--l-elev-hover);
+  }
+}
+
+.landing-benefit h3 {
+  color: var(--l-text);
+}
+
+.landing-benefit-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.landing-benefit-body {
+  margin-top: 0.2rem;
+  font-size: 0.83rem;
+  line-height: 1.85;
+  color: var(--l-text-muted);
+}
+
+.landing-icon {
+  display: flex;
+  height: 2.4rem;
+  width: 2.4rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid var(--l-border);
+  background: var(--l-accent-soft);
+  color: var(--l-accent);
+}
+
+.landing-icon-wealth {
+  background: var(--l-accent-soft);
+  color: var(--l-accent);
+}
+.landing-icon-commitments {
+  background: var(--l-negative-soft);
+  color: var(--l-negative);
+}
+.landing-icon-liquidity {
+  background: var(--l-positive-soft);
+  color: var(--l-positive);
+}
+/* Pale lavender — reserved for the investment/asset accent only. */
+.landing-icon-invest {
+  background: var(--l-investment-soft);
+  color: var(--l-investment);
+}
+
+.landing-step-index {
+  display: flex;
+  height: 2.4rem;
+  width: 2.4rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid var(--l-border);
+  background: var(--l-surface-raised);
+  color: var(--l-accent);
+}
+
+/* ───────────────────────────── FAQ ───────────────────────────── */
+
+.landing-faq {
+  margin-top: 1.5rem;
+  display: flex;
+  width: 100%;
+  max-width: 46rem;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.landing-faq-item {
+  border: 1px solid var(--l-border);
+  border-radius: 16px;
+  background: var(--l-surface);
+  overflow: hidden;
+  transition: border-color 0.18s ease;
+}
+
+.landing-faq-item[open] {
+  border-color: var(--l-border-strong);
+}
+
+.landing-faq-item summary {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 48px;
+  padding: 0.9rem 1.05rem;
+  list-style: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.7;
+  color: var(--l-text);
+}
+
+.landing-faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.landing-faq-item summary:hover {
+  background: var(--hover);
+}
+
+.landing-faq-chevron {
+  flex: none;
+  color: var(--l-text-subtle);
+  transition: transform 0.18s ease;
+}
+
+.landing-faq-item[open] .landing-faq-chevron {
+  transform: rotate(180deg);
+  color: var(--l-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-faq-chevron {
+    transition: none;
+  }
+}
+
+.landing-faq-answer {
+  border-top: 1px solid var(--l-border);
+  padding: 0.95rem 1.05rem 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.95;
+  color: var(--l-text-muted);
+}
+
+/* ─────────────────────── Trust + final CTA ─────────────────────── */
+
+.landing-cta-final {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--l-border);
+  border-radius: 24px;
+  padding: clamp(1.75rem, 5vw, 2.75rem) clamp(1.1rem, 4vw, 2.5rem);
+  text-align: center;
+  background:
+    radial-gradient(30rem 16rem at 50% 0%, var(--l-glow-primary), transparent 70%),
+    var(--l-surface);
+}
+
+.landing-cta-final .landing-support {
+  margin-inline: auto;
+}
+
+.landing-cta-final .landing-cta-cluster {
+  justify-content: center;
+}
+
+/* ─────────────────────────── Footer ─────────────────────────── */
 
 .landing-footer {
-  background: var(--color-primary);
-  color: var(--on-primary);
-  border-top: none;
+  border-top: 1px solid var(--l-border);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-.landing-footer .sub,
-.landing-footer .muted {
-  color: rgba(237, 238, 247, 0.72);
-}
-.landing-footer a.sub {
-  color: rgba(237, 238, 247, 0.82);
-}
-.landing-footer .border-t {
-  border-color: rgba(237, 238, 247, 0.14) !important;
+.landing-footer .sub {
+  color: var(--l-text-muted);
 }
 
+.landing-footer .muted {
+  color: var(--l-text-subtle);
+}
+
+.landing-footer a.sub {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  border-radius: 8px;
+}
+
+.landing-footer a.sub:hover {
+  color: var(--l-accent);
+}
+
+.landing-footer .border-t {
+  border-color: var(--l-border) !important;
+}
+
+/* ─────────────────── Legal / marketing article ─────────────────── */
+
 .landing-legal {
-  max-width: 40rem;
+  max-width: 44rem;
   margin-inline: auto;
-  padding: 2rem 1rem 4rem;
+  padding: clamp(1.75rem, 5vw, 2.75rem) 1rem 4rem;
+  color: var(--l-text);
+}
+
+.landing-legal .sub {
+  color: var(--l-text-muted);
 }
 
 .install-promo {
@@ -1715,8 +2084,31 @@ select.field {
   box-shadow: var(--shadow-md);
 }
 
+/* Public placement sits on the landing page, so it adopts the landing's cyan
+   accent instead of the in-app violet. The authenticated placement is
+   untouched — only this modifier is restyled. */
 .install-promo-public {
   bottom: max(1rem, env(safe-area-inset-bottom));
+  --brand: #0e7490;
+  --brand-strong: #155e75;
+  --brand-soft: rgba(6, 182, 212, 0.1);
+  --color-accent: #0e7490;
+  --color-accent-hover: #155e75;
+  --color-primary: #ffffff;
+  border-radius: 18px;
+}
+
+.dark .install-promo-public {
+  --brand: #38bdf8;
+  --brand-strong: #7dd3fc;
+  --brand-soft: rgba(56, 189, 248, 0.12);
+  --color-accent: #38bdf8;
+  --color-accent-hover: #7dd3fc;
+  --color-primary: #04121b;
+}
+
+.install-promo-public .btn {
+  border-radius: 999px;
 }
 
 @media (min-width: 1024px) {

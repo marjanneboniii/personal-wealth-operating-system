@@ -1,4 +1,6 @@
 import Link from "next/link";
+import AnimatedAmount from "@/components/landing/AnimatedAmount";
+import LandingAmbience from "@/components/landing/LandingAmbience";
 import { LandingFooter, LandingHeader } from "@/components/landing/LandingChrome";
 import Icon, { type IconName } from "@/components/ui/Icon";
 
@@ -15,11 +17,19 @@ const PREVIEW_SAMPLE = {
   liquidity: "۳۵٬۰۰۰٬۰۰۰ تومان",
 } as const;
 
-const OUTCOMES: { icon: IconName; title: string; body: string; tone: "wealth" | "commitments" | "expenses" }[] = [
+/**
+ * `tone` is a presentation key only — it selects the semantic accent of the
+ * card icon and carries no financial meaning of its own:
+ *   wealth      → sky/cyan, the primary interactive accent
+ *   invest      → pale lavender, the restrained investment-only accent
+ *   commitments → amber, financial obligations that need attention
+ *   liquidity   → emerald, positive/available money
+ */
+const OUTCOMES: { icon: IconName; title: string; body: string; tone: "wealth" | "invest" | "commitments" | "liquidity" }[] = [
   { icon: "networth", title: "ارزش خالص", body: "بدانید امسال واقعاً ثروتمندتر شده‌اید یا نه.", tone: "wealth" },
-  { icon: "portfolio", title: "دارایی‌ها", body: "از حساب بانکی تا ملک و طلا، همه‌جا یک‌جا.", tone: "wealth" },
+  { icon: "portfolio", title: "دارایی‌ها", body: "از حساب بانکی تا ملک و طلا، همه‌جا یک‌جا.", tone: "invest" },
   { icon: "debts", title: "بدهی‌ها", body: "هیچ قسط یا بدهی‌ای از چشمتان دور نمی‌ماند.", tone: "commitments" },
-  { icon: "wallet", title: "نقدینگی", body: "همین امروز بدانید چقدر پول واقعی در دست دارید.", tone: "expenses" },
+  { icon: "wallet", title: "نقدینگی", body: "همین امروز بدانید چقدر پول واقعی در دست دارید.", tone: "liquidity" },
 ];
 
 const STEPS: { icon: IconName; title: string; body: string }[] = [
@@ -68,6 +78,7 @@ function CtaCluster({ align = "start" }: { align?: "start" | "center" }) {
       <Link href="/register" className="btn btn-primary !min-h-12 w-full sm:w-auto sm:px-6">
         شروع رایگان
       </Link>
+      {/* «ورود» stays visually secondary next to the single primary CTA. */}
       <Link href="/login" className="btn btn-ghost !min-h-12 w-full sm:w-auto sm:px-6">
         ورود
       </Link>
@@ -81,9 +92,6 @@ function ProductPreview() {
       className="landing-preview"
       aria-label="نمونه نمایشی از ارزش خالص، دارایی‌ها، بدهی‌ها و نقدینگی به تومان"
     >
-      <figcaption className="muted px-[0.9rem] pb-1.5 pt-2.5 text-[12px] font-medium">
-        یک نمونه واقعی از داشبورد توازن:
-      </figcaption>
       <div className="landing-preview-chrome">
         <div className="landing-preview-dots" aria-hidden="true">
           <span />
@@ -93,27 +101,36 @@ function ProductPreview() {
         <p className="landing-preview-badge">نمونه نمایشی</p>
       </div>
       <div className="landing-preview-body">
-        <p className="muted text-[11px] font-medium">ارزش خالص</p>
-        <p className="display-num landing-preview-hero-amount">{PREVIEW_SAMPLE.netWorth}</p>
+        <figcaption className="landing-preview-label">یک نمونه واقعی از داشبورد توازن:</figcaption>
+        <p className="landing-preview-label mt-3">ارزش خالص</p>
+        <p className="display-num landing-preview-hero-amount">
+          <AnimatedAmount value={PREVIEW_SAMPLE.netWorth} />
+        </p>
         <div className="landing-preview-metrics">
-          <div>
-            <p className="muted text-[10.5px]">دارایی‌ها</p>
-            <p className="display-num landing-preview-amount">{PREVIEW_SAMPLE.assets}</p>
+          <div className="landing-preview-metric landing-preview-metric-assets">
+            <p className="landing-preview-label">دارایی‌ها</p>
+            <p className="display-num landing-preview-amount">
+              <AnimatedAmount value={PREVIEW_SAMPLE.assets} />
+            </p>
           </div>
-          <div>
-            <p className="muted text-[10.5px]">بدهی‌ها</p>
-            <p className="display-num landing-preview-amount">{PREVIEW_SAMPLE.debts}</p>
+          <div className="landing-preview-metric landing-preview-metric-debts">
+            <p className="landing-preview-label">بدهی‌ها</p>
+            <p className="display-num landing-preview-amount">
+              <AnimatedAmount value={PREVIEW_SAMPLE.debts} />
+            </p>
           </div>
-          <div>
-            <p className="muted text-[10.5px]">نقدینگی</p>
-            <p className="display-num landing-preview-amount">{PREVIEW_SAMPLE.liquidity}</p>
+          <div className="landing-preview-metric landing-preview-metric-liquidity">
+            <p className="landing-preview-label">نقدینگی</p>
+            <p className="display-num landing-preview-amount">
+              <AnimatedAmount value={PREVIEW_SAMPLE.liquidity} />
+            </p>
           </div>
         </div>
-        <div className="comp-bar mt-4" aria-hidden="true">
-          <span style={{ width: "42%", background: "var(--color-module-wealth)" }} />
-          <span style={{ width: "28%", background: "var(--color-module-expenses)" }} />
-          <span style={{ width: "18%", background: "var(--color-primary)" }} />
-          <span style={{ width: "12%", background: "var(--color-module-commitments)" }} />
+        <div className="comp-bar" aria-hidden="true">
+          <span style={{ width: "42%", background: "var(--l-accent)" }} />
+          <span style={{ width: "28%", background: "var(--l-positive)" }} />
+          <span style={{ width: "18%", background: "var(--l-investment)" }} />
+          <span style={{ width: "12%", background: "var(--l-negative)" }} />
         </div>
       </div>
     </figure>
@@ -122,18 +139,17 @@ function ProductPreview() {
 
 function FaqAccordion() {
   return (
-    <div className="mx-auto mt-1 flex w-full max-w-2xl flex-col gap-2.5">
+    <div className="landing-faq">
       {FAQ_ITEMS.map((item) => (
-        <details key={item.question} className="card group overflow-hidden">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-            <span className="text-[13.5px] font-semibold">{item.question}</span>
-            <span className="muted shrink-0 transition-transform group-open:rotate-180" aria-hidden="true">
-              <Icon name="chevronDown" size={15} />
+        <details key={item.question} className="landing-faq-item">
+          <summary>
+            <span>{item.question}</span>
+            {/* Non-directional in RTL: the chevron rotates, it never mirrors. */}
+            <span className="landing-faq-chevron" aria-hidden="true">
+              <Icon name="chevronDown" size={16} />
             </span>
           </summary>
-          <div className="border-t p-4" style={{ borderColor: "var(--border)" }}>
-            <p className="sub text-[13px] leading-6">{item.answer}</p>
-          </div>
+          <div className="landing-faq-answer">{item.answer}</div>
         </details>
       ))}
     </div>
@@ -145,7 +161,8 @@ export default function LandingPage() {
     <div className="landing">
       <LandingHeader />
 
-      <div className="landing-hero-band">
+      <div className="landing-hero-band landing-ink">
+        <LandingAmbience />
         <section className="landing-wrap landing-hero">
           <div className="landing-hero-copy">
             <p className="landing-kicker">سیستم‌عامل ثروت شخصی</p>
@@ -166,15 +183,15 @@ export default function LandingPage() {
           <h2 id="outcomes-title" className="landing-h2">
             هر عدد، یک تصمیم بهتر.
           </h2>
-          <div className="landing-outcomes">
+          <div className="landing-outcomes landing-outcomes-4">
             {OUTCOMES.map((item) => (
               <article key={item.title} className="landing-benefit">
-                <span className={`landing-icon landing-icon-${item.tone}`}>
+                <span className={`landing-icon landing-icon-${item.tone}`} aria-hidden="true">
                   <Icon name={item.icon} size={18} />
                 </span>
-                <div>
-                  <h3 className="text-[15px] font-semibold">{item.title}</h3>
-                  <p className="sub mt-0.5 text-[13px] leading-6">{item.body}</p>
+                <div className="min-w-0">
+                  <h3 className="landing-benefit-title">{item.title}</h3>
+                  <p className="landing-benefit-body">{item.body}</p>
                 </div>
               </article>
             ))}
@@ -190,12 +207,12 @@ export default function LandingPage() {
           <div className="landing-outcomes">
             {STEPS.map((item) => (
               <article key={item.title} className="landing-benefit">
-                <span className="landing-icon">
+                <span className="landing-step-index" aria-hidden="true">
                   <Icon name={item.icon} size={18} />
                 </span>
-                <div>
-                  <h3 className="text-[15px] font-semibold">{item.title}</h3>
-                  <p className="sub mt-0.5 text-[13px] leading-6">{item.body}</p>
+                <div className="min-w-0">
+                  <h3 className="landing-benefit-title">{item.title}</h3>
+                  <p className="landing-benefit-body">{item.body}</p>
                 </div>
               </article>
             ))}
@@ -203,7 +220,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-band">
+      <section className="landing-band-surface">
         <div className="landing-wrap landing-section" aria-labelledby="trust-title">
           <h2 id="trust-title" className="landing-h2">
             خصوصی، شفاف، تحت کنترل شما.
@@ -213,13 +230,13 @@ export default function LandingPage() {
             فروخته نمی‌شود. توازن نیازی به اتصال مستقیم حساب بانکی ندارد — شما همیشه کنترل کامل روی داده‌های خود دارید.
           </p>
           <p className="landing-support landing-trust-links">
-            <Link href="/privacy" className="font-medium" style={{ color: "var(--color-accent)" }}>
+            <Link href="/privacy" className="font-medium">
               حریم خصوصی
             </Link>
             <span className="muted" aria-hidden="true">
               ·
             </span>
-            <Link href="/about" className="font-medium" style={{ color: "var(--color-accent)" }}>
+            <Link href="/about" className="font-medium">
               درباره توازن
             </Link>
           </p>
@@ -235,7 +252,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-band-surface">
+      <section className="landing-band">
         <div className="landing-wrap landing-section" aria-labelledby="final-cta-title">
           <div className="landing-cta-final">
             <h2 id="final-cta-title" className="landing-h2">
