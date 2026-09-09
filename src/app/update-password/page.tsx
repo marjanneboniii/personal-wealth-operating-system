@@ -1,6 +1,11 @@
 import { updatePasswordAction } from "@/lib/auth-actions";
 import { ensureAuth } from "@/lib/authGuard";
 
+// This route depends on the request's Supabase session.  Without an explicit
+// dynamic boundary Next.js attempts to prerender it during `next build`, where
+// there is no request cookie and no authenticated database context.
+export const dynamic = "force-dynamic";
+
 export default async function UpdatePasswordPage() {
   await ensureAuth();
   return <div className="mx-auto max-w-md py-12">
