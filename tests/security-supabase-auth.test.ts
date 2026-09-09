@@ -42,6 +42,18 @@ test("RLS defaults closed and binds financial rows to auth.uid()", () => {
   assert.doesNotMatch(sql, /raw_user_meta_data\s*->>\s*'role'/);
 });
 
+test("Supabase privileged helpers and advisor findings stay hardened", () => {
+  const definerAcl = read("drizzle/0018_supabase_definer_acl.sql");
+  const advisor = read("drizzle/0019_supabase_advisor_hardening.sql");
+
+  assert.match(definerAcl, /REVOKE ALL ON FUNCTION public\.sync_auth_user_profile\(\) FROM PUBLIC, anon, authenticated/);
+  assert.match(definerAcl, /REVOKE ALL ON FUNCTION public\.rls_auto_enable\(\) FROM PUBLIC, anon, authenticated/);
+  assert.match(advisor, /vehicle_valuation_snapshots_immutable\(\) SET search_path = ''/);
+  assert.match(advisor, /DROP POLICY IF EXISTS tenant_insert ON public\.audit_log/);
+  assert.match(advisor, /CREATE POLICY expense_categories_select/);
+  assert.match(advisor, /index_record\.indkey\[0\] = constraint_record\.conkey\[1\]/);
+});
+
 test("public signup cannot assign owner and admin protects owner accounts", () => {
   const actions = read("src/lib/auth-actions.ts");
   const callback = read("src/app/auth/callback/route.ts");
