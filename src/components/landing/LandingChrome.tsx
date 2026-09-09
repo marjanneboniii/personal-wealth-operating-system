@@ -5,12 +5,12 @@ import { DownloadIosButton } from "@/components/pwa/IosInstallGuide";
 
 export function LandingHeader() {
   return (
-    <header className="landing-header">
+    <header className="landing-header landing-ink">
       <div className="landing-wrap landing-header-inner">
         <Link href="/" className="landing-brand" aria-label="توازن — سیستم‌عامل ثروت شخصی">
-          <BrandMark size={28} style={{ color: "var(--color-accent)" }} />
+          <BrandMark size={28} style={{ color: "var(--l-accent)" }} />
           <span className="min-w-0 leading-tight">
-            <BrandWordmark className="block text-[16px] text-[color:var(--on-primary)]" />
+            <BrandWordmark className="block text-[16px] text-[color:var(--l-text)]" />
             <span className="landing-on-primary-muted hidden text-[10px] sm:block">سیستم‌عامل ثروت شخصی</span>
           </span>
         </Link>
@@ -33,16 +33,16 @@ export function LandingHeader() {
 
 export function LandingFooter() {
   return (
-    <footer className="landing-footer">
-      <div className="landing-wrap flex flex-col gap-5 py-8 sm:flex-row sm:items-start sm:justify-between">
+    <footer className="landing-footer landing-ink">
+      <div className="landing-wrap flex flex-col gap-6 py-9 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="flex items-center gap-2" style={{ color: "var(--color-accent)" }}>
+          <div className="flex items-center gap-2" style={{ color: "var(--l-accent)" }}>
             <BrandMark size={22} />
-            <BrandWordmark className="text-[15px] text-[color:var(--on-primary)]" />
+            <BrandWordmark className="text-[15px] text-[color:var(--l-text)]" />
           </div>
-          <p className="sub mt-2 max-w-xs text-[13px] leading-6">سیستم‌عامل ثروت شخصی — آرام، خصوصی، دقیق.</p>
+          <p className="sub mt-2.5 max-w-xs text-[13px] leading-7">سیستم‌عامل ثروت شخصی — آرام، خصوصی، دقیق.</p>
         </div>
-        <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]" aria-label="پاورقی">
+        <nav className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px]" aria-label="پاورقی">
           <Link href="/about" className="sub hover:underline">
             درباره
           </Link>
