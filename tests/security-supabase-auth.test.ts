@@ -70,3 +70,9 @@ test("legacy custom Google endpoint is retired", () => {
   assert.match(route, /status: 410/);
   assert.doesNotMatch(route, /tokeninfo|GOOGLE_CLIENT_ID/);
 });
+
+test("password update page is never prerendered without a Supabase session", () => {
+  const page = read("src/app/update-password/page.tsx");
+  assert.match(page, /export const dynamic = ["']force-dynamic["']/);
+  assert.match(page, /await ensureAuth\(\)/);
+});
