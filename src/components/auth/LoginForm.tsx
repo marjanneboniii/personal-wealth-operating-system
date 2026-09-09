@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { loginAction, type AuthResult } from "@/lib/auth-actions";
 import { purgeClientCaches } from "@/lib/swClient";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
 
-export default function LoginForm({ claimMode, googleClientId }: { claimMode?: boolean; googleClientId?: string }) {
+export default function LoginForm({ claimMode, turnstileSiteKey }: { claimMode?: boolean; turnstileSiteKey?: string }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<AuthResult | null, FormData>(loginAction, null);
 
@@ -27,6 +28,7 @@ export default function LoginForm({ claimMode, googleClientId }: { claimMode?: b
           id="login-username"
           name="username"
           required
+          maxLength={254}
           autoComplete="username"
           enterKeyHint="next"
           placeholder="نام کاربری یا ایمیل"
@@ -43,6 +45,7 @@ export default function LoginForm({ claimMode, googleClientId }: { claimMode?: b
           name="password"
           type="password"
           required
+          maxLength={128}
           autoComplete="current-password"
           enterKeyHint="done"
           placeholder="رمز عبور"
@@ -59,6 +62,7 @@ export default function LoginForm({ claimMode, googleClientId }: { claimMode?: b
         </p>
       )}
 
+      <TurnstileWidget siteKey={turnstileSiteKey} />
       <button
         type="submit"
         disabled={pending}
@@ -68,7 +72,9 @@ export default function LoginForm({ claimMode, googleClientId }: { claimMode?: b
         {pending ? "در حال بررسی…" : claimMode ? "تأیید و حفظ داده‌ها" : "ورود"}
       </button>
 
-      <GoogleAuthButton clientId={googleClientId} label="ورود با Google" />
+      <a href="/forgot-password" className="muted block text-center text-[11px] underline underline-offset-4">رمز عبور را فراموش کرده‌اید؟</a>
+
+      <GoogleAuthButton label="ورود با Google" />
     </form>
   );
 }

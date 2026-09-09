@@ -40,16 +40,17 @@
 ### مسیرهای ثبت دستی و احراز هویت
 * **بدهی دستی:** از بخش برنامه‌ریزی به `/debts` بروید و «ثبت بدهی دستی» را بزنید. فرم ابتدا پیش‌نمایش می‌دهد و فقط با «تأیید نهایی» بدهی/اقساط را در لایه برنامه‌ریزی ذخیره می‌کند؛ این کار هیچ `Journal Entry` یا `Posting` جدیدی نمی‌سازد.
 * **نرخ ارز دستی:** در `/market-data` بخش «ثبت دستی نرخ ارز» (و همچنین `/settings`) قرار دارد. نرخ برای ارزش‌گذاری جاری است و تاریخچه، FIFO و دفترکل را تغییر نمی‌دهد؛ برای نرخ شخصی باید وارد حساب شوید.
-* **ورود کاربر و Google:** لینک «ورود / ثبت‌نام» در نوار اصلی و مسیرهای `/login` و `/register` همیشه قابل مشاهده‌اند. برای فعال شدن دکمه واقعی Google Identity Services، متغیرهای `GOOGLE_CLIENT_ID` و `NEXT_PUBLIC_GOOGLE_CLIENT_ID` را طبق `.env.example` تنظیم کنید.
+* **ورود کاربر و Google:** احراز هویت ایمیل/رمز، بازیابی رمز و OAuth گوگل همگی با Supabase Auth انجام می‌شوند. مرورگر فقط publishable key را می‌بیند؛ secret key فقط در سرور و پنل مدیریت استفاده می‌شود.
 
 ## فناوری‌ها
-Next.js 16 (App Router, Server Components) · TypeScript · PostgreSQL · Drizzle ORM · Tailwind CSS v4 · zod · نمودارهای SVG بدون وابستگی · PWA (manifest + آیکون) · فونت Vazirmatn، RTL کامل.
+Next.js 16 (App Router, Server Components) · TypeScript · Supabase Auth/PostgreSQL/RLS · Drizzle ORM · Tailwind CSS v4 · zod · نمودارهای SVG بدون وابستگی · PWA (manifest + آیکون) · فونت Vazirmatn، RTL کامل.
 
 ## معماری
 ```
 src/domain        هسته مالی خالص: Decimal (BigInt/18)، قواعد تراز، موتور FIFO
 src/features      Use-Caseها: ledger (نوشتن/کوئری)، planning (اهداف، اقساط، پیش‌بینی)
-src/db            اسکیما (۳۰ جدول)، اتصال، seed
+src/db            اسکیما، اتصال PostgreSQL و seed توسعه
+src/lib/supabase  کلاینت‌های جداگانه مرورگر، SSR و مدیریت
 src/app           صفحات، Server Actions، API (health/backup/restore)
 src/components    Design System، نمودارها، فرم‌ها، پوسته موبایل‌اول
 ```
@@ -68,11 +69,13 @@ src/components    Design System، نمودارها، فرم‌ها، پوسته 
 
 ## اجرا
 ```bash
-cp .env.example .env        # DATABASE_URL=postgresql://user:pass@host:5432/db
+cp .env.example .env        # مقادیر Supabase/Postgres/Redis را تنظیم کنید
 npm install
 npm run db:migrate          # ایجاد/به‌روزرسانی اسکیما (مرحله‌ای صریح، خارج از Runtime)
 npm run build && npm start  # اجرای تولیدی
 ```
+
+برای استقرار جدید، ترتیب امن و متغیرهای دقیق در [`docs/SUPABASE_CUTOVER.md`](docs/SUPABASE_CUTOVER.md) آمده است. پایگاه داده قدیمی فقط پس از اجرای migration، ثبت‌نام آزمایشی، آزمون جداسازی دو کاربر و تأیید deployment حذف می‌شود.
 
 برای توسعه محلی بدون PostgreSQL، `DATABASE_URL=memory://` بگذارید؛ در این حالت اسکیما و داده نمونه به‌صورت خودکار در حافظه ساخته می‌شود (در Production این مسیر Fail-Closed است و مجاز نیست). داده نمونه فقط در حالت توسعه (`APP_MODE=development`) به‌صورت خودکار seed می‌شود؛ در Production به‌هیچ‌وجه seed خودکار انجام نمی‌شود.
 
@@ -99,4 +102,4 @@ group by je.id having abs(sum(p.base_value)) > 1e-9;   -- باید صفر سطر
 تجمیع‌ها در سمت PostgreSQL انجام می‌شود؛ ایندکس روی `postings(account_id, entry_id)`، `prices(asset_id, as_of desc)`، `installments(due_date,status)` و `planned_transactions(planned_date,status)`. صفحات Server Component هستند و فقط فرم‌ها و نمودارها به کلاینت می‌روند.
 
 ## امنیت و حریم خصوصی
-هیچ درخواست خارجی اجباری وجود ندارد، قیمت‌ها دستی/محلی ثبت می‌شوند، همه ورودی‌ها با zod در سرور اعتبارسنجی می‌شوند و هر نوشتن در `audit_log` ثبت می‌گردد. برای استقرار خانگی، اجرا پشت VPN/شبکه خصوصی توصیه می‌شود.
+هویت و نشست‌ها متعلق به Supabase Auth هستند؛ جدول‌های مالی RLS مبتنی بر `auth.uid()` دارند و دسترسی برنامه نیز در لایه سرویس با شناسه کاربر محدود می‌شود. کلید secret هیچ‌گاه به مرورگر نمی‌رود، عملیات مدیریت کاربران ثبت حسابرسی می‌شود، و همه ورودی‌های مالی در سرور اعتبارسنجی می‌شوند. جزئیات راه‌اندازی و کنترل‌های بعد از استقرار در [`docs/SUPABASE_CUTOVER.md`](docs/SUPABASE_CUTOVER.md) است.

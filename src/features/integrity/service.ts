@@ -29,7 +29,7 @@ async function rows<T>(query: ReturnType<typeof sql>): Promise<T[]> {
   return res.rows as T[];
 }
 
-export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
+export async function runIntegrityChecks(userId = "00000000-0000-0000-0000-000000000000"): Promise<IntegrityCheck[]> {
   const ranAt = new Date().toISOString();
 
   const [unbalanced, incomplete, fifoBad, orphanLinks, valuationCoverage, duplicates, unreviewed] = await Promise.all([
@@ -38,6 +38,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
       select je.id, je.description, je.entry_date::text
       from journal_entries je
       join postings p on p.entry_id = je.id
+      where je.user_id = ${userId}
       group by je.id
       having abs(sum(p.base_value)) > 0.000000001
       limit 10
@@ -47,6 +48,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
       select je.id, je.description, je.entry_date::text
       from journal_entries je
       left join postings p on p.entry_id = je.id
+      where je.user_id = ${userId}
       group by je.id
       having count(p.id) < 2
       limit 10
@@ -56,7 +58,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
       select ast.symbol, l.opened_at::text
       from lots l
       join assets ast on ast.id = l.asset_id
-      where abs(
+      where l.user_id = ${userId} and abs(
         l.qty_opened - l.qty_remaining -
         coalesce((select sum(lc.quantity) from lot_consumptions lc where lc.lot_id = l.id), 0)
       ) > 0.00000001
@@ -67,16 +69,17 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
       select d.title, i.seq, i.due_date::text
       from installments i
       join debts d on d.id = i.debt_id
-      where i.status = 'paid' and i.paid_entry_id is null
+      where d.user_id = ${userId} and i.status = 'paid' and i.paid_entry_id is null
       limit 10
     `),
     // 5. Valuation coverage — CoinGecko freshness/manual valuation status.
-    getPortfolioValuation(),
+    getPortfolioValuation(undefined, userId),
     // 6. Duplicates — same day, same description, posted twice (last year)
     rows<{ description: string; entry_date: string; c: string }>(sql`
       select je.description, je.entry_date::text, count(*)::text as c
       from journal_entries je
       where je.status = 'posted'
+        and je.user_id = ${userId}
         and je.entry_date >= current_date - interval '365 days'
         and coalesce(je.reversal_of::text, '') = ''
       group by je.description, je.entry_date
@@ -88,6 +91,7 @@ export async function runIntegrityChecks(): Promise<IntegrityCheck[]> {
       select je.id, je.description, je.entry_date::text
       from journal_entries je
       where je.source = 'import' and je.status = 'posted'
+        and je.user_id = ${userId}
         and not exists (select 1 from entry_reviews er where er.entry_id = je.id)
       limit 10
     `),

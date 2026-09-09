@@ -218,7 +218,16 @@ function startRedisConnect(): void {
 }
 
 function redisBackend(): RateLimitBackend {
-  if (!redisUrl()) return memoryBackend;
+  if (!redisUrl()) {
+    if (process.env.NODE_ENV === "production") {
+      return {
+        kind: "memory",
+        async check() { return { ok: false, remaining: 0 }; },
+        async reset() {},
+      };
+    }
+    return memoryBackend;
+  }
 
   // No live connection yet (not attempted, still connecting, or previously
   // failed): answer from the in-memory store right away and re-arm the
@@ -232,7 +241,11 @@ function redisBackend(): RateLimitBackend {
     async check(key, maxAttempts, windowSeconds): Promise<RateLimitResult> {
       try {
         const client = await withTimeout(ready, REDIS_CONNECT_TIMEOUT_MS, "acquire");
-        if (!client) return memoryBackend.check(key, maxAttempts, windowSeconds);
+        if (!client) {
+          return process.env.NODE_ENV === "production"
+            ? { ok: false, remaining: 0 }
+            : memoryBackend.check(key, maxAttempts, windowSeconds);
+        }
         const count = (await withTimeout(
           client.eval(FIXED_WINDOW_LUA, {
             keys: [`${REDIS_KEY_PREFIX}${key}`],
@@ -250,7 +263,9 @@ function redisBackend(): RateLimitBackend {
         // Transient command/connection failure -> degrade for this call and
         // clear the client so the next call re-arms a fresh connect.
         markRedisDown(error, "check");
-        return memoryBackend.check(key, maxAttempts, windowSeconds);
+        return process.env.NODE_ENV === "production"
+          ? { ok: false, remaining: 0 }
+          : memoryBackend.check(key, maxAttempts, windowSeconds);
       }
     },
     async reset(key): Promise<void> {

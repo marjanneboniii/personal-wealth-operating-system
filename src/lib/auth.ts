@@ -3,23 +3,30 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions, users } from "@/db/schema";
 import crypto from "node:crypto";
+import { createClient as createRawSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
+import { hasSupabaseConfig, publicSupabaseConfig } from "@/lib/supabase/config";
 
 const SESSION_COOKIE = "pwos_session";
 const SESSION_TTL_DAYS = 30;
+const PASSWORD_SCRYPT = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 } as const;
 
 // ───────────────── Password hashing (scrypt, no extra dep) ─────────────────
 
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
-  const derived = crypto.scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${derived}`;
+  const derived = crypto.scryptSync(password, salt, 64, PASSWORD_SCRYPT).toString("hex");
+  return `s2:${salt}:${derived}`;
 }
 
 export function verifyPassword(password: string, stored: string): boolean {
   if (!stored || !stored.includes(":")) return false;
-  const [salt, hash] = stored.split(":");
+  const parts = stored.split(":");
+  const version = parts.length === 3 ? parts[0] : "s1";
+  const salt = parts.length === 3 ? parts[1] : parts[0];
+  const hash = parts.length === 3 ? parts[2] : parts[1];
   if (!salt || !hash) return false;
-  const derived = crypto.scryptSync(password, salt, 64).toString("hex");
+  const derived = crypto.scryptSync(password, salt, 64, version === "s2" ? PASSWORD_SCRYPT : undefined).toString("hex");
   // timingSafeEqual requires same length buffers
   const a = Buffer.from(hash, "hex");
   const b = Buffer.from(derived, "hex");
@@ -53,6 +60,7 @@ async function lookupSessionRow(tokenValue: string) {
 }
 
 export async function createSession(userId: string): Promise<{ token: string; expiresAt: Date }> {
+  if (hasSupabaseConfig()) throw new Error("Custom sessions are disabled; use Supabase Auth");
   const token = generateToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
   // Store only the hash — never the raw token.
@@ -61,29 +69,26 @@ export async function createSession(userId: string): Promise<{ token: string; ex
 }
 
 export async function destroySession(token: string): Promise<void> {
+  if (hasSupabaseConfig()) return;
   if (!token) return;
-  // Delete by hash (current format) and by raw value (legacy rows only).
   await db.delete(sessions).where(eq(sessions.token, hashSessionToken(token)));
-  await db.delete(sessions).where(eq(sessions.token, token));
 }
 
 export async function getSessionUser(token: string) {
+  if (hasSupabaseConfig()) return getSupabaseProfile(token);
   if (!token) return null;
   const hashed = hashSessionToken(token);
   let row: { user: typeof users.$inferSelect; session: typeof sessions.$inferSelect } | undefined;
   try {
+    // Never compare the caller-provided value directly with the database.
+    // Doing so would make a stolen database hash usable as a bearer token.
     row = await lookupSessionRow(hashed);
     if (!row) {
-      // Transitional compatibility: sessions created before hash-at-rest
-      // stored the raw token. If such a legacy row is presented, upgrade it
-      // in place to hash storage on first use. Only pre-existing rows can
-      // ever match the raw path — new sessions are hashed on creation.
-      const legacyRow = await lookupSessionRow(token);
-      if (legacyRow) {
-        try {
-          await db.update(sessions).set({ token: hashed }).where(eq(sessions.token, token));
-        } catch {}
-        row = legacyRow;
+      // Cleanup-only compatibility for already-expired raw legacy rows. A
+      // live raw row is never authenticated or upgraded.
+      const legacyExpired = await lookupSessionRow(token);
+      if (legacyExpired?.session.expiresAt && new Date(legacyExpired.session.expiresAt) < new Date()) {
+        await db.delete(sessions).where(eq(sessions.token, token));
       }
     }
   } catch (e) {
@@ -91,10 +96,9 @@ export async function getSessionUser(token: string) {
   }
   if (!row) return null;
   if (row.session.expiresAt && new Date(row.session.expiresAt) < new Date()) {
-    // expired — clean up (hash form first, raw form for any legacy row)
+    // expired — clean up the hash-at-rest row
     try {
       await db.delete(sessions).where(eq(sessions.token, hashed));
-      await db.delete(sessions).where(eq(sessions.token, token));
     } catch {}
     return null;
   }
@@ -102,6 +106,7 @@ export async function getSessionUser(token: string) {
 }
 
 export async function getCurrentUser() {
+  if (hasSupabaseConfig()) return getSupabaseProfile();
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE)?.value;
@@ -116,6 +121,10 @@ export async function getCurrentUser() {
 }
 
 export async function getCurrentUserFromRequest(request: Request) {
+  if (hasSupabaseConfig()) {
+    const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+    return getSupabaseProfile(bearer);
+  }
   try {
     const cookieHeader = request.headers.get("cookie");
     if (cookieHeader) {
@@ -133,10 +142,12 @@ export async function getCurrentUserFromRequest(request: Request) {
 }
 
 export async function invalidateAllSessions(txDb: any = db): Promise<void> {
+  if (hasSupabaseConfig()) return;
   await txDb.delete(sessions);
 }
 
 export async function setSessionCookie(token: string, expiresAt: Date) {
+  if (hasSupabaseConfig()) throw new Error("Custom session cookies are disabled; use Supabase Auth");
   try {
     const cookieStore = await cookies();
     cookieStore.set(SESSION_COOKIE, token, {
@@ -152,6 +163,11 @@ export async function setSessionCookie(token: string, expiresAt: Date) {
 }
 
 export async function clearSessionCookie() {
+  if (hasSupabaseConfig()) {
+    const supabase = await createSupabaseServerClient();
+    await supabase.auth.signOut({ scope: "local" });
+    return;
+  }
   try {
     const cookieStore = await cookies();
     cookieStore.set(SESSION_COOKIE, "", {
@@ -180,9 +196,28 @@ export function sanitizeUser(u: typeof users.$inferSelect) {
     username: (u as any).username ?? null,
     email: (u as any).email ?? null,
     role: u.role,
-    googleId: (u as any).googleId ?? null,
   };
 }
 
 // For middleware (edge not available, but use same logic)
 export const SESSION_COOKIE_NAME = SESSION_COOKIE;
+
+async function getSupabaseProfile(accessToken?: string) {
+  try {
+    const supabase = accessToken
+      ? (() => {
+          const { url, key } = publicSupabaseConfig();
+          return createRawSupabaseClient(url, key, {
+            global: { headers: { Authorization: `Bearer ${accessToken}` } },
+            auth: { persistSession: false, autoRefreshToken: false },
+          });
+        })()
+      : await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser(accessToken);
+    if (error || !data.user) return null;
+    const [profile] = await db.select().from(users).where(eq(users.id, data.user.id)).limit(1);
+    return profile ?? null;
+  } catch {
+    throw new Error("Authentication/Database error: Access denied");
+  }
+}

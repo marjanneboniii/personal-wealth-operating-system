@@ -9,7 +9,7 @@ import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import RestorePanel from "@/components/RestorePanel";
 import { faCount, formatDate } from "@/lib/format";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, sanitizeUser } from "@/lib/auth";
 import { ensureAuth } from "@/lib/authGuard";
 import { getUserFxRate } from "@/features/fx/userRate";
 import { getUserProMode } from "@/features/preferences/service";
@@ -54,7 +54,8 @@ export default async function SettingsPage() {
       {user && (
         <>
           <Section title="حساب کاربری">
-            <UserPanel user={user as any} />
+            <UserPanel user={sanitizeUser(user) as any} />
+            {(user.role === "owner" || user.role === "admin") && <Link href="/admin" className="btn btn-ghost mt-3">مدیریت کاربران</Link>}
           </Section>
         </>
       )}
@@ -80,7 +81,6 @@ export default async function SettingsPage() {
           />
         ) : (
           <AuthAccessCard
-            googleClientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID}
             title="ورود و Auth کاربر در دسترس است"
             body="برای فعال‌کردن ثبت دستی نرخ ارز و جداسازی داده‌ها، از همین‌جا وارد شوید یا حساب بسازید. ورود با Google نیز در همین کارت نمایش داده می‌شود."
           />

@@ -4,11 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { users, userFxSettings } from "@/db/schema";
-import { eq, isNull, or } from "drizzle-orm";
-import { hashPassword, verifyPassword, createSession, setSessionCookie, clearSessionCookie, destroySession, getCurrentUser } from "@/lib/auth";
-import { cookies } from "next/headers";
+import { eq, or } from "drizzle-orm";
+import { clearSessionCookie, getCurrentUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { invalidateTenantStateCache } from "@/lib/tenantState";
+import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type AuthResult = { ok: boolean; message: string; redirectTo?: string };
 
@@ -21,6 +21,19 @@ export type AuthResult = { ok: boolean; message: string; redirectTo?: string };
  * Any client-supplied `role` (or identity) field is ignored.
  */
 const DEFAULT_SELF_REGISTERED_ROLE = "user";
+
+function canonicalSiteUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured) {
+    const parsed = new URL(configured);
+    if (process.env.NODE_ENV === "production" && parsed.protocol !== "https:") {
+      throw new Error("NEXT_PUBLIC_SITE_URL must use HTTPS in production");
+    }
+    return parsed.origin;
+  }
+  if (process.env.NODE_ENV === "production") throw new Error("NEXT_PUBLIC_SITE_URL is required in production");
+  return "http://localhost:3000";
+}
 
 /** Production password policy (registration only — never blocks existing logins). */
 const MIN_PASSWORD_LENGTH = 8;
@@ -35,7 +48,7 @@ function validatePasswordPolicy(password: string): string | null {
 }
 
 /** Fields that must never be accepted from a registration request. */
-const PRIVILEGED_FORM_FIELDS = ["role", "userId", "user_id", "googleId", "google_id", "emailVerified", "id"];
+const PRIVILEGED_FORM_FIELDS = ["role", "userId", "user_id", "emailVerified", "id"];
 
 // ───────────── Register (username + password) ─────────────
 
@@ -50,16 +63,18 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
   }
 
   const username = String(formData.get("username") || "").trim();
+  const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
   const name = String(formData.get("name") || "").trim() || username;
+  if (username.length > 64 || email.length > 254 || name.length > 120 || password.length > 128) return { ok: false, message: "طول اطلاعات واردشده مجاز نیست." };
 
   const { checkRateLimit, getRequestIp } = await import("@/lib/rateLimit");
+  const ip = await getRequestIp();
   const userLimit = await checkRateLimit(`register:${username || "anon"}`, 10, 60);
   if (!userLimit.ok) {
     return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
   }
-  const ip = await getRequestIp();
   if (ip) {
     const ipLimit = await checkRateLimit(`register-ip:${ip}`, 20, 60);
     if (!ipLimit.ok) {
@@ -69,6 +84,7 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
 
   if (!username || username.length < 3) return { ok: false, message: "نام کاربری باید حداقل ۳ کاراکتر باشد." };
   if (!/^[a-zA-Z0-9_.\-]+$/.test(username)) return { ok: false, message: "نام کاربری فقط می‌تواند شامل حروف انگلیسی، عدد، _ و - باشد." };
+  if (!/^\S+@\S+\.\S+$/.test(email)) return { ok: false, message: "ایمیل معتبر وارد کنید." };
   const policyError = validatePasswordPolicy(password);
   if (policyError) return { ok: false, message: policyError };
   if (password !== confirmPassword) return { ok: false, message: "تکرار رمز عبور مطابقت ندارد." };
@@ -77,42 +93,23 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
   const [existingByUsername] = await db.select().from(users).where(eq(users.username, username)).limit(1);
   if (existingByUsername) return { ok: false, message: "این نام کاربری قبلاً ثبت شده است." };
 
-  const passwordHash = hashPassword(password);
-
-  // Migration: check if there is a legacy owner without username (preserve 1456 data)
-  // Legacy detection: users where username IS NULL (single-tenant before auth)
-  const legacyUsers = await db.select().from(users).where(isNull(users.username));
-  let userId: string;
-  // SECURITY: claiming the legacy owner is a privileged migration step and is
-  // disabled unless the operator explicitly opts in via PWOS_ALLOW_LEGACY_CLAIM.
-  // An anonymous visitor registering can therefore never take over legacy data.
-  const legacyClaimAllowed = process.env.PWOS_ALLOW_LEGACY_CLAIM === "true";
-  if (legacyClaimAllowed && legacyUsers.length === 1 && legacyUsers[0].role === "owner") {
-    // Explicit bootstrap authorization present — claim the legacy owner,
-    // preserving all financial data (existing migration path, now opt-in).
-    const legacy = legacyUsers[0];
-    await db
-      .update(users)
-      .set({ username, passwordHash, name: name || legacy.name, updatedAt: new Date() } as any)
-      .where(eq(users.id, legacy.id));
-    userId = legacy.id;
-    await recordAuditEvent({
-      action: "LEGACY_OWNER_CLAIM",
-      entityType: "user",
-      entityId: legacy.id,
-      userId: legacy.id,
-      result: "SUCCESS",
-      metadata: { username },
-    });
-  } else {
-    // Default secure path: always create a fresh low-privilege account.
-    // The role comes from the backend constant — never from the request.
-    const [newUser] = await db
-      .insert(users)
-      .values({ name: name || username, username, passwordHash, role: DEFAULT_SELF_REGISTERED_ROLE } as any)
-      .returning();
-    userId = newUser.id;
-  }
+  const captchaToken = String(formData.get("turnstileToken") || "");
+  if (!captchaToken && process.env.NODE_ENV === "production") return { ok: false, message: "تأیید امنیتی انجام نشد؛ دوباره تلاش کنید." };
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      captchaToken: captchaToken || undefined,
+      emailRedirectTo: `${canonicalSiteUrl()}/auth/callback`,
+      data: { name: name || username, username },
+    },
+  });
+  if (error || !data.user) return { ok: false, message: error?.message || "ثبت‌نام انجام نشد." };
+  const userId = data.user.id;
+  // Never grant a privileged role from public signup input. The verified
+  // Supabase callback is the only bootstrap-owner path.
+  await db.update(users).set({ name: name || username, username, email, role: DEFAULT_SELF_REGISTERED_ROLE, emailVerified: Boolean(data.user.email_confirmed_at), updatedAt: new Date() } as any).where(eq(users.id, userId));
 
   // Registration changes the user count and/or the "auth enabled" flag, so the
   // shared tenant-state cache (used by every auth guard / ledger read) must be
@@ -134,21 +131,24 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
     metadata: { username },
   });
 
-  return { ok: true, message: "حساب با موفقیت ایجاد شد. اکنون وارد شوید.", redirectTo: "/login" };
+  return data.session
+    ? { ok: true, message: "حساب با موفقیت ایجاد شد.", redirectTo: "/" }
+    : { ok: true, message: "ایمیل تأیید ارسال شد؛ پس از تأیید وارد شوید.", redirectTo: "/login" };
 }
 
 // ───────────── Login ─────────────
 
 export async function loginAction(prev: AuthResult | null, formData: FormData): Promise<AuthResult> {
-  const username = String(formData.get("username") || "").trim();
+  const username = String(formData.get("username") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
+  if (username.length > 254 || password.length > 128) return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
 
   const { checkRateLimit, getRequestIp } = await import("@/lib/rateLimit");
+  const ip = await getRequestIp();
   const userLimit = await checkRateLimit(`login:${username || "anon"}`, 10, 60);
   if (!userLimit.ok) {
     return { ok: false, message: "تعداد تلاش‌ها بیش از حد مجاز است. لطفاً کمی صبر کنید." };
   }
-  const ip = await getRequestIp();
   if (ip) {
     const ipLimit = await checkRateLimit(`login-ip:${ip}`, 30, 60);
     if (!ipLimit.ok) {
@@ -158,14 +158,22 @@ export async function loginAction(prev: AuthResult | null, formData: FormData): 
   if (!username || !password) return { ok: false, message: "نام کاربری و رمز عبور را وارد کنید." };
 
   try {
-    const [user] = await db.select().from(users).where(or(eq(users.username, username), eq(users.email, username))).limit(1);
-    if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
-      await recordAuditEvent({ action: "LOGIN_FAILURE", entityType: "user", userId: user?.id, result: "FAILURE", metadata: { username } });
+    const [profile] = await db.select().from(users).where(or(eq(users.username, username), eq(users.email, username))).limit(1);
+    const email = username.includes("@") ? username : profile?.email;
+    if (!email) {
+      await recordAuditEvent({ action: "LOGIN_FAILURE", entityType: "user", result: "FAILURE", metadata: { username } });
       return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
     }
-    const { token, expiresAt } = await createSession(user.id);
-    await setSessionCookie(token, expiresAt);
-    await recordAuditEvent({ action: "LOGIN_SUCCESS", entityType: "user", entityId: user.id, userId: user.id, result: "SUCCESS" });
+    const captchaToken = String(formData.get("turnstileToken") || "");
+    if (!captchaToken && process.env.NODE_ENV === "production") return { ok: false, message: "تأیید امنیتی انجام نشد؛ دوباره تلاش کنید." };
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken: captchaToken || undefined } });
+    if (error || !data.user) {
+      await recordAuditEvent({ action: "LOGIN_FAILURE", entityType: "user", userId: profile?.id, result: "FAILURE", metadata: { username } });
+      return { ok: false, message: "نام کاربری یا رمز عبور اشتباه است." };
+    }
+    await db.update(users).set({ emailVerified: Boolean(data.user.email_confirmed_at), updatedAt: new Date() } as any).where(eq(users.id, data.user.id));
+    await recordAuditEvent({ action: "LOGIN_SUCCESS", entityType: "user", entityId: data.user.id, userId: data.user.id, result: "SUCCESS" });
     return { ok: true, message: "ورود موفق.", redirectTo: "/" };
   } catch {
     return { ok: false, message: "ارتباط با پایگاه داده برقرار نیست. داده‌های شما امن‌اند — چند لحظه دیگر دوباره تلاش کنید." };
@@ -178,9 +186,6 @@ export async function logoutAction(): Promise<void> {
   let u: any = null;
   try {
     u = await getCurrentUser();
-    const cookieStore = await cookies();
-    const token = cookieStore.get("pwos_session")?.value;
-    if (token) await destroySession(token);
   } catch {}
   await clearSessionCookie();
   await recordAuditEvent({
@@ -199,6 +204,26 @@ export async function logoutAction(): Promise<void> {
 export async function claimOwnerAction(prev: AuthResult | null, formData: FormData): Promise<AuthResult> {
   // Same as register but explicit claim flow
   return registerAction(prev, formData);
+}
+
+export async function requestPasswordResetAction(formData: FormData): Promise<void> {
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  if (/^\S+@\S+\.\S+$/.test(email)) {
+    const supabase = await createSupabaseServerClient();
+    await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${canonicalSiteUrl()}/auth/callback?next=/update-password` });
+  }
+  redirect("/login?reset=sent");
+}
+
+export async function updatePasswordAction(formData: FormData): Promise<void> {
+  const password = String(formData.get("password") || "");
+  const confirm = String(formData.get("confirmPassword") || "");
+  const policyError = validatePasswordPolicy(password);
+  if (policyError || password !== confirm || password.length > 128) redirect("/update-password?error=invalid");
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) redirect("/update-password?error=failed");
+  redirect("/settings?password=updated");
 }
 
 // ───────────── Update FX Rate (per-user, 24h limit) ─────────────

@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { registerAction, type AuthResult } from "@/lib/auth-actions";
 import { purgeClientCaches } from "@/lib/swClient";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
 
-export default function RegisterForm({ googleClientId }: { googleClientId?: string }) {
+export default function RegisterForm({ turnstileSiteKey }: { turnstileSiteKey?: string }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<AuthResult | null, FormData>(registerAction, null);
 
@@ -22,12 +23,18 @@ export default function RegisterForm({ googleClientId }: { googleClientId?: stri
   return (
     <form action={formAction} className="space-y-4" dir="rtl">
       <div>
+        <label className="label" htmlFor="reg-email">ایمیل</label>
+        <input id="reg-email" name="email" type="email" required maxLength={254} autoComplete="email" placeholder="name@example.com" className="field" dir="ltr" />
+      </div>
+
+      <div>
         <label className="label" htmlFor="reg-username">نام کاربری</label>
         <input
           id="reg-username"
           name="username"
           required
           minLength={3}
+          maxLength={64}
           pattern="[a-zA-Z0-9_.\-]+"
           autoComplete="username"
           placeholder="example"
@@ -40,7 +47,7 @@ export default function RegisterForm({ googleClientId }: { googleClientId?: stri
 
       <div>
         <label className="label" htmlFor="reg-name">نام نمایشی (اختیاری)</label>
-        <input id="reg-name" name="name" placeholder="نام شما" className="field" style={{ touchAction: "manipulation" }} />
+        <input id="reg-name" name="name" maxLength={120} placeholder="نام شما" className="field" style={{ touchAction: "manipulation" }} />
       </div>
 
       <div>
@@ -49,7 +56,8 @@ export default function RegisterForm({ googleClientId }: { googleClientId?: stri
           name="password"
           type="password"
           required
-          minLength={6}
+          minLength={8}
+          maxLength={128}
           autoComplete="new-password"
           placeholder="••••••••"
           className="field"
@@ -65,7 +73,8 @@ export default function RegisterForm({ googleClientId }: { googleClientId?: stri
           name="confirmPassword"
           type="password"
           required
-          minLength={6}
+          minLength={8}
+          maxLength={128}
           autoComplete="new-password"
           placeholder="••••••••"
           className="field"
@@ -86,11 +95,12 @@ export default function RegisterForm({ googleClientId }: { googleClientId?: stri
         </p>
       )}
 
+      <TurnstileWidget siteKey={turnstileSiteKey} />
       <button type="submit" disabled={pending} className="btn btn-primary w-full" style={{ touchAction: "manipulation" }}>
         {pending ? "در حال ثبت‌نام…" : "ثبت‌نام"}
       </button>
 
-      <GoogleAuthButton clientId={googleClientId} label="ثبت‌نام با Google" />
+      <GoogleAuthButton label="ثبت‌نام با Google" />
     </form>
   );
 }

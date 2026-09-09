@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { auditLog, backupRuns, sessions, users } from "@/db/schema";
+import { auditLog, backupRuns, users } from "@/db/schema";
 import { authorizeOwnerOrAdmin } from "@/lib/authGuard";
-import { clearSessionCookie } from "@/lib/auth";
+import { clearSessionCookie, invalidateAllSessions } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { invalidateTenantStateCache } from "@/lib/tenantState";
+import { isTrustedMutation } from "@/lib/requestSecurity";
 
 export const dynamic = "force-dynamic";
+const MAX_RESTORE_BYTES = 5 * 1024 * 1024;
 
 const ORDER = [
   "currencies",
@@ -52,7 +54,6 @@ const ORDER = [
   "installments",
   "obligations",
   "funds",
-  "users",
   "user_setup_state",
   "settings",
   "notifications",
@@ -71,10 +72,22 @@ const backupPayloadSchema = z.object({
 /**
  * Security-Hardened Transactional Restore Endpoint.
  * Requires Authenticated Owner or Admin user.
- * Invalidation rule: deletes all sessions within the transaction and clears the session cookie to force re-login.
- * Rollback guarantee: Any failure rolls back all table modifications and preserves existing sessions.
+ * Supabase Auth identities are never imported, overwritten, or deleted.
  */
 export async function POST(request: Request) {
+  if (!isTrustedMutation(request)) {
+    return NextResponse.json({ ok: false, error: "درخواست نامعتبر است." }, { status: 403 });
+  }
+  // A database-wide restore is intentionally disabled in ordinary web
+  // runtime. Operators must explicitly enable a short maintenance window.
+  if (process.env.NODE_ENV === "production" && process.env.PWOS_ENABLE_RESTORE !== "true") {
+    return NextResponse.json({ ok: false, error: "بازیابی در این محیط غیرفعال است." }, { status: 503 });
+  }
+
+  const declaredSize = Number(request.headers.get("content-length") ?? 0);
+  if (declaredSize > MAX_RESTORE_BYTES) {
+    return NextResponse.json({ ok: false, error: "فایل بازیابی بیش از حد بزرگ است." }, { status: 413 });
+  }
   const auth = await authorizeOwnerOrAdmin(request);
   if (!auth.ok) {
     // Audit every denied restore attempt. Identity/role come only from the
@@ -92,7 +105,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const rawBody = await request.json();
+    const rawText = await request.text();
+    if (Buffer.byteLength(rawText, "utf8") > MAX_RESTORE_BYTES) {
+      return NextResponse.json({ ok: false, error: "فایل بازیابی بیش از حد بزرگ است." }, { status: 413 });
+    }
+    const rawBody = JSON.parse(rawText);
     const parseResult = backupPayloadSchema.safeParse(rawBody);
 
     if (!parseResult.success) {
@@ -114,7 +131,7 @@ export async function POST(request: Request) {
     // accounting tables as a last-line audit trail.
     let preRestoreRowCount = 0;
     try {
-      const criticalTables = ["users", "accounts", "journal_entries", "postings", "lots", "lot_consumptions", "audit_log"];
+      const criticalTables = ["accounts", "journal_entries", "postings", "lots", "lot_consumptions", "audit_log"];
       for (const t of criticalTables) {
         const res = await db.execute(sql`select count(*)::int as cnt from ${sql.identifier(t)}`);
         preRestoreRowCount += Number((res.rows[0] as { cnt?: number })?.cnt ?? 0);
@@ -155,9 +172,6 @@ export async function POST(request: Request) {
         }
       }
 
-      // 7. Security Hardening: Invalidate all sessions in database upon successful restore
-      await tx.delete(sessions);
-
       let auditUserId: string | null = null;
       try {
         if (auth.user?.id) {
@@ -187,13 +201,15 @@ export async function POST(request: Request) {
       );
     });
 
-    // Restore replaced the whole `users` table — the shared tenant-state
-    // cache (user count / auth-enabled) must not survive from the pre-restore
-    // database.
+    // Identity rows are deliberately preserved; restored tenant data must
+    // continue to reference an existing, authenticated account.
     invalidateTenantStateCache();
 
-    // 10. Clear session cookie to force caller re-login
+    // 10. Supabase owns production sessions and local sign-out revokes the
+    // caller's refresh token. The legacy invalidation remains only for the
+    // embedded test/development auth fallback.
     try {
+      await invalidateAllSessions();
       await clearSessionCookie();
     } catch {}
 

@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
-import { desc } from "drizzle-orm";
-import { db } from "@/db";
-import { auditLog } from "@/db/schema";
+import { getAuditLogs } from "@/lib/audit";
 import { seedIfEmpty } from "@/db/seed";
 import { runIntegrityChecks, summarize, type CheckStatus } from "@/features/integrity/service";
 import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
@@ -23,11 +21,11 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export default async function AuditPage() {
-  await ensureAuth();
+  const user = await ensureAuth();
   await seedIfEmpty();
   const [checks, auditRows] = await Promise.all([
-    runIntegrityChecks(),
-    db.select().from(auditLog).orderBy(desc(auditLog.createdAt)).limit(15),
+    runIntegrityChecks(user.id),
+    getAuditLogs(user.id, 15),
   ]);
 
   const summary = summarize(checks);

@@ -12,20 +12,21 @@ import type { NextConfig } from "next";
  * CSP notes:
  *  - script/style 'unsafe-inline' is required by the inline theme bootstrap
  *    in app/layout.tsx (dangerouslySetInnerHTML) and Next inline payloads;
- *  - accounts.google.com sources cover the Google Identity Services button.
+ *  - authentication is handled by Supabase; only its HTTPS API endpoint is
+ *    reachable from browser code. OAuth provider pages are top-level redirects.
  */
 const isProd = process.env.NODE_ENV === "production";
 
 const contentSecurityPolicy = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://challenges.cloudflare.com",
-  "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+  "style-src 'self' 'unsafe-inline'",
   // CoinGecko catalog logos are public identity metadata; API calls and keys
   // remain server-side. Only the two documented image CDNs are allowlisted.
   "img-src 'self' data: blob: https://assets.coingecko.com https://coin-images.coingecko.com",
   "font-src 'self' data:",
-  "connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://challenges.cloudflare.com",
-  "frame-src https://accounts.google.com https://challenges.cloudflare.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com",
+  "frame-src https://challenges.cloudflare.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
