@@ -117,11 +117,18 @@ test("Landing — product preview uses static Toman samples with Persian digits"
   const landing = read("src/components/landing/LandingPage.tsx");
 
   assert.match(landing, /نمونه نمایشی/);
-  assert.match(landing, /۱۸۴٬۲۴۰٬۰۰۰ تومان/);
-  assert.match(landing, /۲۴۱٬۸۰۰٬۰۰۰ تومان/);
-  assert.match(landing, /۵۷٬۵۶۰٬۰۰۰ تومان/);
-  assert.match(landing, /۴۲٬۳۰۰٬۰۰۰ تومان/);
+  // The four demo figures, and the identity that makes them a believable
+  // balance sheet rather than four unrelated numbers: assets − debts = net worth.
+  assert.match(landing, /۱۲۵٬۰۰۰٬۰۰۰ تومان/, "net worth");
+  assert.match(landing, /۱۸۰٬۰۰۰٬۰۰۰ تومان/, "assets");
+  assert.match(landing, /۵۵٬۰۰۰٬۰۰۰ تومان/, "debts");
+  assert.match(landing, /۳۵٬۰۰۰٬۰۰۰ تومان/, "liquidity");
   assert.match(landing, /PREVIEW_SAMPLE/);
+
+  // The landing is the first number a visitor sees, so it must obey the app's
+  // own number standard: ٪ AFTER the digits, and an ASCII "." decimal mark —
+  // src/lib/format.ts bans the Persian ٫ because it reads as a slash.
+  assert.match(landing, /deltaPct: "۳\.۵٪"/, "percent sign follows the digits");
 
   assert.doesNotMatch(landing, /\$184/);
   assert.doesNotMatch(landing, /184,240 USD/);
@@ -308,7 +315,13 @@ test("Tavazon brand tokens — one palette shared by landing and app", () => {
   assert.doesNotMatch(css, /--color-accent:\s*var\(--cyan-700\)/i);
 
   assert.match(css, /\.brand-wordmark/);
-  assert.match(css, /font-weight: 900/);
+  // The wordmark is Bold, not Black. Vazirmatn Black was a fifth 49.8 KB font
+  // file loaded on every page for the single word «توازن», and at the sizes the
+  // wordmark actually renders (17px header, 14px footer) it is indistinguishable
+  // from Bold — so the weight, the @font-face and the file were all dropped.
+  assert.match(css, /\.brand-wordmark \{\s*\n\s*font-weight: 700;/);
+  assert.doesNotMatch(css, /font-weight: 900/, "no rule may ask for the retired Black weight");
+  assert.doesNotMatch(css, /Vazirmatn-Black/, "the Black @font-face is gone");
   assert.match(mark, /توازن/);
   assert.match(chrome, /توازن/);
   assert.doesNotMatch(chrome, /وِزان/);
@@ -334,8 +347,10 @@ test("Application currency system is unchanged — تومان، دلار، تت�
   assert.match(moneyForm, /تومان/);
   assert.match(moneyForm, /دلار/);
   assert.match(moneyForm, /تتر/);
-  assert.match(dual, /formatMoney/);
-  assert.match(fx, /نرخ دلار/);
+  // DualMoney renders through the shared formatter — via the dual helpers,
+  // which are the only correct entry point for a two-currency figure.
+  assert.match(dual, /formatDualMoneyFrom(Irt|Usd)/);
+  assert.match(fx, /نرخ مرجع تتر/, "the FX panel names the rate it actually sets");
 
   assert.doesNotMatch(landing, /\$184,240/);
   assert.doesNotMatch(landing, /184,240 USD/);

@@ -75,6 +75,29 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="fa" dir="rtl" suppressHydrationWarning>
       <head>
+        {/*
+          Fonts are self-hosted (no Google Fonts — that host is unreliable from
+          Iran) but they were still discovered only AFTER the stylesheet had
+          been fetched and parsed, which on a high-latency link costs a whole
+          extra round trip before any Persian text is drawn in the real face.
+          Preloading the two weights that every first paint needs — body 400 and
+          headings/wordmark 700 — starts them in parallel with the CSS. The
+          other two weights stay lazy; they are not on the critical path.
+        */}
+        <link
+          rel="preload"
+          href="/fonts/Vazirmatn-Regular.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/Vazirmatn-Bold.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="antialiased">
