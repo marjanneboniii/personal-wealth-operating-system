@@ -224,8 +224,7 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
             )}
 
             <div className="rounded-[var(--r-md)] border p-3 text-[11px] leading-5" style={{ borderColor: "var(--warning)", background: "var(--warning-soft)" }}>
-              این فرم فقط بدهی و برنامه اقساط را در لایه برنامه‌ریزی ثبت می‌کند. در این مرحله هیچ Journal Entry، Posting، مانده حساب یا دفترکل ایجاد/ویرایش نمی‌شود.
-            </div>
+              ثبت مالی هنگام پرداخت هر قسط انجام می‌شود.</div>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => setShowPreview(false)} className="btn btn-ghost flex-1">بازگشت به ویرایش</button>

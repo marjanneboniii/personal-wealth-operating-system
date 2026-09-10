@@ -517,8 +517,7 @@ export default function SetupWizardPage() {
                   </div>
 
                   <p className="muted text-[length:var(--fs-xs)] leading-5">
-                    لازم نیست این موارد را الان وارد کنید؛ می‌توانید بعداً از ماژول «حساب‌ها» (صندوق نقد) یا ثبت خرید رمزارز/دارایی، آن‌ها را اضافه کنید.
-                  </p>
+                    می‌توانید این‌ها را بعداً هم اضافه کنید.</p>
                 </div>
               </details>
 

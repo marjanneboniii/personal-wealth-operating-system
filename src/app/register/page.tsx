@@ -44,8 +44,7 @@ export default async function RegisterPage() {
             className="mb-4 rounded-[var(--r-md)] px-3 py-2 text-[12px] leading-6"
             style={{ background: "var(--warning-soft)", color: "var(--warning)" }}
           >
-            ارتباط با پایگاه داده برقرار نیست. داده‌های شما امن‌اند. می‌توانید فرم را کامل کنید؛ اگر ثبت‌نام ناموفق بود، چند لحظه بعد دوباره تلاش کنید.
-          </p>
+            ارتباط با سرور برقرار نیست. داده‌های شما امن است.</p>
         )}
 
         <RegisterForm

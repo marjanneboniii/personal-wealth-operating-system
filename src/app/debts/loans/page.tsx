@@ -90,7 +90,7 @@ export default async function LoansPage() {
             <EmptyState
               icon="card"
               title="وامی ثبت نشده است"
-              body="تسهیلات واقعی (دارای نرخ سود یا متصل به حساب بدهی دفترکل) در این بخش دیده می‌شوند. برنامه‌های قسطی خرید، وام نیستند و در «بدهی‌ها» و «اقساط» نمایش داده می‌شوند."
+              body="وام‌هایی که نرخ سود دارند یا در سوابق مالی ثبت شده‌اند."
               action={
                 <Link href="/debts" className="btn btn-primary">
                   ثبت بدهی جدید

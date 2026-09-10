@@ -127,7 +127,7 @@ export default async function InstallmentsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="اقساط" subtitle="مبلغ تومان هر قسط ثابت است؛ معادل دلاری قسط پرداخت‌نشده با نرخ روز محاسبه می‌شود و برای قسط پرداخت‌شده روی نرخ لحظه پرداخت منجمد می‌ماند." />
+      <PageHeader title="اقساط" subtitle="مبلغ تومان هر قسط ثابت است؛ معادل دلاری با نرخ روز محاسبه می‌شود." />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="معوق" value={faCount(overdueList.length)} tone={overdueList.length ? "down" : "neutral"} />

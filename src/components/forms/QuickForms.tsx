@@ -58,7 +58,7 @@ function PlanningPreview({ title, description, irtAmount, rate, rateDate, rateSo
         {status && <div><span className="muted">وضعیت:</span> <strong>{status}</strong></div>}
         {priority && <div><span className="muted">اولویت:</span> <strong>{priority}</strong></div>}
         {extra}
-        <div className="muted text-[length:var(--fs-xs)]">تا قبل از «تأیید نهایی» هیچ Journal Entry یا Ledger Entry ایجاد نمی‌شود. معادل دلاری با آخرین نرخ به‌صورت لحظه‌ای محاسبه و با تغییر نرخ به‌روزرسانی می‌شود.</div>
+        <div className="muted text-[length:var(--fs-xs)]">تا تأیید نهایی چیزی ثبت نمی‌شود.</div>
       </div>
     </PreviewCard>
   );

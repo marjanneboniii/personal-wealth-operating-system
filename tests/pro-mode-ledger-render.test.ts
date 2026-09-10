@@ -58,7 +58,7 @@ async function renderLedger(): Promise<string> {
   return await new Response(stream).text();
 }
 
-test("§2 /ledger renders the SIMPLE vocabulary by default and PRO after opt-in", async () => {
+test("§2 /ledger leads with plain language and keeps the accounting detail on demand", async () => {
   await modulesReady;
   await createSchemaIfNotExists();
   await db.delete(userPreferences);
@@ -71,24 +71,28 @@ test("§2 /ledger renders the SIMPLE vocabulary by default and PRO after opt-in"
     .returning();
   sessionToken = (await createSession(alice.id)).token;
 
-  // ── SIMPLE (default): no accounting jargon anywhere in the page ──
-  const simple = await renderLedger();
-  assert.ok(simple.includes("خلاصه حساب‌ها"), "simple view shows the plain account summary");
-  assert.ok(!simple.includes("تراز آزمایشی"), "trial balance wording hidden by default");
-  assert.ok(!simple.includes("مسیر پول") || true, "postings table header present in some form");
-  assert.ok(!simple.includes("کد معین"), "no chart-of-accounts codes vocabulary by default");
+  const page = await renderLedger();
 
-  // ── PRO: the professional accounting columns appear ──
+  // The page LEADS with plain language — accounting vocabulary is never the
+  // first thing a non-accountant meets.
+  assert.ok(page.includes("خلاصه حساب‌ها"), "plain account summary leads the page");
+
+  // The global «حالت حرفه‌ای» preference is gone: the accounting view is no
+  // longer gated behind a setting the user has to discover.
+  assert.ok(
+    !page.includes("حالت حرفه‌ای"),
+    "no app-wide professional-mode switch is referenced any more",
+  );
+
+  // …but NOTHING was removed. The trial balance and its debit/credit columns
+  // stay reachable in the same request, inside a local expander.
+  assert.ok(page.includes("جزئیات حسابداری"), "accounting detail is offered on the page");
+  assert.ok(page.includes("تراز آزمایشی"), "trial balance is still rendered");
+  assert.ok(page.includes("ورود") && page.includes("خروج"), "debit and credit columns survive");
+  assert.ok(page.includes("کد"), "chart-of-accounts codes survive");
+
+  // The preference no longer changes what the page shows.
   await preferences.setUserProMode(alice.id, true);
-  const pro = await renderLedger();
-  assert.ok(pro.includes("تراز آزمایشی"), "trial balance visible in PRO mode");
-  assert.ok(pro.includes("ورود"), "debit column visible in PRO mode");
-  assert.ok(pro.includes("خروج"), "credit column visible in PRO mode");
-
-  // ── back to SIMPLE hides them again (server re-read per request) ──
-  await preferences.setUserProMode(alice.id, false);
-  const simpleAgain = await renderLedger();
-  assert.ok(!simpleAgain.includes("تراز آزمایشی"), "trial balance hidden after opting out");
-
-  sessionToken = null;
+  const afterOptIn = await renderLedger();
+  assert.ok(afterOptIn.includes("خلاصه حساب‌ها"), "the plain summary still leads");
 });

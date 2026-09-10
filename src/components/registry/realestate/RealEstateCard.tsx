@@ -229,8 +229,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
               {pending ? "در حال ثبت…" : "ثبت ارزش‌گذاری جدید"}
             </button>
             <span className="muted text-[length:var(--fs-xs)]">
-              هر ثبت یک Snapshot جدید و تغییرناپذیر می‌سازد؛ ارزش‌گذاری قبلی (تومان + نرخ دلار همان روز) هرگز حذف یا بازنویسی نمی‌شود و سند دفترکل هم تغییر نمی‌کند.
-            </span>
+              هر ثبت یک رکورد تازه می‌سازد؛ ارزش‌گذاری قبلی بازنویسی نمی‌شود.</span>
           </div>
           <div className="mt-2">
             <Result state={state} />

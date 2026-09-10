@@ -184,8 +184,7 @@ export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectI
         )}
       </div>
       <div className="muted text-[length:var(--fs-xs)] leading-5">
-        پس از انتخاب، مبلغ به تومان، معادل دلاری، نرخ و حساب پرداخت به‌صورت خودکار تکمیل می‌شود. تا قبل از «تأیید نهایی» هیچ تغییری ثبت نمی‌شود.
-      </div>
+        مبلغ و حساب پرداخت خودکار پر می‌شود. تا تأیید نهایی چیزی ثبت نمی‌شود.</div>
     </div>
   );
 }

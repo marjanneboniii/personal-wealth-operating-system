@@ -32,7 +32,10 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
   // GLOBAL PRO MODE (Directive §2): default = SIMPLE view. Account codes,
   // debit/credit columns and full double-entry detail are rendered ONLY for
   // users who explicitly enabled the professional vocabulary in settings.
-  const pro = await getUserProMode(userId);
+  // Simple view by default. The accounting detail is not lost: it lives in a
+  // local expander below, so the trial balance stays reachable without the
+  // app-wide «حالت حرفه‌ای» preference that used to gate it.
+  const pro = false;
   const sp = await searchParams;
   // Asset ↔ ledger navigation: ?entry=ID opens that specific entry on top.
   const focusEntryId = typeof sp.entry === "string" && sp.entry ? sp.entry : null;
@@ -120,11 +123,6 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
           {bad ? `${faCount(bad)} سند نامتوازن` : pro ? "دفترکل تراز است" : "همه سوابق تراز است"}
         </span>
         <span className="muted num">{faCount(totalEntries)} سند ثبت‌شده</span>
-        {!pro && (
-          <span className="muted">
-            جزئیات تخصصی حسابداری فقط با فعال‌سازی «حالت حرفه‌ای» در تنظیمات نمایش داده می‌شود.
-          </span>
-        )}
       </div>
 
       {/* ── Trial balance (PRO) / simple account summary (default) ── */}
@@ -226,6 +224,49 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
           </table>
         </div>
       </Section>
+
+      {/* Accounting detail — available on demand, never gated behind a global
+          preference. Plain <details>: no client JS, no extra request. */}
+      <details className="card overflow-hidden">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-[length:var(--fs-sm)] font-semibold marker:hidden [&::-webkit-details-marker]:hidden">
+          جزئیات حسابداری
+          <Icon name="chevronDown" size={16} />
+        </summary>
+        <div className="border-t px-1 pb-1" style={{ borderColor: "var(--border)" }}>
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col" className="w-14">کد</th>
+                  <th scope="col">حساب</th>
+                  <th scope="col">نوع</th>
+                  <th scope="col" className="td-num">ورود</th>
+                  <th scope="col" className="td-num">خروج</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeBalances.map((b) => {
+                  const v = Number(b.baseValue);
+                  return (
+                    <tr key={b.accountId}>
+                      <td className="num muted" dir="rtl">{toFaDigits(b.code)}</td>
+                      <td className="font-medium">{b.name}</td>
+                      <td><span className="badge badge-neutral">{ACCOUNT_TYPE_LABELS[b.type as AccountType]}</span></td>
+                      <td className="td-num font-semibold" dir="rtl">{v > 0 ? formatMoney(v) : "—"}</td>
+                      <td className="td-num font-semibold" dir="rtl">{v < 0 ? formatMoney(Math.abs(v)) : "—"}</td>
+                    </tr>
+                  );
+                })}
+                <tr style={{ background: "var(--sunken)" }}>
+                  <td colSpan={3} className="text-[length:var(--fs-xs)] font-bold">جمع تراز آزمایشی</td>
+                  <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">{formatMoney(totalDebit)}</td>
+                  <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">{formatMoney(totalCredit)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
 
       {/* ── Journal register ── */}
       <Section title="اسناد روزنامه" hint="۶۰ سند اخیر — برای باز شدن هر سند روی آن بزنید">

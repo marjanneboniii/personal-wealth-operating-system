@@ -775,8 +775,7 @@ export default function TransactionForm({
             )}
             {isNonCashCategory && (
               <p className="rounded-[var(--r-sm)] p-2 text-[11px] leading-5" style={{ background: "var(--sunken)" }} role="note">
-                <strong>ثبت غیرنقدی (استهلاک/ذخیره):</strong> این دسته خروج وجه نیست؛ هیچ حساب نقدی تغییر نمی‌کند و طرف مقابل به‌صورت خودکار حساب «ذخیره استهلاک و تعمیرات آتی» است. در گزارش هزینه منظور می‌شود ولی از جریان نقدی خارج می‌ماند.
-              </p>
+                <strong>ثبت غیرنقدی (استهلاک/ذخیره):</strong> این دسته خروج وجه نیست و حساب نقدی شما تغییر نمی‌کند.</p>
             )}
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => setShowNewCategory((v) => !v)} disabled={!selectedParent} className="chip disabled:opacity-40" style={{ touchAction: "manipulation" }}>
@@ -1050,8 +1049,7 @@ export default function TransactionForm({
               </div>
             )}
             <div className="muted text-[length:var(--fs-xs)] leading-5">
-              تا قبل از «تأیید نهایی ثبت تراکنش» هیچ اطلاعاتی وارد دفترکل یا هسته حسابداری نمی‌شود. پس از تأیید، مبلغ تاریخی به تومان، معادل به دلار و نرخ زمان ثبت Freeze می‌شوند (Historical Immutability).
-            </div>
+              تا تأیید نهایی چیزی ثبت نمی‌شود.</div>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => setShowPreview(false)} className="btn btn-ghost flex-1" style={{ touchAction: "manipulation" }}>بازگشت به ویرایش</button>
