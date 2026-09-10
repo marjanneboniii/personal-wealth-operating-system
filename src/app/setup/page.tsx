@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { completeSetupAction, fetchSetupStateAction, type ActionResult } from "@/app/actions";
 import { getTranslations } from "@/i18n";
 import { D } from "@/domain/decimal";
-import { currencyLabel, faCount, formatMoney, formatQty } from "@/lib/format";
+import { currencyLabel, faCount, formatMoney, formatMoneyWithSign, formatQty } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
 
 const t = getTranslations("fa").setup;
@@ -591,7 +591,7 @@ export default function SetupWizardPage() {
                     <div className="flex justify-between py-2 font-bold" style={{ color: "var(--negative)" }}>
                       <span>از سرمایه اولیه</span>
                       <span className="num" dir="rtl">
-                        −{formatMoney(previewData.totalEquity, baseCurrency)}
+                        {formatMoneyWithSign("−", previewData.totalEquity, baseCurrency)}
                       </span>
                     </div>
                   ) : (

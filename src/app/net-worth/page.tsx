@@ -207,8 +207,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                       style={{ color: pos ? "var(--positive)" : neg ? "var(--negative)" : "var(--text-2)" }}
                     >
                       <span className="num text-[length:var(--fs-xs)] font-bold money-nowrap sm:text-[length:var(--fs-sm)]">
-                        {pos ? "+" : neg ? "−" : ""}
-                        {toIrt(D(r.value).abs().toString()) ?? formatMoney(D(r.value).abs().toString())}
+                        {formatSignedMoneyFromUsd(r.value, fx.rate)}
                       </span>
                       {fx.rate && (
                         <span className="muted num text-[length:var(--fs-xs)] money-nowrap">
@@ -304,8 +303,8 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
               tone={trendTone(growth.netInvestmentReturn)}
               hint={fx.rate ? `≈ ${formatMoney(growth.netInvestmentReturn)} · بدون احتساب واریز/برداشت‌ها` : "بدون احتساب واریز/برداشت‌ها"}
             />
-            <Metric label="بیشترین افت از سقف" value={`−${formatPct(risk.maxDrawdownPercentage, 2)}`} tone={Number(risk.maxDrawdownPercentage) > 15 ? "down" : "neutral"} />
-            <Metric label="ریسک رمزارز" value={`${formatPct(risk.cryptoExposurePercentage, 2)}`} hint={`بزرگ‌ترین دارایی: ${risk.largestAssetSymbol}`} />
+            <Metric label="بیشترین افت از سقف" value={formatPercent(D(risk.maxDrawdownPercentage).abs().neg().toString())} tone={Number(risk.maxDrawdownPercentage) > 15 ? "down" : "neutral"} />
+            <Metric label="ریسک رمزارز" value={formatPct(risk.cryptoExposurePercentage, 2)} hint={`بزرگ‌ترین دارایی: ${risk.largestAssetSymbol}`} />
           </div>
         )}
         {risk.concentrationWarning && (

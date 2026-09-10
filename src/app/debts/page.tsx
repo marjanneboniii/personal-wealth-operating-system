@@ -140,7 +140,7 @@ export default async function DebtsPage() {
                         {late && <span className="badge badge-neg">قسط معوق</span>}
                       </p>
                       <p className="muted mt-1 text-[length:var(--fs-xs)]">
-                        {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود <span className="num" dir="rtl">{formatQty(d.interestRate, 2)}٪</span>
+                        {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود <span className="num" dir="rtl">{formatPct(d.interestRate, 2)}</span>
                       </p>
                     </div>
                     <div className="text-left">

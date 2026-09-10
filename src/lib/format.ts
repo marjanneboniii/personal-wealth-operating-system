@@ -35,13 +35,22 @@ export function smartDecimals(value: string | number, assetDecimals = 2): number
   return Math.min(assetDecimals, 8);
 }
 
+/**
+ * A grouped number in Persian digits. Wrapped in an LTR isolate (see ltrNum)
+ * so a negative value reads «−۱٬۲۳۴», never «۱٬۲۳۴−», inside an RTL row.
+ *
+ * `isolate: false` is for callers that are *building* a larger numeric run
+ * and will wrap it themselves (formatPct appending ٪, formatQty) — never for
+ * a string that goes straight to the DOM.
+ */
 export function formatNumber(
   value: string | number,
-  opts: { decimals?: number; digits?: DigitStyle } = {},
+  opts: { decimals?: number; digits?: DigitStyle; isolate?: boolean } = {},
 ): string {
   const dp = opts.decimals ?? 2;
-  const out = groupThousands(D(value ?? 0).toFixed(dp));
-  return opts.digits === "en" ? out.replace(/٬/g, ",") : toFaDigits(out);
+  const grouped = groupThousands(D(value ?? 0).toFixed(dp));
+  const out = opts.digits === "en" ? grouped.replace(/٬/g, ",") : toFaDigits(grouped);
+  return opts.isolate === false ? out : ltrNum(out);
 }
 
 export function formatQty(
@@ -51,8 +60,8 @@ export function formatQty(
 ): string {
   const dp = smartDecimals(value, assetDecimals);
   const raw = D(value ?? 0).toFixed(dp).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
-  const out = groupThousands(raw);
-  return digits === "en" ? out.replace(/٬/g, ",") : toFaDigits(out);
+  const grouped = groupThousands(raw);
+  return ltrNum(digits === "en" ? grouped.replace(/٬/g, ",") : toFaDigits(grouped));
 }
 
 /**
@@ -98,14 +107,37 @@ export function hasPersianCurrencyLabel(currency: string | null | undefined): bo
  * This is the single source of truth for money display in the whole UI.
  */
 const RLI = "\u2067"; // RIGHT-TO-LEFT ISOLATE (invisible)
+const LRI = "\u2066"; // LEFT-TO-RIGHT ISOLATE (invisible)
 const PDI = "\u2069"; // POP DIRECTIONAL ISOLATE (invisible)
 const NBSP = "\u00A0"; // non-breaking space — keeps number+unit on same line on mobile
 
-export function formatMoney(
-  value: string | number,
-  currency = "USD",
-  _digits?: DigitStyle,
-): string {
+/*
+ * Persian digits (U+06F0…U+06F9) carry the Unicode bidi class AN (Arabic
+ * Number), and "−" (U+2212) / "+" carry class ES. The bidi rule that binds a
+ * sign to the number after it (W4) only fires for EUROPEAN numbers, so next
+ * to Persian digits the sign stays a neutral: inside any RTL run it resolves
+ * to the paragraph direction and is pushed to the FAR SIDE of the digits —
+ * «۱۲۳٬۴۵۶−» instead of «−۱۲۳٬۴۵۶». That is why a loss used to render with
+ * its minus trailing the amount.
+ *
+ * Wrapping the whole numeric run (sign + digits + separators + any ٪) in a
+ * LEFT-TO-RIGHT ISOLATE fixes it structurally: inside an LTR isolate the
+ * neutral sign takes the embedding direction L and lands to the LEFT of the
+ * digits, which is where a Persian reader expects it — while the isolate
+ * itself still sits in correct RTL order relative to the surrounding text.
+ *
+ * EVERY numeric string this module hands to the UI goes through here.
+ */
+function ltrNum(text: string): string {
+  return `${LRI}${text}${PDI}`;
+}
+
+/**
+ * The digits of a money amount, already Persian and thousand-grouped, with
+ * the currency's decimal rule applied. Kept separate from the isolate
+ * wrapping so signed/unsigned money share ONE rounding + grouping path.
+ */
+function moneyDigits(value: string | number, currency: string): { n: string; label: string } {
   const label = currencyLabel(currency);
   const isZeroDecimals = label === "تومان" || label === "ریال";
   const dp = isZeroDecimals ? 0 : 2;
@@ -116,15 +148,25 @@ export function formatMoney(
     .toFixed(dp)
     .replace(/(\.\d*?)0+$/, "$1")
     .replace(/\.$/, "");
-  const n = toFaDigits(groupThousands(raw));
-  // Order is ALWAYS: number → NBSP → Persian currency word (IRT→تومان,
-  // USD→دلار, USDT→تتر). NBSP prevents «تومان» wrapping under number on mobile PWA.
-  return `${RLI}${n}${NBSP}${label}${PDI}`;
+  return { n: toFaDigits(groupThousands(raw)), label };
+}
+
+export function formatMoney(
+  value: string | number,
+  currency = "USD",
+  _digits?: DigitStyle,
+): string {
+  const { n, label } = moneyDigits(value, currency);
+  // Order is ALWAYS: [sign] number → NBSP → Persian currency word (IRT→تومان,
+  // USD→دلار, USDT→تتر). NBSP prevents «تومان» wrapping under number on mobile
+  // PWA; ltrNum keeps a negative amount's «−» to the LEFT of its digits.
+  return `${RLI}${ltrNum(n)}${NBSP}${label}${PDI}`;
 }
 
 /**
  * Signed money inside a single bidi isolate so the minus/plus NEVER trails
- * the currency word in RTL (e.g. «−۸۹۳٬۷۴۶٬۱۷۱ تومان», never «تومان+ … تومان»).
+ * the currency word in RTL (e.g. «−۸۹۳٬۷۴۶٬۱۷۱ تومان», never «تومان+ … تومان»)
+ * and never trails the digits themselves («۸۹۳٬۷۴۶٬۱۷۱− تومان»).
  * Zero is unsigned and must be paired with trendTone() = neutral.
  */
 export function formatSignedMoney(
@@ -133,26 +175,63 @@ export function formatSignedMoney(
 ): string {
   const dec = D(value ?? 0);
   if (dec.isZero()) return formatMoney("0", currency);
-  const abs = formatMoney(dec.abs().toString(), currency);
-  const inner = abs.replace(/^\u2067/, "").replace(/\u2069$/, "");
+  const { n, label } = moneyDigits(dec.abs().toString(), currency);
   const sign = dec.isNegative() ? "−" : "+";
-  return `${RLI}${sign}${inner}${PDI}`;
+  return `${RLI}${ltrNum(sign + n)}${NBSP}${label}${PDI}`;
 }
 
+/**
+ * Money whose sign is decided by the CALLER, not by the amount — a ledger row
+ * where direction comes from the entry (h.sign), not from a stored positive
+ * figure. The sign, an optional prefix («≈ » for a live-FX equivalent) and the
+ * digits share ONE left-to-right isolate, so the row can never render as
+ * «۱۲۳٬۴۵۶− تومان» or float its «≈» to the wrong end.
+ *
+ * Prefer formatSignedMoney when the value itself already carries the sign.
+ */
+export function formatMoneyWithSign(
+  sign: "+" | "−" | "",
+  absValue: string | number,
+  currency = "USD",
+  prefix = "",
+): string {
+  const { n, label } = moneyDigits(absValue, currency);
+  return `${RLI}${ltrNum(`${prefix}${sign}${n}`)}${NBSP}${label}${PDI}`;
+}
+
+/**
+ * Signed percent with caller-chosen precision — «+۱۲.۵٪» / «−۸.۳۰٪» / «۰٪».
+ * Zero is unsigned (Directive §4: zero is neutral) and, like every percent
+ * here, sign and ٪ live inside the numeric isolate.
+ */
+export function formatSignedPct(value: string | number, decimals = 1): string {
+  const n = D(value ?? 0);
+  if (n.isZero()) return formatPct(0, decimals);
+  const sign = n.isNegative() ? "−" : "+";
+  return ltrNum(`${sign}${formatNumber(n.abs().toString(), { decimals, isolate: false })}٪`);
+}
+
+/**
+ * Percent with a FORCED sign: «+۱۲.۵٪» for a gain, «−۸.۳٪» for a loss.
+ * The sign and the ٪ both live inside the numeric isolate, so neither can
+ * drift to the wrong side of the digits in an RTL row.
+ */
 export function formatPercent(value: string | number, digits: DigitStyle = "fa"): string {
-  const n = formatNumber(value, { decimals: 2, digits });
   const num = Number(value);
-  const sign = num > 0 ? "+" : num < 0 ? "" : "";
-  return `${sign}${n}٪`;
+  // formatNumber already emits the "−" for a negative; only a gain needs "+".
+  const sign = Number.isFinite(num) && num > 0 ? "+" : "";
+  return ltrNum(`${sign}${formatNumber(value, { decimals: 2, digits, isolate: false })}٪`);
 }
 
 /**
  * Plain Persian percent — no forced sign, adjustable decimals.
  * e.g. formatPct("12.5", 1) → "۱۲.۵٪". Used by tables, charts and KPIs so
- * every percent in the UI follows the same Persian-digit standard.
+ * every percent in the UI follows the same Persian-digit standard. The ٪ is
+ * inside the isolate so it always sits after the digits, and a negative
+ * percent keeps its «−» in front of them.
  */
 export function formatPct(value: string | number, decimals = 1): string {
-  return `${formatNumber(value, { decimals })}٪`;
+  return ltrNum(`${formatNumber(value, { decimals, isolate: false })}٪`);
 }
 
 /* ════════════════════════════════════════════════════════════════════

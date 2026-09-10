@@ -12,7 +12,7 @@ import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatJalaliIso, formatMoney, formatPct, formatSignedMoney, jalaliMonthKey, jalaliMonthLabel, faCount, inflowTone, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
+import { currencyLabel, faCount, formatJalaliIso, formatMoney, formatPct, formatPercent, formatSignedMoney, formatSignedMoneyFromUsd, inflowTone, jalaliMonthKey, jalaliMonthLabel, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -170,12 +170,12 @@ export default async function ReportsPage() {
                         <div>
                           {m.inflowFrozen && m.outflowFrozen
                             ? formatSignedMoney(D(m.inflowToman ?? "0").sub(D(m.outflowToman ?? "0")).toString(), "IRT")
-                            : `${D(m.net).gte(0) ? "+" : "−"}${toIrt(D(m.net).abs().toString()) ?? formatMoney(D(m.net).abs().toString())}`}
+                            : formatSignedMoneyFromUsd(m.net, rate)}
                         </div>
                         {rate && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(D(m.net).abs().toString())}</div>}
                       </td>
                       <td className="td-num hidden sm:table-cell num" dir="rtl" style={{ color: diff && diff.gt(0) ? "var(--negative)" : "var(--positive)" }}>
-                        {diff ? `${diff.gte(0) ? "+" : "−"}${formatPct(diff.abs().toString(), 1)}` : "—"}
+                        {diff ? formatPercent(diff.toString()) : "—"}
                       </td>
                     </tr>
                   );
@@ -199,15 +199,15 @@ export default async function ReportsPage() {
           <div className="grid grid-cols-2 gap-6 border-b pb-5" style={{ borderColor: "var(--border)" }}>
             <Metric
               label="تحقق‌یافته"
-              value={`${D(pnl.total).gte(0) ? "+" : "−"}${toIrt(D(pnl.total).abs().toString()) ?? formatMoney(D(pnl.total).abs().toString())}`}
+              value={formatSignedMoneyFromUsd(pnl.total, rate)}
               tone={trendTone(pnl.total)}
-              hint={rate ? `${D(pnl.total).gte(0) ? "+" : "−"}${formatMoney(D(pnl.total).abs().toString())}` : undefined}
+              hint={rate ? formatSignedMoney(pnl.total, "USD") : undefined}
             />
             <Metric
               label="تحقق‌نیافته"
-              value={`${unrealized.gte(0) ? "+" : "−"}${unrealizedToman ? formatMoney(D(unrealizedToman).abs().toString(), "IRT") : toIrt(unrealized.abs().toString()) ?? formatMoney(unrealized.abs().toString())}`}
+              value={unrealizedToman ? formatSignedMoney(unrealizedToman, "IRT") : formatSignedMoneyFromUsd(unrealized.toString(), rate)}
               tone={trendTone(unrealized.toString())}
-              hint={rate ? `${unrealized.gte(0) ? "+" : "−"}${formatMoney(unrealized.abs().toString())}` : undefined}
+              hint={rate ? formatSignedMoney(unrealized.toString(), "USD") : undefined}
             />
           </div>
           <ul className="mt-3 divide-y" style={{ borderColor: "var(--border)" }}>
@@ -217,8 +217,7 @@ export default async function ReportsPage() {
                   {currencyLabel(s.symbol)}
                 </span>
                 <span className="num" dir="rtl" style={{ color: D(s.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
-                  {D(s.pnl).gte(0) ? "+" : "−"}
-                  {formatMoney(D(s.pnl).abs().toString(), s.symbol)}
+                  {formatSignedMoney(s.pnl, s.symbol)}
                 </span>
               </li>
             ))}

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import Icon from "@/components/ui/Icon";
-import { formatMoney, formatPercent } from "@/lib/format";
+import { formatMoney, formatPercent, formatSignedMoney } from "@/lib/format";
 
 /* ───────────────────────────── Card ─────────────────────────────
    Use sparingly: only for a true semantic group or interactive
@@ -137,16 +137,14 @@ export function Delta({
   const zero = n === 0;
   const color = zero ? "var(--text-3)" : up ? "var(--positive)" : "var(--negative)";
   const arrow = zero ? null : up ? "↑" : "↓";
-  const abs = formatMoney(Math.abs(n), currency);
   return (
     <span className={`inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 ${className} money-nowrap`} style={{ color }}>
       <span className="num text-[length:var(--fs-sm)] font-semibold rtl-isolate money-nowrap" dir="rtl">
-        {arrow} {zero ? formatMoney(0, currency) : `${up ? "+" : "−"}${abs.replace(/^−|-/, "")}`}
+        {arrow} {formatSignedMoney(n, currency)}
       </span>
       {pct != null && Number.isFinite(Number(pct)) && (
         <span className="num text-[length:var(--fs-xs)] opacity-80 rtl-isolate money-nowrap" dir="rtl">
-          ({up ? "+" : "−"}
-          {formatPercent(Math.abs(Number(pct))).replace("+", "")})
+          ({formatPercent(up ? Math.abs(Number(pct)) : -Math.abs(Number(pct)))})
         </span>
       )}
       {suffix && <span className="muted text-[length:var(--fs-xs)]">{suffix}</span>}
