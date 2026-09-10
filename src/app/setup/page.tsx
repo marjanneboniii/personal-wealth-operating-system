@@ -253,7 +253,7 @@ export default function SetupWizardPage() {
                     <option value="IRT">تومان</option>
                     <option value="IRR">ریال</option>
                   </select>
-                  <p className="muted mt-1 text-[10px]">{t.accountingCurrencyHelp}</p>
+                  <p className="muted mt-1 text-[length:var(--fs-xs)]">{t.accountingCurrencyHelp}</p>
                 </div>
 
                 <div>
@@ -267,7 +267,7 @@ export default function SetupWizardPage() {
                     <option value="USD">دلار</option>
                     <option value="EUR">یورو</option>
                   </select>
-                  <p className="muted mt-1 text-[10px]">{t.displayCurrencyHelp}</p>
+                  <p className="muted mt-1 text-[length:var(--fs-xs)]">{t.displayCurrencyHelp}</p>
                 </div>
               </div>
 
@@ -279,7 +279,7 @@ export default function SetupWizardPage() {
                     <span className="text-[13px] font-medium">{t.dateCalendarJalali}</span>
                     <span className="badge badge-neutral">{t.dateCalendarFixedBadge}</span>
                   </div>
-                  <p className="muted mt-1 text-[10px]">{t.dateCalendarHelp}</p>
+                  <p className="muted mt-1 text-[length:var(--fs-xs)]">{t.dateCalendarHelp}</p>
                 </div>
 
                 <div>
@@ -428,7 +428,7 @@ export default function SetupWizardPage() {
                     {t.bookValueApprox}: ≈ {formatMoney(previewData.bankBook, "USD")}
                   </p>
                 )}
-                <p className="muted mt-1 text-[10px] leading-5">
+                <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">
                   مبلغ را به واحد {currencyLabel(bankAssetSymbol)} همین حساب وارد کنید. اگر موجودی ندارید خالی بگذارید.
                 </p>
               </div>
@@ -437,7 +437,7 @@ export default function SetupWizardPage() {
               <details className="card soft rounded-[var(--r-md)] p-3">
                 <summary className="cursor-pointer list-none text-xs font-semibold marker:hidden [&::-webkit-details-marker]:hidden">
                   موجودی‌های اختیاری — صندوق نقد، رمزارز و طلا
-                  <span className="chip mr-2 text-[10px]">اختیاری</span>
+                  <span className="chip mr-2 text-[length:var(--fs-xs)]">اختیاری</span>
                 </summary>
 
                 <div className="mt-3 space-y-3">
@@ -516,7 +516,7 @@ export default function SetupWizardPage() {
                     </div>
                   </div>
 
-                  <p className="muted text-[10px] leading-5">
+                  <p className="muted text-[length:var(--fs-xs)] leading-5">
                     لازم نیست این موارد را الان وارد کنید؛ می‌توانید بعداً از ماژول «حساب‌ها» (صندوق نقد) یا ثبت خرید رمزارز/دارایی، آن‌ها را اضافه کنید.
                   </p>
                 </div>

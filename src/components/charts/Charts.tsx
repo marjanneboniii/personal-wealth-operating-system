@@ -190,11 +190,11 @@ export function Donut({
             </g>
           </svg>
           <div className="donut-center">
-            <div className="muted max-w-[78%] truncate text-[10px]">{shown ? shown.label : (centerLabel ?? "مجموع")}</div>
+            <div className="muted max-w-[78%] truncate text-[length:var(--fs-xs)]">{shown ? shown.label : (centerLabel ?? "مجموع")}</div>
             <div className="num px-2 text-[11px] sm:text-[12px] font-bold leading-tight money-nowrap" dir="rtl">
               {formatMoney(shown ? shown.value : total)}
             </div>
-            <div className="muted num text-[10px]" dir="rtl">
+            <div className="muted num text-[length:var(--fs-xs)]" dir="rtl">
               {shown ? formatPct(((shown.value / total) * 100), 1) : `${faCount(data.length)} بخش`}
             </div>
           </div>
@@ -243,7 +243,7 @@ export function BarsChart({
   const cur = active != null ? data[active] : null;
   return (
     <div>
-      <div className="mb-2 flex h-5 items-center gap-4 text-[10.5px]" aria-live="polite">
+      <div className="mb-2 flex h-5 items-center gap-4 text-[length:var(--fs-xs)]" aria-live="polite">
         <span className="flex items-center gap-1.5" style={{ color: "var(--positive)" }}>
           <i className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--positive)" }} />
           ورودی {cur && <b className="num" dir="rtl">{formatMoney(cur.positive)}</b>}
@@ -293,7 +293,7 @@ export function BarsChart({
                 }}
               />
             </div>
-            <span className="muted whitespace-nowrap text-[10px]" dir="rtl">
+            <span className="muted whitespace-nowrap text-[length:var(--fs-xs)]" dir="rtl">
               {d.label}
             </span>
           </button>

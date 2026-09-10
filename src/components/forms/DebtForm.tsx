@@ -131,7 +131,7 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
                 dir="ltr"
                 placeholder="18"
               />
-              <p className="muted mt-1 text-[10.5px]">در این مرحله به‌عنوان اطلاعات بدهی ذخیره می‌شود؛ محاسبه خودکار سود انجام نمی‌گیرد.</p>
+              <p className="muted mt-1 text-[length:var(--fs-xs)]">در این مرحله به‌عنوان اطلاعات بدهی ذخیره می‌شود؛ محاسبه خودکار سود انجام نمی‌گیرد.</p>
             </div>
             <div className="sm:col-span-2">
               <DualDateInput
@@ -148,7 +148,7 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
           <div className="rounded-[var(--r-lg)] border p-4" style={{ borderColor: "var(--border)" }}>
             <div className="mb-3">
               <h3 className="text-[13px] font-bold">برنامه بازپرداخت (اختیاری)</h3>
-              <p className="muted mt-1 text-[10.5px]">اگر قسطی تعریف نکنید، بدهی بدون زمان‌بندی ثبت می‌شود و بعداً قابل پیگیری است.</p>
+              <p className="muted mt-1 text-[length:var(--fs-xs)]">اگر قسطی تعریف نکنید، بدهی بدون زمان‌بندی ثبت می‌شود و بعداً قابل پیگیری است.</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -174,7 +174,7 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
                   placeholder={count ? `محاسبه خودکار: ${formatMoney(D(principalIrt || "0").div(String(count)).toFixed(0), "IRT")}` : "وقتی تعداد اقساط بیشتر از صفر باشد"}
                   disabled={!count}
                 />
-                {count > 0 && <p className="muted mt-1 text-[10px]">در صورت خالی بودن، اصل بدهی به‌طور مساوی تقسیم می‌شود.</p>}
+                {count > 0 && <p className="muted mt-1 text-[length:var(--fs-xs)]">در صورت خالی بودن، اصل بدهی به‌طور مساوی تقسیم می‌شود.</p>}
               </div>
               {count > 0 && (
                 <div className="sm:col-span-2">
@@ -186,7 +186,7 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
                     required
                     showGregorian={false}
                   />
-                  {firstDueDate && startDate && firstDueDate < startDate && <p className="neg mt-1 text-[10.5px]">اولین سررسید باید در تاریخ شروع یا بعد از آن باشد.</p>}
+                  {firstDueDate && startDate && firstDueDate < startDate && <p className="neg mt-1 text-[length:var(--fs-xs)]">اولین سررسید باید در تاریخ شروع یا بعد از آن باشد.</p>}
                 </div>
               )}
             </div>

@@ -138,7 +138,7 @@ export default async function AssetsPage() {
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-[13.5px] font-semibold">{f.label}</span>
-                    <span className="muted block truncate text-[10.5px]">{f.hint}</span>
+                    <span className="muted block truncate text-[length:var(--fs-xs)]">{f.hint}</span>
                   </span>
                 </span>
                 <span className="mt-3.5 flex items-end justify-between gap-2">
@@ -147,12 +147,12 @@ export default async function AssetsPage() {
                       {toIrt(f.value) ?? formatMoney(f.value)}
                     </span>
                     {fx.rate && (
-                      <span className="muted num text-[9.5px]" dir="rtl">
+                      <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                         ≈ {formatMoney(f.value)}
                       </span>
                     )}
                   </span>
-                  <span className="muted num text-[10.5px]" dir="rtl">
+                  <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                     {faCount(f.count)} مورد
                   </span>
                 </span>
@@ -194,12 +194,12 @@ export default async function AssetsPage() {
                       {toIrt(c.value) ?? formatMoney(c.value)}
                     </span>
                     {fx.rate && (
-                      <span className="muted num text-[9.5px]" dir="rtl">
+                      <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                         ≈ {formatMoney(c.value)}
                       </span>
                     )}
                   </span>
-                  <span className="num muted w-10 text-[10.5px]" dir="rtl">
+                  <span className="num muted w-10 text-[length:var(--fs-xs)]" dir="rtl">
                     {formatPct(Number(c.percentage), 1)}
                   </span>
                 </span>

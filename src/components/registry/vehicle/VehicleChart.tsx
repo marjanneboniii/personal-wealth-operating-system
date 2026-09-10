@@ -208,7 +208,7 @@ export default function VehicleChart({
         )}
       </svg>
 
-      <p className="muted mt-1 text-[10px] leading-4">
+      <p className="muted mt-1 text-[length:var(--fs-xs)] leading-4">
         محور افقی: تاریخ Snapshot · محور عمودی: ارزش ثبت‌شده. مقدار دلاری هر نقطه با نرخ دلارِ همان Snapshot ذخیره شده و با
         تغییر نرخ امروز تغییر نمی‌کند.
       </p>

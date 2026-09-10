@@ -172,7 +172,7 @@ export default async function SettingsPage() {
             <RestorePanel />
           </div>
           {backups.length > 0 && (
-            <ul className="muted mt-4 space-y-1 text-[10.5px]">
+            <ul className="muted mt-4 space-y-1 text-[length:var(--fs-xs)]">
               {backups.map((b) => (
                 <li key={b.id} className="flex gap-2">
                   <Icon name="check" size={12} className="mt-0.5 shrink-0" />

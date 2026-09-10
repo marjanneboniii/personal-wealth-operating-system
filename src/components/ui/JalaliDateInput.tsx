@@ -47,7 +47,7 @@ export default function JalaliDateInput({
         showGregorian={showGregorian}
         ariaLabel={label}
       />
-      {hint && <div className="muted mt-1 text-[10px] leading-4">{hint}</div>}
+      {hint && <div className="muted mt-1 text-[length:var(--fs-xs)] leading-4">{hint}</div>}
     </div>
   );
 }

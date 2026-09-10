@@ -47,72 +47,116 @@
   --font-sans: "Vazirmatn", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 }
 
-/* ─────────────────────────── Tokens ─────────────────────────── */
+/* ─────────────────────────── Tokens ───────────────────────────
+   ONE design system for the whole product: landing → auth → app.
 
-/* Rabby-inspired palette (2026): single violet brand accent, cold neutrals.
-   --color-primary = ink (dark brand surfaces), --color-accent = brand action. */
+   Hierarchy (never invert it):
+     dark neutral foundation
+       → sky/cyan  interaction
+       → emerald   positive financial state
+       → amber/red negative financial state
+       → lavender  investment-only premium accent (small, tertiary)
+
+   Lavender is NOT the brand colour. It is reserved for investment
+   visualisation and small premium accents — never navigation, never the
+   primary CTA, never a background fill.
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Palette primitives — the single source of truth for every hue.
+      Semantic tokens (and the landing layer) reference these, so a hue is
+      defined exactly once for the entire product. ── */
 :root {
-  /* Brand — ink surfaces + single violet accent; never used for financial direction */
-  --color-primary: #12131C;
-  --color-primary-hover: #1e2030;
-  --color-accent: #6e6ff0;
-  --color-accent-hover: #5a5bd9;
-  --color-accent-active: #4a4bc0;
-  --on-primary: #f7f7fb;
+  --sky-300: #7dd3fc;
+  --sky-400: #38bdf8;
+  --cyan-500: #06b6d4;
+  --cyan-600: #0891b2;
+  --cyan-700: #0e7490;
+  --cyan-800: #155e75;
+
+  --emerald-400: #34d399;
+  --emerald-500: #10b981;
+  --emerald-700: #047857;
+
+  --amber-300: #fcd34d;
+  --amber-400: #fbbf24;
+  --amber-700: #b45309;
+  --amber-800: #92400e;
+
+  --red-400: #f87171;
+  --red-600: #dc2626;
+  --red-700: #b91c1c;
+
+  /* Investment accent only. Pale on dark, muted indigo where a light
+     surface needs it to stay readable at AA. */
+  --lavender-300: #c4b5fd;
+  --lavender-400: #a5b4fc;
+  --lavender-ink: #4c4a9e;
+}
+
+/* ── Light theme ── */
+:root {
+  /* Brand — ink surfaces + sky/cyan interaction.
+     Interaction colour is never used to signal financial direction. */
+  --color-primary: #0b1220;
+  --color-primary-hover: #16202f;
+  --color-accent: var(--cyan-700);
+  --color-accent-hover: var(--cyan-800);
+  --color-accent-active: #0c4a5e;
+  --on-primary: #f6f8fb;
 
   --brand: var(--color-accent);
   --brand-strong: var(--color-accent-hover);
-  --brand-soft: rgba(110, 111, 240, 0.09);
-  --brand-softer: rgba(110, 111, 240, 0.05);
+  --brand-soft: rgba(6, 182, 212, 0.1);
+  --brand-softer: rgba(6, 182, 212, 0.05);
   --on-brand: #ffffff;
   --primary: var(--color-accent);
   --primary-hover: var(--color-accent-hover);
   --primary-active: var(--color-accent-active);
   --primary-soft: var(--brand-soft);
 
-  /* Surfaces — cold-neutral, never warm gray */
-  --bg-page: #f7f7fb;
+  /* Surfaces — four layers: sunken → page → surface → elevated */
+  --bg-page: #f5f7fa;
   --bg-surface: #ffffff;
   --bg: var(--bg-page);
   --surface: var(--bg-surface);
   --surface-elev: var(--bg-surface);
-  --sunken: #efeff6;
-  --hover: rgba(18, 19, 28, 0.045);
+  --sunken: #eef2f7;
+  --hover: rgba(11, 18, 32, 0.05);
+  --pressed: rgba(11, 18, 32, 0.09);
 
-  /* Text — secondary/muted tones meet WCAG AA (≥4.5:1) on --bg/--surface */
-  --text: #12131c;
-  --text-2: #363850;
-  --text-3: #62647e;
+  /* Text — every step meets WCAG AA on --bg and --surface */
+  --text: #0b1220;
+  --text-2: #46536b;
+  --text-3: #5c6980;
   --text-primary: var(--text);
   --text-secondary: var(--text-2);
   --text-muted: var(--text-3);
 
-  /* Borders */
-  --border: #e4e4ee;
-  --border-strong: #cdcfe2;
+  --border: #e1e7ef;
+  --border-strong: #c9d3e0;
 
   --background: var(--bg);
   --surface-elevated: var(--surface-elev);
   --danger: var(--negative);
   --success: var(--positive);
 
-  /* Modules — minimal palette: wealth = accent, debt = danger, expenses/cash = charcoal */
-  --color-module-expenses: #363850;
-  --color-module-expenses-bg: #ebebf2;
-  --color-module-commitments: #e5484d;
-  --color-module-commitments-bg: #fdecec;
-  --color-module-wealth: #6e6ff0;
-  --color-module-wealth-bg: #ececfd;
+  /* Modules — money is neutral, wealth is the interaction hue,
+     commitments carry the negative/attention hue. */
+  --color-module-expenses: #46536b;
+  --color-module-expenses-bg: #e8edf4;
+  --color-module-commitments: var(--amber-700);
+  --color-module-commitments-bg: rgba(245, 158, 11, 0.14);
+  --color-module-wealth: var(--cyan-700);
+  --color-module-wealth-bg: rgba(6, 182, 212, 0.1);
 
-  /* Semantic — meaning, not decoration.
-     Palette has one brand hue: warning maps to danger per palette rules. */
-  --color-positive: #2ead6b;
+  /* Semantic — meaning, not decoration. */
+  --color-positive: var(--emerald-700);
   --color-success: var(--color-positive);
-  --color-success-bg: #e7f6ef;
-  --color-danger: #e5484d;
-  --color-danger-tint: #fdecec;
-  --color-warning: var(--color-danger);
-  --color-warning-bg: var(--color-danger-tint);
+  --color-success-bg: rgba(16, 185, 129, 0.12);
+  --color-danger: var(--red-700);
+  --color-danger-tint: rgba(185, 28, 28, 0.1);
+  --color-warning: var(--amber-800);
+  --color-warning-bg: rgba(245, 158, 11, 0.14);
   --color-danger-bg: var(--color-danger-tint);
   --positive: var(--color-success);
   --positive-soft: var(--color-success-bg);
@@ -121,58 +165,102 @@
   --warning: var(--color-warning);
   --warning-soft: var(--color-warning-bg);
   --info: var(--color-accent);
-  --info-soft: rgba(110, 111, 240, 0.09);
+  --info-soft: var(--brand-soft);
 
-  /* Asset-class identity — mono-hue accent scale + neutrals (composition charts only) */
-  --asset-cash: #9ea1f6;
-  --asset-investment: #6e6ff0;
-  --asset-crypto: #363850;
-  --asset-other: #c9cafa;
+  /* Investment accent — the ONLY place lavender belongs. */
+  --investment: var(--lavender-ink);
+  --investment-soft: rgba(165, 180, 252, 0.2);
 
-  /* Radius scale */
+  /* Asset-class identity (composition charts only) */
+  --asset-cash: var(--cyan-600);
+  --asset-investment: var(--lavender-ink);
+  --asset-crypto: #46536b;
+  --asset-other: #9fb0c4;
+
+  /* Radius — 8 controls · 12 fields · 16 cards · 20 sheets */
   --r-sm: 8px;
   --r-md: 12px;
-  --r-lg: 12px;
+  --r-lg: 16px;
   --r-xl: 20px;
 
-  /* Shadows — dialogs/sheets only; cards have none */
-  --shadow-sm: none;
-  --shadow-md: 0 2px 6px rgba(18, 19, 28, 0.08), 0 12px 28px -16px rgba(18, 19, 28, 0.22);
-  --shadow-lg: 0 4px 12px rgba(18, 19, 28, 0.1), 0 24px 56px -24px rgba(18, 19, 28, 0.32);
+  /* Spacing rhythm — 4px base */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-12: 48px;
 
-  --ring: 0 0 0 3px rgba(110, 111, 240, 0.28);
+  /* Typography scale — six steps, Persian-first (Vazirmatn).
+     Nothing financial may render below --fs-xs. */
+  --fs-xs: 12px;
+  --fs-sm: 14px;
+  --fs-md: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 26px;
+  --fs-2xl: 34px;
+  --fs-hero: clamp(28px, 6.4vw, 40px);
+
+  /* Motion — three durations, one easing. Do not invent more. */
+  --motion-micro: 120ms;
+  --motion-data: 150ms;
+  --motion-sheet: 200ms;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  /* Elevation — layered micro, never a heavy black drop shadow */
+  --shadow-sm: 0 1px 2px rgba(11, 18, 32, 0.04);
+  --shadow-md: 0 1px 2px rgba(11, 18, 32, 0.05), 0 12px 28px -18px rgba(11, 18, 32, 0.3);
+  --shadow-lg: 0 2px 6px rgba(11, 18, 32, 0.08), 0 24px 56px -24px rgba(11, 18, 32, 0.34);
+
+  /* Z-index scale */
+  --z-base: 0;
+  --z-dropdown: 10;
+  --z-sticky: 30;
+  --z-nav: 40;
+  --z-overlay: 80;
+  --z-toast: 90;
+
+  --ring: 0 0 0 3px rgba(14, 116, 144, 0.32);
   --nav-w: 264px;
 }
 
-/* Dark mode — PROPOSED values for the new palette (pending owner sign-off):
-   same contrast logic as light theme, brand brightened for dark surfaces. */
+/* ── Dark theme — layered near-black, never pure black.
+      Same tokens, same semantics; only surface treatment changes. ── */
 .dark {
-  --bg: #0e0f16;
-  --surface: #15161f;
-  --surface-elev: #1a1c28;
-  --sunken: #101119;
-  --hover: rgba(235, 236, 246, 0.05);
+  --bg: #080b11;
+  --surface: #0e131b;
+  --surface-elev: #141a24;
+  --sunken: #05080d;
+  --hover: rgba(233, 239, 247, 0.06);
+  --pressed: rgba(233, 239, 247, 0.1);
 
-  --text: #edeef7;
-  --text-2: #a8aac0;
-  --text-3: #9d9fb8;
+  --text: #e9eff7;
+  --text-2: #a3b2c6;
+  --text-3: #8494a8;
 
-  --border: rgba(235, 236, 246, 0.1);
-  --border-strong: rgba(235, 236, 246, 0.2);
+  --border: rgba(233, 239, 247, 0.1);
+  --border-strong: rgba(233, 239, 247, 0.2);
 
-  --brand: #8b8cf5;
-  --brand-strong: #a0a1f8;
-  --brand-soft: rgba(139, 140, 245, 0.14);
-  --brand-softer: rgba(139, 140, 245, 0.08);
-  --on-brand: #12131c;
+  /* The bright sky range is only legible on dark surfaces — light theme
+     keeps cyan-700 above for AA. */
+  --color-accent: var(--sky-400);
+  --color-accent-hover: var(--sky-300);
+  --color-accent-active: #bae6fd;
+  --brand: var(--sky-400);
+  --brand-strong: var(--sky-300);
+  --brand-soft: rgba(56, 189, 248, 0.12);
+  --brand-softer: rgba(56, 189, 248, 0.07);
+  --on-brand: #04121b;
+  --on-primary: #e9eff7;
 
-  --color-positive: #46c98a;
+  --color-positive: var(--emerald-400);
   --color-success: var(--color-positive);
-  --color-success-bg: rgba(70, 201, 138, 0.12);
-  --color-danger: #f0716e;
-  --color-danger-tint: rgba(240, 113, 110, 0.12);
-  --color-warning: var(--color-danger);
-  --color-warning-bg: var(--color-danger-tint);
+  --color-success-bg: rgba(52, 211, 153, 0.14);
+  --color-danger: var(--red-400);
+  --color-danger-tint: rgba(248, 113, 113, 0.14);
+  --color-warning: var(--amber-400);
+  --color-warning-bg: rgba(251, 191, 36, 0.14);
   --color-danger-bg: var(--color-danger-tint);
   --positive: var(--color-success);
   --positive-soft: var(--color-success-bg);
@@ -180,26 +268,29 @@
   --negative-soft: var(--color-danger-bg);
   --warning: var(--color-warning);
   --warning-soft: var(--color-warning-bg);
-  --info: #8b8cf5;
-  --info-soft: rgba(139, 140, 245, 0.12);
+  --info: var(--sky-400);
+  --info-soft: rgba(56, 189, 248, 0.12);
 
-  --color-module-expenses: #a8aac0;
-  --color-module-expenses-bg: rgba(168, 170, 192, 0.12);
-  --color-module-commitments: #f0716e;
-  --color-module-commitments-bg: rgba(240, 113, 110, 0.12);
-  --color-module-wealth: #8b8cf5;
-  --color-module-wealth-bg: rgba(139, 140, 245, 0.14);
+  --investment: var(--lavender-300);
+  --investment-soft: rgba(196, 181, 253, 0.14);
 
-  --asset-cash: #a2a4f7;
-  --asset-investment: #8b8cf5;
-  --asset-crypto: #a8aac0;
-  --asset-other: #6e7191;
+  --color-module-expenses: #a3b2c6;
+  --color-module-expenses-bg: rgba(163, 178, 198, 0.12);
+  --color-module-commitments: var(--amber-400);
+  --color-module-commitments-bg: rgba(251, 191, 36, 0.14);
+  --color-module-wealth: var(--sky-400);
+  --color-module-wealth-bg: rgba(56, 189, 248, 0.12);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4), 0 16px 36px -16px rgba(0, 0, 0, 0.55);
-  --shadow-lg: 0 4px 14px rgba(0, 0, 0, 0.5), 0 28px 64px -24px rgba(0, 0, 0, 0.65);
+  --asset-cash: var(--sky-300);
+  --asset-investment: var(--lavender-300);
+  --asset-crypto: #a3b2c6;
+  --asset-other: #64748b;
 
-  --ring: 0 0 0 3px rgba(139, 140, 245, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 1px 0 rgba(233, 239, 247, 0.04) inset, 0 14px 34px -22px rgba(0, 0, 0, 0.9);
+  --shadow-lg: 0 1px 0 rgba(233, 239, 247, 0.06) inset, 0 28px 64px -24px rgba(0, 0, 0, 0.95);
+
+  --ring: 0 0 0 3px rgba(56, 189, 248, 0.38);
 }
 
 /* ─────────────────────────── Base ─────────────────────────── */
@@ -333,13 +424,17 @@ input[type="radio"] {
   flex-wrap: nowrap;
 }
 
+.stat-tile {
+  container-type: inline-size;
+}
+
 .metric-value,
 .stat-value {
   white-space: nowrap;
   word-break: keep-all;
   overflow-wrap: normal;
   font-variant-numeric: tabular-nums lining-nums;
-  font-size: clamp(0.82rem, 3.2vw, 0.95rem);
+  font-size: var(--fs-lg);
   line-height: 1.35;
   font-weight: 700;
   display: inline-flex;
@@ -349,40 +444,60 @@ input[type="radio"] {
   max-width: 100%;
 }
 
+/* Component-aware step-down: the tile reacts to its OWN width, not the
+   viewport, so a 2-up grid on a 320px phone still shows the amount in full
+   instead of clipping it. Never below --fs-sm. */
+@container (max-width: 205px) {
+  .metric-value,
+  .stat-value {
+    font-size: var(--fs-md);
+  }
+}
+
+@container (max-width: 160px) {
+  .metric-value,
+  .stat-value {
+    font-size: var(--fs-sm);
+  }
+}
+
+/* The `type-*` utilities were a second, competing scale (10.6px captions,
+   11.5px labels, 13px "financial"). They are now aliases of the one token
+   scale, so a page styled with either vocabulary lands on the same steps. */
 .type-page-title {
-  font-size: clamp(1.1rem, 4vw, 1.35rem);
+  font-size: clamp(22px, 4vw, 24px);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.3;
 }
 .type-section-title {
-  font-size: 0.88rem;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text);
 }
 .type-body {
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   line-height: 1.65;
 }
 .type-label {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-2);
 }
 .type-helper {
-  font-size: 0.7rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   line-height: 1.5;
 }
 .type-caption {
-  font-size: 0.66rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 .type-financial {
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: 700;
   letter-spacing: -0.015em;
-  font-size: clamp(0.82rem, 3vw, 0.95rem);
+  font-size: var(--fs-md);
   line-height: 1.4;
   white-space: nowrap;
   word-break: keep-all;
@@ -420,9 +535,10 @@ input[type="radio"] {
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   box-shadow: none;
-  transition: border-color 0.18s ease;
+  transition: border-color var(--motion-micro) var(--ease), box-shadow var(--motion-micro) var(--ease),
+    transform var(--motion-micro) var(--ease);
 }
 
 .card-hover,
@@ -497,8 +613,8 @@ input[type="radio"] {
   gap: 0.3rem;
   border-radius: 999px;
   border: 1px solid var(--border);
-  padding: 0.22rem 0.65rem;
-  font-size: 0.72rem;
+  padding: 0.28rem 0.7rem;
+  font-size: var(--fs-xs);
   line-height: 1.4;
   color: var(--text-2);
   background: var(--surface);
@@ -523,8 +639,8 @@ button.chip:hover {
   align-items: center;
   gap: 0.25rem;
   border-radius: 6px;
-  padding: 0.12rem 0.45rem;
-  font-size: 0.68rem;
+  padding: 0.15rem 0.5rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   line-height: 1.5;
   white-space: nowrap;
@@ -595,15 +711,17 @@ button.chip:hover {
   cursor: not-allowed;
   transform: none;
 }
+/* `--on-brand` (not `--color-primary`) is the foreground on an accent fill:
+   ink-on-cyan fails AA in the light theme, white-on-cyan passes. */
 .btn-primary {
   background: var(--color-accent);
-  color: var(--color-primary);
+  color: var(--on-brand);
   border-color: transparent;
   font-weight: 600;
 }
 .btn-primary:hover {
   background: var(--color-accent-hover);
-  color: var(--color-primary);
+  color: var(--on-brand);
 }
 .btn-ghost {
   background: transparent;
@@ -1146,6 +1264,109 @@ select.field {
   flex: none;
 }
 
+/* ── «نیاز به توجه» rows — calm, decidable, one action each ── */
+
+.action-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  transition: border-color var(--motion-micro) var(--ease), transform var(--motion-micro) var(--ease);
+}
+
+.action-item + .action-item {
+  margin-top: 8px;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .action-item:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+  }
+}
+
+.action-item-icon {
+  display: flex;
+  height: 34px;
+  width: 34px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+.action-item .btn {
+  align-self: center;
+}
+
+.all-clear {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text-2);
+}
+
+.section-link {
+  color: var(--brand);
+  border-radius: var(--r-sm);
+  transition: color var(--motion-micro) var(--ease);
+}
+
+.section-link:hover {
+  color: var(--brand-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Primary transaction action — 56px, raised clear of the tab bar so it never
+   covers a tab's touch target. Opens the quick-action Sheet. */
+.record-fab {
+  position: fixed;
+  z-index: 45;
+  bottom: calc(var(--mobile-bottomnav-h) + 12px);
+  inset-inline-start: 50%;
+  height: 56px;
+  width: 56px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand);
+  color: var(--on-brand);
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transform: translateX(50%);
+  box-shadow: var(--shadow-md), 0 0 0 4px var(--bg);
+  transition: transform var(--motion-micro) var(--ease), background var(--motion-micro) var(--ease);
+}
+
+.record-fab:active {
+  transform: translateX(50%) scale(0.94);
+  background: var(--brand-strong);
+}
+
+.record-fab:focus-visible {
+  box-shadow: var(--ring), var(--shadow-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-fab {
+    transition: none;
+  }
+  .record-fab:active {
+    transform: translateX(50%);
+  }
+}
+
 /* Donut — composition chart. Stacks by default so the ring never slides
    behind its legend or a neighbouring table. Side-by-side only when the
    *containing card* is wide enough (container query), not the viewport. */
@@ -1274,16 +1495,16 @@ select.field {
   --l-border: #e1e7ef;
   --l-border-strong: #c9d3e0;
 
-  --l-accent: #0e7490;
-  --l-accent-strong: #155e75;
+  --l-accent: var(--cyan-700);
+  --l-accent-strong: var(--cyan-800);
   --l-accent-soft: rgba(6, 182, 212, 0.1);
   --l-on-accent: #ffffff;
 
-  --l-positive: #047857;
+  --l-positive: var(--emerald-700);
   --l-positive-soft: rgba(16, 185, 129, 0.12);
-  --l-negative: #b45309;
+  --l-negative: var(--amber-700);
   --l-negative-soft: rgba(245, 158, 11, 0.14);
-  --l-investment: #4c4a9e;
+  --l-investment: var(--lavender-ink);
   --l-investment-soft: rgba(165, 180, 252, 0.2);
 
   --l-glow-primary: rgba(14, 116, 144, 0.12);
@@ -1335,16 +1556,16 @@ select.field {
   --l-border: rgba(233, 239, 247, 0.1);
   --l-border-strong: rgba(233, 239, 247, 0.2);
 
-  --l-accent: #38bdf8;
-  --l-accent-strong: #7dd3fc;
+  --l-accent: var(--sky-400);
+  --l-accent-strong: var(--sky-300);
   --l-accent-soft: rgba(56, 189, 248, 0.12);
   --l-on-accent: #04121b;
 
-  --l-positive: #34d399;
+  --l-positive: var(--emerald-400);
   --l-positive-soft: rgba(52, 211, 153, 0.14);
-  --l-negative: #fbbf24;
+  --l-negative: var(--amber-400);
   --l-negative-soft: rgba(251, 191, 36, 0.14);
-  --l-investment: #c4b5fd;
+  --l-investment: var(--lavender-300);
   --l-investment-soft: rgba(196, 181, 253, 0.14);
 
   --l-glow-primary: rgba(56, 189, 248, 0.16);
@@ -2089,22 +2310,22 @@ select.field {
    untouched — only this modifier is restyled. */
 .install-promo-public {
   bottom: max(1rem, env(safe-area-inset-bottom));
-  --brand: #0e7490;
-  --brand-strong: #155e75;
+  --brand: var(--cyan-700);
+  --brand-strong: var(--cyan-800);
   --brand-soft: rgba(6, 182, 212, 0.1);
-  --color-accent: #0e7490;
-  --color-accent-hover: #155e75;
-  --color-primary: #ffffff;
+  --color-accent: var(--cyan-700);
+  --color-accent-hover: var(--cyan-800);
+  --on-brand: #ffffff;
   border-radius: 18px;
 }
 
 .dark .install-promo-public {
-  --brand: #38bdf8;
-  --brand-strong: #7dd3fc;
+  --brand: var(--sky-400);
+  --brand-strong: var(--sky-300);
   --brand-soft: rgba(56, 189, 248, 0.12);
-  --color-accent: #38bdf8;
-  --color-accent-hover: #7dd3fc;
-  --color-primary: #04121b;
+  --color-accent: var(--sky-400);
+  --color-accent-hover: var(--sky-300);
+  --on-brand: #04121b;
 }
 
 .install-promo-public .btn {
@@ -2193,110 +2414,242 @@ select.field {
   }
 }
 
-/* ─────────────────────── Mobile PWA — compact money & tidy layout ───────────────────────
-   Root cause of «تومان زیر اعداد» was:
-   1) regular space between number and unit allowed line-break,
-   2) huge hero fonts (40-52px) overflowed narrow viewport,
-   3) no nowrap guard on money spans.
-   Fix: NBSP in formatMoney + CSS nowrap + clamp font sizes + tidy spacing.
+/* ─────────────────────── Mobile — real hierarchy, not compaction ───────────────────────
+   The previous revision solved narrow viewports by shrinking money to 8–10px
+   (`.overview-summary p.muted { font-size: 8px }`) and forcing a 3-column grid
+   that a Toman amount cannot fit into.
+
+   The rule now is the one from the design brief: when a number does not fit,
+   REFLOW — never shrink the number. On phones the overview summary and the KPI
+   row become full-width label→value rows, which gives every amount the whole
+   column width and lets it render at its proper size.
 */
 @media (max-width: 640px) {
-  html, body { overflow-x: hidden; }
-  main { padding-inline: max(0.75rem, env(safe-area-inset-left)) max(0.75rem, env(safe-area-inset-right)); }
-
-  /* Hero money — much smaller, still bold, never wraps unit */
-  .money-hero { font-size: clamp(1.25rem, 6.2vw, 1.65rem) !important; gap: 0.3rem; }
-  .money-hero-sm { font-size: clamp(1rem, 4.8vw, 1.25rem) !important; }
-  .display-num { font-size: clamp(1.25rem, 6vw, 1.65rem) !important; line-height: 1.2; }
-  .type-financial { font-size: clamp(0.78rem, 3.6vw, 0.9rem) !important; }
-
-  /* KPI tiles — 2 columns on tiny, 3 on >=380px, with proper gap */
-  .kpi-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 0.5rem !important; }
-  @media (min-width: 380px) { .kpi-grid { grid-template-columns: repeat(3, minmax(0,1fr)) !important; } }
-  .kpi-grid > * { min-width: 0; padding: 0.65rem 0.6rem !important; }
-
-  /* Metric / Stat values — compact, nowrap, with breathing room */
-  .metric-value, .stat-value, .num { font-size: clamp(0.78rem, 3.4vw, 0.9rem); }
-  .card { padding: 0.75rem !important; border-radius: 10px; }
-  .card.p-4, .card.p-5 { padding: 0.75rem !important; }
-
-  /* Overview 3-col summary — keep 3 cols but shrink padding & font */
-  .overview-summary { display: grid !important; grid-template-columns: repeat(3, minmax(0,1fr)) !important; gap: 0 !important; }
-  .overview-summary > div { 
-    padding: 0 0.2rem !important; 
-    min-width: 0; 
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
+  html,
+  body {
+    overflow-x: hidden;
   }
-  .overview-summary .num { 
-    font-size: clamp(0.60rem, 2.45vw, 0.72rem) !important; 
-    white-space: nowrap !important; 
-    line-height: 1.1 !important;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-    display: block;
+  main {
+    padding-inline: max(0.75rem, env(safe-area-inset-left)) max(0.75rem, env(safe-area-inset-right));
+  }
+
+  /* Money keeps the token scale. --fs-hero already clamps to the viewport
+     (28px at 375px → 40px on desktop), so no !important override is needed. */
+  .money-hero {
+    gap: 0.3rem;
+  }
+  .display-num {
+    font-size: clamp(1.35rem, 6vw, 1.75rem);
+    line-height: 1.2;
+  }
+  .type-financial {
+    font-size: var(--fs-sm);
+  }
+
+  .card {
+    padding: 0.85rem;
+    border-radius: var(--r-lg);
+  }
+  .card.p-4,
+  .card.p-5 {
+    padding: 0.85rem;
+  }
+
+  /* Overview summary — one row per metric. Label on the start edge, amount on
+     the end edge, both at a readable size. */
+  .overview-summary {
+    display: flex !important;
+    flex-direction: column;
+    gap: 0;
+    border-top: 1px solid var(--border);
+  }
+  .overview-summary > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 0.7rem 0 !important;
+    border-bottom: 1px solid var(--border);
+  }
+  .overview-summary > div:last-child {
+    border-bottom: none;
   }
   .overview-summary p.muted {
-    font-size: 8px !important;
-    line-height: 1.05;
+    font-size: var(--fs-xs);
+    line-height: 1.5;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
   }
-  /* Main amount line - extra tight for long numbers + تومان (تومان دست نخورده) */
-  .overview-summary .num.mt-1 {
-    font-size: clamp(0.58rem, 2.35vw, 0.70rem) !important;
-    line-height: 1.08 !important;
-    margin-top: 1px !important;
-    padding-bottom: 1px;
+  .overview-summary .num {
+    font-size: var(--fs-md);
+    line-height: 1.4;
+    white-space: nowrap;
+    margin-top: 0 !important;
+    text-align: end;
   }
-  /* Ensure the whole column never overflows */
-  .overview-summary > div p {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  /* The ≈USD line stays a quiet third level under the primary amount. */
+  .overview-summary .num.muted {
+    font-size: var(--fs-xs);
   }
 
-  /* Transaction list — amount must stay on one line */
-  .tx-amount { white-space: nowrap !important; font-size: clamp(0.78rem, 3.2vw, 0.85rem) !important; }
-  .tx-row { gap: 0.5rem !important; padding: 0.6rem 0.65rem !important; }
+  /* KPI tiles — two per row so an amount keeps half the width, never a third. */
+  .kpi-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .kpi-grid > * {
+    min-width: 0;
+  }
 
-  /* Quick actions — tidy grid, not overflowing */
-  .quick-actions, .quick-actions > * { min-width: 0; }
-  .quick-actions { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; width: 100%; }
-  .quick-actions a { width: auto !important; min-height: 4rem; padding-inline: .25rem; font-size: 0.68rem; }
+  /* Transaction list — the amount is the second most important thing in the
+     row, so it keeps --fs-md and simply never wraps. */
+  .tx-amount {
+    white-space: nowrap;
+    font-size: var(--fs-md);
+  }
+  .tx-row {
+    gap: 0.65rem;
+    padding: 0.75rem 0;
+  }
 
-  /* Tables — prevent تومان wrap, allow horizontal scroll */
-  .table .td-num, .td-num { white-space: nowrap !important; font-size: 0.78rem; }
-  .table { font-size: 0.75rem; }
-  .table th { padding: 0.4rem 0.5rem; font-size: 0.66rem; }
-  .table td { padding: 0.5rem; }
+  /* Quick actions */
+  .quick-actions,
+  .quick-actions > * {
+    min-width: 0;
+  }
+  .quick-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+  }
+  .quick-actions a {
+    width: auto !important;
+    min-height: 4rem;
+    padding-inline: 0.25rem;
+    font-size: var(--fs-xs);
+  }
+
+  /* Tables — readable minimums; horizontal scroll handles the rest. */
+  .table .td-num,
+  .td-num {
+    white-space: nowrap;
+    font-size: var(--fs-sm);
+  }
+  .table {
+    font-size: var(--fs-sm);
+  }
+  .table th {
+    padding: 0.5rem 0.55rem;
+    font-size: var(--fs-xs);
+  }
+  .table td {
+    padding: 0.6rem 0.55rem;
+  }
 
   /* Asset metrics */
-  .asset-metric { min-width: 0; overflow: hidden; padding-inline: .5rem !important; }
-  .asset-metric .num { min-width: 0; white-space: nowrap; font-size: clamp(.72rem, 3.2vw, .85rem); }
+  .asset-metric {
+    min-width: 0;
+    overflow: hidden;
+    padding-inline: 0.5rem;
+  }
+  .asset-metric .num {
+    min-width: 0;
+    white-space: nowrap;
+    font-size: var(--fs-sm);
+  }
 
   /* Modals / sheets */
-  .preview-modal, [role="dialog"] { margin-top: 1rem; z-index: 50; max-height: calc(100dvh - 2rem); overflow-y: auto; }
-  .chart-filters { display: flex; gap: .375rem; overflow-x: auto; padding: .25rem; border-radius: 999px; }
-  .chart-filters > * { flex: 1 0 auto; border-radius: 999px; }
-  .donut-legend { padding-bottom: 0; overflow: visible; }
+  .preview-modal,
+  [role="dialog"] {
+    margin-top: 1rem;
+    max-height: calc(100dvh - 2rem);
+  }
+  .chart-filters {
+    display: flex;
+    gap: 0.375rem;
+    overflow-x: auto;
+    padding: 0.25rem;
+    border-radius: 999px;
+  }
+  .chart-filters > * {
+    flex: 1 0 auto;
+    border-radius: 999px;
+  }
+  .donut-legend {
+    padding-bottom: 0;
+    overflow: visible;
+  }
 
-  /* Section spacing — more breathing room, less cramped */
-  .space-y-8 > * + * { margin-top: 1.25rem !important; }
-  .space-y-9 > * + * { margin-top: 1.35rem !important; }
+  /* Section spacing — breathing room between bands */
+  .space-y-8 > * + * {
+    margin-top: 1.5rem;
+  }
+  .space-y-9 > * + * {
+    margin-top: 1.6rem;
+  }
 }
 
-/* Extra-small: iPhone SE, etc. */
+/* The amount column is owned by CSS, not by physical Tailwind utilities:
+   `text-left` is wrong in RTL and fights the narrow-screen reflow below. */
+.tx-amount-col {
+  flex: none;
+  min-width: 0;
+  text-align: end;
+}
+
+/* At the narrowest supported width a 2-up stat grid cannot hold a Toman
+   amount even at the 14px floor, so the GRID reflows — the number never
+   shrinks further. `:has` carries enough specificity to beat the Tailwind
+   grid-cols utility without !important. */
+@media (max-width: 340px) {
+  .grid:has(> .stat-tile) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 374px) {
+  .acct-row {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+  }
+  .acct-amount {
+    width: 100%;
+    text-align: start;
+  }
+}
+
+/* <=374px — Galaxy S-series portrait, Fold cover.
+   A Toman amount cannot share a row at this width, so the row reflows to two
+   lines and the KPI grid drops to one column. The number keeps its size. */
+@media (max-width: 374px) {
+  .tx-row {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  /* Full line for the amount once the row has reflowed to two lines. */
+  .tx-amount-col {
+    width: 100%;
+    text-align: start;
+  }
+  .kpi-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Extra-small: iPhone SE and Fold cover screens.
+   Only the display/hero steps ease down; nothing financial goes below --fs-sm. */
 @media (max-width: 380px) {
-  .money-hero { font-size: clamp(1.1rem, 5.8vw, 1.35rem) !important; }
-  .display-num { font-size: clamp(1.1rem, 5.5vw, 1.4rem) !important; }
-  .overview-summary .num { font-size: 0.7rem !important; }
-  .type-financial { font-size: 0.75rem !important; }
+  .display-num {
+    font-size: clamp(1.2rem, 5.6vw, 1.5rem);
+  }
+  .overview-summary .num {
+    font-size: var(--fs-sm);
+  }
+  .type-financial {
+    font-size: var(--fs-sm);
+  }
 }
 
 /* PWA safe-area & overscroll */
@@ -2383,15 +2736,15 @@ body {
 }
 @media (max-width: 640px) {
   .acct-card {
-    padding: 0 !important;
-    border-radius: 10px;
+    padding: 0;
+    border-radius: var(--r-lg);
   }
   .acct-head,
   .acct-row {
     padding: 0.875rem 0.9rem !important;
   }
   .acct-amount {
-    max-width: 46% !important;
+    min-width: min-content;
   }
 }
 
@@ -2872,15 +3225,17 @@ input {
   }
 
   /* The amount column is the fixed anchor of a transaction row: it reserves
-     its own track so a long Persian description can never run under it. */
+     its own track so a long Persian description can never run under it.
+     The cap is `min-content`, not a 42% fraction — a fraction of a 320px
+     viewport is narrower than a Toman amount and silently clipped it. */
   .tx-amount-col {
     flex: 0 0 auto;
-    max-width: 42%;
-    text-align: left;
+    min-width: min-content;
+    text-align: end;
   }
   .tx-row {
     align-items: flex-start;
-    gap: 0.75rem !important;
+    gap: 0.75rem;
   }
 
   .bulk-action-bar {

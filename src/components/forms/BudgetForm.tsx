@@ -58,7 +58,7 @@ export default function BudgetForm({
         <div className="mt-2">
           <SmartAmountPreview irtAmount={irtAmount} rate={effectiveRate} rateDate={effectiveDate} rateSource={effectiveSource} />
         </div>
-        <p className="muted mt-1 text-[10px] leading-5">
+        <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">
           مبلغ تومان ثابت می‌ماند؛ معادل دلاری فقط نمایشی است و با تغییر نرخ روز به‌روز می‌شود.
         </p>
       </div>

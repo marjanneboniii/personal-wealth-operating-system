@@ -23,11 +23,44 @@ export default function Sheet({
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    // Remember what had focus so it can be restored on close.
+    restoreRef.current = document.activeElement as HTMLElement | null;
+
+    const FOCUSABLE =
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      // Focus trap: Tab cycles inside the dialog and never escapes to the
+      // page behind it.
+      if (e.key !== "Tab") return;
+      const panel = ref.current;
+      if (!panel) return;
+      const items = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+        (el) => el.offsetParent !== null || el === document.activeElement,
+      );
+      if (!items.length) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && (active === first || !panel.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !panel.contains(active))) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
     // Lock scroll: use fixed + overflow hidden with overscroll containment
@@ -39,13 +72,17 @@ export default function Sheet({
     document.body.style.touchAction = "none";
     // Move focus inside
     requestAnimationFrame(() => {
-      ref.current?.querySelector<HTMLElement>("a, button, input, [tabindex]")?.focus();
+      const panel = ref.current;
+      if (!panel) return;
+      (panel.querySelector<HTMLElement>("a, button, input, [tabindex]") ?? panel).focus();
     });
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
       document.body.style.touchAction = prevTouchAction;
       (document.body.style as any).overscrollBehavior = prevOverscroll;
+      // Return focus to the control that opened the sheet.
+      restoreRef.current?.focus?.();
     };
   }, [open, onClose]);
 
@@ -60,13 +97,14 @@ export default function Sheet({
       aria-label={title ? undefined : "گفتگو"}
       style={{ touchAction: "manipulation" }}
     >
-      {/* Overlay — pointer events isolated, does not capture touches meant for sheet */}
-      <button
-        type="button"
-        aria-label="بستن"
-        className="fade-in absolute inset-0 cursor-default"
+      {/* Scrim — presentational only. It must NOT be a focusable button: the
+          close affordance is the header button and Escape, so a screen-reader
+          user never meets a second, meaningless «بستن» control in the tab order. */}
+      <div
+        aria-hidden="true"
+        className="fade-in absolute inset-0"
         style={{
-          background: "rgba(10,12,16,0.45)",
+          background: "rgba(5,8,13,0.55)",
           backdropFilter: "blur(2px)",
           touchAction: "manipulation",
         }}
@@ -78,7 +116,8 @@ export default function Sheet({
       />
       <div
         ref={ref}
-        className={`sheet-panel sheet-in relative flex w-full flex-col overflow-hidden rounded-t-[var(--r-xl)] border sm:rounded-[var(--r-xl)] ${
+        tabIndex={-1}
+        className={`sheet-panel sheet-in relative flex w-full flex-col overflow-hidden rounded-t-[var(--r-xl)] border outline-none sm:rounded-[var(--r-xl)] ${
           wide ? "sm:w-[640px]" : "sm:w-[440px]"
         }`}
         style={{
@@ -103,7 +142,7 @@ export default function Sheet({
             <h2 id="sheet-title" className="text-[15px] font-semibold tracking-tight">
               {title}
             </h2>
-            <button type="button" className="icon-btn !min-h-9 !min-w-9" onClick={onClose} aria-label="بستن" style={{ touchAction: "manipulation" }}>
+            <button type="button" className="icon-btn" onClick={onClose} aria-label="بستن" style={{ touchAction: "manipulation" }}>
               <Icon name="x" size={17} />
             </button>
           </div>

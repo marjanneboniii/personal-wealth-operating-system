@@ -70,7 +70,7 @@ export default async function GoalsPage() {
             </p>
           </div>
           {(savedDisp.usdHint || targetDisp.usdHint) && (
-            <p className="muted num mb-2 text-[10px]" dir="rtl">
+            <p className="muted num mb-2 text-[length:var(--fs-xs)]" dir="rtl">
               معادل: {savedDisp.usdHint ?? "—"} از {targetDisp.usdHint ?? "—"}
             </p>
           )}
@@ -110,7 +110,7 @@ export default async function GoalsPage() {
                       <span className="badge badge-neutral">
                         اولویت {g.priority === 1 ? "بالا" : g.priority === 2 ? "متوسط" : "پایین"}
                       </span>
-                      {g.targetDate && <span className="muted num text-[10.5px]">تا {formatJalaliIso(g.targetDate)}</span>}
+                      {g.targetDate && <span className="muted num text-[length:var(--fs-xs)]">تا {formatJalaliIso(g.targetDate)}</span>}
                     </p>
                     <span className="flex flex-col items-end">
                       <span className="num text-[12px] sm:text-[13px] money-nowrap" dir="rtl">
@@ -118,7 +118,7 @@ export default async function GoalsPage() {
                         <span className="muted">از {targetD.primary}</span>
                       </span>
                       {(savedD.usdHint || targetD.usdHint) && (
-                        <span className="muted num text-[9.5px]" dir="rtl">
+                        <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                           معادل: {savedD.usdHint ?? "—"} از {targetD.usdHint ?? "—"}
                         </span>
                       )}
@@ -163,7 +163,7 @@ export default async function GoalsPage() {
                       </span>
                     </div>
                     <Progress value={f.progress} color="var(--info)" />
-                    {f.note && <p className="muted mt-1.5 text-[10.5px]">{f.note}</p>}
+                    {f.note && <p className="muted mt-1.5 text-[length:var(--fs-xs)]">{f.note}</p>}
                   </li>
                 );
               })}
@@ -208,14 +208,14 @@ export default async function GoalsPage() {
                             <span className="badge badge-info">{x.recurrence === "monthly" ? "ماهانه" : "سالانه"}</span>
                           )}
                         </p>
-                        <p className="muted num mt-0.5 text-[10.5px]">{formatJalaliIso(x.date)}</p>
+                        <p className="muted num mt-0.5 text-[length:var(--fs-xs)]">{formatJalaliIso(x.date)}</p>
                       </div>
                       <span className="flex shrink-0 flex-col items-end">
                         <span className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
                           {disp.primary}
                         </span>
                         {disp.usdHint && (
-                          <span className="muted num text-[9.5px]" dir="rtl">
+                          <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                             معادل: {disp.usdHint}
                           </span>
                         )}

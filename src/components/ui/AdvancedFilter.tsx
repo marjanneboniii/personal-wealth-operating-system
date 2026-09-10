@@ -130,7 +130,7 @@ export default function AdvancedFilter({
               <Icon name="filter" size={12} />
               فیلترها
               {activeCount > 0 && (
-                <span className="num badge badge-brand mr-1 !px-1.5 !py-0 !text-[10px]" dir="rtl">
+                <span className="num badge badge-brand mr-1 !px-1.5 !py-0 !text-[length:var(--fs-xs)]" dir="rtl">
                   {faCount(activeCount)}
                 </span>
               )}

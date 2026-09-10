@@ -78,7 +78,7 @@ export default function VehicleModule({
       )}
 
       {summary.soldCount > 0 && (
-        <p className="muted -mt-2 mb-4 text-[10.5px] leading-5">
+        <p className="muted -mt-2 mb-4 text-[length:var(--fs-xs)] leading-5">
           مجموع‌های بالا فقط خودروهای در اختیار را در بر می‌گیرد. {faNum(summary.soldCount)} خودروی فروخته‌شده با مبلغ
           فروش <Toman value={summary.soldProceedsToman} /> و سود/زیان تحقق‌یافته{" "}
           <DeltaToman value={summary.realisedGainToman} /> (<DeltaUsd value={summary.realisedGainUsd} />) جداگانه در کارت

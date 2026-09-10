@@ -63,7 +63,7 @@ function FlowTable({
                 <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
                   <span className="min-w-0 truncate font-medium">{r.name}</span>
                   <span className="flex shrink-0 items-baseline gap-2">
-                    <span className="num muted text-[10.5px]" dir="rtl">
+                    <span className="num muted text-[length:var(--fs-xs)]" dir="rtl">
                       {formatPct(share, 1)}
                     </span>
                     <span className="flex flex-col items-end">
@@ -71,7 +71,7 @@ function FlowTable({
                         {toman ? formatMoney(toman, "IRT") : formatMoney(r.total)}
                       </span>
                       {toman && (
-                        <span className="muted num text-[9.5px]" dir="rtl">
+                        <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                           ≈ {formatMoney(r.total)}
                         </span>
                       )}
@@ -135,13 +135,13 @@ function CategoryBreakdown({ rows, toIrt }: { rows: CategoryFlowRow[]; toIrt: (u
                 <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
                   <span className="min-w-0 truncate font-semibold">{g.name}</span>
                   <span className="flex shrink-0 items-baseline gap-2">
-                    <span className="num muted text-[10.5px]" dir="rtl">{formatPct(share, 1)}</span>
+                    <span className="num muted text-[length:var(--fs-xs)]" dir="rtl">{formatPct(share, 1)}</span>
                     <span className="flex flex-col items-end">
                       <span className="num font-bold" dir="rtl">
                         {gToman ? formatMoney(gToman, "IRT") : gDyn ?? formatMoney(g.total.toString())}
                       </span>
                       {(gToman || gDyn) && (
-                        <span className="muted num text-[9.5px]" dir="rtl">
+                        <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                           ≈ {formatMoney(g.total.toString())}
                         </span>
                       )}
@@ -272,7 +272,7 @@ export default async function CashFlowPage() {
 
       <CategoryBreakdown rows={categoryFlows} toIrt={toIrt} />
 
-      <p className="muted text-[10.5px]">
+      <p className="muted text-[length:var(--fs-xs)]">
         نرمال‌سازی ارز: {fx.rate ? <>هر ۱ دلار ≈ <span className="num">{formatMoney(fx.rate, "IRT")}</span></> : "ثبت نشده"} · مبالغ تومانی ثبت‌شده، فریز زمان ثبت‌اند و با تغییر نرخ دلار تغییر نمی‌کنند (نمایش ≈، معادل دلاری لحظه‌ای است) · منبع داده: دفترکل دوطرفه — همان حقیقت حسابداری.
       </p>
     </div>

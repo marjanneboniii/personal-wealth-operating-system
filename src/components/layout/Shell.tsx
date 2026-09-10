@@ -107,7 +107,7 @@ function AccountLink({ user, compact = false }: { user: ShellUser | null; compac
         aria-label={`حساب کاربری ${label}`}
         title={user.email || user.username || label}
       >
-        <span className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: "var(--brand)", color: "var(--on-brand)" }}>
+        <span className="flex h-5 w-5 items-center justify-center rounded-full text-[length:var(--fs-xs)] font-bold" style={{ background: "var(--brand)", color: "var(--on-brand)" }}>
           {(user.username?.[0] || user.name?.[0] || "U").toUpperCase()}
         </span>
         {!compact && <span className="max-w-[110px] truncate">{label}</span>}
@@ -279,7 +279,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
       <nav className="px-2 pb-5 pt-1" aria-label="همه بخش‌ها">
         <div className="mb-3 rounded-[var(--r-md)] border p-2" style={{ borderColor: "var(--border)" }}>
           <AccountLink user={authUser} />
-          {!authUser && <p className="muted mt-1.5 px-1 text-[10.5px]">ورود برای مدیریت نرخ ارز و مالکیت داده‌ها</p>}
+          {!authUser && <p className="muted mt-1.5 px-1 text-[length:var(--fs-xs)]">ورود برای مدیریت نرخ ارز و مالکیت داده‌ها</p>}
         </div>
         <div className="nav-group-label">اقدامات سریع</div>
         <div className="mb-1 grid grid-cols-3 gap-1.5 px-2">
@@ -471,7 +471,7 @@ export default function Shell({
             {!collapsed && (
               <span className="leading-tight">
                 <BrandWordmark className="block text-[15px]" />
-                <span className="muted block text-[10px]">سیستم‌عامل ثروت شخصی</span>
+                <span className="muted block text-[length:var(--fs-xs)]">سیستم‌عامل ثروت شخصی</span>
               </span>
             )}
           </Link>
@@ -561,7 +561,7 @@ export default function Shell({
           </button>
           <AccountLink user={authUser} compact />
           <ThemeToggle />
-          <Link href="/new" className="btn btn-primary !min-h-9 !px-3 !py-1.5 !text-[12px]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>
+          <Link href="/new" className="btn btn-primary !px-3 !text-[13px]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>
             <Icon name="plus" size={15} />
             ثبت
           </Link>
@@ -591,6 +591,23 @@ export default function Shell({
           />
         )}
       </main>
+
+      {/* ───────────── Mobile record action ─────────────
+          The primary transaction action: a raised 56px target centred above
+          the tab bar. It opens the quick-action Sheet, which previously had
+          no way of being opened at all. */}
+      {!isPublicChrome && (
+        <button
+          type="button"
+          onClick={() => setQuickOpen(true)}
+          aria-label="ثبت تراکنش جدید"
+          aria-haspopup="dialog"
+          aria-expanded={quickOpen}
+          className="record-fab lg:hidden"
+        >
+          <Icon name="plus" size={24} strokeWidth={2.1} />
+        </button>
+      )}
 
       {/* ───────────── Mobile bottom nav (app only — never on landing/auth/legal) ───────────── */}
       {!isPublicChrome && (

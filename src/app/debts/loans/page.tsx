@@ -132,11 +132,11 @@ export default async function LoansPage() {
                         </p>
                       </div>
                       <div className="text-left">
-                        <p className="muted text-[10.5px]">مانده قابل پرداخت</p>
+                        <p className="muted text-[length:var(--fs-xs)]">مانده قابل پرداخت</p>
                         <p className="num text-xl font-bold" dir="rtl" style={{ color: isSettled ? "var(--positive)" : "var(--negative)" }}>
                           {outD.primary}
                         </p>
-                        <p className="muted num mt-0.5 text-[10.5px]" dir="rtl">
+                        <p className="muted num mt-0.5 text-[length:var(--fs-xs)]" dir="rtl">
                           {outD.usdHint ? <>معادل: {outD.usdHint} · </> : null}
                           بازپرداخت‌شده: {repaidD.primary}
                         </p>

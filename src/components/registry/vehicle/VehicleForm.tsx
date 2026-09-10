@@ -231,7 +231,7 @@ export default function VehicleForm({
                 {canPreview && rateLoading ? "…" : preview ? formatMoney(preview.usd, "USD") : "—"}
               </strong>
             </div>
-            <div className="muted mt-1 text-[10px] leading-5">
+            <div className="muted mt-1 text-[length:var(--fs-xs)] leading-5">
               {preview ? (
                 <>
                   نرخ دلار استفاده‌شده: <span className="num">{formatMoney(preview.rate, "IRT")}</span> ·{" "}

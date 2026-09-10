@@ -9,7 +9,7 @@ import {
 } from "@/features/ledger/queries";
 import { projectCashflow, upcomingInstallments } from "@/features/planning/service";
 import { getSetupState } from "@/features/setup/service";
-import { Alert, Delta, EmptyState, Section, SectionLink } from "@/components/ui/Card";
+import { ActionItem, Alert, AllClear, Delta, EmptyState, Section, SectionLink } from "@/components/ui/Card";
 import { AreaChart, BarsChart, Donut } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
 import { humanizeEntry, moneyFlowLabel } from "@/lib/tx";
@@ -162,7 +162,7 @@ export default async function OverviewDashboard() {
           icon="info"
           title="راه‌اندازی اولیه انجام نشده است"
           action={
-            <Link href="/setup" className="btn btn-primary !min-h-9 !px-4 !py-1.5 text-xs">
+            <Link href="/setup" className="btn btn-primary !px-4 text-[length:var(--fs-xs)]">
               شروع راه‌اندازی
             </Link>
           }
@@ -175,9 +175,10 @@ export default async function OverviewDashboard() {
       <section className="pt-1">
         <div className="flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-x-8 sm:gap-y-6">
           <div className="min-w-0 flex-1">
-            <p className="muted text-[11px] font-medium">ارزش خالص دارایی</p>
-            <div className="mt-1.5 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 sm:gap-y-2">
-              <span className="money-hero text-[24px] sm:text-[28px] lg:text-[32px] font-bold leading-[1.15] tracking-tight money-nowrap" dir="rtl">
+            <p className="muted text-[length:var(--fs-xs)] font-medium">ارزش خالص دارایی</p>
+            <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 sm:gap-y-2">
+              {/* The single most important number on the page — it dominates. */}
+              <span className="money-hero text-[length:var(--fs-hero)] font-bold leading-[1.1] tracking-tight money-nowrap" dir="rtl">
                 {nw.netWorthToman ? formatMoney(nw.netWorthToman, "IRT") : formatMoney(nw.netWorth)}
               </span>
               {lastSnap && (
@@ -190,7 +191,7 @@ export default async function OverviewDashboard() {
               )}
             </div>
             {nw.netWorthToman && (
-              <p className="muted mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] sm:text-[12px]">
+              <p className="muted mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-xs)]">
                 <span className="money-nowrap">≈ <span className="num">{formatMoney(nw.netWorth)}</span></span>
                 <span className="opacity-40 hidden sm:inline">·</span>
                 <span className="money-nowrap">نرخ مرجع <span className="num" dir="rtl">{formatMoney(rate, "IRT")}</span> ≈ ۱ دلار</span>
@@ -199,13 +200,13 @@ export default async function OverviewDashboard() {
           </div>
 
           <div className="shrink-0">
-            <p className="muted mb-2 text-[10.5px] font-medium">ثبت سریع</p>
+            <p className="muted mb-2 text-[length:var(--fs-xs)] font-medium">ثبت سریع</p>
             <div className="quick-actions flex gap-1.5">
               {QUICK.map((q) => (
                 <Link
                   key={q.href}
                   href={q.href}
-                  className="card interactive-card flex min-h-12 w-[62px] flex-col items-center gap-1 py-2 text-[10px] font-medium sm:min-h-[52px] sm:gap-1.5 sm:py-2.5 sm:text-[10.5px]"
+                  className="card interactive-card flex min-h-[60px] w-[66px] flex-col items-center justify-center gap-1.5 py-2.5 text-[length:var(--fs-xs)] font-medium"
                   style={{ color: "var(--text-2)" }}
                 >
                   <span
@@ -243,17 +244,43 @@ export default async function OverviewDashboard() {
                   : undefined
               }
             >
-              <p className="muted truncate text-[10px] sm:text-[11px]">{m.label}</p>
-              <p className="num mt-1 text-[12px] font-bold leading-[1.3] money-nowrap sm:text-[14px]" dir="rtl" style={{ color: m.tone }}>
+              <p className="muted truncate text-[length:var(--fs-xs)]">{m.label}</p>
+              <p className="num mt-1.5 text-[length:var(--fs-lg)] font-bold leading-[1.25] money-nowrap" dir="rtl" style={{ color: m.tone }}>
                 {formatMoney(D(m.toman).abs().toString(), "IRT")}
               </p>
-              <p className="muted num mt-0.5 hidden text-[10px] money-nowrap sm:block sm:text-[10.5px]" dir="rtl">
+              <p className="muted num mt-1 hidden text-[length:var(--fs-xs)] money-nowrap sm:block" dir="rtl">
                 ≈ {formatMoney(D(m.value).abs().toString())}
               </p>
             </div>
           ))}
         </div>
       </section>
+
+      {/* ═══ نیاز به توجه — the decisions waiting for the user ═══
+          These items were computed but never rendered before this redesign.
+          They are placed directly under the hero: what changed, then what to
+          do about it. */}
+      {hasAnything && (
+        <Section title="نیاز به توجه شما">
+          {attention.length > 0 ? (
+            <ul className="list-none" role="list">
+              {attention.map((a) => (
+                <ActionItem
+                  key={`${a.href}-${a.text}`}
+                  icon={a.icon}
+                  tone={a.tone}
+                  text={a.text}
+                  detail={a.detail}
+                  href={a.href}
+                  action={a.action}
+                />
+              ))}
+            </ul>
+          ) : (
+            <AllClear />
+          )}
+        </Section>
+      )}
 
       {!hasAnything ? (
         <div className="card">
@@ -294,25 +321,25 @@ export default async function OverviewDashboard() {
               <div className="card p-3 sm:p-4">
                 <div className="kpi-grid mb-3 grid grid-cols-3 gap-2 sm:mb-4">
                   <div className="min-w-0">
-                    <p className="muted truncate text-[10px] sm:text-[10.5px]">درآمد</p>
-                    <p className="num mt-0.5 text-[12px] font-bold money-nowrap sm:text-[13px]" dir="rtl" style={{ color: toneColor(inflowTone(monthFlow?.inflow ?? 0)) }}>
+                    <p className="muted truncate text-[length:var(--fs-xs)]">درآمد</p>
+                    <p className="num mt-1 text-[length:var(--fs-md)] font-bold money-nowrap" dir="rtl" style={{ color: toneColor(inflowTone(monthFlow?.inflow ?? 0)) }}>
                       {monthInflowToman ? formatMoney(monthInflowToman, "IRT") : formatMoney(monthFlow?.inflow ?? 0)}
                     </p>
-                    {rate && <p className="muted num mt-0.5 text-[9px] money-nowrap sm:text-[10px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.inflow ?? 0)}</p>}
+                    {rate && <p className="muted num mt-1 text-[length:var(--fs-xs)] money-nowrap" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.inflow ?? 0)}</p>}
                   </div>
                   <div className="min-w-0">
-                    <p className="muted truncate text-[10px] sm:text-[10.5px]">هزینه</p>
-                    <p className="num mt-0.5 text-[12px] font-bold money-nowrap sm:text-[13px]" dir="rtl" style={{ color: toneColor(outflowTone(monthFlow?.outflow ?? 0)) }}>
+                    <p className="muted truncate text-[length:var(--fs-xs)]">هزینه</p>
+                    <p className="num mt-1 text-[length:var(--fs-md)] font-bold money-nowrap" dir="rtl" style={{ color: toneColor(outflowTone(monthFlow?.outflow ?? 0)) }}>
                       {monthOutflowToman ? formatMoney(monthOutflowToman, "IRT") : formatMoney(monthFlow?.outflow ?? 0)}
                     </p>
-                    {rate && <p className="muted num mt-0.5 text-[9px] money-nowrap sm:text-[10px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.outflow ?? 0)}</p>}
+                    {rate && <p className="muted num mt-1 text-[length:var(--fs-xs)] money-nowrap" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.outflow ?? 0)}</p>}
                   </div>
                   <div className="min-w-0">
-                    <p className="muted truncate text-[10px] sm:text-[10.5px]">خالص</p>
-                    <p className="num mt-0.5 text-[12px] font-bold money-nowrap sm:text-[13px]" dir="rtl" style={{ color: trendColor(netMonthUsd) }}>
+                    <p className="muted truncate text-[length:var(--fs-xs)]">خالص</p>
+                    <p className="num mt-1 text-[length:var(--fs-md)] font-bold money-nowrap" dir="rtl" style={{ color: trendColor(netMonthUsd) }}>
                       {monthNetToman ? formatSignedMoney(monthNetToman, "IRT") : formatSignedMoney(netMonthUsd)}
                     </p>
-                    {rate && <p className="muted num mt-0.5 text-[9px] money-nowrap sm:text-[10px]" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(Math.abs(netMonthUsd))}</p>}
+                    {rate && <p className="muted num mt-1 text-[length:var(--fs-xs)] money-nowrap" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(Math.abs(netMonthUsd))}</p>}
                   </div>
                 </div>
                 <BarsChart
@@ -344,8 +371,8 @@ export default async function OverviewDashboard() {
                 return (
                   <li key={e.id} className="tx-row flex items-start gap-2.5 py-2.5 sm:gap-3 sm:py-3">
                     <div className="min-w-0 flex-1">
-                      <p className="tx-description truncate text-[12px] font-medium sm:text-[13px]">{e.description}</p>
-                      <p className="muted mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] sm:text-[11px]">
+                      <p className="tx-description truncate text-[length:var(--fs-sm)] font-medium">{e.description}</p>
+                      <p className="muted mt-1 flex flex-wrap items-center gap-x-1.5 text-[length:var(--fs-xs)]">
                         <span>{formatShortDate(e.entryDate)}</span>
                         <span className="opacity-40">·</span>
                         <span>{h.typeLabel}</span>
@@ -357,9 +384,9 @@ export default async function OverviewDashboard() {
                         )}
                       </p>
                     </div>
-                    <div className="tx-amount-col shrink-0 text-left">
+                    <div className="tx-amount-col">
                       <span
-                        className="num tx-amount block text-[12px] font-bold money-nowrap sm:text-[13px]"
+                        className="num tx-amount block text-[length:var(--fs-md)] font-bold money-nowrap"
                         dir="rtl"
                         style={{
                           color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)",
@@ -369,13 +396,13 @@ export default async function OverviewDashboard() {
                         {displayToman ? formatMoney(displayToman, "IRT") : formatMoney(h.amount)}
                       </span>
                       {rate && (
-                        <p className="muted num mt-0.5 block text-[9px] money-nowrap sm:text-[10px]">≈ {formatMoney(displayUsd)}</p>
+                        <p className="muted num mt-1 block text-[length:var(--fs-xs)] money-nowrap">≈ {formatMoney(displayUsd)}</p>
                       )}
                     </div>
                   </li>
                 );
               })}
-              {!tx.length && <li className="muted py-8 text-center text-xs">هنوز تراکنشی ثبت نشده است.</li>}
+              {!tx.length && <li className="muted py-8 text-center text-[length:var(--fs-sm)]">هنوز تراکنشی ثبت نشده است.</li>}
             </ul>
           </Section>
         </>

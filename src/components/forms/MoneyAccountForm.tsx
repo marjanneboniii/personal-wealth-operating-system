@@ -114,7 +114,7 @@ export default function MoneyAccountForm({
               </option>
             ))}
           </select>
-          <span className="muted block text-[10px] leading-5">
+          <span className="muted block text-[length:var(--fs-xs)] leading-5">
             واحدی که موجودی این حساب در آن نگهداری می‌شود. جمع‌بندی داخلی برای همه حساب‌ها دلار است و قابل تغییر نیست.
           </span>
           <span className="chip mt-1 inline-block">واحد جمع‌بندی: دلار (فقط خواندنی)</span>
@@ -170,12 +170,12 @@ export default function MoneyAccountForm({
           </div>
           {qty.gt(0) && (
             <div className="mt-2">
-              <p className="muted text-[10px]">ارزش پایه دلاری افتتاحیه:</p>
+              <p className="muted text-[length:var(--fs-xs)]">ارزش پایه دلاری افتتاحیه:</p>
               <p className="num font-bold" dir="rtl">
                 {formatMoney(previewBaseUsd.toString())}
               </p>
               {currency?.symbol === "IRT" && rate.gt(0) && (
-                <p className="muted mt-1 text-[10px]">
+                <p className="muted mt-1 text-[length:var(--fs-xs)]">
                   نرخ تبدیل جاری: هر دلار ≈ {formatMoney(usdIrtRate, "IRT")}
                 </p>
               )}

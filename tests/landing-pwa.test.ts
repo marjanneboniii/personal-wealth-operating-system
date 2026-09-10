@@ -271,19 +271,37 @@ test("Landing/PWA changes do not import ledger or accounting services", () => {
   }
 });
 
-test("Tavazon brand tokens — ink, violet accent, modules, and wordmark", () => {
+test("Tavazon brand tokens — one palette shared by landing and app", () => {
   const css = read("src/app/globals.css");
   const mark = read("src/components/layout/BrandMark.tsx");
   const chrome = read("src/components/landing/LandingChrome.tsx");
 
-  assert.match(css, /--color-primary:\s*#12131c/i);
-  assert.match(css, /--color-accent:\s*#6e6ff0/i);
-  assert.match(css, /--color-module-expenses:\s*#363850/i);
-  assert.match(css, /--color-module-commitments:\s*#e5484d/i);
-  assert.match(css, /--color-module-wealth:\s*#6e6ff0/i);
-  assert.match(css, /--bg-page:\s*#f7f7fb/i);
-  assert.match(css, /--color-danger:\s*#e5484d/i);
-  assert.match(css, /--color-positive:\s*#2ead6b/i);
+  // Palette primitives are declared exactly once and referenced everywhere.
+  assert.match(css, /--sky-400:\s*#38bdf8/i);
+  assert.match(css, /--cyan-700:\s*#0e7490/i);
+  assert.match(css, /--emerald-400:\s*#34d399/i);
+  assert.match(css, /--amber-400:\s*#fbbf24/i);
+  assert.match(css, /--lavender-300:\s*#c4b5fd/i);
+
+  // Sky/cyan is the interaction accent: cyan-700 on light (AA), sky-400 on dark.
+  assert.match(css, /--color-accent:\s*var\(--cyan-700\)/i);
+  assert.match(css, /--color-accent:\s*var\(--sky-400\)/i);
+  assert.match(css, /--color-module-wealth:\s*var\(--cyan-700\)/i);
+
+  // Emerald = positive, amber/red = negative. Never decorative.
+  assert.match(css, /--color-positive:\s*var\(--emerald-(400|700)\)/i);
+  assert.match(css, /--color-danger:\s*var\(--red-(400|600)\)/i);
+  assert.match(css, /--color-warning:\s*var\(--amber-(400|700)\)/i);
+
+  // Lavender stays a tertiary investment-only accent.
+  assert.match(css, /--investment:\s*var\(--lavender-(300|ink)\)/i);
+  assert.match(css, /--asset-investment:\s*var\(--lavender-(300|ink)\)/i);
+
+  // The retired violet identity must not come back as the brand colour.
+  assert.doesNotMatch(css, /--color-accent:\s*#6e6ff0/i);
+  assert.doesNotMatch(css, /--brand:\s*#(6e6ff0|8b8cf5)/i);
+  assert.doesNotMatch(css, /--color-module-wealth:\s*#6e6ff0/i);
+
   assert.match(css, /\.brand-wordmark/);
   assert.match(css, /font-weight: 900/);
   assert.match(mark, /توازن/);

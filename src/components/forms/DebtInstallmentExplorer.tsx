@@ -123,13 +123,13 @@ export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectI
           <option value="amount">مرتب‌سازی: مبلغ</option>
           <option value="creditor">مرتب‌سازی: بستانکار</option>
         </select>
-        <span className="chip text-[10px]">{faCount(filteredDebts.length)} بدهی · {faCount(filteredInstallments.length)} قسط</span>
+        <span className="chip text-[length:var(--fs-xs)]">{faCount(filteredDebts.length)} بدهی · {faCount(filteredInstallments.length)} قسط</span>
       </div>
 
       <div className="max-h-96 overflow-y-auto space-y-3">
         {(filterType === "all" || filterType === "debt") && (
           <div>
-            <div className="muted text-[10px] mb-1">بدهی‌های فعال</div>
+            <div className="muted text-[length:var(--fs-xs)] mb-1">بدهی‌های فعال</div>
             <ul className="space-y-2">
               {filteredDebts.map((d) => {
                 const outDisp = formatTomanPrimary(d.outstandingToman, rate);
@@ -141,8 +141,8 @@ export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectI
                 <li key={d.id} className="soft rounded-[var(--r-md)] p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="text-xs">
                     <div className="font-bold">{d.title} — {d.creditor}</div>
-                    <div className="muted text-[10px]">مانده: <span dir="rtl" className="num">{outDisp.primary}</span>{outDisp.usdHint ? <> · معادل {outDisp.usdHint}</> : null} · {d.status === "settled" ? "تسویه شده" : "فعال"} · سود {formatPct(d.interestRate, 1)} · {d.installments.filter(i=>i.status==="pending").length} قسط مانده</div>
-                    <div className="muted text-[10px]">مبلغ هر قسط نمونه: {sampleDisp ? sampleDisp.primary : "—"} · تاریخ شروع <span dir="rtl" className="num">{d.installments[0] ? formatJalaliIso(d.installments[0].dueDate) : "—"}</span></div>
+                    <div className="muted text-[length:var(--fs-xs)]">مانده: <span dir="rtl" className="num">{outDisp.primary}</span>{outDisp.usdHint ? <> · معادل {outDisp.usdHint}</> : null} · {d.status === "settled" ? "تسویه شده" : "فعال"} · سود {formatPct(d.interestRate, 1)} · {d.installments.filter(i=>i.status==="pending").length} قسط مانده</div>
+                    <div className="muted text-[length:var(--fs-xs)]">مبلغ هر قسط نمونه: {sampleDisp ? sampleDisp.primary : "—"} · تاریخ شروع <span dir="rtl" className="num">{d.installments[0] ? formatJalaliIso(d.installments[0].dueDate) : "—"}</span></div>
                   </div>
                   <button type="button" onClick={() => onSelectDebt?.(d)} className="btn btn-primary !py-1.5 !px-3 text-xs">انتخاب بدهی</button>
                 </li>
@@ -155,7 +155,7 @@ export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectI
 
         {(filterType === "all" || filterType === "installment") && (
           <div>
-            <div className="muted text-[10px] mb-1">اقساط (سررسیدشده / نزدیک)</div>
+            <div className="muted text-[length:var(--fs-xs)] mb-1">اقساط (سررسیدشده / نزدیک)</div>
             <ul className="space-y-2">
               {filteredInstallments.slice(0, 30).map(({ debt, inst, overdue, upcoming }) => {
                 const instDisp = formatTomanPrimary(inst.amountToman, rate);
@@ -164,8 +164,8 @@ export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectI
                 <li key={inst.id} className="soft rounded-[var(--r-md)] p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2" style={overdue ? { border: "1px solid var(--negative)" } : upcoming ? { border: "1px solid var(--warning)" } : undefined}>
                   <div className="text-xs">
                     <div className="font-bold">{debt.title} — قسط {toFaDigits(String(inst.seq))} <span className="chip mr-1" style={overdue ? { color:"var(--negative)" } : upcoming ? { color:"var(--warning)" } : undefined}>{overdue ? "معوق" : upcoming ? "نزدیک به سررسید" : inst.status==="paid" ? "پرداخت شده" : "در انتظار"}</span></div>
-                    <div className="muted text-[10px]">مبلغ: <span dir="rtl" className="num">{instDisp.primary}</span>{instDisp.usdHint ? <> · معادل {instDisp.usdHint}</> : null} · سررسید <span dir="rtl" className="num">{formatJalaliIso(inst.dueDate)}</span> · مانده قابل پرداخت {outDisp.primary}</div>
-                    <div className="muted text-[10px]">{debt.creditor} · اولویت بستانکار — {debt.title}</div>
+                    <div className="muted text-[length:var(--fs-xs)]">مبلغ: <span dir="rtl" className="num">{instDisp.primary}</span>{instDisp.usdHint ? <> · معادل {instDisp.usdHint}</> : null} · سررسید <span dir="rtl" className="num">{formatJalaliIso(inst.dueDate)}</span> · مانده قابل پرداخت {outDisp.primary}</div>
+                    <div className="muted text-[length:var(--fs-xs)]">{debt.creditor} · اولویت بستانکار — {debt.title}</div>
                   </div>
                   <button
                     type="button"
@@ -183,7 +183,7 @@ export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectI
           </div>
         )}
       </div>
-      <div className="muted text-[10px] leading-5">
+      <div className="muted text-[length:var(--fs-xs)] leading-5">
         پس از انتخاب، مبلغ به تومان، معادل دلاری، نرخ و حساب پرداخت به‌صورت خودکار تکمیل می‌شود. تا قبل از «تأیید نهایی» هیچ تغییری ثبت نمی‌شود.
       </div>
     </div>

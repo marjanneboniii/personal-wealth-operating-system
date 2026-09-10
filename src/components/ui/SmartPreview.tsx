@@ -36,12 +36,12 @@ export function SmartAmountPreview({ irtAmount, rate, rateDate, rateSource }: Sm
         <span>معادل تقریبی:</span>
         <strong className="num text-xs" dir="ltr" style={{ color: "var(--brand)" }}>{preview!.usd}</strong>
       </div>
-      <div className="muted text-[10px] mt-1">
+      <div className="muted text-[length:var(--fs-xs)] mt-1">
         {preview!.rateLabel}
         {rateDate && <span> · تاریخ نرخ: <span dir="auto" className="num">{rateDate}</span></span>}
         {rateSource && <span> · منبع: {rateSource}</span>}
       </div>
-      <div className="muted text-[10px]">این محاسبه صرفاً نمایشی است و تا قبل از «تأیید نهایی» هیچ سندی در دفترکل ایجاد نمی‌کند.</div>
+      <div className="muted text-[length:var(--fs-xs)]">این محاسبه صرفاً نمایشی است و تا قبل از «تأیید نهایی» هیچ سندی در دفترکل ایجاد نمی‌کند.</div>
     </div>
   );
 }
@@ -73,7 +73,7 @@ export function PreviewCard({ title, children }: { title: string; children: Reac
     <div className="card soft p-4 space-y-2 border" style={{ borderColor: "var(--brand)" }}>
       <div className="text-xs font-bold" style={{ color: "var(--brand)" }}>{title}</div>
       {children}
-      <div className="muted text-[10px]">این پیش‌نمایش فقط نمایشی است — تا قبل از «تأیید نهایی» هیچ تغییری ثبت نمی‌شود.</div>
+      <div className="muted text-[length:var(--fs-xs)]">این پیش‌نمایش فقط نمایشی است — تا قبل از «تأیید نهایی» هیچ تغییری ثبت نمی‌شود.</div>
     </div>
   );
 }

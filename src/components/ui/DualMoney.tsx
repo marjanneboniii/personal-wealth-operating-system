@@ -11,9 +11,9 @@ export function DualMoneyFromIrt({ irt, rate }: PropsIrt) {
     <span className="inline-flex flex-col items-start gap-1 min-w-0">
       <span className="type-financial num money-nowrap text-[13px] sm:text-[14px]" dir="rtl">{irtLabel}</span>
       <span className="type-caption flex flex-wrap items-center gap-1 money-nowrap">
-        معادل: <span className="num money-nowrap text-[11px]" dir="ltr" style={{ color: "var(--brand)" }}>{usd}</span>
+        معادل: <span className="num money-nowrap text-[length:var(--fs-xs)]" dir="ltr" style={{ color: "var(--brand)" }}>{usd}</span>
       </span>
-      <span className="chip text-[9px] sm:text-[10px] money-nowrap">{rateLabel}</span>
+      <span className="chip text-[length:var(--fs-xs)] money-nowrap">{rateLabel}</span>
     </span>
   );
 }
@@ -24,9 +24,9 @@ export function DualMoneyFromUsd({ usd, rate }: PropsUsd) {
     <span className="inline-flex flex-col items-start gap-1 min-w-0">
       <span className="type-financial num money-nowrap text-[13px] sm:text-[14px]" dir="rtl">{irt}</span>
       <span className="type-caption flex flex-wrap items-center gap-1 money-nowrap">
-        معادل: <span className="num money-nowrap text-[11px]" dir="ltr" style={{ color: "var(--brand)" }}>{usdLabel}</span>
+        معادل: <span className="num money-nowrap text-[length:var(--fs-xs)]" dir="ltr" style={{ color: "var(--brand)" }}>{usdLabel}</span>
       </span>
-      <span className="chip text-[9px] sm:text-[10px] money-nowrap">{rateLabel}</span>
+      <span className="chip text-[length:var(--fs-xs)] money-nowrap">{rateLabel}</span>
     </span>
   );
 }

@@ -254,7 +254,7 @@ export default function TransactionsView({
                       <span className="num text-[11px] font-medium" style={{ color: "var(--text-2)" }}>
                         {formatShortDate(e.entryDate)}
                       </span>
-                      <span className="num text-[9.5px]">{e.entryDate}</span>
+                      <span className="num text-[length:var(--fs-xs)]">{e.entryDate}</span>
                     </span>
 
                     <span className="min-w-0 flex-1">
@@ -263,7 +263,7 @@ export default function TransactionsView({
                         {!e.reviewed && <span className="badge badge-warn shrink-0">بررسی‌نشده</span>}
                         {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
                       </span>
-                      <span className="muted mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10.5px]">
+                      <span className="muted mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[length:var(--fs-xs)]">
                         <span className="sm:hidden">{formatShortDate(e.entryDate)} · </span>
                         <span>{h.typeLabel}</span>
                         {e.categoryName && (
@@ -289,7 +289,7 @@ export default function TransactionsView({
                       >
                         {amountLabel(e, h)}
                       </span>
-                      {rate && <span className="muted num block text-[9px] money-nowrap sm:text-[10px]" style={{ color: "var(--text-2)" }}>≈ {formatMoney(h.amount)}</span>}
+                      {rate && <span className="muted num block text-[length:var(--fs-xs)] money-nowrap" style={{ color: "var(--text-2)" }}>≈ {formatMoney(h.amount)}</span>}
                     </span>
 
                     <span className={`muted shrink-0 transition-transform ${open ? "rotate-180" : ""}`}>
@@ -323,7 +323,7 @@ export default function TransactionsView({
                           </p>
                         </div>
                         {e.fx && pro && (
-                          <p className="muted mt-3 text-[10.5px] leading-5">
+                          <p className="muted mt-3 text-[length:var(--fs-xs)] leading-5">
                             مبلغ تاریخی منجمد: <b className="num">{formatMoney(e.fx.irtAmount, "IRT")}</b> ≈{" "}
                             <b className="num" dir="rtl">
                               {formatMoney(e.fx.usdAmount)}
@@ -347,7 +347,7 @@ export default function TransactionsView({
                             <div className="flex justify-between gap-2">
                               <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>تاریخ</dt>
                               <dd className="num text-left">
-                                {formatJalaliIso(e.entryDate)} <span className="muted text-[10px]" dir="ltr">({e.entryDate})</span>
+                                {formatJalaliIso(e.entryDate)} <span className="muted text-[length:var(--fs-xs)]" dir="ltr">({e.entryDate})</span>
                               </dd>
                             </div>
                             <div className="flex justify-between gap-2">
@@ -407,7 +407,7 @@ export default function TransactionsView({
         </ul>
       )}
 
-      <p className="muted px-1 text-[10.5px]">
+      <p className="muted px-1 text-[length:var(--fs-xs)]">
         {faCount(rows.length)} رکورد · ترتیب: {filters.sort === "old" ? "قدیمی‌ترین" : filters.sort === "amount" ? "بیشترین مبلغ" : "جدیدترین"} · کلید <kbd className="kbd">/</kbd> برای جستجو · جزئیات حسابداری کامل در{" "}
         <a href="/financial-records" className="underline underline-offset-2" style={{ color: "var(--brand)" }}>
           سوابق مالی

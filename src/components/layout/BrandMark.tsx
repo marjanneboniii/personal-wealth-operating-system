@@ -97,7 +97,7 @@ export function BrandLockup({
     <span className="leading-tight">
       <BrandWordmark className="block text-[15px] tracking-tight" />
       {subtitle && (
-        <span className={`block text-[10px] ${onDark ? "landing-on-primary-muted" : "muted"}`}>{subtitle}</span>
+        <span className={`block text-[length:var(--fs-xs)] ${onDark ? "landing-on-primary-muted" : "muted"}`}>{subtitle}</span>
       )}
     </span>
   );
