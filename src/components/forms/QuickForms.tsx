@@ -18,7 +18,7 @@ type Opt = { id: string; code: string; name: string };
 function Feedback({ state }: { state: ActionResult | null }) {
   if (!state) return null;
   return (
-    <p className="text-[11px]" style={{ color: state.ok ? "var(--brand)" : "var(--negative)" }}>
+    <p className="text-[length:var(--fs-xs)]" style={{ color: state.ok ? "var(--brand)" : "var(--negative)" }}>
       {state.message}
     </p>
   );
@@ -58,7 +58,7 @@ function PlanningPreview({ title, description, irtAmount, rate, rateDate, rateSo
         {status && <div><span className="muted">وضعیت:</span> <strong>{status}</strong></div>}
         {priority && <div><span className="muted">اولویت:</span> <strong>{priority}</strong></div>}
         {extra}
-        <div className="muted text-[length:var(--fs-xs)]">تا قبل از «تأیید نهایی» هیچ Journal Entry یا Ledger Entry ایجاد نمی‌شود. معادل دلاری با آخرین نرخ به‌صورت لحظه‌ای محاسبه و با تغییر نرخ به‌روزرسانی می‌شود.</div>
+        <div className="muted text-[length:var(--fs-xs)]">تا تأیید نهایی چیزی ثبت نمی‌شود.</div>
       </div>
     </PreviewCard>
   );

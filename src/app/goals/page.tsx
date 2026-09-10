@@ -64,8 +64,8 @@ export default async function GoalsPage() {
       {activeGoals.length > 0 && (
         <section className="rise border-b pb-6" style={{ borderColor: "var(--border)" }}>
           <div className="mb-2 flex items-baseline justify-between">
-            <p className="muted text-[12px] font-medium">پیشرفت مجموع اهداف فعال</p>
-            <p className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
+            <p className="muted text-[length:var(--fs-xs)] font-medium">پیشرفت مجموع اهداف فعال</p>
+            <p className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
               {savedDisp.primary} <span className="muted font-normal">از</span> {targetDisp.primary}
             </p>
           </div>
@@ -100,7 +100,7 @@ export default async function GoalsPage() {
               return (
                 <li key={g.id} className="card p-4">
                   <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="flex items-center gap-2 text-[12px] sm:text-[13px] font-semibold">
+                    <p className="flex items-center gap-2 text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-semibold">
                       {done && (
                         <span style={{ color: "var(--positive)" }}>
                           <Icon name="check-circle" size={16} />
@@ -113,8 +113,8 @@ export default async function GoalsPage() {
                       {g.targetDate && <span className="muted num text-[length:var(--fs-xs)]">تا {formatJalaliIso(g.targetDate)}</span>}
                     </p>
                     <span className="flex flex-col items-end">
-                      <span className="num text-[12px] sm:text-[13px] money-nowrap" dir="rtl">
-                        <b className="text-[15px]">{savedD.primary}</b>{" "}
+                      <span className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] money-nowrap" dir="rtl">
+                        <b className="text-[length:var(--fs-md)]">{savedD.primary}</b>{" "}
                         <span className="muted">از {targetD.primary}</span>
                       </span>
                       {(savedD.usdHint || targetD.usdHint) && (
@@ -125,7 +125,7 @@ export default async function GoalsPage() {
                     </span>
                   </div>
                   <Progress value={g.progress} color={done ? "var(--positive)" : "var(--brand)"} />
-                  <div className="muted mt-2 flex justify-between text-[11px]">
+                  <div className="muted mt-2 flex justify-between text-[length:var(--fs-xs)]">
                     <span className="num" dir="rtl">
                       {formatPct(g.progress, 0)}
                     </span>
@@ -152,14 +152,14 @@ export default async function GoalsPage() {
                 const targetD = formatTomanPrimary(f.targetToman ?? f.targetBase, fx.rate);
                 return (
                   <li key={f.id}>
-                    <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[13px]">
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[length:var(--fs-sm)]">
                       <span className="font-medium">
                         {f.name}
                         <span className="badge badge-neutral mr-2">{FUND_KIND[f.kind] ?? f.kind}</span>
                       </span>
                       <span className="num" dir="rtl">
                         <b>{savedD.primary}</b>{" "}
-                        <span className="muted text-[11px]">از {targetD.primary}</span>
+                        <span className="muted text-[length:var(--fs-xs)]">از {targetD.primary}</span>
                       </span>
                     </div>
                     <Progress value={f.progress} color="var(--info)" />
@@ -201,7 +201,7 @@ export default async function GoalsPage() {
                   return (
                     <li key={x.id} className="flex items-center justify-between gap-3 py-2.5">
                       <div className="min-w-0">
-                        <p className="flex items-center gap-2 truncate text-[13px] font-medium">
+                        <p className="flex items-center gap-2 truncate text-[length:var(--fs-sm)] font-medium">
                           {x.title}
                           <span className="badge badge-neutral">{x.badge}</span>
                           {x.recurrence && x.recurrence !== "none" && (
@@ -211,7 +211,7 @@ export default async function GoalsPage() {
                         <p className="muted num mt-0.5 text-[length:var(--fs-xs)]">{formatJalaliIso(x.date)}</p>
                       </div>
                       <span className="flex shrink-0 flex-col items-end">
-                        <span className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
+                        <span className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
                           {disp.primary}
                         </span>
                         {disp.usdHint && (
@@ -233,7 +233,7 @@ export default async function GoalsPage() {
         <div className="grid gap-2.5 lg:grid-cols-2">
           <details className="card group overflow-hidden">
             <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-              <span className="text-[13.5px] font-semibold">هدف جدید</span>
+              <span className="text-[length:var(--fs-sm)] font-semibold">هدف جدید</span>
               <span className="muted transition-transform group-open:rotate-180">
                 <Icon name="chevronDown" size={15} />
               </span>
@@ -244,7 +244,7 @@ export default async function GoalsPage() {
           </details>
           <details className="card group overflow-hidden">
             <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-              <span className="text-[13.5px] font-semibold">رویداد جدید</span>
+              <span className="text-[length:var(--fs-sm)] font-semibold">رویداد جدید</span>
               <span className="muted transition-transform group-open:rotate-180">
                 <Icon name="chevronDown" size={15} />
               </span>

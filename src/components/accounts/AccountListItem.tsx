@@ -87,11 +87,11 @@ export default function AccountListItem({
           />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="acct-title text-[12.5px] font-semibold sm:text-[13px]">{safeName}</p>
+          <p className="acct-title text-[length:var(--fs-xs)] font-semibold sm:text-[length:var(--fs-sm)]">{safeName}</p>
         </div>
       </div>
       <div className="acct-amount max-w-[48%] shrink-0 text-left">
-        <p className="num money-nowrap text-[12px] font-bold leading-6 sm:text-[13px]" dir="rtl">
+        <p className="num money-nowrap text-[length:var(--fs-xs)] font-bold leading-6 sm:text-[length:var(--fs-sm)]" dir="rtl">
           {primary}
         </p>
         {exactSecondary && (

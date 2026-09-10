@@ -63,7 +63,7 @@ function InsightRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-0.5">
       <dt className="muted min-w-0 text-[length:var(--fs-xs)] leading-4">{label}</dt>
-      <dd className="num text-[11.5px] font-semibold" dir="rtl">
+      <dd className="num text-[length:var(--fs-xs)] font-semibold" dir="rtl">
         {value}
       </dd>
     </div>
@@ -127,7 +127,7 @@ export default async function InstallmentsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="اقساط" subtitle="مبلغ تومان هر قسط ثابت است؛ معادل دلاری قسط پرداخت‌نشده با نرخ روز محاسبه می‌شود و برای قسط پرداخت‌شده روی نرخ لحظه پرداخت منجمد می‌ماند." />
+      <PageHeader title="اقساط" subtitle="مبلغ تومان هر قسط ثابت است؛ معادل دلاری با نرخ روز محاسبه می‌شود." />
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
         <Metric label="معوق" value={faCount(overdueList.length)} tone={overdueList.length ? "down" : "neutral"} />
@@ -147,15 +147,15 @@ export default async function InstallmentsPage() {
       {insight && (
         <section className="card px-4 py-3">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <h2 className="text-[12.5px] font-semibold">{insightLabel}</h2>
-            <div className="text-[13px] font-bold money-nowrap" dir="rtl" style={insightColor ? { color: insightColor } : undefined}>
+            <h2 className="text-[length:var(--fs-xs)] font-semibold">{insightLabel}</h2>
+            <div className="text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl" style={insightColor ? { color: insightColor } : undefined}>
               {insight.direction === "unchanged" ? (
                 insightWord
               ) : (
                 <>
                   {formatMoney(insight.amountUsd, "USD")}{" "}
-                  <span className="text-[11px] font-semibold">{insightWord}</span>{" "}
-                  <span className="text-[11px] font-semibold">{formatPctIsolated(insight.percent, 1)}</span>
+                  <span className="text-[length:var(--fs-xs)] font-semibold">{insightWord}</span>{" "}
+                  <span className="text-[length:var(--fs-xs)] font-semibold">{formatPctIsolated(insight.percent, 1)}</span>
                 </>
               )}
             </div>
@@ -249,16 +249,16 @@ export default async function InstallmentsPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span className="shrink-0 text-[12.5px] font-semibold leading-6">
+                          <span className="shrink-0 text-[length:var(--fs-xs)] font-semibold leading-6">
                             قسط <span className="num" dir="ltr">#{r.seq}</span>
                           </span>
                           {statusBadge}
                         </div>
-                        <div className="mt-1 truncate text-[12px] font-medium" title={r.title}>{r.title}</div>
+                        <div className="mt-1 truncate text-[length:var(--fs-xs)] font-medium" title={r.title}>{r.title}</div>
                         <div className="muted truncate text-[length:var(--fs-xs)]" title={r.creditor}>{r.creditor}</div>
                       </div>
                       <div className="shrink-0 text-left">
-                        <div className="num text-[13px] font-bold money-nowrap" dir="rtl">
+                        <div className="num text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
                           {primary}
                         </div>
                         <InstallmentUsdLine fx={r.fx} />
@@ -266,7 +266,7 @@ export default async function InstallmentsPage() {
                     </div>
 
                     <div
-                      className="mt-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-t pt-2 text-[11px] leading-5"
+                      className="mt-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-t pt-2 text-[length:var(--fs-xs)] leading-5"
                       style={{ borderColor: "var(--border)" }}
                     >
                       <span className="muted">
@@ -290,7 +290,7 @@ export default async function InstallmentsPage() {
                       <div className="mt-2 grid grid-cols-2 gap-2">
                         <Link
                           href={formHref}
-                          className="btn btn-soft !min-h-10 !px-2 !py-2 text-[11.5px]"
+                          className="btn btn-soft !min-h-10 !px-2 !py-2 text-[length:var(--fs-xs)]"
                         >
                           باز کردن در فرم
                         </Link>
@@ -345,14 +345,14 @@ export default async function InstallmentsPage() {
                           )}
                         </td>
                         <td style={{ minWidth: "9rem" }}>
-                          <span className="block text-[12.5px] font-medium">{r.title}</span>
+                          <span className="block text-[length:var(--fs-xs)] font-medium">{r.title}</span>
                           <span className="muted block text-[length:var(--fs-xs)]">{r.creditor}</span>
                         </td>
                         <td className="num hidden sm:table-cell" dir="ltr">
                           #{r.seq}
                         </td>
                         <td style={{ whiteSpace: "nowrap" }}>
-                          <span className="num block text-[12px]">{formatJalaliIso(r.dueDate)}</span>
+                          <span className="num block text-[length:var(--fs-xs)]">{formatJalaliIso(r.dueDate)}</span>
                           {r.fx.isPaid && r.fx.paidAt ? (
                             <span className="muted text-[length:var(--fs-xs)]">
                               پرداخت{" "}
@@ -373,7 +373,7 @@ export default async function InstallmentsPage() {
                             <span className="row-actions flex justify-end gap-1">
                               <Link
                                 href={`/new?type=debt_repayment&installmentId=${r.id}&entryDate=${r.dueDate}&title=${encodeURIComponent(`قسط ${r.seq} — ${r.title}`)}`}
-                                className="btn btn-ghost !min-h-8 !px-2.5 !py-1 text-[11px]"
+                                className="btn btn-ghost !min-h-8 !px-2.5 !py-1 text-[length:var(--fs-xs)]"
                               >
                                 باز کردن در فرم
                               </Link>

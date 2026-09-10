@@ -138,7 +138,7 @@ export default async function FinancialAssetsPage() {
                     <span style={{ color: "var(--brand)" }}>
                       <Icon name={b.icon} size={16} />
                     </span>
-                    <span className="text-[12.5px] font-semibold">{b.name}</span>
+                    <span className="text-[length:var(--fs-xs)] font-semibold">{b.name}</span>
                   </span>
                   <p className="num mt-2.5 text-lg font-bold" dir="rtl">
                     {toIrt(b.value.toString()) ?? formatMoney(b.value.toString())}
@@ -165,7 +165,7 @@ export default async function FinancialAssetsPage() {
         </>
       )}
 
-      <p className="muted flex items-center gap-1.5 text-[11px]">
+      <p className="muted flex items-center gap-1.5 text-[length:var(--fs-xs)]">
         <Icon name="info" size={13} />
         قیمت‌های بازار فقط داده مرجع برای ارزش‌گذاری‌اند؛ هرگز تاریخچه تراکنش، بهای تمام‌شده یا سود محقق‌شده را تغییر
         نمی‌دهند.

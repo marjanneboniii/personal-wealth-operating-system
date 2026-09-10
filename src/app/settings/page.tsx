@@ -11,10 +11,8 @@ import RestorePanel from "@/components/RestorePanel";
 import { faCount, formatDate } from "@/lib/format";
 import { getCurrentUser, sanitizeUser } from "@/lib/auth";
 import { ensureAuth } from "@/lib/authGuard";
-import { getUserFxRate } from "@/features/fx/userRate";
-import { getUserProMode } from "@/features/preferences/service";
+import { refreshUserFxRateFromMarket } from "@/features/fx/userRate";
 import FxSettings from "@/components/settings/FxSettings";
-import ProModeToggle from "@/components/settings/ProModeToggle";
 import UserPanel from "@/components/settings/UserPanel";
 import AuthAccessCard from "@/components/auth/AuthAccessCard";
 
@@ -32,7 +30,7 @@ export default async function SettingsPage() {
   await seedIfEmpty();
   const user = await getCurrentUser();
   const uid = user?.id ?? null;
-  const [config, backups, counts, fx, proMode] = await Promise.all([
+  const [config, backups, counts, fx] = await Promise.all([
     db.select().from(settings).where(sql`${settings.deletedAt} is null`),
     db.select().from(backupRuns).orderBy(desc(backupRuns.createdAt)).limit(5),
     db.execute(sql`
@@ -42,8 +40,7 @@ export default async function SettingsPage() {
         (select count(*) from accounts a where a.deleted_at is null and ${uid ? sql`(a.user_id = ${uid} or a.user_id is null)` : sql`1=1`}) as accounts,
         (select count(*) from assets) as assets
     `),
-    user ? getUserFxRate(user.id) : Promise.resolve({ rate: "190000", lastUpdatedAt: null, nextUpdateAt: null, canUpdate: false } as any),
-    getUserProMode(uid),
+    user ? refreshUserFxRateFromMarket(user.id) : Promise.resolve({ rate: "190000", lastUpdatedAt: null, source: "default" } as any),
   ]);
   const c = counts.rows[0] as Record<string, string>;
 
@@ -60,29 +57,14 @@ export default async function SettingsPage() {
         </>
       )}
 
-      <Section title="نمایش و حالت حرفه‌ای" hint="سراسری — روی همه صفحات اعمال می‌شود">
-        {user ? (
-          <ProModeToggle initialPro={proMode} />
-        ) : (
-          <div className="card p-4 text-[12.5px] leading-5">
-            برای انتخاب بین <b>نمای ساده</b> (پیش‌فرض) و <b>حالت حرفه‌ای</b> (نمایش کد معین، بدهکار/بستانکار
-            و جزئیات دفتر کل)، ابتدا وارد حساب خود شوید. این تنظیم به‌صورت اختصاصی برای هر کاربر ذخیره می‌شود.
-          </div>
-        )}
-      </Section>
 
       <Section title="نرخ ارز — ارزش‌گذاری جاری">
         {user ? (
-          <FxSettings
-            currentRate={fx.rate}
-            lastUpdatedAt={fx.lastUpdatedAt}
-            nextUpdateAt={fx.nextUpdateAt}
-            canUpdate={fx.canUpdate}
-          />
+          <FxSettings currentRate={fx.rate} lastUpdatedAt={fx.lastUpdatedAt} source={fx.source} />
         ) : (
           <AuthAccessCard
             title="ورود و Auth کاربر در دسترس است"
-            body="برای فعال‌کردن ثبت دستی نرخ ارز و جداسازی داده‌ها، از همین‌جا وارد شوید یا حساب بسازید. ورود با Google نیز در همین کارت نمایش داده می‌شود."
+            body="برای دیدن نرخ مرجع وارد شوید."
           />
         )}
       </Section>
@@ -92,7 +74,7 @@ export default async function SettingsPage() {
           <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
             {config.map((s) => (
               <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <span className="text-[13px]">{LABELS[s.key] ?? s.key}</span>
+                <span className="text-[length:var(--fs-sm)]">{LABELS[s.key] ?? s.key}</span>
                 <span className="num chip" dir="ltr">
                   {s.value}
                 </span>
@@ -100,7 +82,7 @@ export default async function SettingsPage() {
             ))}
           </ul>
         </div>
-        <p className="muted mt-2 flex items-center gap-1.5 text-[11px]">
+        <p className="muted mt-2 flex items-center gap-1.5 text-[length:var(--fs-xs)]">
           <Icon name="info" size={13} />
           پوسته روشن/تاریک از نوار بالا (موبایل) یا پایین سایدبار (دسکتاپ) تغییر می‌کند و در همین دستگاه ذخیره می‌شود.
         </p>
@@ -116,7 +98,7 @@ export default async function SettingsPage() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <RowAction kind="integrity" label="بررسی تراز همه اسناد" primary />
           <RowAction kind="snapshot" label="ثبت اسنپ‌شات" />
-          <Link href="/audit" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[12px]">
+          <Link href="/audit" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
             <Icon name="audit" size={15} />
             گزارش یکپارچگی کامل
           </Link>
@@ -134,8 +116,8 @@ export default async function SettingsPage() {
                   <Icon name="ledger" size={18} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium">سوابق مالی</span>
-                  <span className="muted block text-[11px]">جزئیات کامل هر تراکنش و مسیر پول</span>
+                  <span className="block text-[length:var(--fs-sm)] font-medium">سوابق مالی</span>
+                  <span className="muted block text-[length:var(--fs-xs)]">جزئیات کامل هر تراکنش و مسیر پول</span>
                 </span>
                 <Icon name="chevronLeft" size={16} className="shrink-0 opacity-50" />
               </Link>
@@ -146,15 +128,15 @@ export default async function SettingsPage() {
                   <Icon name="audit" size={18} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium">حسابرسی</span>
-                  <span className="muted block text-[11px]">تاریخچه تغییرات: چه کسی، چه چیزی را، کِی تغییر داد</span>
+                  <span className="block text-[length:var(--fs-sm)] font-medium">حسابرسی</span>
+                  <span className="muted block text-[length:var(--fs-xs)]">تاریخچه تغییرات: چه کسی، چه چیزی را، کِی تغییر داد</span>
                 </span>
                 <Icon name="chevronLeft" size={16} className="shrink-0 opacity-50" />
               </Link>
             </li>
           </ul>
         </div>
-        <p className="muted mt-2 flex items-center gap-1.5 text-[11px]">
+        <p className="muted mt-2 flex items-center gap-1.5 text-[length:var(--fs-xs)]">
           <Icon name="info" size={13} />
           «سوابق مالی» اثر مالی رویدادهاست و «حسابرسی» تاریخچه تغییرات — این دو یکی نیستند.
         </p>

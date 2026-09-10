@@ -27,7 +27,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       <h1 className="text-xl font-bold tracking-tight">
         {isDb ? "نمی‌توانیم اطلاعات مالی را بخوانیم" : "مشکلی در نمایش این صفحه پیش آمد"}
       </h1>
-      <p className="sub mt-2 max-w-md text-[13px] leading-6">
+      <p className="sub mt-2 max-w-md text-[length:var(--fs-sm)] leading-6">
         {isDb
           ? "اتصال به پایگاه داده قطع است. داده‌های شما امن‌اند — هیچ چیزی حذف نشده. شاید سرور پایگاه داده خواب است؛ چند ثانیه دیگر دوباره تلاش کنید."
           : "یک خطای غیرمنتظره رخ داد. داده‌های مالی شما در دفترکل امن‌اند و این خطا هیچ تغییری در آن‌ها ایجاد نکرده است."}

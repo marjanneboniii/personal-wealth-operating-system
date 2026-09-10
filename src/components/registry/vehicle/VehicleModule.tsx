@@ -39,7 +39,7 @@ export default function VehicleModule({
     <section className="card p-5">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[13px] sm:text-[14px] font-bold tracking-tight">🚗 دارایی واقعی ← خودرو</h2>
+          <h2 className="text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)] font-bold tracking-tight">🚗 دارایی واقعی ← خودرو</h2>
         </div>
         <div className="seg" role="group" aria-label="بخش خودرو">
           <button type="button" onClick={() => setTab("vehicles")} className={tab === "vehicles" ? "seg-on" : ""} aria-pressed={tab === "vehicles"}>
@@ -96,8 +96,8 @@ export default function VehicleModule({
           )}
           {dashboard.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-[13px] font-semibold">هنوز خودرویی ثبت نشده است</p>
-              <p className="muted mx-auto mt-1 max-w-md text-[11.5px] leading-6">
+              <p className="text-[length:var(--fs-sm)] font-semibold">هنوز خودرویی ثبت نشده است</p>
+              <p className="muted mx-auto mt-1 max-w-md text-[length:var(--fs-xs)] leading-6">
                 برند و مدل را از کاتالوگ انتخاب کنید، سال ساخت، تاریخ تملک و قیمت خرید را وارد کنید؛ معادل دلاری با نرخ
                 همان تاریخ ذخیره می‌شود.
               </p>

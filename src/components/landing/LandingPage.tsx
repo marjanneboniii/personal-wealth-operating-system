@@ -45,8 +45,8 @@ const STEPS: { icon: IconName; title: string; body: string }[] = [
   },
   {
     icon: "scale",
-    title: "توازن خودکار محاسبه می‌کند",
-    body: "ارزش خالص، نقدینگی و روند تغییرات به‌طور لحظه‌ای به‌روزرسانی می‌شود.",
+    title: "توازن خودش حساب می‌کند",
+    body: "ارزش خالص، نقدینگی و روند تغییرات با هر ثبت به‌روز می‌شود.",
   },
   {
     icon: "overview",
@@ -58,22 +58,22 @@ const STEPS: { icon: IconName; title: string; body: string }[] = [
 const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "آیا استفاده از توازن رایگان است؟",
-    answer: "بله؛ استفاده از توازن رایگان است و برای شروع فقط به یک حساب کاربری نیاز دارید.",
+    answer: "بله. برای شروع فقط یک حساب کاربری لازم است.",
   },
   {
     question: "آیا باید حساب بانکی‌ام را وصل کنم؟",
     answer:
-      "خیر؛ توازن هیچ اتصالی به حساب بانکی شما ندارد. دارایی‌ها و بدهی‌ها را خودتان وارد می‌کنید و همیشه کنترل کامل داده‌هایتان را دارید.",
+      "خیر. توازن به هیچ حساب بانکی وصل نمی‌شود؛ دارایی‌ها و بدهی‌ها را خودتان وارد می‌کنید.",
   },
   {
     question: "اطلاعات مالی من کجا ذخیره می‌شود و چقدر امن است؟",
     answer:
-      "داده‌های شما به حساب کاربری‌تان وابسته است و فقط پس از ورود در دسترس قرار می‌گیرد. رمز عبور هرگز به‌صورت خام ذخیره نمی‌شود و صفحات مالی در حافظه آفلاین مرورگر ذخیره نمی‌شوند. جزئیات بیشتر را در صفحه حریم خصوصی بخوانید.",
+      "روی سرور توازن و مقیّد به حساب کاربری شما؛ بدون ورود در دسترس نیست. رمز عبور هرگز به‌صورت قابل‌خواندن ذخیره نمی‌شود و صفحه‌های مالی در حافظه آفلاین مرورگر باقی نمی‌مانند. جزئیات در صفحه حریم خصوصی.",
   },
   {
-    question: "آیا می‌توانم چند نوع دارایی مختلف (ملک، طلا، ارز دیجیتال...) اضافه کنم؟",
+    question: "آیا می‌توانم انواع دارایی را کنار هم داشته باشم — ملک، طلا، ارز دیجیتال؟",
     answer:
-      "بله؛ حساب بانکی و کیف پول، ملک، خودرو، طلا، سرمایه‌گذاری و ارز دیجیتال — همه در یک‌جا ثبت و ارزش‌گذاری می‌شوند. قیمت کالاهای مصرفی هم در «ردیاب تورم شخصی» جداگانه دنبال می‌شود و جزو دارایی‌ها حساب نمی‌شود.",
+      "بله. حساب بانکی و کیف پول، ملک، خودرو، طلا، سرمایه‌گذاری و ارز دیجیتال، همه در یک‌جا ثبت و ارزش‌گذاری می‌شوند. قیمت کالاهای مصرفی هم در «ردیاب تورم شخصی» جدا دنبال می‌شود و جزو دارایی‌ها حساب نمی‌شود.",
   },
 ];
 
@@ -109,7 +109,7 @@ function ProductPreview() {
         <p className="landing-preview-badge">نمونه نمایشی</p>
       </div>
       <div className="landing-preview-body">
-        <figcaption className="landing-preview-label">یک نمونه واقعی از داشبورد توازن:</figcaption>
+        <figcaption className="landing-preview-label">نمایی از داشبورد توازن</figcaption>
         <p className="landing-preview-label mt-3">ارزش خالص</p>
         <p className="display-num landing-preview-hero-amount">
           <AnimatedAmount value={PREVIEW_SAMPLE.netWorth} />
@@ -235,7 +235,7 @@ export default function LandingPage() {
       <section className="landing-band">
         <div className="landing-wrap landing-section" aria-labelledby="steps-title">
           <h2 id="steps-title" className="landing-h2">
-            شروع، ساده‌تر از یک صفحه‌گسترده.
+            شروع، ساده‌تر از یک فایل اکسل.
           </h2>
           <div className="landing-outcomes">
             {STEPS.map((item) => (
@@ -259,8 +259,8 @@ export default function LandingPage() {
             خصوصی، شفاف، تحت کنترل شما.
           </h2>
           <p className="landing-support">
-            اطلاعات مالی شما فقط برای خودتان است. داده‌های شما محرمانه می‌ماند و هرگز با شخص ثالثی به اشتراک گذاشته یا
-            فروخته نمی‌شود. توازن نیازی به اتصال مستقیم حساب بانکی ندارد — شما همیشه کنترل کامل روی داده‌های خود دارید.
+            داده‌های مالی شما محرمانه می‌ماند و هرگز با کسی به اشتراک گذاشته یا فروخته نمی‌شود. کنترل کامل داده‌ها همیشه
+            دست خودتان است.
           </p>
           <p className="landing-support landing-trust-links">
             <Link href="/privacy" className="font-medium">
@@ -279,7 +279,7 @@ export default function LandingPage() {
       <section className="landing-band">
         <div className="landing-wrap landing-section" aria-labelledby="faq-title">
           <h2 id="faq-title" className="landing-h2">
-            سوالات متداول
+            سؤالات متداول
           </h2>
           <FaqAccordion />
         </div>

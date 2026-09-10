@@ -120,7 +120,7 @@ export default function AdvancedFilter({
               onChange={(e) => onQuery(e.target.value)}
               placeholder={search.placeholder}
               aria-label={search.ariaLabel}
-              className="field !min-h-9 !py-1.5 pr-9 text-[13px]"
+              className="field !min-h-9 !py-1.5 pr-9 text-[length:var(--fs-sm)]"
             />
           </div>
         )}
@@ -141,7 +141,7 @@ export default function AdvancedFilter({
                   key={f.key}
                   value={f.value}
                   onChange={(e) => f.onChange(e.target.value)}
-                  className={`field !min-h-9 !w-auto !py-1.5 text-[12.5px] ${f.maxWidthClass ?? ""}`}
+                  className={`field !min-h-9 !w-auto !py-1.5 text-[length:var(--fs-xs)] ${f.maxWidthClass ?? ""}`}
                   aria-label={f.label}
                 >
                   <option value="">{f.placeholder}</option>
@@ -177,7 +177,7 @@ export default function AdvancedFilter({
           </details>
         )}
         {isFiltered && onClear && (
-          <button type="button" className="btn btn-ghost !min-h-8 !px-2 !py-1 text-[11.5px]" onClick={onClear}>
+          <button type="button" className="btn btn-ghost !min-h-8 !px-2 !py-1 text-[length:var(--fs-xs)]" onClick={onClear}>
             <Icon name="x" size={13} />
             پاک کردن
           </button>

@@ -176,11 +176,11 @@ export default async function ObligationsPage() {
                         <span className={late ? "badge badge-neg" : soon ? "badge badge-warn" : "badge badge-neutral"}>{r.badge}</span>
                       </td>
                       <td style={{ minWidth: "9rem" }}>
-                        <span className="block text-[12.5px] font-medium">{r.title}</span>
+                        <span className="block text-[length:var(--fs-xs)] font-medium">{r.title}</span>
                         {r.detail && <span className="muted block text-[length:var(--fs-xs)]">{r.detail}</span>}
                       </td>
                       <td style={{ whiteSpace: "nowrap" }}>
-                        <span className="num block text-[12px]">{formatJalaliIso(r.date)}</span>
+                        <span className="num block text-[length:var(--fs-xs)]">{formatJalaliIso(r.date)}</span>
                         <span className="muted num text-[length:var(--fs-xs)]">{formatDaysUntil(d)}</span>
                       </td>
                       <td className="td-num font-bold" dir="rtl">
@@ -196,7 +196,7 @@ export default async function ObligationsPage() {
         )}
       </Section>
 
-      <p className="muted flex items-center gap-1.5 text-[11px]">
+      <p className="muted flex items-center gap-1.5 text-[length:var(--fs-xs)]">
         <Icon name="info" size={13} />
         برای پرداخت واقعی یک قسط، از «اقساط» یا فرم ثبت تراکنش استفاده کنید تا اثر مالی آن به‌درستی در سوابق مالی ثبت شود.
       </p>

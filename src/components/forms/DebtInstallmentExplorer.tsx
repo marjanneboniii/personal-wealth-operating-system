@@ -96,7 +96,7 @@ export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectI
   return (
     <div className="card p-4 space-y-3 border" style={{ borderColor: "var(--border)" }}>
       <div className="text-xs font-bold">بدهی یا قسط خود را انتخاب کنید</div>
-      <div className="muted text-[11px]">با انتخاب هر مورد، مبلغ و جزئیات پرداخت به‌صورت خودکار تکمیل می‌شود.</div>
+      <div className="muted text-[length:var(--fs-xs)]">با انتخاب هر مورد، مبلغ و جزئیات پرداخت به‌صورت خودکار تکمیل می‌شود.</div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
         <input
@@ -184,8 +184,7 @@ export default function DebtInstallmentExplorer({ debts, onSelectDebt, onSelectI
         )}
       </div>
       <div className="muted text-[length:var(--fs-xs)] leading-5">
-        پس از انتخاب، مبلغ به تومان، معادل دلاری، نرخ و حساب پرداخت به‌صورت خودکار تکمیل می‌شود. تا قبل از «تأیید نهایی» هیچ تغییری ثبت نمی‌شود.
-      </div>
+        مبلغ و حساب پرداخت خودکار پر می‌شود. تا تأیید نهایی چیزی ثبت نمی‌شود.</div>
     </div>
   );
 }

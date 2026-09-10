@@ -88,14 +88,14 @@ export default async function BudgetsPage() {
                 <li key={b.id} className="card p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <p className="text-[12px] sm:text-[13px] font-semibold">{b.name}</p>
+                      <p className="text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-semibold">{b.name}</p>
                       {b.accountName && <span className="badge badge-neutral">{b.accountName}</span>}
                       {over && <span className="badge badge-neg">خارج از چارچوب</span>}
                       {almost && <span className="badge badge-warn">نزدیک به سقف</span>}
                     </div>
                     <div className="text-left">
-                      <p className="num text-[12px] sm:text-[12px] money-nowrap" dir="rtl">
-                        <b className="text-[12px] sm:text-[13px] money-nowrap" style={{ color }}>
+                      <p className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
+                        <b className="text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] money-nowrap" style={{ color }}>
                           {spentD.primary}
                         </b>{" "}
                         <span className="muted">از {limitD.primary}</span>
@@ -110,7 +110,7 @@ export default async function BudgetsPage() {
                   <div className="meter mt-3">
                     <i style={{ width: `${Math.min(100, b.usage)}%`, background: color }} />
                   </div>
-                  <div className="muted mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  <div className="muted mt-2 flex flex-wrap items-center justify-between gap-2 text-[length:var(--fs-xs)]">
                     <span className="num">
                       {formatDualDate(b.periodStart)} ← {formatDualDate(b.periodEnd)}
                     </span>
@@ -130,7 +130,7 @@ export default async function BudgetsPage() {
       <Section title="تعریف بودجه جدید">
         <details className="card group overflow-hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-            <span className="text-[13.5px] font-semibold">بودجه برای یک دسته هزینه</span>
+            <span className="text-[length:var(--fs-sm)] font-semibold">بودجه برای یک دسته هزینه</span>
             <span className="muted transition-transform group-open:rotate-180">
               <Icon name="chevronDown" size={15} />
             </span>

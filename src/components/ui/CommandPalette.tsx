@@ -139,7 +139,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
               setIndex(0);
             }}
             placeholder="جستجو یا رفتن به… (مثلاً «تراکنش»، «سوابق مالی»، «ثبت هزینه»)"
-            className="h-12 w-full bg-transparent text-[14px] outline-none placeholder:opacity-40"
+            className="h-12 w-full bg-transparent text-[length:var(--fs-sm)] outline-none placeholder:opacity-40"
             role="combobox"
             aria-expanded="true"
             aria-controls="cmdk-list"
@@ -150,9 +150,9 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
 
         <div ref={listRef} id="cmdk-list" role="listbox" className="min-h-0 flex-1 overflow-y-auto p-1.5">
           {results.length === 0 && (
-            <div className="muted px-4 py-10 text-center text-[13px]">
+            <div className="muted px-4 py-10 text-center text-[length:var(--fs-sm)]">
               چیزی پیدا نشد.
-              <div className="mt-1 text-[11px]">نام صفحه یا اقدام را جستجو کنید — مثلاً «ارزش خالص» یا «ثبت درآمد».</div>
+              <div className="mt-1 text-[length:var(--fs-xs)]">نام صفحه یا اقدام را جستجو کنید — مثلاً «ارزش خالص» یا «ثبت درآمد».</div>
             </div>
           )}
           {items.map((item) =>
@@ -185,10 +185,10 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                   <Icon name={item.cmd.icon} size={16} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13.5px] font-medium" style={{ color: item.idx === index ? "var(--brand)" : "var(--text)" }}>
+                  <span className="block truncate text-[length:var(--fs-sm)] font-medium" style={{ color: item.idx === index ? "var(--brand)" : "var(--text)" }}>
                     {item.cmd.label}
                   </span>
-                  {item.cmd.hint && <span className="muted block truncate text-[11px]">{item.cmd.hint}</span>}
+                  {item.cmd.hint && <span className="muted block truncate text-[length:var(--fs-xs)]">{item.cmd.hint}</span>}
                 </span>
                 {item.idx === index && <kbd className="kbd shrink-0">↵</kbd>}
               </button>

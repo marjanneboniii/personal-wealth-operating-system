@@ -9,7 +9,7 @@ export function DualMoneyFromIrt({ irt, rate }: PropsIrt) {
   const { irt: irtLabel, usd, rateLabel } = formatDualMoneyFromIrt(irt, rate, "fa");
   return (
     <span className="inline-flex flex-col items-start gap-1 min-w-0">
-      <span className="type-financial num money-nowrap text-[13px] sm:text-[14px]" dir="rtl">{irtLabel}</span>
+      <span className="type-financial num money-nowrap text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)]" dir="rtl">{irtLabel}</span>
       <span className="type-caption flex flex-wrap items-center gap-1 money-nowrap">
         معادل: <span className="num money-nowrap text-[length:var(--fs-xs)]" dir="ltr" style={{ color: "var(--brand)" }}>{usd}</span>
       </span>
@@ -22,7 +22,7 @@ export function DualMoneyFromUsd({ usd, rate }: PropsUsd) {
   const { irt, usd: usdLabel, rateLabel } = formatDualMoneyFromUsd(usd, rate, "fa");
   return (
     <span className="inline-flex flex-col items-start gap-1 min-w-0">
-      <span className="type-financial num money-nowrap text-[13px] sm:text-[14px]" dir="rtl">{irt}</span>
+      <span className="type-financial num money-nowrap text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)]" dir="rtl">{irt}</span>
       <span className="type-caption flex flex-wrap items-center gap-1 money-nowrap">
         معادل: <span className="num money-nowrap text-[length:var(--fs-xs)]" dir="ltr" style={{ color: "var(--brand)" }}>{usdLabel}</span>
       </span>

@@ -58,10 +58,10 @@ export default async function AuditPage() {
             <Icon name={allOk ? "check-circle" : fails ? "xcircle" : "alert"} size={22} />
           </span>
           <div>
-            <p className="text-[16px] font-bold tracking-tight">
+            <p className="text-[length:var(--fs-md)] font-bold tracking-tight">
               {allOk ? null : fails ? `${faCount(fails)} مشکل جدی نیاز به اقدام دارد` : "قابل اعتماد، با چند نکته"}
             </p>
-            <p className="sub text-[12px]">
+            <p className="sub text-[length:var(--fs-xs)]">
               {allOk
                 ? null
                 : `${faCount(checks.filter((c) => c.status === "pass").length)} آزمون موفق · ${faCount(warnings)} هشدار · ${faCount(fails)} خطا`}
@@ -99,22 +99,22 @@ export default async function AuditPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-[14px] font-semibold tracking-tight">{c.title}</h3>
+                      <h3 className="text-[length:var(--fs-sm)] font-semibold tracking-tight">{c.title}</h3>
                       <span className="badge" style={{ background: ui.bg, color: ui.color }}>
                         {c.severityLabel}
                       </span>
                       {c.affected > 0 && <span className="badge badge-neutral num">{c.affected} رکورد</span>}
                     </div>
-                    <p className="sub mt-1 text-[12px] leading-5">{c.description}</p>
-                    <p className="mt-2 text-[12.5px] font-medium" style={{ color: ui.color }}>
+                    <p className="sub mt-1 text-[length:var(--fs-xs)] leading-5">{c.description}</p>
+                    <p className="mt-2 text-[length:var(--fs-xs)] font-medium" style={{ color: ui.color }}>
                       {c.outcome}
                     </p>
                     {c.samples.length > 0 && (
                       <details className="mt-2">
-                        <summary className="muted cursor-pointer text-[11px] underline underline-offset-2">
+                        <summary className="muted cursor-pointer text-[length:var(--fs-xs)] underline underline-offset-2">
                           مشاهده {faCount(c.samples.length)} رکورد متاثر
                         </summary>
-                        <ul className="sub mt-1.5 space-y-1 text-[11.5px]">
+                        <ul className="sub mt-1.5 space-y-1 text-[length:var(--fs-xs)]">
                           {c.samples.map((s, i) => (
                             <li key={i} className="flex gap-2">
                               <span className="muted">·</span>
@@ -131,7 +131,7 @@ export default async function AuditPage() {
                     </div>
                   </div>
                   {c.action && (
-                    <Link href={c.action.href} className="btn btn-soft !min-h-9 shrink-0 !px-3.5 !py-1.5 text-[12px]">
+                    <Link href={c.action.href} className="btn btn-soft !min-h-9 shrink-0 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]">
                       {c.action.label}
                     </Link>
                   )}

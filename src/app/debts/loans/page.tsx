@@ -90,7 +90,7 @@ export default async function LoansPage() {
             <EmptyState
               icon="card"
               title="وامی ثبت نشده است"
-              body="تسهیلات واقعی (دارای نرخ سود یا متصل به حساب بدهی دفترکل) در این بخش دیده می‌شوند. برنامه‌های قسطی خرید، وام نیستند و در «بدهی‌ها» و «اقساط» نمایش داده می‌شوند."
+              body="وام‌هایی که نرخ سود دارند یا در سوابق مالی ثبت شده‌اند."
               action={
                 <Link href="/debts" className="btn btn-primary">
                   ثبت بدهی جدید
@@ -119,12 +119,12 @@ export default async function LoansPage() {
                   <li key={d.id} className="card p-4 sm:p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="flex flex-wrap items-center gap-2 text-[12px] sm:text-[13px] font-semibold tracking-tight money-nowrap">
+                        <p className="flex flex-wrap items-center gap-2 text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-semibold tracking-tight money-nowrap">
                           {d.title}
                           <span className={isSettled ? "badge badge-pos" : "badge badge-neutral"}>{isSettled ? "تسویه شد" : "فعال"}</span>
                           {late && <span className="badge badge-neg">قسط معوق</span>}
                         </p>
-                        <p className="muted mt-1 text-[11.5px]">
+                        <p className="muted mt-1 text-[length:var(--fs-xs)]">
                           {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود{" "}
                           <span className="num" dir="rtl">
                             {formatQty(d.interestRate, 2)}٪
@@ -145,7 +145,7 @@ export default async function LoansPage() {
 
                     {d.totalCount > 0 && (
                       <div className="mt-4">
-                        <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                        <div className="mb-1.5 flex items-center justify-between text-[length:var(--fs-xs)]">
                           <span className="muted">
                             <span className="num" dir="rtl">
                               {faCount(d.paidCount)} از {faCount(d.totalCount)}
@@ -161,7 +161,7 @@ export default async function LoansPage() {
                     )}
 
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3.5" style={{ borderColor: "var(--border)" }}>
-                      <p className="text-[12px]" style={{ color: late ? "var(--negative)" : "var(--text-2)" }}>
+                      <p className="text-[length:var(--fs-xs)]" style={{ color: late ? "var(--negative)" : "var(--text-2)" }}>
                         {d.nextDue ? (
                           <>
                             قسط بعدی:{" "}
@@ -176,7 +176,7 @@ export default async function LoansPage() {
                           "اقساطی تعریف نشده است."
                         )}
                       </p>
-                      <Link href="/debts/installments" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[12px]">
+                      <Link href="/debts/installments" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
                         برنامه اقساط
                       </Link>
                     </div>

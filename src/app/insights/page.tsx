@@ -260,11 +260,11 @@ export default async function InsightsPage() {
                     <Icon name={n.icon} size={16} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13.5px] font-semibold">{n.title}</p>
-                    <p className="muted mt-0.5 text-[11.5px] leading-5">{n.body}</p>
+                    <p className="text-[length:var(--fs-sm)] font-semibold">{n.title}</p>
+                    <p className="muted mt-0.5 text-[length:var(--fs-xs)] leading-5">{n.body}</p>
                   </div>
                   {n.href && (
-                    <Link href={n.href} className="btn btn-ghost !min-h-8 !px-3 !py-1 text-[11.5px]">
+                    <Link href={n.href} className="btn btn-ghost !min-h-8 !px-3 !py-1 text-[length:var(--fs-xs)]">
                       {n.action}
                     </Link>
                   )}
@@ -291,7 +291,7 @@ export default async function InsightsPage() {
               const frozen = c.entries > 0 && c.entries === c.entriesWithSnap && D(c.totalToman).gt(0);
               return (
                 <li key={c.categoryId}>
-                  <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
+                  <div className="mb-1 flex items-baseline justify-between gap-2 text-[length:var(--fs-xs)]">
                     <span className="min-w-0 truncate font-medium">
                       {c.name}
                       {c.parentName && <span className="muted mr-1.5 text-[length:var(--fs-xs)]">· {c.parentName}</span>}
@@ -330,13 +330,13 @@ export default async function InsightsPage() {
           <ul className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
             {byClass.map((c) => (
               <li key={c.className} className="flex items-center justify-between gap-3 border-b py-2.5 last:border-0" style={{ borderColor: "var(--border)" }}>
-                <span className="flex min-w-0 items-center gap-2.5 text-[13px]">
+                <span className="flex min-w-0 items-center gap-2.5 text-[length:var(--fs-sm)]">
                   <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: c.color }} />
                   <span className="truncate">{c.className}</span>
                 </span>
                 <span className="flex shrink-0 items-baseline gap-2">
                   <span className="flex flex-col items-end">
-                    <span className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
+                    <span className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
                       {toIrt(c.value) ?? formatMoney(c.value)}
                     </span>
                     {fx.rate && (
@@ -355,7 +355,7 @@ export default async function InsightsPage() {
         )}
       </Section>
 
-      <p className="muted flex items-center gap-1.5 text-[11px]">
+      <p className="muted flex items-center gap-1.5 text-[length:var(--fs-xs)]">
         <Icon name="info" size={13} />
         بینش‌ها مشتق از سوابق مالی موجودند و هرگز آن را تغییر نمی‌دهند. برای دیدن اثر حسابداری هر رویداد، به «سوابق مالی»
         مراجعه کنید.

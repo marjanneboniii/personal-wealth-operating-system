@@ -35,8 +35,8 @@ export default class ErrorBoundary extends Component<
         style={{ background: "var(--negative-soft)", color: "var(--negative)" }}
         role="alert"
       >
-        <p className="text-[13px] font-semibold">{this.props.title ?? "نمایش این بخش ممکن نیست"}</p>
-        <p className="muted mt-1 text-[11.5px] leading-6" style={{ color: "var(--text-2)" }}>
+        <p className="text-[length:var(--fs-sm)] font-semibold">{this.props.title ?? "نمایش این بخش ممکن نیست"}</p>
+        <p className="muted mt-1 text-[length:var(--fs-xs)] leading-6" style={{ color: "var(--text-2)" }}>
           {this.props.description ??
             "داده‌های مالی شما در دفترکل امن‌اند و این خطا هیچ تغییری در آن‌ها ایجاد نکرده است. بخش‌های دیگر صفحه همچنان کار می‌کنند."}
         </p>

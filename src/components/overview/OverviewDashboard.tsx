@@ -153,7 +153,7 @@ export default async function OverviewDashboard() {
     <div className="space-y-6 sm:space-y-8">
       {unavailableWidgets.length > 0 && (
         <Alert tone="warn" icon="alert" title="بخشی از نمای کلی فعلاً در دسترس نیست">
-          اطلاعات اصلی دارایی‌های شما نمایش داده می‌شود، اما برخی کارت‌ها بارگذاری نشدند. این موضوع هیچ تغییری در دفترکل شما ایجاد نکرده است؛ چند لحظه دیگر صفحه را تازه‌سازی کنید.
+          بخشی از کارت‌ها بارگذاری نشد. داده‌های شما تغییری نکرده — چند لحظه دیگر تازه‌سازی کنید.
         </Alert>
       )}
       {!setupState.completed && (
@@ -186,7 +186,7 @@ export default async function OverviewDashboard() {
                   value={deltaAbs}
                   pct={deltaPct}
                   suffix={lastSnap ? `از ${formatShortDate(lastSnap.asOf)}` : undefined}
-                  className="text-[12px] sm:text-[13px]"
+                  className="text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)]"
                 />
               )}
             </div>

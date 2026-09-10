@@ -139,7 +139,7 @@ export default function Sheet({
         <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full sm:hidden" style={{ background: "var(--border-strong)" }} />
         {title && (
           <div className="flex shrink-0 items-center justify-between border-b px-4 py-3" style={{ borderColor: "var(--border)" }}>
-            <h2 id="sheet-title" className="text-[15px] font-semibold tracking-tight">
+            <h2 id="sheet-title" className="text-[length:var(--fs-md)] font-semibold tracking-tight">
               {title}
             </h2>
             <button type="button" className="icon-btn" onClick={onClose} aria-label="بستن" style={{ touchAction: "manipulation" }}>

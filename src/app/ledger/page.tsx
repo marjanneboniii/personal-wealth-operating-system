@@ -15,6 +15,7 @@ import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getUserProMode } from "@/features/preferences/service";
 import { eq, inArray } from "drizzle-orm";
 import { assets, debts, entryFxSnapshots, installments, realEstateProperties } from "@/db/schema";
+import { summariseBalances } from "@/features/ledger/summary";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,10 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
   // GLOBAL PRO MODE (Directive §2): default = SIMPLE view. Account codes,
   // debit/credit columns and full double-entry detail are rendered ONLY for
   // users who explicitly enabled the professional vocabulary in settings.
-  const pro = await getUserProMode(userId);
+  // Simple view by default. The accounting detail is not lost: it lives in a
+  // local expander below, so the trial balance stays reachable without the
+  // app-wide «حالت حرفه‌ای» preference that used to gate it.
+  const pro = false;
   const sp = await searchParams;
   // Asset ↔ ledger navigation: ?entry=ID opens that specific entry on top.
   const focusEntryId = typeof sp.entry === "string" && sp.entry ? sp.entry : null;
@@ -82,8 +86,12 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
   const instByEntry = new Map(linkedInsts.filter((r) => r.entryId).map((r) => [r.entryId!, r]));
 
   const activeBalances = balances.filter((b) => !D(b.baseValue).isZero());
-  const totalDebit = activeBalances.filter((b) => D(b.baseValue).gt(0)).reduce((s, b) => s + Number(b.baseValue), 0);
-  const totalCredit = activeBalances.filter((b) => D(b.baseValue).lt(0)).reduce((s, b) => s + Math.abs(Number(b.baseValue)), 0);
+  // Totals come from a tested pure module — the previous inline formula summed
+  // the debit AND credit columns, which on a balanced ledger is always exactly
+  // twice the real figure. See features/ledger/summary.ts.
+  const summary = summariseBalances(activeBalances);
+  const totalDebit = Number(summary.totalDebit);
+  const totalCredit = Number(summary.totalCredit);
 
   return (
     <div className="space-y-8">
@@ -106,7 +114,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
 
       {/* Register certification strip */}
       <div
-        className="rise flex flex-wrap items-center gap-x-5 gap-y-2 border-y py-3 text-[12px]"
+        className="rise flex flex-wrap items-center gap-x-5 gap-y-2 border-y py-3 text-[length:var(--fs-xs)]"
         style={{ borderColor: "var(--border)" }}
         role="status"
       >
@@ -115,15 +123,17 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
           {bad ? `${faCount(bad)} سند نامتوازن` : pro ? "دفترکل تراز است" : "همه سوابق تراز است"}
         </span>
         <span className="muted num">{faCount(totalEntries)} سند ثبت‌شده</span>
-        {!pro && (
-          <span className="muted">
-            جزئیات تخصصی حسابداری فقط با فعال‌سازی «حالت حرفه‌ای» در تنظیمات نمایش داده می‌شود.
-          </span>
-        )}
       </div>
 
       {/* ── Trial balance (PRO) / simple account summary (default) ── */}
-      <Section title={pro ? "تراز آزمایشی" : "خلاصه حساب‌ها"}>
+      <Section
+        title={pro ? "تراز آزمایشی" : "خلاصه حساب‌ها"}
+        hint={
+          pro
+            ? undefined
+            : "«سرمایه افتتاحیه» عددی نیست که خودتان وارد کرده باشید: مجموع موجودی‌های اولیه‌ای است که هنگام ساخت حساب‌ها و ثبت دارایی‌ها اعلام کرده‌اید. در حسابداری دوطرفه هر دارایی که بدون منبع وارد دفتر می‌شود، با همین حساب موازنه می‌شود."
+        }
+      >
         <div className="card overflow-x-auto">
           <table className="table">
             {pro ? (
@@ -186,30 +196,77 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
               })}
               {pro ? (
                 <tr style={{ background: "var(--sunken)" }}>
-                  <td colSpan={4} className="text-[12px] font-bold">
+                  <td colSpan={4} className="text-[length:var(--fs-xs)] font-bold">
                     جمع تراز آزمایشی
                   </td>
-                  <td className="td-num text-[12px] font-bold" dir="rtl">
+                  <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
                     {formatMoney(totalDebit)}
                   </td>
-                  <td className="td-num text-[12px] font-bold" dir="rtl">
+                  <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
                     {formatMoney(totalCredit)}
                   </td>
                 </tr>
               ) : (
-                <tr style={{ background: "var(--sunken)" }}>
-                  <td colSpan={3} className="text-[12px] font-bold">
-                    جمع کل
-                  </td>
-                  <td className="td-num text-[12px] font-bold" dir="rtl">
-                    {formatMoney(totalDebit + totalCredit)}
-                  </td>
-                </tr>
+                /* A list mixing assets, liabilities and equity has no single
+                   meaningful grand total, so each type carries its own. */
+                summary.subtotals.map((st) => (
+                  <tr key={st.type} style={{ background: "var(--sunken)" }}>
+                    <td colSpan={3} className="text-[length:var(--fs-xs)] font-bold">
+                      جمع {ACCOUNT_TYPE_LABELS[st.type]}
+                    </td>
+                    <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
+                      {formatMoney(st.total)}
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
         </div>
       </Section>
+
+      {/* Accounting detail — available on demand, never gated behind a global
+          preference. Plain <details>: no client JS, no extra request. */}
+      <details className="card overflow-hidden">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-[length:var(--fs-sm)] font-semibold marker:hidden [&::-webkit-details-marker]:hidden">
+          جزئیات حسابداری
+          <Icon name="chevronDown" size={16} />
+        </summary>
+        <div className="border-t px-1 pb-1" style={{ borderColor: "var(--border)" }}>
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col" className="w-14">کد</th>
+                  <th scope="col">حساب</th>
+                  <th scope="col">نوع</th>
+                  <th scope="col" className="td-num">ورود</th>
+                  <th scope="col" className="td-num">خروج</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeBalances.map((b) => {
+                  const v = Number(b.baseValue);
+                  return (
+                    <tr key={b.accountId}>
+                      <td className="num muted" dir="rtl">{toFaDigits(b.code)}</td>
+                      <td className="font-medium">{b.name}</td>
+                      <td><span className="badge badge-neutral">{ACCOUNT_TYPE_LABELS[b.type as AccountType]}</span></td>
+                      <td className="td-num font-semibold" dir="rtl">{v > 0 ? formatMoney(v) : "—"}</td>
+                      <td className="td-num font-semibold" dir="rtl">{v < 0 ? formatMoney(Math.abs(v)) : "—"}</td>
+                    </tr>
+                  );
+                })}
+                <tr style={{ background: "var(--sunken)" }}>
+                  <td colSpan={3} className="text-[length:var(--fs-xs)] font-bold">جمع تراز آزمایشی</td>
+                  <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">{formatMoney(totalDebit)}</td>
+                  <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">{formatMoney(totalCredit)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
 
       {/* ── Journal register ── */}
       <Section title="اسناد روزنامه" hint="۶۰ سند اخیر — برای باز شدن هر سند روی آن بزنید">
@@ -235,13 +292,13 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                     </span>
                   )}
                   <span className="muted hidden w-[86px] shrink-0 flex-col leading-tight sm:flex">
-                    <span className="num text-[11px] font-medium" style={{ color: "var(--text-2)" }}>
+                    <span className="num text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--text-2)" }}>
                       {formatJalaliIso(e.entryDate)}
                     </span>
                     <span className="num text-[length:var(--fs-xs)]" dir="ltr">{e.entryDate}</span>
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className={`block truncate text-[12.5px] font-medium ${isVoid ? "line-through" : ""}`}>
+                    <span className={`block truncate text-[length:var(--fs-xs)] font-medium ${isVoid ? "line-through" : ""}`}>
                       {e.description}
                     </span>
                     <span className="muted mt-0.5 flex items-center gap-1.5 text-[length:var(--fs-xs)] sm:hidden">
@@ -251,7 +308,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                   </span>
                   <span className="badge badge-neutral hidden shrink-0 sm:inline-flex">{ENTRY_TYPE_LABELS[e.type as EntryType] ?? e.type}</span>
                   {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
-                  <span className="num w-24 shrink-0 text-left text-[12.5px] font-bold" dir="rtl">
+                  <span className="num w-24 shrink-0 text-left text-[length:var(--fs-xs)] font-bold" dir="rtl">
                     {formatMoney(sumIn)}
                   </span>
                   <span className="muted shrink-0 transition-transform group-open:rotate-180">
@@ -309,15 +366,15 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                         </td>
                         {pro ? (
                           <>
-                            <td className="td-num text-[11px] font-bold" dir="rtl">
+                            <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
                               {formatMoney(e.lines.filter((l) => Number(l.baseValue) > 0).reduce((s, l) => s + Number(l.baseValue), 0))}
                             </td>
-                            <td className="td-num text-[11px] font-bold" dir="rtl">
+                            <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
                               {formatMoney(Math.abs(e.lines.filter((l) => Number(l.baseValue) < 0).reduce((s, l) => s + Number(l.baseValue), 0)))}
                             </td>
                           </>
                         ) : (
-                          <td className="td-num text-[11px] font-bold" dir="rtl">
+                          <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
                             {formatMoney(sumIn)}
                           </td>
                         )}

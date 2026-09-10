@@ -73,7 +73,7 @@ export default function RealEstateModule({
     <section className="card p-5">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[13px] sm:text-[14px] font-bold tracking-tight">🏠 دارایی واقعی ← ملک (Real Estate)</h2>
+          <h2 className="text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)] font-bold tracking-tight">🏠 دارایی واقعی ← ملک (Real Estate)</h2>
         </div>
         <div className="seg" role="group" aria-label="بخش املاک">
           <button type="button" onClick={() => setTab("list")} className={tab === "list" ? "seg-on" : ""} aria-pressed={tab === "list"}>
@@ -117,8 +117,8 @@ export default function RealEstateModule({
           )}
           {items.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-[13px] font-semibold">هنوز ملکی ثبت نشده است</p>
-              <p className="muted mx-auto mt-1 max-w-md text-[11.5px] leading-6">
+              <p className="text-[length:var(--fs-sm)] font-semibold">هنوز ملکی ثبت نشده است</p>
+              <p className="muted mx-auto mt-1 max-w-md text-[length:var(--fs-xs)] leading-6">
                 شهر و محله و نوع ملک را از فهرست انتخاب کنید؛ نام و شناسه کوتاه به‌صورت خودکار تولید می‌شوند و معادل‌های
                 دلاری با نرخ تاریخی همان روزها محاسبه می‌شوند.
               </p>
@@ -128,7 +128,7 @@ export default function RealEstateModule({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="table min-w-[1400px] text-[11.5px]">
+              <table className="table min-w-[1400px] text-[length:var(--fs-xs)]">
                 <thead>
                   <tr>
                     <th scope="col">شناسه دارایی</th>
@@ -159,7 +159,7 @@ export default function RealEstateModule({
                           onClick={() => setOpenId(open ? null : item.id)}
                           aria-expanded={open}
                         >
-                          <td className="num text-[11.5px] font-semibold">
+                          <td className="num text-[length:var(--fs-xs)] font-semibold">
                             <span className="flex items-center gap-1.5">
                               <RealEstateLogo size={22} />
                               {toFaDigits(item.symbol)}
@@ -219,7 +219,7 @@ export default function RealEstateModule({
 
       {tab === "add" && (
         <div className="space-y-3">
-          <div className="soft flex flex-wrap items-center gap-2 rounded-[var(--r-md)] p-3 text-[11.5px]">
+          <div className="soft flex flex-wrap items-center gap-2 rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)]">
             <span className="muted">مالک:</span>
             <strong>{ownerName}</strong>
           </div>

@@ -81,7 +81,7 @@ export default async function InflationPage() {
     <div className="space-y-6">
       <PageHeader
         title="ردیاب تورم شخصی"
-        subtitle="قیمت کالاهای مصرفی را در طول زمان ثبت کنید و تورم سبد خود را بسنجید. این یک ابزار تحلیلی است: کالا دارایی نیست و هیچ اثری در ثروت خالص، سبد دارایی یا سوابق مالی ندارد."
+        subtitle="تورم سبد خودتان را بسنجید. این کالاها دارایی نیستند و در ارزش خالص اثری ندارند."
       />
       <InflationTracker items={items} histories={histories} dashboard={safeDashboard} categories={categories} />
     </div>

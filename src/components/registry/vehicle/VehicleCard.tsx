@@ -68,7 +68,7 @@ export default function VehicleCard({
         <div className="min-w-0 flex items-start gap-2">
           <AutomobileLogo name={vehicle.brand} size={36} />
           <div className="min-w-0">
-            <h3 className="flex flex-wrap items-center gap-2 text-[13px] sm:text-[14px] font-bold tracking-tight">
+            <h3 className="flex flex-wrap items-center gap-2 text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)] font-bold tracking-tight">
               {title}
               {vehicle.assetSymbol && (
                 <span className="badge badge-neutral num">شناسه {toFaDigits(vehicle.assetSymbol)}</span>
@@ -78,7 +78,7 @@ export default function VehicleCard({
                 <span className="muted text-[length:var(--fs-xs)]">ارزش‌گذاری در سطح مدل (بازار)</span>
               )}
             </h3>
-          <p className="muted mt-1 text-[11px] leading-5">
+          <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">
             سال ساخت: {yearLabel(vehicle.year)}
             {catalog?.manufacturer ? ` · سازنده/مونتاژکننده: ${catalog.manufacturer}` : ""}
             {vehicle.licensePlate ? ` · پلاک: ${vehicle.licensePlate}` : ""}
@@ -86,7 +86,7 @@ export default function VehicleCard({
           </p>
           </div>
         </div>
-        <button type="button" className="btn text-[12px]" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <button type="button" className="btn text-[length:var(--fs-xs)]" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           {open ? "بستن جزئیات" : "تحلیل و تاریخچه"}
         </button>
       </header>
@@ -108,7 +108,7 @@ export default function VehicleCard({
         />
         <Metric
           label="ارزش فعلی"
-          value={valuation.currentValueToman ? <Toman value={valuation.currentValueToman} /> : <span className="muted text-[12px]">ارزش‌گذاری ثبت نشده</span>}
+          value={valuation.currentValueToman ? <Toman value={valuation.currentValueToman} /> : <span className="muted text-[length:var(--fs-xs)]">ارزش‌گذاری ثبت نشده</span>}
           sub={
             valuation.currentValueUsd ? (
               <>
@@ -215,7 +215,7 @@ function PerformanceTable({ periods }: { periods: VehicleDashboardItem["periods"
         <tbody>
           {periods.map((p) => (
             <tr key={p.key}>
-              <td className="whitespace-nowrap text-[12px] font-medium">{p.label}</td>
+              <td className="whitespace-nowrap text-[length:var(--fs-xs)] font-medium">{p.label}</td>
               {p.available ? (
                 <>
                   <td className="td-num"><DeltaToman value={p.tomanChange} /></td>
@@ -228,7 +228,7 @@ function PerformanceTable({ periods }: { periods: VehicleDashboardItem["periods"
                   </td>
                 </>
               ) : (
-                <td colSpan={5} className="muted text-[11.5px]">
+                <td colSpan={5} className="muted text-[length:var(--fs-xs)]">
                   {p.reason}
                 </td>
               )}
@@ -254,7 +254,7 @@ function HistoryTable({
   purchasePoint: SnapshotPoint | null;
 }) {
   if (!history.length) {
-    return <p className="muted text-[11.5px]">هنوز هیچ Snapshot ارزش‌گذاری برای این خودرو ثبت نشده است.</p>;
+    return <p className="muted text-[length:var(--fs-xs)]">هنوز هیچ Snapshot ارزش‌گذاری برای این خودرو ثبت نشده است.</p>;
   }
   return (
     <div className="overflow-x-auto">
@@ -274,7 +274,7 @@ function HistoryTable({
         <tbody>
           {purchasePoint && (
             <tr style={{ background: "var(--brand-softer)" }}>
-              <td className="whitespace-nowrap text-[11.5px]">
+              <td className="whitespace-nowrap text-[length:var(--fs-xs)]">
                 <JDate iso={purchasePoint.date} /> <span className="muted">· خرید</span>
               </td>
               <td className="td-num"><Toman value={purchasePoint.valueToman} /></td>
@@ -288,7 +288,7 @@ function HistoryTable({
           )}
           {history.map((row) => (
             <tr key={row.date}>
-              <td className="whitespace-nowrap text-[11.5px]"><JDate iso={row.date} /></td>
+              <td className="whitespace-nowrap text-[length:var(--fs-xs)]"><JDate iso={row.date} /></td>
               <td className="td-num"><Toman value={row.valueToman} /></td>
               <td className="td-num num" dir="rtl">{formatMoney(row.usdRate, "IRT")}</td>
               <td className="td-num"><Usd value={row.valueUsd} /></td>
@@ -424,7 +424,7 @@ function ManagePanel({
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <form action={detailAction} className="space-y-3">
-        <h4 className="text-[13px] font-semibold">ویرایش اطلاعات جاری</h4>
+        <h4 className="text-[length:var(--fs-sm)] font-semibold">ویرایش اطلاعات جاری</h4>
         <input type="hidden" name="vehicleId" value={item.vehicle.id} />
         <div className="grid gap-3 sm:grid-cols-2">
           <Labeled label="پلاک">
@@ -446,7 +446,7 @@ function ManagePanel({
 
       {item.vehicle.status === "active" ? (
         <form action={saleAction} className="space-y-3">
-          <h4 className="text-[13px] font-semibold">ثبت فروش خودرو</h4>
+          <h4 className="text-[length:var(--fs-sm)] font-semibold">ثبت فروش خودرو</h4>
           <input type="hidden" name="vehicleId" value={item.vehicle.id} />
           <div className="grid gap-3 sm:grid-cols-2">
             <Labeled label="تاریخ فروش" required>
@@ -461,7 +461,7 @@ function ManagePanel({
           </Labeled>
           <Labeled label="واریز وجه فروش به حساب (اختیاری)">
             <select className="field" name="saleAccountId" defaultValue="">
-              <option value="">بدون ثبت در دفتر کل</option>
+              <option value="">بدون ثبت در دفترکل</option>
               {payoutAccounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
@@ -472,7 +472,7 @@ function ManagePanel({
           </Labeled>
           <Hint tone="warn">قیمت واقعی فروش هرگز با «ارزش فعلی» یکی فرض نمی‌شود و مبنای بازدهی نهایی است.</Hint>
           <Hint>
-            با انتخاب حساب دریافت، سند فروش در همان لحظه از مسیر یکپارچه دفتر کل ثبت می‌شود (واریز خالص، نرخ دلار
+            با انتخاب حساب دریافت، سند فروش در همان لحظه از مسیر یکپارچه دفترکل ثبت می‌شود (واریز خالص، نرخ دلار
             فریزشده آن تاریخ و مانده‌ی نقد شما). بدون انتخاب، فروش فقط در شناسنامه خودرو ثبت می‌ماند.
           </Hint>
           <button className="btn" disabled={salePending}>
@@ -482,7 +482,7 @@ function ManagePanel({
         </form>
       ) : (
         <div className="space-y-2">
-          <h4 className="text-[13px] font-semibold">اطلاعات فروش</h4>
+          <h4 className="text-[length:var(--fs-sm)] font-semibold">اطلاعات فروش</h4>
           <div className="grid grid-cols-2 gap-4">
             <Metric label="تاریخ فروش" value={<JDate iso={item.vehicle.saleDate} />} />
             <Metric label="قیمت فروش" value={<Toman value={item.vehicle.salePriceToman} />} sub={<>≈ <Usd value={item.vehicle.saleValueUsd} /></>} />

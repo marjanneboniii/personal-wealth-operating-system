@@ -36,7 +36,7 @@ export default function CatalogAdmin({
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
         <form action={modelAction} className="space-y-3">
-          <h4 className="text-[13px] font-semibold">افزودن خودروی جدید به کاتالوگ</h4>
+          <h4 className="text-[length:var(--fs-sm)] font-semibold">افزودن خودروی جدید به کاتالوگ</h4>
           <div className="grid gap-3 sm:grid-cols-2">
             <Labeled label="برند / شرکت سازنده" required>
               <select className="field" name="brandId" required defaultValue="">
@@ -87,7 +87,7 @@ export default function CatalogAdmin({
         </form>
 
         <form action={brandAction} className="space-y-3">
-          <h4 className="text-[13px] font-semibold">افزودن برند / شرکت سازنده جدید</h4>
+          <h4 className="text-[length:var(--fs-sm)] font-semibold">افزودن برند / شرکت سازنده جدید</h4>
           <div className="grid gap-3 sm:grid-cols-2">
             <Labeled label="نام برند" required>
               <input className="field" name="name" placeholder="مثلاً چری" required />
@@ -101,7 +101,7 @@ export default function CatalogAdmin({
                 <option value="imported">وارداتی</option>
               </select>
             </Labeled>
-            <label className="mt-6 flex items-center gap-2 text-[11.5px]">
+            <label className="mt-6 flex items-center gap-2 text-[length:var(--fs-xs)]">
               <input type="checkbox" name="allowsCustomModel" />
               اجازه ورود دستی نام مدل توسط کاربر
             </label>
@@ -119,7 +119,7 @@ export default function CatalogAdmin({
 
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-[13px] font-semibold">
+          <h4 className="text-[length:var(--fs-sm)] font-semibold">
             فهرست کاتالوگ · {faNum(brands.length)} برند · {faNum(models.length)} خودرو
           </h4>
           <input
@@ -142,15 +142,15 @@ export default function CatalogAdmin({
             <tbody>
               {filtered.slice(0, 400).map((m) => (
                 <tr key={m.id}>
-                  <td className="whitespace-nowrap text-[11.5px]">{m.brandName}</td>
-                  <td className="text-[11.5px] font-medium">{m.modelName}</td>
-                  <td className="muted hidden text-[11px] sm:table-cell">{m.manufacturer ?? "—"}</td>
-                  <td className="muted hidden text-[11px] sm:table-cell">{m.category ?? "—"}</td>
+                  <td className="whitespace-nowrap text-[length:var(--fs-xs)]">{m.brandName}</td>
+                  <td className="text-[length:var(--fs-xs)] font-medium">{m.modelName}</td>
+                  <td className="muted hidden text-[length:var(--fs-xs)] sm:table-cell">{m.manufacturer ?? "—"}</td>
+                  <td className="muted hidden text-[length:var(--fs-xs)] sm:table-cell">{m.category ?? "—"}</td>
                 </tr>
               ))}
               {!filtered.length && (
                 <tr>
-                  <td colSpan={4} className="muted py-6 text-center text-[11.5px]">
+                  <td colSpan={4} className="muted py-6 text-center text-[length:var(--fs-xs)]">
                     موردی یافت نشد.
                   </td>
                 </tr>

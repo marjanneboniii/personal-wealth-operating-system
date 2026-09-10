@@ -32,7 +32,7 @@ function AddForm({
   const [state, formAction, pending] = useActionState(action, null);
   return (
     <form action={formAction} className="space-y-3 rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
-      <h5 className="text-[12px] font-semibold">{title}</h5>
+      <h5 className="text-[length:var(--fs-xs)] font-semibold">{title}</h5>
       {hiddenFields?.map((h) => (
         <input key={h.name} type="hidden" name={h.name} value={h.value} />
       ))}
@@ -44,7 +44,7 @@ function AddForm({
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <button className="btn btn-primary !py-1.5 text-[11.5px]" disabled={pending}>
+        <button className="btn btn-primary !py-1.5 text-[length:var(--fs-xs)]" disabled={pending}>
           {pending ? "…" : "افزودن"}
         </button>
         {state && <span className="text-[length:var(--fs-xs)]">{state.message}</span>}
@@ -130,7 +130,7 @@ export default function MasterDataAdmin({
     <div className="space-y-6">
       {/* ── Cities ── */}
       <div className="space-y-3">
-        <h4 className="text-[13px] font-semibold">شهرها ({faNum(cities.length)})</h4>
+        <h4 className="text-[length:var(--fs-sm)] font-semibold">شهرها ({faNum(cities.length)})</h4>
         <AddForm
           action={createCityAction}
           title="افزودن شهر جدید"
@@ -142,7 +142,7 @@ export default function MasterDataAdmin({
         />
         <div className="space-y-1.5">
           {cities.map((c) => (
-            <div key={c.id} className="soft flex flex-wrap items-center gap-3 rounded-[var(--r-md)] px-3 py-2 text-[11.5px]">
+            <div key={c.id} className="soft flex flex-wrap items-center gap-3 rounded-[var(--r-md)] px-3 py-2 text-[length:var(--fs-xs)]">
               <b>{c.nameFa}</b>
               <span className="muted" dir="ltr">
                 {c.nameEn}
@@ -159,7 +159,7 @@ export default function MasterDataAdmin({
 
       {/* ── Neighborhoods per city ── */}
       <div className="space-y-3">
-        <h4 className="text-[13px] font-semibold">مناطق / محله‌ها — وابسته به شهر</h4>
+        <h4 className="text-[length:var(--fs-sm)] font-semibold">مناطق / محله‌ها — وابسته به شهر</h4>
         <div className="flex flex-wrap items-end gap-3">
           <Labeled label="شهر">
             <select className="field" value={adminCityId} onChange={(e) => setAdminCityId(e.target.value)}>
@@ -186,7 +186,7 @@ export default function MasterDataAdmin({
         />
         <div className="grid gap-1.5 sm:grid-cols-2">
           {cityNeighborhoods.map((n) => (
-            <div key={n.id} className="soft flex flex-wrap items-center gap-3 rounded-[var(--r-md)] px-3 py-2 text-[11.5px]">
+            <div key={n.id} className="soft flex flex-wrap items-center gap-3 rounded-[var(--r-md)] px-3 py-2 text-[length:var(--fs-xs)]">
               <b>{n.nameFa}</b>
               <span className="muted" dir="ltr">
                 {n.nameEn}
@@ -203,7 +203,7 @@ export default function MasterDataAdmin({
 
       {/* ── Property types ── */}
       <div className="space-y-3">
-        <h4 className="text-[13px] font-semibold">انواع ملک ({faNum(propertyTypes.length)})</h4>
+        <h4 className="text-[length:var(--fs-sm)] font-semibold">انواع ملک ({faNum(propertyTypes.length)})</h4>
         <AddForm
           action={createPropertyTypeAction}
           title="افزودن نوع ملک جدید"
@@ -215,7 +215,7 @@ export default function MasterDataAdmin({
         />
         <div className="grid gap-1.5 sm:grid-cols-2">
           {propertyTypes.map((p) => (
-            <div key={p.id} className="soft flex flex-wrap items-center gap-3 rounded-[var(--r-md)] px-3 py-2 text-[11.5px]">
+            <div key={p.id} className="soft flex flex-wrap items-center gap-3 rounded-[var(--r-md)] px-3 py-2 text-[length:var(--fs-xs)]">
               <b>{p.nameFa}</b>
               <span className="muted" dir="ltr">
                 {p.nameEn}

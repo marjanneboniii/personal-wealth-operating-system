@@ -85,7 +85,7 @@ export default function RegisterForm({ turnstileSiteKey }: { turnstileSiteKey?: 
 
       {state && (
         <p
-          className="rounded-[var(--r-md)] px-3 py-2 text-[12px] font-medium"
+          className="rounded-[var(--r-md)] px-3 py-2 text-[length:var(--fs-xs)] font-medium"
           style={{
             background: state.ok ? "var(--positive-soft)" : "var(--negative-soft)",
             color: state.ok ? "var(--positive)" : "var(--negative)",

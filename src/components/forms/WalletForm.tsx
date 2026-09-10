@@ -27,7 +27,7 @@ export default function WalletForm() {
   }
   return <div className="space-y-3 text-xs">
     <div className="grid gap-3 sm:grid-cols-2">
-      <label className="space-y-1"><span className="label">نام حساب / کیف‌پول</span><input className="field" value={name} onChange={e => setName(e.target.value)} placeholder="مثلاً بانک ملت" /></label>
+      <label className="space-y-1"><span className="label">نام حساب / کیف پول</span><input className="field" value={name} onChange={e => setName(e.target.value)} placeholder="مثلاً بانک ملت" /></label>
       <label className="space-y-1"><span className="label">نوع حساب</span><select className="field" value={kind} onChange={e => setKind(e.target.value)}>{kinds.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
     </div>
     <label className="space-y-1 block"><span className="label">یادداشت (اختیاری)</span><input className="field" value={note} onChange={e => setNote(e.target.value)} /></label>

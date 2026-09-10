@@ -500,7 +500,14 @@ export async function getPortfolioValuation(
     let priceObservedAt: string | null = null;
     let priceFailureCode: string | undefined;
 
-    if (market) {
+    // The settings rate IS the Tether rate (owner decision): in the Iranian
+    // market «نرخ دلار» is quoted as USDT/Toman, so a Tether balance must land
+    // on exactly the rate the user sees — not on rate × CoinGecko's $0.9997,
+    // which rendered 235,000 as 234,933. Tether is therefore face-valued like
+    // USD instead of taking the market-price branch below.
+    const isTetherFaceValue = holding.symbol === "USDT";
+
+    if (market && !isTetherFaceValue) {
       marketPrice = market.currentPriceUsd ?? "0";
       currentValue = market.currentValueUsd;
       currentValueToman = market.currentValueToman;
@@ -511,7 +518,7 @@ export async function getPortfolioValuation(
       priceFreshness = market.freshness;
       priceObservedAt = market.observedAt;
       priceFailureCode = market.failureCode;
-    } else if (holding.symbol === "USD") {
+    } else if (holding.symbol === "USD" || isTetherFaceValue) {
       // USD Balance = Z USD (canonical, fixed vs FX), Toman Valuation = Z * Rate (derived, changes)
       marketPrice = "1";
       currentValue = qty.toString();

@@ -87,21 +87,24 @@ test("Landing — four primary outcomes, how-it-works, FAQ, and final CTA copy",
   assert.match(landing, /ثبت‌نام ساده است و نیازی به کارت بانکی ندارد/);
 
   // New sections: how-it-works (3 steps) and FAQ accordion (4 questions).
-  assert.match(landing, /شروع، ساده‌تر از یک صفحه‌گسترده/);
+  assert.match(landing, /شروع، ساده‌تر از یک فایل اکسل/);
   assert.match(landing, /دارایی‌ها و بدهی‌هایتان را اضافه کنید/);
-  assert.match(landing, /توازن خودکار محاسبه می‌کند/);
+  assert.match(landing, /توازن خودش حساب می‌کند/);
   assert.match(landing, /با یک نگاه تصمیم بگیرید/);
-  assert.match(landing, /سوالات متداول/);
+  assert.match(landing, /سؤالات متداول/);
   assert.match(landing, /آیا استفاده از توازن رایگان است؟/);
   assert.match(landing, /آیا باید حساب بانکی‌ام را وصل کنم؟/);
   assert.match(landing, /اطلاعات مالی من کجا ذخیره می‌شود و چقدر امن است؟/);
-  assert.match(landing, /آیا می‌توانم چند نوع دارایی مختلف/);
+  assert.match(landing, /آیا می‌توانم انواع دارایی را کنار هم داشته باشم/);
   assert.match(landing, /<details/);
   assert.match(landing, /<summary/);
 
   // Hero trust note and demo caption.
   assert.match(landing, /بدون نیاز به اتصال حساب بانکی/);
-  assert.match(landing, /یک نمونه واقعی از داشبورد توازن/);
+  // The preview card is labelled «نمونه نمایشی»; calling it «واقعی» as well
+  // contradicted that badge, so the caption is now neutral.
+  assert.match(landing, /نمایی از داشبورد توازن/);
+  assert.doesNotMatch(landing, /نمونه واقعی/);
 
   assert.doesNotMatch(landing, /title: \"تراکنش‌ها\"/);
   assert.doesNotMatch(landing, /title: \"نقد\"/);

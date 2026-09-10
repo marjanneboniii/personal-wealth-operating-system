@@ -102,7 +102,7 @@ function AccountLink({ user, compact = false }: { user: ShellUser | null; compac
     return (
       <Link
         href="/settings"
-        className={`inline-flex items-center gap-1.5 rounded-[var(--r-md)] text-[11.5px] font-medium ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
+        className={`inline-flex items-center gap-1.5 rounded-[var(--r-md)] text-[length:var(--fs-xs)] font-medium ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
         style={{ background: "var(--brand-soft)", color: "var(--brand)", touchAction: "manipulation" }}
         aria-label={`حساب کاربری ${label}`}
         title={user.email || user.username || label}
@@ -118,7 +118,7 @@ function AccountLink({ user, compact = false }: { user: ShellUser | null; compac
   return (
     <Link
       href="/login"
-      className={`inline-flex items-center gap-1.5 rounded-[var(--r-md)] text-[11.5px] font-semibold ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
+      className={`inline-flex items-center gap-1.5 rounded-[var(--r-md)] text-[length:var(--fs-xs)] font-semibold ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
       style={{ background: "var(--brand-soft)", color: "var(--brand)", touchAction: "manipulation" }}
       aria-label="ورود یا ساخت حساب کاربری"
     >
@@ -288,7 +288,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
               key={a.href}
               href={a.href}
               onClick={onClose}
-              className="soft flex flex-col items-center gap-1.5 rounded-[var(--r-md)] px-2 py-3 text-[11px] font-medium"
+              className="soft flex flex-col items-center gap-1.5 rounded-[var(--r-md)] px-2 py-3 text-[length:var(--fs-xs)] font-medium"
               style={{ color: "var(--text-2)", touchAction: "manipulation" }}
             >
               <span style={{ color: "var(--brand)" }}>
@@ -315,7 +315,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
                     <Link
                       href={n.href}
                       onClick={onClose}
-                      className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
+                      className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[length:var(--fs-sm)]"
                       style={
                         active
                           ? { background: activeBg, color: activeColor, fontWeight: 600, touchAction: "manipulation" }
@@ -339,7 +339,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
               <Link
                 href={n.href}
                 onClick={onClose}
-                className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
+                className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[length:var(--fs-sm)]"
                 style={{ color: "var(--text-2)", touchAction: "manipulation" }}
               >
                 <Icon name={n.icon} size={18} />
@@ -357,7 +357,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
               <Link
                 href={n.href}
                 onClick={onClose}
-                className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[13.5px]"
+                className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[length:var(--fs-sm)]"
                 style={{ color: "var(--text-2)", touchAction: "manipulation" }}
               >
                 <Icon name={n.icon} size={18} />
@@ -444,7 +444,7 @@ export default function Shell({
         <div
           role="status"
           aria-live="polite"
-          className="offline-banner fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-2 px-4 py-1.5 text-[11.5px] font-medium"
+          className="offline-banner fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-2 px-4 py-1.5 text-[length:var(--fs-xs)] font-medium"
           style={{ background: "var(--warning-soft)", color: "var(--warning)" }}
         >
           <Icon name="alert" size={14} />
@@ -470,7 +470,7 @@ export default function Shell({
             <BrandMark size={36} framed />
             {!collapsed && (
               <span className="leading-tight">
-                <BrandWordmark className="block text-[15px]" />
+                <BrandWordmark className="block text-[length:var(--fs-md)]" />
                 <span className="muted block text-[length:var(--fs-xs)]">سیستم‌عامل ثروت شخصی</span>
               </span>
             )}
@@ -492,7 +492,7 @@ export default function Shell({
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className={`flex w-full items-center gap-2 rounded-[10px] border px-3 py-2 text-[12.5px] transition-colors ${
+            className={`flex w-full items-center gap-2 rounded-[10px] border px-3 py-2 text-[length:var(--fs-xs)] transition-colors ${
               collapsed ? "justify-center !px-0" : ""
             }`}
             style={{ borderColor: "var(--border)", color: "var(--text-3)", background: "var(--sunken)", touchAction: "manipulation" }}
@@ -529,7 +529,7 @@ export default function Shell({
             <ThemeToggle />
             <Link
               href="/new"
-              className={`btn btn-primary min-w-0 flex-1 !px-2 !text-[12.5px] ${collapsed ? "!w-11 !px-0" : ""}`}
+              className={`btn btn-primary min-w-0 flex-1 !px-2 !text-[length:var(--fs-xs)] ${collapsed ? "!w-11 !px-0" : ""}`}
               aria-label="ثبت تراکنش جدید"
               style={{ touchAction: "manipulation" }}
             >
@@ -553,7 +553,7 @@ export default function Shell({
       >
         <Link href="/" className="flex items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="توازن">
           <BrandMark size={28} framed />
-          <BrandWordmark className="text-[15px]" />
+          <BrandWordmark className="text-[length:var(--fs-md)]" />
         </Link>
         <div className="flex items-center gap-1">
           <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
@@ -561,7 +561,7 @@ export default function Shell({
           </button>
           <AccountLink user={authUser} compact />
           <ThemeToggle />
-          <Link href="/new" className="btn btn-primary !px-3 !text-[13px]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>
+          <Link href="/new" className="btn btn-primary !px-3 !text-[length:var(--fs-sm)]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>
             <Icon name="plus" size={15} />
             ثبت
           </Link>
@@ -660,7 +660,7 @@ export default function Shell({
                 key={a.href}
                 href={a.href}
                 onClick={() => setQuickOpen(false)}
-                className="flex min-h-12 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[14px] font-medium"
+                className="flex min-h-12 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[length:var(--fs-sm)] font-medium"
                 style={{ color: "var(--text)", touchAction: "manipulation" }}
               >
                 <span

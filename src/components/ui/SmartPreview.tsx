@@ -17,18 +17,18 @@ export function SmartAmountPreview({ irtAmount, rate, rateDate, rateSource }: Sm
   const preview = hasAmount ? formatDualMoneyFromIrt(irtAmount, rate ?? null) : null;
 
   if (!hasAmount) {
-    return <div className="muted text-[11px]">مبلغ به تومان را وارد کنید تا پیش‌نمایش دلاری نمایش داده شود.</div>;
+    return <div className="muted text-[length:var(--fs-xs)]">مبلغ به تومان را وارد کنید تا پیش‌نمایش دلاری نمایش داده شود.</div>;
   }
   if (!hasRate) {
     return (
-      <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-6 border border-amber-200">
+      <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-6 border border-amber-200">
         <div>مبلغ: <strong className="num" dir="rtl">{formatMoney(irtAmount, "IRT")}</strong></div>
         <div className="muted">نرخ دلار ثبت نشده — معادل دلاری قابل محاسبه نیست. لطفاً ابتدا نرخ دلار را در تنظیمات ثبت کنید.</div>
       </div>
     );
   }
   return (
-    <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-6" style={{ background: "var(--brand-soft)", border: "1px solid var(--border)" }}>
+    <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-6" style={{ background: "var(--brand-soft)", border: "1px solid var(--border)" }}>
       <div className="flex flex-wrap items-center gap-2">
         <span>مبلغ:</span>
         <strong className="num text-xs" dir="ltr">{preview!.irt}</strong>

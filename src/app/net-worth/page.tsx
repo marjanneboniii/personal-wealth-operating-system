@@ -134,18 +134,18 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
       <section>
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-x-8 sm:gap-y-4">
           <div className="min-w-0 flex-1">
-            <p className="muted text-[11px] font-medium sm:text-[12px]">ارزش خالص فعلی</p>
+            <p className="muted text-[length:var(--fs-xs)] font-medium sm:text-[length:var(--fs-xs)]">ارزش خالص فعلی</p>
             <div className="mt-1.5 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 sm:gap-y-2">
               <span className="money-hero text-[24px] sm:text-[28px] lg:text-[32px] font-bold leading-[1.15] tracking-tight money-nowrap" dir="rtl">
                 {fx.rate ? formatMoney(nw.netWorthToman, "IRT") : formatMoney(nw.netWorth)}
               </span>
               {baseline ? (
-                <Delta value={deltaAbs.toString()} pct={deltaPct} className="text-[11px] sm:text-[13px]" />
+                <Delta value={deltaAbs.toString()} pct={deltaPct} className="text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)]" />
               ) : (
-                <span className="muted text-[11px] sm:text-[12px]">تاریخچه‌ای برای این بازه هنوز ساخته نشده است</span>
+                <span className="muted text-[length:var(--fs-xs)] sm:text-[length:var(--fs-xs)]">تاریخچه‌ای برای این بازه هنوز ساخته نشده است</span>
               )}
             </div>
-            <p className="muted mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] sm:mt-2 sm:text-[12px]">
+            <p className="muted mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-xs)] sm:mt-2 sm:text-[length:var(--fs-xs)]">
               {fx.rate && (
                 <span className="money-nowrap">
                   ≈ <span className="num">{formatMoney(nw.netWorth)}</span>
@@ -189,8 +189,8 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
               return (
                 <li key={r.name} className="flex flex-col gap-2 py-3.5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <p className="text-[13.5px] font-medium">{r.name}</p>
-                    <p className="muted text-[11px]">{r.desc}</p>
+                    <p className="text-[length:var(--fs-sm)] font-medium">{r.name}</p>
+                    <p className="muted text-[length:var(--fs-xs)]">{r.desc}</p>
                   </div>
                   <div className="flex items-center justify-between gap-3 sm:justify-end">
                     <div className="attr-meter" aria-hidden="true">
@@ -206,7 +206,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                       dir="rtl"
                       style={{ color: pos ? "var(--positive)" : neg ? "var(--negative)" : "var(--text-2)" }}
                     >
-                      <span className="num text-[12px] font-bold money-nowrap sm:text-[13px]">
+                      <span className="num text-[length:var(--fs-xs)] font-bold money-nowrap sm:text-[length:var(--fs-sm)]">
                         {pos ? "+" : neg ? "−" : ""}
                         {toIrt(D(r.value).abs().toString()) ?? formatMoney(D(r.value).abs().toString())}
                       </span>
@@ -221,9 +221,9 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
               );
             })}
             <li className="flex items-center justify-between gap-3 py-3 sm:gap-4 sm:py-3.5">
-              <p className="text-[12px] font-bold sm:text-[13px]">مجموع</p>
+              <p className="text-[length:var(--fs-xs)] font-bold sm:text-[length:var(--fs-sm)]">مجموع</p>
               <div className="flex flex-col items-end min-w-0">
-                <span className="num text-[12px] font-bold money-nowrap sm:text-[13px]" dir="rtl" style={{ color: trendColor(deltaAbs.toString()) }}>
+                <span className="num text-[length:var(--fs-xs)] font-bold money-nowrap sm:text-[length:var(--fs-sm)]" dir="rtl" style={{ color: trendColor(deltaAbs.toString()) }}>
                   {formatSignedMoneyFromUsd(deltaAbs.toString(), fx.rate)}
                 </span>
                 {fx.rate && (
@@ -259,14 +259,14 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
             <ul className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
               {buckets.map((b) => (
                 <li key={b.name} className="flex items-center justify-between gap-3 border-b py-2.5 last:border-0 sm:border-0" style={{ borderColor: "var(--border)" }}>
-                  <span className="flex min-w-0 items-center gap-2.5 text-[13px]">
+                  <span className="flex min-w-0 items-center gap-2.5 text-[length:var(--fs-sm)]">
                     <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: b.color }} />
                     <span className="truncate">{b.name}</span>
                     <span className="muted text-[length:var(--fs-xs)]">{b.members.map((m) => m.name).join("، ")}</span>
                   </span>
                   <span className="flex shrink-0 items-baseline gap-2">
                     <span className="flex flex-col items-end">
-                      <span className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
+                      <span className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
                         {toIrt(b.value) ?? formatMoney(b.value)}
                       </span>
                       {fx.rate && (

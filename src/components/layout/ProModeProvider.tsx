@@ -24,7 +24,7 @@ export function ProModeProvider({ pro, children }: { pro: boolean; children: Rea
 }
 
 /** True only when the authenticated user explicitly enabled the professional
- *  accounting vocabulary (کد معین / بدهکار / بستانکار / دفتر کل). */
+ *  accounting vocabulary (کد معین / بدهکار / بستانکار / دفترکل). */
 export function useProMode(): boolean {
   return useContext(ProModeContext);
 }

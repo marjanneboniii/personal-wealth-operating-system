@@ -148,7 +148,7 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
 
           <div className="rounded-[var(--r-lg)] border p-4" style={{ borderColor: "var(--border)" }}>
             <div className="mb-3">
-              <h3 className="text-[13px] font-bold">برنامه بازپرداخت (اختیاری)</h3>
+              <h3 className="text-[length:var(--fs-sm)] font-bold">برنامه بازپرداخت (اختیاری)</h3>
               <p className="muted mt-1 text-[length:var(--fs-xs)]">اگر قسطی تعریف نکنید، بدهی بدون زمان‌بندی ثبت می‌شود و بعداً قابل پیگیری است.</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -199,7 +199,7 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
         </>
       ) : (
         <PreviewCard title="پیش‌نمایش تعریف بدهی — هنوز ذخیره نشده است">
-          <div className="space-y-2 text-[12px] leading-6">
+          <div className="space-y-2 text-[length:var(--fs-xs)] leading-6">
             <div className="grid gap-2 sm:grid-cols-2">
               <div><span className="muted">عنوان:</span> <strong>{title}</strong></div>
               <div><span className="muted">بستانکار:</span> <strong>{creditor}</strong></div>
@@ -213,7 +213,7 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
               <div className="soft rounded-[var(--r-md)] p-3">
                 <div className="font-semibold">برنامه اقساط</div>
                 <div className="muted mt-1">{faCount(count)} قسط × <span className="num" dir="rtl">{formatMoney(effectiveInstallmentIrt, "IRT")}</span> · شروع از <span className="num" dir="rtl">{formatJalaliIso(firstDueDate)}</span></div>
-                <ul className="mt-2 grid gap-x-4 gap-y-1 text-[11px] sm:grid-cols-2">
+                <ul className="mt-2 grid gap-x-4 gap-y-1 text-[length:var(--fs-xs)] sm:grid-cols-2">
                   {Array.from({ length: Math.min(count, 4) }, (_, index) => {
                     const due = addMonthsIso(firstDueDate, index);
                     return <li key={due} className="flex justify-between gap-2"><span>قسط {index + 1}</span><span className="num" dir="rtl">{formatJalaliIso(due)}</span></li>;
@@ -223,9 +223,8 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
               </div>
             )}
 
-            <div className="rounded-[var(--r-md)] border p-3 text-[11px] leading-5" style={{ borderColor: "var(--warning)", background: "var(--warning-soft)" }}>
-              این فرم فقط بدهی و برنامه اقساط را در لایه برنامه‌ریزی ثبت می‌کند. در این مرحله هیچ Journal Entry، Posting، مانده حساب یا دفترکل ایجاد/ویرایش نمی‌شود.
-            </div>
+            <div className="rounded-[var(--r-md)] border p-3 text-[length:var(--fs-xs)] leading-5" style={{ borderColor: "var(--warning)", background: "var(--warning-soft)" }}>
+              ثبت مالی هنگام پرداخت هر قسط انجام می‌شود.</div>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => setShowPreview(false)} className="btn btn-ghost flex-1">بازگشت به ویرایش</button>

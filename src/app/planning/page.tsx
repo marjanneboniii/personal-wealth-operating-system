@@ -165,8 +165,8 @@ export default async function PlanningPage() {
                     <Icon name={kindIcon[q.kind]} size={16} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium">{q.title}</p>
-                    <p className="muted mt-0.5 text-[11px]">
+                    <p className="truncate text-[length:var(--fs-sm)] font-medium">{q.title}</p>
+                    <p className="muted mt-0.5 text-[length:var(--fs-xs)]">
                       {q.extra} · {dual.jalali} ·{" "}
                       <span style={{ color: d < 0 ? "var(--negative)" : undefined }} className="num">
                         {formatDaysUntil(d)}
@@ -174,7 +174,7 @@ export default async function PlanningPage() {
                     </p>
                   </div>
                   <span className="flex shrink-0 flex-col items-end">
-                    <span className="num text-[13.5px] font-bold" dir="rtl">
+                    <span className="num text-[length:var(--fs-sm)] font-bold" dir="rtl">
                       {disp.primary}
                     </span>
                     {disp.usdHint && (
@@ -186,7 +186,7 @@ export default async function PlanningPage() {
                   {q.kind === "installment" && (
                     <Link
                       href={`/new?type=expense&installmentId=${q.id}&entryDate=${q.date}&title=${encodeURIComponent(q.title)}`}
-                      className="btn btn-primary !min-h-9 shrink-0 !px-3.5 !py-1.5 text-[12px]"
+                      className="btn btn-primary !min-h-9 shrink-0 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]"
                     >
                       پرداخت
                     </Link>
@@ -226,7 +226,7 @@ export default async function PlanningPage() {
               <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
                 <Icon name={l.icon} size={17} />
               </span>
-              <p className="mt-2.5 text-[13px] font-semibold">{l.label}</p>
+              <p className="mt-2.5 text-[length:var(--fs-sm)] font-semibold">{l.label}</p>
               <p className="muted mt-0.5 truncate text-[length:var(--fs-xs)]">{l.q}</p>
             </Link>
           ))}
@@ -243,7 +243,7 @@ export default async function PlanningPage() {
           ].map((f) => (
             <details key={f.id} className="card group overflow-hidden">
               <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-                <span className="text-[13.5px] font-semibold">{f.label}</span>
+                <span className="text-[length:var(--fs-sm)] font-semibold">{f.label}</span>
                 <span className="muted transition-transform group-open:rotate-180">
                   <Icon name="chevronDown" size={15} />
                 </span>

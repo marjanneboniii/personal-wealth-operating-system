@@ -1227,7 +1227,9 @@ select.field {
   min-width: 0;
   max-width: 100%;
   justify-content: center;
-  font-size: clamp(0.6rem, 2.6vw, 0.68rem);
+  /* Bottom-nav labels were 9.6–10.9px, the smallest text in the app and on
+     its primary navigation. Floored at --fs-xs like every other label. */
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-3);
   border-radius: 12px;
@@ -1261,6 +1263,46 @@ select.field {
 }
 .tab-item svg {
   flex: none;
+}
+
+/* ── Form result ──
+   The shared FormStatus carried a class that had no rule, so every financial
+   form rendered its error as unstyled body text — the one message that must
+   not be missable. */
+
+.form-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: 1.7;
+  outline: none;
+}
+
+.form-status[data-tone="error"] {
+  background: var(--negative-soft);
+  border-color: color-mix(in oklab, var(--negative) 28%, transparent);
+  color: var(--negative);
+}
+
+.form-status[data-tone="ok"] {
+  background: var(--positive-soft);
+  border-color: color-mix(in oklab, var(--positive) 28%, transparent);
+  color: var(--positive);
+}
+
+.form-status svg {
+  flex: none;
+  margin-top: 0.2rem;
+}
+
+/* It takes focus on failure, so the focus ring has to be visible. */
+.form-status:focus-visible {
+  box-shadow: var(--ring);
 }
 
 /* ── «نیاز به توجه» rows — calm, decidable, one action each ── */
@@ -1323,6 +1365,23 @@ select.field {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* ── Fixed bottom chrome vs. the on-screen keyboard ──
+   `position: fixed` is anchored to the LAYOUT viewport, which the software
+   keyboard does not shrink on Android Chrome. The 56px record button and the
+   tab bar therefore floated over the keyboard — or over the field being typed
+   into — on every form in the app.
+
+   Native apps hide the tab bar while the keyboard is up, and doing the same
+   here also returns the vertical space where it is scarcest. `:has()` keeps
+   this in CSS: no client component, no visualViewport listener, no JS running
+   on every resize. Only text entry counts — a checkbox or button focus must
+   not make the navigation disappear. */
+
+/* A single-line selector on purpose: the minifier mis-parsed the same rule
+   when the :has() argument list was wrapped across lines and emitted a stray
+   paren, which killed it silently. */
+:is(body:has(input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):focus), body:has(textarea:focus), body:has([contenteditable="true"]:focus)) :is(.record-fab, .app-bottom-nav) { display: none; }
 
 /* Primary transaction action — 56px, raised clear of the tab bar so it never
    covers a tab's touch target. Opens the quick-action Sheet. */
@@ -2068,7 +2127,7 @@ select.field {
 
 .landing-preview-amount {
   margin-top: 0.2rem;
-  font-size: clamp(0.74rem, 1.05vw, 0.9rem);
+  font-size: clamp(var(--fs-xs), 1.05vw, 0.9rem);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.55;
