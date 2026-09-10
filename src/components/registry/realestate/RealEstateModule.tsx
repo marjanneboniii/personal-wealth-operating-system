@@ -195,7 +195,7 @@ export default function RealEstateModule({
                             <DeltaPct value={p.roiUsd} />
                           </td>
                           <td>
-                            <span className="muted text-[10px]">{open ? "بستن ▲" : "جزئیات ▼"}</span>
+                            <span className="muted text-[length:var(--fs-xs)]">{open ? "بستن ▲" : "جزئیات ▼"}</span>
                           </td>
                         </tr>
                         {open && (

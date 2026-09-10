@@ -107,7 +107,7 @@ export default async function CryptoPage() {
                         <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
                           <span className="font-medium">{wallet}</span>
                           <span className="flex shrink-0 items-baseline gap-2">
-                            <span className="num muted text-[10.5px]" dir="rtl">
+                            <span className="num muted text-[length:var(--fs-xs)]" dir="rtl">
                               {formatPct(share, 1)}
                             </span>
                             <span className="flex flex-col items-end">
@@ -115,7 +115,7 @@ export default async function CryptoPage() {
                                 {toIrt(value) ?? formatMoney(value)}
                               </span>
                               {fx.rate && (
-                                <span className="muted num text-[9.5px]" dir="rtl">
+                                <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                                   ≈ {formatMoney(value)}
                                 </span>
                               )}
@@ -132,7 +132,7 @@ export default async function CryptoPage() {
             </Section>
           )}
 
-          <p className="muted text-[10.5px]">
+          <p className="muted text-[length:var(--fs-xs)]">
             مانده‌ها همیشه از دفترکل مشتق می‌شوند؛ قیمت‌ها هرگز سند حسابداری ایجاد نمی‌کنند. مانده حساب‌ها:{" "}
             {balances
               .filter((b) => b.type === "asset" && b.symbol && cryptoSymbols.has(b.symbol) && Math.abs(Number(b.quantity)) > 0.000001)

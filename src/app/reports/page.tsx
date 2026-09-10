@@ -154,7 +154,7 @@ export default async function ReportsPage() {
                             ? formatMoney(m.inflowToman, "IRT")
                             : toIrt(m.inflow) ?? formatMoney(m.inflow)}
                         </div>
-                        {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(m.inflow)}</div>}
+                        {rate && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(m.inflow)}</div>}
                       </td>
                       <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
                         <div>
@@ -164,7 +164,7 @@ export default async function ReportsPage() {
                               ? formatMoney(D(m.outflow).mul(rate).toString(), "IRT")
                               : formatMoney(m.outflow)}
                         </div>
-                        {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(m.outflow)}</div>}
+                        {rate && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(m.outflow)}</div>}
                       </td>
                       <td className="td-num font-bold" dir="rtl" style={{ color: D(m.net).gte(0) ? "var(--positive)" : "var(--negative)" }}>
                         <div>
@@ -172,7 +172,7 @@ export default async function ReportsPage() {
                             ? formatSignedMoney(D(m.inflowToman ?? "0").sub(D(m.outflowToman ?? "0")).toString(), "IRT")
                             : `${D(m.net).gte(0) ? "+" : "−"}${toIrt(D(m.net).abs().toString()) ?? formatMoney(D(m.net).abs().toString())}`}
                         </div>
-                        {rate && <div className="muted num text-[9.5px]">≈ {formatMoney(D(m.net).abs().toString())}</div>}
+                        {rate && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(D(m.net).abs().toString())}</div>}
                       </td>
                       <td className="td-num hidden sm:table-cell num" dir="rtl" style={{ color: diff && diff.gt(0) ? "var(--negative)" : "var(--positive)" }}>
                         {diff ? `${diff.gte(0) ? "+" : "−"}${formatPct(diff.abs().toString(), 1)}` : "—"}
@@ -243,7 +243,7 @@ export default async function ReportsPage() {
                   </span>
                 </div>
                 <Progress value={d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0} color={d.status === "settled" ? "var(--positive)" : "var(--warning)"} />
-                <p className="muted num mt-1.5 text-[10.5px]" dir="rtl">
+                <p className="muted num mt-1.5 text-[length:var(--fs-xs)]" dir="rtl">
                   {faCount(d.paidCount)} / {faCount(d.totalCount)} قسط
                   {d.nextDue && <span dir="rtl"> · قسط بعدی {formatJalaliIso(d.nextDue.dueDate)}</span>}
                 </p>
@@ -252,7 +252,7 @@ export default async function ReportsPage() {
             {!debts.length && <li className="muted py-4 text-center text-xs">بدهی‌ای ثبت نشده است</li>}
           </ul>
           {repaymentsExcluded && (
-            <p className="muted num mt-3 text-[10.5px] leading-5" dir="rtl">
+            <p className="muted num mt-3 text-[length:var(--fs-xs)] leading-5" dir="rtl">
               {repaymentsTomanValue
                 ? `${formatMoney(repaymentsTomanValue, "IRT")} از پرداخت اقساط، از «کل هزینه ثبت‌شده» خارج شد`
                 : `${formatMoney(totals.repayments)} از پرداخت اقساط (ارز پایهٔ دفتر، بدون تبدیل به نرخ امروز)، از «کل هزینه ثبت‌شده» خارج شد`}{" "}
@@ -284,11 +284,11 @@ export default async function ReportsPage() {
                   <td>{jalaliMonthLabel(jalaliMonthKey(p.month))}</td>
                   <td className="td-num" dir="rtl" style={{ color: "var(--positive)" }}>
                     <div>{formatMoney(p.inflow, "IRT")}</div>
-                    {rate && p.inflowUsd != null && <div className="muted num text-[9.5px]">≈ {formatMoney(p.inflowUsd)}</div>}
+                    {rate && p.inflowUsd != null && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(p.inflowUsd)}</div>}
                   </td>
                   <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
                     <div>{formatMoney(p.outflow, "IRT")}</div>
-                    {rate && p.outflowUsd != null && <div className="muted num text-[9.5px]">≈ {formatMoney(p.outflowUsd)}</div>}
+                    {rate && p.outflowUsd != null && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(p.outflowUsd)}</div>}
                   </td>
                 </tr>
               ))}

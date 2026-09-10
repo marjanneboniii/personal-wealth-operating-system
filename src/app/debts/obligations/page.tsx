@@ -177,15 +177,15 @@ export default async function ObligationsPage() {
                       </td>
                       <td style={{ minWidth: "9rem" }}>
                         <span className="block text-[12.5px] font-medium">{r.title}</span>
-                        {r.detail && <span className="muted block text-[10px]">{r.detail}</span>}
+                        {r.detail && <span className="muted block text-[length:var(--fs-xs)]">{r.detail}</span>}
                       </td>
                       <td style={{ whiteSpace: "nowrap" }}>
                         <span className="num block text-[12px]">{formatJalaliIso(r.date)}</span>
-                        <span className="muted num text-[9.5px]">{formatDaysUntil(d)}</span>
+                        <span className="muted num text-[length:var(--fs-xs)]">{formatDaysUntil(d)}</span>
                       </td>
                       <td className="td-num font-bold" dir="rtl">
                         <div>{disp.primary}</div>
-                        {disp.usdHint && <div className="muted num text-[9.5px]">معادل: {disp.usdHint}</div>}
+                        {disp.usdHint && <div className="muted num text-[length:var(--fs-xs)]">معادل: {disp.usdHint}</div>}
                       </td>
                     </tr>
                   );

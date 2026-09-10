@@ -46,10 +46,10 @@ function PlanningPreview({ title, description, irtAmount, rate, rateDate, rateSo
         <div><span className="muted">عنوان:</span> <strong>{title || "—"}</strong></div>
         {description && <div><span className="muted">توضیحات:</span> {description}</div>}
         <div className="soft rounded-xl p-2">
-          <div className="muted text-[10px]">مبلغ به تومان و معادل دلاری (نرخ لحظه‌ای)</div>
+          <div className="muted text-[length:var(--fs-xs)]">مبلغ به تومان و معادل دلاری (نرخ لحظه‌ای)</div>
           <div className="num font-bold" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</div>
-          <div className="num" dir="rtl" style={{ color: "var(--brand)" }}>{usd ? formatMoney(usd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {rate ? formatMoney(rate, "IRT") + " ≈ ۱ دلار" : "ثبت نشده"}</span></div>
-          {rateDate && <div className="muted text-[10px]">تاریخ نرخ: <span dir="auto" className="num">{rateDate}</span> · منبع: {rateSource ?? "—"}</div>}
+          <div className="num" dir="rtl" style={{ color: "var(--brand)" }}>{usd ? formatMoney(usd, "USD") : "—"} <span className="muted text-[length:var(--fs-xs)]"> نرخ: {rate ? formatMoney(rate, "IRT") + " ≈ ۱ دلار" : "ثبت نشده"}</span></div>
+          {rateDate && <div className="muted text-[length:var(--fs-xs)]">تاریخ نرخ: <span dir="auto" className="num">{rateDate}</span> · منبع: {rateSource ?? "—"}</div>}
         </div>
         <div className="flex flex-wrap gap-3">
           <span>تاریخ شمسی: <strong dir="rtl" className="num">{dual?.jalali ?? "—"}</strong></span>
@@ -58,7 +58,7 @@ function PlanningPreview({ title, description, irtAmount, rate, rateDate, rateSo
         {status && <div><span className="muted">وضعیت:</span> <strong>{status}</strong></div>}
         {priority && <div><span className="muted">اولویت:</span> <strong>{priority}</strong></div>}
         {extra}
-        <div className="muted text-[10px]">تا قبل از «تأیید نهایی» هیچ Journal Entry یا Ledger Entry ایجاد نمی‌شود. معادل دلاری با آخرین نرخ به‌صورت لحظه‌ای محاسبه و با تغییر نرخ به‌روزرسانی می‌شود.</div>
+        <div className="muted text-[length:var(--fs-xs)]">تا قبل از «تأیید نهایی» هیچ Journal Entry یا Ledger Entry ایجاد نمی‌شود. معادل دلاری با آخرین نرخ به‌صورت لحظه‌ای محاسبه و با تغییر نرخ به‌روزرسانی می‌شود.</div>
       </div>
     </PreviewCard>
   );

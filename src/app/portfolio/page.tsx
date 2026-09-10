@@ -124,7 +124,7 @@ export default async function PortfolioPage() {
                                 {toIrt(c.value) ?? formatMoney(c.value)}
                               </span>
                               {fx.rate && (
-                                <span className="muted num text-[9.5px]" dir="rtl">
+                                <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                                   ≈ {formatMoney(c.value)}
                                 </span>
                               )}

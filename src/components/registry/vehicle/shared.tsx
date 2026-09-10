@@ -93,11 +93,11 @@ export function Metric({
   const color = tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : undefined;
   return (
     <div className="min-w-0 overflow-hidden">
-      <div className="muted text-[10px] font-medium truncate sm:text-[10.5px]">{label}</div>
+      <div className="muted text-[length:var(--fs-xs)] font-medium truncate">{label}</div>
       <div className="mt-1 text-[12px] font-bold tracking-tight money-nowrap sm:text-[13px]" style={color ? { color } : undefined} dir="rtl">
         {value}
       </div>
-      {sub && <div className="muted mt-0.5 text-[10px] leading-4 line-clamp-2 sm:text-[10.5px] sm:leading-5">{sub}</div>}
+      {sub && <div className="muted mt-0.5 text-[length:var(--fs-xs)] leading-4 line-clamp-2 sm:leading-5">{sub}</div>}
     </div>
   );
 }
@@ -122,7 +122,7 @@ export function Hint({ children, tone = "info" }: { children: ReactNode; tone?: 
   const color = tone === "warn" ? "var(--warning)" : "var(--info)";
   const bg = tone === "warn" ? "var(--warning-soft)" : "var(--info-soft)";
   return (
-    <p className="rounded-[var(--r-md)] p-2 text-[10.5px] leading-5 sm:p-2.5 sm:text-[11px]" style={{ background: bg, color }}>
+    <p className="rounded-[var(--r-md)] p-2 text-[length:var(--fs-xs)] leading-5 sm:p-2.5 sm:text-[11px]" style={{ background: bg, color }}>
       {children}
     </p>
   );
@@ -146,7 +146,7 @@ export function Labeled({
         {required && <span style={{ color: "var(--negative)" }}> *</span>}
       </label>
       {children}
-      {hint && <div className="muted mt-1 text-[10px] leading-4">{hint}</div>}
+      {hint && <div className="muted mt-1 text-[length:var(--fs-xs)] leading-4">{hint}</div>}
     </div>
   );
 }
@@ -155,7 +155,7 @@ export function StatusChip({ status }: { status: "active" | "sold" }) {
   const active = status === "active";
   return (
     <span
-      className="rounded-full px-2 py-0.5 text-[9px] font-medium sm:text-[10px]"
+      className="rounded-full px-2 py-0.5 text-[length:var(--fs-xs)] font-medium"
       style={{
         background: active ? "var(--positive-soft)" : "var(--sunken)",
         color: active ? "var(--positive)" : "var(--text-2)",

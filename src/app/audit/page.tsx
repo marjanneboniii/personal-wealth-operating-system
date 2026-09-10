@@ -47,7 +47,7 @@ export default async function AuditPage() {
         role="status"
         aria-live="polite"
       >
-        <p className="text-[10.5px] font-semibold tracking-wide" style={{ color: "var(--text-2)" }}>
+        <p className="text-[length:var(--fs-xs)] font-semibold tracking-wide" style={{ color: "var(--text-2)" }}>
           یکپارچگی مالی
         </p>
         <div className="mt-2 flex items-center gap-3">
@@ -124,7 +124,7 @@ export default async function AuditPage() {
                         </ul>
                       </details>
                     )}
-                    <div className="muted mt-2 flex flex-wrap items-center gap-x-3 text-[10px]">
+                    <div className="muted mt-2 flex flex-wrap items-center gap-x-3 text-[length:var(--fs-xs)]">
                       <span>
                         اجرا: <span className="num">{formatDualDate(c.ranAt.slice(0, 10))}</span> · هم‌اکنون
                       </span>

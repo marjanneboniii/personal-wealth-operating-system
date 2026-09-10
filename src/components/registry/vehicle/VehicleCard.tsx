@@ -75,7 +75,7 @@ export default function VehicleCard({
               )}
               <StatusChip status={vehicle.status} />
               {valuation.scope === "catalog" && (
-                <span className="muted text-[10px]">ارزش‌گذاری در سطح مدل (بازار)</span>
+                <span className="muted text-[length:var(--fs-xs)]">ارزش‌گذاری در سطح مدل (بازار)</span>
               )}
             </h3>
           <p className="muted mt-1 text-[11px] leading-5">
@@ -222,7 +222,7 @@ function PerformanceTable({ periods }: { periods: VehicleDashboardItem["periods"
                   <td className="td-num"><DeltaPct value={p.tomanChangePct} /></td>
                   <td className="td-num"><DeltaUsd value={p.usdChange} /></td>
                   <td className="td-num"><DeltaPct value={p.usdChangePct} /></td>
-                  <td className="muted td-num hidden text-[10.5px] sm:table-cell">
+                  <td className="muted td-num hidden text-[length:var(--fs-xs)] sm:table-cell">
                     <JDate iso={p.from.date} /> → <JDate iso={p.to.date} />
                     {p.baselineIsPurchase && " (خرید)"}
                   </td>
@@ -236,7 +236,7 @@ function PerformanceTable({ periods }: { periods: VehicleDashboardItem["periods"
           ))}
         </tbody>
       </table>
-      <p className="muted mt-2 text-[10.5px] leading-5">
+      <p className="muted mt-2 text-[length:var(--fs-xs)] leading-5">
         همه محاسبات فقط بر پایه Snapshotهای واقعی انجام می‌شوند. اگر برای یک بازه داده تاریخی وجود نداشته باشد، هیچ مقدار
         فرضی ساخته نمی‌شود.
       </p>
@@ -300,7 +300,7 @@ function HistoryTable({
           ))}
         </tbody>
       </table>
-      <p className="muted mt-2 text-[10.5px]">
+      <p className="muted mt-2 text-[length:var(--fs-xs)]">
         هر ردیف یک Snapshot تغییرناپذیر است؛ نرخ دلار ذخیره‌شده در همان ردیف مبنای ارزش دلاری آن تاریخ است.
       </p>
     </div>
@@ -437,7 +437,7 @@ function ManagePanel({
         <Labeled label="یادداشت">
           <input className="field" name="notes" defaultValue={item.vehicle.notes ?? ""} />
         </Labeled>
-        <p className="muted text-[10.5px]">قیمت خرید، نرخ دلار خرید و Snapshotها از این مسیر قابل تغییر نیستند.</p>
+        <p className="muted text-[length:var(--fs-xs)]">قیمت خرید، نرخ دلار خرید و Snapshotها از این مسیر قابل تغییر نیستند.</p>
         <button className="btn" disabled={detailPending}>
           {detailPending ? "در حال ذخیره…" : "ذخیره تغییرات"}
         </button>

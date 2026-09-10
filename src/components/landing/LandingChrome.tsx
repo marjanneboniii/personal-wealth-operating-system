@@ -11,7 +11,7 @@ export function LandingHeader() {
           <BrandMark size={28} style={{ color: "var(--l-accent)" }} />
           <span className="min-w-0 leading-tight">
             <BrandWordmark className="block text-[16px] text-[color:var(--l-text)]" />
-            <span className="landing-on-primary-muted hidden text-[10px] sm:block">سیستم‌عامل ثروت شخصی</span>
+            <span className="landing-on-primary-muted hidden text-[length:var(--fs-xs)] sm:block">سیستم‌عامل ثروت شخصی</span>
           </span>
         </Link>
         <nav className="landing-header-nav" aria-label="ورود به محصول">

@@ -240,7 +240,7 @@ export default function RealEstateForm({
             </div>
           </div>
           {identityPreview?.sequence && identityPreview.sequence > 1 && (
-            <span className="rounded-full px-2 py-0.5 text-[10px]" style={{ background: "var(--sunken)" }}>
+            <span className="rounded-full px-2 py-0.5 text-[length:var(--fs-xs)]" style={{ background: "var(--sunken)" }}>
               {toFaDigits(String(identityPreview.sequence))}مین ملک مشابه در این محله
             </span>
           )}
@@ -294,7 +294,7 @@ export default function RealEstateForm({
                 {canPreviewPurchase && loadingPurchase ? "…" : purchaseUsdPreview ? formatMoney(purchaseUsdPreview.usd, "USD") : "—"}
               </strong>
             </div>
-            <div className="muted mt-1 text-[10px] leading-5">
+            <div className="muted mt-1 text-[length:var(--fs-xs)] leading-5">
               {purchaseUsdPreview ? (
                 <>
                   نرخ: <span className="num">{formatMoney(purchaseUsdPreview.rate, "IRT")}</span> ·{" "}
@@ -337,7 +337,7 @@ export default function RealEstateForm({
                 {canPreviewValuation && loadingValuation ? "…" : valuationUsdPreview ? formatMoney(valuationUsdPreview.usd, "USD") : "—"}
               </strong>
             </div>
-            <div className="muted mt-1 text-[10px] leading-5">
+            <div className="muted mt-1 text-[length:var(--fs-xs)] leading-5">
               {valuationUsdPreview ? (
                 <>
                   نرخ: <span className="num">{formatMoney(valuationUsdPreview.rate, "IRT")}</span> ·{" "}

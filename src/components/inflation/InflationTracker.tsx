@@ -178,7 +178,7 @@ function ItemEdit({ item }: { item: InflationItemRow }) {
       <button className="btn btn-primary !px-2 !py-1 text-xs" disabled={pending}>
         ذخیره
       </button>
-      {state && <span className="text-[10px]">{state.message}</span>}
+      {state && <span className="text-[length:var(--fs-xs)]">{state.message}</span>}
     </form>
   );
 }
@@ -195,13 +195,13 @@ function PriceEdit({ price }: { price: InflationHistoryPoint }) {
   return (
     <form action={action} className="flex flex-wrap items-center gap-1">
       <input type="hidden" name="id" value={price.id} />
-      <AmountInput name="unitPrice" defaultValue={price.unitPrice} className="field !w-24 !py-1" unit="toman" hintClassName="!mt-1 !text-[10px]" />
+      <AmountInput name="unitPrice" defaultValue={price.unitPrice} className="field !w-24 !py-1" unit="toman" hintClassName="!mt-1 !text-[length:var(--fs-xs)]" />
       <input name="merchant" defaultValue={price.merchantName || ""} className="field !w-24 !py-1" placeholder="فروشگاه" />
       <input name="region" defaultValue={price.region || ""} className="field !w-24 !py-1" placeholder="منطقه/شهر" />
       <button className="btn btn-primary !px-2 !py-1 text-xs" disabled={pending}>
         ذخیره
       </button>
-      {state && <span className="text-[10px]">{state.message}</span>}
+      {state && <span className="text-[length:var(--fs-xs)]">{state.message}</span>}
     </form>
   );
 }
@@ -247,7 +247,7 @@ export default function InflationTracker({ items, histories, dashboard, categori
           <div className="num mt-1 text-2xl font-bold" style={{ color: growthColor(dashboard.headline.growthPercent) }} dir="rtl">
             {dashboard.headline.growthPercent !== null ? faGrowth(dashboard.headline.growthPercent) : "—"}
           </div>
-          <div className="muted mt-1 text-[10.5px]">
+          <div className="muted mt-1 text-[length:var(--fs-xs)]">
             {dashboard.headline.itemsWithBaseline > 0
               ? `بر اساس ${faCount(dashboard.headline.itemsWithBaseline)} کالا`
               : "داده کافی نیست"}
@@ -256,21 +256,21 @@ export default function InflationTracker({ items, histories, dashboard, categori
         <div className="card p-4">
           <div className="muted text-[11px]">کالاهای من</div>
           <div className="num mt-1 text-2xl font-bold" dir="rtl">{faCount(dashboard.totalItems)}</div>
-          <div className="muted mt-1 text-[10.5px]">{faCount(dashboard.totalObservations)} ثبت قیمت</div>
+          <div className="muted mt-1 text-[length:var(--fs-xs)]">{faCount(dashboard.totalObservations)} ثبت قیمت</div>
         </div>
         <div className="card p-4">
           <div className="muted text-[11px]">تورم سبد · یک ماه اخیر</div>
           <div className="num mt-1 text-2xl font-bold" style={{ color: growthColor(dashboard.windows[0]?.growthPercent ?? null) }} dir="rtl">
             {dashboard.windows[0]?.growthPercent !== null ? faGrowth(dashboard.windows[0]?.growthPercent ?? null) : "—"}
           </div>
-          <div className="muted mt-1 text-[10.5px]">میانگین ساده رشد کالاها</div>
+          <div className="muted mt-1 text-[length:var(--fs-xs)]">میانگین ساده رشد کالاها</div>
         </div>
         <div className="card p-4">
           <div className="muted text-[11px]">تورم سبد · یک سال اخیر</div>
           <div className="num mt-1 text-2xl font-bold" style={{ color: growthColor(dashboard.windows[3]?.growthPercent ?? null) }} dir="rtl">
             {dashboard.windows[3]?.growthPercent !== null ? faGrowth(dashboard.windows[3]?.growthPercent ?? null) : "—"}
           </div>
-          <div className="muted mt-1 text-[10.5px]">میانگین ساده رشد کالاها</div>
+          <div className="muted mt-1 text-[length:var(--fs-xs)]">میانگین ساده رشد کالاها</div>
         </div>
       </section>
 

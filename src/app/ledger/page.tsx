@@ -159,7 +159,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                     )}
                     <td className="font-medium">
                       {b.name}
-                      {b.walletName && <span className="muted mr-1.5 text-[10px]">· {b.walletName}</span>}
+                      {b.walletName && <span className="muted mr-1.5 text-[length:var(--fs-xs)]">· {b.walletName}</span>}
                     </td>
                     <td>
                       <span className="badge badge-neutral">{ACCOUNT_TYPE_LABELS[b.type as AccountType]}</span>
@@ -230,7 +230,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
               >
                 <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-2.5 marker:hidden [&::-webkit-details-marker]:hidden">
                   {pro && (
-                    <span className="num muted hidden w-16 shrink-0 text-[10px] sm:block" dir="ltr">
+                    <span className="num muted hidden w-16 shrink-0 text-[length:var(--fs-xs)] sm:block" dir="ltr">
                       {shortId(e.id)}
                     </span>
                   )}
@@ -238,13 +238,13 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                     <span className="num text-[11px] font-medium" style={{ color: "var(--text-2)" }}>
                       {formatJalaliIso(e.entryDate)}
                     </span>
-                    <span className="num text-[9px]" dir="ltr">{e.entryDate}</span>
+                    <span className="num text-[length:var(--fs-xs)]" dir="ltr">{e.entryDate}</span>
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate text-[12.5px] font-medium ${isVoid ? "line-through" : ""}`}>
                       {e.description}
                     </span>
-                    <span className="muted mt-0.5 flex items-center gap-1.5 text-[10px] sm:hidden">
+                    <span className="muted mt-0.5 flex items-center gap-1.5 text-[length:var(--fs-xs)] sm:hidden">
                       {formatDualDate(e.entryDate)}
                       {pro && <> · {shortId(e.id)}</>}
                     </span>
@@ -299,12 +299,12 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                                 {formatMoney(Math.abs(v))}
                               </td>
                             )}
-                            <td className="muted text-[10.5px]">{l.memo ?? ""}</td>
+                            <td className="muted text-[length:var(--fs-xs)]">{l.memo ?? ""}</td>
                           </tr>
                         );
                       })}
                       <tr style={{ background: "var(--surface)" }}>
-                        <td colSpan={2} className="muted text-[10.5px]">
+                        <td colSpan={2} className="muted text-[length:var(--fs-xs)]">
                           {pro ? "جمع سند (باید صفر باشد)" : "جمع این رکورد"}
                         </td>
                         {pro ? (
@@ -321,14 +321,14 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                             {formatMoney(sumIn)}
                           </td>
                         )}
-                        <td className="text-[10.5px]" style={{ color: "var(--positive)" }}>
+                        <td className="text-[length:var(--fs-xs)]" style={{ color: "var(--positive)" }}>
                           <Icon name="check" size={13} />
                         </td>
                       </tr>
                     </tbody>
                   </table>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[10.5px]">
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[length:var(--fs-xs)]">
                     <span className="muted">
                       منبع: {e.source === "plan" ? "اجرای برنامه" : e.source === "import" ? "درون‌ریزی" : "دستی"}
                     </span>

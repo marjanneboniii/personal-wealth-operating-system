@@ -22,7 +22,7 @@ export function Card({
     <section className={`card p-3.5 sm:p-4 ${className}`}>
       {(title || action) && (
         <header className="mb-2.5 flex items-center justify-between gap-2">
-          {title && <h2 className="text-[13px] font-semibold tracking-tight sm:text-sm">{title}</h2>}
+          {title && <h2 className="text-[17px] font-semibold tracking-tight sm:text-[18px]">{title}</h2>}
           {action}
         </header>
       )}
@@ -56,8 +56,8 @@ export function Section({
       {(title || hint || action) && (
         <header className="mb-2.5 flex items-end justify-between gap-3">
           <div className="min-w-0">
-            {title && <h2 className="text-[13px] font-semibold tracking-tight sm:text-[14px]">{title}</h2>}
-            {hint && <p className="muted mt-0.5 text-[11px] leading-5">{hint}</p>}
+            {title && <h2 className="text-[17px] font-semibold tracking-tight sm:text-[18px]">{title}</h2>}
+            {hint && <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">{hint}</p>}
           </div>
           {action && <div className="shrink-0 pb-0.5">{action}</div>}
         </header>
@@ -72,7 +72,7 @@ export function SectionLink({ href, label = "مشاهده همه" }: { href: str
     <Link
       href={href}
       aria-label={`مشاهده همه ${label}`}
-      className="inline-flex items-center gap-1 text-[11.5px] font-medium transition-colors sm:text-[12px]"
+      className="section-link inline-flex min-h-11 items-center gap-1 text-[length:var(--fs-sm)] font-medium"
       style={{ color: "var(--brand)" }}
     >
       {label}
@@ -98,15 +98,16 @@ export function Money({
 }) {
   const n = Number(value);
   const color = tone ? (n > 0 ? "var(--positive)" : n < 0 ? "var(--negative)" : "var(--text)") : undefined;
-  // Compact, PWA-friendly — no huge 3xl/4xl that breaks mobile
+  // Six-step scale from the design tokens. A financial value never renders
+  // below --fs-sm (14px): shrinking money to fit is not a layout solution.
   const cls =
     size === "xl"
-      ? "money-hero text-[20px] sm:text-[24px] md:text-[28px] font-bold leading-[1.15] money-nowrap"
+      ? "money-hero text-[length:var(--fs-hero)] font-bold leading-[1.1] tracking-tight money-nowrap"
       : size === "lg"
-        ? "money-hero-sm text-[15px] sm:text-[17px] md:text-[19px] font-bold money-nowrap"
+        ? "money-hero-sm text-[length:var(--fs-lg)] font-bold leading-[1.25] money-nowrap"
         : size === "sm"
-          ? "num text-[11px] sm:text-[12px] font-medium money-nowrap"
-          : "num text-[12.5px] sm:text-[13.5px] font-semibold money-nowrap";
+          ? "num text-[length:var(--fs-sm)] font-medium money-nowrap"
+          : "num text-[length:var(--fs-md)] font-semibold money-nowrap";
   return (
     <span className={`money-inline rtl-isolate ${cls}`} dir="rtl" style={color ? { color } : undefined}>
       {arrow && n !== 0 && (
@@ -139,16 +140,16 @@ export function Delta({
   const abs = formatMoney(Math.abs(n), currency);
   return (
     <span className={`inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 ${className} money-nowrap`} style={{ color }}>
-      <span className="num text-[12px] sm:text-[13px] font-semibold rtl-isolate money-nowrap" dir="rtl">
+      <span className="num text-[length:var(--fs-sm)] font-semibold rtl-isolate money-nowrap" dir="rtl">
         {arrow} {zero ? formatMoney(0, currency) : `${up ? "+" : "−"}${abs.replace(/^−|-/, "")}`}
       </span>
       {pct != null && Number.isFinite(Number(pct)) && (
-        <span className="num text-[10.5px] sm:text-[11px] opacity-80 rtl-isolate money-nowrap" dir="rtl">
+        <span className="num text-[length:var(--fs-xs)] opacity-80 rtl-isolate money-nowrap" dir="rtl">
           ({up ? "+" : "−"}
           {formatPercent(Math.abs(Number(pct))).replace("+", "")})
         </span>
       )}
-      {suffix && <span className="muted text-[10px] sm:text-[11px]">{suffix}</span>}
+      {suffix && <span className="muted text-[length:var(--fs-xs)]">{suffix}</span>}
     </span>
   );
 }
@@ -156,7 +157,7 @@ export function Delta({
 export function Pct({ value }: { value: string | number }) {
   const n = Number(value);
   return (
-    <span className="num rtl-isolate money-nowrap text-[12px]" dir="rtl" style={{ color: n > 0 ? "var(--positive)" : n < 0 ? "var(--negative)" : "var(--text-2)" }}>
+    <span className="num rtl-isolate money-nowrap text-[length:var(--fs-sm)]" dir="rtl" style={{ color: n > 0 ? "var(--positive)" : n < 0 ? "var(--negative)" : "var(--text-2)" }}>
       {formatPercent(value)}
     </span>
   );
@@ -179,11 +180,11 @@ export function Stat({
     tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : "var(--text)";
   return (
     <div className="card p-3 sm:p-3.5 min-w-0 overflow-hidden">
-      <div className="muted text-[10px] sm:text-[11px] font-medium truncate">{label}</div>
-      <div className="stat-value mt-1 text-[13px] sm:text-[15px] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
+      <div className="muted text-[length:var(--fs-xs)] font-medium truncate">{label}</div>
+      <div className="stat-value mt-1.5 text-[length:var(--fs-lg)] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
         {value}
       </div>
-      {hint && <div className="muted mt-1 text-[10px] sm:text-[11px] leading-4 line-clamp-2">{hint}</div>}
+      {hint && <div className="muted mt-1.5 text-[length:var(--fs-xs)] leading-5 line-clamp-2">{hint}</div>}
     </div>
   );
 }
@@ -204,11 +205,11 @@ export function Metric({
     tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : "var(--text)";
   return (
     <div className="min-w-0 overflow-hidden">
-      <div className="muted text-[10px] sm:text-[11px] font-medium truncate">{label}</div>
-      <div className="metric-value mt-1 text-[13px] sm:text-[14px] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
+      <div className="muted text-[length:var(--fs-xs)] font-medium truncate">{label}</div>
+      <div className="metric-value mt-1.5 text-[length:var(--fs-md)] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
         {value}
       </div>
-      {hint && <div className="muted mt-0.5 text-[10px] leading-4 line-clamp-2 sm:text-[11px]">{hint}</div>}
+      {hint && <div className="muted mt-1 text-[length:var(--fs-xs)] leading-5 line-clamp-2">{hint}</div>}
     </div>
   );
 }
@@ -224,7 +225,7 @@ export function Progress({ value, color = "var(--brand)", "aria-label": ariaLabe
 /* ─────────────────────── Empty & headers ──────────────────────── */
 
 export function Empty({ text }: { text: string }) {
-  return <p className="muted py-8 text-center text-xs">{text}</p>;
+  return <p className="muted py-8 text-center text-[length:var(--fs-sm)]">{text}</p>;
 }
 
 /** Rich empty state — what is missing, why it matters, what to do. */
@@ -247,8 +248,106 @@ export function EmptyState({
       >
         <Icon name={icon} size={18} />
       </span>
-      <div className="text-[12.5px] font-semibold sm:text-[13.5px]">{title}</div>
-      {body && <p className="muted max-w-sm text-[11px] leading-5 sm:text-[12px]">{body}</p>}
+      <div className="text-[length:var(--fs-md)] font-semibold">{title}</div>
+      {body && <p className="muted max-w-sm text-[length:var(--fs-sm)] leading-6">{body}</p>}
+      {action && <div className="mt-2">{action}</div>}
+    </div>
+  );
+}
+
+/* ───────────────────── ActionItem — «نیاز به توجه» ─────────────────────
+   One thing the user should decide about, stated in plain Persian, with the
+   amount/date that makes it decidable and exactly one action. Deliberately a
+   quiet row, not a wall of alert cards: attention should feel calm.
+   ─────────────────────────────────────────────────────────────────────── */
+export function ActionItem({
+  icon = "info",
+  tone = "info",
+  text,
+  detail,
+  href,
+  action,
+}: {
+  icon?: Parameters<typeof Icon>[0]["name"];
+  tone?: "info" | "warn" | "neg" | "pos";
+  text: string;
+  detail?: string;
+  href: string;
+  action: string;
+}) {
+  const color = {
+    info: "var(--info)",
+    warn: "var(--warning)",
+    neg: "var(--negative)",
+    pos: "var(--positive)",
+  }[tone];
+  const bg = {
+    info: "var(--info-soft)",
+    warn: "var(--warning-soft)",
+    neg: "var(--negative-soft)",
+    pos: "var(--positive-soft)",
+  }[tone];
+
+  return (
+    <li className="action-item">
+      <span className="action-item-icon" style={{ background: bg, color }} aria-hidden="true">
+        <Icon name={icon} size={17} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[length:var(--fs-sm)] font-semibold leading-6">{text}</p>
+        {detail && <p className="muted mt-0.5 text-[length:var(--fs-xs)] leading-5">{detail}</p>}
+      </div>
+      <Link href={href} className="btn btn-soft shrink-0 !px-3.5 text-[length:var(--fs-xs)]">
+        {action}
+      </Link>
+    </li>
+  );
+}
+
+/** The reassuring counterpart: nothing needs the user right now. */
+export function AllClear({ text = "همه‌چیز مرتب است" }: { text?: string }) {
+  return (
+    <div className="all-clear">
+      <span className="action-item-icon" style={{ background: "var(--positive-soft)", color: "var(--positive)" }} aria-hidden="true">
+        <Icon name="check" size={17} />
+      </span>
+      <p className="text-[length:var(--fs-sm)] font-medium">{text}</p>
+    </div>
+  );
+}
+
+/* ─────────── StateBlock — one shape for loading / empty / error ───────────
+   Every state answers the same three questions: what is missing, why it
+   matters, what to do next. Raw technical errors never reach the user.
+   ─────────────────────────────────────────────────────────────────────── */
+export function StateBlock({
+  kind = "empty",
+  icon,
+  title,
+  body,
+  action,
+}: {
+  kind?: "empty" | "error";
+  icon?: Parameters<typeof Icon>[0]["name"];
+  title: string;
+  body?: string;
+  action?: ReactNode;
+}) {
+  const tone = kind === "error" ? "var(--negative)" : "var(--brand)";
+  const bg = kind === "error" ? "var(--negative-soft)" : "var(--brand-soft)";
+  return (
+    <div
+      className="flex flex-col items-center gap-2 px-4 py-10 text-center sm:px-6"
+      role={kind === "error" ? "alert" : undefined}
+    >
+      <span
+        className="mb-1 flex h-11 w-11 items-center justify-center rounded-full"
+        style={{ background: bg, color: tone }}
+      >
+        <Icon name={icon ?? (kind === "error" ? "alert" : "info")} size={19} />
+      </span>
+      <div className="text-[length:var(--fs-md)] font-semibold">{title}</div>
+      {body && <p className="muted max-w-sm text-[length:var(--fs-sm)] leading-6">{body}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );
@@ -266,8 +365,8 @@ export function PageHeader({
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-2.5 pt-1 sm:mb-5 sm:gap-3">
       <div className="min-w-0">
-        <h1 className="text-[18px] font-bold tracking-tight sm:text-[20px]">{title}</h1>
-        {subtitle && <p className="muted mt-1 max-w-2xl text-[11px] leading-5 sm:text-[12.5px] sm:leading-6">{subtitle}</p>}
+        <h1 className="text-[22px] font-bold tracking-tight sm:text-[24px]">{title}</h1>
+        {subtitle && <p className="muted mt-1.5 max-w-2xl text-[length:var(--fs-sm)] leading-6">{subtitle}</p>}
       </div>
       {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
     </div>
@@ -313,8 +412,8 @@ export function Alert({
         <Icon name={icon ?? (map.i as Parameters<typeof Icon>[0]["name"])} size={16} />
       </span>
       <div className="min-w-0 flex-1">
-        {title && <div className="text-[12px] font-semibold sm:text-[13px]" style={{ color: map.c }}>{title}</div>}
-        {children && <div className="sub mt-0.5 text-[11px] leading-5 sm:text-[12px]">{children}</div>}
+        {title && <div className="text-[length:var(--fs-sm)] font-semibold" style={{ color: map.c }}>{title}</div>}
+        {children && <div className="sub mt-1 text-[length:var(--fs-xs)] leading-5">{children}</div>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>

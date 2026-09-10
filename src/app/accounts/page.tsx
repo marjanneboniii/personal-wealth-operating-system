@@ -339,7 +339,7 @@ export default async function AccountsPage() {
                         )}
                         <div className="min-w-0 flex-1">
                           <p className="acct-title text-[12.5px] font-semibold sm:text-[13px]">{walletName}</p>
-                          {walletSubtitle && <p className="acct-subtitle muted mt-0.5 text-[10.5px] leading-5">{walletSubtitle}</p>}
+                          {walletSubtitle && <p className="acct-subtitle muted mt-0.5 text-[length:var(--fs-xs)] leading-5">{walletSubtitle}</p>}
                         </div>
                       </div>
                       <div className="acct-amount max-w-[48%] shrink-0 text-left">
@@ -347,12 +347,12 @@ export default async function AccountsPage() {
                           {singlePrimary}
                         </p>
                         {singleExact && (
-                          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[10.5px] leading-5" dir="rtl">
+                          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[length:var(--fs-xs)] leading-5" dir="rtl">
                             {singleExact}
                           </p>
                         )}
                         {!singleExact && singleApprox && (
-                          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[10.5px] leading-5" dir="rtl">
+                          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[length:var(--fs-xs)] leading-5" dir="rtl">
                             ≈ {singleApprox}
                           </p>
                         )}
@@ -385,14 +385,14 @@ export default async function AccountsPage() {
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="acct-title text-[12px] font-semibold sm:text-[13px]">{walletName}</p>
-                        {walletSubtitle && <p className="acct-subtitle muted mt-0.5 text-[10px] leading-5">{walletSubtitle}</p>}
+                        {walletSubtitle && <p className="acct-subtitle muted mt-0.5 text-[length:var(--fs-xs)] leading-5">{walletSubtitle}</p>}
                       </div>
                     </div>
                     <div className="acct-amount max-w-[46%] shrink-0 text-left">
                       <p className="num money-nowrap text-[12px] font-bold leading-6 sm:text-[13px]" dir="rtl">
                         {walletPrimary}
                       </p>
-                      {!irtOnly && toIrt(walletTotal.toString()) && <p className="acct-secondary muted num money-nowrap mt-0.5 text-[10.5px] leading-5" dir="rtl">≈ {formatMoney(walletTotal.toString())}</p>}
+                      {!irtOnly && toIrt(walletTotal.toString()) && <p className="acct-secondary muted num money-nowrap mt-0.5 text-[length:var(--fs-xs)] leading-5" dir="rtl">≈ {formatMoney(walletTotal.toString())}</p>}
                     </div>
                   </div>
                   <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -437,7 +437,7 @@ export default async function AccountsPage() {
                   <div>
                     <p className="text-[12.5px] font-medium">{b.name}</p>
                     {pro && (
-                      <p className="muted num text-[10px]" dir="ltr">
+                      <p className="muted num text-[length:var(--fs-xs)]" dir="ltr">
                         {toFaDigits(b.code)}
                       </p>
                     )}
@@ -451,7 +451,7 @@ export default async function AccountsPage() {
                       {toIrt(D(b.baseValue).neg().toString()) ?? formatMoney(D(b.baseValue).neg().toString())}
                     </p>
                     {toIrt(D(b.baseValue).neg().toString()) && (
-                      <p className="muted num text-[9.5px]" dir="rtl">
+                      <p className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                         ≈ {formatMoney(D(b.baseValue).neg().toString())}
                       </p>
                     )}

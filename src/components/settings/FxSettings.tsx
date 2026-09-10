@@ -109,7 +109,7 @@ export default function FxSettings({ currentRate, lastUpdatedAt, nextUpdateAt, c
               نرخ ارز فقط هر ۲۴ ساعت یک‌بار قابل به‌روزرسانی است.
             </p>
           )}
-          <p className="muted mt-1 text-[10.5px]">پس از ذخیره، ارزش خالص فعلی و دارایی‌های جاری با نرخ جدید محاسبه می‌شوند؛ تراکنش‌های تاریخی بدون تغییر می‌مانند.</p>
+          <p className="muted mt-1 text-[length:var(--fs-xs)]">پس از ذخیره، ارزش خالص فعلی و دارایی‌های جاری با نرخ جدید محاسبه می‌شوند؛ تراکنش‌های تاریخی بدون تغییر می‌مانند.</p>
         </div>
 
         {state && (

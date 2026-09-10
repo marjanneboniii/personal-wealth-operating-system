@@ -294,10 +294,10 @@ export default async function InsightsPage() {
                   <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
                     <span className="min-w-0 truncate font-medium">
                       {c.name}
-                      {c.parentName && <span className="muted mr-1.5 text-[10px]">· {c.parentName}</span>}
+                      {c.parentName && <span className="muted mr-1.5 text-[length:var(--fs-xs)]">· {c.parentName}</span>}
                     </span>
                     <span className="flex shrink-0 items-baseline gap-2">
-                      <span className="num muted text-[10.5px]" dir="rtl">
+                      <span className="num muted text-[length:var(--fs-xs)]" dir="rtl">
                         {formatPct(shareNum, 1)}
                       </span>
                       <span className="flex flex-col items-end">
@@ -305,7 +305,7 @@ export default async function InsightsPage() {
                           {frozen ? formatMoney(c.totalToman, "IRT") : toIrt(c.total) ?? formatMoney(c.total)}
                         </span>
                         {(frozen || fx.rate) && (
-                          <span className="muted num text-[9.5px]" dir="rtl">
+                          <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                             ≈ {formatMoney(c.total)}
                           </span>
                         )}
@@ -340,12 +340,12 @@ export default async function InsightsPage() {
                       {toIrt(c.value) ?? formatMoney(c.value)}
                     </span>
                     {fx.rate && (
-                      <span className="muted num text-[9.5px]" dir="rtl">
+                      <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                         ≈ {formatMoney(c.value)}
                       </span>
                     )}
                   </span>
-                  <span className="num muted w-10 text-[10.5px]" dir="rtl">
+                  <span className="num muted w-10 text-[length:var(--fs-xs)]" dir="rtl">
                     {formatPct(Number(c.share), 1)}
                   </span>
                 </span>

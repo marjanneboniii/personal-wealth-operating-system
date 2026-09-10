@@ -101,7 +101,7 @@ export default async function BudgetsPage() {
                         <span className="muted">از {limitD.primary}</span>
                       </p>
                       {(spentD.usdHint || limitD.usdHint) && (
-                        <p className="muted num text-[9.5px]" dir="rtl">
+                        <p className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                           معادل: {spentD.usdHint ?? "—"} از {limitD.usdHint ?? "—"}
                         </p>
                       )}

@@ -178,7 +178,7 @@ export default async function PlanningPage() {
                       {disp.primary}
                     </span>
                     {disp.usdHint && (
-                      <span className="muted num text-[9.5px]" dir="rtl">
+                      <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                         معادل: {disp.usdHint}
                       </span>
                     )}
@@ -227,7 +227,7 @@ export default async function PlanningPage() {
                 <Icon name={l.icon} size={17} />
               </span>
               <p className="mt-2.5 text-[13px] font-semibold">{l.label}</p>
-              <p className="muted mt-0.5 truncate text-[10.5px]">{l.q}</p>
+              <p className="muted mt-0.5 truncate text-[length:var(--fs-xs)]">{l.q}</p>
             </Link>
           ))}
         </div>

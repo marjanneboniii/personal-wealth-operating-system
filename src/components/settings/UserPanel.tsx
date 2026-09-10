@@ -38,7 +38,7 @@ export default function UserPanel({ user }: { user: User }) {
           <p className="muted num text-[11px]" dir="ltr">
             @{user.username || "—"} {user.email ? `· ${user.email}` : ""}
           </p>
-          <span className="badge badge-brand mt-1 text-[10px]">{user.role === "owner" ? "مالک" : user.role}</span>
+          <span className="badge badge-brand mt-1 text-[length:var(--fs-xs)]">{user.role === "owner" ? "مالک" : user.role}</span>
         </div>
       </div>
       <div className="flex items-center gap-2">

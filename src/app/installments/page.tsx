@@ -37,7 +37,7 @@ function InstallmentUsdLine({ fx }: { fx: InstallmentFxView }) {
   const label = fx.isPaid ? "معادل هنگام پرداخت: " : "معادل فعلی: ";
   const change = fx.usdChange;
   return (
-    <div className="muted num mt-0.5 text-[9.5px] money-nowrap" dir="rtl">
+    <div className="muted num mt-0.5 text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
       {label}
       {formatMoney(fx.displayUsd, "USD")}
       {change && change.direction !== "unchanged" ? (
@@ -62,7 +62,7 @@ function InstallmentUsdLine({ fx }: { fx: InstallmentFxView }) {
 function InsightRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-0.5">
-      <dt className="muted min-w-0 text-[10.5px] leading-4">{label}</dt>
+      <dt className="muted min-w-0 text-[length:var(--fs-xs)] leading-4">{label}</dt>
       <dd className="num text-[11.5px] font-semibold" dir="rtl">
         {value}
       </dd>
@@ -185,7 +185,7 @@ export default async function InstallmentsPage() {
             <InsightRow label="معادلِ قسط‌های داخل این محاسبه" value={`${faCount(insight.count)} قسط`} />
           </dl>
 
-          <p className="muted mt-2 text-[9.5px] leading-4">
+          <p className="muted mt-2 text-[length:var(--fs-xs)] leading-4">
             مبلغ تومان هر قسط ثابت است، پس تنها چیزی که تغییر می‌کند معادل دلاری آن است: همین اختلاف، قسط‌به‌قسط داخل کارت هر قسط هم نوشته شده است.
             {insight.missingOriginalCount > 0
               ? ` ${faCount(insight.missingOriginalCount)} قسط نرخ زمان ثبت ندارد و در این مقایسه حساب نشده است.`
@@ -255,7 +255,7 @@ export default async function InstallmentsPage() {
                           {statusBadge}
                         </div>
                         <div className="mt-1 truncate text-[12px] font-medium" title={r.title}>{r.title}</div>
-                        <div className="muted truncate text-[10.5px]" title={r.creditor}>{r.creditor}</div>
+                        <div className="muted truncate text-[length:var(--fs-xs)]" title={r.creditor}>{r.creditor}</div>
                       </div>
                       <div className="shrink-0 text-left">
                         <div className="num text-[13px] font-bold money-nowrap" dir="rtl">
@@ -276,7 +276,7 @@ export default async function InstallmentsPage() {
                         </span>
                       </span>
                       {paidAt ? (
-                        <span className="muted num text-[10px]">
+                        <span className="muted num text-[length:var(--fs-xs)]">
                           {paidOnTime ? "در سررسید پرداخت شد" : `سررسید ${formatJalaliIso(r.dueDate)}`}
                         </span>
                       ) : (
@@ -346,7 +346,7 @@ export default async function InstallmentsPage() {
                         </td>
                         <td style={{ minWidth: "9rem" }}>
                           <span className="block text-[12.5px] font-medium">{r.title}</span>
-                          <span className="muted block text-[10px]">{r.creditor}</span>
+                          <span className="muted block text-[length:var(--fs-xs)]">{r.creditor}</span>
                         </td>
                         <td className="num hidden sm:table-cell" dir="ltr">
                           #{r.seq}
@@ -354,14 +354,14 @@ export default async function InstallmentsPage() {
                         <td style={{ whiteSpace: "nowrap" }}>
                           <span className="num block text-[12px]">{formatJalaliIso(r.dueDate)}</span>
                           {r.fx.isPaid && r.fx.paidAt ? (
-                            <span className="muted text-[9.5px]">
+                            <span className="muted text-[length:var(--fs-xs)]">
                               پرداخت{" "}
                               <span className="num" dir="ltr">
                                 {formatJalaliIso(r.fx.paidAt)}
                               </span>
                             </span>
                           ) : (
-                            <span className="muted num text-[9.5px]">{formatDaysUntil(d)}</span>
+                            <span className="muted num text-[length:var(--fs-xs)]">{formatDaysUntil(d)}</span>
                           )}
                         </td>
                         <td className="td-num font-bold" dir="rtl">

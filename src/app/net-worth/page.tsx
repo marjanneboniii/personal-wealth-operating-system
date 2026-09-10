@@ -211,7 +211,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                         {toIrt(D(r.value).abs().toString()) ?? formatMoney(D(r.value).abs().toString())}
                       </span>
                       {fx.rate && (
-                        <span className="muted num text-[9px] money-nowrap sm:text-[9.5px]">
+                        <span className="muted num text-[length:var(--fs-xs)] money-nowrap">
                           ≈ {formatMoney(D(r.value).abs().toString())}
                         </span>
                       )}
@@ -227,7 +227,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                   {formatSignedMoneyFromUsd(deltaAbs.toString(), fx.rate)}
                 </span>
                 {fx.rate && (
-                  <span className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
+                  <span className="muted num text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
                     ≈ {formatMoney(deltaAbs.abs().toString())}
                   </span>
                 )}
@@ -262,7 +262,7 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                   <span className="flex min-w-0 items-center gap-2.5 text-[13px]">
                     <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: b.color }} />
                     <span className="truncate">{b.name}</span>
-                    <span className="muted text-[10px]">{b.members.map((m) => m.name).join("، ")}</span>
+                    <span className="muted text-[length:var(--fs-xs)]">{b.members.map((m) => m.name).join("، ")}</span>
                   </span>
                   <span className="flex shrink-0 items-baseline gap-2">
                     <span className="flex flex-col items-end">
@@ -270,12 +270,12 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                         {toIrt(b.value) ?? formatMoney(b.value)}
                       </span>
                       {fx.rate && (
-                        <span className="muted num text-[9.5px]" dir="rtl">
+                        <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                           ≈ {formatMoney(b.value)}
                         </span>
                       )}
                     </span>
-                    <span className="num muted w-10 text-[10.5px]" dir="rtl">
+                    <span className="num muted w-10 text-[length:var(--fs-xs)]" dir="rtl">
                       {formatPct((b.value / totalAssets) * 100, 1)}
                     </span>
                   </span>

@@ -50,7 +50,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         </Link>
       </div>
       {error?.digest && (
-        <p className="muted mt-6 text-[10.5px]" dir="ltr">
+        <p className="muted mt-6 text-[length:var(--fs-xs)]" dir="ltr">
           کد پیگیری: {error.digest}
         </p>
       )}

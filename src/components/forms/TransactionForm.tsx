@@ -658,13 +658,13 @@ export default function TransactionForm({
               >
                 {refreshingCatalog ? "در حال به‌روزرسانی…" : "به‌روزرسانی کاتالوگ"}
               </button>
-              <span className="muted text-[10.5px]">
+              <span className="muted text-[length:var(--fs-xs)]">
                 {catalogStatus.total} دارایی
                 {catalogSearching ? " · در حال جستجو…" : ""}
               </span>
             </div>
             {catalogStatus.bootstrapOnly && (
-              <p className="soft rounded-[var(--r-md)] p-2 text-[10.5px] leading-5" role="status">
+              <p className="soft rounded-[var(--r-md)] p-2 text-[length:var(--fs-xs)] leading-5" role="status">
                 اتصال به CoinGecko برقرار نشده است؛ فعلاً فقط فهرست آفلاین در دسترس است.
                 برای دریافت فهرست کامل، دسترسی شبکهٔ سرور به <span dir="ltr">api.coingecko.com</span> یا مقدار
                 <span dir="ltr"> COINGECKO_API_KEY </span> را بررسی و سپس «به‌روزرسانی کاتالوگ» را بزنید.
@@ -701,7 +701,7 @@ export default function TransactionForm({
                         )}
                       </b>
                       <small className="muted block truncate" dir="ltr">{asset.name}</small>
-                      <small className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[9.5px]">
+                      <small className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[length:var(--fs-xs)]">
                         {asset.priceUsd ? (
                           <span className="num font-semibold" dir="rtl">{formatMoney(asset.priceUsd, "USD")}</span>
                         ) : (
@@ -770,7 +770,7 @@ export default function TransactionForm({
               </select>
             </div>
             {selectedCategory?.description && (
-              <p className="muted text-[10.5px] leading-5">{selectedCategory.description}</p>
+              <p className="muted text-[length:var(--fs-xs)] leading-5">{selectedCategory.description}</p>
             )}
             {isNonCashCategory && (
               <p className="rounded-[var(--r-sm)] p-2 text-[11px] leading-5" style={{ background: "var(--sunken)" }} role="note">
@@ -781,7 +781,7 @@ export default function TransactionForm({
               <button type="button" onClick={() => setShowNewCategory((v) => !v)} disabled={!selectedParent} className="chip disabled:opacity-40" style={{ touchAction: "manipulation" }}>
                 {showNewCategory ? "بستن" : "+ زیردسته جدید"}
               </button>
-              <span className="muted text-[10px]">
+              <span className="muted text-[length:var(--fs-xs)]">
                 {categoryMessage || "در صورت تکرار یک هزینهٔ متفرقه، برای آن زیردسته مستقل بسازید."}
               </span>
             </div>
@@ -830,7 +830,7 @@ export default function TransactionForm({
               </select>
             )}
             {primaryOptions.length === 0 && !(type === "expense" && isNonCashCategory) ? (
-              <p className="muted mt-1.5 text-[10.5px] leading-5">
+              <p className="muted mt-1.5 text-[length:var(--fs-xs)] leading-5">
                 {type === "buy" || type === "sell"
                   ? "برای خرید یا فروش، اول حساب دارایی را بسازید (دارایی‌ها ← ثبت دارایی). حساب‌های نقد و استیبل‌کوین در این فهرست نیامده‌اند."
                   : "برای ثبت هزینه یا درآمد به یک حساب نقد نیاز دارید — بانک، صندوق یا کیف‌پول استیبل‌کوین. حساب‌های سرمایه‌گذاری (رمزارز نوسانی، طلا، ملک، خودرو) عمداً اینجا فهرست نمی‌شوند؛ آن‌ها فقط با خرید/فروش/انتقال جابه‌جا می‌شوند."}{' '}
@@ -938,7 +938,7 @@ export default function TransactionForm({
                 style={{ touchAction: "manipulation" }}
               />
               {fee && feeInToman && effectiveRate && (
-                <p className="muted mt-1 text-[10px]">کارمزد دلاری ≈ {formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD")}</p>
+                <p className="muted mt-1 text-[length:var(--fs-xs)]">کارمزد دلاری ≈ {formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD")}</p>
               )}
             </div>
             <p className="muted self-end text-[11px] leading-5">
@@ -1021,10 +1021,10 @@ export default function TransactionForm({
               </div>
             )}
             <div className="soft rounded-xl p-2">
-              <div className="muted text-[10px]">مبلغ به تومان و معادل دلاری (با نرخ لحظه‌ای)</div>
+              <div className="muted text-[length:var(--fs-xs)]">مبلغ به تومان و معادل دلاری (با نرخ لحظه‌ای)</div>
               <div className="num font-bold" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</div>
-              <div className="num" dir="rtl" style={{ color:"var(--brand)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"} <span className="muted text-[10px]"> نرخ: {effectiveRate ? formatMoney(effectiveRate, "IRT")+" ≈ ۱ دلار" : "ثبت نشده"}</span></div>
-              {effectiveRateDate && <div className="muted text-[10px]">تاریخ نرخ: <span dir="ltr" className="num">{effectiveRateDate}</span> · منبع: {effectiveRateSource ?? "—"}</div>}
+              <div className="num" dir="rtl" style={{ color:"var(--brand)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"} <span className="muted text-[length:var(--fs-xs)]"> نرخ: {effectiveRate ? formatMoney(effectiveRate, "IRT")+" ≈ ۱ دلار" : "ثبت نشده"}</span></div>
+              {effectiveRateDate && <div className="muted text-[length:var(--fs-xs)]">تاریخ نرخ: <span dir="ltr" className="num">{effectiveRateDate}</span> · منبع: {effectiveRateSource ?? "—"}</div>}
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
               <div><span className="muted">حساب مبدأ:</span> <strong>{accountOptions.find(a=>a.id===primaryAccountId)?.name ?? "—"}</strong> <span className="chip">{accountOptions.find(a=>a.id===primaryAccountId)?.code ?? ""}</span></div>
@@ -1045,10 +1045,10 @@ export default function TransactionForm({
                 <div>بدهی: <strong>{selectedDebt?.title}</strong> — {selectedDebt?.creditor}</div>
                 {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید <span dir="rtl" className="num">{getDualDate(selectedInst.dueDate).jalali}</span> — مبلغ <span dir="rtl">{selectedInst.amountToman ? formatMoney(selectedInst.amountToman, "IRT") : formatMoney(selectedInst.amountBase, "USD")}</span></div>}
                 <div>وضعیت پس از پرداخت: <strong style={{ color:"var(--brand)" }}>{debtStatusAfter}</strong></div>
-                <div className="muted text-[10px]">شناسه مرجع در سند حسابداری ذخیره و قابل پیگیری از هر دو سمت خواهد بود.</div>
+                <div className="muted text-[length:var(--fs-xs)]">شناسه مرجع در سند حسابداری ذخیره و قابل پیگیری از هر دو سمت خواهد بود.</div>
               </div>
             )}
-            <div className="muted text-[10px] leading-5">
+            <div className="muted text-[length:var(--fs-xs)] leading-5">
               تا قبل از «تأیید نهایی ثبت تراکنش» هیچ اطلاعاتی وارد دفترکل یا هسته حسابداری نمی‌شود. پس از تأیید، مبلغ تاریخی به تومان، معادل به دلار و نرخ زمان ثبت Freeze می‌شوند (Historical Immutability).
             </div>
           </div>

@@ -47,7 +47,7 @@ function AddForm({
         <button className="btn btn-primary !py-1.5 text-[11.5px]" disabled={pending}>
           {pending ? "…" : "افزودن"}
         </button>
-        {state && <span className="text-[10.5px]">{state.message}</span>}
+        {state && <span className="text-[length:var(--fs-xs)]">{state.message}</span>}
       </div>
     </form>
   );
@@ -60,7 +60,7 @@ function ToggleForm({ action, id, isActive }: { action: MasterAction; id: string
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="isActive" value={isActive ? "on" : "off"} />
       <button
-        className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+        className="rounded-full px-2 py-0.5 text-[length:var(--fs-xs)] font-medium"
         style={{
           background: isActive ? "var(--positive-soft)" : "var(--sunken)",
           color: isActive ? "var(--positive)" : "var(--text-2)",
@@ -70,7 +70,7 @@ function ToggleForm({ action, id, isActive }: { action: MasterAction; id: string
       >
         {isActive ? "فعال" : "غیرفعال"}
       </button>
-      {state && <span className="muted text-[9.5px]">{state.message}</span>}
+      {state && <span className="muted text-[length:var(--fs-xs)]">{state.message}</span>}
     </form>
   );
 }
@@ -80,7 +80,7 @@ function RenameForm({ action, id, initial, withEn = true }: { action: MasterActi
   const [editing, setEditing] = useState(false);
   if (!editing) {
     return (
-      <button className="muted text-[10px] underline" onClick={() => setEditing(true)}>
+      <button className="muted text-[length:var(--fs-xs)] underline" onClick={() => setEditing(true)}>
         اصلاح نام
       </button>
     );
@@ -88,22 +88,22 @@ function RenameForm({ action, id, initial, withEn = true }: { action: MasterActi
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-1.5">
       <input type="hidden" name="id" value={id} />
-      <input name="nameFa" defaultValue={initial} className="field !w-32 !py-1 text-[10.5px]" required />
-      {withEn && <input name="nameEn" defaultValue={initial} className="field !w-24 !py-1 text-[10.5px]" dir="ltr" />}
-      <button className="btn btn-primary !px-2 !py-1 text-[10px]" disabled={pending}>
+      <input name="nameFa" defaultValue={initial} className="field !w-32 !py-1 text-[length:var(--fs-xs)]" required />
+      {withEn && <input name="nameEn" defaultValue={initial} className="field !w-24 !py-1 text-[length:var(--fs-xs)]" dir="ltr" />}
+      <button className="btn btn-primary !px-2 !py-1 text-[length:var(--fs-xs)]" disabled={pending}>
         ذخیره
       </button>
-      <button type="button" className="btn !px-2 !py-1 text-[10px]" onClick={() => setEditing(false)}>
+      <button type="button" className="btn !px-2 !py-1 text-[length:var(--fs-xs)]" onClick={() => setEditing(false)}>
         بستن
       </button>
-      {state && <span className="muted text-[9.5px]">{state.message}</span>}
+      {state && <span className="muted text-[length:var(--fs-xs)]">{state.message}</span>}
     </form>
   );
 }
 
 function Code({ children }: { children: string }) {
   return (
-    <span className="font-mono text-[10px]" dir="ltr">
+    <span className="font-mono text-[length:var(--fs-xs)]" dir="ltr">
       {children}
     </span>
   );
@@ -170,7 +170,7 @@ export default function MasterDataAdmin({
               ))}
             </select>
           </Labeled>
-          <span className="muted pb-2 text-[10.5px]">
+          <span className="muted pb-2 text-[length:var(--fs-xs)]">
             {faNum(cityNeighborhoods.length)} محله برای این شهر تعریف شده است.
           </span>
         </div>
@@ -230,7 +230,7 @@ export default function MasterDataAdmin({
         </div>
       </div>
 
-      <div className="muted text-[10.5px] leading-5">
+      <div className="muted text-[length:var(--fs-xs)] leading-5">
         این کدها شناسه‌های داخلی دادهٔ پایه‌اند و برای جست‌وجو و یکپارچگی شهر، محله و نوع ملک استفاده می‌شوند. شناسهٔ
         دارایی مستقل و به‌شکل عددی کوتاه (مانند <Code>001</Code>) توسط سیستم تولید می‌شود.
       </div>

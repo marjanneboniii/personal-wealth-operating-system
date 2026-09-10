@@ -145,7 +145,7 @@ export default function VehiclePortfolioSection({
                   <td className="font-semibold">
                     {v.title}
                     {v.status === "sold" && (
-                      <span className="muted mr-1.5 text-[10px]">(فروخته‌شده — خارج از مجموع)</span>
+                      <span className="muted mr-1.5 text-[length:var(--fs-xs)]">(فروخته‌شده — خارج از مجموع)</span>
                     )}
                   </td>
                   <td className="td-num num" dir="rtl">

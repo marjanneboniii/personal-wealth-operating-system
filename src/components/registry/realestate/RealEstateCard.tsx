@@ -81,7 +81,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
           <DetailRow label="تاریخ ثبت در سیستم">
             <JDate iso={a.systemEntryDate} fallback="—" />
             {a.isHistorical && (
-              <span className="mr-2 rounded-full px-2 py-0.5 text-[9.5px]" style={{ background: "var(--warning-soft)", color: "var(--warning)" }}>
+              <span className="mr-2 rounded-full px-2 py-0.5 text-[length:var(--fs-xs)]" style={{ background: "var(--warning-soft)", color: "var(--warning)" }}>
                 تملک پیش از راه‌اندازی سیستم
               </span>
             )}
@@ -160,7 +160,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
                 مشاهده سند دفترکل ←
               </Link>
             ) : (
-              <span className="muted text-[10.5px]">سند دفترکل ثبت نشده</span>
+              <span className="muted text-[length:var(--fs-xs)]">سند دفترکل ثبت نشده</span>
             )}
             <button type="button" className="btn text-[11.5px]" onClick={() => setRevalue((v) => !v)} aria-expanded={revalue}>
               {revalue ? "بستن ارزش‌گذاری جدید" : "ثبت ارزش‌گذاری جدید"}
@@ -183,7 +183,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
               {deleting ? "در حال حذف…" : "حذف ملک"}
             </button>
           </div>
-          {deleteMessage && <p className="muted mt-2 text-[10.5px]">{deleteMessage}</p>}
+          {deleteMessage && <p className="muted mt-2 text-[length:var(--fs-xs)]">{deleteMessage}</p>}
         </div>
       </div>
 
@@ -228,7 +228,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
             <button className="btn btn-primary" disabled={pending}>
               {pending ? "در حال ثبت…" : "ثبت ارزش‌گذاری جدید"}
             </button>
-            <span className="muted text-[10.5px]">
+            <span className="muted text-[length:var(--fs-xs)]">
               هر ثبت یک Snapshot جدید و تغییرناپذیر می‌سازد؛ ارزش‌گذاری قبلی (تومان + نرخ دلار همان روز) هرگز حذف یا بازنویسی نمی‌شود و سند دفترکل هم تغییر نمی‌کند.
             </span>
           </div>
@@ -239,7 +239,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
       )}
 
       {a.notes && (
-        <p className="muted text-[10.5px] leading-5">
+        <p className="muted text-[length:var(--fs-xs)] leading-5">
           <b>یادداشت:</b> {a.notes}
         </p>
       )}
@@ -274,7 +274,7 @@ function PerformancePanel({ item }: { item: RealEstateDashboardItem }) {
                     <td className="td-num"><DeltaPct value={p.tomanChangePct} /></td>
                     <td className="td-num"><DeltaUsd value={p.usdChange} /></td>
                     <td className="td-num"><DeltaPct value={p.usdChangePct} /></td>
-                    <td className="muted td-num hidden text-[10.5px] sm:table-cell">
+                    <td className="muted td-num hidden text-[length:var(--fs-xs)] sm:table-cell">
                       <JDate iso={p.from.date} /> → <JDate iso={p.to.date} />
                       {p.baselineIsPurchase && " (خرید)"}
                     </td>
@@ -289,7 +289,7 @@ function PerformancePanel({ item }: { item: RealEstateDashboardItem }) {
           </tbody>
         </table>
       </div>
-      <p className="muted mt-2 text-[10.5px] leading-5">
+      <p className="muted mt-2 text-[length:var(--fs-xs)] leading-5">
         مبناهای تومانی و دلاری هر بازه از Snapshotهای واقعی همان تاریخ خوانده می‌شوند؛ نرخ دلار هر Snapshot همان نرخ ثبت‌شده در آن
         روز است و هرگز با نرخ امروز بازمحاسبه نمی‌شود. اگر برای یک بازه داده تاریخی وجود نداشته باشد، مقدار فرضی ساخته نمی‌شود.
       </p>
@@ -355,7 +355,7 @@ function HistoryPanel({ item }: { item: RealEstateDashboardItem }) {
           ))}
         </tbody>
       </table>
-      <p className="muted mt-2 text-[10.5px]">
+      <p className="muted mt-2 text-[length:var(--fs-xs)]">
         هر ردیف یک Snapshot تغییرناپذیر است ({faNum(points.length)} ارزش‌گذاری ثبت‌شده)؛ نرخ دلار ذخیره‌شده در همان ردیف مبنای ارزش
         دلاری آن تاریخ است و ردیف‌ها هرگز حذف یا بازنویسی نمی‌شوند.
       </p>

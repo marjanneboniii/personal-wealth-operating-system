@@ -144,11 +144,11 @@ export default async function FinancialAssetsPage() {
                     {toIrt(b.value.toString()) ?? formatMoney(b.value.toString())}
                   </p>
                   {fx.rate && (
-                    <p className="muted num text-[9.5px]" dir="rtl">
+                    <p className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                       ≈ {formatMoney(b.value.toString())}
                     </p>
                   )}
-                  <p className="muted num text-[10.5px]" dir="rtl">
+                  <p className="muted num text-[length:var(--fs-xs)]" dir="rtl">
                     {faCount(b.rows.length)} دارایی ·{" "}
                     {formatPct(totalValue.isZero() ? "0.0" : b.value.div(totalValue).mul(100).toFixed(1), 1)}
                   </p>

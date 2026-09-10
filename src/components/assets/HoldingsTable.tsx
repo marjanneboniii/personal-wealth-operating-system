@@ -77,7 +77,7 @@ export default function HoldingsTable({
                         {a.name}
                       </div>
                       {unitLabel && !sameAsName && (
-                        <div className="muted truncate text-[10px] font-normal sm:text-[10.5px]" dir="ltr">
+                        <div className="muted truncate text-[length:var(--fs-xs)] font-normal" dir="ltr">
                           {unitLabel}
                         </div>
                       )}
@@ -90,12 +90,12 @@ export default function HoldingsTable({
                             untouched and still drive the numbers. Only a real
                             price PROBLEM is still surfaced below. */}
                         {a.priceFreshness === "stale" && (
-                          <span className="chip text-[9px]" style={{ color: "var(--warning)" }} title="قیمت این دارایی قدیمی است و باید تازه‌سازی شود">
+                          <span className="chip text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }} title="قیمت این دارایی قدیمی است و باید تازه‌سازی شود">
                             قیمت قدیمی
                           </span>
                         )}
                         {a.priceFreshness === "unavailable" && (
-                          <span className="chip text-[9px]" style={{ color: "var(--negative)" }} title="قیمت بازار برای این دارایی در دسترس نیست">
+                          <span className="chip text-[length:var(--fs-xs)]" style={{ color: "var(--negative)" }} title="قیمت بازار برای این دارایی در دسترس نیست">
                             قیمت در دسترس نیست
                           </span>
                         )}
@@ -114,7 +114,7 @@ export default function HoldingsTable({
                           ? formatMoney(a.currentValueToman, "IRT")
                           : formatMoney(priceToman.toFixed(0), "IRT")}
                       </div>
-                      <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
+                      <div className="muted num text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
                         ≈ {formatMoney(a.marketPrice)}
                       </div>
                     </>
@@ -128,7 +128,7 @@ export default function HoldingsTable({
                 </td>
                 <td className="td-num hidden lg:table-cell money-nowrap text-[11px]" dir="rtl">
                   <div className="text-[11px] font-medium money-nowrap sm:text-[12px]">{formatMoney(costToman.toFixed(0), "IRT")}</div>
-                  <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
+                  <div className="muted num text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
                     ≈ {formatMoney(a.costBasis)}
                   </div>
                 </td>
@@ -138,10 +138,10 @@ export default function HoldingsTable({
                       <div className="text-[11px] font-medium money-nowrap sm:text-[12px]">
                         {formatMoney(dca!.dcaUnitPriceToman, "IRT")}
                       </div>
-                      <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
+                      <div className="muted num text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
                         ≈ {formatMoney(dca!.dcaUnitPriceUsd)}
                       </div>
-                      <div className="muted text-[9px] leading-4 sm:text-[9.5px]">
+                      <div className="muted text-[length:var(--fs-xs)] leading-4">
                         {formatQty(dca!.quantityHeld, a.decimals)} واحد
                         {dca!.hasEstimatedFx ? " · با برآورد نرخ" : ""}
                       </div>
@@ -152,7 +152,7 @@ export default function HoldingsTable({
                 </td>
                 <td className="td-num money-nowrap" dir="rtl">
                   <div className="num text-[11px] font-bold money-nowrap sm:text-[12px]">{formatMoney(a.currentValueToman, "IRT")}</div>
-                  <div className="muted num text-[9px] money-nowrap sm:text-[9.5px]" dir="rtl">
+                  <div className="muted num text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
                     ≈ {formatMoney(a.currentValue)}
                   </div>
                 </td>
@@ -161,7 +161,7 @@ export default function HoldingsTable({
                     {pnlToneToman === "up" ? "+" : pnlToneToman === "down" ? "−" : ""}
                     {formatMoney(pnlToman.abs().toString(), "IRT")}
                   </div>
-                  <div className="num text-[9px] money-nowrap sm:text-[10px]">
+                  <div className="num text-[length:var(--fs-xs)] money-nowrap">
                     {trendArrow(roiToman)} {formatQty(D(roiToman).abs().toString(), 2)}٪
                   </div>
                 </td>
@@ -174,7 +174,7 @@ export default function HoldingsTable({
         </tbody>
       </table>
       <div
-        className="muted flex items-center gap-1 border-t px-3 py-2 text-[10.5px] sm:hidden"
+        className="muted flex items-center gap-1 border-t px-3 py-2 text-[length:var(--fs-xs)] sm:hidden"
         style={{ borderColor: "var(--border)" }}
         aria-hidden="true"
       >

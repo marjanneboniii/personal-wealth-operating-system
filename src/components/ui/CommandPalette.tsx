@@ -197,7 +197,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         </div>
 
         <div
-          className="muted flex items-center justify-between border-t px-4 py-2 text-[10.5px]"
+          className="muted flex items-center justify-between border-t px-4 py-2 text-[length:var(--fs-xs)]"
           style={{ borderColor: "var(--border)", background: "var(--sunken)" }}
         >
           <span className="flex items-center gap-2">

@@ -95,12 +95,12 @@ export default function AccountListItem({
           {primary}
         </p>
         {exactSecondary && (
-          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[10.5px] leading-5" dir="rtl">
+          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[length:var(--fs-xs)] leading-5" dir="rtl">
             {exactSecondary}
           </p>
         )}
         {!exactSecondary && approxSecondary && (
-          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[10.5px] leading-5" dir="rtl">
+          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[length:var(--fs-xs)] leading-5" dir="rtl">
             ≈ {approxSecondary}
           </p>
         )}

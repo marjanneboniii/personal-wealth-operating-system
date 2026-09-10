@@ -45,7 +45,7 @@ export function FxRateInfo({
   return (
     <span className="num money-nowrap text-[11px] sm:text-[12px]" dir="rtl">
       {formatMoney(rate, "IRT")}
-      <span className="muted text-[9px] sm:text-[9.5px]">
+      <span className="muted text-[length:var(--fs-xs)]">
         {" "}
         · {source ? (RATE_SOURCE_LABEL[source] ?? source) : ""}
         {effectiveDate ? ` (${effectiveDate})` : ""}

@@ -42,7 +42,7 @@ export default function RegisterForm({ turnstileSiteKey }: { turnstileSiteKey?: 
           dir="ltr"
           style={{ touchAction: "manipulation" }}
         />
-        <p className="muted mt-1 text-[10px]">فقط حروف انگلیسی، عدد، _ و - مجاز است.</p>
+        <p className="muted mt-1 text-[length:var(--fs-xs)]">فقط حروف انگلیسی، عدد، _ و - مجاز است.</p>
       </div>
 
       <div>

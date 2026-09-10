@@ -210,7 +210,7 @@ export default function JalaliDatePicker({
 
       <div className="mt-1 space-y-0.5">
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-          <span className="muted text-[10.5px] leading-4">
+          <span className="muted text-[length:var(--fs-xs)] leading-4">
             {complete ? (
               <>
                 <span className="num" dir="rtl" style={{ color: "var(--text-2)" }}>
@@ -225,7 +225,7 @@ export default function JalaliDatePicker({
           {showToday && !disabled && (
             <button
               type="button"
-              className="btn btn-ghost !min-h-7 !px-2 !py-0.5 text-[10.5px]"
+              className="btn btn-ghost !min-h-7 !px-2 !py-0.5 text-[length:var(--fs-xs)]"
               onClick={() => emit(partsFromIso(todayIso()))}
             >
               امروز
@@ -233,7 +233,7 @@ export default function JalaliDatePicker({
           )}
         </div>
         {showGregorian && complete && (
-          <div className="muted text-[10px] leading-4">
+          <div className="muted text-[length:var(--fs-xs)] leading-4">
             میلادی (خودکار):{" "}
             <b className="num ltr-isolate" dir="ltr" style={{ color: "var(--text-2)" }}>
               {formatGregorianIso(iso)}
