@@ -201,7 +201,7 @@ export default async function AccountsPage() {
     <div className="space-y-8">
       <PageHeader
         title="حساب‌های نقد"
-        subtitle="بانک، صندوق و کیف‌پول — همان‌جا که پول نگه داشته می‌شود."
+        subtitle="بانک، صندوق و کیف پول — همان‌جا که پول نگه داشته می‌شود."
         action={
           <Link
             href="/assets"
@@ -216,7 +216,7 @@ export default async function AccountsPage() {
 
       <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-3" style={{ borderColor: "var(--border)" }}>
         <Metric label="ارزش پایه حساب‌های نقد" value={toIrt(totalCash.toString()) ?? formatMoney(totalCash.toString())} hint={fx.rate ? formatMoney(totalCash.toString()) : undefined} />
-        <Metric label="حساب‌های فعال" value={faCount(moneyAccounts.length + liabilityAccounts.length)} hint={`${faCount(byWallet.size)} کیف‌پول / نهاد`} />
+        <Metric label="حساب‌های فعال" value={faCount(moneyAccounts.length + liabilityAccounts.length)} hint={`${faCount(byWallet.size)} کیف پول / نهاد`} />
         <Metric
           label="جمع کنترلی دفتر"
           value={formatMoney(controlSum.toFixed(2))}
@@ -233,7 +233,7 @@ export default async function AccountsPage() {
               title="هنوز حساب نقدی فعال نیست"
               body={
                 investmentAccounts.length > 0
-                  ? `${faCount(investmentAccounts.length)} حساب سرمایه‌گذاری دارید؛ آن‌ها در بخش دارایی‌ها ارزش‌گذاری می‌شوند. برای پول نقد، یک حساب بانکی یا کیف‌پول استیبل‌کوین اضافه کنید.`
+                  ? `${faCount(investmentAccounts.length)} حساب سرمایه‌گذاری دارید؛ آن‌ها در بخش دارایی‌ها ارزش‌گذاری می‌شوند. برای پول نقد، یک حساب بانکی یا کیف پول استیبل‌کوین اضافه کنید.`
                   : "با راه‌اندازی اولیه یا ثبت موجودی، حساب‌های نقد و مانده‌هایشان اینجا نمایش داده می‌شوند."
               }
             />
@@ -244,8 +244,8 @@ export default async function AccountsPage() {
               const walletTotal = rows.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
               const walletMeta = walletRows.find((w) => w.id === walletKey);
               const walletName = cleanDisplayName(
-                walletMeta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف‌پول",
-              ) || "بدون کیف‌پول";
+                walletMeta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف پول",
+              ) || "بدون کیف پول";
               const irtOnly = rows.every((r) => r.symbol === "IRT" || r.symbol === "IRR");
               const walletPrimary = irtOnly
                 ? formatMoney(
@@ -506,7 +506,7 @@ export default async function AccountsPage() {
         </details>
       </Section>
 
-      <Section title="معرفی حساب یا کیف‌پول جدید">
+      <Section title="معرفی حساب یا کیف پول جدید">
         <details className="card group overflow-hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
             <span className="text-[12px] sm:text-[13px] font-semibold">افزودن حساب جدید</span>

@@ -81,7 +81,7 @@ export default function MoneyAccountForm({
     <div className="space-y-3 text-xs">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1">
-          <span className="label">نام کامل حساب / صندوق / کیف‌پول</span>
+          <span className="label">نام کامل حساب / صندوق / کیف پول</span>
           <input
             className="field"
             value={name}

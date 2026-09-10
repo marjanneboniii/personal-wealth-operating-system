@@ -8,7 +8,7 @@ import Icon from "@/components/ui/Icon";
  * Global «حالت حرفه‌ای» toggle (Directive §2).
  * Default = SIMPLE: the app-wide UI speaks in ورودی/خروجی، دسته‌بندی و جریان پول.
  * PRO reveals accounting vocabulary everywhere (کد معین، بدهکار/بستانکار،
- * جزئیات دفتر کل). The flag is stored per-user server-side; this control only
+ * جزئیات دفترکل). The flag is stored per-user server-side; this control only
  * submits the intent — the server re-reads it for every render.
  */
 export default function ProModeToggle({ initialPro }: { initialPro: boolean }) {
@@ -23,7 +23,7 @@ export default function ProModeToggle({ initialPro }: { initialPro: boolean }) {
           <p className="muted mt-1 max-w-xl text-[12px] leading-5">
             پیش‌فرض، همه‌جای برنامه با زبان ساده نمایش داده می‌شود: «ورودی / خروجی»، «دسته‌بندی» و
             «از کدام حساب به کدام حساب». با فعال‌سازی حالت حرفه‌ای، اصطلاحات حسابداری
-            (کد معین، بدهکار / بستانکار و جزئیات دفتر کل) در سراسر برنامه نمایان می‌شود.
+            (کد معین، بدهکار / بستانکار و جزئیات دفترکل) در سراسر برنامه نمایان می‌شود.
           </p>
         </div>
         <span className={`badge ${pro ? "badge-brand" : "badge-neutral"} shrink-0`}>

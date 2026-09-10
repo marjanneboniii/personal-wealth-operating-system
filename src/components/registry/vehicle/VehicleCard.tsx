@@ -461,7 +461,7 @@ function ManagePanel({
           </Labeled>
           <Labeled label="واریز وجه فروش به حساب (اختیاری)">
             <select className="field" name="saleAccountId" defaultValue="">
-              <option value="">بدون ثبت در دفتر کل</option>
+              <option value="">بدون ثبت در دفترکل</option>
               {payoutAccounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
@@ -472,7 +472,7 @@ function ManagePanel({
           </Labeled>
           <Hint tone="warn">قیمت واقعی فروش هرگز با «ارزش فعلی» یکی فرض نمی‌شود و مبنای بازدهی نهایی است.</Hint>
           <Hint>
-            با انتخاب حساب دریافت، سند فروش در همان لحظه از مسیر یکپارچه دفتر کل ثبت می‌شود (واریز خالص، نرخ دلار
+            با انتخاب حساب دریافت، سند فروش در همان لحظه از مسیر یکپارچه دفترکل ثبت می‌شود (واریز خالص، نرخ دلار
             فریزشده آن تاریخ و مانده‌ی نقد شما). بدون انتخاب، فروش فقط در شناسنامه خودرو ثبت می‌ماند.
           </Hint>
           <button className="btn" disabled={salePending}>

@@ -158,11 +158,11 @@ export default function SetupWizardPage() {
           <div>
             <h1 className="text-xl font-bold">راه‌اندازی اولیه کامل است</h1>
             <p className="muted mt-2 text-xs leading-6">
-              حساب‌های پایه آماده‌اند. برای افزودن بانک، صندوق، صرافی یا کیف‌پول از بخش حساب‌ها استفاده کنید.
+              حساب‌های پایه آماده‌اند. برای افزودن بانک، صندوق، صرافی یا کیف پول از بخش حساب‌ها استفاده کنید.
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-2">
-            <Link href="/accounts" className="btn btn-primary">مدیریت حساب‌ها و کیف‌پول‌ها</Link>
+            <Link href="/accounts" className="btn btn-primary">مدیریت حساب‌ها و کیف پول‌ها</Link>
             <Link href="/" className="btn btn-ghost">بازگشت به نمای کلی</Link>
           </div>
         </div>
