@@ -15,6 +15,7 @@ import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getUserProMode } from "@/features/preferences/service";
 import { eq, inArray } from "drizzle-orm";
 import { assets, debts, entryFxSnapshots, installments, realEstateProperties } from "@/db/schema";
+import { summariseBalances } from "@/features/ledger/summary";
 
 export const dynamic = "force-dynamic";
 
@@ -82,8 +83,12 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
   const instByEntry = new Map(linkedInsts.filter((r) => r.entryId).map((r) => [r.entryId!, r]));
 
   const activeBalances = balances.filter((b) => !D(b.baseValue).isZero());
-  const totalDebit = activeBalances.filter((b) => D(b.baseValue).gt(0)).reduce((s, b) => s + Number(b.baseValue), 0);
-  const totalCredit = activeBalances.filter((b) => D(b.baseValue).lt(0)).reduce((s, b) => s + Math.abs(Number(b.baseValue)), 0);
+  // Totals come from a tested pure module — the previous inline formula summed
+  // the debit AND credit columns, which on a balanced ledger is always exactly
+  // twice the real figure. See features/ledger/summary.ts.
+  const summary = summariseBalances(activeBalances);
+  const totalDebit = Number(summary.totalDebit);
+  const totalCredit = Number(summary.totalCredit);
 
   return (
     <div className="space-y-8">
@@ -123,7 +128,14 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
       </div>
 
       {/* ── Trial balance (PRO) / simple account summary (default) ── */}
-      <Section title={pro ? "تراز آزمایشی" : "خلاصه حساب‌ها"}>
+      <Section
+        title={pro ? "تراز آزمایشی" : "خلاصه حساب‌ها"}
+        hint={
+          pro
+            ? undefined
+            : "«سرمایه افتتاحیه» عددی نیست که خودتان وارد کرده باشید: مجموع موجودی‌های اولیه‌ای است که هنگام ساخت حساب‌ها و ثبت دارایی‌ها اعلام کرده‌اید. در حسابداری دوطرفه هر دارایی که بدون منبع وارد دفتر می‌شود، با همین حساب موازنه می‌شود."
+        }
+      >
         <div className="card overflow-x-auto">
           <table className="table">
             {pro ? (
@@ -197,14 +209,18 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                   </td>
                 </tr>
               ) : (
-                <tr style={{ background: "var(--sunken)" }}>
-                  <td colSpan={3} className="text-[12px] font-bold">
-                    جمع کل
-                  </td>
-                  <td className="td-num text-[12px] font-bold" dir="rtl">
-                    {formatMoney(totalDebit + totalCredit)}
-                  </td>
-                </tr>
+                /* A list mixing assets, liabilities and equity has no single
+                   meaningful grand total, so each type carries its own. */
+                summary.subtotals.map((st) => (
+                  <tr key={st.type} style={{ background: "var(--sunken)" }}>
+                    <td colSpan={3} className="text-[12px] font-bold">
+                      جمع {ACCOUNT_TYPE_LABELS[st.type]}
+                    </td>
+                    <td className="td-num text-[12px] font-bold" dir="rtl">
+                      {formatMoney(st.total)}
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
