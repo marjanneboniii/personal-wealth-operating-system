@@ -228,31 +228,15 @@ export async function updatePasswordAction(formData: FormData): Promise<void> {
 
 // ───────────── Update FX Rate (per-user, 24h limit) ─────────────
 
-export async function updateFxRateAction(prev: AuthResult | null, formData: FormData): Promise<AuthResult> {
-  const user = await getCurrentUser();
-  if (!user) return { ok: false, message: "ابتدا وارد شوید." };
-  const rateStr = String(formData.get("rate") || "").replace(/[^0-9]/g, "");
-  if (!rateStr) return { ok: false, message: "نرخ را وارد کنید." };
-  const { updateUserFxRate } = await import("@/features/fx/userRate");
-  const result = await updateUserFxRate(user.id, rateStr);
-  if (result.ok) {
-    revalidatePath("/settings");
-    revalidatePath("/");
-    revalidatePath("/net-worth");
-    revalidatePath("/portfolio");
-  }
-  return { ok: result.ok, message: result.message };
+/**
+ * Retired: manual rate entry was removed — the reference rate comes from the
+ * live USDT/Toman market. Kept as a refusal so any stale caller fails loudly
+ * instead of silently appearing to succeed.
+ */
+export async function updateFxRateAction(): Promise<AuthResult> {
+  return { ok: false, message: "نرخ مرجع از بازار زنده خوانده می‌شود و دستی قابل ثبت نیست." };
 }
 
-// ───────────── Global Pro Mode toggle (Directive §2) ─────────────
-
-/**
- * Per-user, server-verified toggle between the SIMPLE vocabulary view
- * (default: ورودی/خروجی، دسته‌بندی، جریان پول) and the PROFESSIONAL
- * accounting view (کد معین، بدهکار/بستانکار، جزئیات دفتر کل) across the
- * whole app. The preference row is tenant-scoped (unique user_id); it is
- * read server-side per request and revalidated everywhere it is used.
- */
 export async function setProModeAction(_prev: AuthResult | null, formData: FormData): Promise<AuthResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, message: "ابتدا وارد شوید." };

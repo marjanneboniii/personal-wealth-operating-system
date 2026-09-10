@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { userFxSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { fetchLiveUsdtRate } from "@/features/fx/liveRate";
 import { D } from "@/domain/decimal";
 import { recordAuditEvent } from "@/lib/audit";
 
@@ -133,3 +134,49 @@ export async function updateUserFxRate(
 
 // Global fallback for non-authenticated or legacy calls
 export { DEFAULT_RATE };
+
+/**
+ * Refreshes the stored rate from the live market when it is older than
+ * `maxAgeMs`. Manual entry has been removed, so this is how the rate moves.
+ *
+ * Deliberately conservative:
+ *   • Returns the CURRENT snapshot unchanged when the stored rate is fresh,
+ *     when no source answers, or on any error — the caller always gets a
+ *     usable rate and the stored value is never cleared.
+ *   • Only ever REPLACES the rate with a plausible quote (validated in
+ *     liveRate.ts). It cannot write a zero, a negative or a garbage number.
+ *   • Touches nothing but the user's own fx row.
+ */
+export async function refreshUserFxRateFromMarket(
+  userId: string,
+  maxAgeMs: number = 15 * 60_000,
+): Promise<UserFxSnapshot> {
+  const current = await getUserFxRate(userId);
+  const age = current.lastUpdatedAt ? Date.now() - new Date(current.lastUpdatedAt).getTime() : Infinity;
+  if (current.source === "market" && age < maxAgeMs) return current;
+
+  const quote = await fetchLiveUsdtRate();
+  if (!quote) return current;
+
+  try {
+    await db
+      .insert(userFxSettings)
+      .values({ userId, currentRate: quote.rate, lastUpdatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: userFxSettings.userId,
+        set: { currentRate: quote.rate, lastUpdatedAt: new Date() },
+      });
+  } catch {
+    return current;
+  }
+
+  invalidateUserFxRateCache(userId);
+  return {
+    rate: quote.rate,
+    effectiveDate: new Date().toISOString().slice(0, 10),
+    source: "market",
+    lastUpdatedAt: quote.observedAt,
+    canUpdate: false,
+    nextUpdateAt: null,
+  };
+}

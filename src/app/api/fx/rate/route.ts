@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { getUserFxRate, updateUserFxRate } from "@/features/fx/userRate";
+import { getUserFxRate } from "@/features/fx/userRate";
 
 export const dynamic = "force-dynamic";
 
@@ -11,17 +11,14 @@ export async function GET() {
   return NextResponse.json({ ok: true, ...snap });
 }
 
-export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ ok: false, error: "نیاز به ورود" }, { status: 401 });
-  try {
-    const body = await req.json();
-    const rate = String(body.rate || body.currentRate || "").trim();
-    if (!rate) return NextResponse.json({ ok: false, error: "نرخ را وارد کنید." }, { status: 400 });
-    const result = await updateUserFxRate(user.id, rate);
-    if (!result.ok) return NextResponse.json({ ok: false, error: result.message }, { status: 429 });
-    return NextResponse.json({ ok: true, message: result.message, ...result.snapshot });
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "خطا" }, { status: 500 });
-  }
+/**
+ * Manual rate entry was removed by owner decision — the reference rate comes
+ * from the live USDT/Toman market. This endpoint is read-only; a POST is
+ * refused so no client can still write a rate by hand.
+ */
+export async function POST() {
+  return NextResponse.json(
+    { ok: false, error: "نرخ مرجع از بازار زنده خوانده می‌شود و دستی قابل ثبت نیست." },
+    { status: 405 },
+  );
 }

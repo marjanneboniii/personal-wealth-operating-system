@@ -11,7 +11,7 @@ import RestorePanel from "@/components/RestorePanel";
 import { faCount, formatDate } from "@/lib/format";
 import { getCurrentUser, sanitizeUser } from "@/lib/auth";
 import { ensureAuth } from "@/lib/authGuard";
-import { getUserFxRate } from "@/features/fx/userRate";
+import { refreshUserFxRateFromMarket } from "@/features/fx/userRate";
 import { getUserProMode } from "@/features/preferences/service";
 import FxSettings from "@/components/settings/FxSettings";
 import ProModeToggle from "@/components/settings/ProModeToggle";
@@ -42,7 +42,7 @@ export default async function SettingsPage() {
         (select count(*) from accounts a where a.deleted_at is null and ${uid ? sql`(a.user_id = ${uid} or a.user_id is null)` : sql`1=1`}) as accounts,
         (select count(*) from assets) as assets
     `),
-    user ? getUserFxRate(user.id) : Promise.resolve({ rate: "190000", lastUpdatedAt: null, nextUpdateAt: null, canUpdate: false } as any),
+    user ? refreshUserFxRateFromMarket(user.id) : Promise.resolve({ rate: "190000", lastUpdatedAt: null, source: "default" } as any),
     getUserProMode(uid),
   ]);
   const c = counts.rows[0] as Record<string, string>;
@@ -73,16 +73,11 @@ export default async function SettingsPage() {
 
       <Section title="نرخ ارز — ارزش‌گذاری جاری">
         {user ? (
-          <FxSettings
-            currentRate={fx.rate}
-            lastUpdatedAt={fx.lastUpdatedAt}
-            nextUpdateAt={fx.nextUpdateAt}
-            canUpdate={fx.canUpdate}
-          />
+          <FxSettings currentRate={fx.rate} lastUpdatedAt={fx.lastUpdatedAt} source={fx.source} />
         ) : (
           <AuthAccessCard
             title="ورود و Auth کاربر در دسترس است"
-            body="برای فعال‌کردن ثبت دستی نرخ ارز و جداسازی داده‌ها، از همین‌جا وارد شوید یا حساب بسازید. ورود با Google نیز در همین کارت نمایش داده می‌شود."
+            body="برای مشاهده نرخ مرجع و جداسازی داده‌ها، از همین‌جا وارد شوید یا حساب بسازید. ورود با Google نیز در همین کارت نمایش داده می‌شود."
           />
         )}
       </Section>
