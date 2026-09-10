@@ -9,7 +9,7 @@ import {
 } from "@/app/actions/inflation";
 import AmountInput from "@/components/ui/AmountInput";
 import JalaliDateInput from "@/components/ui/JalaliDateInput";
-import { faCount, formatJalaliIso, formatMoney, toFaDigits, todayIso } from "@/lib/format";
+import { faCount, formatJalaliIso, formatMoney, formatPct, formatPercent, toFaDigits, todayIso } from "@/lib/format";
 import {
   INFLATION_CATEGORY_SUGGESTIONS,
   INFLATION_DEFAULT_UNIT,
@@ -44,9 +44,10 @@ function faGrowth(g: string | null): string {
   if (g === null || g === undefined) return "—";
   const n = Number(g);
   if (!Number.isFinite(n)) return "—";
-  if (n === 0) return "۰٪";
-  const sign = n > 0 ? "+" : "−";
-  return `${sign}${toFaDigits(Math.abs(n).toFixed(1))}٪`;
+  if (n === 0) return formatPct(0, 1);
+  // formatPercent forces the sign and keeps it (and the ٪) inside the numeric
+  // isolate, so «−۸٪» can never render as «۸٪−» in an RTL row.
+  return formatPercent(n.toFixed(1));
 }
 
 function growthColor(g: string | null): string {

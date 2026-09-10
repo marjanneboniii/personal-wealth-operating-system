@@ -100,7 +100,14 @@ mock.module("@/components/RowAction", { defaultExport: () => null });
 mock.module("@/components/reports/PdfButton", { defaultExport: () => null });
 mock.module("@/components/charts/Charts", { namedExports: { BarsChart: () => null } });
 
-const NBSP = " ";
+const NBSP = "\u00A0";
+/**
+ * Money strings carry invisible bidi controls (RLI/LRI…PDI) that keep the
+ * «number → unit» order and the «−» in front of the digits. They are not part
+ * of what the user sees, so strip them before matching rendered markup.
+ */
+const stripBidi = (s: string) => s.replace(/[\u2066\u2067\u2068\u2069]/g, "");
+
 
 /** Isolate the «نقدینگی پیش‌رو» section so assertions can't be satisfied by
  *  unrelated numbers elsewhere on the reports page (KPI strip, monthly
@@ -115,7 +122,7 @@ function forwardLiquiditySection(html: string): string {
 
 test("forward liquidity renders Toman AS-IS — no second FX multiplication", async () => {
   const { default: ReportsPage } = await import("../src/app/reports/page");
-  const html = forwardLiquiditySection(renderToStaticMarkup(await (ReportsPage as any)()));
+  const html = stripBidi(forwardLiquiditySection(renderToStaticMarkup(await (ReportsPage as any)())));
 
   // The 909,090-Toman installment renders as-is in the outflow column…
   assert.ok(
@@ -141,7 +148,7 @@ test("forward liquidity renders Toman AS-IS — no second FX multiplication", as
 
 test("forward liquidity USD hints follow the rate (display-only, Toman stays fixed)", async () => {
   const { default: ReportsPage } = await import("../src/app/reports/page");
-  const html = forwardLiquiditySection(renderToStaticMarkup(await (ReportsPage as any)()));
+  const html = stripBidi(forwardLiquiditySection(renderToStaticMarkup(await (ReportsPage as any)())));
   // The monthly outflow hint is 909,090 ÷ 200,000 = 4.55 USD.
   assert.ok(html.includes(`۴.۵۵${NBSP}دلار`), "outflow USD hint must be the ÷-rate equivalent");
   // The removed cumulative column must not reappear with any stale hints.

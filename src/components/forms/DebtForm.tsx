@@ -4,7 +4,7 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createDebtAction, type ActionResult } from "@/app/actions";
 import { D } from "@/domain/decimal";
-import { addMonthsIso, formatJalaliIso, formatMoney, formatQty, faCount } from "@/lib/format";
+import { addMonthsIso, faCount, formatJalaliIso, formatMoney, formatPct, formatQty } from "@/lib/format";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
 import { PreviewCard, SmartAmountPreview } from "@/components/ui/SmartPreview";
@@ -205,7 +205,7 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
               <div><span className="muted">بستانکار:</span> <strong>{creditor}</strong></div>
               <div><span className="muted">اصل بدهی:</span> <strong className="num" dir="rtl">{formatMoney(principalIrt, "IRT")}</strong></div>
               <div><span className="muted">معادل تقریبی پایه:</span> <strong className="num" dir="rtl">{principalUsd ? formatMoney(principalUsd, "USD") : "—"}</strong></div>
-              <div><span className="muted">نرخ سود:</span> <strong className="num" dir="rtl">{formatQty(interestRate || "0", 2)}٪</strong></div>
+              <div><span className="muted">نرخ سود:</span> <strong className="num" dir="rtl">{formatPct(interestRate || "0", 2)}</strong></div>
               <div><span className="muted">شروع:</span> <strong className="num" dir="rtl">{formatJalaliIso(startDate)}</strong></div>
             </div>
 

@@ -127,7 +127,7 @@ export default async function LoansPage() {
                         <p className="muted mt-1 text-[length:var(--fs-xs)]">
                           {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود{" "}
                           <span className="num" dir="rtl">
-                            {formatQty(d.interestRate, 2)}٪
+                            {formatPct(d.interestRate, 2)}
                           </span>
                         </p>
                       </div>

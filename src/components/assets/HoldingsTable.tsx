@@ -1,5 +1,5 @@
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatPct, formatQty, trendArrow, trendColor, trendTone } from "@/lib/format";
+import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, trendArrow, trendColor, trendTone } from "@/lib/format";
 import Icon from "@/components/ui/Icon";
 import AssetLogo from "@/components/ui/AssetLogo";
 import type { AssetValuation } from "@/features/portfolio/types";
@@ -158,11 +158,10 @@ export default function HoldingsTable({
                 </td>
                 <td className="td-num hidden sm:table-cell money-nowrap" dir="rtl" style={{ color: trendColor(a.unrealizedPnlToman) }}>
                   <div className="text-[length:var(--fs-xs)] font-semibold money-nowrap sm:text-[length:var(--fs-xs)]">
-                    {pnlToneToman === "up" ? "+" : pnlToneToman === "down" ? "−" : ""}
-                    {formatMoney(pnlToman.abs().toString(), "IRT")}
+                    {formatSignedMoney(pnlToman.toString(), "IRT")}
                   </div>
                   <div className="num text-[length:var(--fs-xs)] money-nowrap">
-                    {trendArrow(roiToman)} {formatQty(D(roiToman).abs().toString(), 2)}٪
+                    {trendArrow(roiToman)} {formatPct(D(roiToman).abs().toString(), 2)}
                   </div>
                 </td>
                 <td className="td-num hidden sm:table-cell money-nowrap text-[length:var(--fs-xs)]" dir="rtl">

@@ -13,7 +13,7 @@
 import Link from "next/link";
 import { Section } from "@/components/ui/Card";
 import { D } from "@/domain/decimal";
-import { formatDualDate, formatMoney, formatPct, toFaDigits } from "@/lib/format";
+import { formatDualDate, formatMoney, formatPct, formatSignedMoney, formatSignedPct, toFaDigits } from "@/lib/format";
 import type { VehiclePortfolioSummary } from "@/features/rwa/vehicle/dto";
 
 function Signed({
@@ -27,11 +27,9 @@ function Signed({
   const n = D(value);
   const zero = n.isZero();
   const color = zero ? "var(--text-3)" : n.gt(0) ? "var(--positive)" : "var(--negative)";
-  const sign = zero ? "" : n.gt(0) ? "+" : "−";
   return (
     <span className="num" style={{ color }} dir="rtl">
-      {sign}
-      {formatMoney(n.abs().toString(), currency)}
+      {formatSignedMoney(n.toString(), currency)}
     </span>
   );
 }
@@ -41,11 +39,9 @@ function SignedPct({ value }: { value: string | null }) {
   const n = D(value);
   const zero = n.isZero();
   const color = zero ? "var(--text-3)" : n.gt(0) ? "var(--positive)" : "var(--negative)";
-  const sign = zero ? "" : n.gt(0) ? "+" : "−";
   return (
     <span className="num" style={{ color }} dir="rtl">
-      {sign}
-      {formatPct(n.abs().toString(), 2)}
+      {formatSignedPct(n.toString(), 2)}
     </span>
   );
 }

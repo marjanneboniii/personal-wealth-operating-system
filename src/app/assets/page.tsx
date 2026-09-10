@@ -53,7 +53,7 @@ export default async function AssetsPage() {
   const totals = valuationTotalsOf(all);
 
   const share = (v: Decimal) =>
-    formatNumber(totalValue.isZero() ? "0.0" : v.div(totalValue).mul(100).toFixed(1), { decimals: 1 });
+    formatPct(totalValue.isZero() ? "0.0" : v.div(totalValue).mul(100).toFixed(1), 1);
 
   const families: { label: string; icon: IconName; href: string; count: number; value: string; hint: string }[] = [
     {
@@ -212,7 +212,7 @@ export default async function AssetsPage() {
       {all.length > 0 && (
         <Section
           title="فهرست کامل دارایی‌ها"
-          hint={`${faCount(all.length)} دارایی · ${faCount(share(financialValue))}٪ مالی، ${faCount(share(realValue))}٪ واقعی`}
+          hint={`${faCount(all.length)} دارایی · ${share(financialValue)} مالی، ${share(realValue)} واقعی`}
         >
           <HoldingsTable rows={all} toIrt={toIrt} />
         </Section>
