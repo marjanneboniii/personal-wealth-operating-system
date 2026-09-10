@@ -314,12 +314,12 @@ export default async function InstallmentsPage() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>وضعیت</th>
-                    <th>بدهی</th>
-                    <th className="hidden sm:table-cell">قسط</th>
-                    <th>سررسید</th>
-                    <th className="td-num">مبلغ</th>
-                    <th className="text-left">اقدام</th>
+                    <th scope="col">وضعیت</th>
+                    <th scope="col">بدهی</th>
+                    <th scope="col" className="hidden sm:table-cell">قسط</th>
+                    <th scope="col">سررسید</th>
+                    <th scope="col" className="td-num">مبلغ</th>
+                    <th scope="col" className="text-left">اقدام</th>
                   </tr>
                 </thead>
                 <tbody>

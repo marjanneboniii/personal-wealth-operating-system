@@ -6,6 +6,7 @@ import SubmitButton from "@/components/ui/SubmitButton";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
 import { SmartAmountPreview, useLatestRate } from "@/components/ui/SmartPreview";
+import { FormStatus } from "@/components/ui/FormStatus";
 
 export default function BudgetForm({
   accounts,
@@ -68,11 +69,7 @@ export default function BudgetForm({
         <SubmitButton className="btn btn-primary" pendingText="در حال ایجاد…">
           ایجاد بودجه
         </SubmitButton>
-        {state && (
-          <p className="text-[12px]" style={{ color: state.ok ? "var(--positive)" : "var(--negative)" }} role="status">
-            {state.message}
-          </p>
-        )}
+        <FormStatus state={state} />
       </div>
     </form>
   );

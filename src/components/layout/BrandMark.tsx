@@ -6,6 +6,12 @@
  */
 import type { CSSProperties } from "react";
 
+/**
+ * The pans are FILLED bowls rather than hollow rings, and the column carries
+ * the weight instead of a triangle. The previous outline version collapsed
+ * into an unreadable blob at 20px — the size it is actually used at in the
+ * mobile top bar and the footer.
+ */
 function ScaleGlyph({ size }: { size: number }) {
   return (
     <svg
@@ -15,18 +21,13 @@ function ScaleGlyph({ size }: { size: number }) {
       fill="none"
       aria-hidden="true"
     >
-      <circle cx="14" cy="22" r="7" stroke="currentColor" strokeWidth="2.4" />
-      <circle cx="50" cy="22" r="7" stroke="currentColor" strokeWidth="2.4" />
-      <line
-        x1="14"
-        y1="22"
-        x2="50"
-        y2="22"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-      />
-      <path d="M32 24.5 L22.5 50 H41.5 Z" fill="currentColor" />
+      {/* column, beam, foot */}
+      <path d="M32 12 v34" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+      <path d="M14 18 H50" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+      <path d="M22 46 h20" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+      {/* the two pans, level with each other — the balance itself */}
+      <path d="M6 24 a10 10 0 0 0 20 0 z" fill="currentColor" />
+      <path d="M38 24 a10 10 0 0 0 20 0 z" fill="currentColor" />
     </svg>
   );
 }

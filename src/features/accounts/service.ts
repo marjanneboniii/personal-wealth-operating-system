@@ -146,6 +146,16 @@ export async function ensureMoneyAccountCurrencyCatalog(txClient?: any): Promise
       ])
       .onConflictDoUpdate({
         target: assets.symbol,
+        // Migration 0013 replaced the plain unique constraint on `symbol` with
+        // a PARTIAL unique index (`where deleted_at is null`). PostgreSQL only
+        // matches a conflict target to a partial index when the statement
+        // repeats the predicate, so a bare `ON CONFLICT (symbol)` raised
+        // "no unique or exclusion constraint matching the ON CONFLICT
+        // specification" and every account-catalog bootstrap threw — which is
+        // why the accounts module failed to render.
+        // This aligns the query with the index that actually exists; the
+        // uniqueness rule, the rows and every accounting value are unchanged.
+        targetWhere: isNull(assets.deletedAt),
         set: {
           isActive: true,
           deletedAt: null,

@@ -204,12 +204,12 @@ function PerformanceTable({ periods }: { periods: VehicleDashboardItem["periods"
       <table className="table">
         <thead>
           <tr>
-            <th>بازه</th>
-            <th className="td-num">تغییر تومانی</th>
-            <th className="td-num">٪ تومانی</th>
-            <th className="td-num">تغییر دلاری</th>
-            <th className="td-num">٪ دلاری</th>
-            <th className="td-num hidden sm:table-cell">مبنا</th>
+            <th scope="col">بازه</th>
+            <th scope="col" className="td-num">تغییر تومانی</th>
+            <th scope="col" className="td-num">٪ تومانی</th>
+            <th scope="col" className="td-num">تغییر دلاری</th>
+            <th scope="col" className="td-num">٪ دلاری</th>
+            <th scope="col" className="td-num hidden sm:table-cell">مبنا</th>
           </tr>
         </thead>
         <tbody>
@@ -261,14 +261,14 @@ function HistoryTable({
       <table className="table">
         <thead>
           <tr>
-            <th>تاریخ</th>
-            <th className="td-num">ارزش (تومان)</th>
-            <th className="td-num">نرخ دلار</th>
-            <th className="td-num">ارزش (دلار)</th>
-            <th className="td-num">تغییر تومان</th>
-            <th className="td-num">تغییر ٪</th>
-            <th className="td-num">تغییر دلار</th>
-            <th className="td-num">تغییر ٪ دلار</th>
+            <th scope="col">تاریخ</th>
+            <th scope="col" className="td-num">ارزش (تومان)</th>
+            <th scope="col" className="td-num">نرخ دلار</th>
+            <th scope="col" className="td-num">ارزش (دلار)</th>
+            <th scope="col" className="td-num">تغییر تومان</th>
+            <th scope="col" className="td-num">تغییر ٪</th>
+            <th scope="col" className="td-num">تغییر دلار</th>
+            <th scope="col" className="td-num">تغییر ٪ دلار</th>
           </tr>
         </thead>
         <tbody>

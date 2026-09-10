@@ -8,6 +8,7 @@ import { addMonthsIso, formatJalaliIso, formatMoney, formatQty, faCount } from "
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
 import { PreviewCard, SmartAmountPreview } from "@/components/ui/SmartPreview";
+import { FormStatus } from "@/components/ui/FormStatus";
 
 type Props = {
   today: string;
@@ -233,15 +234,7 @@ export default function DebtForm({ today, initialRate, initialRateDate, initialR
         </PreviewCard>
       )}
 
-      {state && (
-        <p
-          role="status"
-          className="rounded-[var(--r-md)] px-3 py-2 text-[12px] font-medium"
-          style={{ background: state.ok ? "var(--positive-soft)" : "var(--negative-soft)", color: state.ok ? "var(--positive)" : "var(--negative)" }}
-        >
-          {state.message}
-        </p>
-      )}
+      <FormStatus state={state} />
     </form>
   );
 }

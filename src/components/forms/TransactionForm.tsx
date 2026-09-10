@@ -17,6 +17,7 @@ import DebtInstallmentExplorer, { type DebtOption } from "./DebtInstallmentExplo
 import { D } from "@/domain/decimal";
 import { isLiquidAccount } from "@/features/accounts/classification";
 import type { PriceFailureCode, PriceFreshness } from "@/features/pricing/types";
+import { FormStatus } from "@/components/ui/FormStatus";
 
 export type AccountOption = {
   id: string;
@@ -1072,18 +1073,7 @@ export default function TransactionForm({
         </button>
       )}
 
-      {state && (
-        <p
-          className="rounded-[var(--r-md)] px-4 py-3 text-xs font-medium"
-          role="status"
-          style={{
-            background: state.ok ? "var(--positive-soft)" : "var(--negative-soft)",
-            color: state.ok ? "var(--positive)" : "var(--negative)",
-          }}
-        >
-          {state.message}
-        </p>
-      )}
+      <FormStatus state={state} />
 
       {/* entryDate is provided by DualDateInput hidden input */}
     </form>

@@ -133,10 +133,10 @@ export default function CatalogAdmin({
           <table className="table">
             <thead>
               <tr>
-                <th>برند</th>
-                <th>نام خودرو</th>
-                <th className="hidden sm:table-cell">سازنده / مونتاژکننده</th>
-                <th className="hidden sm:table-cell">دسته</th>
+                <th scope="col">برند</th>
+                <th scope="col">نام خودرو</th>
+                <th scope="col" className="hidden sm:table-cell">سازنده / مونتاژکننده</th>
+                <th scope="col" className="hidden sm:table-cell">دسته</th>
               </tr>
             </thead>
             <tbody>

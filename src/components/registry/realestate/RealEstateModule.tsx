@@ -131,21 +131,21 @@ export default function RealEstateModule({
               <table className="table min-w-[1400px] text-[11.5px]">
                 <thead>
                   <tr>
-                    <th>شناسه دارایی</th>
-                    <th>نوع ملک</th>
-                    <th>شهر</th>
-                    <th>منطقه / محله</th>
-                    <th>تاریخ تملک</th>
-                    <th>تاریخ ارزش‌گذاری</th>
-                    <th className="td-num">قیمت خرید تومان</th>
-                    <th className="td-num">قیمت خرید دلار</th>
-                    <th className="td-num">ارزش فعلی تومان</th>
-                    <th className="td-num">ارزش فعلی دلار</th>
-                    <th className="td-num">سود/زیان تومان</th>
-                    <th className="td-num">سود/زیان دلار</th>
-                    <th className="td-num">٪ تومان</th>
-                    <th className="td-num">٪ دلار</th>
-                    <th></th>
+                    <th scope="col">شناسه دارایی</th>
+                    <th scope="col">نوع ملک</th>
+                    <th scope="col">شهر</th>
+                    <th scope="col">منطقه / محله</th>
+                    <th scope="col">تاریخ تملک</th>
+                    <th scope="col">تاریخ ارزش‌گذاری</th>
+                    <th scope="col" className="td-num">قیمت خرید تومان</th>
+                    <th scope="col" className="td-num">قیمت خرید دلار</th>
+                    <th scope="col" className="td-num">ارزش فعلی تومان</th>
+                    <th scope="col" className="td-num">ارزش فعلی دلار</th>
+                    <th scope="col" className="td-num">سود/زیان تومان</th>
+                    <th scope="col" className="td-num">سود/زیان دلار</th>
+                    <th scope="col" className="td-num">٪ تومان</th>
+                    <th scope="col" className="td-num">٪ دلار</th>
+                    <th scope="col"></th>
                   </tr>
                 </thead>
                 <tbody>

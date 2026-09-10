@@ -26,6 +26,14 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
     return data.slice(Math.max(0, data.length - months));
   }, [data, range]);
 
+  /** Nearest data index for a client-x, in the element's own coordinate space. */
+  const indexAt = (clientX: number, el: SVGSVGElement) => {
+    const rect = el.getBoundingClientRect();
+    const rel = (clientX - rect.left) / rect.width;
+    return Math.max(0, Math.min(points.length - 1, Math.round(rel * (points.length - 1))));
+  };
+
+
   if (!points.length)
     return <p className="muted py-10 text-center text-xs">داده‌ای برای نمایش نیست — با گذر زمان و ثبت اسنپ‌شات، این نمودار شکل می‌گیرد.</p>;
 
@@ -72,16 +80,38 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
       </div>
       <svg
         viewBox={`0 0 ${w} ${h}`}
-        className="w-full"
+        className="w-full touch-none"
         style={{ height: h }}
         role="img"
         aria-label={`نمودار تغییرات — از ${formatMoney(first)} به ${formatMoney(last)}`}
+        tabIndex={0}
         onMouseLeave={() => setHover(null)}
-        onMouseMove={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          const rel = (e.clientX - rect.left) / rect.width;
-          setHover(Math.max(0, Math.min(points.length - 1, Math.round(rel * (points.length - 1)))));
+        /* Pointer events cover mouse, touch AND pen with one handler, so the
+           chart is interrogable by finger on the phone — it was mouse-only,
+           which left the primary chart unusable on a mobile-first PWA. */
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture?.(e.pointerId);
+          setHover(indexAt(e.clientX, e.currentTarget));
         }}
+        onPointerMove={(e) => {
+          if (e.pointerType === "mouse" || e.buttons > 0) setHover(indexAt(e.clientX, e.currentTarget));
+        }}
+        onPointerUp={(e) => e.currentTarget.releasePointerCapture?.(e.pointerId)}
+        onPointerCancel={() => setHover(null)}
+        onKeyDown={(e) => {
+          // Keyboard readout: the same value the pointer reveals.
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "Home" && e.key !== "End") return;
+          e.preventDefault();
+          const at = hover ?? points.length - 1;
+          const next =
+            e.key === "Home" ? 0
+            : e.key === "End" ? points.length - 1
+            // RTL: ArrowLeft advances forward in time.
+            : e.key === "ArrowLeft" ? Math.min(points.length - 1, at + 1)
+            : Math.max(0, at - 1);
+          setHover(next);
+        }}
+        onBlur={() => setHover(null)}
       >
         <defs>
           <linearGradient id="pwosArea" x1="0" y1="0" x2="0" y2="1">
@@ -165,7 +195,11 @@ export function Donut({
           <svg
             viewBox={`0 0 ${size} ${size}`}
             role="img"
-            aria-label="نمودار ترکیب"
+            /* A screen reader got only «نمودار ترکیب» before — no values at
+               all. The composition IS the information, so it is spoken. */
+            aria-label={`نمودار ترکیب — ${data
+              .map((d) => `${d.label} ${formatPct((d.value / (total || 1)) * 100, 0)}`)
+              .join("، ")}`}
             className="donut-svg"
           >
             <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>

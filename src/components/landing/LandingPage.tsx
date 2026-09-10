@@ -15,6 +15,11 @@ const PREVIEW_SAMPLE = {
   assets: "۱۸۰٬۰۰۰٬۰۰۰ تومان",
   debts: "۵۵٬۰۰۰٬۰۰۰ تومان",
   liquidity: "۳۵٬۰۰۰٬۰۰۰ تومان",
+  delta: "۴٬۲۰۰٬۰۰۰ تومان",
+  deltaPct: "(٪۳٫۵)",
+  deltaSince: "از ماه گذشته",
+  netWorthUsd: "≈ ۱٬۴۵۳ دلار",
+  attention: "قسط وام مسکن، ۳ روز دیگر",
 } as const;
 
 /**
@@ -72,6 +77,9 @@ const FAQ_ITEMS: { question: string; answer: string }[] = [
   },
 ];
 
+/** Asset kinds the product covers — the same vocabulary the FAQ already uses. */
+const ORBIT_CHIPS = ["حساب بانکی", "ملک", "طلا", "سرمایه‌گذاری", "ارز دیجیتال", "خودرو"];
+
 function CtaCluster({ align = "start" }: { align?: "start" | "center" }) {
   return (
     <div className={align === "center" ? "landing-cta-cluster landing-cta-cluster-center" : "landing-cta-cluster"}>
@@ -106,6 +114,18 @@ function ProductPreview() {
         <p className="display-num landing-preview-hero-amount">
           <AnimatedAmount value={PREVIEW_SAMPLE.netWorth} />
         </p>
+        {/* The delta and the ≈USD reference are what the real dashboard shows
+            under the hero figure — without them the preview read like a
+            different product. */}
+        <p className="landing-preview-delta">
+          <span aria-hidden="true">↑</span>
+          <span className="num" dir="rtl">{PREVIEW_SAMPLE.delta}</span>
+          <span className="num" dir="rtl">{PREVIEW_SAMPLE.deltaPct}</span>
+          <span className="landing-preview-label">{PREVIEW_SAMPLE.deltaSince}</span>
+        </p>
+        <p className="landing-preview-label landing-preview-usd">
+          <span className="num" dir="rtl">{PREVIEW_SAMPLE.netWorthUsd}</span>
+        </p>
         <div className="landing-preview-metrics">
           <div className="landing-preview-metric landing-preview-metric-assets">
             <p className="landing-preview-label">دارایی‌ها</p>
@@ -125,6 +145,10 @@ function ProductPreview() {
               <AnimatedAmount value={PREVIEW_SAMPLE.liquidity} />
             </p>
           </div>
+        </div>
+        <div className="landing-preview-attention">
+          <span className="landing-preview-attention-dot" aria-hidden="true" />
+          <span>{PREVIEW_SAMPLE.attention}</span>
         </div>
         <div className="comp-bar" aria-hidden="true">
           <span style={{ width: "42%", background: "var(--l-accent)" }} />
@@ -174,7 +198,16 @@ export default function LandingPage() {
             <CtaCluster />
             <p className="landing-hero-note">بدون نیاز به اتصال حساب بانکی</p>
           </div>
-          <ProductPreview />
+          <div className="landing-orbit">
+            <div className="landing-orbit-ring" aria-hidden="true">
+              {ORBIT_CHIPS.map((label, i) => (
+                <span key={label} className="landing-orbit-slot" style={{ ["--i" as string]: i }}>
+                  <span className="landing-orbit-chip">{label}</span>
+                </span>
+              ))}
+            </div>
+            <ProductPreview />
+          </div>
         </section>
       </div>
 

@@ -134,11 +134,11 @@ export default async function ReportsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>ماه</th>
-                  <th className="td-num">درآمد</th>
-                  <th className="td-num">هزینه</th>
-                  <th className="td-num">خالص</th>
-                  <th className="td-num hidden sm:table-cell">نسبت به ماه قبل</th>
+                  <th scope="col">ماه</th>
+                  <th scope="col" className="td-num">درآمد</th>
+                  <th scope="col" className="td-num">هزینه</th>
+                  <th scope="col" className="td-num">خالص</th>
+                  <th scope="col" className="td-num hidden sm:table-cell">نسبت به ماه قبل</th>
                 </tr>
               </thead>
               <tbody>
@@ -273,9 +273,9 @@ export default async function ReportsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>ماه</th>
-                <th className="td-num">ورودی</th>
-                <th className="td-num">خروجی</th>
+                <th scope="col">ماه</th>
+                <th scope="col" className="td-num">ورودی</th>
+                <th scope="col" className="td-num">خروجی</th>
               </tr>
             </thead>
             <tbody>
