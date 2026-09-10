@@ -122,6 +122,13 @@ mock.module("@/components/reports/PdfButton", { defaultExport: () => null });
 mock.module("@/components/charts/Charts", { namedExports: { BarsChart: () => null } });
 
 const NBSP = "\u00A0";
+/**
+ * Money strings carry invisible bidi controls (RLI/LRI…PDI) that keep the
+ * «number → unit» order and the «−» in front of the digits. They are not part
+ * of what the user sees, so strip them before matching rendered markup.
+ */
+const stripBidi = (s: string) => s.replace(/[\u2066\u2067\u2068\u2069]/g, "");
+
 
 function section(html: string, heading: string) {
   const start = html.indexOf(heading);
@@ -141,7 +148,7 @@ test("installment payments leave «کل هزینه ثبت‌شده» and the sav
     repaymentsTomanEntries: 13,
   };
   const { default: ReportsPage } = await import("../src/app/reports/page");
-  const html = renderToStaticMarkup(await (ReportsPage as any)());
+  const html = stripBidi(renderToStaticMarkup(await (ReportsPage as any)()));
   const kpi = section(html, "کل هزینه ثبت‌شده");
 
   // The real expense only: 100 USD at 200,000 = ۲۰٬۰۰۰٬۰۰۰ تومان, with the
@@ -164,7 +171,7 @@ test("installment payments leave «کل هزینه ثبت‌شده» and the sav
 
 test("what was excluded is disclosed under «بدهی و بازپرداخت», in frozen Toman", async () => {
   const { default: ReportsPage } = await import("../src/app/reports/page");
-  const html = renderToStaticMarkup(await (ReportsPage as any)());
+  const html = stripBidi(renderToStaticMarkup(await (ReportsPage as any)()));
   const debts_ = section(html, "بدهی و بازپرداخت");
 
   // The contractual amount the user actually paid — 13 × 909,090 — never a
@@ -190,7 +197,7 @@ test("partial frozen coverage falls back to the ledger amount, unconverted", asy
     repaymentsTomanEntries: 1,
   };
   const { default: ReportsPage } = await import("../src/app/reports/page");
-  const html = renderToStaticMarkup(await (ReportsPage as any)());
+  const html = stripBidi(renderToStaticMarkup(await (ReportsPage as any)()));
   const debts_ = section(html, "بدهی و بازپرداخت");
 
   assert.ok(

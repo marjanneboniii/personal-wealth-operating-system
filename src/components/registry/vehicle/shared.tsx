@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { D } from "@/domain/decimal";
-import { formatDate, formatMoney, formatNumber, formatPct, toFaDigits } from "@/lib/format";
+import { formatDate, formatMoney, formatNumber, formatPct, formatSignedMoney, formatSignedPct, toFaDigits } from "@/lib/format";
 import type { RegistryResult } from "@/app/actions/registry";
 
 /* ─────────────────────────── money display — compact & nowrap ─────────────────────────── */
@@ -27,42 +27,37 @@ export function Usd({ value, className = "" }: { value: string | number | null |
 
 function toneOf(value: string | number | null | undefined) {
   const n = Number(value ?? 0);
-  if (!Number.isFinite(n) || n === 0) return { color: "var(--text-3)", sign: "" };
-  return n > 0
-    ? { color: "var(--positive)", sign: "+" }
-    : { color: "var(--negative)", sign: "−" };
+  if (!Number.isFinite(n) || n === 0) return { color: "var(--text-3)" };
+  return { color: n > 0 ? "var(--positive)" : "var(--negative)" };
 }
 
 /** Signed Toman delta — colour is never the only signal (sign + arrow). */
 export function DeltaToman({ value }: { value: string | number | null | undefined }) {
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
-  const { color, sign } = toneOf(value);
+  const { color } = toneOf(value);
   return (
     <span className="num money-nowrap text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)]" style={{ color }} dir="rtl">
-      {sign}
-      {formatMoney(D(value).abs().toString(), "IRT")}
+      {formatSignedMoney(value, "IRT")}
     </span>
   );
 }
 
 export function DeltaUsd({ value }: { value: string | number | null | undefined }) {
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
-  const { color, sign } = toneOf(value);
+  const { color } = toneOf(value);
   return (
     <span className="num rtl-isolate money-nowrap text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)]" style={{ color }} dir="rtl">
-      {sign}
-      {formatMoney(D(value).abs().toString(), "USD")}
+      {formatSignedMoney(value, "USD")}
     </span>
   );
 }
 
 export function DeltaPct({ value }: { value: string | number | null | undefined }) {
   if (value === null || value === undefined || value === "") return <span className="muted">—</span>;
-  const { color, sign } = toneOf(value);
+  const { color } = toneOf(value);
   return (
     <span className="num money-nowrap text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)]" style={{ color }} dir="rtl">
-      {sign}
-      {formatPct(D(value).abs().toString(), 2)}
+      {formatSignedPct(value, 2)}
     </span>
   );
 }

@@ -14,21 +14,7 @@ import { AreaChart, BarsChart, Donut } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
 import { humanizeEntry, moneyFlowLabel } from "@/lib/tx";
 import { D } from "@/domain/decimal";
-import {
-  formatMoney,
-  formatPct,
-  formatShortDate,
-  formatSignedMoney,
-  toJalali,
-  faCount,
-  formatDaysUntil,
-  inflowTone,
-  outflowTone,
-  toneColor,
-  trendColor,
-  usdToIrt,
-  irtToUsd,
-} from "@/lib/format";
+import { faCount, formatDaysUntil, formatMoney, formatMoneyWithSign, formatPct, formatShortDate, formatSignedMoney, inflowTone, irtToUsd, outflowTone, toJalali, toneColor, trendColor, usdToIrt } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -392,8 +378,9 @@ export default async function OverviewDashboard() {
                           color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)",
                         }}
                       >
-                        {h.sign > 0 ? "+" : h.sign < 0 ? "−" : ""}
-                        {displayToman ? formatMoney(displayToman, "IRT") : formatMoney(h.amount)}
+                        {displayToman
+                          ? formatMoneyWithSign(h.sign > 0 ? "+" : h.sign < 0 ? "−" : "", displayToman, "IRT")
+                          : formatMoneyWithSign(h.sign > 0 ? "+" : h.sign < 0 ? "−" : "", h.amount, "USD")}
                       </span>
                       {rate && (
                         <p className="muted num mt-1 block text-[length:var(--fs-xs)] money-nowrap">≈ {formatMoney(displayUsd)}</p>

@@ -8,7 +8,7 @@ import AdvancedFilter from "@/components/ui/AdvancedFilter";
 import { markManyReviewedAction, markReviewedAction } from "@/app/actions";
 import { humanizeEntry, moneyFlowLabel, typeBadgeTone } from "@/lib/tx";
 import type { TxRow } from "@/features/ledger/queries";
-import { faCount, formatJalaliIso, formatMoney, formatShortDate } from "@/lib/format";
+import { faCount, formatJalaliIso, formatMoney, formatMoneyWithSign, formatShortDate } from "@/lib/format";
 import { useProMode } from "@/components/layout/ProModeProvider";
 import { D } from "@/domain/decimal";
 
@@ -70,16 +70,21 @@ export default function TransactionsView({
   // frozen Toman exists is it computed live from the FULL-PRECISION base
   // amount (never a 2-dp display string) and marked with «≈».
   const amountLabel = (e: ClientTxRow, h: ReturnType<typeof humanizeEntry>) => {
-    const sign = h.sign > 0 ? "+" : h.sign < 0 ? "−" : "";
+    const sign: "+" | "−" | "" = h.sign > 0 ? "+" : h.sign < 0 ? "−" : "";
     const irt = h.nativeIrt
-      ? formatMoney(h.nativeIrt, "IRT")
+      ? h.nativeIrt
       : e.fx?.irtAmount
-        ? formatMoney(D(e.fx.irtAmount).toFixed(0), "IRT")
+        ? D(e.fx.irtAmount).toFixed(0)
         : rate && D(rate).gt(0)
-          ? formatMoney(D(h.amountExact).mul(rate).toFixed(0), "IRT")
+          ? D(h.amountExact).mul(rate).toFixed(0)
           : null;
     const dynamic = !h.nativeIrt && !e.fx?.irtAmount && !!irt;
-    return `${dynamic ? "≈ " : ""}${sign}${irt ?? formatMoney(h.amount)}`;
+    // Sign and the «≈» marker are handed to the formatter so they stay inside
+    // the amount's own isolate — never glued on outside, where RTL pushes them
+    // past the digits («۱۲۳٬۴۵۶− تومان»).
+    return irt !== null
+      ? formatMoneyWithSign(sign, irt, "IRT", dynamic ? "≈ " : "")
+      : formatMoneyWithSign(sign, h.amount, "USD");
   };
 
   // URL state — filters survive refresh, share and browser back
