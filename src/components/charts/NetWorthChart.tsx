@@ -23,7 +23,7 @@ export default function NetWorthChart({
     return (
       <div className="muted flex h-40 flex-col items-center justify-center gap-1 text-center text-xs">
         <p>برای نمایش روند، حداقل دو نقطه داده لازم است.</p>
-        <p className="text-[11px]">با «ثبت اسنپ‌شات» روزانه، تاریخچه ارزش خالص شما ساخته می‌شود.</p>
+        <p className="text-[length:var(--fs-xs)]">با «ثبت اسنپ‌شات» روزانه، تاریخچه ارزش خالص شما ساخته می‌شود.</p>
       </div>
     );
   }

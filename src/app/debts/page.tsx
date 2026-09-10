@@ -51,7 +51,7 @@ export default async function DebtsPage() {
         subtitle="نمای کامل تعهدات شما. مبلغ تومان هر بدهی ثابت است؛ معادل دلاری فقط نمایشی است و با نرخ روز تغییر می‌کند."
         action={
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="#manual-debt" className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[12px]">
+            <Link href="#manual-debt" className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]">
               <Icon name="plus" size={15} />
               ثبت بدهی دستی
             </Link>
@@ -129,7 +129,7 @@ export default async function DebtsPage() {
                 <li key={d.id} className="card p-4 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="flex flex-wrap items-center gap-2 text-[12px] sm:text-[13px] font-semibold tracking-tight money-nowrap">
+                      <p className="flex flex-wrap items-center gap-2 text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-semibold tracking-tight money-nowrap">
                         {settled && (
                           <span style={{ color: "var(--positive)" }}>
                             <Icon name="check-circle" size={17} />
@@ -139,7 +139,7 @@ export default async function DebtsPage() {
                         <span className={settled ? "badge badge-pos" : "badge badge-neutral"}>{settled ? "تسویه شد" : "فعال"}</span>
                         {late && <span className="badge badge-neg">قسط معوق</span>}
                       </p>
-                      <p className="muted mt-1 text-[11.5px]">
+                      <p className="muted mt-1 text-[length:var(--fs-xs)]">
                         {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود <span className="num" dir="rtl">{formatQty(d.interestRate, 2)}٪</span>
                       </p>
                     </div>
@@ -156,7 +156,7 @@ export default async function DebtsPage() {
 
                   {d.totalCount > 0 && (
                     <div className="mt-4">
-                      <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                      <div className="mb-1.5 flex items-center justify-between text-[length:var(--fs-xs)]">
                         <span className="muted">
                           <span className="num" dir="rtl">
                             {faCount(d.paidCount)} از {faCount(d.totalCount)}
@@ -172,7 +172,7 @@ export default async function DebtsPage() {
                   )}
 
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3.5" style={{ borderColor: "var(--border)" }}>
-                    <p className="text-[12px]" style={{ color: late ? "var(--negative)" : "var(--text-2)" }}>
+                    <p className="text-[length:var(--fs-xs)]" style={{ color: late ? "var(--negative)" : "var(--text-2)" }}>
                       {d.nextDue ? (
                         <>
                           قسط بعدی:{" "}
@@ -199,12 +199,12 @@ export default async function DebtsPage() {
                       {d.nextDue && (
                         <Link
                           href={`/new?type=debt_repayment&installmentId=${d.nextDue.id}&entryDate=${d.nextDue.dueDate}&title=${encodeURIComponent(`قسط ${d.nextDue.seq} — ${d.title}`)}`}
-                          className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[12px]"
+                          className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]"
                         >
                           پرداخت قسط بعدی
                         </Link>
                       )}
-                      <Link href="/debts/installments" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[12px]">
+                      <Link href="/debts/installments" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
                         همه اقساط
                       </Link>
                     </div>

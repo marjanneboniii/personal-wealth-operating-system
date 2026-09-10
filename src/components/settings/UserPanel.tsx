@@ -34,22 +34,22 @@ export default function UserPanel({ user }: { user: User }) {
           {(user.username?.[0] || user.name?.[0] || "U").toUpperCase()}
         </span>
         <div>
-          <p className="text-[13px] font-semibold">{user.name || user.username || "کاربر"}</p>
-          <p className="muted num text-[11px]" dir="ltr">
+          <p className="text-[length:var(--fs-sm)] font-semibold">{user.name || user.username || "کاربر"}</p>
+          <p className="muted num text-[length:var(--fs-xs)]" dir="ltr">
             @{user.username || "—"} {user.email ? `· ${user.email}` : ""}
           </p>
           <span className="badge badge-brand mt-1 text-[length:var(--fs-xs)]">{user.role === "owner" ? "مالک" : user.role}</span>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <a href="/login" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[12px]" style={{ touchAction: "manipulation" }}>
+        <a href="/login" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]" style={{ touchAction: "manipulation" }}>
           <Icon name="settings" size={14} />
           تغییر حساب
         </a>
         <button
           type="button"
           onClick={handleLogout}
-          className="btn !min-h-9 !px-3 !py-1.5 text-[12px]"
+          className="btn !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]"
           style={{ touchAction: "manipulation" }}
         >
           <Icon name="x" size={14} />

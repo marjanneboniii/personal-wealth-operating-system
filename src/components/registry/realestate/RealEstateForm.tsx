@@ -201,7 +201,7 @@ export default function RealEstateForm({
           </Labeled>
           {cityId && (
             <input
-              className="field num mt-2 !py-1.5 text-[11px]"
+              className="field num mt-2 !py-1.5 text-[length:var(--fs-xs)]"
               value={hoodFilter}
               onChange={(e) => setHoodFilter(e.target.value)}
               placeholder={`جست‌وجو در ${toFaDigits(String(cityNeighborhoods.length))} محلهٔ «${city?.nameFa ?? ""}»…`}
@@ -235,8 +235,8 @@ export default function RealEstateForm({
       <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="min-w-0">
-            <div className="mt-0.5 text-[12.5px] font-semibold" style={{ color: "var(--brand)" }}>
-              شناسه منحصر به‌فرد ملک: <span className="num font-bold text-[13.5px]">{loadingIdentity ? "…" : identityPreview?.symbol ? toFaDigits(identityPreview.symbol) : "—"}</span>
+            <div className="mt-0.5 text-[length:var(--fs-xs)] font-semibold" style={{ color: "var(--brand)" }}>
+              شناسه منحصر به‌فرد ملک: <span className="num font-bold text-[length:var(--fs-sm)]">{loadingIdentity ? "…" : identityPreview?.symbol ? toFaDigits(identityPreview.symbol) : "—"}</span>
             </div>
           </div>
           {identityPreview?.sequence && identityPreview.sequence > 1 && (
@@ -289,8 +289,8 @@ export default function RealEstateForm({
           </Labeled>
           <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="text-[11px] font-medium">معادل دلاری قیمت خرید (نرخ تاریخ تملک)</span>
-              <strong className="num text-[13.5px]" dir="rtl" style={{ color: "var(--brand)" }}>
+              <span className="text-[length:var(--fs-xs)] font-medium">معادل دلاری قیمت خرید (نرخ تاریخ تملک)</span>
+              <strong className="num text-[length:var(--fs-sm)]" dir="rtl" style={{ color: "var(--brand)" }}>
                 {canPreviewPurchase && loadingPurchase ? "…" : purchaseUsdPreview ? formatMoney(purchaseUsdPreview.usd, "USD") : "—"}
               </strong>
             </div>
@@ -332,8 +332,8 @@ export default function RealEstateForm({
           </Labeled>
           <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="text-[11px] font-medium">معادل دلاری ارزش فعلی (نرخ تاریخ ارزش‌گذاری)</span>
-              <strong className="num text-[13.5px]" dir="rtl" style={{ color: "var(--brand)" }}>
+              <span className="text-[length:var(--fs-xs)] font-medium">معادل دلاری ارزش فعلی (نرخ تاریخ ارزش‌گذاری)</span>
+              <strong className="num text-[length:var(--fs-sm)]" dir="rtl" style={{ color: "var(--brand)" }}>
                 {canPreviewValuation && loadingValuation ? "…" : valuationUsdPreview ? formatMoney(valuationUsdPreview.usd, "USD") : "—"}
               </strong>
             </div>

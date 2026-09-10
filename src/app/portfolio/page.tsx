@@ -113,14 +113,14 @@ export default async function PortfolioPage() {
                   <ul className="min-w-0 space-y-3">
                     {valuation.allocationByClass.map((c) => (
                       <li key={c.className}>
-                        <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px]">
+                        <div className="mb-1 flex items-baseline justify-between gap-3 text-[length:var(--fs-sm)]">
                           <span className="flex min-w-0 items-center gap-2 font-medium">
                             <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: c.color }} />
                             <span className="truncate">{c.className}</span>
                           </span>
                           <span className="flex shrink-0 items-baseline gap-2">
                             <span className="flex flex-col items-end">
-                              <span className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
+                              <span className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
                                 {toIrt(c.value) ?? formatMoney(c.value)}
                               </span>
                               {fx.rate && (
@@ -129,7 +129,7 @@ export default async function PortfolioPage() {
                                 </span>
                               )}
                             </span>
-                            <span className="num muted w-11 text-left text-[11px]" dir="rtl">
+                            <span className="num muted w-11 text-left text-[length:var(--fs-xs)]" dir="rtl">
                               {formatPct(c.percentage, 1)}
                             </span>
                           </span>
@@ -153,7 +153,7 @@ export default async function PortfolioPage() {
             <Alert tone="info" icon="info" title="سود/زیان تحقق‌یافته بر اساس دارایی">
               <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
                 {pnl.bySymbol.map((p) => (
-                  <span key={p.symbol} className="num text-[11.5px]" dir="rtl" style={{ color: trendTone(p.pnl) === "up" ? "var(--positive)" : trendTone(p.pnl) === "down" ? "var(--negative)" : "var(--text-2)" }}>
+                  <span key={p.symbol} className="num text-[length:var(--fs-xs)]" dir="rtl" style={{ color: trendTone(p.pnl) === "up" ? "var(--positive)" : trendTone(p.pnl) === "down" ? "var(--negative)" : "var(--text-2)" }}>
                     {formatSignedMoney(p.pnl, p.symbol)}
                   </span>
                 ))}

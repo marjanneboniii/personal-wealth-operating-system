@@ -19,8 +19,8 @@ export default function ProModeToggle({ initialPro }: { initialPro: boolean }) {
     <div className="card p-4 sm:p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-[14px] font-bold">نمایش و حالت حرفه‌ای</h3>
-          <p className="muted mt-1 max-w-xl text-[12px] leading-5">
+          <h3 className="text-[length:var(--fs-sm)] font-bold">نمایش و حالت حرفه‌ای</h3>
+          <p className="muted mt-1 max-w-xl text-[length:var(--fs-xs)] leading-5">
             پیش‌فرض، همه‌جای برنامه با زبان ساده نمایش داده می‌شود: «ورودی / خروجی»، «دسته‌بندی» و
             «از کدام حساب به کدام حساب». با فعال‌سازی حالت حرفه‌ای، اصطلاحات حسابداری
             (کد معین، بدهکار / بستانکار و جزئیات دفترکل) در سراسر برنامه نمایان می‌شود.
@@ -44,8 +44,8 @@ export default function ProModeToggle({ initialPro }: { initialPro: boolean }) {
         </button>
       </form>
 
-      {state && !state.ok && <p className="mt-2 text-[12px]" style={{ color: "var(--negative)" }}>{state.message}</p>}
-      {state && state.ok && <p className="muted mt-2 text-[11.5px]">{state.message}</p>}
+      {state && !state.ok && <p className="mt-2 text-[length:var(--fs-xs)]" style={{ color: "var(--negative)" }}>{state.message}</p>}
+      {state && state.ok && <p className="muted mt-2 text-[length:var(--fs-xs)]">{state.message}</p>}
     </div>
   );
 }

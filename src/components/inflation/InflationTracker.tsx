@@ -154,7 +154,7 @@ function NewPriceForm({ items, categories }: { items: InflationItemRow[]; catego
         </button>
       </div>
       <Result state={state} />
-      <p className="muted text-[11px]">ثبت قیمت، مشاهده بازار است — نه خرید دارایی؛ هیچ سندی در سوابق مالی ایجاد نمی‌شود.</p>
+      <p className="muted text-[length:var(--fs-xs)]">ثبت قیمت، مشاهده بازار است — نه خرید دارایی؛ هیچ سندی در سوابق مالی ایجاد نمی‌شود.</p>
     </form>
   );
 }
@@ -221,7 +221,7 @@ function ComparisonMiniTable({ rows }: { rows: InflationItemComparison[] }) {
       {rows.map((r) => (
         <li key={r.itemId} className="soft flex items-center justify-between gap-2 rounded-[var(--r-md)] p-2">
           <span className="min-w-0">
-            <b className="block truncate text-[13px]">{r.name}</b>
+            <b className="block truncate text-[length:var(--fs-sm)]">{r.name}</b>
             <small className="muted block truncate">
               {r.categoryName || "بدون دسته"} · هر {r.unit} {r.latestPrice ? formatMoney(r.latestPrice, "IRT") : "—"}
             </small>
@@ -243,7 +243,7 @@ export default function InflationTracker({ items, histories, dashboard, categori
       {/* headline strip — «تورم کل سبد کالا» */}
       <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <div className="card p-4">
-          <div className="muted text-[11px]">تورم سبد کالا · ۶ ماه اخیر</div>
+          <div className="muted text-[length:var(--fs-xs)]">تورم سبد کالا · ۶ ماه اخیر</div>
           <div className="num mt-1 text-2xl font-bold" style={{ color: growthColor(dashboard.headline.growthPercent) }} dir="rtl">
             {dashboard.headline.growthPercent !== null ? faGrowth(dashboard.headline.growthPercent) : "—"}
           </div>
@@ -254,19 +254,19 @@ export default function InflationTracker({ items, histories, dashboard, categori
           </div>
         </div>
         <div className="card p-4">
-          <div className="muted text-[11px]">کالاهای من</div>
+          <div className="muted text-[length:var(--fs-xs)]">کالاهای من</div>
           <div className="num mt-1 text-2xl font-bold" dir="rtl">{faCount(dashboard.totalItems)}</div>
           <div className="muted mt-1 text-[length:var(--fs-xs)]">{faCount(dashboard.totalObservations)} ثبت قیمت</div>
         </div>
         <div className="card p-4">
-          <div className="muted text-[11px]">تورم سبد · یک ماه اخیر</div>
+          <div className="muted text-[length:var(--fs-xs)]">تورم سبد · یک ماه اخیر</div>
           <div className="num mt-1 text-2xl font-bold" style={{ color: growthColor(dashboard.windows[0]?.growthPercent ?? null) }} dir="rtl">
             {dashboard.windows[0]?.growthPercent !== null ? faGrowth(dashboard.windows[0]?.growthPercent ?? null) : "—"}
           </div>
           <div className="muted mt-1 text-[length:var(--fs-xs)]">میانگین ساده رشد کالاها</div>
         </div>
         <div className="card p-4">
-          <div className="muted text-[11px]">تورم سبد · یک سال اخیر</div>
+          <div className="muted text-[length:var(--fs-xs)]">تورم سبد · یک سال اخیر</div>
           <div className="num mt-1 text-2xl font-bold" style={{ color: growthColor(dashboard.windows[3]?.growthPercent ?? null) }} dir="rtl">
             {dashboard.windows[3]?.growthPercent !== null ? faGrowth(dashboard.windows[3]?.growthPercent ?? null) : "—"}
           </div>
@@ -283,7 +283,7 @@ export default function InflationTracker({ items, histories, dashboard, categori
               role="tab"
               aria-selected={tab === t.key}
               onClick={() => setTab(t.key)}
-              className={`rounded-[var(--r-md)] px-3 py-2 text-[12.5px] font-medium ${tab === t.key ? "seg-on" : ""}`}
+              className={`rounded-[var(--r-md)] px-3 py-2 text-[length:var(--fs-xs)] font-medium ${tab === t.key ? "seg-on" : ""}`}
               style={tab === t.key ? {} : { color: "var(--text-2)" }}
             >
               {t.label}
@@ -386,9 +386,9 @@ export default function InflationTracker({ items, histories, dashboard, categori
           {dashboard.items.length === 0 ? (
             <p className="muted text-xs">هنوز کالایی ثبت نشده است.</p>
           ) : (
-            <table className="w-full min-w-[640px] text-[12.5px]">
+            <table className="w-full min-w-[640px] text-[length:var(--fs-xs)]">
               <thead>
-                <tr className="muted text-right text-[11px]">
+                <tr className="muted text-right text-[length:var(--fs-xs)]">
                   <th scope="col" className="py-2 pl-2 font-medium">کالا</th>
                   <th scope="col" className="py-2 pl-2 font-medium">قیمت امروز</th>
                   <th scope="col" className="py-2 pl-2 font-medium">یک ماه قبل</th>
@@ -420,7 +420,7 @@ export default function InflationTracker({ items, histories, dashboard, categori
         </section>
       )}
 
-      <p className="muted flex items-center gap-1.5 text-[11px]">
+      <p className="muted flex items-center gap-1.5 text-[length:var(--fs-xs)]">
         این ماژول صرفاً تحلیلی است: دارایی محسوب نمی‌شود و وارد سبد دارایی، ثروت خالص و سوابق مالی نمی‌شود.
       </p>
     </div>

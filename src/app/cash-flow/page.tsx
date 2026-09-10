@@ -60,7 +60,7 @@ function FlowTable({
             const toman = frozen ? r.totalToman : toIrt(r.total);
             return (
               <li key={r.code}>
-                <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
+                <div className="mb-1 flex items-baseline justify-between gap-2 text-[length:var(--fs-xs)]">
                   <span className="min-w-0 truncate font-medium">{r.name}</span>
                   <span className="flex shrink-0 items-baseline gap-2">
                     <span className="num muted text-[length:var(--fs-xs)]" dir="rtl">
@@ -115,12 +115,12 @@ function CategoryBreakdown({ rows, toIrt }: { rows: CategoryFlowRow[]; toIrt: (u
     <Section title="هزینه‌ها به تفکیک دسته‌های استاندارد — ۶ ماه اخیر" hint="ساختار درختی دسته‌ها: جمع هر دسته اصلی، مجموع زیردسته‌های آن است.">
       <div className="card space-y-4 p-4 sm:p-5">
         {misc && misc.total.gt(0) && (
-          <div className="soft flex flex-wrap items-center justify-between gap-2 rounded-[var(--r-md)] p-3 text-[11.5px]">
+          <div className="soft flex flex-wrap items-center justify-between gap-2 rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)]">
             <span>
               <strong>{miscToman ? formatMoney(miscToman, "IRT") : toIrt(misc.total.toString()) ?? formatMoney(misc.total.toString())}</strong> در دسته «متفرقه» ثبت شده است — فقط وقتی هیچ دسته مناسبی نیست.
               در صورت تکرار یک نوع هزینه، برای آن زیردسته مستقل بسازید.
             </span>
-            <Link href={`/transactions?category=${misc.parentId}`} className="btn btn-soft !min-h-8 !px-3 text-[11px]">
+            <Link href={`/transactions?category=${misc.parentId}`} className="btn btn-soft !min-h-8 !px-3 text-[length:var(--fs-xs)]">
               بررسی تراکنش‌های متفرقه
             </Link>
           </div>
@@ -132,7 +132,7 @@ function CategoryBreakdown({ rows, toIrt }: { rows: CategoryFlowRow[]; toIrt: (u
             const gDyn = toIrt(g.total.toString());
             return (
               <li key={g.parentId}>
-                <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
+                <div className="mb-1 flex items-baseline justify-between gap-2 text-[length:var(--fs-xs)]">
                   <span className="min-w-0 truncate font-semibold">{g.name}</span>
                   <span className="flex shrink-0 items-baseline gap-2">
                     <span className="num muted text-[length:var(--fs-xs)]" dir="rtl">{formatPct(share, 1)}</span>
@@ -156,7 +156,7 @@ function CategoryBreakdown({ rows, toIrt }: { rows: CategoryFlowRow[]; toIrt: (u
                     .map((l) => {
                       const lToman = isFrozenCover(l.entries, l.entriesWithSnap) && D(l.totalToman).gt(0) ? formatMoney(l.totalToman, "IRT") : null;
                       return (
-                        <li key={l.categoryId} className="muted flex items-center justify-between gap-2 text-[11px]">
+                        <li key={l.categoryId} className="muted flex items-center justify-between gap-2 text-[length:var(--fs-xs)]">
                           <span className="min-w-0 truncate">
                             • {l.name}
                             {l.nature === "non_cash" && <span className="badge ms-1.5">غیرنقدی — بدون خروج وجه</span>}

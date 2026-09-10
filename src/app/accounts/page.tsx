@@ -205,7 +205,7 @@ export default async function AccountsPage() {
         action={
           <Link
             href="/assets"
-            className="inline-flex items-center gap-1 text-[11.5px] font-medium sm:text-[12px]"
+            className="inline-flex items-center gap-1 text-[length:var(--fs-xs)] font-medium sm:text-[length:var(--fs-xs)]"
             style={{ color: "var(--brand)" }}
           >
             دارایی‌ها و سرمایه‌گذاری
@@ -338,12 +338,12 @@ export default async function AccountsPage() {
                           </span>
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="acct-title text-[12.5px] font-semibold sm:text-[13px]">{walletName}</p>
+                          <p className="acct-title text-[length:var(--fs-xs)] font-semibold sm:text-[length:var(--fs-sm)]">{walletName}</p>
                           {walletSubtitle && <p className="acct-subtitle muted mt-0.5 text-[length:var(--fs-xs)] leading-5">{walletSubtitle}</p>}
                         </div>
                       </div>
                       <div className="acct-amount max-w-[48%] shrink-0 text-left">
-                        <p className="num money-nowrap text-[12px] font-bold leading-6 sm:text-[13px]" dir="rtl">
+                        <p className="num money-nowrap text-[length:var(--fs-xs)] font-bold leading-6 sm:text-[length:var(--fs-sm)]" dir="rtl">
                           {singlePrimary}
                         </p>
                         {singleExact && (
@@ -384,12 +384,12 @@ export default async function AccountsPage() {
                         </span>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="acct-title text-[12px] font-semibold sm:text-[13px]">{walletName}</p>
+                        <p className="acct-title text-[length:var(--fs-xs)] font-semibold sm:text-[length:var(--fs-sm)]">{walletName}</p>
                         {walletSubtitle && <p className="acct-subtitle muted mt-0.5 text-[length:var(--fs-xs)] leading-5">{walletSubtitle}</p>}
                       </div>
                     </div>
                     <div className="acct-amount max-w-[46%] shrink-0 text-left">
-                      <p className="num money-nowrap text-[12px] font-bold leading-6 sm:text-[13px]" dir="rtl">
+                      <p className="num money-nowrap text-[length:var(--fs-xs)] font-bold leading-6 sm:text-[length:var(--fs-sm)]" dir="rtl">
                         {walletPrimary}
                       </p>
                       {!irtOnly && toIrt(walletTotal.toString()) && <p className="acct-secondary muted num money-nowrap mt-0.5 text-[length:var(--fs-xs)] leading-5" dir="rtl">≈ {formatMoney(walletTotal.toString())}</p>}
@@ -435,7 +435,7 @@ export default async function AccountsPage() {
               {liabilityAccounts.map((b) => (
                 <li key={b.accountId} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div>
-                    <p className="text-[12.5px] font-medium">{b.name}</p>
+                    <p className="text-[length:var(--fs-xs)] font-medium">{b.name}</p>
                     {pro && (
                       <p className="muted num text-[length:var(--fs-xs)]" dir="ltr">
                         {toFaDigits(b.code)}
@@ -447,7 +447,7 @@ export default async function AccountsPage() {
                         hence stored negative). Flipping the sign is meaningful;
                         an absolute value would silently render an over-paid
                         (debit) liability as a debt of the same size. */}
-                    <p className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl" style={{ color: "var(--negative)" }}>
+                    <p className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl" style={{ color: "var(--negative)" }}>
                       {toIrt(D(b.baseValue).neg().toString()) ?? formatMoney(D(b.baseValue).neg().toString())}
                     </p>
                     {toIrt(D(b.baseValue).neg().toString()) && (
@@ -466,7 +466,7 @@ export default async function AccountsPage() {
       <Section title="دفتر حساب‌ها">
         <details className="card group overflow-hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-            <span className="text-[12px] sm:text-[13px] font-semibold">نمودار کامل حساب‌ها (Chart of Accounts)</span>
+            <span className="text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-semibold">نمودار کامل حساب‌ها (Chart of Accounts)</span>
             <span className="muted transition-transform group-open:rotate-180">
               <Icon name="chevronDown" size={15} />
             </span>
@@ -478,10 +478,10 @@ export default async function AccountsPage() {
                 .filter((g) => g.rows.length > 0)
                 .map((g) => (
                   <div key={g.t}>
-                    <p className="muted mb-2 text-[11px] font-semibold">{ACCOUNT_TYPE_LABELS[g.t]}</p>
+                    <p className="muted mb-2 text-[length:var(--fs-xs)] font-semibold">{ACCOUNT_TYPE_LABELS[g.t]}</p>
                     <ul className="space-y-1.5">
                       {g.rows.map((b) => (
-                        <li key={b.accountId} className="flex items-center justify-between text-[12px]">
+                        <li key={b.accountId} className="flex items-center justify-between text-[length:var(--fs-xs)]">
                           <span>
                             {pro && <span className="muted num ml-1.5">{toFaDigits(b.code)}</span>}
                             {b.name}
@@ -509,7 +509,7 @@ export default async function AccountsPage() {
       <Section title="معرفی حساب یا کیف پول جدید">
         <details className="card group overflow-hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-            <span className="text-[12px] sm:text-[13px] font-semibold">افزودن حساب جدید</span>
+            <span className="text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-semibold">افزودن حساب جدید</span>
             <span className="muted transition-transform group-open:rotate-180">
               <Icon name="chevronDown" size={15} />
             </span>

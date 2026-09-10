@@ -14,11 +14,11 @@ export default function AboutPage() {
     <article className="landing-legal">
       <p className="landing-kicker" style={{ color: "var(--color-accent)" }}>توازن</p>
       <h1 className="type-page-title mt-2">درباره ما</h1>
-      <p className="sub mt-4 text-[15px] leading-8">
+      <p className="sub mt-4 text-[length:var(--fs-md)] leading-8">
         توازن یک سیستم خصوصی مدیریت ثروت شخصی است. هدف آن این است که تصویر دارایی‌ها، بدهی‌ها، نقدینگی و تراکنش‌ها در یک
         جا جمع شود — روی هسته حسابداری دوطرفه، نه روی یک صفحه تبلیغاتی.
       </p>
-      <p className="sub mt-4 text-[15px] leading-8">
+      <p className="sub mt-4 text-[length:var(--fs-md)] leading-8">
         این محصول برای کسانی است که می‌خواهند وضعیت مالی‌شان را آرام و دقیق ببینند. ما داستان ساختگی درباره بنیان‌گذاران
         یا سابقه شرکتی منتشر نمی‌کنیم؛ وقتی سند رسمی وجود داشته باشد، همین‌جا می‌آید.
       </p>

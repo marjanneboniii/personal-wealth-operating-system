@@ -100,7 +100,7 @@ export default function VehicleForm({
       <input type="hidden" name="brandId" value={brandId} />
       <input type="hidden" name="catalogId" value={allowCustom ? "" : catalogId} />
 
-      <div className="soft flex flex-wrap items-center gap-2 rounded-[var(--r-md)] p-3 text-[11.5px]">
+      <div className="soft flex flex-wrap items-center gap-2 rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)]">
         <span className="muted">مالک:</span>
         <strong>{ownerName}</strong>
       </div>
@@ -226,8 +226,8 @@ export default function VehicleForm({
 
           <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="text-[11px] font-medium">معادل دلاری قیمت خرید (محاسبه خودکار)</span>
-              <strong className="num text-[13.5px]" dir="rtl" style={{ color: "var(--brand)" }}>
+              <span className="text-[length:var(--fs-xs)] font-medium">معادل دلاری قیمت خرید (محاسبه خودکار)</span>
+              <strong className="num text-[length:var(--fs-sm)]" dir="rtl" style={{ color: "var(--brand)" }}>
                 {canPreview && rateLoading ? "…" : preview ? formatMoney(preview.usd, "USD") : "—"}
               </strong>
             </div>
@@ -268,7 +268,7 @@ export default function VehicleForm({
       </div>
 
       <div className="rounded-[var(--r-lg)] border p-3" style={{ borderColor: "var(--border)" }}>
-        <label className="flex cursor-pointer items-center gap-2 text-[12px] font-medium">
+        <label className="flex cursor-pointer items-center gap-2 text-[length:var(--fs-xs)] font-medium">
           <input type="checkbox" checked={withValuation} onChange={(e) => setWithValuation(e.target.checked)} />
           ثبت «ارزش فعلی» به‌عنوان اولین Snapshot ارزش‌گذاری (اختیاری)
         </label>

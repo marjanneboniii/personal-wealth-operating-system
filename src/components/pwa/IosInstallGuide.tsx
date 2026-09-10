@@ -160,7 +160,7 @@ export function IosInstallGuide({
           <h2 id={titleId} className="text-[18px] font-bold tracking-tight">
             نصب توازن روی آیفون
           </h2>
-          <p id={descId} className="sub mx-auto mt-2 max-w-sm text-[13.5px] leading-7">
+          <p id={descId} className="sub mx-auto mt-2 max-w-sm text-[length:var(--fs-sm)] leading-7">
             برای تجربه بهتر، توازن را به صفحه اصلی گوشی اضافه کنید.
           </p>
 

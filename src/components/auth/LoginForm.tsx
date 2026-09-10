@@ -57,7 +57,7 @@ export default function LoginForm({ claimMode, turnstileSiteKey }: { claimMode?:
       </div>
 
       {state && !state.ok && (
-        <p role="alert" className="rounded-[var(--r-md)] px-3 py-2 text-[12px] font-medium" style={{ background: "var(--negative-soft)", color: "var(--negative)" }}>
+        <p role="alert" className="rounded-[var(--r-md)] px-3 py-2 text-[length:var(--fs-xs)] font-medium" style={{ background: "var(--negative-soft)", color: "var(--negative)" }}>
           {state.message}
         </p>
       )}
@@ -72,7 +72,7 @@ export default function LoginForm({ claimMode, turnstileSiteKey }: { claimMode?:
         {pending ? "در حال بررسی…" : claimMode ? "تأیید و حفظ داده‌ها" : "ورود"}
       </button>
 
-      <a href="/forgot-password" className="muted block text-center text-[11px] underline underline-offset-4">رمز عبور را فراموش کرده‌اید؟</a>
+      <a href="/forgot-password" className="muted block text-center text-[length:var(--fs-xs)] underline underline-offset-4">رمز عبور را فراموش کرده‌اید؟</a>
 
       <GoogleAuthButton label="ورود با Google" />
     </form>

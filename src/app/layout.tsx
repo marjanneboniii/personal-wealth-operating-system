@@ -80,7 +80,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body className="antialiased">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:right-3 focus:top-3 focus:z-[100] focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-lg focus:px-4 focus:py-3 focus:text-[14px]"
+          className="sr-only focus:not-sr-only focus:fixed focus:right-3 focus:top-3 focus:z-[100] focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-lg focus:px-4 focus:py-3 focus:text-[length:var(--fs-sm)]"
           style={{ background: "var(--color-accent)", color: "var(--on-brand)" }}
         >
           پرش به محتوای اصلی

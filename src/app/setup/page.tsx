@@ -276,7 +276,7 @@ export default function SetupWizardPage() {
                   <label className="label">{t.dateCalendarLabel}</label>
                   {/* Read-only on purpose: the Gregorian calendar is not an option. */}
                   <div className="field flex items-center justify-between gap-2">
-                    <span className="text-[13px] font-medium">{t.dateCalendarJalali}</span>
+                    <span className="text-[length:var(--fs-sm)] font-medium">{t.dateCalendarJalali}</span>
                     <span className="badge badge-neutral">{t.dateCalendarFixedBadge}</span>
                   </div>
                   <p className="muted mt-1 text-[length:var(--fs-xs)]">{t.dateCalendarHelp}</p>
@@ -371,7 +371,7 @@ export default function SetupWizardPage() {
                 </div>
               </div>
 
-              <div className="card soft p-3 text-[11px] leading-6">
+              <div className="card soft p-3 text-[length:var(--fs-xs)] leading-6">
                 <strong>چه چیزهایی ساخته می‌شود:</strong>
                 <ul className="mt-1 list-disc space-y-0.5 pr-4">
                   <li>حساب بانکی اصلی — صندوق نقد فقط در صورت تمایل</li>
@@ -407,7 +407,7 @@ export default function SetupWizardPage() {
                 <p className="muted text-xs">{t.step3Desc}</p>
               </div>
 
-              <p className="muted text-[11px] leading-5">{t.openingBalanceHelp}</p>
+              <p className="muted text-[length:var(--fs-xs)] leading-5">{t.openingBalanceHelp}</p>
               <span className="chip inline-block">{t.bookCurrencyChip}</span>
 
               {/* فقط حساب بانکی الزامی است؛ بقیه موجودی‌ها کاملاً اختیاری هستند. */}
@@ -424,7 +424,7 @@ export default function SetupWizardPage() {
                   unit={bankUnit}
                 />
                 {D(previewData.bankQty).gt(0) && (
-                  <p className="mt-1 text-[11px] leading-5" style={{ color: "var(--brand)" }}>
+                  <p className="mt-1 text-[length:var(--fs-xs)] leading-5" style={{ color: "var(--brand)" }}>
                     {t.bookValueApprox}: ≈ {formatMoney(previewData.bankBook, "USD")}
                   </p>
                 )}
@@ -454,7 +454,7 @@ export default function SetupWizardPage() {
                       unit={cashUnit}
                     />
                     {D(previewData.cashQty).gt(0) && (
-                      <p className="mt-1 text-[11px] leading-5" style={{ color: "var(--brand)" }}>
+                      <p className="mt-1 text-[length:var(--fs-xs)] leading-5" style={{ color: "var(--brand)" }}>
                         {t.bookValueApprox}: ≈ {formatMoney(previewData.cashBook, "USD")}
                       </p>
                     )}
@@ -601,7 +601,7 @@ export default function SetupWizardPage() {
                   )}
                 </div>
 
-                <p className="text-[11px] font-medium" style={{ color: "var(--brand)" }}>
+                <p className="text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--brand)" }}>
                   {t.balancedCheck}
                 </p>
               </div>

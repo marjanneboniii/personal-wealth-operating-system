@@ -18,7 +18,7 @@ type Opt = { id: string; code: string; name: string };
 function Feedback({ state }: { state: ActionResult | null }) {
   if (!state) return null;
   return (
-    <p className="text-[11px]" style={{ color: state.ok ? "var(--brand)" : "var(--negative)" }}>
+    <p className="text-[length:var(--fs-xs)]" style={{ color: state.ok ? "var(--brand)" : "var(--negative)" }}>
       {state.message}
     </p>
   );

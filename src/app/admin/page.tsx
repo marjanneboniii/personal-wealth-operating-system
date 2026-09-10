@@ -23,7 +23,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   return <div className="space-y-6">
     <PageHeader title="مدیریت کاربران" subtitle="دسترسی محدود، صفحه‌بندی‌شده و ثبت‌شده در گزارش حسابرسی" />
     <div className="card overflow-x-auto">
-      <table className="w-full min-w-[760px] text-right text-[12px]">
+      <table className="w-full min-w-[760px] text-right text-[length:var(--fs-xs)]">
         <thead><tr className="border-b"><th scope="col" className="p-3">کاربر</th><th scope="col" className="p-3">نقش</th><th scope="col" className="p-3">آخرین ورود</th><th scope="col" className="p-3">وضعیت</th><th scope="col" className="p-3">عملیات</th></tr></thead>
         <tbody>{data.users.map((authUser) => {
           const profile = byId.get(authUser.id);
@@ -35,8 +35,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <td className="p-3">{suspended ? "تعلیق" : authUser.email_confirmed_at ? "فعال" : "تأییدنشده"}</td>
             <td className="p-3"><div className="flex flex-wrap gap-2">
               {authUser.id !== actor.id && profile?.role !== "owner" && <>
-                <form action={manageUserAction}><input type="hidden" name="userId" value={authUser.id}/><input type="hidden" name="action" value={suspended ? "restore" : "suspend"}/><button className="btn btn-ghost !min-h-8 text-[11px]">{suspended ? "رفع تعلیق" : "تعلیق"}</button></form>
-                {actor.role === "owner" && profile?.role !== "owner" && <form action={manageUserAction}><input type="hidden" name="userId" value={authUser.id}/><input type="hidden" name="action" value={profile?.role === "admin" ? "make-user" : "make-admin"}/><button className="btn btn-ghost !min-h-8 text-[11px]">{profile?.role === "admin" ? "کاربر عادی" : "مدیر"}</button></form>}
+                <form action={manageUserAction}><input type="hidden" name="userId" value={authUser.id}/><input type="hidden" name="action" value={suspended ? "restore" : "suspend"}/><button className="btn btn-ghost !min-h-8 text-[length:var(--fs-xs)]">{suspended ? "رفع تعلیق" : "تعلیق"}</button></form>
+                {actor.role === "owner" && profile?.role !== "owner" && <form action={manageUserAction}><input type="hidden" name="userId" value={authUser.id}/><input type="hidden" name="action" value={profile?.role === "admin" ? "make-user" : "make-admin"}/><button className="btn btn-ghost !min-h-8 text-[length:var(--fs-xs)]">{profile?.role === "admin" ? "کاربر عادی" : "مدیر"}</button></form>}
               </>}
             </div></td>
           </tr>;

@@ -212,8 +212,8 @@ export default function TransactionsView({
           <span className="flex h-11 w-11 items-center justify-center rounded-full" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
             <Icon name="search" size={19} />
           </span>
-          <p className="text-[13.5px] font-semibold">تراکنشی مطابق این فیلترها پیدا نشد</p>
-          <p className="muted max-w-sm text-[12px] leading-5">
+          <p className="text-[length:var(--fs-sm)] font-semibold">تراکنشی مطابق این فیلترها پیدا نشد</p>
+          <p className="muted max-w-sm text-[length:var(--fs-xs)] leading-5">
             {isFiltered ? "فیلترها را تغییر دهید یا بازه زمانی بزرگ‌تری انتخاب کنید." : "با ثبت تراکنش، تاریخچه مالی شما اینجا نمایش داده می‌شود."}
           </p>
           {isFiltered ? (
@@ -251,7 +251,7 @@ export default function TransactionsView({
                     style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" } as any}
                   >
                     <span className="muted hidden w-[74px] shrink-0 flex-col leading-tight sm:flex" dir="rtl">
-                      <span className="num text-[11px] font-medium" style={{ color: "var(--text-2)" }}>
+                      <span className="num text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--text-2)" }}>
                         {formatShortDate(e.entryDate)}
                       </span>
                       <span className="num text-[length:var(--fs-xs)]">{e.entryDate}</span>
@@ -259,7 +259,7 @@ export default function TransactionsView({
 
                     <span className="min-w-0 flex-1">
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className={`tx-description min-w-0 truncate text-[13px] font-medium ${isVoid ? "line-through" : ""}`}>{e.description}</span>
+                        <span className={`tx-description min-w-0 truncate text-[length:var(--fs-sm)] font-medium ${isVoid ? "line-through" : ""}`}>{e.description}</span>
                         {!e.reviewed && <span className="badge badge-warn shrink-0">بررسی‌نشده</span>}
                         {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
                       </span>
@@ -283,7 +283,7 @@ export default function TransactionsView({
 
                     <span className="tx-amount-col shrink-0 text-left sm:max-w-none">
                       <span
-                        className="num tx-amount block text-[12px] font-bold money-nowrap leading-[1.3] sm:text-[13px]"
+                        className="num tx-amount block text-[length:var(--fs-xs)] font-bold money-nowrap leading-[1.3] sm:text-[length:var(--fs-sm)]"
                         dir="rtl"
                         style={{ color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)" }}
                       >
@@ -308,17 +308,17 @@ export default function TransactionsView({
                     <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
                       {/* Postings — the accounting truth of this transaction */}
                       <div>
-                        <p className="mb-2 text-[12px] font-semibold" style={{ color: "var(--text-2)" }}>جریان پول</p>
+                        <p className="mb-2 text-[length:var(--fs-xs)] font-semibold" style={{ color: "var(--text-2)" }}>جریان پول</p>
                         <div className="card p-3" style={{ background: "var(--surface)" }}>
-                          <p className="text-[13.5px] font-medium">
+                          <p className="text-[length:var(--fs-sm)] font-medium">
                             {moneyFlowLabel(h.from, h.to) ?? "جابه‌جایی داخلی"}
                           </p>
                           {e.categoryName && (
-                            <p className="muted mt-1 text-[12px]">
+                            <p className="muted mt-1 text-[length:var(--fs-xs)]">
                               دسته: {e.categoryParentName ? `${e.categoryParentName} › ` : ""}{e.categoryName}
                             </p>
                           )}
-                          <p className="num mt-2 text-[13px] font-bold money-nowrap sm:text-[14px]" dir="rtl">
+                          <p className="num mt-2 text-[length:var(--fs-sm)] font-bold money-nowrap sm:text-[length:var(--fs-sm)]" dir="rtl">
                             {amountLabel(e, h)}
                           </p>
                         </div>
@@ -333,7 +333,7 @@ export default function TransactionsView({
                           </p>
                         )}
                         {e.linkedInstallment && (
-                          <p className="mt-2 text-[11px]" style={{ color: "var(--positive)" }}>
+                          <p className="mt-2 text-[length:var(--fs-xs)]" style={{ color: "var(--positive)" }}>
                             این تراکنش پرداخت قسط {e.linkedInstallment.seq} «{e.linkedInstallment.title}» است.
                           </p>
                         )}
@@ -342,26 +342,26 @@ export default function TransactionsView({
                       {/* Meta + actions — isolated buttons with stopPropagation */}
                       <div className="space-y-3">
                         <div>
-                          <p className="muted mb-1.5 text-[11px] font-semibold">جزئیات</p>
-                          <dl className="space-y-1.5 text-[12px]">
+                          <p className="muted mb-1.5 text-[length:var(--fs-xs)] font-semibold">جزئیات</p>
+                          <dl className="space-y-1.5 text-[length:var(--fs-xs)]">
                             <div className="flex justify-between gap-2">
-                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>تاریخ</dt>
+                              <dt className="text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--text-2)" }}>تاریخ</dt>
                               <dd className="num text-left">
                                 {formatJalaliIso(e.entryDate)} <span className="muted text-[length:var(--fs-xs)]" dir="ltr">({e.entryDate})</span>
                               </dd>
                             </div>
                             <div className="flex justify-between gap-2">
-                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>نوع</dt>
+                              <dt className="text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--text-2)" }}>نوع</dt>
                               <dd>
                                 <span className={`badge badge-${typeBadgeTone(e.type)}`}>{h.typeLabel}</span>
                               </dd>
                             </div>
                             <div className="flex justify-between gap-2">
-                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>منبع</dt>
+                              <dt className="text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--text-2)" }}>منبع</dt>
                               <dd>{SOURCE_LABEL[e.source] ?? e.source}</dd>
                             </div>
                             <div className="flex items-center justify-between gap-2">
-                              <dt className="text-[12px] font-medium" style={{ color: "var(--text-2)" }}>وضعیت بازبینی</dt>
+                              <dt className="text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--text-2)" }}>وضعیت بازبینی</dt>
                               <dd>
                                 {e.reviewed ? <span className="badge badge-pos">تأیید شده</span> : <span className="badge badge-warn">بررسی‌نشده</span>}
                               </dd>
@@ -380,7 +380,7 @@ export default function TransactionsView({
                                 await markReviewedAction(e.id, !e.reviewed);
                               });
                             }}
-                            className={`btn ${e.reviewed ? "btn-soft" : "btn-primary"} !min-h-9 !py-1.5 text-[12px]`}
+                            className={`btn ${e.reviewed ? "btn-soft" : "btn-primary"} !min-h-9 !py-1.5 text-[length:var(--fs-xs)]`}
                             style={{ touchAction: "manipulation" }}
                           >
                             <Icon name={e.reviewed ? "undo" : "check"} size={14} />
@@ -422,15 +422,15 @@ export default function TransactionsView({
           role="region"
           aria-label="اقدامات گروهی"
         >
-          <span className="text-[12.5px] font-semibold">{faCount(selectedRows.length)} مورد انتخاب شده</span>
+          <span className="text-[length:var(--fs-xs)] font-semibold">{faCount(selectedRows.length)} مورد انتخاب شده</span>
           <div className="flex items-center gap-1.5">
-            <button type="button" className="btn btn-primary !min-h-9 !px-3 !py-1.5 text-[12px]" onClick={exportCsv} style={{ touchAction: "manipulation" }}>
+            <button type="button" className="btn btn-primary !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]" onClick={exportCsv} style={{ touchAction: "manipulation" }}>
               <Icon name="download" size={14} />
               خروجی CSV
             </button>
             <button
               type="button"
-              className="btn !min-h-9 !px-3 !py-1.5 text-[12px]"
+              className="btn !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]"
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {

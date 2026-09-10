@@ -74,7 +74,7 @@ export default async function SettingsPage() {
           <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
             {config.map((s) => (
               <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <span className="text-[13px]">{LABELS[s.key] ?? s.key}</span>
+                <span className="text-[length:var(--fs-sm)]">{LABELS[s.key] ?? s.key}</span>
                 <span className="num chip" dir="ltr">
                   {s.value}
                 </span>
@@ -82,7 +82,7 @@ export default async function SettingsPage() {
             ))}
           </ul>
         </div>
-        <p className="muted mt-2 flex items-center gap-1.5 text-[11px]">
+        <p className="muted mt-2 flex items-center gap-1.5 text-[length:var(--fs-xs)]">
           <Icon name="info" size={13} />
           پوسته روشن/تاریک از نوار بالا (موبایل) یا پایین سایدبار (دسکتاپ) تغییر می‌کند و در همین دستگاه ذخیره می‌شود.
         </p>
@@ -98,7 +98,7 @@ export default async function SettingsPage() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <RowAction kind="integrity" label="بررسی تراز همه اسناد" primary />
           <RowAction kind="snapshot" label="ثبت اسنپ‌شات" />
-          <Link href="/audit" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[12px]">
+          <Link href="/audit" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
             <Icon name="audit" size={15} />
             گزارش یکپارچگی کامل
           </Link>
@@ -116,8 +116,8 @@ export default async function SettingsPage() {
                   <Icon name="ledger" size={18} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium">سوابق مالی</span>
-                  <span className="muted block text-[11px]">جزئیات کامل هر تراکنش و مسیر پول</span>
+                  <span className="block text-[length:var(--fs-sm)] font-medium">سوابق مالی</span>
+                  <span className="muted block text-[length:var(--fs-xs)]">جزئیات کامل هر تراکنش و مسیر پول</span>
                 </span>
                 <Icon name="chevronLeft" size={16} className="shrink-0 opacity-50" />
               </Link>
@@ -128,15 +128,15 @@ export default async function SettingsPage() {
                   <Icon name="audit" size={18} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium">حسابرسی</span>
-                  <span className="muted block text-[11px]">تاریخچه تغییرات: چه کسی، چه چیزی را، کِی تغییر داد</span>
+                  <span className="block text-[length:var(--fs-sm)] font-medium">حسابرسی</span>
+                  <span className="muted block text-[length:var(--fs-xs)]">تاریخچه تغییرات: چه کسی، چه چیزی را، کِی تغییر داد</span>
                 </span>
                 <Icon name="chevronLeft" size={16} className="shrink-0 opacity-50" />
               </Link>
             </li>
           </ul>
         </div>
-        <p className="muted mt-2 flex items-center gap-1.5 text-[11px]">
+        <p className="muted mt-2 flex items-center gap-1.5 text-[length:var(--fs-xs)]">
           <Icon name="info" size={13} />
           «سوابق مالی» اثر مالی رویدادهاست و «حسابرسی» تاریخچه تغییرات — این دو یکی نیستند.
         </p>

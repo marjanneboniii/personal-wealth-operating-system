@@ -28,7 +28,7 @@ export default function GoogleAuthButton({ label = "ورود با Google" }: { l
         <Icon name="globe" size={16} />
         {pending ? "در حال انتقال…" : label}
       </button>
-      {message && <p className="text-center text-[11px]" style={{ color: "var(--negative)" }}>{message}</p>}
+      {message && <p className="text-center text-[length:var(--fs-xs)]" style={{ color: "var(--negative)" }}>{message}</p>}
     </div>
   );
 }

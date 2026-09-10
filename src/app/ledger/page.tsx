@@ -114,7 +114,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
 
       {/* Register certification strip */}
       <div
-        className="rise flex flex-wrap items-center gap-x-5 gap-y-2 border-y py-3 text-[12px]"
+        className="rise flex flex-wrap items-center gap-x-5 gap-y-2 border-y py-3 text-[length:var(--fs-xs)]"
         style={{ borderColor: "var(--border)" }}
         role="status"
       >
@@ -196,13 +196,13 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
               })}
               {pro ? (
                 <tr style={{ background: "var(--sunken)" }}>
-                  <td colSpan={4} className="text-[12px] font-bold">
+                  <td colSpan={4} className="text-[length:var(--fs-xs)] font-bold">
                     جمع تراز آزمایشی
                   </td>
-                  <td className="td-num text-[12px] font-bold" dir="rtl">
+                  <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
                     {formatMoney(totalDebit)}
                   </td>
-                  <td className="td-num text-[12px] font-bold" dir="rtl">
+                  <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
                     {formatMoney(totalCredit)}
                   </td>
                 </tr>
@@ -211,10 +211,10 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                    meaningful grand total, so each type carries its own. */
                 summary.subtotals.map((st) => (
                   <tr key={st.type} style={{ background: "var(--sunken)" }}>
-                    <td colSpan={3} className="text-[12px] font-bold">
+                    <td colSpan={3} className="text-[length:var(--fs-xs)] font-bold">
                       جمع {ACCOUNT_TYPE_LABELS[st.type]}
                     </td>
-                    <td className="td-num text-[12px] font-bold" dir="rtl">
+                    <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
                       {formatMoney(st.total)}
                     </td>
                   </tr>
@@ -292,13 +292,13 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                     </span>
                   )}
                   <span className="muted hidden w-[86px] shrink-0 flex-col leading-tight sm:flex">
-                    <span className="num text-[11px] font-medium" style={{ color: "var(--text-2)" }}>
+                    <span className="num text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--text-2)" }}>
                       {formatJalaliIso(e.entryDate)}
                     </span>
                     <span className="num text-[length:var(--fs-xs)]" dir="ltr">{e.entryDate}</span>
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className={`block truncate text-[12.5px] font-medium ${isVoid ? "line-through" : ""}`}>
+                    <span className={`block truncate text-[length:var(--fs-xs)] font-medium ${isVoid ? "line-through" : ""}`}>
                       {e.description}
                     </span>
                     <span className="muted mt-0.5 flex items-center gap-1.5 text-[length:var(--fs-xs)] sm:hidden">
@@ -308,7 +308,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                   </span>
                   <span className="badge badge-neutral hidden shrink-0 sm:inline-flex">{ENTRY_TYPE_LABELS[e.type as EntryType] ?? e.type}</span>
                   {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
-                  <span className="num w-24 shrink-0 text-left text-[12.5px] font-bold" dir="rtl">
+                  <span className="num w-24 shrink-0 text-left text-[length:var(--fs-xs)] font-bold" dir="rtl">
                     {formatMoney(sumIn)}
                   </span>
                   <span className="muted shrink-0 transition-transform group-open:rotate-180">
@@ -366,15 +366,15 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                         </td>
                         {pro ? (
                           <>
-                            <td className="td-num text-[11px] font-bold" dir="rtl">
+                            <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
                               {formatMoney(e.lines.filter((l) => Number(l.baseValue) > 0).reduce((s, l) => s + Number(l.baseValue), 0))}
                             </td>
-                            <td className="td-num text-[11px] font-bold" dir="rtl">
+                            <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
                               {formatMoney(Math.abs(e.lines.filter((l) => Number(l.baseValue) < 0).reduce((s, l) => s + Number(l.baseValue), 0)))}
                             </td>
                           </>
                         ) : (
-                          <td className="td-num text-[11px] font-bold" dir="rtl">
+                          <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">
                             {formatMoney(sumIn)}
                           </td>
                         )}

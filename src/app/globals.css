@@ -1263,6 +1263,46 @@ select.field {
   flex: none;
 }
 
+/* ── Form result ──
+   The shared FormStatus carried a class that had no rule, so every financial
+   form rendered its error as unstyled body text — the one message that must
+   not be missable. */
+
+.form-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: 1.7;
+  outline: none;
+}
+
+.form-status[data-tone="error"] {
+  background: var(--negative-soft);
+  border-color: color-mix(in oklab, var(--negative) 28%, transparent);
+  color: var(--negative);
+}
+
+.form-status[data-tone="ok"] {
+  background: var(--positive-soft);
+  border-color: color-mix(in oklab, var(--positive) 28%, transparent);
+  color: var(--positive);
+}
+
+.form-status svg {
+  flex: none;
+  margin-top: 0.2rem;
+}
+
+/* It takes focus on failure, so the focus ring has to be visible. */
+.form-status:focus-visible {
+  box-shadow: var(--ring);
+}
+
 /* ── «نیاز به توجه» rows — calm, decidable, one action each ── */
 
 .action-item {

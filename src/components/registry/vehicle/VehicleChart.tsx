@@ -35,7 +35,7 @@ export default function VehicleChart({
 
   if (series.length === 0) {
     return (
-      <p className="muted py-8 text-center text-[11.5px]">
+      <p className="muted py-8 text-center text-[length:var(--fs-xs)]">
         هنوز ارزش‌گذاری ثبت نشده است — نمودار تاریخی فقط بر پایه Snapshotهای واقعی رسم می‌شود.
       </p>
     );
@@ -81,7 +81,7 @@ export default function VehicleChart({
           <div className="num text-[17px] font-bold tracking-tight" dir={currency === "toman" ? "rtl" : "ltr"}>
             {fmt(values[active])}
           </div>
-          <div className="muted text-[11px]">
+          <div className="muted text-[length:var(--fs-xs)]">
             {formatDate(activePoint.date)}
             {series.length > 1 && (
               <>
@@ -98,7 +98,7 @@ export default function VehicleChart({
           {purchasePoint && (
             <button
               type="button"
-              className="chip text-[11px]"
+              className="chip text-[length:var(--fs-xs)]"
               aria-pressed={showPurchase}
               onClick={() => setShowPurchase((s) => !s)}
               style={showPurchase ? { background: "var(--brand-soft)", color: "var(--brand)" } : undefined}

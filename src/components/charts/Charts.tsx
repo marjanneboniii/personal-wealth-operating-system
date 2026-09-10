@@ -63,7 +63,7 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
           <div className="num text-lg font-bold tracking-tight" dir="rtl">
             {formatMoney(points[active].value)}
           </div>
-          <div className="muted text-[11px]">
+          <div className="muted text-[length:var(--fs-xs)]">
             {formatShortDate(points[active].date)} ·{" "}
             <span style={{ color: trendColor(changePct) }}>
               {trendArrow(changePct)} <span dir="rtl">{formatPct(Math.abs(changePct), 1)}</span> در این بازه
@@ -225,7 +225,7 @@ export function Donut({
           </svg>
           <div className="donut-center">
             <div className="muted max-w-[78%] truncate text-[length:var(--fs-xs)]">{shown ? shown.label : (centerLabel ?? "مجموع")}</div>
-            <div className="num px-2 text-[11px] sm:text-[12px] font-bold leading-tight money-nowrap" dir="rtl">
+            <div className="num px-2 text-[length:var(--fs-xs)] sm:text-[length:var(--fs-xs)] font-bold leading-tight money-nowrap" dir="rtl">
               {formatMoney(shown ? shown.value : total)}
             </div>
             <div className="muted num text-[length:var(--fs-xs)]" dir="rtl">

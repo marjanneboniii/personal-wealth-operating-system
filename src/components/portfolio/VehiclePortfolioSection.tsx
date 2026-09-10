@@ -68,7 +68,7 @@ export default function VehiclePortfolioSection({
       title="خودروها"
       hint="ارزش هر خودرو از آخرین «ارزش‌گذاری ثبت‌شده» خوانده می‌شود — نه از نرخ لحظه‌ای دلار."
       action={
-        <Link href="/asset-registry#vehicle" className="inline-flex items-center gap-1 text-[12px] font-medium" style={{ color: "var(--brand)" }}>
+        <Link href="/asset-registry#vehicle" className="inline-flex items-center gap-1 text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--brand)" }}>
           مدیریت خودروها
         </Link>
       }
@@ -77,41 +77,41 @@ export default function VehiclePortfolioSection({
         {/* Totals */}
         <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
           <div className="min-w-0">
-            <div className="muted text-[11px] font-medium">ارزش خودروهای در اختیار</div>
+            <div className="muted text-[length:var(--fs-xs)] font-medium">ارزش خودروهای در اختیار</div>
             <div className="num mt-1 text-lg font-bold tracking-tight" dir="rtl">
               {formatMoney(summary.totalCurrentToman, "IRT")}
             </div>
-            <div className="muted num mt-0.5 text-[11px]" dir="rtl">
+            <div className="muted num mt-0.5 text-[length:var(--fs-xs)]" dir="rtl">
               {formatMoney(summary.totalCurrentUsd, "USD")}
             </div>
           </div>
 
           <div className="min-w-0">
-            <div className="muted text-[11px] font-medium">مجموع بهای خرید</div>
+            <div className="muted text-[length:var(--fs-xs)] font-medium">مجموع بهای خرید</div>
             <div className="num mt-1 text-lg font-bold tracking-tight" dir="rtl">
               {formatMoney(summary.totalPurchaseToman, "IRT")}
             </div>
-            <div className="muted num mt-0.5 text-[11px]" dir="rtl">
+            <div className="muted num mt-0.5 text-[length:var(--fs-xs)]" dir="rtl">
               {formatMoney(summary.totalPurchaseUsd, "USD")} — با نرخ دلارِ روز خرید
             </div>
           </div>
 
           <div className="min-w-0">
-            <div className="muted text-[11px] font-medium">سود/زیان تومانی</div>
+            <div className="muted text-[length:var(--fs-xs)] font-medium">سود/زیان تومانی</div>
             <div className="mt-1 text-lg font-bold tracking-tight">
               <Signed value={summary.totalGainToman} currency="IRT" />
             </div>
-            <div className="muted mt-0.5 text-[11px]">
+            <div className="muted mt-0.5 text-[length:var(--fs-xs)]">
               بازده: <SignedPct value={summary.roiToman} />
             </div>
           </div>
 
           <div className="min-w-0">
-            <div className="muted text-[11px] font-medium">سود/زیان دلاری</div>
+            <div className="muted text-[length:var(--fs-xs)] font-medium">سود/زیان دلاری</div>
             <div className="mt-1 text-lg font-bold tracking-tight">
               <Signed value={summary.totalGainUsd} currency="USD" />
             </div>
-            <div className="muted mt-0.5 text-[11px]">
+            <div className="muted mt-0.5 text-[length:var(--fs-xs)]">
               بازده: <SignedPct value={summary.roiUsd} />
             </div>
           </div>
@@ -120,7 +120,7 @@ export default function VehiclePortfolioSection({
         {/* Divergence note — the two currencies can tell opposite stories. */}
         {gainToman.gt(0) && gainUsd.lt(0) && (
           <p
-            className="mt-4 rounded-[var(--r-md)] p-2.5 text-[11px] leading-5"
+            className="mt-4 rounded-[var(--r-md)] p-2.5 text-[length:var(--fs-xs)] leading-5"
             style={{ background: "var(--warning-soft)", color: "var(--warning)" }}
           >
             ارزش تومانی خودروها رشد کرده اما ارزش دلاری آن‌ها کاهش یافته است؛ بخشی از رشد اسمی ناشی از تضعیف ریال است.
@@ -157,7 +157,7 @@ export default function VehiclePortfolioSection({
                   <td className="td-num">
                     <SignedPct value={v.roiToman} />
                   </td>
-                  <td className="td-num num text-[11.5px]">
+                  <td className="td-num num text-[length:var(--fs-xs)]">
                     {v.lastValuationDate ? formatDualDate(v.lastValuationDate) : <span className="muted">—</span>}
                   </td>
                 </tr>
@@ -168,7 +168,7 @@ export default function VehiclePortfolioSection({
 
         {summary.soldCount > 0 && (
           <div
-            className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-t pt-3 text-[11.5px]"
+            className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-t pt-3 text-[length:var(--fs-xs)]"
             style={{ borderColor: "var(--border)" }}
           >
             <span className="muted">
@@ -189,8 +189,8 @@ export default function VehiclePortfolioSection({
             className="mt-4 flex flex-wrap items-baseline justify-between gap-2 border-t pt-3"
             style={{ borderColor: "var(--border)" }}
           >
-            <span className="muted text-[11.5px]">ارزش کل: سبد سرمایه‌گذاری + خودروها</span>
-            <span className="num text-[13.5px] font-bold" dir="rtl">
+            <span className="muted text-[length:var(--fs-xs)]">ارزش کل: سبد سرمایه‌گذاری + خودروها</span>
+            <span className="num text-[length:var(--fs-sm)] font-bold" dir="rtl">
               {formatMoney(D(ledgerNetWorthUsd).add(summary.totalCurrentUsd).toFixed(2), "USD")}
             </span>
           </div>
@@ -198,7 +198,7 @@ export default function VehiclePortfolioSection({
 
         {summary.unvaluedCount > 0 && (
           <p
-            className="mt-3 rounded-[var(--r-md)] p-2.5 text-[11px] leading-5"
+            className="mt-3 rounded-[var(--r-md)] p-2.5 text-[length:var(--fs-xs)] leading-5"
             style={{ background: "var(--info-soft)", color: "var(--info)" }}
           >
             {toFaDigits(String(summary.unvaluedCount))} خودرو هنوز ارزش‌گذاری نشده است و در مجموع‌ها لحاظ نمی‌شود. برای

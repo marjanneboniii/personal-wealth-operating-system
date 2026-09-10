@@ -212,7 +212,7 @@ export default async function ReportsPage() {
           </div>
           <ul className="mt-3 divide-y" style={{ borderColor: "var(--border)" }}>
             {pnl.bySymbol.map((s) => (
-              <li key={s.symbol} className="flex items-center justify-between py-2 text-[12.5px]">
+              <li key={s.symbol} className="flex items-center justify-between py-2 text-[length:var(--fs-xs)]">
                 <span className="font-bold" dir="rtl">
                   {currencyLabel(s.symbol)}
                 </span>
@@ -234,7 +234,7 @@ export default async function ReportsPage() {
           <ul className="space-y-4">
             {debts.map((d) => (
               <li key={d.id}>
-                <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[13px]">
+                <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[length:var(--fs-sm)]">
                   <span className="font-medium">{d.title}</span>
                   <span className="num font-bold" dir="rtl" style={{ color: d.status === "settled" ? "var(--positive)" : "var(--negative)" }}>
                     {d.outstandingToman != null
@@ -300,10 +300,10 @@ export default async function ReportsPage() {
       {/* Recovery & exports */}
       <section className="card flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="flex gap-2">
-          <a href="/api/backup" className="btn btn-soft !min-h-9 !px-3.5 !py-1.5 text-[12px]">
+          <a href="/api/backup" className="btn btn-soft !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]">
             دانلود پشتیبان
           </a>
-          <Link href="/import" className="btn btn-ghost !min-h-9 !px-3.5 !py-1.5 text-[12px]">
+          <Link href="/import" className="btn btn-ghost !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]">
             درون‌ریزی
           </Link>
         </div>

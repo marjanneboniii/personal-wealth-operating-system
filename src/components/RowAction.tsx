@@ -55,7 +55,7 @@ export default function RowAction({
         type="button"
         onClick={run}
         disabled={pending || (kind === "pay-installment" && !cashAccountId)}
-        className={`btn !min-h-9 !px-3 !py-1.5 text-[11px] ${primary ? "btn-primary" : ""}`}
+        className={`btn !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)] ${primary ? "btn-primary" : ""}`}
         style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" } as any}
       >
         {pending ? "…" : label}

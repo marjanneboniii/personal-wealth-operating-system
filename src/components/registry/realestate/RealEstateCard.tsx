@@ -57,7 +57,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
-          <h5 className="mb-1 text-[11.5px] font-bold">اطلاعات دارایی</h5>
+          <h5 className="mb-1 text-[length:var(--fs-xs)] font-bold">اطلاعات دارایی</h5>
           <DetailRow label="شناسه دارایی">
             <span className="num font-semibold">{toFaDigits(a.symbol)}</span>
           </DetailRow>
@@ -89,7 +89,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
         </div>
 
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
-          <h5 className="mb-1 text-[11.5px] font-bold">اطلاعات خرید (تغییرناپذیر)</h5>
+          <h5 className="mb-1 text-[length:var(--fs-xs)] font-bold">اطلاعات خرید (تغییرناپذیر)</h5>
           <DetailRow label="تاریخ تملک (شمسی)">
             <JDate iso={a.acquisitionDate} fallback="—" />
           </DetailRow>
@@ -108,7 +108,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
         </div>
 
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
-          <h5 className="mb-1 text-[11.5px] font-bold">اطلاعات ارزش‌گذاری</h5>
+          <h5 className="mb-1 text-[length:var(--fs-xs)] font-bold">اطلاعات ارزش‌گذاری</h5>
           <DetailRow label="تاریخ ارزش‌گذاری (شمسی)">
             <JDate iso={a.valuationDate} fallback="—" />
           </DetailRow>
@@ -134,7 +134,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
         </div>
 
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
-          <h5 className="mb-1 text-[11.5px] font-bold">عملکرد</h5>
+          <h5 className="mb-1 text-[length:var(--fs-xs)] font-bold">عملکرد</h5>
           <DetailRow label="سود / زیان تومانی">
             <DeltaToman value={p.gainToman} />
           </DetailRow>
@@ -156,18 +156,18 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
           )}
           <div className="mt-2 flex flex-wrap gap-2">
             {ledgerLink ? (
-              <Link href={ledgerLink} className="btn btn-soft text-[11.5px]">
+              <Link href={ledgerLink} className="btn btn-soft text-[length:var(--fs-xs)]">
                 مشاهده سند دفترکل ←
               </Link>
             ) : (
               <span className="muted text-[length:var(--fs-xs)]">سند دفترکل ثبت نشده</span>
             )}
-            <button type="button" className="btn text-[11.5px]" onClick={() => setRevalue((v) => !v)} aria-expanded={revalue}>
+            <button type="button" className="btn text-[length:var(--fs-xs)]" onClick={() => setRevalue((v) => !v)} aria-expanded={revalue}>
               {revalue ? "بستن ارزش‌گذاری جدید" : "ثبت ارزش‌گذاری جدید"}
             </button>
             <button
               type="button"
-              className="btn text-[11.5px]"
+              className="btn text-[length:var(--fs-xs)]"
               disabled={deleting}
               onClick={() => {
                 const ok = window.confirm(
@@ -192,7 +192,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
       {/* ── بازه‌های عملکرد / تاریخچه / مقایسه دو تاریخ ── */}
       <div className="rounded-[var(--r-md)] border p-3" style={{ borderColor: "var(--border)" }}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h5 className="text-[11.5px] font-bold">رشد / افت دلاری و تومانی در گذر زمان</h5>
+          <h5 className="text-[length:var(--fs-xs)] font-bold">رشد / افت دلاری و تومانی در گذر زمان</h5>
           <div className="seg" role="group" aria-label="بخش‌های تحلیل ملک">
             <button type="button" onClick={() => setTab("performance")} className={tab === "performance" ? "seg-on" : ""} aria-pressed={tab === "performance"}>
               بازه‌های عملکرد
@@ -214,7 +214,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
       {revalue && (
         <form action={action} className="rounded-[var(--r-md)] border p-3" style={{ borderColor: "var(--border)" }}>
           <input type="hidden" name="propertyId" value={a.id} />
-          <h5 className="mb-2 text-[11.5px] font-bold">ثبت ارزش‌گذاری جدید — ارزش فعلی فقط با این فرآیند تغییر می‌کند</h5>
+          <h5 className="mb-2 text-[length:var(--fs-xs)] font-bold">ثبت ارزش‌گذاری جدید — ارزش فعلی فقط با این فرآیند تغییر می‌کند</h5>
           <div className="grid gap-3 md:grid-cols-3">
             <JalaliDateInput name="valuationDate" label="تاریخ ارزش‌گذاری (شمسی)" required />
             <Labeled label="ارزش فعلی (تومان)" required>
@@ -266,7 +266,7 @@ function PerformancePanel({ item }: { item: RealEstateDashboardItem }) {
           <tbody>
             {item.periods.map((p) => (
               <tr key={p.key}>
-                <td className="whitespace-nowrap text-[12px] font-medium">{p.label}</td>
+                <td className="whitespace-nowrap text-[length:var(--fs-xs)] font-medium">{p.label}</td>
                 {p.available ? (
                   <>
                     <td className="td-num"><DeltaToman value={p.tomanChange} /></td>
@@ -279,7 +279,7 @@ function PerformancePanel({ item }: { item: RealEstateDashboardItem }) {
                     </td>
                   </>
                 ) : (
-                  <td colSpan={5} className="muted text-[11.5px]">
+                  <td colSpan={5} className="muted text-[length:var(--fs-xs)]">
                     {p.reason}
                   </td>
                 )}
@@ -307,7 +307,7 @@ function HistoryPanel({ item }: { item: RealEstateDashboardItem }) {
   }));
 
   if (!item.history.length) {
-    return <p className="muted text-[11.5px]">هنوز هیچ Snapshot ارزش‌گذاری برای این ملک ثبت نشده است.</p>;
+    return <p className="muted text-[length:var(--fs-xs)]">هنوز هیچ Snapshot ارزش‌گذاری برای این ملک ثبت نشده است.</p>;
   }
 
   return (
@@ -328,7 +328,7 @@ function HistoryPanel({ item }: { item: RealEstateDashboardItem }) {
         <tbody>
           {item.purchasePoint && (
             <tr style={{ background: "var(--brand-softer)" }}>
-              <td className="whitespace-nowrap text-[11.5px]">
+              <td className="whitespace-nowrap text-[length:var(--fs-xs)]">
                 <JDate iso={item.purchasePoint.date} /> <span className="muted">· خرید</span>
               </td>
               <td className="td-num"><Toman value={item.purchasePoint.valueToman} /></td>
@@ -342,7 +342,7 @@ function HistoryPanel({ item }: { item: RealEstateDashboardItem }) {
           )}
           {item.history.map((row) => (
             <tr key={row.date}>
-              <td className="whitespace-nowrap text-[11.5px]"><JDate iso={row.date} /></td>
+              <td className="whitespace-nowrap text-[length:var(--fs-xs)]"><JDate iso={row.date} /></td>
               <td className="td-num"><Toman value={row.valueToman} /></td>
               <td className="td-num"><Ltr>{faNum(row.usdRate, 0)}</Ltr></td>
               <td className="td-num"><Usd value={row.valueUsd} /></td>

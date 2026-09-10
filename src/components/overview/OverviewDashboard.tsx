@@ -186,7 +186,7 @@ export default async function OverviewDashboard() {
                   value={deltaAbs}
                   pct={deltaPct}
                   suffix={lastSnap ? `از ${formatShortDate(lastSnap.asOf)}` : undefined}
-                  className="text-[12px] sm:text-[13px]"
+                  className="text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)]"
                 />
               )}
             </div>

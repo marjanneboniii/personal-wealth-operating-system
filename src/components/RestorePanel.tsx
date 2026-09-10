@@ -15,7 +15,7 @@ export default function RestorePanel() {
         type="file"
         accept="application/json"
         disabled={busy}
-        className="field !py-2 text-[11px]"
+        className="field !py-2 text-[length:var(--fs-xs)]"
         onChange={async (e) => {
           const file = e.target.files?.[0];
           if (!file) return;
@@ -47,9 +47,9 @@ export default function RestorePanel() {
           }
         }}
       />
-      {busy && <p className="muted mt-2 text-[11px]">در حال بازیابی…</p>}
+      {busy && <p className="muted mt-2 text-[length:var(--fs-xs)]">در حال بازیابی…</p>}
       {status && (
-        <p className="mt-2 text-[11px]" style={{ color: status.ok ? "var(--brand)" : "var(--negative)" }}>
+        <p className="mt-2 text-[length:var(--fs-xs)]" style={{ color: status.ok ? "var(--brand)" : "var(--negative)" }}>
           {status.msg}
         </p>
       )}

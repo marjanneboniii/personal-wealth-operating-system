@@ -104,7 +104,7 @@ export default async function CryptoPage() {
                     const share = (value / custodyTotal) * 100;
                     return (
                       <li key={wallet}>
-                        <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
+                        <div className="mb-1 flex items-baseline justify-between gap-2 text-[length:var(--fs-xs)]">
                           <span className="font-medium">{wallet}</span>
                           <span className="flex shrink-0 items-baseline gap-2">
                             <span className="num muted text-[length:var(--fs-xs)]" dir="rtl">

@@ -109,10 +109,10 @@ export default function InstallPromotion({
             <Icon name="download" size={16} />
           </span>
           <div className="min-w-0 flex-1">
-            <p id="install-title" className="text-[13.5px] font-semibold">
+            <p id="install-title" className="text-[length:var(--fs-sm)] font-semibold">
               توازن را به صفحه اصلی اضافه کنید
             </p>
-            <p id="install-body" className="sub mt-1 text-[12.5px] leading-6">
+            <p id="install-body" className="sub mt-1 text-[length:var(--fs-xs)] leading-6">
               {ios
                 ? "برای نصب روی iPhone: دکمه Share را بزنید، سپس Add to Home Screen را انتخاب کنید."
                 : "دسترسی سریع‌تر به وضعیت مالی شما"}
@@ -121,7 +121,7 @@ export default function InstallPromotion({
               {ios && (
                 <button
                   type="button"
-                  className="btn btn-primary !min-h-12 !px-4 text-[12.5px]"
+                  className="btn btn-primary !min-h-12 !px-4 text-[length:var(--fs-xs)]"
                   onClick={() => setGuideOpen(true)}
                   aria-haspopup="dialog"
                   aria-expanded={guideOpen}
@@ -130,11 +130,11 @@ export default function InstallPromotion({
                 </button>
               )}
               {canPrompt && (
-                <button type="button" className="btn btn-primary !min-h-12 !px-4 text-[12.5px]" onClick={onInstall}>
+                <button type="button" className="btn btn-primary !min-h-12 !px-4 text-[length:var(--fs-xs)]" onClick={onInstall}>
                   افزودن به صفحه اصلی
                 </button>
               )}
-              <button type="button" className="btn btn-ghost !min-h-12 !px-4 text-[12.5px]" onClick={onDismiss}>
+              <button type="button" className="btn btn-ghost !min-h-12 !px-4 text-[length:var(--fs-xs)]" onClick={onDismiss}>
                 فعلاً نه
               </button>
             </div>

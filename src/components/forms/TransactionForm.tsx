@@ -531,7 +531,7 @@ export default function TransactionForm({
 
   return (
     <form action={formAction} className="space-y-4" style={{ touchAction: "manipulation" }}>
-      <p className="text-[13px] font-semibold">چه اتفاقی افتاد؟</p>
+      <p className="text-[length:var(--fs-sm)] font-semibold">چه اتفاقی افتاد؟</p>
       <div className="seg max-w-full overflow-x-auto" role="group" aria-label="نوع تراکنش" style={{ touchAction: "pan-x" }}>
         {TYPES.map((t) => (
           <button
@@ -555,9 +555,9 @@ export default function TransactionForm({
       <input type="hidden" name="debtId" value={selectedDebt?.id ?? ""} />
       <input type="hidden" name="installmentId" value={selectedInst?.id ?? ""} />
       {type === "debt_repayment" && (
-        <div className="soft space-y-2 rounded-[var(--r-md)] p-3 text-[12px] leading-6">
+        <div className="soft space-y-2 rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-6">
           <p className="font-semibold">بدهی یا قسطی را که می‌خواهید پرداخت کنید، انتخاب کنید.</p>
-          <p className="muted text-[11.5px]">
+          <p className="muted text-[length:var(--fs-xs)]">
             پول از حساب نقد یا بانک شما پرداخت می‌شود و همان مبلغ از مانده بدهی‌تان کم می‌شود.
             جزئیات ثبت و حسابداری به‌صورت خودکار در پس‌زمینه مدیریت می‌شود و نیازی به تنظیم آن ندارید.
           </p>
@@ -774,7 +774,7 @@ export default function TransactionForm({
               <p className="muted text-[length:var(--fs-xs)] leading-5">{selectedCategory.description}</p>
             )}
             {isNonCashCategory && (
-              <p className="rounded-[var(--r-sm)] p-2 text-[11px] leading-5" style={{ background: "var(--sunken)" }} role="note">
+              <p className="rounded-[var(--r-sm)] p-2 text-[length:var(--fs-xs)] leading-5" style={{ background: "var(--sunken)" }} role="note">
                 <strong>ثبت غیرنقدی (استهلاک/ذخیره):</strong> این دسته خروج وجه نیست و حساب نقدی شما تغییر نمی‌کند.</p>
             )}
             <div className="flex flex-wrap items-center gap-2">
@@ -809,7 +809,7 @@ export default function TransactionForm({
               <input type="hidden" name="primaryAccountId" value="" />
             ) : null}
             {type === "expense" && isNonCashCategory ? (
-              <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
+              <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5">
                 ثبت غیرنقدی — حساب نقدی درگیر نیست؛ طرف مقابل، خودکار «ذخیره استهلاک و تعمیرات آتی» است.
               </div>
             ) : (
@@ -844,20 +844,20 @@ export default function TransactionForm({
             {type === "debt_repayment" ? (
               <>
                 {!selectedDebt ? (
-                  <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
+                  <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5">
                     ابتدا بدهی یا قسط را از فهرست بالا انتخاب کنید تا جزئیات پرداخت تکمیل شود.
                   </div>
                 ) : selectedDebtHasLedgerAccount ? (
                   <>
                     <input type="hidden" name="counterAccountId" value="" />
-                    <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
+                    <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5">
                       با این پرداخت، مبلغ مستقیماً از مانده بدهی «{selectedDebt.title}» کم می‌شود.
                     </div>
                   </>
                 ) : (
                   <>
                     <input type="hidden" name="counterAccountId" value={counterAccountId} />
-                    <div className="soft rounded-[var(--r-md)] p-3 text-[11px] leading-5">
+                    <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5">
                       مبلغ پرداخت از حساب انتخابی شما کسر می‌شود و مانده این بدهی کاهش پیدا می‌کند. همه جزئیات ثبت به‌صورت خودکار انجام
                       می‌شود؛ خروج وجه در سرفصل «پرداخت اقساط» بایگانی می‌شود — نه در «هزینه متفرقه» — و به همین دلیل در گزارش
                       هزینه‌ها و در سقف بودجه‌های خرج شمارش نمی‌شود.
@@ -896,7 +896,7 @@ export default function TransactionForm({
 
         {type === "transfer" && isCrossCurrencyTransfer && (
           swapSupported ? (
-            <div className="rounded-[var(--r-md)] p-3 text-[11px] leading-5" style={{ border: "1px solid var(--brand)", background: "var(--brand-soft)" }} role="note">
+            <div className="rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5" style={{ border: "1px solid var(--brand)", background: "var(--brand-soft)" }} role="note">
               <div className="font-semibold">تبدیل دارایی</div>
               <div>
                 از <strong>{primaryAccount?.name}</strong> ({currencyLabel(primaryAccount?.symbol)}) به{" "}
@@ -905,7 +905,7 @@ export default function TransactionForm({
               <div className="muted">این تبدیل نه هزینه است و نه درآمد — فقط ترکیب دارایی‌های شما تغییر می‌کند.</div>
             </div>
           ) : (
-            <div className="rounded-[var(--r-md)] p-3 text-[11px] leading-5" style={{ background: "var(--warning-soft)", border: "1px solid var(--warning)" }} role="note">
+            <div className="rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5" style={{ background: "var(--warning-soft)", border: "1px solid var(--warning)" }} role="note">
               تبدیل مستقیم {currencyLabel(primaryAccount?.symbol)} به {currencyLabel(counterAccount?.symbol)} در حال حاضر پشتیبانی نمی‌شود.
               برای این تبدیل ابتدا به تومان، دلار یا تتر تبدیل کنید.
             </div>
@@ -915,7 +915,7 @@ export default function TransactionForm({
         {/* Dual Date Engine — shared single source of truth */}
         <DualDateInput name="entryDate" value={entryDate} onChange={setEntryDate} label="تاریخ سند" required />
         <details className="rounded-[var(--r-md)] border px-3 py-1" style={{ borderColor: "var(--border)" }}>
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[13px] font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[length:var(--fs-sm)] font-medium marker:hidden [&::-webkit-details-marker]:hidden">
             جزئیات بیشتر
             <Icon name="chevronDown" size={15} className="muted" />
           </summary>
@@ -941,7 +941,7 @@ export default function TransactionForm({
                 <p className="muted mt-1 text-[length:var(--fs-xs)]">کارمزد دلاری ≈ {formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD")}</p>
               )}
             </div>
-            <p className="muted self-end text-[11px] leading-5">
+            <p className="muted self-end text-[length:var(--fs-xs)] leading-5">
               {feeInToman
                 ? "کارمزد نیز با همین نرخ تبدیل و در همان سند ثبت می‌شود."
                 : "کارمزد با نرخ رسمی همین حساب (واحد بومی) به دلار تبدیل و در همان سند ثبت می‌شود."}
@@ -991,7 +991,7 @@ export default function TransactionForm({
               {debtStatusAfter && (
                 <div><span className="muted">پس از این پرداخت:</span> <strong style={{ color: "var(--brand)" }}>{debtStatusAfter}</strong></div>
               )}
-              <div className="soft rounded-xl p-3 text-[11px] leading-5">
+              <div className="soft rounded-xl p-3 text-[length:var(--fs-xs)] leading-5">
                 <div className="font-semibold mb-1">خلاصه</div>
                 <ul className="space-y-1 list-disc pr-4">
                   <li>مبلغ این بدهی کاهش پیدا می‌کند.</li>
@@ -1032,7 +1032,7 @@ export default function TransactionForm({
             </div>
             <div>
               <span className="muted">تاریخ سند:</span>
-              <div className="soft rounded-xl p-2 mt-1 flex flex-wrap gap-3 text-[11px]">
+              <div className="soft rounded-xl p-2 mt-1 flex flex-wrap gap-3 text-[length:var(--fs-xs)]">
                 <span>شمسی: <strong dir="rtl" className="num">{entryDate ? getDualDate(entryDate).jalali : "—"}</strong></span>
                 <span>میلادی (خودکار): <strong dir="ltr" className="num ltr-isolate">{entryDate || "—"}</strong></span>
               </div>

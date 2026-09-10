@@ -137,7 +137,7 @@ export default async function AssetsPage() {
                     <Icon name={f.icon} size={18} />
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-[13.5px] font-semibold">{f.label}</span>
+                    <span className="block truncate text-[length:var(--fs-sm)] font-semibold">{f.label}</span>
                     <span className="muted block truncate text-[length:var(--fs-xs)]">{f.hint}</span>
                   </span>
                 </span>
@@ -184,13 +184,13 @@ export default async function AssetsPage() {
                 className="flex items-center justify-between gap-3 border-b py-2.5 last:border-0"
                 style={{ borderColor: "var(--border)" }}
               >
-                <span className="flex min-w-0 items-center gap-2.5 text-[13px]">
+                <span className="flex min-w-0 items-center gap-2.5 text-[length:var(--fs-sm)]">
                   <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: c.color }} />
                   <span className="truncate">{c.className}</span>
                 </span>
                 <span className="flex shrink-0 items-baseline gap-2">
                   <span className="flex flex-col items-end">
-                    <span className="num text-[12px] sm:text-[13px] font-bold money-nowrap" dir="rtl">
+                    <span className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
                       {toIrt(c.value) ?? formatMoney(c.value)}
                     </span>
                     {fx.rate && (
@@ -218,7 +218,7 @@ export default async function AssetsPage() {
         </Section>
       )}
 
-      <p className="muted flex items-center gap-1.5 text-[11px]">
+      <p className="muted flex items-center gap-1.5 text-[length:var(--fs-xs)]">
         <Icon name="info" size={13} />
         این صفحه فقط نمایشی است. هر عملیات مالی (خرید، فروش، انتقال) از مسیر ثبت تراکنش عبور می‌کند تا اثر آن در سوابق
         مالی ثبت شود.
