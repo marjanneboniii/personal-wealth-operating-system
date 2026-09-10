@@ -151,10 +151,10 @@ export default async function AuditPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>زمان</th>
-                  <th>رویداد</th>
-                  <th>موجودیت</th>
-                  <th>شناسه</th>
+                  <th scope="col">زمان</th>
+                  <th scope="col">رویداد</th>
+                  <th scope="col">موجودیت</th>
+                  <th scope="col">شناسه</th>
                 </tr>
               </thead>
               <tbody>

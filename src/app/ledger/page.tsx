@@ -129,21 +129,21 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
             {pro ? (
               <thead>
                 <tr>
-                  <th className="w-14">کد</th>
-                  <th>حساب</th>
-                  <th>نوع</th>
-                  <th className="td-num">مقدار</th>
-                  <th className="td-num">ورود</th>
-                  <th className="td-num">خروج</th>
+                  <th scope="col" className="w-14">کد</th>
+                  <th scope="col">حساب</th>
+                  <th scope="col">نوع</th>
+                  <th scope="col" className="td-num">مقدار</th>
+                  <th scope="col" className="td-num">ورود</th>
+                  <th scope="col" className="td-num">خروج</th>
                 </tr>
               </thead>
             ) : (
               <thead>
                 <tr>
-                  <th>حساب / دسته‌بندی</th>
-                  <th>نوع</th>
-                  <th className="td-num">مقدار</th>
-                  <th className="td-num">مبلغ</th>
+                  <th scope="col">حساب / دسته‌بندی</th>
+                  <th scope="col">نوع</th>
+                  <th scope="col" className="td-num">مقدار</th>
+                  <th scope="col" className="td-num">مبلغ</th>
                 </tr>
               </thead>
             )}
@@ -263,17 +263,17 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>{pro ? "حساب" : "مسیر پول"}</th>
-                        <th className="td-num">مقدار</th>
+                        <th scope="col">{pro ? "حساب" : "مسیر پول"}</th>
+                        <th scope="col" className="td-num">مقدار</th>
                         {pro ? (
                           <>
-                            <th className="td-num">ورود</th>
-                            <th className="td-num">خروج</th>
+                            <th scope="col" className="td-num">ورود</th>
+                            <th scope="col" className="td-num">خروج</th>
                           </>
                         ) : (
-                          <th className="td-num">مبلغ</th>
+                          <th scope="col" className="td-num">مبلغ</th>
                         )}
-                        <th>یادداشت</th>
+                        <th scope="col">یادداشت</th>
                       </tr>
                     </thead>
                     <tbody>

@@ -19,14 +19,14 @@ export default function HoldingsTable({
       <table className="table table-sticky">
         <thead>
           <tr>
-            <th>دارایی</th>
-            <th className="td-num">مقدار</th>
-            <th className="td-num">قیمت بازار</th>
-            <th className="td-num hidden lg:table-cell">بهای تمام‌شده</th>
-            <th className="td-num hidden lg:table-cell">میانگین قیمت خرید</th>
-            <th className="td-num">ارزش روز</th>
-            <th className="td-num hidden sm:table-cell">سود/زیان</th>
-            <th className="td-num hidden sm:table-cell">سهم</th>
+            <th scope="col">دارایی</th>
+            <th scope="col" className="td-num">مقدار</th>
+            <th scope="col" className="td-num">قیمت بازار</th>
+            <th scope="col" className="td-num hidden lg:table-cell">بهای تمام‌شده</th>
+            <th scope="col" className="td-num hidden lg:table-cell">میانگین قیمت خرید</th>
+            <th scope="col" className="td-num">ارزش روز</th>
+            <th scope="col" className="td-num hidden sm:table-cell">سود/زیان</th>
+            <th scope="col" className="td-num hidden sm:table-cell">سهم</th>
           </tr>
         </thead>
         <tbody>

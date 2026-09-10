@@ -158,10 +158,10 @@ export default async function ObligationsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>نوع</th>
-                  <th>عنوان</th>
-                  <th>سررسید</th>
-                  <th className="td-num">مبلغ</th>
+                  <th scope="col">نوع</th>
+                  <th scope="col">عنوان</th>
+                  <th scope="col">سررسید</th>
+                  <th scope="col" className="td-num">مبلغ</th>
                 </tr>
               </thead>
               <tbody>

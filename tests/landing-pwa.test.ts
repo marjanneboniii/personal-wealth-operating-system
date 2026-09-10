@@ -278,15 +278,15 @@ test("Tavazon brand tokens — one palette shared by landing and app", () => {
 
   // Palette primitives are declared exactly once and referenced everywhere.
   assert.match(css, /--sky-400:\s*#38bdf8/i);
-  assert.match(css, /--cyan-700:\s*#0e7490/i);
+  assert.match(css, /--sky-700:\s*#0369a1/i);
   assert.match(css, /--emerald-400:\s*#34d399/i);
   assert.match(css, /--amber-400:\s*#fbbf24/i);
   assert.match(css, /--lavender-300:\s*#c4b5fd/i);
 
   // Sky/cyan is the interaction accent: cyan-700 on light (AA), sky-400 on dark.
-  assert.match(css, /--color-accent:\s*var\(--cyan-700\)/i);
+  assert.match(css, /--color-accent:\s*var\(--sky-700\)/i);
   assert.match(css, /--color-accent:\s*var\(--sky-400\)/i);
-  assert.match(css, /--color-module-wealth:\s*var\(--cyan-700\)/i);
+  assert.match(css, /--color-module-wealth:\s*var\(--sky-700\)/i);
 
   // Emerald = positive, amber/red = negative. Never decorative.
   assert.match(css, /--color-positive:\s*var\(--emerald-(400|700)\)/i);
@@ -301,6 +301,8 @@ test("Tavazon brand tokens — one palette shared by landing and app", () => {
   assert.doesNotMatch(css, /--color-accent:\s*#6e6ff0/i);
   assert.doesNotMatch(css, /--brand:\s*#(6e6ff0|8b8cf5)/i);
   assert.doesNotMatch(css, /--color-module-wealth:\s*#6e6ff0/i);
+  // the flat cyan-700 accent was replaced for being the least chromatic passing option
+  assert.doesNotMatch(css, /--color-accent:\s*var\(--cyan-700\)/i);
 
   assert.match(css, /\.brand-wordmark/);
   assert.match(css, /font-weight: 900/);

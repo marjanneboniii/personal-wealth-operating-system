@@ -132,11 +132,11 @@ export default function VehiclePortfolioSection({
           <table className="table">
             <thead>
               <tr>
-                <th>خودرو</th>
-                <th className="td-num">ارزش فعلی / قیمت فروش</th>
-                <th className="td-num">معادل دلاری</th>
-                <th className="td-num">بازده تومانی</th>
-                <th className="td-num">آخرین ارزش‌گذاری</th>
+                <th scope="col">خودرو</th>
+                <th scope="col" className="td-num">ارزش فعلی / قیمت فروش</th>
+                <th scope="col" className="td-num">معادل دلاری</th>
+                <th scope="col" className="td-num">بازده تومانی</th>
+                <th scope="col" className="td-num">آخرین ارزش‌گذاری</th>
               </tr>
             </thead>
             <tbody>

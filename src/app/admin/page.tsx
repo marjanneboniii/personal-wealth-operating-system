@@ -24,7 +24,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     <PageHeader title="مدیریت کاربران" subtitle="دسترسی محدود، صفحه‌بندی‌شده و ثبت‌شده در گزارش حسابرسی" />
     <div className="card overflow-x-auto">
       <table className="w-full min-w-[760px] text-right text-[12px]">
-        <thead><tr className="border-b"><th className="p-3">کاربر</th><th className="p-3">نقش</th><th className="p-3">آخرین ورود</th><th className="p-3">وضعیت</th><th className="p-3">عملیات</th></tr></thead>
+        <thead><tr className="border-b"><th scope="col" className="p-3">کاربر</th><th scope="col" className="p-3">نقش</th><th scope="col" className="p-3">آخرین ورود</th><th scope="col" className="p-3">وضعیت</th><th scope="col" className="p-3">عملیات</th></tr></thead>
         <tbody>{data.users.map((authUser) => {
           const profile = byId.get(authUser.id);
           const suspended = Boolean(authUser.banned_until && new Date(authUser.banned_until) > new Date());

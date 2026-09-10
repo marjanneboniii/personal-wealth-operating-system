@@ -389,12 +389,12 @@ export default function InflationTracker({ items, histories, dashboard, categori
             <table className="w-full min-w-[640px] text-[12.5px]">
               <thead>
                 <tr className="muted text-right text-[11px]">
-                  <th className="py-2 pl-2 font-medium">کالا</th>
-                  <th className="py-2 pl-2 font-medium">قیمت امروز</th>
-                  <th className="py-2 pl-2 font-medium">یک ماه قبل</th>
-                  <th className="py-2 pl-2 font-medium">سه ماه قبل</th>
-                  <th className="py-2 pl-2 font-medium">شش ماه قبل</th>
-                  <th className="py-2 font-medium">یک سال قبل</th>
+                  <th scope="col" className="py-2 pl-2 font-medium">کالا</th>
+                  <th scope="col" className="py-2 pl-2 font-medium">قیمت امروز</th>
+                  <th scope="col" className="py-2 pl-2 font-medium">یک ماه قبل</th>
+                  <th scope="col" className="py-2 pl-2 font-medium">سه ماه قبل</th>
+                  <th scope="col" className="py-2 pl-2 font-medium">شش ماه قبل</th>
+                  <th scope="col" className="py-2 font-medium">یک سال قبل</th>
                 </tr>
               </thead>
               <tbody>
