@@ -80,6 +80,7 @@
   --amber-300: #fcd34d;
   --amber-400: #fbbf24;
   --amber-700: #b45309;
+  --amber-800: #92400e;
 
   --red-400: #f87171;
   --red-600: #dc2626;
@@ -154,7 +155,7 @@
   --color-success-bg: rgba(16, 185, 129, 0.12);
   --color-danger: var(--red-700);
   --color-danger-tint: rgba(185, 28, 28, 0.1);
-  --color-warning: var(--amber-700);
+  --color-warning: var(--amber-800);
   --color-warning-bg: rgba(245, 158, 11, 0.14);
   --color-danger-bg: var(--color-danger-tint);
   --positive: var(--color-success);
@@ -423,13 +424,17 @@ input[type="radio"] {
   flex-wrap: nowrap;
 }
 
+.stat-tile {
+  container-type: inline-size;
+}
+
 .metric-value,
 .stat-value {
   white-space: nowrap;
   word-break: keep-all;
   overflow-wrap: normal;
   font-variant-numeric: tabular-nums lining-nums;
-  font-size: clamp(0.82rem, 3.2vw, 0.95rem);
+  font-size: var(--fs-lg);
   line-height: 1.35;
   font-weight: 700;
   display: inline-flex;
@@ -439,40 +444,60 @@ input[type="radio"] {
   max-width: 100%;
 }
 
+/* Component-aware step-down: the tile reacts to its OWN width, not the
+   viewport, so a 2-up grid on a 320px phone still shows the amount in full
+   instead of clipping it. Never below --fs-sm. */
+@container (max-width: 205px) {
+  .metric-value,
+  .stat-value {
+    font-size: var(--fs-md);
+  }
+}
+
+@container (max-width: 160px) {
+  .metric-value,
+  .stat-value {
+    font-size: var(--fs-sm);
+  }
+}
+
+/* The `type-*` utilities were a second, competing scale (10.6px captions,
+   11.5px labels, 13px "financial"). They are now aliases of the one token
+   scale, so a page styled with either vocabulary lands on the same steps. */
 .type-page-title {
-  font-size: clamp(1.1rem, 4vw, 1.35rem);
+  font-size: clamp(22px, 4vw, 24px);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.3;
 }
 .type-section-title {
-  font-size: 0.88rem;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text);
 }
 .type-body {
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   line-height: 1.65;
 }
 .type-label {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-2);
 }
 .type-helper {
-  font-size: 0.7rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   line-height: 1.5;
 }
 .type-caption {
-  font-size: 0.66rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 .type-financial {
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: 700;
   letter-spacing: -0.015em;
-  font-size: clamp(0.82rem, 3vw, 0.95rem);
+  font-size: var(--fs-md);
   line-height: 1.4;
   white-space: nowrap;
   word-break: keep-all;
@@ -2574,6 +2599,27 @@ select.field {
   text-align: end;
 }
 
+/* At the narrowest supported width a 2-up stat grid cannot hold a Toman
+   amount even at the 14px floor, so the GRID reflows — the number never
+   shrinks further. `:has` carries enough specificity to beat the Tailwind
+   grid-cols utility without !important. */
+@media (max-width: 340px) {
+  .grid:has(> .stat-tile) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 374px) {
+  .acct-row {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+  }
+  .acct-amount {
+    width: 100%;
+    text-align: start;
+  }
+}
+
 /* <=374px — Galaxy S-series portrait, Fold cover.
    A Toman amount cannot share a row at this width, so the row reflows to two
    lines and the KPI grid drops to one column. The number keeps its size. */
@@ -2690,15 +2736,15 @@ body {
 }
 @media (max-width: 640px) {
   .acct-card {
-    padding: 0 !important;
-    border-radius: 10px;
+    padding: 0;
+    border-radius: var(--r-lg);
   }
   .acct-head,
   .acct-row {
     padding: 0.875rem 0.9rem !important;
   }
   .acct-amount {
-    max-width: 46% !important;
+    min-width: min-content;
   }
 }
 

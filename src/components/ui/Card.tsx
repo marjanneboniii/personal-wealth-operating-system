@@ -179,7 +179,7 @@ export function Stat({
   const color =
     tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : "var(--text)";
   return (
-    <div className="card p-3 sm:p-3.5 min-w-0 overflow-hidden">
+    <div className="stat-tile card p-3 sm:p-3.5 min-w-0 overflow-hidden">
       <div className="muted text-[length:var(--fs-xs)] font-medium truncate">{label}</div>
       <div className="stat-value mt-1.5 text-[length:var(--fs-lg)] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
         {value}
@@ -204,7 +204,7 @@ export function Metric({
   const color =
     tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : "var(--text)";
   return (
-    <div className="min-w-0 overflow-hidden">
+    <div className="stat-tile min-w-0 overflow-hidden">
       <div className="muted text-[length:var(--fs-xs)] font-medium truncate">{label}</div>
       <div className="metric-value mt-1.5 text-[length:var(--fs-md)] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
         {value}
