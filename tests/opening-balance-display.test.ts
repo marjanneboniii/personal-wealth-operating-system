@@ -223,6 +223,7 @@ test("setup with «ETH 3.33 + USDT 1456 + IRT 6,000,000» records everything and
     cashWalletName: "صندوق خانگی",
     cashAssetSymbol: "IRT",
     cashOpeningBalance: "6000000",
+    cryptoSymbol: "ETH",
     cryptoOpeningQty: "3.33",
     cryptoUnitPrice: "3000",
   });

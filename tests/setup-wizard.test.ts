@@ -52,6 +52,9 @@ test("Phase 2.1 Requirement — Fresh user can complete setup wizard successfull
     cashWalletName: "کیف نقد خانه",
     bankOpeningBalance: "5000",
     cashOpeningBalance: "1000",
+    // The coin is now the user's choice; without a symbol no crypto wallet
+    // is created at all (the wizard used to hard-code Ethereum for everyone).
+    cryptoSymbol: "ETH",
     cryptoOpeningQty: "2",
     cryptoUnitPrice: "3000", // $6,000 value
     goldOpeningQty: "50",
@@ -452,7 +455,11 @@ test("Only the bank account is mandatory — cash box is created only when reque
   let chart = await db.select().from(accounts);
   assert.equal(chart.some((a) => a.code === "1010"), true, "bank account must exist");
   assert.equal(chart.some((a) => a.code === "1020"), false, "cash account must NOT exist when not requested");
-  assert.equal(chart.some((a) => a.code === "1200"), true, "ETH container stays available for the buy flow");
+  // No coin was chosen, so there is NO crypto wallet. It used to be created
+  // unconditionally and named «کیف پول اتریوم», which gave a user who owns no
+  // ETH an Ethereum wallet and a user who owns SOL nowhere to put it. A wallet
+  // is added later from the Accounts module, or by picking a coin here.
+  assert.equal(chart.some((a) => a.code === "1200"), false, "no coin chosen ⇒ no crypto wallet");
   assert.equal(chart.some((a) => a.code === "1300"), true, "gold container stays available for the asset flow");
 
   // Funding the cash box (even without naming it) provisions the account.

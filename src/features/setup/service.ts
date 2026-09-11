@@ -18,7 +18,19 @@ import { todayIso } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { invalidateTenantStateCache } from "@/lib/tenantState";
 import { rootCauseOf } from "@/db/init-schema";
-import { requireSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
+import {
+  SUPPORTED_CRYPTO_ASSETS,
+  getSupportedCryptoBySymbol,
+  requireSupportedCryptoBySymbol,
+} from "@/features/pricing/supportedAssets";
+
+/**
+ * Coins that are a claim on a fiat unit rather than a volatile asset. They are
+ * classed «استیبل‌کوین», which is the class `getWealthSnapshot` and the
+ * portfolio's liquidity filter both count as نقدینگی — so «dry powder» parked
+ * in a cold wallet reads as liquidity, not as crypto exposure.
+ */
+const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG"]);
 
 /** Native units a cash/bank account may hold. Book currency stays USD. */
 export const SETUP_MONEY_SYMBOLS = ["IRT", "USD", "USDT"] as const;
@@ -44,6 +56,14 @@ export type SetupInput = {
   bankOpeningBalance?: string;
   /** Native quantity in the cash account's own unit — never book USD. */
   cashOpeningBalance?: string;
+  /**
+   * WHICH coin the user holds, chosen from SUPPORTED_CRYPTO_ASSETS. The wizard
+   * used to hard-code a «کیف پول اتریوم» for everyone, so a user who owns no
+   * ETH still got an Ethereum wallet and a user who owns SOL got nowhere to
+   * put it. No coin chosen (or a zero quantity) now means NO crypto wallet is
+   * created at all — one can be added later from the Accounts module.
+   */
+  cryptoSymbol?: string;
   cryptoOpeningQty?: string;
   cryptoUnitPrice?: string; // Price in base currency
   goldOpeningQty?: string; // in grams
@@ -237,6 +257,25 @@ export async function completeSetup(
           coingeckoId: SETUP_ETH.coingeckoId,
           logoUrl: SETUP_ETH.logoUrl,
         },
+        /*
+         * Every coin the picker can offer needs an asset identity, otherwise
+         * choosing anything outside BTC/ETH/USDT would have had nowhere to post.
+         * Stablecoins are deliberately classed «استیبل‌کوین», not «رمزارز»:
+         * that class is what makes a USDT/USDC balance read as نقدینگی rather
+         * than as crypto exposure — see the note on the wallet account below.
+         */
+        ...SUPPORTED_CRYPTO_ASSETS.filter(
+          (c) => !["BTC", "ETH", "USDT"].includes(c.symbol),
+        ).map((c) => ({
+          symbol: c.symbol,
+          name: c.displayName,
+          classId: STABLECOIN_SYMBOLS.has(c.symbol) ? clsMap.stable : clsMap.crypto,
+          decimals: 8,
+          pricingMethod: "coingecko" as const,
+          priceSource: "coingecko" as const,
+          coingeckoId: c.coingeckoId,
+          logoUrl: c.logoUrl,
+        })),
         { symbol: "GOLD18", name: "طلای ۱۸ عیار (گرم)", classId: clsMap.gold, decimals: 3 },
       ].map((asset) => [asset.symbol, asset]),
     );
@@ -322,13 +361,34 @@ export async function completeSetup(
     const wantsCashWallet = Boolean(
       input.cashWalletName?.trim() || (input.cashOpeningBalance && D(input.cashOpeningBalance).gt(0)),
     );
+    /*
+     * The coin the user picked. An unknown or absent symbol resolves to
+     * undefined, which simply means no crypto wallet is created — never a
+     * silent fallback to some other coin's account.
+     */
+    const chosenCrypto = input.cryptoSymbol
+      ? getSupportedCryptoBySymbol(input.cryptoSymbol)
+      : undefined;
     const acctRows = [
       { code: "1000", name: "دارایی‌ها", type: "asset" },
       { code: "1010", name: input.bankAccountName?.trim() || "حساب بانکی اصلی", type: "asset", assetId: bankAssetId },
       ...(wantsCashWallet
         ? [{ code: "1020", name: input.cashWalletName?.trim() || "صندوق نقد", type: "asset", assetId: cashAssetId }]
         : []),
-      { code: "1200", name: "کیف پول اتریوم", type: "asset", assetId: assetMap.ETH },
+      /*
+       * The crypto wallet exists only if the user actually named a coin. It is
+       * named after THAT coin («کیف پول بیت‌کوین»), because a hard-coded
+       * Ethereum wallet was both wrong for the user who holds no ETH and
+       * useless to the user who holds SOL.
+       */
+      ...(chosenCrypto && assetMap[chosenCrypto.symbol]
+        ? [{
+            code: "1200",
+            name: `کیف پول ${chosenCrypto.displayName}`,
+            type: "asset" as const,
+            assetId: assetMap[chosenCrypto.symbol],
+          }]
+        : []),
       { code: "1300", name: "طلای ۱۸ عیار", type: "asset", assetId: assetMap.GOLD18 },
       { code: "2000", name: "بدهی‌ها", type: "liability" },
       { code: "2010", name: "وام / بدهی عمومی", type: "liability", assetId: baseAssetId },
@@ -478,25 +538,26 @@ export async function completeSetup(
       totalOpeningEquityBase = totalOpeningEquityBase.add(cash.baseValue);
     }
 
-    // Crypto Opening Balance
+    // Crypto Opening Balance — for the coin the USER chose, if any.
     let ethLotInfo: { accountId: string; assetId: string; quantity: string; costBase: string } | undefined;
-    if (input.cryptoOpeningQty && D(input.cryptoOpeningQty).gt(0)) {
-      const ethQty = D(input.cryptoOpeningQty);
-      const ethPrice = D(input.cryptoUnitPrice || "0");
-      const ethValue = ethQty.mul(ethPrice);
+    const cryptoAssetId = chosenCrypto ? assetMap[chosenCrypto.symbol] : undefined;
+    if (chosenCrypto && cryptoAssetId && acctMap["1200"] && input.cryptoOpeningQty && D(input.cryptoOpeningQty).gt(0)) {
+      const cryptoQty = D(input.cryptoOpeningQty);
+      const cryptoPrice = D(input.cryptoUnitPrice || "0");
+      const cryptoValue = cryptoQty.mul(cryptoPrice);
       draftPostings.push({
         accountId: acctMap["1200"],
-        assetId: assetMap.ETH,
-        quantity: ethQty.toString(),
-        baseValue: ethValue.toString(),
-        memo: "موجودی اولیه اتریوم",
+        assetId: cryptoAssetId,
+        quantity: cryptoQty.toString(),
+        baseValue: cryptoValue.toString(),
+        memo: `موجودی اولیه ${chosenCrypto.displayName}`,
       });
-      totalOpeningEquityBase = totalOpeningEquityBase.add(ethValue);
+      totalOpeningEquityBase = totalOpeningEquityBase.add(cryptoValue);
       ethLotInfo = {
         accountId: acctMap["1200"],
-        assetId: assetMap.ETH,
-        quantity: ethQty.toString(),
-        costBase: ethValue.toString(),
+        assetId: cryptoAssetId,
+        quantity: cryptoQty.toString(),
+        costBase: cryptoValue.toString(),
       };
     }
 

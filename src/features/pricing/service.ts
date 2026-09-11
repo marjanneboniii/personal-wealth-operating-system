@@ -26,6 +26,7 @@
 import { persistLastKnownPrices, readLastKnownPrices } from "./lastKnownPrice";
 import { CoinGeckoClient, CoinGeckoRequestError } from "./coingecko";
 import { PublicSpotQuoteClient } from "./publicSpotQuotes";
+import { WallexUsdQuoteClient } from "./wallexUsdQuotes";
 import type { CoinGeckoPricePoint, MarketAssetIdentity, PriceFailureCode } from "./types";
 
 export type LiveQuoteClient = {
@@ -137,7 +138,7 @@ async function runLiveRefresh(
   ids: string[],
   now: number,
   client: CoinGeckoClient,
-  spotQuotes: LiveQuoteClient | null,
+  fallbacks: readonly LiveQuoteClient[],
 ): Promise<void> {
   const fetched = new Map<string, { priceUsd: string; observedAt: string }>();
   let liveFailure: PriceFailureCode = "asset_not_found";
@@ -149,13 +150,25 @@ async function runLiveRefresh(
     liveFailure = failureCode(error);
   }
 
-  const stillMissing = ids.filter((id) => !fetched.has(id));
-  if (stillMissing.length > 0 && spotQuotes) {
+  /*
+   * Fallbacks are tried IN ORDER, and each one is asked only about what is
+   * still missing — a source that already answered is never re-queried, and a
+   * fully successful primary means no fallback is called at all.
+   *
+   * Order matters for this audience. CoinGecko and the Binance spot quotes are
+   * both foreign hosts that are routinely slow or unreachable from Iran, so
+   * والکس — which is reachable there — is placed ahead of the spot fallback.
+   * When all three are healthy nothing changes, because CoinGecko still
+   * answers first and nothing after it runs.
+   */
+  for (const fallback of fallbacks) {
+    const stillMissing = ids.filter((id) => !fetched.has(id));
+    if (stillMissing.length === 0) break;
     try {
-      const fromSpot = await spotQuotes.fetchUsdPrices(stillMissing);
-      for (const [id, point] of fromSpot) fetched.set(id, point);
+      const quotes = await fallback.fetchUsdPrices(stillMissing);
+      for (const [id, point] of quotes) fetched.set(id, point);
     } catch {
-      // Spot quotes are best-effort; last-known / unavailable handles the rest.
+      // Every fallback is best-effort; last-known / unavailable handles the rest.
     }
   }
 
@@ -177,19 +190,39 @@ async function runLiveRefresh(
   }
 }
 
+/**
+ * Which secondary sources this call may use.
+ *
+ * `spotQuotes` is kept as an explicit single-client override because existing
+ * callers and tests pass `spotQuotes: null` to run CoinGecko-only; honouring
+ * that exact contract is what lets this chain be widened without touching them.
+ */
+function resolveFallbacks(options: {
+  spotQuotes?: LiveQuoteClient | null;
+  fallbacks?: readonly LiveQuoteClient[] | null;
+}): readonly LiveQuoteClient[] {
+  if (options.fallbacks !== undefined) return options.fallbacks ?? [];
+  if (options.spotQuotes === null) return [];
+  if (options.spotQuotes) return [options.spotQuotes];
+  return [new WallexUsdQuoteClient(), new PublicSpotQuoteClient()];
+}
+
 export async function getCurrentUsdPrices(
   assets: MarketAssetIdentity[],
   options: {
     client?: CoinGeckoClient;
     now?: number;
-    /** Secondary live quotes. Pass `null` to disable (tests). */
+    /**
+     * Secondary live quotes, tried in order after CoinGecko. Pass `null` to
+     * disable every fallback (tests), or an explicit array to choose them.
+     */
     spotQuotes?: LiveQuoteClient | null;
+    fallbacks?: readonly LiveQuoteClient[] | null;
   } = {},
 ): Promise<Map<string, CoinGeckoPricePoint>> {
   const now = options.now ?? Date.now();
   const client = options.client ?? new CoinGeckoClient();
-  const spotQuotes =
-    options.spotQuotes === undefined ? new PublicSpotQuoteClient() : options.spotQuotes;
+  const fallbacks = resolveFallbacks(options);
   const uniqueIds = [...new Set(assets.map((asset) => asset.coingeckoId).filter(Boolean))];
   const result = new Map<string, CoinGeckoPricePoint>();
 
@@ -231,7 +264,7 @@ export async function getCurrentUsdPrices(
     if (existing) {
       await existing;
     } else {
-      const refresh = runLiveRefresh(liveIds, now, client, spotQuotes).finally(() => {
+      const refresh = runLiveRefresh(liveIds, now, client, fallbacks).finally(() => {
         if (inflightRefreshes.get(batchKey) === refresh) removeMapEntry(inflightRefreshes, batchKey);
       });
       inflightRefreshes.set(batchKey, refresh);

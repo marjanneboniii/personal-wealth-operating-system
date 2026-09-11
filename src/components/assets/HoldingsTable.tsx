@@ -2,6 +2,7 @@ import { D } from "@/domain/decimal";
 import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, trendArrow, trendColor, trendTone } from "@/lib/format";
 import Icon from "@/components/ui/Icon";
 import AssetLogo from "@/components/ui/AssetLogo";
+import { vehicleDisplayLabel } from "@/features/rwa/vehicle/display";
 import type { AssetValuation } from "@/features/portfolio/types";
 
 /**
@@ -73,8 +74,18 @@ export default function HoldingsTable({
                       radius={9}
                     />
                     <div className="min-w-0">
-                      <div className="truncate text-[length:var(--fs-xs)] font-semibold tracking-tight sm:text-[length:var(--fs-sm)]" dir="rtl">
-                        {a.name}
+                      {/* A stored vehicle name is «brand model (manufacturing year)»,
+                          which `truncate` clips mid-word — losing exactly the part
+                          that tells two cars apart. The short label drops the year
+                          and the repeated assembler prefix; `title` keeps the full
+                          stored name one hover away, and every non-vehicle name
+                          passes through untouched. */}
+                      <div
+                        className="truncate text-[length:var(--fs-xs)] font-semibold tracking-tight sm:text-[length:var(--fs-sm)]"
+                        dir="rtl"
+                        title={a.name}
+                      >
+                        {vehicleDisplayLabel(a.name)}
                       </div>
                       {unitLabel && !sameAsName && (
                         <div className="muted truncate text-[length:var(--fs-xs)] font-normal" dir="ltr">

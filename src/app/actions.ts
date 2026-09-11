@@ -1406,6 +1406,9 @@ const setupSchema = z.object({
   cashAssetSymbol: z.enum(["IRT", "USD", "USDT"]).optional(),
   bankOpeningBalance: z.string().optional(),
   cashOpeningBalance: z.string().optional(),
+  /** Symbol of the coin the user picked; validated against the registry in
+   *  the service, where an unknown value simply means "no crypto wallet". */
+  cryptoSymbol: z.string().optional(),
   cryptoOpeningQty: z.string().optional(),
   cryptoUnitPrice: z.string().optional(),
   goldOpeningQty: z.string().optional(),

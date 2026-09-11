@@ -1310,6 +1310,48 @@ export const userSetupState = pgTable("user_setup_state", {
 
 
 
+/**
+ * The onboarding checklist's answers — one row per user per asset category.
+ *
+ * This table, not the wizard screen, is what actually solves the problem the
+ * brief describes. A user who simply scrolls past a long form never records
+ * anything, so the app can never tell «has no property» apart from «forgot to
+ * enter the property». Forcing an explicit «نه، ملک ندارم» is what makes the
+ * later question «مطمئنید چیزی جا نمانده؟» meaningful, and what turns the
+ * day-N reminder from a generic nag into a targeted one: a user who answered
+ * «بله» to رمزارز and then registered nothing is the only one worth prompting.
+ *
+ * `answer` is the user's claim; `itemsAtAnswer` is how many assets of that
+ * category actually existed when they answered. The gap between the two is the
+ * signal.
+ */
+export const onboardingIntents = pgTable(
+  "onboarding_intents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** real_estate | vehicle | crypto | fund | online_gold | stock */
+    category: text("category").notNull(),
+    /** yes | no — «نمی‌دانم» is deliberately not offered; it records nothing. */
+    answer: text("answer").notNull(),
+    answeredAt: timestamp("answered_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Registered assets in this category at the moment of the answer. */
+    itemsAtAnswer: integer("items_at_answer").notNull().default(0),
+    /** Set when the user dismisses the follow-up reminder for this category. */
+    reminderDismissedAt: timestamp("reminder_dismissed_at", { withTimezone: true }),
+  },
+  (table) => ({
+    userCategoryUq: uniqueIndex("onboarding_intents_user_category_uq").on(
+      table.userId,
+      table.category,
+    ),
+  }),
+);
+
 export const backupRuns = pgTable("backup_runs", {
   id: uuid("id").primaryKey().defaultRandom(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

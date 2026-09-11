@@ -205,9 +205,88 @@ function subscribeStandalone(cb: () => void) {
   return () => mq?.removeEventListener?.("change", cb);
 }
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
+/**
+ * What this device can actually do about installing.
+ *
+ *   "ios"    — iOS Safari: no beforeinstallprompt exists, so the only route is
+ *              the Share → Add to Home Screen walkthrough.
+ *   "prompt" — Chromium (Android, desktop): the browser fired
+ *              beforeinstallprompt, so a real native install sheet is available.
+ *   "none"   — already installed, or a browser that cannot install at all
+ *              (desktop Firefox/Safari, Chrome on iOS). Show nothing rather
+ *              than a button that leads nowhere.
+ */
+function useInstallCapability(): {
+  kind: "ios" | "prompt" | "none";
+  promptInstall: () => Promise<void>;
+} {
+  const standalone = useSyncExternalStore(subscribeStandalone, isStandalone, () => false);
+  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
+  const [ios, setIos] = useState(false);
+
+  useEffect(() => {
+    // Device detection must run on the CLIENT — doing it during render would
+    // make server and client disagree and hydrate wrong. Deferred by a
+    // microtask (the same shape InstallPromotion uses) so the effect does not
+    // set state synchronously and trigger a cascading render.
+    if (isIosSafari()) queueMicrotask(() => setIos(true));
+
+    const onBip = (event: Event) => {
+      event.preventDefault();
+      setDeferred(event as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", onBip);
+
+    const onInstalled = () => setDeferred(null);
+    window.addEventListener("appinstalled", onInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBip);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  const promptInstall = async () => {
+    if (!deferred) return;
+    try {
+      await deferred.prompt();
+      await deferred.userChoice;
+    } catch {
+      /* the user dismissed the native sheet */
+    }
+    setDeferred(null);
+  };
+
+  const kind = standalone ? "none" : deferred ? "prompt" : ios ? "ios" : "none";
+  return { kind, promptInstall };
+}
+
+/**
+ * Install button for the public header.
+ *
+ * Two bugs this replaces, which were exact opposites of each other:
+ *
+ *   1. It rendered «نصب روی آیفون» for EVERYONE. The old version checked only
+ *      `isStandalone()` and never the device, so an Android user — and a
+ *      Windows desktop user — was told to install on an iPhone. This file even
+ *      exported `isIosDevice`/`isIosSafari`; the button just never called them.
+ *
+ *   2. The header wrapped it in `hidden sm:inline-flex`, so it disappeared
+ *      below 640px — hiding it on the phone, which is the one device where
+ *      installing a PWA is the point.
+ *
+ * Shown to the wrong people, hidden from the right ones. Now the label follows
+ * the device: iOS gets the Share walkthrough, Chromium gets the real native
+ * prompt, and anything that cannot install renders nothing at all.
+ */
 export function DownloadIosButton({
   className = "",
-  children = "نصب روی آیفون",
+  children,
   variant = "ghost",
 }: {
   className?: string;
@@ -215,26 +294,28 @@ export function DownloadIosButton({
   variant?: "primary" | "ghost" | "default";
 }) {
   const [open, setOpen] = useState(false);
-  const standalone = useSyncExternalStore(subscribeStandalone, isStandalone, () => false);
+  const { kind, promptInstall } = useInstallCapability();
 
-  if (standalone) return null;
+  if (kind === "none") return null;
 
   const variantClass = variant === "primary" ? "btn-primary" : variant === "ghost" ? "btn-ghost" : "";
+  // «نصب برنامه» is platform-neutral; only the iOS path names the iPhone,
+  // because there the instruction genuinely is iPhone-specific.
+  const label = children ?? (kind === "ios" ? "نصب روی آیفون" : "نصب برنامه");
 
   return (
     <>
       <button
         type="button"
         className={`btn ${variantClass} ${className}`.trim()}
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label="نصب روی آیفون"
+        onClick={() => (kind === "ios" ? setOpen(true) : void promptInstall())}
+        aria-haspopup={kind === "ios" ? "dialog" : undefined}
+        aria-expanded={kind === "ios" ? open : undefined}
       >
         <Icon name="download" size={15} />
-        {children}
+        {label}
       </button>
-      <IosInstallGuide open={open} onClose={() => setOpen(false)} />
+      {kind === "ios" && <IosInstallGuide open={open} onClose={() => setOpen(false)} />}
     </>
   );
 }
