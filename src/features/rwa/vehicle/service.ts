@@ -26,6 +26,7 @@ import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
 import { recordRegistryDisposal } from "@/features/ledger/service";
 import { ensureSchemaOnce } from "@/db/init-schema";
 import { D } from "@/domain/decimal";
+import { vehicleDisplayLabel } from "./display";
 import { todayIso } from "@/lib/format";
 import { nextRwaSymbol } from "@/features/rwa/symbol";
 import { decryptSensitive, encryptSensitive } from "@/lib/fieldEncryption";
@@ -573,7 +574,9 @@ export async function getVehiclePortfolioSummary(userId?: string | null): Promis
 
     items.push({
       id: vehicle.id,
-      title: `${vehicle.brand} ${vehicle.model}`,
+      // Short list label: the assembler prefix is already said by the brand
+      // logo beside the row, and «سال ساخت» lives on the vehicle's own page.
+      title: vehicleDisplayLabel(`${vehicle.brand} ${vehicle.model}`),
       status: vehicle.status,
       currentValueToman: currentToman,
       currentValueUsd: currentUsd,
