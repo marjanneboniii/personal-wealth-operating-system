@@ -52,7 +52,7 @@ export const CATEGORY_META: Record<
     label: "صندوق سرمایه‌گذاری",
     question: "در صندوقی سرمایه‌گذاری کرده‌اید؟",
     hint: "درآمد ثابت، قابل معامله (ETF) یا صندوق طلا مانند کهربا، عیار و گوهر.",
-    href: "/assets/financial",
+    href: "/funds",
   },
   online_gold: {
     label: "طلای آب‌شده آنلاین",
@@ -64,7 +64,7 @@ export const CATEGORY_META: Record<
     label: "سهام بورسی",
     question: "سهام بورسی یا فرابورسی دارید؟",
     hint: "نمادهای بورس و فرابورس تهران.",
-    href: "/assets/financial",
+    href: "/funds",
   },
 };
 
