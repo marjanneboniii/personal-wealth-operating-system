@@ -660,6 +660,22 @@ const STATEMENTS = [
      ON vehicle_valuation_snapshots(user_vehicle_id, snapshot_date)
      WHERE user_vehicle_id IS NOT NULL;`,
 
+  /* Onboarding checklist answers — see schema.ts for why the ANSWER, not the
+     screen, is the thing that solves forgotten assets. */
+  `CREATE TABLE IF NOT EXISTS onboarding_intents (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    category text NOT NULL,
+    answer text NOT NULL,
+    answered_at timestamptz NOT NULL DEFAULT now(),
+    items_at_answer integer NOT NULL DEFAULT 0,
+    reminder_dismissed_at timestamptz
+  );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS onboarding_intents_user_category_uq
+     ON onboarding_intents(user_id, category);`,
+
   `CREATE TABLE IF NOT EXISTS vehicle_assets (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
