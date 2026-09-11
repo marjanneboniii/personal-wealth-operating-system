@@ -10,6 +10,8 @@ import { currencyLabel, faCount, formatMoney, formatMoneyWithSign, formatQty } f
 import AmountInput from "@/components/ui/AmountInput";
 import AssetLogo from "@/components/ui/AssetLogo";
 import { SUPPORTED_CRYPTO_ASSETS } from "@/features/pricing/supportedAssets";
+import SetupDebtsStep, { type DebtDraftRow } from "@/components/setup/SetupDebtsStep";
+import { registerSetupDebtsAction } from "@/app/actions/setupDebts";
 
 const t = getTranslations("fa").setup;
 
@@ -83,6 +85,11 @@ export default function SetupWizardPage() {
   // WHICH coin, chosen by the user. The wizard used to hard-code Ethereum, so
   // everyone got a «کیف پول اتریوم» whether they held ETH or not. Empty means
   // no crypto wallet is created at all.
+  // Step 4 — existing obligations. A list, because a person arriving here
+  // usually has more than one: a mortgage, a car plan, a loan from family.
+  const [debtRows, setDebtRows] = useState<DebtDraftRow[]>([]);
+  const [debtError, setDebtError] = useState<string | null>(null);
+
   const [cryptoSymbol, setCryptoSymbol] = useState("");
   const [cryptoQuery, setCryptoQuery] = useState("");
   const [cryptoOpeningQty, setCryptoOpeningQty] = useState("");
@@ -93,10 +100,28 @@ export default function SetupWizardPage() {
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     async (prev, fd) => {
       const res = await completeSetupAction(prev, fd);
-      if (res.ok) {
-        setSetupStatus("completed");
-        setTimeout(() => router.push("/"), 1000);
+      if (!res.ok) return res;
+
+      /*
+       * Debts are registered AFTER the base setup, and only if it succeeded:
+       * they belong to the user's tenant, which the wizard has just created.
+       * A failure here is reported but does NOT roll back the accounts — the
+       * user keeps a working setup and can add the obligations from the debts
+       * module instead of starting the whole wizard again.
+       */
+      if (debtRows.length > 0) {
+        const debtRes = await registerSetupDebtsAction(
+          debtRows.map(({ key: _key, ...draft }) => draft),
+        );
+        if (!debtRes.ok) {
+          setDebtError(debtRes.message ?? "ثبت بدهی‌ها ناموفق بود.");
+          setStep(4);
+          return { ok: false, message: debtRes.message ?? "ثبت بدهی‌ها ناموفق بود." };
+        }
       }
+
+      setSetupStatus("completed");
+      setTimeout(() => router.push("/"), 1000);
       return res;
     },
     null,
@@ -204,7 +229,7 @@ export default function SetupWizardPage() {
 
           {/* Stepper Progress */}
           <div className="mt-6 flex items-center justify-center gap-2">
-            {[1, 2, 3, 4].map((s) => (
+            {[1, 2, 3, 4, 5].map((s) => (
               <div
                 key={s}
                 className="flex items-center gap-2"
@@ -612,14 +637,38 @@ export default function SetupWizardPage() {
                   onClick={() => setStep(4)}
                   className="btn btn-primary w-2/3"
                 >
-                  پیش‌نمایش و تایید ←
+                  بدهی‌ها و اقساط ←
                 </button>
               </div>
             </section>
           )}
 
-          {/* STEP 4 */}
+          {/* STEP 4 — existing obligations */}
           {step === 4 && (
+            <section className="space-y-4">
+              {debtError && (
+                <div
+                  role="alert"
+                  className="card p-3 text-[length:var(--fs-sm)]"
+                  style={{ borderColor: "var(--negative)", color: "var(--negative)" }}
+                >
+                  {debtError}
+                </div>
+              )}
+              <SetupDebtsStep rows={debtRows} onChange={(next) => { setDebtRows(next); setDebtError(null); }} />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setStep(3)} className="btn w-1/3">
+                  ← قبلی
+                </button>
+                <button type="button" onClick={() => setStep(5)} className="btn btn-primary w-2/3">
+                  {debtRows.length === 0 ? "بدهی ندارم، ادامه ←" : "پیش‌نمایش و تایید ←"}
+                </button>
+              </div>
+            </section>
+          )}
+
+          {/* STEP 5 — preview & confirm */}
+          {step === 5 && (
             <section className="space-y-4">
               <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
                 <h2 className="text-base font-semibold">{t.step4Title}</h2>
@@ -699,7 +748,7 @@ export default function SetupWizardPage() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setStep(3)}
+                  onClick={() => setStep(4)}
                   disabled={pending}
                   className="btn w-1/3"
                 >
