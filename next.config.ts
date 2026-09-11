@@ -22,8 +22,16 @@ const contentSecurityPolicy = [
   "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   // CoinGecko catalog logos are public identity metadata; API calls and keys
-  // remain server-side. Only the two documented image CDNs are allowlisted.
-  "img-src 'self' data: blob: https://assets.coingecko.com https://coin-images.coingecko.com",
+  // remain server-side. Only documented image hosts are allowlisted.
+  //
+  // api.wallex.ir is here because the Wallex provider's catalogue returns
+  // `baseAsset_svg_icon` URLs on that host. Nothing renders them yet — but the
+  // moment a picker does, CSP would block them SILENTLY, with no error the
+  // developer would connect to this file. Allowlisting it with the code that
+  // produces the URLs is cheaper than debugging invisible images later. It is
+  // also the better host for this audience: an Iranian origin rather than a
+  // CDN that is slow or unreachable from Iran.
+  "img-src 'self' data: blob: https://assets.coingecko.com https://coin-images.coingecko.com https://api.wallex.ir",
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com",
   "frame-src https://challenges.cloudflare.com",
