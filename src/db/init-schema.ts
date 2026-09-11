@@ -925,6 +925,29 @@ const STATEMENTS = [
      AND amount_toman IS NOT NULL
      AND amount_usd_created IS NOT NULL
      AND amount_usd_created > 0;`,
+  // ── تعهدات مالی — direction + schedule provenance (additive) ──────────
+  // `direction` is what separates «بدهی من» (payable) from «طلب من»
+  // (receivable). It defaults to 'payable' because every row that exists
+  // predates the receivable model and was, by construction, money owed BY the
+  // user — «بدهی‌ها» could record nothing else. The column is the sign of the
+  // cash leg at settlement, not a caption; see features/planning/obligations.
+  `ALTER TABLE debts ADD COLUMN IF NOT EXISTS direction text NOT NULL DEFAULT 'payable';`,
+  // How the due dates were produced ('once' | 'recurring' | 'custom') and, for
+  // a recurring schedule, its cadence in months. AUDIT/UX metadata only — the
+  // due dates in `installments.due_date` stay the source of truth. They exist
+  // because «هر ۳ ماه» cannot be told apart from a custom schedule whose gaps
+  // happen to be 3 months once the dates are written.
+  `ALTER TABLE debts ADD COLUMN IF NOT EXISTS schedule_kind text;`,
+  `ALTER TABLE debts ADD COLUMN IF NOT EXISTS schedule_interval_months integer;`,
+  // Records what the OLD generator actually did (firstDueDate + N months), so
+  // existing schedules describe themselves truthfully. No due date is changed.
+  `UPDATE debts d
+      SET schedule_kind = 'recurring',
+          schedule_interval_months = 1
+    WHERE d.schedule_kind IS NULL
+      AND EXISTS (SELECT 1 FROM installments i WHERE i.debt_id = d.id);`,
+  `CREATE INDEX IF NOT EXISTS debts_user_direction_idx ON debts(user_id, direction);`,
+  `CREATE INDEX IF NOT EXISTS installments_debt_seq_idx ON installments(debt_id, seq);`,
   `ALTER TABLE obligations ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
   `ALTER TABLE funds ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
   `ALTER TABLE snapshots ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,

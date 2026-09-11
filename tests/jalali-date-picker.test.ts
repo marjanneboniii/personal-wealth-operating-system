@@ -180,13 +180,28 @@ test("showGregorian echoes the auto-computed equivalent; the debt domain hides i
   assert.ok(!LATIN_ISO.test(visibleText(empty)), "no equivalent before a date is chosen");
 });
 
-test("DebtForm keeps its two date fields Jalali-only", () => {
+test("every date field in DebtForm is Jalali-only", () => {
   const src = fs.readFileSync(
     path.resolve(process.cwd(), "src/components/forms/DebtForm.tsx"),
     "utf-8",
   );
-  const uses = src.match(/showGregorian=\{false\}/g) ?? [];
-  assert.equal(uses.length, 2, "«تاریخ شروع بدهی» and «اولین سررسید» both opt out");
+  // The form grew a third date surface — one independent picker per row of a
+  // CUSTOM schedule — so a fixed count of two would now pass only by being out
+  // of date. What actually matters is the invariant behind that count: EVERY
+  // date widget on this form opts out of the Gregorian echo, and the form
+  // still builds no second date system of its own.
+  const widgets = src.match(/<(DualDateInput|JalaliDatePicker)\b/g) ?? [];
+  const optOuts = src.match(/showGregorian=\{false\}/g) ?? [];
+  assert.ok(widgets.length >= 3, "«تاریخ شروع»، «اولین سررسید» and the custom-schedule rows");
+  assert.equal(
+    optOuts.length,
+    widgets.length,
+    "every date widget on the debt form opts out of the Gregorian echo",
+  );
+  assert.ok(
+    !/showGregorian=\{true\}/.test(src) && !/type="date"/.test(src),
+    "no native date input and no Gregorian picker sneaks back in",
+  );
 });
 
 test("the setup wizard offers no Gregorian calendar", () => {

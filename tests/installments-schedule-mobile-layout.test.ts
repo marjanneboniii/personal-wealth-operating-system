@@ -68,8 +68,13 @@ test("installments page marks the action wrapper with the row-actions class", ()
     "the row-actions wrapper keeps its flex row layout",
   );
   assert.ok(
-    wrapper![2].includes("RowAction"),
-    "the quick-pay RowAction lives inside the row-actions wrapper",
+    wrapper![2].includes("SettleObligationSheet"),
+    // The one-click RowAction was replaced by the settlement sheet (which
+    // still defaults to settling the whole remaining balance, and additionally
+    // allows a partial payment). The LAYOUT contract this test protects is
+    // unchanged: the settle control shares the row-actions wrapper with the
+    // «باز کردن در فرم» link so the single-token-cell CSS rule applies.
+    "the settle control lives inside the row-actions wrapper",
   );
   assert.ok(
     /<Link[^>]*className="[^"]*btn[^"]*"/.test(wrapper![2]),

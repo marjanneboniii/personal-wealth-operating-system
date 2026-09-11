@@ -134,6 +134,11 @@ export default async function OverviewDashboard() {
     });
 
   const hasAnything = !D(nw.totalAssets).isZero();
+  // Receivables surface on the hero strip only for a user who has one. The
+  // figure comes from the backend, already direction-filtered — this component
+  // never re-derives a money value.
+  const receivableToman = (nw as { totalReceivableToman?: string }).totalReceivableToman ?? "0";
+  const hasReceivables = D(receivableToman).gt(0);
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -208,7 +213,17 @@ export default async function OverviewDashboard() {
           </div>
         </div>
 
-        <div className="overview-summary mt-5 grid grid-cols-3 divide-x divide-x-reverse border-t pt-3 sm:mt-6 sm:pt-4" style={{ borderColor: "var(--border)" }}>
+        {/* THREE tiles normally, FOUR only when the user actually has a
+            receivable. «کل مطالبات» is real information for someone who is
+            owed money and pure noise for everyone else, and this strip is the
+            one place in the app that must stay scannable at a glance on a
+            phone — so it earns its place per-user rather than by default. */}
+        <div
+          className={`overview-summary mt-5 grid divide-x divide-x-reverse border-t pt-3 sm:mt-6 sm:pt-4 ${
+            hasReceivables ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
+          }`}
+          style={{ borderColor: "var(--border)" }}
+        >
             {[
               { label: "کل دارایی‌ها", value: nw.totalAssets, toman: nw.totalAssetsToman, tone: "var(--color-module-wealth)" },
               // «کل بدهی‌ها» is the DEBT the user can see and pay — `totalDebt*`,
@@ -218,6 +233,21 @@ export default async function OverviewDashboard() {
               // «بدهی‌ها» never created a ledger account, so this tile showed
               // ۰, and its USD line rendered a negative amount.
               { label: "کل بدهی‌ها", value: nw.totalDebtUsd, toman: nw.totalDebtToman, tone: "var(--color-module-commitments)" },
+              // «کل مطالبات» is NOT netted against «کل بدهی‌ها» and is not part
+              // of net worth: an uncollected receivable is a contractual
+              // expectation until the ledger records the money arriving — the
+              // mirror of the rule that keeps a planning-only debt out of net
+              // worth.
+              ...(hasReceivables
+                ? [
+                    {
+                      label: "کل مطالبات",
+                      value: (nw as { totalReceivableUsd?: string }).totalReceivableUsd ?? "0",
+                      toman: receivableToman,
+                      tone: "var(--positive)",
+                    },
+                  ]
+                : []),
               { label: "نقدشونده", value: nw.liquid, toman: nw.liquidToman, tone: "var(--color-module-expenses)" },
             ].map((m) => (
             <div
@@ -226,8 +256,10 @@ export default async function OverviewDashboard() {
               style={{ borderColor: "var(--border)" }}
               title={
                 m.label === "کل بدهی‌ها"
-                  ? "مانده قابل پرداخت همه بدهی‌ها — همان عددی که در «بدهی‌ها» با برچسب «مانده کل بدهی» می‌بینید. ارزش خالص دارایی مطابق اصول دوطرفه فقط بدهی ثبت‌شده در سوابق مالی را کم می‌کند."
-                  : undefined
+                  ? "مانده قابل پرداخت همه بدهی‌ها — همان عددی که در «تعهدات مالی» با برچسب «کل بدهی‌های من» می‌بینید. مطالبات شما در این عدد نیست. ارزش خالص دارایی مطابق اصول دوطرفه فقط بدهی ثبت‌شده در سوابق مالی را کم می‌کند."
+                  : m.label === "کل مطالبات"
+                    ? "مانده قابل دریافت همه طلب‌های شما — همان عددی که در «تعهدات مالی» با برچسب «کل مطالبات من» می‌بینید. تا زمانی که وصول نشود، در ارزش خالص دارایی و در درآمد شمرده نمی‌شود."
+                    : undefined
               }
             >
               <p className="muted truncate text-[length:var(--fs-xs)]">{m.label}</p>

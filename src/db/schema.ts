@@ -631,9 +631,37 @@ export const debts = pgTable(
     interestRate: numeric("interest_rate", { precision: 8, scale: 4 }).notNull().default("0"),
     startDate: date("start_date").notNull(),
     accountId: uuid("account_id").references(() => accounts.id),
-    status: text("status").notNull().default("active"), // active | settled
+    status: text("status").notNull().default("active"), // active | settled | cancelled
+    /**
+     * DIRECTION OF THE OBLIGATION — payable | receivable.
+     *
+     *   payable    «بدهی من»   the user owes it     → settle: cash ↓ , liability ↓
+     *   receivable «طلب من»    it is owed to them   → settle: cash ↑ , receivable ↓
+     *
+     * This is the SIGN OF THE CASH LEG at settlement, never a label. Reversing
+     * the caption without reversing this would post a receipt that drains the
+     * wallet. `features/planning/obligations.settlementSign()` is the single
+     * place the mapping lives.
+     *
+     * Defaults to `payable`: every row written before the receivable model
+     * came from «بدهی‌ها», which could only ever record money the user owes.
+     */
+    direction: text("direction").notNull().default("payable"),
+    /**
+     * How the repayment schedule's due dates were PRODUCED:
+     *   once      a single settlement date
+     *   recurring a fixed cadence — see scheduleIntervalMonths
+     *   custom    each installment carries its own date, no interval implied
+     *
+     * Audit / UX metadata. The authoritative dates are `installments.dueDate`;
+     * this only records provenance, because a custom schedule whose gaps happen
+     * to be uniform is indistinguishable from a cadence once written.
+     */
+    scheduleKind: text("schedule_kind"),
+    /** Cadence in MONTHS for a `recurring` schedule (1, 2, 3, 4, 5, 6 …). */
+    scheduleIntervalMonths: integer("schedule_interval_months"),
   },
-  (t) => [index("debts_user_idx").on(t.userId)],
+  (t) => [index("debts_user_idx").on(t.userId), index("debts_user_direction_idx").on(t.userId, t.direction)],
 );
 
 export const installments = pgTable(
@@ -666,17 +694,38 @@ export const installments = pgTable(
     originalFxRate: money("original_fx_rate"),
     /** When the creation-time FX snapshot above was captured. */
     originalFxRateCapturedAt: timestamp("original_fx_rate_captured_at", { withTimezone: true }),
-    /** Frozen at settlement (Phase 5): actual Toman paid. */
+    /**
+     * Toman actually settled against this installment — a RUNNING TOTAL.
+     *
+     * Frozen at full settlement since Phase 5; since the partial-payment model
+     * it accumulates across several payments while the row stays `partial`.
+     * `amount_toman − paid_toman` is therefore the remaining balance, and
+     * `features/planning/obligations.remainingToman()` is the one place that
+     * subtraction is performed.
+     */
     paidToman: money("paid_toman"),
     /** Frozen at settlement (Phase 5): USD equivalent at the payment rate. */
     paidUsd: money("paid_usd"),
     /** Frozen at settlement (Phase 5): FX rate (IRT per 1 USD) at payment. */
     paidFxRate: money("paid_fx_rate"),
-    status: text("status").notNull().default("pending"), // pending | paid
+    /**
+     * pending | partial | paid.
+     *
+     * `partial` is additive: no row already in the database can be
+     * reinterpreted by it, because every existing row is `pending` or `paid`
+     * and keeps its exact meaning. Only `paid` counts as settled — see
+     * `isInstallmentPaid` / `isInstallmentOutstanding`.
+     */
+    status: text("status").notNull().default("pending"),
+    /** Journal entry of the LAST settlement. Every partial payment posts its
+     *  own entry; the ledger, not this column, is the record of them all. */
     paidEntryId: uuid("paid_entry_id").references(() => journalEntries.id),
     paidAt: date("paid_at"),
   },
-  (t) => [index("installments_due_idx").on(t.dueDate, t.status)],
+  (t) => [
+    index("installments_due_idx").on(t.dueDate, t.status),
+    index("installments_debt_seq_idx").on(t.debtId, t.seq),
+  ],
 );
 
 export const obligations = pgTable(

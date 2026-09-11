@@ -15,8 +15,10 @@ import { D, Decimal } from "@/domain/decimal";
 import { postEntry, unitsFor } from "@/features/ledger/service";
 import {
   ensureInstallmentPaymentAccount,
+  ensureReceivableCollectionAccount,
   INSTALLMENT_PAYMENT_CODE,
   INSTALLMENT_PAYMENT_NAME,
+  RECEIVABLE_COLLECTION_NAME,
 } from "@/features/accounts/systemAccounts";
 import { getAccountBalances, hasMultipleUsers } from "@/features/ledger/queries";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
@@ -31,6 +33,19 @@ import {
   summarizePendingUsdChange,
   type InstallmentFxView,
 } from "@/features/planning/installmentFx";
+import {
+  INSTALLMENT_PARTIAL,
+  PAYABLE,
+  RECEIVABLE,
+  applyPartialPayment,
+  deriveObligationState,
+  isInstallmentOutstanding,
+  isReceivable,
+  remainingToman,
+  resolveDirection,
+  settlementSign,
+  type ObligationState,
+} from "@/features/planning/obligations";
 
 async function resolvePlanningUserId(explicitUserId?: string): Promise<string | undefined> {
   if (explicitUserId) return explicitUserId;
@@ -268,7 +283,13 @@ export function isRealLoanDebt(d: {
   interestRate?: string | number | null;
   accountId?: string | null;
   totalCount?: number | null;
+  direction?: string | null;
 }): boolean {
+  // A «وام» is definitionally something the user TOOK. A receivable — even an
+  // interest-bearing one the user lent out — is not a loan of theirs and must
+  // never appear under «وام‌ها». The direction check lives here rather than at
+  // the one call site so every future caller inherits it.
+  if (isReceivable(d.direction)) return false;
   return Number(d.interestRate ?? 0) > 0 || (d.accountId != null && d.accountId !== "");
 }
 
@@ -280,6 +301,7 @@ export async function listDebts(userId?: string) {
     getLatestUsdIrtRateForUser(u ?? null),
   ]);
   const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("1");
+  const today = todayIso();
   const rows = await db
     .select()
     .from(debts)
@@ -296,7 +318,13 @@ export async function listDebts(userId?: string) {
     // Amount already repaid, in Toman. Exposed so views can show
     // «بازپرداخت‌شده» without re-deriving it from the principal (that identity
     // is false for an interest-bearing schedule — see below).
-    const paidToman = paid.reduce((sum, i) => {
+    const paidToman = own.reduce((sum, i) => {
+      // A PARTIAL row has already contributed real money — `paid_toman` is a
+      // running total, so it counts here too. Reading only fully-`paid` rows
+      // was correct while `partial` did not exist and would now understate
+      // «بازپرداخت‌شده» by every part payment the user has actually made.
+      if (i.paidToman != null && i.paidToman !== "") return sum.add(D(i.paidToman));
+      if (!isInstallmentPaid(i.status)) return sum;
       if (i.amountToman != null) return sum.add(D(i.amountToman));
       // Paid legacy installment without Toman: convert its frozen USD book
       // amount at the CURRENT rate only for residual math (display path).
@@ -322,12 +350,21 @@ export async function listDebts(userId?: string) {
     //
     // No double counting is possible: a debt contributes EITHER its schedule
     // OR (only when it has no schedule) its principal — never both.
-    const pendingRows = own.filter((i) => !isInstallmentPaid(i.status));
+    //
+    // PARTIAL rows contribute only what is STILL owed on them
+    // (`contractual − paid_so_far`), never their full contractual amount:
+    // counting a 50M installment with 30M already paid as 50M would report a
+    // balance the user does not owe and would contradict the card that shows
+    // «۲۰ میلیون باقی‌مانده» right above it.
+    const pendingRows = own.filter((i) => isInstallmentOutstanding(i.status));
     const scheduleRemainingToman = pendingRows.reduce((sum, i) => {
       const t = resolveInstallmentToman(i, fx.rate);
-      return t != null ? sum.add(D(t)) : sum;
+      if (t == null) return sum;
+      return sum.add(remainingToman({ status: i.status, amountToman: t, paidToman: i.paidToman }));
     }, Decimal.zero());
     const hasSchedule = own.length > 0;
+    const nextDue = own.find((i) => isInstallmentOutstanding(i.status)) ?? null;
+    const direction = resolveDirection(d.direction);
 
     // Contractual Toman is the SOURCE OF TRUTH. USD is always live ÷ rate.
     // Never reconstruct Toman from USD × current rate for Phase-3+ rows.
@@ -356,7 +393,18 @@ export async function listDebts(userId?: string) {
         installments: own,
         paidCount: paid.length,
         totalCount: own.length,
-        nextDue: own.find((i) => i.status === "pending") ?? null,
+        nextDue,
+        direction,
+        // Derived, never stored — so «تسویه‌شده با اقساط پرداخت‌نشده» is not a
+        // state this system can represent at all.
+        state: deriveObligationState({
+          status: d.status,
+          deletedAt: d.deletedAt,
+          installments: own,
+          nextDueDate: nextDue?.dueDate ?? null,
+          outstandingToman: outstandingToman.toFixed(0),
+          todayIso: today,
+        }),
       };
     }
 
@@ -394,7 +442,16 @@ export async function listDebts(userId?: string) {
       installments: own,
       paidCount: paid.length,
       totalCount: own.length,
-      nextDue: own.find((i) => i.status === "pending") ?? null,
+      nextDue,
+      direction,
+      state: deriveObligationState({
+        status: d.status,
+        deletedAt: d.deletedAt,
+        installments: own,
+        nextDueDate: nextDue?.dueDate ?? null,
+        outstandingToman: outstandingTomanDisp,
+        todayIso: today,
+      }),
     };
   });
 }
@@ -411,18 +468,25 @@ export async function upcomingInstallments(limit = 8, userId?: string) {
       dueDate: installments.dueDate,
       amountBase: installments.amountBase,
       amountToman: installments.amountToman,
+      paidToman: installments.paidToman,
       status: installments.status,
       debtTitle: debts.title,
       creditor: debts.creditor,
       debtAccountId: debts.accountId,
+      direction: debts.direction,
     })
     .from(installments)
     .innerJoin(debts, eq(debts.id, installments.debtId))
-    .where(and(eq(installments.status, "pending"), u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`))
+    // `<> 'paid'` rather than `= 'pending'`: a PARTIAL installment is still
+    // owed, and leaving it out of «قسط بعدی» would hide the very row the user
+    // is part-way through settling.
+    .where(and(sql`${installments.status} <> 'paid'`, u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`))
     .orderBy(asc(installments.dueDate))
     .limit(limit);
 
-  // Attach a resolved Toman figure so callers never have to do USD×rate themselves.
+  // Attach a resolved Toman figure so callers never have to do USD×rate
+  // themselves — and the amount STILL OWED, which on a partly-settled row is
+  // the only figure a «قسط بعدی» tile may legitimately show.
   return rows.map((r) => {
     const amountToman =
       r.amountToman != null
@@ -430,12 +494,19 @@ export async function upcomingInstallments(limit = 8, userId?: string) {
         : rate.gt(0)
           ? D(r.amountBase).mul(rate).toFixed(0)
           : null;
+    const dueToman =
+      amountToman != null
+        ? remainingToman({ status: r.status, amountToman, paidToman: r.paidToman }).toFixed(0)
+        : null;
     const amountUsd =
       amountToman != null && rate.gt(0) ? D(amountToman).div(rate).toString() : D(r.amountBase).toString();
     return {
       ...r,
       amountToman,
+      /** Toman still owed on this row (== amountToman unless partly settled). */
+      dueToman,
       amountUsd,
+      direction: resolveDirection(r.direction),
     };
   });
 }
@@ -473,6 +544,7 @@ export async function listInstallmentSchedule(userId?: string) {
       debtId: debts.id,
       title: debts.title,
       creditor: debts.creditor,
+      direction: debts.direction,
     })
     .from(installments)
     .innerJoin(debts, eq(debts.id, installments.debtId))
@@ -484,10 +556,24 @@ export async function listInstallmentSchedule(userId?: string) {
     )
     .orderBy(asc(installments.dueDate));
 
-  const mapped: InstallmentScheduleRow[] = rows.map((r) => ({
-    ...r,
-    fx: buildInstallmentFxView(r, fx.rate),
-  }));
+  const mapped: InstallmentScheduleRow[] = rows.map((r) => {
+    const view = buildInstallmentFxView(r, fx.rate);
+    return {
+      ...r,
+      direction: resolveDirection(r.direction),
+      fx: view,
+      // What is still owed on this row. Equal to the contractual amount unless
+      // the row is partly settled; zero once it is `paid`. Resolved here, in
+      // the backend, for the same reason the FX view is: so no page re-derives
+      // a money figure and no two pages can disagree.
+      dueToman: remainingToman({
+        status: r.status,
+        amountToman: view.amountToman,
+        paidToman: r.paidToman,
+      }).toFixed(0),
+      paidSoFarToman: r.paidToman != null && r.paidToman !== "" ? D(r.paidToman).toFixed(0) : "0",
+    };
+  });
 
   return {
     rate: fx.rate,
@@ -519,7 +605,13 @@ export type InstallmentScheduleRow = {
   debtId: string;
   title: string;
   creditor: string;
+  /** payable «بدهی من» | receivable «طلب من» — decides «پرداخت» vs «دریافت». */
+  direction: string;
   fx: InstallmentFxView;
+  /** Toman still owed on this row (0 when settled). */
+  dueToman: string;
+  /** Toman already settled against it (non-zero on a `partial` row). */
+  paidSoFarToman: string;
 };
 
 /**
@@ -542,7 +634,18 @@ export type InstallmentScheduleRow = {
  *
  * The ledger write itself is delegated, unchanged, to the existing postEntry.
  */
-export async function payInstallment(installmentId: string, cashAccountId: string, userId?: string) {
+export async function payInstallment(
+  installmentId: string,
+  cashAccountId: string,
+  userId?: string,
+  /**
+   * Toman to settle. Omitted → the whole remaining balance (the historical
+   * behaviour, unchanged for every existing caller). A smaller figure records
+   * a PARTIAL settlement: the row keeps its contractual amount, accumulates
+   * `paid_toman`, and stays outstanding at status `partial`.
+   */
+  payToman?: string,
+) {
   const u = userId ?? (await resolvePlanningUserId(undefined));
   // Fail-closed: a settlement write must never target a shared/NULL tenant.
   if (!u && (await hasMultipleUsers())) {
@@ -570,7 +673,14 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     const { inst, debt } = row[0];
     if (inst.status === "paid") return { id: inst.paidEntryId ?? "", alreadyPaid: true, contra: null as string | null };
 
-    // 3) Resolve the CONTRA LEG — and never refuse the payment over it.
+    // 2b) DIRECTION — «بدهی من» (payable) or «طلب من» (receivable).
+    //     This decides the SIGN of the cash leg below, not a caption. The
+    //     mapping lives in exactly one place (`settlementSign`), so a UI can
+    //     never produce a «دریافت» that drains the wallet.
+    const receivable = isReceivable(debt.direction);
+    const sign = settlementSign(debt.direction);
+
+    // 3) Resolve the CONTRA LEG — and never refuse the settlement over it.
     //
     //    • debt WITH a ledger liability account → cash ↓ / liability ↓,
     //      entry type `installment` (the classical settlement).
@@ -588,19 +698,30 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     //
     //    Quick Pay used to throw «حساب بدهی تعریف نشده است» here, which made the
     //    one-click button on every UI-created installment dead on arrival.
+    //
+    //    For a RECEIVABLE the mirror applies: with no ledger receivable
+    //    account, the credit side lands on the dedicated income-typed bucket
+    //    4960 «دریافت مطالبات». Both directions post entry type
+    //    `debt_repayment`, which the aggregations already exclude on BOTH the
+    //    expense and the income side — so a collection is never counted as
+    //    earnings, exactly as a repayment is never counted as consumption.
     let contraAccountId: string | null = debt.accountId;
     let contraIsExpense = false;
     let contraBucketName: string | null = null;
     if (!contraAccountId) {
-      const bucket = await ensureInstallmentPaymentAccount(u ?? null, tx);
+      const bucket = receivable
+        ? await ensureReceivableCollectionAccount(u ?? null, tx)
+        : await ensureInstallmentPaymentAccount(u ?? null, tx);
       contraAccountId = bucket?.id ?? null;
       contraBucketName = bucket?.name ?? null;
       contraIsExpense = true;
       if (!contraAccountId) {
         // A genuine accounting precondition, not a design dead-end: with no
-        // expense row at all the entry would post unbalanced.
+        // counter row at all the entry would post unbalanced.
         throw new Error(
-          "سرفصل «پرداخت اقساط» در دفتر این کاربر ساخته نشد؛ در «تنظیمات ← حساب‌ها» یک حساب هزینه بسازید.",
+          receivable
+            ? "سرفصل «دریافت مطالبات» در دفتر این کاربر ساخته نشد؛ در «تنظیمات ← حساب‌ها» یک حساب درآمد بسازید."
+            : "سرفصل «پرداخت اقساط» در دفتر این کاربر ساخته نشد؛ در «تنظیمات ← حساب‌ها» یک حساب هزینه بسازید.",
         );
       }
     }
@@ -611,15 +732,44 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     //     payment snapshot below can never be rebuilt from a later rate.
     const paymentFx = await getLatestUsdIrtRateForUser(u ?? null, tx);
     const paymentRate = D(paymentFx.rate);
-    // The obligation being settled: contractual Toman (Phase 3+) or, for a
+    // The obligation on this row: contractual Toman (Phase 3+) or, for a
     // legacy USD-only row, its book amount converted once at the payment rate.
-    const settledToman =
+    const contractualToman =
       inst.amountToman != null
         ? D(inst.amountToman)
         : paymentRate.gt(0)
           ? amount.mul(paymentRate)
           : null;
-    if (!settledToman) throw new Error("نرخ تبدیل دلار به تومان برای ثبت پرداخت این قسط موجود نیست.");
+    if (!contractualToman) throw new Error("نرخ تبدیل دلار به تومان برای ثبت پرداخت این قسط موجود نیست.");
+
+    // 3c) PARTIAL SETTLEMENT.
+    //
+    //     `paid_toman` is a RUNNING TOTAL, so the amount still owed is
+    //     `contractual − paid_so_far` — computed by the shared
+    //     `remainingToman`, the same helper every read path uses, so the card,
+    //     the schedule and this write can never disagree about what is left.
+    //
+    //     Omitting `payToman` settles the whole remaining balance, which is
+    //     byte-for-byte the previous behaviour for a `pending` row (paid so far
+    //     = 0 → remaining = contractual). No existing caller changes meaning.
+    //
+    //     An over-payment is REFUSED by `applyPartialPayment`, not absorbed:
+    //     it is either a typo or money that belongs to another installment, and
+    //     silently booking it would push Σ(paid) past the contract with no
+    //     record of where the excess went.
+    const balanceRow = {
+      status: inst.status,
+      amountToman: contractualToman.toFixed(0),
+      paidToman: inst.paidToman,
+    };
+    const outstanding = remainingToman(balanceRow);
+    if (!outstanding.gt(0)) {
+      // Defensive: a row with nothing left but a status that is not `paid`.
+      // Settling it again would double-post.
+      return { id: inst.paidEntryId ?? "", alreadyPaid: true, contra: null as string | null };
+    }
+    const settledToman = payToman != null && payToman !== "" ? D(payToman) : outstanding;
+    const nextState = applyPartialPayment(balanceRow, settledToman.toFixed(0));
     // Throws (and rolls the whole payment back) rather than leaving a `paid`
     // row without a USD snapshot.
     //
@@ -646,27 +796,41 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     //    EXPENSE bucket — that type is what keeps a planning-only debt payment
     //    out of the expense / cash-flow reports; the liability branch keeps the
     //    historical `installment` type so existing entries stay comparable.
+    //
+    //    DIRECTION drives the SIGN of both legs. For «بدهی من» the cash leg is
+    //    negative (money leaves) and the contra positive; for «طلب من» the two
+    //    are mirrored (money arrives). The legs still sum to zero either way,
+    //    so double entry is preserved by construction rather than by two
+    //    hand-written branches that could drift apart.
+    const cashLeg = paymentUsd.mul(String(sign));
+    const partialNote = nextState.status === INSTALLMENT_PARTIAL ? " (پرداخت بخشی)" : "";
     const entry = await postEntry(
       {
         entryDate: todayIso(),
         type: contraIsExpense ? "debt_repayment" : "installment",
-        description: `پرداخت قسط ${inst.seq} — ${debt.title}`,
+        description: receivable
+          ? `دریافت قسط ${inst.seq} — ${debt.title}${partialNote}`
+          : `پرداخت قسط ${inst.seq} — ${debt.title}${partialNote}`,
         userId: u,
         postings: [
           {
             accountId: cashAccountId,
             assetId: cashUnits.assetId,
-            quantity: D(cashUnits.quantity).neg().toString(),
-            baseValue: paymentUsd.neg().toString(),
+            quantity: D(cashUnits.quantity).mul(String(sign)).toString(),
+            baseValue: cashLeg.toString(),
           },
           {
             accountId: contraAccountId,
             assetId: contraUnits.assetId,
-            quantity: contraUnits.quantity,
-            baseValue: paymentUsd.toString(),
+            quantity: D(contraUnits.quantity).mul(String(-sign)).toString(),
+            baseValue: cashLeg.neg().toString(),
             memo: contraIsExpense
-              ? `بدهیِ بدون حساب بدهی — خروج وجه در سرفصل «${contraBucketName ?? INSTALLMENT_PAYMENT_NAME}»، نه «هزینه متفرقه»؛ خارج از گزارش هزینه‌ها و خارج از بودجه‌ها`
-              : "کاهش مانده بدهی",
+              ? receivable
+                ? `طلبِ بدون حساب دریافتنی — ورود وجه در سرفصل «${contraBucketName ?? RECEIVABLE_COLLECTION_NAME}»؛ وصول مطالبات است، نه درآمد، و در گزارش درآمد شمرده نمی‌شود`
+                : `بدهیِ بدون حساب بدهی — خروج وجه در سرفصل «${contraBucketName ?? INSTALLMENT_PAYMENT_NAME}»، نه «هزینه متفرقه»؛ خارج از گزارش هزینه‌ها و خارج از بودجه‌ها`
+              : receivable
+                ? "کاهش مانده مطالبات"
+                : "کاهش مانده بدهی",
           },
         ],
       },
@@ -674,24 +838,37 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
     );
 
     // 5) Update installment status + payment metadata (same transaction).
-    //    Toman, FX rate and USD equivalent are frozen here, once, forever.
+    //
+    //    `paid_toman` carries the RUNNING TOTAL from `applyPartialPayment`, so
+    //    two 30M settlements of a 50M installment leave 60M... which is exactly
+    //    what that helper refuses: the second is capped by the remaining 20M
+    //    and the row lands on 50M / `paid`.
+    //
+    //    The FX snapshot freezes the rate of THIS settlement. For a fully
+    //    settled row that is the historical truth, once and forever. A row
+    //    still `partial` keeps the latest settlement's rate; the earlier
+    //    settlements remain recorded, immutably, as their own journal entries —
+    //    the ledger, not this column, is the record of them all.
     await tx
       .update(installments)
       .set({
-        status: "paid",
+        status: nextState.status,
         paidAt: todayIso(),
         paidEntryId: entry.id,
-        paidToman: paymentSnapshot.paidToman,
+        paidToman: nextState.paidToman,
         paidFxRate: paymentSnapshot.paidFxRate,
         paidUsd: paymentSnapshot.paidUsd,
       })
       .where(eq(installments.id, installmentId));
 
-    // 6) Settle the debt once its last pending installment is paid.
+    // 6) Settle the obligation once NOTHING is outstanding on it.
+    //    `partial` counts as outstanding — that is the whole point of the
+    //    status — so a part-paid schedule can never mark its parent settled
+    //    («paid debt with unpaid installments», brief §17).
     const pending = await tx
       .select({ c: sql<number>`count(*)::int` })
       .from(installments)
-      .where(and(eq(installments.debtId, debt.id), eq(installments.status, "pending")));
+      .where(and(eq(installments.debtId, debt.id), sql`${installments.status} <> 'paid'`));
     if ((pending[0]?.c ?? 0) === 0) {
       await tx.update(debts).set({ status: "settled" }).where(eq(debts.id, debt.id));
     }
@@ -704,6 +881,12 @@ export async function payInstallment(installmentId: string, cashAccountId: strin
       ...entry,
       contra: (contraIsExpense ? "expense" : "liability") as "expense" | "liability",
       contraName: contraBucketName,
+      /** Which way the money moved, so the UI can word the confirmation. */
+      direction: receivable ? RECEIVABLE : PAYABLE,
+      /** `partial` when a balance is still owed on this installment. */
+      status: nextState.status,
+      settledToman: nextState.paidToman,
+      remainingToman: nextState.remainingToman,
     };
   });
 }
@@ -855,11 +1038,25 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
     getCurrentNetWorth(userId),
     listPlanned(userId),
     db
-      .select({ inst: installments })
+      // `<> 'paid'` rather than `= 'pending'`: a PARTIAL installment is still
+      // due and must stay in the forecast — dropping it would under-forecast
+      // the month by the part that has NOT been settled.
+      //
+      // The obligation's DIRECTION rides along, because a receivable
+      // installment is money coming IN. Forecasting it as an outflow would
+      // push the projected liquidity down by an amount the user is about to
+      // receive — the sign error the direction field exists to prevent.
+      .select({ inst: installments, direction: debts.direction })
       .from(installments)
       .innerJoin(debts, eq(debts.id, installments.debtId))
-      .where(and(eq(installments.status, "pending"), u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`))
-      .then((rows) => rows.map((r) => r.inst)),
+      .where(
+        and(
+          sql`${installments.status} <> 'paid'`,
+          sql`${debts.deletedAt} is null`,
+          u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`,
+        ),
+      )
+      .then((rows) => rows.map((r) => ({ ...r.inst, direction: r.direction }))),
     db
       .select()
       .from(obligations)
@@ -906,13 +1103,21 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
   }
   for (const i of insts) {
     // Prefer contractual amount_toman; legacy USD installments convert once.
-    const toman =
+    const contractual =
       i.amountToman != null
         ? D(i.amountToman)
         : rate.gt(0)
           ? D(i.amountBase).mul(rate)
           : Decimal.zero();
-    push(i.dueDate, toman, "outflow");
+    // Only what is STILL owed is forecast: a part-settled installment moves
+    // its remainder, not its contractual amount, on its due date.
+    const toman = remainingToman({
+      status: i.status,
+      amountToman: contractual.toFixed(0),
+      paidToman: i.paidToman,
+    });
+    if (!toman.gt(0)) continue;
+    push(i.dueDate, toman, isReceivable(i.direction) ? "inflow" : "outflow");
   }
   for (const o of obls) {
     if (o.status !== "pending") continue;

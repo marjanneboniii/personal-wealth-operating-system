@@ -7,6 +7,7 @@ import {
   getRealizedPnl,
 } from "@/features/ledger/queries";
 import { listDebts, projectCashflow } from "@/features/planning/service";
+import { isReceivable } from "@/features/planning/obligations";
 import { Metric, PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
 import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
@@ -33,6 +34,11 @@ export default async function ReportsPage() {
 
   const rate = fx.rate;
   const toIrt = (usd: string | number) => toIrtMoney(usd, rate);
+
+  // «بدهی و بازپرداخت» is about what the user OWES. Receivables come back from
+  // the same service (one obligation model, two directions) and are filtered
+  // out here rather than netted — netting would report neither correctly.
+  const payableDebts = debts.filter((d) => !isReceivable(d.direction));
 
   /* EXPENSE / INCOME KPIs — from ENTRIES, not from account balances (audit
      F-1, 2026-09-07). A repayment of a debt that has no ledger liability
@@ -228,10 +234,16 @@ export default async function ReportsPage() {
           </div>
         </Section>
 
-        {/* Debt report */}
+        {/* Debt report — PAYABLES ONLY.
+            `listDebts()` returns both directions of the obligation model, so
+            this section filters. A receivable rendered here would be reported
+            as money the user owes, in the negative hue, under a heading that
+            says «بدهی و بازپرداخت» — the exact mis-statement the direction
+            field exists to prevent. Receivables have their own section on
+            «تعهدات مالی». */}
         <Section title="بدهی و بازپرداخت" action={<SectionLink href="/debts" label="مدیریت بدهی‌ها" />}>
           <ul className="space-y-4">
-            {debts.map((d) => (
+            {payableDebts.map((d) => (
               <li key={d.id}>
                 <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[length:var(--fs-sm)]">
                   <span className="font-medium">{d.title}</span>
@@ -248,7 +260,7 @@ export default async function ReportsPage() {
                 </p>
               </li>
             ))}
-            {!debts.length && <li className="muted py-4 text-center text-xs">بدهی‌ای ثبت نشده است</li>}
+            {!payableDebts.length && <li className="muted py-4 text-center text-xs">بدهی‌ای ثبت نشده است</li>}
           </ul>
           {repaymentsExcluded && (
             <p className="muted num mt-3 text-[length:var(--fs-xs)] leading-5" dir="rtl">

@@ -29,6 +29,7 @@ import type { AssetValuation, PortfolioSummary, ValuationBasis } from "./types";
 import { REAL_ESTATE_LOGO } from "@/features/branding/persianIcons";
 import { resolveAssetLogo } from "@/features/branding/assetLogo";
 import { isOrphanedRwaAssetWithClass } from "@/features/rwa/orphanFilter";
+import { isReceivable } from "@/features/planning/obligations";
 
 /**
  * Vehicle logo. `existing` is the STORED asset logo and always wins, so a
@@ -846,14 +847,42 @@ export async function getCurrentNetWorth(userId?: string) {
   // FUTURE CONTRACTUAL OBLIGATIONS — reporting-only companion, exposed so
   // reports can show «بدهی حسابداری» vs «تعهدات قراردادی آینده» separately.
   // Never folded into net worth.
+  //
+  // DIRECTION SPLIT. `listDebts` now returns BOTH «بدهی من» (payable) and
+  // «طلب من» (receivable) — one obligation model, two ends. Every aggregation
+  // below must therefore filter by direction: summing them together would net
+  // a receivable against a debt and report neither correctly. A receivable is
+  // an ASSET the user is owed; it can never reduce, or be added to, what they
+  // owe.
+  const payables = (debts as any[]).filter((d) => !isReceivable((d as any).direction));
+  const receivables = (debts as any[]).filter((d) => isReceivable((d as any).direction));
+
   let futureObligationsUsd = Decimal.zero();
   let futureObligationsToman = Decimal.zero();
-  for (const d of debts as any[]) {
+  for (const d of payables) {
     const outUsd = D((d as any).outstandingUsd ?? (d as any).outstandingBase ?? "0");
     const outToman = (d as any).outstandingToman != null ? D((d as any).outstandingToman) : null;
     futureObligationsUsd = futureObligationsUsd.add(outUsd);
     futureObligationsToman = futureObligationsToman.add(outToman ?? outUsd.mul(rate));
   }
+
+  // ── TOTAL RECEIVABLES — «کل مطالبات» ──────────────────────────────────
+  // What other people owe the user, outstanding. Reported alongside the debt
+  // figure and NEVER folded into it, into net worth, or into any expense KPI.
+  //
+  // It stays out of net worth for exactly the reason a planning-only debt does:
+  // until the money is actually collected through the ledger, it is a
+  // contractual expectation, not a booked asset. Counting it would inflate net
+  // worth by money that has not arrived — the mirror of the liability-
+  // separation invariant this codebase already established.
+  let totalReceivableToman = Decimal.zero();
+  for (const d of receivables) {
+    const rawToman = (d as any).outstandingToman;
+    const toman = rawToman != null && rawToman !== "" ? D(rawToman) : null;
+    const usd = D((d as any).outstandingUsd ?? (d as any).outstandingBase ?? "0");
+    totalReceivableToman = totalReceivableToman.add(toman ?? usd.mul(rate));
+  }
+  const totalReceivableUsd = totalReceivableToman.div(rate);
 
   // ── TOTAL DEBT — the human-facing «کل بدهی‌ها» ────────────────────────────
   // BUG THIS FIXES: the overview's «کل بدهی‌ها» tile read ONLY the ledger
@@ -873,13 +902,17 @@ export async function getCurrentNetWorth(userId?: string) {
   // Net worth deliberately keeps the ACCOUNTING figure above: an unbooked
   // planning debt must not reduce net worth before its proceeds exist in the
   // ledger (that is the invariant the liability-separation fix established).
+  //
+  // Receivables are excluded here by construction — `payables` only. «کل
+  // بدهی‌ها» answers «چقدر بدهکارم؟», and money owed TO the user is not an
+  // answer to that question in either sign.
   const debtAccountIds = new Set(
-    (debts as any[])
+    payables
       .map((d) => (d as any).accountId)
       .filter((id): id is string => typeof id === "string" && id !== ""),
   );
   let registeredDebtToman = Decimal.zero();
-  for (const d of debts as any[]) {
+  for (const d of payables) {
     const rawToman = (d as any).outstandingToman;
     const toman = rawToman != null && rawToman !== "" ? D(rawToman) : null;
     const usd = D((d as any).outstandingUsd ?? (d as any).outstandingBase ?? "0");
@@ -913,6 +946,14 @@ export async function getCurrentNetWorth(userId?: string) {
      */
     totalDebtUsd: totalDebtUsd.toFixed(6),
     totalDebtToman: totalDebtToman.toFixed(0),
+    /**
+     * «کل مطالبات» — what others owe the user, outstanding. A reporting
+     * companion to `totalDebt*`, deliberately NOT netted against it and NOT
+     * part of `netWorth`: an uncollected receivable is a contractual
+     * expectation until the ledger records the money arriving.
+     */
+    totalReceivableUsd: totalReceivableUsd.toFixed(6),
+    totalReceivableToman: totalReceivableToman.toFixed(0),
     netWorth: D(valuation.totalNetWorth).sub(totalLiabilitiesUsd).toString(),
     netWorthToman: D(valuation.totalNetWorthToman).sub(totalLiabilitiesToman).toFixed(0),
     liquid: liquid.toString(),

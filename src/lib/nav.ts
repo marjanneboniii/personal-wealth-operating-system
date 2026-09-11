@@ -134,6 +134,34 @@ export const NAV_GROUPS: NavGroup[] = [
         keywords: ["rwa", "real estate", "vehicle", "gold", "ملک", "خودرو", "طلا", "ارزش‌گذاری"],
       },
       {
+        /**
+         * «ثبت صندوق و سهام» — the page and its registrar
+         * (components/funds/InstrumentRegistrar) were fully built, but the
+         * route had NO entry here, so the only way in was the onboarding
+         * checklist (features/onboarding/categories). A user who dismissed or
+         * finished onboarding could not reach it again from anywhere in the
+         * product, which read as «the feature is missing» when it was only
+         * unlinked. Nothing about the registrar changes — this is the missing
+         * navigation, not a new implementation.
+         */
+        href: "/funds",
+        label: "ثبت صندوق و سهام",
+        icon: "chart",
+        question: "صندوق یا سهم جدیدم را کجا ثبت کنم؟",
+        keywords: [
+          "fund",
+          "etf",
+          "stock",
+          "equity",
+          "صندوق",
+          "سهام",
+          "سهم",
+          "طلا",
+          "درآمد ثابت",
+          "ثبت صندوق",
+        ],
+      },
+      {
         href: "/portfolio",
         label: "سبد دارایی",
         icon: "pie",
@@ -169,17 +197,31 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "debt",
-    label: "بدهی",
+    // «تعهدات مالی» — the domain now covers BOTH directions of an obligation:
+    // money the user owes («بدهی‌های من») and money owed to them
+    // («مطالبات من»). The old label «بدهی» named only one half of what the
+    // section contains.
+    label: "تعهدات مالی",
     icon: "debts",
     module: "commitments",
     collapsible: true,
     items: [
       {
         href: "/debts",
-        label: "بدهی‌ها",
+        label: "بدهی‌ها و مطالبات",
         icon: "debts",
-        question: "چقدر بدهکارم؟",
-        keywords: ["debt", "liabilities", "بدهی"],
+        question: "چقدر بدهکارم و چقدر طلب دارم؟",
+        keywords: [
+          "debt",
+          "liabilities",
+          "receivable",
+          "بدهی",
+          "طلب",
+          "مطالبات",
+          "تعهد",
+          "بستانکار",
+          "بدهکار",
+        ],
       },
       {
         href: "/debts/loans",
@@ -378,7 +420,7 @@ export const MOBILE_TABS: { href: string; label: string; icon: IconName; match?:
     module: "wealth",
     match: ["/assets", "/portfolio", "/crypto", "/asset-registry"],
   },
-  { href: "/debts", label: "بدهی", icon: "debts", module: "commitments", match: ["/debts", "/installments"] },
+  { href: "/debts", label: "تعهدات", icon: "debts", module: "commitments", match: ["/debts", "/installments"] },
   { href: "/net-worth", label: "ثروت", icon: "networth", module: "wealth", match: ["/net-worth"] },
 ];
 

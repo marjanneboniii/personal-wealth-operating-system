@@ -28,6 +28,7 @@ import { validateAccountOwnership } from "@/lib/validation";
 import {
   ensureFeeExpenseAccount,
   ensureInstallmentPaymentAccount,
+  ensureReceivableCollectionAccount,
   ensureRealizedPnlAccount,
   resolveExpenseCounterAccount,
 } from "@/features/accounts/systemAccounts";
@@ -37,6 +38,18 @@ import {
   assertJournalEntryOwnership,
 } from "@/lib/accessControl";
 import { recordAuditEvent } from "@/lib/audit";
+import {
+  createDebtRecord,
+  resolveScheduleInput,
+  validateDebtInput,
+  type CreateDebtInput,
+} from "@/features/planning/createDebt";
+import {
+  applyPartialPayment,
+  generateDueDates,
+  isReceivable,
+  settlementSign,
+} from "@/features/planning/obligations";
 import { D, Decimal } from "@/domain/decimal";
 import {
   postEntry,
@@ -62,7 +75,7 @@ import { rootCauseOf } from "@/db/init-schema";
 import { registerMoneyAccount } from "@/features/accounts/service";
 import { createPortfolioSnapshot, getCurrentNetWorth, getPortfolioValuation } from "@/features/portfolio/service";
 import { getAnalyticsSummary, recordAnalyticsRun } from "@/features/analytics/service";
-import { addMonthsIso, todayIso } from "@/lib/format";
+import { formatMoney, todayIso } from "@/lib/format";
 
 export type ActionResult = { ok: boolean; message: string };
 
@@ -617,14 +630,27 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           else entry = await recordExpense(cmd, tx);
         }
       } else if (input.type === "debt_repayment") {
-        // Debt principal repayment — by design NOT an expense:
-        //  - debt WITH a liability account: cash ↓ / liability ↓ (net worth
+        // Settlement of an obligation — by design NOT an expense, and NOT
+        // income:
+        //  - payable WITH a liability account: cash ↓ / liability ↓ (net worth
         //    effect only, excluded from every expense report);
-        //  - planning-only debt (no liability account yet): the outflow is
+        //  - planning-only payable (no liability account yet): the outflow is
         //    booked against the dedicated «پرداخت اقساط» bucket (5960) so the
         //    money stays tracked, and the entry type remains 'debt_repayment',
-        //    which keeps it out of expense / cash-flow / budget aggregations.
+        //    which keeps it out of expense / cash-flow / budget aggregations;
+        //  - RECEIVABLE («طلب من»): every sign above is mirrored — cash ↑ and
+        //    the credit lands on the income-typed «دریافت مطالبات» bucket
+        //    (4960). The same excluded entry type covers it, because the
+        //    exclusion was already symmetric (`acc_type = 'income' and
+        //    entry_type not in ('debt_repayment')`), so collecting a
+        //    receivable is never reported as earnings.
+        //
+        // DIRECTION IS READ FROM THE OBLIGATION ROW (`linkedDebt`), never from
+        // the client. A caller that could name the direction could post a
+        // receipt against a debt and invert the cash leg.
         if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
+        const collecting = isReceivable(linkedDebt?.direction);
+        const sign = settlementSign(linkedDebt?.direction);
         const cashAsset = await accountAsset(input.primaryAccountId);
         const price = await latestPrice(cashAsset, authUser?.id ?? null);
         const qty = amount.div(price).toString();
@@ -632,8 +658,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           {
             accountId: input.primaryAccountId,
             assetId: cashAsset,
-            quantity: D(qty).neg().toString(),
-            baseValue: amount.neg().toString(),
+            quantity: D(qty).mul(String(sign)).toString(),
+            baseValue: amount.mul(String(sign)).toString(),
           },
         ];
         if (linkedDebt?.accountId) {
@@ -642,8 +668,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           lines.push({
             accountId: linkedDebt.accountId,
             assetId: debtAsset,
-            quantity: amount.div(debtPrice).toString(),
-            baseValue: amount.toString(),
+            quantity: amount.div(debtPrice).mul(String(-sign)).toString(),
+            baseValue: amount.mul(String(-sign)).toString(),
           } as any);
           entry = await postEntry(
             {
@@ -665,19 +691,28 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           // knows the debt — the bucket is resolved and provisioned
           // server-side, exactly like the Quick Pay path, so the two entry
           // points can never classify the same movement differently.
-          const contraAccountId = isUuid(input.counterAccountId)
-            ? input.counterAccountId
-            : ((await ensureInstallmentPaymentAccount(authUser?.id ?? null, tx))?.id ?? null);
+          //
+          // A COLLECTION always resolves its own 4960 bucket server-side and
+          // ignores any client-supplied counter account: the form only ever
+          // prefills expense rows for this entry type, and an expense leg on
+          // an inflow would post the wrong side of the chart.
+          const contraAccountId = collecting
+            ? ((await ensureReceivableCollectionAccount(authUser?.id ?? null, tx))?.id ?? null)
+            : isUuid(input.counterAccountId)
+              ? input.counterAccountId
+              : ((await ensureInstallmentPaymentAccount(authUser?.id ?? null, tx))?.id ?? null);
           if (!contraAccountId) {
             throw new Error(
-              "این بدهی حساب بدهی جداگانه ندارد و سرفصل «پرداخت اقساط» هم ساخته نشد؛ در «تنظیمات ← حساب‌ها» یک حساب هزینه بسازید.",
+              collecting
+                ? "این طلب حساب دریافتنی جداگانه ندارد و سرفصل «دریافت مطالبات» هم ساخته نشد؛ در «تنظیمات ← حساب‌ها» یک حساب درآمد بسازید."
+                : "این بدهی حساب بدهی جداگانه ندارد و سرفصل «پرداخت اقساط» هم ساخته نشد؛ در «تنظیمات ← حساب‌ها» یک حساب هزینه بسازید.",
             );
           }
           lines.push({
             accountId: contraAccountId,
             assetId: cashAsset,
-            quantity: qty,
-            baseValue: amount.toString(),
+            quantity: D(qty).mul(String(-sign)).toString(),
+            baseValue: amount.mul(String(-sign)).toString(),
           } as any);
           entry = await postEntry(
             {
@@ -822,22 +857,49 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           amountToman: irtAmountStr,
           fxRate: serverRate.toString(),
         });
+        // PARTIAL SETTLEMENT. The form lets the user type ANY amount, so this
+        // path could previously flip a row to `paid` after a payment that
+        // covered a fraction of it — the balance then vanished from every
+        // total while the user still owed it. The shared helper decides the
+        // resulting state from what was actually settled (and refuses an
+        // over-payment), so the form and Quick Pay can never disagree about
+        // what an amount means.
+        const contractualToman =
+          linkedInst.amountToman != null
+            ? D(linkedInst.amountToman).toFixed(0)
+            : serverRate.gt(0)
+              ? D(linkedInst.amountBase).mul(serverRate).toFixed(0)
+              : null;
+        if (!contractualToman) {
+          throw new Error("نرخ تبدیل دلار به تومان برای ثبت پرداخت این قسط موجود نیست.");
+        }
+        const nextState = applyPartialPayment(
+          {
+            status: linkedInst.status,
+            amountToman: contractualToman,
+            paidToman: linkedInst.paidToman,
+          },
+          paymentSnapshot.paidToman,
+        );
         await tx
           .update(installments)
           .set({
-            status: "paid",
+            status: nextState.status,
             paidAt: input.entryDate,
             paidEntryId: entry.id,
-            paidToman: paymentSnapshot.paidToman,
+            // A RUNNING TOTAL, not this payment alone.
+            paidToman: nextState.paidToman,
             paidFxRate: paymentSnapshot.paidFxRate,
             paidUsd: paymentSnapshot.paidUsd,
           })
           .where(eq(installments.id, linkedInst.id));
-        // Check if debt settled
+        // Settle the obligation only when NOTHING is outstanding. `partial`
+        // counts as outstanding, so a part-paid schedule can never mark its
+        // parent settled.
         const pending = await tx
           .select({ c: sql<number>`count(*)::int` })
           .from(installments)
-          .where(and(eq(installments.debtId, linkedInst.debtId), eq(installments.status, "pending")));
+          .where(and(eq(installments.debtId, linkedInst.debtId), sql`${installments.status} <> 'paid'`));
         if ((pending[0]?.c ?? 0) === 0) {
           await tx.update(debts).set({ status: "settled" }).where(eq(debts.id, linkedInst.debtId));
         }
@@ -969,7 +1031,20 @@ export async function executePlanAction(id: string): Promise<ActionResult> {
   }
 }
 
-export async function payInstallmentAction(id: string, cashAccountId: string): Promise<ActionResult> {
+/**
+ * Settle an installment — «پرداخت قسط» for a debt, «ثبت دریافت» for a
+ * receivable. The direction is read from the OBLIGATION inside the transaction,
+ * never from the caller: a client that could name the direction could post a
+ * receipt against a debt and invert the cash leg.
+ *
+ * `payToman` settles part of the row; omitted, it settles the whole remaining
+ * balance (the historical behaviour).
+ */
+export async function payInstallmentAction(
+  id: string,
+  cashAccountId: string,
+  payToman?: string,
+): Promise<ActionResult> {
   // Auth guard — FAIL-CLOSED
   let user: any = null;
   try {
@@ -1001,20 +1076,44 @@ export async function payInstallmentAction(id: string, cashAccountId: string): P
     }
     // SECURITY (M-03): tenant id flows into the service so ownership is also
     // verified at the DB query level inside the atomic payment transaction.
-    const paid = (await payInstallment(id, cashAccountId, user?.id ?? undefined)) as {
+    const paid = (await payInstallment(id, cashAccountId, user?.id ?? undefined, payToman)) as {
       id?: string;
       alreadyPaid?: boolean;
       contra?: "expense" | "liability" | null;
       /** name of the chart row that received the outflow, when it was not a
        *  liability account (the message must name it, not a hardcoded label). */
       contraName?: string | null;
+      direction?: string;
+      status?: string;
+      remainingToman?: string;
     };
     refreshAll();
     // The message follows the ACCOUNTING FACT, not a generic success string:
     // a planning-only debt has no liability account, so the outflow landed on
     // the expense bucket — the user must be told, because they never chose it.
     if (paid?.alreadyPaid) {
-      return { ok: true, message: "این قسط پیش‌تر پرداخت شده بود؛ ثبت تکراری انجام نشد." };
+      return { ok: true, message: "این قسط پیش‌تر تسویه شده بود؛ ثبت تکراری انجام نشد." };
+    }
+
+    const receivable = paid?.direction === "receivable";
+    const verb = receivable ? "دریافت" : "پرداخت";
+    // A part settlement must say what is LEFT. «پرداخت شد» on a row that still
+    // owes 20 million is the single most misleading thing this screen could say.
+    if (paid?.status === "partial") {
+      const left = paid.remainingToman ? formatMoney(paid.remainingToman, "IRT") : "";
+      return {
+        ok: true,
+        message: `${verb} بخشی از قسط ثبت شد${left ? ` · باقی‌مانده این قسط: ${left}` : ""}.`,
+      };
+    }
+    if (receivable) {
+      return {
+        ok: true,
+        message:
+          paid?.contra === "expense"
+            ? `دریافت ثبت و به حساب اضافه شد. این طلب حساب دریافتنی جداگانه ندارد، پس ورود وجه در سرفصل «${paid.contraName ?? "دریافت مطالبات"}» بایگانی شد — وصول مطالبات است، نه درآمد؛ در گزارش درآمد شمارش نمی‌شود.`
+            : "دریافت ثبت و مانده مطالبات به‌روزرسانی شد.",
+      };
     }
     return {
       ok: true,
@@ -1029,29 +1128,45 @@ export async function payInstallmentAction(id: string, cashAccountId: string): P
 }
 
 const debtSchema = z.object({
-  title: z.string().trim().min(2, "عنوان بدهی را وارد کنید").max(160),
-  creditor: z.string().trim().min(2, "نام بستانکار را وارد کنید").max(160),
-  principalIrt: z.string().min(1, "اصل بدهی را وارد کنید"),
+  title: z.string().trim().min(2, "عنوان را وارد کنید").max(160),
+  creditor: z.string().trim().min(2, "نام طرف مقابل را وارد کنید").max(160),
+  principalIrt: z.string().min(1, "مبلغ را وارد کنید"),
   interestRate: z.string().optional().default("0"),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاریخ شروع را انتخاب کنید"),
+  /** «بدهی من» یا «طلب من» — سمت تعهد، نه صرفاً برچسب. */
+  direction: z.enum(["payable", "receivable"]).optional().default("payable"),
   installmentCount: z.string().optional().default("0"),
+  /** فاصله اقساط به ماه: ۱ (ماهانه) تا ۶. */
+  intervalMonths: z.string().optional().default("1"),
   installmentIrt: z.string().optional().default(""),
   firstDueDate: z.string().optional().default(""),
+  /**
+   * زمان‌بندی سفارشی — تاریخ مستقل هر قسط، جدا شده با کاما.
+   * هیچ فاصله ثابتی از آن استنتاج نمی‌شود؛ همان تاریخ‌ها ذخیره می‌شوند.
+   */
+  customDueDates: z.string().optional().default(""),
 });
 
 /**
- * Defines a debt and its repayment schedule in the planning layer.
+ * Defines a financial obligation — «بدهی من» or «طلب من» — and its repayment
+ * schedule in the planning layer.
  *
- * Deliberately does not call postEntry(): defining a future obligation is not
- * a cash movement. The immutable ledger changes only when the user records an
- * actual financial transaction or pays an installment through its existing
- * accounting path.
+ * Deliberately does not call postEntry(): recording a future obligation is not
+ * a cash movement, in EITHER direction. The immutable ledger changes only when
+ * the user records an actual transaction or settles an installment through its
+ * existing accounting path.
+ *
+ * The write itself is delegated to `createDebtRecord` — the same core the
+ * setup wizard uses. This action previously carried its own copy of the Toman
+ * truth, the USD snapshot, the FX freeze and the schedule generator; the two
+ * copies were already drifting (only one of them learned about custom
+ * schedules), so there is now exactly one.
  */
 export async function createDebtAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   try {
     const user = await getCurrentUser();
     const hasAuth = await authUsersExistCached();
-    if (hasAuth && !user) return { ok: false, message: "برای تعریف بدهی ابتدا وارد شوید." };
+    if (hasAuth && !user) return { ok: false, message: "برای ثبت تعهد ابتدا وارد شوید." };
 
     const raw = Object.fromEntries(fd) as Record<string, string>;
     const value = debtSchema.parse({
@@ -1060,95 +1175,62 @@ export async function createDebtAction(_prev: ActionResult | null, fd: FormData)
       principalIrt: raw.principalIrt ?? "",
       interestRate: raw.interestRate ?? "0",
       startDate: raw.startDate ?? "",
+      direction: raw.direction === "receivable" ? "receivable" : "payable",
       installmentCount: raw.installmentCount ?? "0",
+      intervalMonths: raw.intervalMonths ?? "1",
       installmentIrt: raw.installmentIrt ?? "",
       firstDueDate: raw.firstDueDate ?? "",
+      customDueDates: raw.customDueDates ?? "",
     });
 
-    const principalIrt = D(value.principalIrt);
-    const interestRate = D(value.interestRate || "0");
-    const count = Number(value.installmentCount || "0");
-    if (!principalIrt.gt(0)) throw new Error("اصل بدهی باید بزرگ‌تر از صفر باشد.");
-    if (interestRate.isNegative() || interestRate.gt(100)) throw new Error("نرخ سود باید بین صفر تا ۱۰۰ درصد باشد.");
-    if (!Number.isInteger(count) || count < 0 || count > 360) throw new Error("تعداد اقساط باید بین صفر تا ۳۶۰ باشد.");
-    if (count > 0 && !value.firstDueDate) throw new Error("برای بدهی قسطی، تاریخ اولین سررسید را انتخاب کنید.");
-    if (count > 0 && value.firstDueDate < value.startDate) throw new Error("اولین سررسید نمی‌تواند قبل از تاریخ شروع بدهی باشد.");
-    if (count > 0 && value.installmentIrt && !D(value.installmentIrt).gt(0)) throw new Error("مبلغ هر قسط باید بزرگ‌تر از صفر باشد.");
+    const customDueDates = value.customDueDates
+      .split(",")
+      .map((d) => d.trim())
+      .filter(Boolean);
 
-    const installmentIrt = count > 0
-      ? value.installmentIrt && D(value.installmentIrt).gt(0)
-        ? D(value.installmentIrt)
-        : principalIrt.div(String(count))
-      : D("0");
-    if (count > 0 && !installmentIrt.gt(0)) throw new Error("مبلغ هر قسط باید بزرگ‌تر از صفر باشد.");
+    const input: CreateDebtInput = {
+      userId: user?.id ?? null,
+      title: value.title,
+      creditor: value.creditor,
+      principalIrt: value.principalIrt,
+      interestRate: value.interestRate || "0",
+      startDate: value.startDate,
+      direction: value.direction,
+      installmentCount: Number(value.installmentCount || "0"),
+      intervalMonths: Number(value.intervalMonths || "1"),
+      installmentIrt: value.installmentIrt,
+      firstDueDate: value.firstDueDate,
+      customDueDates,
+    };
+
+    // Validate BEFORE touching FX or the database, so a malformed schedule
+    // costs neither a rate lookup nor a rolled-back transaction.
+    const invalid = validateDebtInput(input);
+    if (invalid) throw new Error(invalid);
 
     const fx = user ? await getLatestUsdIrtRateForUser(user.id) : await getLatestUsdIrtRate();
-    const rate = D(fx.rate);
-    if (!rate.gt(0)) throw new Error("نرخ تبدیل دلار به تومان برای ثبت این بدهی موجود نیست.");
 
-    // Phase 3 — contractual Toman amount is the SOURCE OF TRUTH.
-    // `principal_toman` / `amount_toman` store the exact entered Toman.
-    // USD values below are: a creation-time snapshot (audit) + a legacy
-    // dual-write for backward compatibility. Neither is authoritative.
-    const principalToman = principalIrt.toString();
-    const principalUsdCreated = principalIrt.div(rate).toString();
-    const installmentToman = installmentIrt.toString();
-    const installmentUsdCreated = installmentIrt.div(rate).toString();
-    // Legacy dual-write (kept ONLY for Phase 4 migration compatibility).
-    const principalBase = principalUsdCreated;
-    const installmentBase = installmentUsdCreated;
-    // Creation-time FX snapshot of the installment schedule. Frozen: a later
-    // rate change never rewrites it, it only moves the DERIVED current
-    // equivalent shown for a pending installment.
-    const installmentOriginalFxRate = rate.toString();
-    const installmentOriginalFxCapturedAt = new Date();
+    const schedule = resolveScheduleInput(input);
+    const count = schedule ? generateDueDates(schedule).length : 0;
+    const receivable = value.direction === "receivable";
+    const noun = receivable ? "طلب" : "بدهی";
 
-    const debt = await db.transaction(async (tx) => {
-      const [created] = await tx
-        .insert(debts)
-        .values({
-          userId: user?.id ?? null,
-          creditor: value.creditor,
-          title: value.title,
-          principalBase,
-          principalToman,
-          principalUsdCreated,
-          interestRate: interestRate.toString(),
-          startDate: value.startDate,
-          // A planning-only debt has no ledger account by design. This keeps
-          // the accounting core untouched until a real movement is recorded.
-          accountId: null,
-          status: "active",
-        } as any)
-        .returning();
-
-      if (count > 0 && value.firstDueDate) {
-        await tx.insert(installments).values(
-          Array.from({ length: count }, (_, index) => ({
-            debtId: created.id,
-            seq: index + 1,
-            dueDate: addMonthsIso(value.firstDueDate, index),
-            amountBase: installmentBase,
-            amountToman: installmentToman,
-            amountUsdCreated: installmentUsdCreated,
-            originalFxRate: installmentOriginalFxRate,
-            originalFxRateCapturedAt: installmentOriginalFxCapturedAt,
-            status: "pending",
-          })),
-        );
-      }
-      return created;
-    });
+    const debtId = await db.transaction(async (tx) =>
+      createDebtRecord(input, { usdIrtRate: fx.rate, tx: tx as unknown as typeof db }),
+    );
 
     await recordAuditEvent({
       action: "CREATE_DEBT",
       entityType: "debt",
-      entityId: debt.id,
+      entityId: debtId,
       userId: user?.id ?? null,
       result: "SUCCESS",
       payload: {
         title: value.title,
         creditor: value.creditor,
+        direction: value.direction,
+        scheduleKind: schedule?.kind ?? null,
+        scheduleIntervalMonths: schedule?.kind === "recurring" ? schedule.intervalMonths : null,
         installmentCount: count,
         rateSource: fx.source,
         rateDate: fx.effectiveDate,
@@ -1160,11 +1242,11 @@ export async function createDebtAction(_prev: ActionResult | null, fd: FormData)
     return {
       ok: true,
       message: count > 0
-        ? `بدهی و برنامه ${count} قسط با موفقیت ثبت شد؛ دفترکل و حسابداری تغییری نکرد.`
-        : "بدهی با موفقیت ثبت شد؛ دفترکل و حسابداری تغییری نکرد.",
+        ? `${noun} و برنامه ${count} قسط با موفقیت ثبت شد؛ دفترکل و حسابداری تغییری نکرد.`
+        : `${noun} با موفقیت ثبت شد؛ دفترکل و حسابداری تغییری نکرد.`,
     };
   } catch (e) {
-    const msg = e instanceof z.ZodError ? e.issues[0]?.message : e instanceof Error ? e.message : "خطا در ثبت بدهی";
+    const msg = e instanceof z.ZodError ? e.issues[0]?.message : e instanceof Error ? e.message : "خطا در ثبت تعهد";
     return { ok: false, message: msg };
   }
 }
