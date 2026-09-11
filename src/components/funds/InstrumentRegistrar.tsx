@@ -18,6 +18,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Icon from "@/components/ui/Icon";
 import { registerInstrumentAction } from "@/app/actions/funds";
+import { FUND_KIND_MARKS } from "@/components/ui/AssetTypeMarks";
 import {
   FUND_KIND_LABELS,
   searchFunds,
@@ -34,6 +35,21 @@ const KIND_TABS: { key: FundKind | "all"; label: string }[] = [
 ];
 
 type Registered = { symbol: string; name: string; created: boolean };
+
+/** Plate-wrapped kind mark, so every row shares one 30px silhouette. */
+function FundKindMark({ kind, size }: { kind: FundKind; size: number }) {
+  const Mark = FUND_KIND_MARKS[kind];
+  if (!Mark) return null;
+  return (
+    <span
+      className="inline-flex shrink-0 overflow-hidden"
+      style={{ width: size, height: size, borderRadius: Math.round(size * 0.28) }}
+      aria-hidden="true"
+    >
+      <Mark size={size} />
+    </span>
+  );
+}
 
 export default function InstrumentRegistrar() {
   const [kind, setKind] = useState<FundKind | "all">("all");
@@ -176,6 +192,10 @@ export default function InstrumentRegistrar() {
                   className="card flex w-full items-center gap-3 p-3 text-right hover:bg-[color:var(--hover)]"
                   onClick={() => setSelected(fund)}
                 >
+                  {/* The mark says what the fund HOLDS — the distinction a
+                      reader actually needs when scanning. No issuer logo
+                      conveys it, and none exists for these 58 funds anyway. */}
+                  <FundKindMark kind={fund.kind} size={30} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[length:var(--fs-sm)] font-semibold">
                       {fund.name}
