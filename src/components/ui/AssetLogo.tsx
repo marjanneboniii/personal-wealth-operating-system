@@ -25,6 +25,7 @@ import {
   TOMAN_LOGO,
 } from "@/features/branding/persianIcons";
 import TomanIcon from "@/components/ui/TomanIcon";
+import { RealEstateMark, VehicleMark } from "@/components/ui/AssetTypeMarks";
 
 function localFallback(assetType: string): string {
   if (assetType === "vehicle") return DEFAULT_AUTO_LOGO;
@@ -78,6 +79,27 @@ export default function AssetLogo({
     );
   }
 
+  /*
+   * The two hand-registered real-world classes get their own inline mark
+   * whenever no brand artwork applies. Three quarters of the vehicle catalogue
+   * (every imported marque — تویوتا, کیا, هیوندای, بنز …) has no brand logo at
+   * all, so this mark — not a brand emblem — is what most users actually see
+   * next to their car. Inline, so a list of assets costs no extra requests.
+   */
+  if (resolved.src === DEFAULT_AUTO_LOGO || resolved.src === REAL_ESTATE_LOGO) {
+    const Mark = resolved.src === DEFAULT_AUTO_LOGO ? VehicleMark : RealEstateMark;
+    return (
+      <span
+        className={`inline-flex shrink-0 overflow-hidden ${className}`}
+        style={{ width: size, height: size, borderRadius }}
+        role="img"
+        aria-label={alt}
+      >
+        <Mark size={size} />
+      </span>
+    );
+  }
+
   return (
     /* eslint-disable-next-line @next/next/no-img-element */
     <img
@@ -95,7 +117,16 @@ export default function AssetLogo({
         height: size,
         borderRadius,
         objectFit: "contain",
-        background: "var(--surface, #fff)",
+        /*
+         * Brand artwork (automaker emblems, bank marks, token logos) is drawn
+         * for a LIGHT background. Plating it with `var(--surface)` meant that
+         * on the dark theme the plate went dark too, and any dark-inked emblem
+         * disappeared — «بهمن موتور», a grey chevron, was effectively invisible
+         * in a dark asset list. The plate is therefore always light, which also
+         * gives every row in a mixed list the same 28px silhouette.
+         */
+        background: "#fff",
+        padding: Math.max(1, Math.round(size * 0.08)),
       }}
       // Remote CoinGecko artwork may fail offline; fall back once to a local
       // mark. `failed` short-circuits further attempts, so there is no loop.

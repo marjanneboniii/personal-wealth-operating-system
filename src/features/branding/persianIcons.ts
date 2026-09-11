@@ -572,7 +572,14 @@ export function getCryptoLogoByCoinGeckoId(coingeckoId: string | null | undefine
 
 export const DEFAULT_INSTITUTION_LOGO = `${BASE}/defaults/bank.svg`;
 export const DEFAULT_AUTO_LOGO = `${BASE}/defaults/automobile.svg`;
-export const TOMAN_LOGO = `${BASE}/defaults/toman.png`;
+/*
+ * SVG, not PNG. This was a 1024×1024 PNG weighing 1.02 MB — for a mark that
+ * renders at 28px. `logoForSymbol` hands this path out for the IRT symbol, so
+ * it can be persisted as an asset's logo_url and end up in an <img> anywhere;
+ * AssetLogo happens to intercept it and draw TomanIcon inline, but nothing
+ * guarantees the next call site will. The SVG is the same artwork at 0.4 KB.
+ */
+export const TOMAN_LOGO = `${BASE}/defaults/toman.svg`;
 export const USD_LOGO = `${BASE}/defaults/usd.svg`;
 /** Neutral placeholder — the last resort of every resolution chain. */
 export const DEFAULT_ASSET_LOGO = `${BASE}/defaults/asset.svg`;

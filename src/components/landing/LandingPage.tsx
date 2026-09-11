@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import AnimatedAmount from "@/components/landing/AnimatedAmount";
 import LandingAmbience from "@/components/landing/LandingAmbience";
@@ -16,7 +17,12 @@ const PREVIEW_SAMPLE = {
   debts: "۵۵٬۰۰۰٬۰۰۰ تومان",
   liquidity: "۳۵٬۰۰۰٬۰۰۰ تومان",
   delta: "۴٬۲۰۰٬۰۰۰ تومان",
-  deltaPct: "(٪۳٫۵)",
+  // «۳.۵٪», never «(٪۳٫۵)». The app's own number standard (src/lib/format.ts)
+  // puts ٪ AFTER the digits and uses an ASCII "." as the decimal mark — the
+  // Persian ٫ is banned there because at small sizes it reads as a slash. The
+  // landing is the first number a visitor ever sees from this product, so it
+  // has to be written the way the product writes numbers.
+  deltaPct: "۳.۵٪",
   deltaSince: "از ماه گذشته",
   netWorthUsd: "≈ ۱٬۴۵۳ دلار",
   attention: "قسط وام مسکن، ۳ روز دیگر",
@@ -37,25 +43,35 @@ const OUTCOMES: { icon: IconName; title: string; body: string; tone: "wealth" | 
   { icon: "wallet", title: "نقدینگی", body: "همین امروز بدانید چقدر پول واقعی در دست دارید.", tone: "liquidity" },
 ];
 
-const STEPS: { icon: IconName; title: string; body: string }[] = [
+/*
+ * The steps deliberately carry a NUMBER, not an icon. With icons they rendered
+ * as a third identical row of icon-and-text cards, so a visitor scrolling past
+ * outcomes → steps saw the same block twice and read neither. A numeral also
+ * says the thing the copy is trying to say — that this is a sequence.
+ */
+const STEPS: { title: string; body: string }[] = [
   {
-    icon: "plus",
     title: "دارایی‌ها و بدهی‌هایتان را اضافه کنید",
     body: "هر چیزی — حساب بانکی، ملک، طلا، سرمایه‌گذاری یا وام — را دستی اضافه کنید.",
   },
   {
-    icon: "scale",
     title: "توازن خودش حساب می‌کند",
     body: "ارزش خالص، نقدینگی و روند تغییرات با هر ثبت به‌روز می‌شود.",
   },
   {
-    icon: "overview",
     title: "با یک نگاه تصمیم بگیرید",
     body: "یک داشبورد واحد، بدون نیاز به فرمول‌نویسی یا محاسبه دستی.",
   },
 ];
 
-const FAQ_ITEMS: { question: string; answer: string }[] = [
+/*
+ * Every question and every fact here is kept. What changed is the SHAPE of the
+ * answers: the security answer was one 40-word chain of semicolons that a
+ * worried reader had to parse in a single breath, and its «صفحه حریم خصوصی»
+ * pointed at a page without being a link to it. Answers are ReactNode now, so
+ * that reference is the link it always claimed to be.
+ */
+const FAQ_ITEMS: { question: string; answer: ReactNode }[] = [
   {
     question: "آیا استفاده از توازن رایگان است؟",
     answer: "بله. برای شروع فقط یک حساب کاربری لازم است.",
@@ -67,18 +83,32 @@ const FAQ_ITEMS: { question: string; answer: string }[] = [
   },
   {
     question: "اطلاعات مالی من کجا ذخیره می‌شود و چقدر امن است؟",
-    answer:
-      "روی سرور توازن و مقیّد به حساب کاربری شما؛ بدون ورود در دسترس نیست. رمز عبور هرگز به‌صورت قابل‌خواندن ذخیره نمی‌شود و صفحه‌های مالی در حافظه آفلاین مرورگر باقی نمی‌مانند. جزئیات در صفحه حریم خصوصی.",
+    answer: (
+      <>
+        داده‌های شما روی سرور توازن و مقیّد به حساب کاربری خودتان ذخیره می‌شود؛ بدون ورود، هیچ‌کس به آن
+        دسترسی ندارد. رمز عبور هرگز به‌صورت قابل‌خواندن نگهداری نمی‌شود. صفحه‌های مالی هم در حافظه آفلاین
+        مرورگر باقی نمی‌مانند. جزئیات کامل در{" "}
+        <Link href="/privacy">صفحه حریم خصوصی</Link> آمده است.
+      </>
+    ),
   },
   {
     question: "آیا می‌توانم انواع دارایی را کنار هم داشته باشم — ملک، طلا، ارز دیجیتال؟",
-    answer:
-      "بله. حساب بانکی و کیف پول، ملک، خودرو، طلا، سرمایه‌گذاری و ارز دیجیتال، همه در یک‌جا ثبت و ارزش‌گذاری می‌شوند. قیمت کالاهای مصرفی هم در «ردیاب تورم شخصی» جدا دنبال می‌شود و جزو دارایی‌ها حساب نمی‌شود.",
+    answer: (
+      <>
+        بله. حساب بانکی و کیف پول، ملک، خودرو، طلا، سرمایه‌گذاری و ارز دیجیتال، همه در یک‌جا ثبت و
+        ارزش‌گذاری می‌شوند. قیمت کالاهای مصرفی جدا در «ردیاب تورم شخصی» دنبال می‌شود و جزو دارایی‌ها
+        حساب نمی‌شود.
+      </>
+    ),
   },
 ];
 
 /** Asset kinds the product covers — the same vocabulary the FAQ already uses. */
 const ORBIT_CHIPS = ["حساب بانکی", "ملک", "طلا", "سرمایه‌گذاری", "ارز دیجیتال", "خودرو"];
+
+/** Persian numerals for the steps. Three of them; a loop would cost more. */
+const STEP_NUMERALS = ["۱", "۲", "۳"] as const;
 
 function CtaCluster({ align = "start" }: { align?: "start" | "center" }) {
   return (
@@ -165,7 +195,9 @@ function FaqAccordion() {
   return (
     <div className="landing-faq">
       {FAQ_ITEMS.map((item) => (
-        <details key={item.question} className="landing-faq-item">
+        /* `name` makes these a real accordion — opening one closes the others,
+           natively, with no state and no script. */
+        <details key={item.question} name="landing-faq" className="landing-faq-item landing-reveal">
           <summary>
             <span>{item.question}</span>
             {/* Non-directional in RTL: the chevron rotates, it never mirrors. */}
@@ -199,6 +231,18 @@ export default function LandingPage() {
             <p className="landing-hero-note">بدون نیاز به اتصال حساب بانکی</p>
           </div>
           <div className="landing-orbit">
+            {/*
+              The orbiting chips are a desktop flourish — they need margin the
+              phone layout does not have. But hiding the ring hid the WORDS, and
+              «ملک · طلا · خودرو · ارز دیجیتال» is the fastest answer to "does
+              this cover what I own?" — on the device most visitors arrive with.
+              So below 1100px the same vocabulary returns as a plain wrapped row.
+            */}
+            <ul className="landing-kinds" aria-label="دارایی‌هایی که پوشش داده می‌شود">
+              {ORBIT_CHIPS.map((label) => (
+                <li key={label}>{label}</li>
+              ))}
+            </ul>
             <div className="landing-orbit-ring" aria-hidden="true">
               {ORBIT_CHIPS.map((label, i) => (
                 <span key={label} className="landing-orbit-slot" style={{ ["--i" as string]: i }}>
@@ -218,7 +262,7 @@ export default function LandingPage() {
           </h2>
           <div className="landing-outcomes landing-outcomes-4">
             {OUTCOMES.map((item) => (
-              <article key={item.title} className="landing-benefit">
+              <article key={item.title} className="landing-benefit landing-reveal">
                 <span className={`landing-icon landing-icon-${item.tone}`} aria-hidden="true">
                   <Icon name={item.icon} size={18} />
                 </span>
@@ -238,10 +282,10 @@ export default function LandingPage() {
             شروع، ساده‌تر از یک فایل اکسل.
           </h2>
           <div className="landing-outcomes">
-            {STEPS.map((item) => (
-              <article key={item.title} className="landing-benefit">
+            {STEPS.map((item, i) => (
+              <article key={item.title} className="landing-benefit landing-reveal">
                 <span className="landing-step-index" aria-hidden="true">
-                  <Icon name={item.icon} size={18} />
+                  {STEP_NUMERALS[i]}
                 </span>
                 <div className="min-w-0">
                   <h3 className="landing-benefit-title">{item.title}</h3>

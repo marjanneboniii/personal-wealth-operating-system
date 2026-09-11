@@ -36,12 +36,6 @@
   font-weight: 700;
   font-display: swap;
 }
-@font-face {
-  font-family: "Vazirmatn";
-  src: url("/fonts/Vazirmatn-Black.woff2") format("woff2");
-  font-weight: 900;
-  font-display: swap;
-}
 
 @theme {
   --font-sans: "Vazirmatn", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
@@ -554,8 +548,15 @@ input[type="radio"] {
   transform: none;
 }
 
+/*
+ * The wordmark used to load a FIFTH font file (Vazirmatn Black, 49.8 KB) for
+ * exactly one word — «توازن» — on every page. At the sizes it actually renders
+ * (17px in the header, 14px in the footer) Black and Bold are indistinguishable,
+ * so the file was dropped: a fifth of the font payload, saved on a connection
+ * where each round trip is the expensive part.
+ */
 .brand-wordmark {
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: -0.03em;
   font-family: var(--font-sans);
 }
@@ -2315,6 +2316,9 @@ select.field {
   color: var(--l-investment);
 }
 
+/* Holds a Persian numeral, not an icon — see STEPS in LandingPage.tsx. The
+   round plate and the tabular numeral are what separate this section visually
+   from the outcome cards directly above it. */
 .landing-step-index {
   display: flex;
   height: 2.4rem;
@@ -2322,10 +2326,79 @@ select.field {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: 999px;
   border: 1px solid var(--l-border);
   background: var(--l-surface-raised);
   color: var(--l-accent);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* ── Asset vocabulary on phones — the orbit ring's content, without its
+      layout cost. Plain wrapped text chips: no absolute positioning, no
+      animation, and it disappears the moment the real ring can be shown. ── */
+.landing-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.45rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-kinds li {
+  border: 1px solid var(--l-border);
+  border-radius: 999px;
+  padding: 0.28rem 0.68rem;
+  background: color-mix(in oklab, var(--l-ink) 55%, transparent);
+  color: var(--l-text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+@media (min-width: 1101px) {
+  .landing-kinds {
+    display: none;
+  }
+}
+
+/* ── Reveal on scroll ──
+   Scroll-driven CSS animation: NO JavaScript, no IntersectionObserver, no
+   library — it costs ~20 lines of CSS and zero bytes of script, which is the
+   whole point on a connection where every extra request is the expensive part.
+
+   It is wrapped twice on purpose. `@supports` means a browser without
+   scroll-driven animations simply shows the content (never a blank page that
+   depends on script to appear), and `prefers-reduced-motion` opts out entirely.
+   Only opacity and transform are animated, so the compositor handles it and
+   nothing reflows. */
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .landing-reveal {
+      animation: landing-rise linear both;
+      animation-timeline: view();
+      /* ENTRY-based, never `cover`. A `cover` range is measured against the
+         element's whole pass through the scrollport, and an element near the
+         END of the document can run out of page before that range completes —
+         leaving it permanently half-faded. `entry` completes as soon as the
+         element is fully in view, which is guaranteed for anything the reader
+         actually reaches, including the last card on the page. */
+      animation-range: entry 0% entry 40%;
+    }
+  }
 }
 
 /* ───────────────────────────── FAQ ───────────────────────────── */
@@ -2397,6 +2470,32 @@ select.field {
   font-size: 0.85rem;
   line-height: 1.95;
   color: var(--l-text-muted);
+}
+
+.landing-faq-answer a {
+  color: var(--l-accent);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Animate the disclosure itself. `::details-content` + `interpolate-size` do
+   this natively: a browser without them simply snaps open exactly as before,
+   which is why there is no JS fallback and no height measured in script. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (interpolate-size: allow-keywords) {
+    .landing-faq-item::details-content {
+      block-size: 0;
+      overflow: hidden;
+      interpolate-size: allow-keywords;
+      transition:
+        block-size 0.26s ease,
+        content-visibility 0.26s allow-discrete;
+    }
+    .landing-faq-item[open]::details-content {
+      block-size: auto;
+    }
+  }
 }
 
 /* ─────────────────────── Trust + final CTA ─────────────────────── */
