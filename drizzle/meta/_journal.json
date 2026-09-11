@@ -141,6 +141,20 @@
       "when": 1788913965939,
       "tag": "0019_supabase_advisor_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788914100000,
+      "tag": "0020_onboarding_intents",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788914200000,
+      "tag": "0021_obligation_direction_and_partial",
+      "breakpoints": true
     }
   ]
 }

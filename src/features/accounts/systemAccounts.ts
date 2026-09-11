@@ -67,6 +67,27 @@ export const MISC_EXPENSE_CODE = "5900";
  */
 export const INSTALLMENT_PAYMENT_CODE = "5960";
 export const INSTALLMENT_PAYMENT_NAME = "پرداخت اقساط";
+/**
+ * Receivable-collection bucket — the MIRROR of 5960 for «طلب من».
+ *
+ * When the user collects money owed to them by a planning-only receivable
+ * (`account_id IS NULL`, exactly as for a planning-only debt), cash goes UP and
+ * the credit side needs a home. It gets its own INCOME-typed row — 4960
+ * «دریافت مطالبات» — for the same reason 5960 exists: the alternative is a
+ * generic income row, and a collection would then read as earnings.
+ *
+ * It is income-TYPED because that is what a credit can legally hit here, but it
+ * is NOT earnings — collecting a receivable converts one asset into another and
+ * changes net worth by zero. Nothing counts it as income: the entry is posted
+ * with type `debt_repayment`, and `getExpenseIncomeTotals` already excludes
+ * that type on the INCOME side as well as the expense side
+ * (`acc_type = 'income' and entry_type not in ('debt_repayment')`), as do
+ * getCashflow / getFlowByAccount / getFlowByCategory / getNetSavingsBetween.
+ * So this needed no new filter anywhere — the existing exclusion was already
+ * symmetric.
+ */
+export const RECEIVABLE_COLLECTION_CODE = "4960";
+export const RECEIVABLE_COLLECTION_NAME = "دریافت مطالبات";
 
 export type SystemAccount = {
   id: string;
@@ -241,6 +262,25 @@ export async function ensureInstallmentPaymentAccount(
     code: INSTALLMENT_PAYMENT_CODE,
     name: INSTALLMENT_PAYMENT_NAME,
     type: "expense",
+    userId,
+    client,
+  });
+}
+
+/**
+ * The receivable-collection bucket (4960) for a tenant, provisioned on demand —
+ * the same on-demand pattern as 5960, and for the same reason: the leg is
+ * required by an in-flight entry, so it cannot be left to a seed that may
+ * never have run for this tenant.
+ */
+export async function ensureReceivableCollectionAccount(
+  userId?: string | null,
+  client: any = db,
+): Promise<SystemAccount | null> {
+  return ensureSystemAccount({
+    code: RECEIVABLE_COLLECTION_CODE,
+    name: RECEIVABLE_COLLECTION_NAME,
+    type: "income",
     userId,
     client,
   });

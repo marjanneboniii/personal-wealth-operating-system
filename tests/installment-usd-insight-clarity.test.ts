@@ -344,13 +344,19 @@ test("a paid card states the payment date once and keeps the due date as a note"
   );
 });
 
-test("quick pay stays offered for pending rows only", async () => {
+test("the settle action stays offered for outstanding rows only", async () => {
   const { visible } = await render();
   // The page ships BOTH layouts (mobile cards + desktop table) and switches
-  // between them with CSS, so one pending row = two copies of the action.
+  // between them with CSS, so one outstanding row = two copies of the action.
+  //
+  // The caption moved from «پرداخت سریع» to «پرداخت قسط» when the one-click
+  // RowAction became the settlement sheet — which still settles the whole
+  // remaining balance by default, and additionally allows a partial payment.
+  // What this test pins is unchanged: the action appears once per layout for a
+  // row that is still owed, and never for a settled one.
   assert.equal(
-    visible.split("پرداخت سریع").length - 1,
+    visible.split("پرداخت قسط").length - 1,
     2,
-    "the pending installment gets the quick-pay action in each layout, and the paid one never does",
+    "the outstanding installment gets the settle action in each layout, and the settled one never does",
   );
 });

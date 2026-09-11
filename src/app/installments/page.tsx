@@ -5,7 +5,11 @@ import { db } from "@/db";
 import { accounts, assets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
-import RowAction from "@/components/RowAction";
+import SettleObligationSheet from "@/components/forms/SettleObligationSheet";
+import {
+  INSTALLMENT_PARTIAL,
+  isReceivable,
+} from "@/features/planning/obligations";
 import {
   formatJalaliIso,
   todayIso,
@@ -100,9 +104,12 @@ export default async function InstallmentsPage() {
   const overdueList = pending.filter((r) => r.dueDate < today);
   const next30 = pending.filter((r) => r.dueDate >= today && daysUntil(r.dueDate) <= 30);
 
-  // Pending totals only — a paid installment's Toman is history, not a balance.
-  const remainingTotalToman = sumToman(pending.map((r) => r.fx.amountToman));
-  const next30Toman = sumToman(next30.map((r) => r.fx.amountToman));
+  // Outstanding totals only — a settled installment's Toman is history, not a
+  // balance. `dueToman` (resolved in the backend) is what is STILL owed, so a
+  // partly-settled row contributes its remainder rather than its full
+  // contractual amount, and this total can never contradict the row above it.
+  const remainingTotalToman = sumToman(pending.map((r) => r.dueToman));
+  const next30Toman = sumToman(next30.map((r) => r.dueToman));
   const remainingDisp = formatTomanPrimary(remainingTotalToman, rate);
   const next30Disp = formatTomanPrimary(next30Toman, rate);
 
@@ -223,8 +230,12 @@ export default async function InstallmentsPage() {
                 // from the backend view: payment snapshot for a paid row,
                 // current-rate equivalent for a pending one.
                 const primary = r.fx.displayToman != null ? formatMoney(r.fx.displayToman, "IRT") : "—";
+                const receivable = isReceivable(r.direction);
+                const partial = r.status === INSTALLMENT_PARTIAL;
                 const statusBadge = r.fx.isPaid ? (
-                  <span className="badge badge-pos">پرداخت‌شده</span>
+                  <span className="badge badge-pos">{receivable ? "دریافت‌شده" : "پرداخت‌شده"}</span>
+                ) : partial ? (
+                  <span className="badge badge-warn">بخشی پرداخت شده</span>
                 ) : late ? (
                   <span className="badge badge-neg">معوق</span>
                 ) : soon ? (
@@ -261,6 +272,14 @@ export default async function InstallmentsPage() {
                         <div className="num text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
                           {primary}
                         </div>
+                        {/* A part-settled row must state what is LEFT: the
+                            contractual figure above is no longer what the user
+                            owes, and showing it alone reads as untouched. */}
+                        {partial && (
+                          <div className="num mt-0.5 text-[length:var(--fs-xs)] money-nowrap" dir="rtl" style={{ color: "var(--warning)" }}>
+                            باقی‌مانده: {formatMoney(r.dueToman, "IRT")}
+                          </div>
+                        )}
                         <InstallmentUsdLine fx={r.fx} />
                       </div>
                     </div>
@@ -294,13 +313,15 @@ export default async function InstallmentsPage() {
                         >
                           باز کردن در فرم
                         </Link>
-                        <RowAction
-                          kind="pay-installment"
-                          id={r.id}
+                        <SettleObligationSheet
+                          installmentId={r.id}
+                          dueToman={r.dueToman}
+                          paidSoFarToman={r.paidSoFarToman}
                           cashAccountId={cashAccount[0]?.id}
-                          label="پرداخت سریع"
-                          primary
+                          direction={r.direction}
+                          label={`قسط ${r.seq} — ${r.title}`}
                           className="w-full [&>button]:w-full"
+                          buttonClassName="w-full"
                         />
                       </div>
                     )}
@@ -335,7 +356,11 @@ export default async function InstallmentsPage() {
                       <tr key={r.id} className={r.fx.isPaid ? "opacity-50" : ""}>
                         <td>
                           {r.fx.isPaid ? (
-                            <span className="badge badge-pos">پرداخت‌شده</span>
+                            <span className="badge badge-pos">
+                              {isReceivable(r.direction) ? "دریافت‌شده" : "پرداخت‌شده"}
+                            </span>
+                          ) : r.status === INSTALLMENT_PARTIAL ? (
+                            <span className="badge badge-warn">بخشی پرداخت شده</span>
                           ) : late ? (
                             <span className="badge badge-neg">معوق</span>
                           ) : soon ? (
@@ -366,6 +391,11 @@ export default async function InstallmentsPage() {
                         </td>
                         <td className="td-num font-bold" dir="rtl">
                           <div>{primary}</div>
+                          {r.status === INSTALLMENT_PARTIAL && (
+                            <div className="num text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }}>
+                              باقی‌مانده: {formatMoney(r.dueToman, "IRT")}
+                            </div>
+                          )}
                           <InstallmentUsdLine fx={r.fx} />
                         </td>
                         <td className="text-left">
@@ -377,7 +407,14 @@ export default async function InstallmentsPage() {
                               >
                                 باز کردن در فرم
                               </Link>
-                              <RowAction kind="pay-installment" id={r.id} cashAccountId={cashAccount[0]?.id} label="پرداخت سریع" primary />
+                              <SettleObligationSheet
+                                installmentId={r.id}
+                                dueToman={r.dueToman}
+                                paidSoFarToman={r.paidSoFarToman}
+                                cashAccountId={cashAccount[0]?.id}
+                                direction={r.direction}
+                                label={`قسط ${r.seq} — ${r.title}`}
+                              />
                             </span>
                           )}
                         </td>
