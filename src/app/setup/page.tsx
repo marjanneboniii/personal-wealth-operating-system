@@ -8,6 +8,8 @@ import { getTranslations } from "@/i18n";
 import { D } from "@/domain/decimal";
 import { currencyLabel, faCount, formatMoney, formatMoneyWithSign, formatQty } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
+import AssetLogo from "@/components/ui/AssetLogo";
+import { SUPPORTED_CRYPTO_ASSETS } from "@/features/pricing/supportedAssets";
 
 const t = getTranslations("fa").setup;
 
@@ -78,6 +80,11 @@ export default function SetupWizardPage() {
   // Step 3 State — amounts are native units of the selected denomination
   const [bankOpeningBalance, setBankOpeningBalance] = useState("");
   const [cashOpeningBalance, setCashOpeningBalance] = useState("");
+  // WHICH coin, chosen by the user. The wizard used to hard-code Ethereum, so
+  // everyone got a «کیف پول اتریوم» whether they held ETH or not. Empty means
+  // no crypto wallet is created at all.
+  const [cryptoSymbol, setCryptoSymbol] = useState("");
+  const [cryptoQuery, setCryptoQuery] = useState("");
   const [cryptoOpeningQty, setCryptoOpeningQty] = useState("");
   const [cryptoUnitPrice, setCryptoUnitPrice] = useState("");
   const [goldOpeningQty, setGoldOpeningQty] = useState("");
@@ -95,6 +102,23 @@ export default function SetupWizardPage() {
     null,
   );
 
+  const selectedCrypto = useMemo(
+    () => SUPPORTED_CRYPTO_ASSETS.find((c) => c.symbol === cryptoSymbol),
+    [cryptoSymbol],
+  );
+
+  /** Matches on the Persian name OR the Latin ticker — a user may type either. */
+  const cryptoMatches = useMemo(() => {
+    const q = cryptoQuery.trim().toLowerCase();
+    if (!q) return [];
+    return SUPPORTED_CRYPTO_ASSETS.filter(
+      (c) =>
+        c.displayName.includes(cryptoQuery.trim()) ||
+        c.symbol.toLowerCase().includes(q) ||
+        c.name.toLowerCase().includes(q),
+    ).slice(0, 8);
+  }, [cryptoQuery]);
+
   // Unit label for crypto/gold cost basis (book currency remains USD).
   const baseUnit = baseCurrency === "IRT" ? "toman" : baseCurrency === "IRR" ? "rial" : baseCurrency === "EUR" ? "eur" : "usd";
   const bankUnit = amountUnit(bankAssetSymbol);
@@ -107,7 +131,7 @@ export default function SetupWizardPage() {
     const cashQty = D(cashOpeningBalance || "0");
     const bankBook = nativeToBookUsd(bankQty, bankAssetSymbol, fxRate);
     const cashBook = nativeToBookUsd(cashQty, cashAssetSymbol, fxRate);
-    const ethQty = D(cryptoOpeningQty || "0");
+    const ethQty = D(cryptoSymbol ? cryptoOpeningQty || "0" : "0");
     const ethPrice = D(cryptoUnitPrice || "0");
     const ethVal = ethQty.mul(ethPrice);
     const goldQty = D(goldOpeningQty || "0");
@@ -129,6 +153,7 @@ export default function SetupWizardPage() {
       hasItems: totalEquity.gt(0) || bankQty.gt(0) || cashQty.gt(0) || ethQty.gt(0) || goldQty.gt(0),
     };
   }, [
+    cryptoSymbol,
     bankOpeningBalance,
     cashOpeningBalance,
     bankAssetSymbol,
@@ -215,6 +240,7 @@ export default function SetupWizardPage() {
           <input type="hidden" name="cashAssetSymbol" value={cashAssetSymbol} />
           <input type="hidden" name="bankOpeningBalance" value={bankOpeningBalance} />
           <input type="hidden" name="cashOpeningBalance" value={cashOpeningBalance} />
+          <input type="hidden" name="cryptoSymbol" value={cryptoSymbol} />
           <input type="hidden" name="cryptoOpeningQty" value={cryptoOpeningQty} />
           <input type="hidden" name="cryptoUnitPrice" value={cryptoUnitPrice} />
           <input type="hidden" name="goldOpeningQty" value={goldOpeningQty} />
@@ -460,33 +486,85 @@ export default function SetupWizardPage() {
                     )}
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="label">مقدار اتریوم</label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={cryptoOpeningQty}
-                        onChange={(e) => setCryptoOpeningQty(e.target.value.replace(/[^\d.]/g, ""))}
-                        placeholder="0.0000"
-                        className="field num"
-                        dir="ltr"
-                      />
-                    </div>
-                    <div>
-                      <label className="label">قیمت خرید هر اتریوم ({currencyLabel(baseCurrency)}) — فقط Cost Basis افتتاحیه</label>
-                      <AmountInput
-                        type="text"
-                        inputMode="decimal"
-                        value={cryptoUnitPrice}
-                        onChange={(e) => setCryptoUnitPrice(e.target.value.replace(/[^\d.]/g, ""))}
-                        placeholder="3000"
-                        className="field num"
-                        dir="ltr"
-                        unit={baseUnit}
-                      />
-                    </div>
+                  {/* Search → select → amount. The coin is the user's choice,
+                      not a preset, and skipping this creates no crypto wallet. */}
+                  <div className="space-y-2">
+                    <label className="label" htmlFor="crypto-search">رمزارز (اختیاری)</label>
+                    {selectedCrypto ? (
+                      <div className="field flex items-center gap-2.5">
+                        <AssetLogo symbol={selectedCrypto.symbol} name={selectedCrypto.displayName} size={26} />
+                        <span className="min-w-0 flex-1 truncate font-semibold">{selectedCrypto.displayName}</span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost !min-h-9 !px-3 text-[length:var(--fs-xs)]"
+                          onClick={() => { setCryptoSymbol(""); setCryptoQuery(""); setCryptoOpeningQty(""); setCryptoUnitPrice(""); }}
+                        >
+                          تغییر
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <input
+                          id="crypto-search"
+                          type="text"
+                          value={cryptoQuery}
+                          onChange={(e) => setCryptoQuery(e.target.value)}
+                          placeholder="جست‌وجو: بیت‌کوین، تتر، BTC…"
+                          className="field"
+                        />
+                        {cryptoQuery.trim().length > 0 && (
+                          <ul className="max-h-56 space-y-1 overflow-y-auto rounded-xl border p-1" style={{ borderColor: "var(--border)" }}>
+                            {cryptoMatches.map((c) => (
+                              <li key={c.symbol}>
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-2.5 rounded-lg p-2 text-right hover:bg-[color:var(--hover)]"
+                                  onClick={() => { setCryptoSymbol(c.symbol); setCryptoQuery(""); }}
+                                >
+                                  <AssetLogo symbol={c.symbol} name={c.displayName} size={24} />
+                                  <span className="min-w-0 flex-1 truncate">{c.displayName}</span>
+                                  <span className="muted num text-[length:var(--fs-xs)]" dir="ltr">{c.symbol}</span>
+                                </button>
+                              </li>
+                            ))}
+                            {cryptoMatches.length === 0 && (
+                              <li className="muted p-3 text-center text-[length:var(--fs-xs)]">رمزارزی با این نام پیدا نشد.</li>
+                            )}
+                          </ul>
+                        )}
+                      </>
+                    )}
                   </div>
+
+                  {selectedCrypto && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="label">مقدار {selectedCrypto.displayName}</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={cryptoOpeningQty}
+                          onChange={(e) => setCryptoOpeningQty(e.target.value.replace(/[^\d.]/g, ""))}
+                          placeholder="0.0000"
+                          className="field num"
+                          dir="ltr"
+                        />
+                      </div>
+                      <div>
+                        <label className="label">قیمت خرید هر {selectedCrypto.displayName} ({currencyLabel(baseCurrency)}) — فقط Cost Basis افتتاحیه</label>
+                        <AmountInput
+                          type="text"
+                          inputMode="decimal"
+                          value={cryptoUnitPrice}
+                          onChange={(e) => setCryptoUnitPrice(e.target.value.replace(/[^\d.]/g, ""))}
+                          placeholder="3000"
+                          className="field num"
+                          dir="ltr"
+                          unit={baseUnit}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
@@ -571,7 +649,7 @@ export default function SetupWizardPage() {
 
                   {D(previewData.ethQty).gt(0) && (
                     <div className="flex justify-between py-2">
-                      <span>به کیف پول اتریوم (مقدار: {formatQty(previewData.ethQty, 8)})</span>
+                      <span>به کیف پول {selectedCrypto?.displayName ?? ""} (مقدار: {formatQty(previewData.ethQty, 8)})</span>
                       <span className="num font-bold" dir="rtl">
                         {formatMoney(previewData.ethVal, "USD")}
                       </span>
