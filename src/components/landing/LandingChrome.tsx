@@ -16,9 +16,11 @@ export function LandingHeader() {
         </Link>
         <nav className="landing-header-nav" aria-label="ورود به محصول">
           <ThemeToggleButton />
-          <span className="hidden sm:inline-flex">
-            <DownloadIosButton className="!min-h-12 !px-3 text-[length:var(--fs-sm)] sm:!px-4" variant="ghost" />
-          </span>
+          {/* NOT hidden on small screens. It used to be `hidden sm:inline-flex`,
+              which hid the install button on phones — the one device where
+              installing a PWA is the whole point. The button now hides itself
+              when the device cannot install, so it needs no breakpoint. */}
+          <DownloadIosButton className="!min-h-12 !px-3 text-[length:var(--fs-sm)] sm:!px-4" variant="ghost" />
           <Link href="/login" className="btn btn-ghost !min-h-12 !px-2.5 text-[length:var(--fs-sm)] sm:!px-4">
             ورود
           </Link>
