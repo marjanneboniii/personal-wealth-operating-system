@@ -1,10 +1,12 @@
 /**
  * صندوق‌های سرمایه‌گذاری — starting catalogue (بخش ۱.۳).
  *
- * The three sub-kinds the brief asks to keep separate in the picker:
+ * The sub-kinds the picker keeps separate:
  *   • gold          صندوق طلا
  *   • fixed_income  صندوق درآمد ثابت
  *   • etf           صندوق سهامی / قابل معامله
+ *   • commodity     صندوق کالایی — زعفران و نقره, a physical good rather than
+ *                   a security, so it does not belong under ETF
  *
  * PROVENANCE, STATED HONESTLY
  * These are well-known Tehran-exchange symbols, written from market knowledge.
@@ -21,7 +23,7 @@
  * Data-only: no database, HTTP or valuation imports.
  */
 
-export type FundKind = "gold" | "fixed_income" | "etf";
+export type FundKind = "gold" | "fixed_income" | "etf" | "commodity";
 
 export type FundSeed = {
   /** Tehran-exchange trading symbol, in Persian, e.g. «عیار». */
@@ -35,6 +37,7 @@ export const FUND_KIND_LABELS: Record<FundKind, string> = {
   gold: "صندوق طلا",
   fixed_income: "صندوق درآمد ثابت",
   etf: "صندوق سهامی (ETF)",
+  commodity: "صندوق کالایی",
 };
 
 /** Ordered so the picker groups gold first — the brief's headline example. */
@@ -52,6 +55,9 @@ export const FUND_CATALOG: readonly FundSeed[] = [
   { symbol: "آلتون", name: "صندوق طلای آلتون", kind: "gold" },
   { symbol: "جواهر", name: "صندوق طلای جواهر", kind: "gold" },
   { symbol: "زرفام", name: "صندوق طلای زرفام آشنا", kind: "gold" },
+  { symbol: "ناب", name: "صندوق طلای ناب زرین", kind: "gold" },
+  { symbol: "زروان", name: "صندوق طلای زروان", kind: "gold" },
+  { symbol: "سیمرغ", name: "صندوق طلای سیمرغ", kind: "gold" },
 
   // ── صندوق‌های درآمد ثابت ──
   { symbol: "اعتماد", name: "صندوق اعتماد آفرین پارسیان", kind: "fixed_income" },
@@ -64,6 +70,17 @@ export const FUND_CATALOG: readonly FundSeed[] = [
   { symbol: "یاقوت", name: "صندوق یاقوت آگاه", kind: "fixed_income" },
   { symbol: "لبخند", name: "صندوق لبخند فارابی", kind: "fixed_income" },
   { symbol: "فردا", name: "صندوق فردای اکسیر", kind: "fixed_income" },
+  { symbol: "گنجینه", name: "صندوق گنجینه آینده روشن", kind: "fixed_income" },
+  { symbol: "آوند", name: "صندوق آوند مفید", kind: "fixed_income" },
+  { symbol: "خاتم", name: "صندوق خاتم ایساتیس پویا", kind: "fixed_income" },
+  { symbol: "سپیدما", name: "صندوق سپید دماوند", kind: "fixed_income" },
+  { symbol: "مانی", name: "صندوق مانی", kind: "fixed_income" },
+  { symbol: "نوین", name: "صندوق نوین نگر آسیا", kind: "fixed_income" },
+  { symbol: "ثبات", name: "صندوق ثبات ویستا", kind: "fixed_income" },
+  { symbol: "کارا", name: "صندوق کارای کاردان", kind: "fixed_income" },
+  { symbol: "امین‌یکم", name: "صندوق امین یکم فردا", kind: "fixed_income" },
+  { symbol: "دارا", name: "صندوق دارا الگوریتم", kind: "fixed_income" },
+  { symbol: "صایند", name: "صندوق گنجینه آینده درخشان", kind: "fixed_income" },
 
   // ── صندوق‌های سهامی و قابل معامله ──
   { symbol: "اهرم", name: "صندوق اهرم کاریزما", kind: "etf" },
@@ -74,6 +91,28 @@ export const FUND_CATALOG: readonly FundSeed[] = [
   { symbol: "دارا یکم", name: "صندوق واسطه‌گری مالی یکم", kind: "etf" },
   { symbol: "آگاس", name: "صندوق هستی بخش آگاه", kind: "etf" },
   { symbol: "الماس", name: "صندوق الماس کاردان", kind: "etf" },
+  { symbol: "کاریس", name: "صندوق کاریس کاریزما", kind: "etf" },
+  { symbol: "فیروزه", name: "صندوق فیروزه موفقیت", kind: "etf" },
+  { symbol: "سرو", name: "صندوق سرو سودمند مدبران", kind: "etf" },
+  { symbol: "ارزش", name: "صندوق ارزش‌آفرین بیدار", kind: "etf" },
+  { symbol: "آساس", name: "صندوق آسمان آرمانی سهام", kind: "etf" },
+  { symbol: "صنوین", name: "صندوق صنوین نوین", kind: "etf" },
+  { symbol: "ثروتم", name: "صندوق ثروت آفرین تمدن", kind: "etf" },
+  { symbol: "ویستا", name: "صندوق ویستا", kind: "etf" },
+  { symbol: "هامرز", name: "صندوق هامرز", kind: "etf" },
+  { symbol: "تجارت", name: "صندوق تجارت شاخصی کاردان", kind: "etf" },
+  { symbol: "آرام", name: "صندوق آرام مفید", kind: "etf" },
+
+  /*
+   * ── صندوق‌های کالایی ──
+   * Commodity funds trade a physical good rather than a security. زعفران is
+   * the one with a real retail following in this market, which is why the
+   * brief asked for it by name; the family is kept open because صندوق نقره and
+   * others list on the same exchange.
+   */
+  { symbol: "سحرخیز", name: "صندوق کالایی زعفران سحرخیز", kind: "commodity" },
+  { symbol: "نهال", name: "صندوق کالایی زعفران نهال سرمایه", kind: "commodity" },
+  { symbol: "نقره", name: "صندوق کالایی نقره", kind: "commodity" },
 ];
 
 /** Symbol → seed, for a fast exact-symbol lookup. */

@@ -30,6 +30,7 @@ const KIND_TABS: { key: FundKind | "all"; label: string }[] = [
   { key: "gold", label: FUND_KIND_LABELS.gold },
   { key: "fixed_income", label: FUND_KIND_LABELS.fixed_income },
   { key: "etf", label: FUND_KIND_LABELS.etf },
+  { key: "commodity", label: FUND_KIND_LABELS.commodity },
 ];
 
 type Registered = { symbol: string; name: string; created: boolean };

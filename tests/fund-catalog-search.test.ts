@@ -24,9 +24,11 @@ test("every fund the brief names by name is in the catalogue", () => {
   }
 });
 
-test("the three sub-kinds the brief separates are all present and Persian", () => {
+test("every sub-kind is present and Persian", () => {
+  // The brief separates three; «صندوق کالایی» was added for زعفران, which it
+  // names, and which is a physical good rather than a security.
   const kinds = new Set(FUND_CATALOG.map((f) => f.kind));
-  assert.deepEqual([...kinds].sort(), ["etf", "fixed_income", "gold"]);
+  assert.deepEqual([...kinds].sort(), ["commodity", "etf", "fixed_income", "gold"]);
   for (const [, label] of Object.entries(FUND_KIND_LABELS)) {
     assert.ok(/[؀-ۿ]/.test(label), `kind label «${label}» is not Persian`);
   }
@@ -77,17 +79,26 @@ test("the kind filter narrows the picker to one sub-kind", () => {
   );
 });
 
-test("an empty query shows all three families, not twelve gold funds", () => {
+test("an empty query shows every family, not a screen of gold funds", () => {
   // The catalogue is ordered gold-first, so a plain slice made the «همه» tab
   // look like the product only supported طلا. Caught by rendering the screen.
-  const hits = searchFunds("", { limit: 9 });
+  const hits = searchFunds("", { limit: 12 });
   assert.ok(hits.length > 0, "a blank box should show options, not a void");
-  assert.ok(hits.length <= 9, "default listing is capped");
+  assert.ok(hits.length <= 12, "default listing is capped");
   assert.deepEqual(
     [...new Set(hits.map((h) => h.kind))].sort(),
-    ["etf", "fixed_income", "gold"],
+    ["commodity", "etf", "fixed_income", "gold"],
     "every sub-kind must be visible before the user types",
   );
+});
+
+test("زعفران funds are findable by the crop, not only by symbol", () => {
+  // A user thinks «زعفران», not «سحرخیز».
+  const hits = searchFunds("زعفران");
+  assert.ok(hits.length >= 2, "both saffron funds should match");
+  assert.equal(hits.every((h) => h.kind === "commodity"), true);
+  assert.ok(hits.some((h) => h.symbol === "سحرخیز"));
+  assert.ok(hits.some((h) => h.symbol === "نهال"));
 });
 
 test("a kind filter with an empty query stays inside that kind", () => {

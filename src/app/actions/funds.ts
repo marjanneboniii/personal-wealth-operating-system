@@ -25,7 +25,9 @@ export async function searchFundsAction(query: string, kind?: string) {
   const user = await getCurrentUser();
   if (!user) return [];
   const validKind =
-    kind === "gold" || kind === "fixed_income" || kind === "etf" ? kind : undefined;
+    kind === "gold" || kind === "fixed_income" || kind === "etf" || kind === "commodity"
+      ? kind
+      : undefined;
   return searchFunds(query, { kind: validKind });
 }
 
