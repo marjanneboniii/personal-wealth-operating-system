@@ -19,6 +19,8 @@ import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { invalidateTenantStateCache } from "@/lib/tenantState";
 import { rootCauseOf } from "@/db/init-schema";
 import { registerInstrument } from "@/features/funds/service";
+import { createUserVehicle } from "@/features/rwa/vehicle/service";
+import { createRealEstateAsset } from "@/features/rwa/realEstate/service";
 import {
   SUPPORTED_CRYPTO_ASSETS,
   getSupportedCryptoBySymbol,
@@ -91,6 +93,38 @@ export type SetupInput = {
     quantity?: string;
     /** Purchase price per unit, in base currency — opening cost basis only. */
     unitPrice?: string;
+  }>;
+
+  /**
+   * خودرو و ملک the user already owns.
+   *
+   * These are REGISTRY assets, not ledger balances, so they are deliberately
+   * NOT folded into the single opening entry above. Each is written by the
+   * registry's own function — `createUserVehicle` / `createRealEstateAsset` —
+   * which owns rules the wizard must not restate: catalogue-only vehicle
+   * models, acquisition-date FX, RWA symbol sequencing, valuation snapshots,
+   * and (for a property) its own ledger entry. Each of those functions opens
+   * its own transaction and does not accept an external one, which is also why
+   * they run AFTER the opening transaction commits rather than inside it.
+   */
+  vehicles?: Array<{
+    /** Must exist in the vehicle catalogue — free text is refused upstream. */
+    catalogId: string;
+    manufacturingYear: string;
+    /** ISO Gregorian, converted from the user's Jalali pick by the widget. */
+    ownershipDate: string;
+    purchasePriceToman: string;
+    /** Optional first valuation snapshot — never derived from the purchase. */
+    currentValueToman?: string;
+  }>;
+  properties?: Array<{
+    cityId: string;
+    neighborhoodId: string;
+    propertyTypeId: string;
+    acquisitionDate: string;
+    purchasePriceToman: string;
+    currentValueToman: string;
+    sizeSqm?: string;
   }>;
 };
 
@@ -205,7 +239,7 @@ export async function completeSetup(
     throw new Error("راه‌اندازی اولیه قبلاً انجام شده است.");
   }
 
-  return db.transaction(async (tx) => {
+  const setupResult = await db.transaction(async (tx) => {
     const today = todayIso();
 
     // 2. Configure shared reference data idempotently. Per-user onboarding may
@@ -716,6 +750,99 @@ export async function completeSetup(
       }),
     });
 
-    return { ok: true, message: "راه‌اندازی اولیه سیستم با موفقیت ثبت شد." };
+    // `userId` and `today` travel out because the خودرو/ملک registration below
+    // runs after this transaction and must use the SAME tenant and the same
+    // «today» the opening entry was dated with — not a second clock read.
+    return {
+      ok: true,
+      message: "راه‌اندازی اولیه سیستم با موفقیت ثبت شد.",
+      userId: user.id,
+      today,
+    };
   });
+
+  /*
+   * خودرو و ملک — registered AFTER the opening transaction has committed.
+   *
+   * WHY NOT INSIDE IT
+   * `createUserVehicle` and `createRealEstateAsset` each open their own
+   * `db.transaction` and take no external handle. Calling them from inside the
+   * wizard's transaction would run them on a DIFFERENT connection while this
+   * one still holds its locks — which on a single-connection driver deadlocks
+   * and on a pooled one silently escapes the wizard's atomicity anyway.
+   * Refactoring both services to thread a `tx` would mean reworking working
+   * accounting code (the property path posts its own ledger entry) for no gain
+   * the user can see.
+   *
+   * WHAT THAT COSTS, STATED PLAINLY
+   * The accounts and the opening balance are already durable at this point, so
+   * a failure here cannot corrupt them. A vehicle that fails to register
+   * leaves the rest intact and is reported by name — the user adds it from
+   * «دارایی‌های واقعی», which is the same screen they would have used anyway.
+   * That is strictly better than failing the whole wizard and making them
+   * re-enter every account and balance.
+   *
+   * Each row is delegated whole: no rule about catalogue models, acquisition
+   * FX, symbol sequencing or valuation snapshots is restated here.
+   */
+  const realAssetErrors: string[] = [];
+
+  for (const vehicle of input.vehicles ?? []) {
+    if (!vehicle.catalogId) continue;
+    try {
+      await createUserVehicle({
+        userId: setupResult.userId,
+        catalogId: vehicle.catalogId,
+        manufacturingYear: Number(vehicle.manufacturingYear),
+        ownershipDate: vehicle.ownershipDate,
+        purchasePriceToman: vehicle.purchasePriceToman,
+        // A current value is a SNAPSHOT and is only recorded when the user
+        // actually gave one — never inferred from the purchase price.
+        initialValuation:
+          vehicle.currentValueToman && D(vehicle.currentValueToman).gt(0)
+            ? {
+                valueToman: vehicle.currentValueToman,
+                snapshotDate: setupResult.today,
+                note: "ثبت اولیه در راه‌اندازی",
+              }
+            : undefined,
+      });
+    } catch (error) {
+      realAssetErrors.push(
+        `خودرو: ${error instanceof Error ? error.message : "ثبت ناموفق بود"}`,
+      );
+    }
+  }
+
+  for (const property of input.properties ?? []) {
+    if (!property.cityId || !property.neighborhoodId || !property.propertyTypeId) continue;
+    try {
+      await createRealEstateAsset({
+        userId: setupResult.userId,
+        cityId: property.cityId,
+        neighborhoodId: property.neighborhoodId,
+        propertyTypeId: property.propertyTypeId,
+        acquisitionDate: property.acquisitionDate,
+        // The registry values a property on its own valuation date; at setup
+        // that is today, because today is when the user is telling us.
+        valuationDate: setupResult.today,
+        purchasePriceToman: property.purchasePriceToman,
+        currentValueToman: property.currentValueToman,
+        sizeSqm: property.sizeSqm || null,
+      });
+    } catch (error) {
+      realAssetErrors.push(
+        `ملک: ${error instanceof Error ? error.message : "ثبت ناموفق بود"}`,
+      );
+    }
+  }
+
+  if (realAssetErrors.length > 0) {
+    return {
+      ok: true,
+      message: `${setupResult.message} اما ثبت ${realAssetErrors.length} مورد از خودرو/ملک ناموفق بود: ${realAssetErrors.join(" · ")} — می‌توانید آن‌ها را از «دارایی‌های واقعی» اضافه کنید.`,
+    };
+  }
+
+  return { ok: setupResult.ok, message: setupResult.message };
 }

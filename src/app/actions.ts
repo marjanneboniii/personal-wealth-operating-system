@@ -1504,6 +1504,9 @@ const setupSchema = z.object({
    * them. The debts step uses the same shape for the same reason.
    */
   instruments: z.string().optional(),
+  /** خودرو و ملک, as JSON arrays, for the same FormData reason. */
+  vehicles: z.string().optional(),
+  properties: z.string().optional(),
 });
 
 /** One صندوق/سهم row from the wizard, after JSON parsing. */
@@ -1514,6 +1517,42 @@ const setupInstrumentSchema = z.object({
   quantity: z.string().optional(),
   unitPrice: z.string().optional(),
 });
+
+/**
+ * One خودرو row. `catalogId` is a catalogue UUID, never a free-text model —
+ * `createUserVehicle` refuses anything that is not in the catalogue, so
+ * accepting free text here would only defer the failure.
+ */
+const setupVehicleSchema = z.object({
+  catalogId: z.string().uuid(),
+  manufacturingYear: z.string().trim().min(1),
+  ownershipDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاریخ تملک خودرو نامعتبر است"),
+  purchasePriceToman: z.string().trim().min(1),
+  currentValueToman: z.string().optional(),
+});
+
+/** One ملک row. All three master-data references are catalogue UUIDs. */
+const setupPropertySchema = z.object({
+  cityId: z.string().uuid(),
+  neighborhoodId: z.string().uuid(),
+  propertyTypeId: z.string().uuid(),
+  acquisitionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاریخ خرید ملک نامعتبر است"),
+  purchasePriceToman: z.string().trim().min(1),
+  currentValueToman: z.string().trim().min(1),
+  sizeSqm: z.string().optional(),
+});
+
+/** Parse one JSON list field, failing loudly rather than dropping user input. */
+function parseSetupList<T>(json: string | undefined, schema: z.ZodType<T>, label: string): T[] {
+  if (!json || !json.trim()) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new Error(`${label} نامعتبر است.`);
+  }
+  return z.array(schema).max(100).parse(parsed);
+}
 
 export async function completeSetupAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   // Auth guard — FAIL-CLOSED and LOGIN-GATED: the setup wizard initializes
@@ -1535,24 +1574,29 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
 
   try {
     const raw = Object.fromEntries(fd) as Record<string, string>;
-    const { instruments: instrumentsJson, ...rest } = setupSchema.parse(raw);
+    const {
+      instruments: instrumentsJson,
+      vehicles: vehiclesJson,
+      properties: propertiesJson,
+      ...rest
+    } = setupSchema.parse(raw);
 
     // Malformed JSON must fail the wizard loudly rather than silently dropping
-    // the instruments a user just spent time entering.
-    let instruments: z.infer<typeof setupInstrumentSchema>[] = [];
-    if (instrumentsJson && instrumentsJson.trim()) {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(instrumentsJson);
-      } catch {
-        return { ok: false, message: "فهرست صندوق و سهام نامعتبر است." };
-      }
-      instruments = z.array(setupInstrumentSchema).max(100).parse(parsed);
-    }
+    // what a user just spent time entering.
+    const instruments = parseSetupList(instrumentsJson, setupInstrumentSchema, "فهرست صندوق و سهام");
+    const vehicles = parseSetupList(vehiclesJson, setupVehicleSchema, "فهرست خودرو");
+    const properties = parseSetupList(propertiesJson, setupPropertySchema, "فهرست ملک");
 
-    await completeSetup({ ...rest, instruments }, setupUser?.id);
+    const result = await completeSetup(
+      { ...rest, instruments, vehicles, properties },
+      setupUser?.id,
+    );
     refreshAll();
-    return { ok: true, message: "راه‌اندازی اولیه با موفقیت انجام شد." };
+    // The service's own message is passed through, not replaced: when a
+    // خودرو/ملک row fails to register it names which one and says the accounts
+    // are already safe. Swallowing that behind a generic success string would
+    // leave the user believing everything was recorded.
+    return { ok: true, message: result?.message ?? "راه‌اندازی اولیه با موفقیت انجام شد." };
   } catch (e) {
     if (e instanceof z.ZodError) return { ok: false, message: e.issues[0].message };
     const root = rootCauseOf(e);

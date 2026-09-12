@@ -12,6 +12,12 @@ import AssetLogo from "@/components/ui/AssetLogo";
 import { SUPPORTED_CRYPTO_ASSETS } from "@/features/pricing/supportedAssets";
 import SetupDebtsStep, { type DebtDraftRow } from "@/components/setup/SetupDebtsStep";
 import SetupInstrumentsStep, { type InstrumentDraftRow } from "@/components/setup/SetupInstrumentsStep";
+import SetupRealAssetsStep, {
+  propertyRowReady,
+  vehicleRowReady,
+  type PropertyDraftRow,
+  type VehicleDraftRow,
+} from "@/components/setup/SetupRealAssetsStep";
 import { registerSetupDebtsAction } from "@/app/actions/setupDebts";
 
 const t = getTranslations("fa").setup;
@@ -100,6 +106,11 @@ export default function SetupWizardPage() {
   // Step 4 — صندوق و سهام. A list for the same reason the debts step is one:
   // a person arriving here typically owns several, not exactly one.
   const [instrumentRows, setInstrumentRows] = useState<InstrumentDraftRow[]>([]);
+  // Step 5 — خودرو و ملک. Registry assets, kept apart from the ledger balances
+  // above: they are written by the registry's own services, not by the opening
+  // entry (see features/setup/service.ts).
+  const [vehicleRows, setVehicleRows] = useState<VehicleDraftRow[]>([]);
+  const [propertyRows, setPropertyRows] = useState<PropertyDraftRow[]>([]);
 
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     async (prev, fd) => {
@@ -119,7 +130,7 @@ export default function SetupWizardPage() {
         );
         if (!debtRes.ok) {
           setDebtError(debtRes.message ?? "ثبت بدهی‌ها ناموفق بود.");
-          setStep(5);
+          setStep(6);
           return { ok: false, message: debtRes.message ?? "ثبت بدهی‌ها ناموفق بود." };
         }
       }
@@ -250,7 +261,7 @@ export default function SetupWizardPage() {
 
           {/* Stepper Progress */}
           <div className="mt-6 flex items-center justify-center gap-2">
-            {[1, 2, 3, 4, 5, 6].map((s) => (
+            {[1, 2, 3, 4, 5, 6, 7].map((s) => (
               <div
                 key={s}
                 className="flex items-center gap-2"
@@ -310,6 +321,40 @@ export default function SetupWizardPage() {
                   quantity: r.quantity,
                   unitPrice: r.unitPrice,
                 })),
+            )}
+          />
+
+          {/* خودرو و ملک travel as JSON for the same reason صندوق/سهام do.
+              Only rows that are COMPLETE are sent: a half-filled card would
+              otherwise fail its registration after the wizard had already
+              committed the accounts, and the user would see an error for
+              something they had not finished entering. */}
+          <input
+            type="hidden"
+            name="vehicles"
+            value={JSON.stringify(
+              vehicleRows.filter(vehicleRowReady).map((r) => ({
+                catalogId: r.catalogId,
+                manufacturingYear: r.manufacturingYear,
+                ownershipDate: r.ownershipDate,
+                purchasePriceToman: r.purchasePriceToman,
+                currentValueToman: r.currentValueToman,
+              })),
+            )}
+          />
+          <input
+            type="hidden"
+            name="properties"
+            value={JSON.stringify(
+              propertyRows.filter(propertyRowReady).map((r) => ({
+                cityId: r.cityId,
+                neighborhoodId: r.neighborhoodId,
+                propertyTypeId: r.propertyTypeId,
+                acquisitionDate: r.acquisitionDate,
+                purchasePriceToman: r.purchasePriceToman,
+                currentValueToman: r.currentValueToman,
+                sizeSqm: r.sizeSqm,
+              })),
             )}
           />
 
@@ -685,7 +730,6 @@ export default function SetupWizardPage() {
             </section>
           )}
 
-          {/* STEP 4 — existing obligations */}
           {/* STEP 4 — صندوق و سهام the user already owns */}
           {step === 4 && (
             <section className="space-y-4">
@@ -699,13 +743,36 @@ export default function SetupWizardPage() {
                   ← قبلی
                 </button>
                 <button type="button" onClick={() => setStep(5)} className="btn btn-primary w-2/3">
-                  {instrumentRows.length === 0 ? "ندارم، ادامه ←" : "بدهی‌ها و اقساط ←"}
+                  {instrumentRows.length === 0 ? "ندارم، ادامه ←" : "خودرو و ملک ←"}
                 </button>
               </div>
             </section>
           )}
 
+          {/* STEP 5 — خودرو و ملک the user already owns */}
           {step === 5 && (
+            <section className="space-y-4">
+              <SetupRealAssetsStep
+                vehicles={vehicleRows}
+                properties={propertyRows}
+                onVehiclesChange={setVehicleRows}
+                onPropertiesChange={setPropertyRows}
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setStep(4)} className="btn w-1/3">
+                  ← قبلی
+                </button>
+                <button type="button" onClick={() => setStep(6)} className="btn btn-primary w-2/3">
+                  {vehicleRows.length === 0 && propertyRows.length === 0
+                    ? "ندارم، ادامه ←"
+                    : "بدهی‌ها و اقساط ←"}
+                </button>
+              </div>
+            </section>
+          )}
+
+          {/* STEP 6 — existing obligations */}
+          {step === 6 && (
             <section className="space-y-4">
               {debtError && (
                 <div
@@ -718,18 +785,18 @@ export default function SetupWizardPage() {
               )}
               <SetupDebtsStep rows={debtRows} onChange={(next) => { setDebtRows(next); setDebtError(null); }} />
               <div className="flex gap-2">
-                <button type="button" onClick={() => setStep(4)} className="btn w-1/3">
+                <button type="button" onClick={() => setStep(5)} className="btn w-1/3">
                   ← قبلی
                 </button>
-                <button type="button" onClick={() => setStep(6)} className="btn btn-primary w-2/3">
+                <button type="button" onClick={() => setStep(7)} className="btn btn-primary w-2/3">
                   {debtRows.length === 0 ? "بدهی ندارم، ادامه ←" : "پیش‌نمایش و تایید ←"}
                 </button>
               </div>
             </section>
           )}
 
-          {/* STEP 6 — preview & confirm */}
-          {step === 6 && (
+          {/* STEP 7 — preview & confirm */}
+          {step === 7 && (
             <section className="space-y-4">
               <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
                 <h2 className="text-base font-semibold">{t.step4Title}</h2>
@@ -806,6 +873,40 @@ export default function SetupWizardPage() {
                   )}
                 </div>
 
+                {/* خودرو و ملک are REGISTRY assets, not ledger balances, so they
+                    are summarised in their own block below the opening entry
+                    rather than inside it. Putting them in the list above would
+                    imply they move the 3010 equity counterweight, which they do
+                    not — a property posts its own separate entry, and a vehicle
+                    posts none at all. */}
+                {(vehicleRows.filter(vehicleRowReady).length > 0 ||
+                  propertyRows.filter(propertyRowReady).length > 0) && (
+                  <div className="border-t pt-3" style={{ borderColor: "var(--border)" }}>
+                    <h3 className="text-xs font-bold">دارایی‌های واقعی</h3>
+                    <div className="mt-1.5 divide-y text-xs" style={{ borderColor: "var(--border)" }}>
+                      {vehicleRows.filter(vehicleRowReady).map((r) => (
+                        <div key={r.key} className="flex justify-between gap-3 py-2">
+                          <span>خودرو — {r.label}</span>
+                          <span className="num font-bold" dir="rtl">
+                            {formatMoney(r.currentValueToman || r.purchasePriceToman, "IRT")}
+                          </span>
+                        </div>
+                      ))}
+                      {propertyRows.filter(propertyRowReady).map((r) => (
+                        <div key={r.key} className="flex justify-between gap-3 py-2">
+                          <span>ملک — {r.label || "ملک"}</span>
+                          <span className="num font-bold" dir="rtl">
+                            {formatMoney(r.currentValueToman, "IRT")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="muted mt-2 text-[length:var(--fs-xs)] leading-6">
+                      این موارد در «دارایی‌های واقعی» ثبت می‌شوند و جدا از موجودی حساب‌ها هستند.
+                    </p>
+                  </div>
+                )}
+
                 <p className="text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--brand)" }}>
                   {t.balancedCheck}
                 </p>
@@ -826,7 +927,7 @@ export default function SetupWizardPage() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setStep(5)}
+                  onClick={() => setStep(6)}
                   disabled={pending}
                   className="btn w-1/3"
                 >
