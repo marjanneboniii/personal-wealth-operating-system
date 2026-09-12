@@ -50,9 +50,16 @@ export async function registerInstrumentAction(
       kind: kind as InstrumentKind,
       symbol: trimmed,
       name,
+      // The asset ACCOUNT this instrument is bought into belongs to the caller.
+      // Never take an owner from the client — the session decides.
+      userId: user.id,
     });
     revalidatePath("/assets/financial");
     revalidatePath("/onboarding");
+    // The purchase form lists asset accounts, so a newly registered instrument
+    // must appear there on the very next visit rather than a cache lifetime later.
+    revalidatePath("/new");
+    revalidatePath("/portfolio");
     return { ok: true, assetId: result.assetId, created: result.created };
   } catch (error) {
     return {

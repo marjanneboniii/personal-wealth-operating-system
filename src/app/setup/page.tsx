@@ -11,6 +11,7 @@ import AmountInput from "@/components/ui/AmountInput";
 import AssetLogo from "@/components/ui/AssetLogo";
 import { SUPPORTED_CRYPTO_ASSETS } from "@/features/pricing/supportedAssets";
 import SetupDebtsStep, { type DebtDraftRow } from "@/components/setup/SetupDebtsStep";
+import SetupInstrumentsStep, { type InstrumentDraftRow } from "@/components/setup/SetupInstrumentsStep";
 import { registerSetupDebtsAction } from "@/app/actions/setupDebts";
 
 const t = getTranslations("fa").setup;
@@ -96,6 +97,9 @@ export default function SetupWizardPage() {
   const [cryptoUnitPrice, setCryptoUnitPrice] = useState("");
   const [goldOpeningQty, setGoldOpeningQty] = useState("");
   const [goldUnitPrice, setGoldUnitPrice] = useState("");
+  // Step 4 — صندوق و سهام. A list for the same reason the debts step is one:
+  // a person arriving here typically owns several, not exactly one.
+  const [instrumentRows, setInstrumentRows] = useState<InstrumentDraftRow[]>([]);
 
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     async (prev, fd) => {
@@ -115,7 +119,7 @@ export default function SetupWizardPage() {
         );
         if (!debtRes.ok) {
           setDebtError(debtRes.message ?? "ثبت بدهی‌ها ناموفق بود.");
-          setStep(4);
+          setStep(5);
           return { ok: false, message: debtRes.message ?? "ثبت بدهی‌ها ناموفق بود." };
         }
       }
@@ -163,7 +167,16 @@ export default function SetupWizardPage() {
     const goldPrice = D(goldUnitPrice || "0");
     const goldVal = goldQty.mul(goldPrice);
 
-    const totalEquity = bankBook.add(cashBook).add(ethVal).add(goldVal);
+    // صندوق/سهام contribute to the SAME opening entry, so the equity
+    // counterweight the preview states must include them — otherwise the
+    // «از سرمایه اولیه» line would understate what is about to be posted.
+    const instrumentsVal = instrumentRows.reduce((sum, r) => {
+      const qty = D(r.quantity || "0");
+      const price = D(r.unitPrice || "0");
+      return qty.gt(0) && price.gt(0) ? sum.add(qty.mul(price)) : sum;
+    }, D("0"));
+
+    const totalEquity = bankBook.add(cashBook).add(ethVal).add(goldVal).add(instrumentsVal);
 
     return {
       bankQty: bankQty.toString(),
@@ -175,7 +188,14 @@ export default function SetupWizardPage() {
       goldQty: goldQty.toString(),
       goldVal: goldVal.toString(),
       totalEquity: totalEquity.toString(),
-      hasItems: totalEquity.gt(0) || bankQty.gt(0) || cashQty.gt(0) || ethQty.gt(0) || goldQty.gt(0),
+      instrumentsVal: instrumentsVal.toString(),
+      hasItems:
+        totalEquity.gt(0) ||
+        bankQty.gt(0) ||
+        cashQty.gt(0) ||
+        ethQty.gt(0) ||
+        goldQty.gt(0) ||
+        instrumentsVal.gt(0),
     };
   }, [
     cryptoSymbol,
@@ -188,6 +208,7 @@ export default function SetupWizardPage() {
     cryptoUnitPrice,
     goldOpeningQty,
     goldUnitPrice,
+    instrumentRows,
   ]);
 
   if (setupStatus === "loading") {
@@ -229,7 +250,7 @@ export default function SetupWizardPage() {
 
           {/* Stepper Progress */}
           <div className="mt-6 flex items-center justify-center gap-2">
-            {[1, 2, 3, 4, 5].map((s) => (
+            {[1, 2, 3, 4, 5, 6].map((s) => (
               <div
                 key={s}
                 className="flex items-center gap-2"
@@ -246,7 +267,7 @@ export default function SetupWizardPage() {
                 >
                   {s}
                 </span>
-                {s < 4 && <div className="h-0.5 w-8 bg-[var(--border)]" />}
+                {s < 6 && <div className="h-0.5 w-8 bg-[var(--border)]" />}
               </div>
             ))}
           </div>
@@ -270,6 +291,27 @@ export default function SetupWizardPage() {
           <input type="hidden" name="cryptoUnitPrice" value={cryptoUnitPrice} />
           <input type="hidden" name="goldOpeningQty" value={goldOpeningQty} />
           <input type="hidden" name="goldUnitPrice" value={goldUnitPrice} />
+          {/* A FormData field cannot carry a list of objects and this is a
+              plain <form>, so the chosen صندوق/سهام travel as JSON. The server
+              action parses and validates them with zod before the service sees
+              them; malformed JSON fails loudly rather than silently dropping
+              what the user just entered. The internal `key` is a React list id
+              and is stripped here — it is not part of the contract. */}
+          <input
+            type="hidden"
+            name="instruments"
+            value={JSON.stringify(
+              instrumentRows
+                .filter((r) => r.symbol.trim().length > 0)
+                .map((r) => ({
+                  kind: r.kind,
+                  symbol: r.symbol,
+                  name: r.name,
+                  quantity: r.quantity,
+                  unitPrice: r.unitPrice,
+                })),
+            )}
+          />
 
           {/* STEP 1 */}
           {step === 1 && (
@@ -637,14 +679,33 @@ export default function SetupWizardPage() {
                   onClick={() => setStep(4)}
                   className="btn btn-primary w-2/3"
                 >
-                  بدهی‌ها و اقساط ←
+                  صندوق و سهام ←
                 </button>
               </div>
             </section>
           )}
 
           {/* STEP 4 — existing obligations */}
+          {/* STEP 4 — صندوق و سهام the user already owns */}
           {step === 4 && (
+            <section className="space-y-4">
+              <SetupInstrumentsStep
+                rows={instrumentRows}
+                onChange={setInstrumentRows}
+                baseUnit={baseUnit}
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setStep(3)} className="btn w-1/3">
+                  ← قبلی
+                </button>
+                <button type="button" onClick={() => setStep(5)} className="btn btn-primary w-2/3">
+                  {instrumentRows.length === 0 ? "ندارم، ادامه ←" : "بدهی‌ها و اقساط ←"}
+                </button>
+              </div>
+            </section>
+          )}
+
+          {step === 5 && (
             <section className="space-y-4">
               {debtError && (
                 <div
@@ -657,18 +718,18 @@ export default function SetupWizardPage() {
               )}
               <SetupDebtsStep rows={debtRows} onChange={(next) => { setDebtRows(next); setDebtError(null); }} />
               <div className="flex gap-2">
-                <button type="button" onClick={() => setStep(3)} className="btn w-1/3">
+                <button type="button" onClick={() => setStep(4)} className="btn w-1/3">
                   ← قبلی
                 </button>
-                <button type="button" onClick={() => setStep(5)} className="btn btn-primary w-2/3">
+                <button type="button" onClick={() => setStep(6)} className="btn btn-primary w-2/3">
                   {debtRows.length === 0 ? "بدهی ندارم، ادامه ←" : "پیش‌نمایش و تایید ←"}
                 </button>
               </div>
             </section>
           )}
 
-          {/* STEP 5 — preview & confirm */}
-          {step === 5 && (
+          {/* STEP 6 — preview & confirm */}
+          {step === 6 && (
             <section className="space-y-4">
               <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
                 <h2 className="text-base font-semibold">{t.step4Title}</h2>
@@ -714,6 +775,23 @@ export default function SetupWizardPage() {
                     </div>
                   )}
 
+                  {/* One line per instrument that carries an opening position.
+                      A registered-only row (no quantity) is deliberately absent
+                      here: it moves no money, so it has nothing to show on a
+                      preview whose subject is the opening entry. */}
+                  {instrumentRows
+                    .filter((r) => D(r.quantity || "0").gt(0) && D(r.unitPrice || "0").gt(0))
+                    .map((r) => (
+                      <div key={r.key} className="flex justify-between gap-3 py-2">
+                        <span>
+                          به {r.name} (مقدار: {formatQty(r.quantity, 2)})
+                        </span>
+                        <span className="num font-bold" dir="rtl">
+                          {formatMoney(D(r.quantity).mul(r.unitPrice).toString(), "USD")}
+                        </span>
+                      </div>
+                    ))}
+
                   {previewData.hasItems ? (
                     <div className="flex justify-between py-2 font-bold" style={{ color: "var(--negative)" }}>
                       <span>از سرمایه اولیه</span>
@@ -748,7 +826,7 @@ export default function SetupWizardPage() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setStep(4)}
+                  onClick={() => setStep(5)}
                   disabled={pending}
                   className="btn w-1/3"
                 >

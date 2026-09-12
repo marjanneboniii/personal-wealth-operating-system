@@ -662,6 +662,21 @@ const STATEMENTS = [
 
   /* Onboarding checklist answers — see schema.ts for why the ANSWER, not the
      screen, is the thing that solves forgotten assets. */
+  // والکس catalogue — Persian names + BOTH market quotes (تومان and تتر).
+  // Public market data only: no user, holding, transaction or accounting value.
+  `CREATE TABLE IF NOT EXISTS wallex_asset_catalog (
+    symbol text PRIMARY KEY,
+    display_name text NOT NULL,
+    latin_name text NOT NULL,
+    kind text NOT NULL,
+    logo_url text,
+    price_tmn numeric(38,18),
+    price_usdt numeric(38,18),
+    is_active boolean NOT NULL DEFAULT true,
+    synced_at timestamptz NOT NULL DEFAULT now()
+  );`,
+  `CREATE INDEX IF NOT EXISTS wallex_catalog_kind_idx ON wallex_asset_catalog(kind);`,
+  `CREATE INDEX IF NOT EXISTS wallex_catalog_active_idx ON wallex_asset_catalog(is_active);`,
   `CREATE TABLE IF NOT EXISTS onboarding_intents (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
