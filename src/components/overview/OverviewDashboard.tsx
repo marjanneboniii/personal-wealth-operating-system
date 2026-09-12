@@ -141,7 +141,7 @@ export default async function OverviewDashboard() {
   const hasReceivables = D(receivableToman).gt(0);
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="overview-dashboard flex flex-col gap-6 sm:gap-8">
       {unavailableWidgets.length > 0 && (
         <Alert tone="warn" icon="alert" title="بخشی از نمای کلی فعلاً در دسترس نیست">
           بخشی از کارت‌ها بارگذاری نشد. داده‌های شما تغییری نکرده — چند لحظه دیگر تازه‌سازی کنید.
@@ -163,7 +163,7 @@ export default async function OverviewDashboard() {
       )}
 
       {/* ═══ HERO — compact, tidy, no huge fonts on mobile PWA ═══ */}
-      <section className="pt-1">
+      <section className="overview-hero rounded-[var(--r-xl)] border bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)] sm:p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-x-8 sm:gap-y-6">
           <div className="min-w-0 flex-1">
             <p className="muted text-[length:var(--fs-xs)] font-medium">ارزش خالص دارایی</p>

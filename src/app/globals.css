@@ -90,10 +90,10 @@
 :root {
   /* Brand — ink surfaces + sky/cyan interaction.
      Interaction colour is never used to signal financial direction. */
-  --color-primary: #0b1220;
-  --color-primary-hover: #16202f;
-  --color-accent: var(--sky-700);
-  --color-accent-hover: var(--sky-800);
+  --color-primary: #16211f;
+  --color-primary-hover: #243532;
+  --color-accent: #237d74;
+  --color-accent-hover: #1d665f;
   --color-accent-active: #0c4a6e;
   --on-primary: #f6f8fb;
 
@@ -108,8 +108,8 @@
   --primary-soft: var(--brand-soft);
 
   /* Surfaces — four layers: sunken → page → surface → elevated */
-  --bg-page: #f5f7fa;
-  --bg-surface: #ffffff;
+  --bg-page: #f3f1ea;
+  --bg-surface: #fbfaf6;
   --bg: var(--bg-page);
   --surface: var(--bg-surface);
   --surface-elev: var(--bg-surface);
@@ -118,15 +118,15 @@
   --pressed: rgba(11, 18, 32, 0.09);
 
   /* Text — every step meets WCAG AA on --bg and --surface */
-  --text: #0b1220;
-  --text-2: #46536b;
-  --text-3: #5c6980;
+  --text: #16211f;
+  --text-2: #52615d;
+  --text-3: #75817c;
   --text-primary: var(--text);
   --text-secondary: var(--text-2);
   --text-muted: var(--text-3);
 
-  --border: #e1e7ef;
-  --border-strong: #c9d3e0;
+  --border: #deded5;
+  --border-strong: #c7c9bd;
 
   --background: var(--bg);
   --surface-elevated: var(--surface-elev);
@@ -171,10 +171,10 @@
   --asset-other: #9fb0c4;
 
   /* Radius — 8 controls · 12 fields · 16 cards · 20 sheets */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-xl: 20px;
+  --r-sm: 7px;
+  --r-md: 11px;
+  --r-lg: 18px;
+  --r-xl: 24px;
 
   /* Spacing rhythm — 4px base */
   --s-1: 4px;
@@ -525,11 +525,11 @@ input[type="radio"] {
 
 /* ─────────────────────── Surfaces & text ─────────────────────── */
 
-.card {
+  .card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow: none;
+  box-shadow: 0 1px 0 rgba(22, 33, 31, 0.03), 0 10px 30px -24px rgba(22, 33, 31, 0.28);
   transition: border-color var(--motion-micro) var(--ease), box-shadow var(--motion-micro) var(--ease),
     transform var(--motion-micro) var(--ease);
 }
@@ -1206,7 +1206,7 @@ select.field {
   }
 }
 
-/* ─────────────────────── Mobile bottom nav ─────────────────────── */
+/* ─────────────────────── Mobile bottom nav ───────────────────���─── */
 
 /* The row never wraps: columns are set inline from the item count and each
    cell is allowed to shrink (minmax(0,1fr) + min-width:0), so «بیشتر» stays
@@ -2956,6 +2956,45 @@ html {
 }
 body {
   overflow-x: clip;
+}
+
+/* PWOS 2026 visual refresh: calm ivory canvas, ink navigation, teal interaction. */
+.shell-root[data-chrome="app"] .desktop-sidebar {
+  background: var(--text) !important;
+  color: #f3f1ea;
+  border-color: transparent !important;
+}
+.shell-root[data-chrome="app"] .desktop-sidebar .muted,
+.shell-root[data-chrome="app"] .desktop-sidebar .nav-group-label,
+.shell-root[data-chrome="app"] .desktop-sidebar .nav-item {
+  color: rgba(243, 241, 234, 0.68);
+}
+.shell-root[data-chrome="app"] .desktop-sidebar .nav-item:hover,
+.shell-root[data-chrome="app"] .desktop-sidebar .nav-group-toggle:hover {
+  background: rgba(243, 241, 234, 0.1);
+  color: #f3f1ea;
+}
+.shell-root[data-chrome="app"] .desktop-sidebar .nav-item.nav-active {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+.shell-root[data-chrome="app"] .desktop-sidebar .nav-group-toggle {
+  color: rgba(243, 241, 234, 0.72);
+}
+.shell-root[data-chrome="app"] .desktop-sidebar .btn-primary {
+  background: #dce84b;
+  color: #16211f;
+}
+.app-topbar { border-bottom-color: var(--border) !important; }
+.overview-summary { background: color-mix(in srgb, var(--surface) 60%, transparent); border-radius: var(--r-md); padding-block: 0.4rem !important; }
+.overview-summary > div { padding-block: 0.65rem !important; }
+.quick-actions a { border-color: var(--border); }
+.record-fab { background: var(--brand); }
+@media (min-width: 1024px) {
+  .app-main:not(.app-main-public) { padding-top: 2.25rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
 
 /* ─────────────────── Accounts (پول → حساب‌ها) — scoped UI cleanup ───────────────────
