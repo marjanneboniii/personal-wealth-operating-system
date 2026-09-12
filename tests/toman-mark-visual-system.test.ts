@@ -52,18 +52,33 @@ test("the Toman mark shares the system's plate: 48 grid, rx=12, white", () => {
   assert.equal(shared![1], "12", "TomanIcon and AssetTypeMarks agree on the plate radius");
 });
 
-test("the glyph carries enough weight to survive 20-28px", () => {
+/** The original Toman curve — the letterform the product has always used. */
+const ORIGINAL_GLYPH = "M15 22 C15 27.5 19 29.5 24 29.5 C29 29.5 33 27.5 33 22 C33 21.4 25.8 21 21 21";
+
+/** The GLYPH constant from the component, with its string pieces joined. */
+function componentGlyph(src: string): string | null {
+  const m = src.match(/const GLYPH =([\s\S]*?);/);
+  if (!m) return null;
+  const pieces = [...m[1].matchAll(/"([^"]*)"/g)].map((x) => x[1]);
+  return pieces.join("").replace(/\s+/g, " ").trim();
+}
+
+test("the glyph is the ORIGINAL Toman curve — «ت», never «ث»", () => {
   const src = read(COMPONENT);
+
+  // A revision once replaced the letterform with a bowl and THREE dots, which
+  // reads as «ث». The glyph was never what needed fixing — only the plate and
+  // the weight were — so it is pinned to the original curve, exactly.
+  assert.equal(componentGlyph(src), ORIGINAL_GLYPH, "the product's own Toman curve, unchanged");
+  assert.ok(!/<circle/.test(src), "no dots and no circle anywhere in the mark");
+  assert.match(src, /scale\(-1,1\) translate\(-48,0\)/, "mirrored by the same transform as the original");
+
+  // Weight: the original 1.7 rendered ~0.85px at 24px and vanished. At least
+  // double that, but not so heavy the shallow bowl closes up.
   const stroke = src.match(/strokeWidth="(\d+(?:\.\d+)?)"/);
-  assert.ok(stroke, "the glyph's bowl is a stroked path");
-  assert.ok(
-    Number(stroke![1]) >= 4,
-    `a ${stroke![1]}px stroke on a 48 grid must be heavy enough at 20px — the old 1.7 was invisible`,
-  );
-  // The three dots are what make it «ت» rather than a generic cup, and they
-  // must resolve as three separate marks rather than merging into a smudge.
-  const dots = src.match(/<circle cx="[\d.]+" cy="15\.4" r="2\.2"/g) ?? [];
-  assert.equal(dots.length, 3, "three dots, at a radius that stays legible small");
+  assert.ok(stroke, "the glyph is a stroked path");
+  const weight = Number(stroke![1]);
+  assert.ok(weight >= 3.4 && weight <= 4.2, `stroke ${weight} must survive 20px without filling the bowl`);
 });
 
 test("the static SVG and the React component are the SAME mark, not two", () => {
@@ -78,9 +93,13 @@ test("the static SVG and the React component are the SAME mark, not two", () => 
   // character — this is the assertion that catches a redraw of one and not the
   // other.
   const svgPath = svg.match(/<path d="([^"]+)"/);
-  const componentPath = src.match(/d="([^"]+)"/);
-  assert.ok(svgPath && componentPath, "both render a glyph path");
-  assert.equal(svgPath![1], componentPath![1], "the two Toman marks draw the identical glyph");
+  assert.ok(svgPath, "the static file renders a glyph path");
+  assert.equal(
+    svgPath![1].replace(/\s+/g, " ").trim(),
+    componentGlyph(src),
+    "the two Toman marks draw the identical glyph",
+  );
+  assert.ok(!/<circle/.test(svg), "and neither carries dots");
 
   const svgInk = svg.match(/stroke="(#[0-9A-Fa-f]{6})"/);
   const componentInk = src.match(/letterColor = "(#[0-9A-Fa-f]{6})"/);

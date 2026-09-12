@@ -1,22 +1,14 @@
 <!--
-  تومان — the static twin of components/ui/TomanIcon.tsx.
+  تومان — the static twin of components/ui/TomanIcon.tsx. The two must stay
+  identical, or the app has two Toman marks depending on which path rendered it.
 
-  AssetLogo normally draws the Toman mark INLINE (zero requests, cannot 404,
-  renders offline in the PWA). This file is the fallback for the paths that
-  need a real URL. The two must stay identical: a mismatch means the app has
-  two different Toman marks depending on which code path rendered it, which is
-  exactly the parallel-icon problem the redraw was meant to remove.
-
-  Same 48 grid, same rx=12 white plate, same 12px artwork margin and same
-  optical weight as every other mark in the system (AssetTypeMarks.tsx), so a
-  mixed asset list reads as one family. It replaced a mint-filled CIRCLE with a
-  1.7px hairline glyph, which was both the wrong silhouette beside the rounded
-  square plates and effectively invisible at the 20-24px an asset row renders.
+  The glyph is the product's ORIGINAL Toman curve, unchanged. Only the plate
+  (white rx=12, like every other mark) and the stroke weight (1.7 → 3.6, so it
+  survives the 20-28px an asset row renders) differ from the first version.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="تومان">
   <rect width="48" height="48" rx="12" fill="#FFFFFF"/>
-  <path d="M14 22.4v3.2c0 5.2 4.4 8.6 10 8.6s10-3.4 10-8.6v-3.2" fill="none" stroke="#0F6B62" stroke-width="5" stroke-linecap="round"/>
-  <circle cx="18.2" cy="15.4" r="2.2" fill="#0F6B62"/>
-  <circle cx="24" cy="15.4" r="2.2" fill="#0F6B62"/>
-  <circle cx="29.8" cy="15.4" r="2.2" fill="#0F6B62"/>
+  <g transform="scale(-1,1) translate(-48,0)">
+    <path d="M15 22 C15 27.5 19 29.5 24 29.5 C29 29.5 33 27.5 33 22 C33 21.4 25.8 21 21 21" fill="none" stroke="#0F6B62" stroke-width="3.6" stroke-linecap="round"/>
+  </g>
 </svg>
