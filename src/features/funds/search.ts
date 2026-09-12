@@ -11,8 +11,16 @@
  * `pg` into the browser bundle — the same split the onboarding checklist needed.
  */
 import { FUND_CATALOG, FUND_KIND_LABELS, type FundKind, type FundSeed } from "./catalogData";
+import {
+  STOCK_CATALOG,
+  STOCK_SECTOR_LABELS,
+  type StockSeed,
+  type StockSector,
+} from "./stockCatalogData";
 
 export type FundSearchResult = FundSeed & { kindLabel: string };
+
+export type StockSearchResult = StockSeed & { sectorLabel: string };
 
 /**
  * Normalise for comparison only. Arabic ي/ك → Persian ی/ک, ZWNJ and all
@@ -104,3 +112,85 @@ function decorate(fund: FundSeed): FundSearchResult {
 
 export { FUND_KIND_LABELS };
 export type { FundKind, FundSeed };
+
+/* ------------------------------------------------------------------ */
+/* سهام بورسی                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Ranked stock matches — the SAME scoring and the SAME Persian folding the
+ * fund search uses, because the two pickers sit on one screen and a user
+ * typing «فولاد» in one tab and «عیار» in the other must not meet two
+ * different notions of "matches".
+ *
+ * Deliberately a sibling function rather than a generic over both catalogues:
+ * the two seeds group by different fields (`kind` vs `sector`) and decorate
+ * with different labels, and a generic that took both as parameters was
+ * strictly harder to read than fifteen honest lines.
+ */
+export function searchStocks(
+  query: string,
+  options: { sector?: StockSector; limit?: number } = {},
+): StockSearchResult[] {
+  const pool = options.sector
+    ? STOCK_CATALOG.filter((s) => s.sector === options.sector)
+    : STOCK_CATALOG;
+  const limit = options.limit ?? 10;
+
+  const q = foldPersian(query);
+  if (!q) {
+    // Same reasoning as the fund picker: an unsearched «همه» tab that showed
+    // the first N of a sector-ordered list would look like the product only
+    // supported فلزات. Round-robin so every sector is represented.
+    return options.sector
+      ? pool.slice(0, limit).map(decorateStock)
+      : interleaveBySector(pool, limit).map(decorateStock);
+  }
+
+  const scored: { stock: StockSeed; score: number }[] = [];
+  for (const stock of pool) {
+    const symbol = foldPersian(stock.symbol);
+    const name = foldPersian(stock.name);
+    let score: number;
+    if (symbol === q) score = 0;
+    else if (symbol.startsWith(q)) score = 1;
+    else if (symbol.includes(q)) score = 2;
+    else if (name.startsWith(q)) score = 3;
+    else if (name.includes(q)) score = 4;
+    else continue;
+    scored.push({ stock, score });
+  }
+
+  return scored
+    .sort((a, b) => a.score - b.score || a.stock.symbol.localeCompare(b.stock.symbol, "fa"))
+    .slice(0, limit)
+    .map((s) => decorateStock(s.stock));
+}
+
+/** One from each sector in turn, so an empty query represents every family. */
+function interleaveBySector(pool: readonly StockSeed[], limit: number): StockSeed[] {
+  const buckets = new Map<StockSector, StockSeed[]>();
+  for (const stock of pool) {
+    const bucket = buckets.get(stock.sector);
+    if (bucket) bucket.push(stock);
+    else buckets.set(stock.sector, [stock]);
+  }
+  const queues = [...buckets.values()];
+  const out: StockSeed[] = [];
+  let index = 0;
+  while (out.length < limit && queues.some((q) => index < q.length)) {
+    for (const queue of queues) {
+      if (out.length >= limit) break;
+      if (index < queue.length) out.push(queue[index]);
+    }
+    index += 1;
+  }
+  return out;
+}
+
+function decorateStock(stock: StockSeed): StockSearchResult {
+  return { ...stock, sectorLabel: STOCK_SECTOR_LABELS[stock.sector] };
+}
+
+export { STOCK_SECTOR_LABELS };
+export type { StockSeed, StockSector };

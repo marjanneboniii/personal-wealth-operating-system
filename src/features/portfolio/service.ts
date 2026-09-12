@@ -338,6 +338,94 @@ async function loadUnheldRealAssets(input: {
 }
 
 /**
+ * دارایی‌های ثبت‌شده بدون موجودی — registered identities that carry no position.
+ *
+ * THE UX CLIFF THIS CLOSES
+ * This app separates an asset's IDENTITY (the global `assets` catalogue: «این
+ * صندوق وجود دارد») from a user's POSITION in it (the tenant-scoped ledger:
+ * «چقدر از آن دارم»). That separation is correct — a registration is not a
+ * purchase, and only a real transaction may open a FIFO lot.
+ *
+ * But `getPortfolioValuation` drops every zero-quantity holding, and every
+ * asset page reads from it. So a user who registered eight funds and had not
+ * yet recorded their buys saw EIGHT EMPTY SCREENS and reasonably concluded the
+ * feature was broken. Nothing was broken; the work they had done was invisible.
+ *
+ * This returns exactly those rows so a page can say «ثبت شده، ولی خریدی برایش
+ * وارد نشده» and link to the purchase flow. It is a pure DERIVATION of
+ * `getHoldings` — no new query, no write, no change to what counts as a
+ * holding and no change to any valuation figure.
+ *
+ * Tenant scoping is inherited from `getHoldings`, which is fail-closed.
+ */
+export type UnheldRegistration = {
+  assetId: string;
+  symbol: string;
+  name: string;
+  className: string;
+  classColor: string | null;
+};
+
+export async function listRegisteredWithoutHoldings(
+  userId?: string,
+): Promise<UnheldRegistration[]> {
+  const u = await resolveValuationUserId(userId);
+  // Fail-closed, exactly like every other read model here: with no resolvable
+  // identity in a multi-tenant database this returns nothing rather than
+  // degrading to a global read.
+  if (!u && (await hasMultipleUsers())) return [];
+
+  /*
+   * Scoped by the tenant's OWN ASSET ACCOUNTS, not by the global `assets`
+   * catalogue.
+   *
+   * This distinction is the whole correctness of the query. `assets` is a
+   * SHARED catalogue — «صندوق طلای عیار مفید exists» is not private
+   * information, and one row serves every tenant. What is private is whether a
+   * given person registered it, and that lives in `accounts.user_id`.
+   *
+   * Deriving this from `getHoldings` was wrong for exactly that reason: it
+   * selects `from assets` and left-joins the ledger, so every tenant got a
+   * zero-quantity row for every asset any tenant had ever registered. The
+   * valuation never showed it because it drops zero rows — surfacing those rows
+   * is what made the leak reachable, and a regression test caught it.
+   */
+  const response = await db.execute(sql`
+    select ast.id          as "assetId",
+           ast.symbol      as "symbol",
+           ast.name        as "name",
+           ac.name         as "className",
+           ac.color        as "classColor"
+      from accounts acc
+      join assets ast        on ast.id = acc.asset_id
+      join asset_classes ac  on ac.id = ast.class_id
+      left join postings p   on p.account_id = acc.id
+      left join journal_entries je
+             on je.id = p.entry_id and je.status = 'posted'
+     where acc.type = 'asset'
+       and acc.deleted_at is null
+       and ast.deleted_at is null
+       and not ${isOrphanedRwaAssetWithClass("ast", "ac")}
+       -- A zero bank balance is a fact about this month, not an unfinished
+       -- registration; listing it here would bury the instruments the user
+       -- actually needs to act on.
+       and ac.name not in ('نقد و بانک', 'Cash', 'استیبل‌کوین', 'Stablecoin')
+       ${u ? sql`and acc.user_id = ${u}` : sql``}
+     group by ast.id, ast.symbol, ast.name, ac.name, ac.color
+    having coalesce(sum(case when je.id is not null then p.quantity else 0 end), 0) = 0
+     order by ast.symbol
+  `);
+
+  return (response.rows as Array<{
+    assetId: string;
+    symbol: string;
+    name: string;
+    className: string;
+    classColor: string | null;
+  }>).map((row) => ({ ...row, classColor: row.classColor ?? null }));
+}
+
+/**
  * Complete current Portfolio Valuation.
  *
  * Accounting is READ ONLY: holdings, quantities, FIFO lots, cost basis and

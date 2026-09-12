@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
-import { getPortfolioValuation } from "@/features/portfolio/service";
+import { getPortfolioValuation, listRegisteredWithoutHoldings } from "@/features/portfolio/service";
 import { getRealizedPnl } from "@/features/ledger/queries";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import HoldingsTable from "@/components/assets/HoldingsTable";
+import UnheldRegistrations from "@/components/assets/UnheldRegistrations";
 import AssetValuationSummary, { valuationTotalsOf } from "@/components/assets/AssetValuationSummary";
 import { splitAssetFamilies } from "@/features/portfolio/assetFamilies";
 import { D, Decimal } from "@/domain/decimal";
@@ -54,10 +55,15 @@ export default async function FinancialAssetsPage() {
   await ensureAuth();
   await seedIfEmpty();
 
-  const [valuation, pnl, fx] = await Promise.all([
+  const [valuation, pnl, fx, unheld] = await Promise.all([
     getPortfolioValuation(),
     getRealizedPnl(),
     getLatestUsdIrtRate(),
+    // Registered identities that carry no position yet. They are deliberately
+    // OUTSIDE the valuation (a registration is not a holding), so they are
+    // fetched separately and rendered in their own section rather than being
+    // folded into a bucket with a zero value.
+    listRegisteredWithoutHoldings(),
   ]);
   const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
@@ -164,6 +170,10 @@ export default async function FinancialAssetsPage() {
           ))}
         </>
       )}
+
+      {/* Placed AFTER the real holdings: these are the user's unfinished work,
+          not part of their portfolio, and they must not compete with it. */}
+      <UnheldRegistrations rows={unheld} />
 
       <p className="muted flex items-center gap-1.5 text-[length:var(--fs-xs)]">
         <Icon name="info" size={13} />

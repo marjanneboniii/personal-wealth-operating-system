@@ -10,11 +10,11 @@ export default function FundsPage() {
     <div className="mx-auto max-w-2xl space-y-5 py-6">
       <header className="space-y-2">
         <h1 className="text-[length:var(--fs-lg)] font-bold tracking-tight">
-          ثبت صندوق سرمایه‌گذاری
+          ثبت صندوق و سهام
         </h1>
         <p className="muted text-[length:var(--fs-sm)] leading-7">
-          صندوق طلا، درآمد ثابت یا سهامی را جست‌وجو کنید و پس از پیش‌نمایش ثبت کنید. می‌توانید هر
-          تعداد صندوق اضافه کنید.
+          صندوق سرمایه‌گذاری (طلا، درآمد ثابت، سهامی، کالایی) یا سهام بورسی را جست‌وجو کنید و پس از
+          پیش‌نمایش ثبت کنید. می‌توانید هر تعداد مورد اضافه کنید.
         </p>
       </header>
 

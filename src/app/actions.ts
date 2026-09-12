@@ -1495,6 +1495,24 @@ const setupSchema = z.object({
   cryptoUnitPrice: z.string().optional(),
   goldOpeningQty: z.string().optional(),
   goldUnitPrice: z.string().optional(),
+  /**
+   * صندوق‌ها و سهام, as a JSON array in one form field.
+   *
+   * A FormData field cannot carry a list of objects, and the wizard is a plain
+   * <form> (deliberately — it must submit without JavaScript state juggling),
+   * so the rows travel as JSON and are validated here before the service sees
+   * them. The debts step uses the same shape for the same reason.
+   */
+  instruments: z.string().optional(),
+});
+
+/** One صندوق/سهم row from the wizard, after JSON parsing. */
+const setupInstrumentSchema = z.object({
+  kind: z.enum(["fund", "stock"]),
+  symbol: z.string().trim().min(1).max(40),
+  name: z.string().trim().max(160).optional(),
+  quantity: z.string().optional(),
+  unitPrice: z.string().optional(),
 });
 
 export async function completeSetupAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
@@ -1517,8 +1535,22 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
 
   try {
     const raw = Object.fromEntries(fd) as Record<string, string>;
-    const input = setupSchema.parse(raw);
-    await completeSetup(input, setupUser?.id);
+    const { instruments: instrumentsJson, ...rest } = setupSchema.parse(raw);
+
+    // Malformed JSON must fail the wizard loudly rather than silently dropping
+    // the instruments a user just spent time entering.
+    let instruments: z.infer<typeof setupInstrumentSchema>[] = [];
+    if (instrumentsJson && instrumentsJson.trim()) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(instrumentsJson);
+      } catch {
+        return { ok: false, message: "فهرست صندوق و سهام نامعتبر است." };
+      }
+      instruments = z.array(setupInstrumentSchema).max(100).parse(parsed);
+    }
+
+    await completeSetup({ ...rest, instruments }, setupUser?.id);
     refreshAll();
     return { ok: true, message: "راه‌اندازی اولیه با موفقیت انجام شد." };
   } catch (e) {

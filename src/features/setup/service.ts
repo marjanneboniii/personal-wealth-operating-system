@@ -18,6 +18,7 @@ import { todayIso } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { invalidateTenantStateCache } from "@/lib/tenantState";
 import { rootCauseOf } from "@/db/init-schema";
+import { registerInstrument } from "@/features/funds/service";
 import {
   SUPPORTED_CRYPTO_ASSETS,
   getSupportedCryptoBySymbol,
@@ -68,6 +69,29 @@ export type SetupInput = {
   cryptoUnitPrice?: string; // Price in base currency
   goldOpeningQty?: string; // in grams
   goldUnitPrice?: string; // Price per gram in base currency
+  /**
+   * صندوق‌ها و سهام the user already owns.
+   *
+   * A LIST, because a person arriving at this wizard typically owns several —
+   * the same reason the debts step is a list. The crypto slot above is a single
+   * choice for historical reasons; this one was built as a list from the start.
+   *
+   * Each row is registered (identity + tenant-owned asset account) and, when it
+   * carries a quantity, contributes an opening posting and a FIFO lot to the
+   * SAME single opening entry as every other balance. A row with no quantity is
+   * still registered — the user is telling us they own it and will enter the
+   * numbers later — and simply opens no lot.
+   */
+  instruments?: Array<{
+    kind: "fund" | "stock";
+    /** Tehran-exchange symbol in Persian, e.g. «عیار» or «فولاد». */
+    symbol: string;
+    name?: string;
+    /** Units held. Empty means «register it, I will add the amount later». */
+    quantity?: string;
+    /** Purchase price per unit, in base currency — opening cost basis only. */
+    unitPrice?: string;
+  }>;
 };
 
 /**
@@ -583,6 +607,61 @@ export async function completeSetup(
       };
     }
 
+    /*
+     * صندوق و سهام — registered here, and given an opening position when the
+     * user entered one.
+     *
+     * Registration is DELEGATED to `registerInstrument`, the same function the
+     * /funds registrar calls. That matters: it resolves the catalogue name,
+     * files the asset under the right «صندوق سرمایه‌گذاری» / «سهام» class, and
+     * creates the tenant-owned asset account the purchase form needs — four
+     * rules the wizard would otherwise have had to restate and would have
+     * drifted from the first time one of them changed.
+     *
+     * The money side stays here and stays in the SINGLE opening entry below:
+     * one posting per instrument that carries a quantity, one FIFO lot, and the
+     * same 3010 equity counterweight as every other opening balance. An
+     * instrument with no quantity is registered and contributes nothing — the
+     * user said they own it, not how much, and a fabricated lot would be worse
+     * than an empty one.
+     */
+    const instrumentLots: { accountId: string; assetId: string; quantity: string; costBase: string }[] = [];
+    for (const instrument of input.instruments ?? []) {
+      const symbol = instrument.symbol?.trim();
+      if (!symbol) continue;
+
+      const registered = await registerInstrument({
+        kind: instrument.kind,
+        symbol,
+        name: instrument.name,
+        userId: user.id,
+        // Enrolled in THIS transaction: a wizard that fails half-way must leave
+        // neither stray asset rows nor an unbalanced ledger.
+        tx: tx as unknown as typeof db,
+      });
+      if (!registered.accountId) continue;
+
+      const qty = D(instrument.quantity || "0");
+      if (!qty.gt(0)) continue;
+
+      const unitPrice = D(instrument.unitPrice || "0");
+      const value = qty.mul(unitPrice);
+      draftPostings.push({
+        accountId: registered.accountId,
+        assetId: registered.assetId,
+        quantity: qty.toString(),
+        baseValue: value.toString(),
+        memo: `موجودی اولیه ${registered.name}`,
+      });
+      totalOpeningEquityBase = totalOpeningEquityBase.add(value);
+      instrumentLots.push({
+        accountId: registered.accountId,
+        assetId: registered.assetId,
+        quantity: qty.toString(),
+        costBase: value.toString(),
+      });
+    }
+
     // Balance against Opening Balance Equity (3010) in book USD.
     if (draftPostings.length > 0) {
       const [equity] = await tx
@@ -601,6 +680,7 @@ export async function completeSetup(
       const lotsToOpen = [];
       if (ethLotInfo) lotsToOpen.push(ethLotInfo);
       if (goldLotInfo) lotsToOpen.push(goldLotInfo);
+      for (const lot of instrumentLots) lotsToOpen.push(lot);
 
       // Post single atomic opening entry strictly via postEntry()
       await postEntry(
