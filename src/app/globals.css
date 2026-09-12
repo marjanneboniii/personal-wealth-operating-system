@@ -2609,28 +2609,45 @@ select.field {
   }
 }
 
+/* The install sheet is PORTALLED to <body>, so it is outside every scoped
+   token region (.landing-ink) and every backdrop-filter containing block. It
+   therefore resolves --surface-elev, --text and --border from :root and
+   matches whatever theme the viewer is actually in. */
+.install-guide-root {
+  /* Isolated from the page's transition rules: `.landing *` animates
+     background/border/color, which made the sheet fade in as washed-out
+     colour while it was still a descendant of the landing tree. */
+  transition: none !important;
+}
+
+.install-guide-root * {
+  transition: none !important;
+}
+
 .ios-guide {
   width: 100%;
   max-width: 100%;
-  max-height: 94dvh;
+  /* dvh follows the mobile URL bar, so the sheet never ends up taller than the
+     visible viewport and pushes its own button off-screen. */
+  max-height: min(92dvh, 44rem);
 }
 
 @media (min-width: 640px) {
   .ios-guide {
-    width: min(520px, calc(100% - 2rem));
-    max-width: 560px;
-    max-height: 85dvh;
+    width: min(28rem, calc(100% - 2rem));
+    max-height: min(85dvh, 42rem);
   }
 }
 
 .ios-guide-step {
   display: flex;
-  gap: 0.85rem;
-  align-items: flex-start;
-  padding: 0.85rem 0.9rem;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.7rem 0.85rem;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--sunken);
+  text-align: start;
 }
 
 .ios-guide-num {
