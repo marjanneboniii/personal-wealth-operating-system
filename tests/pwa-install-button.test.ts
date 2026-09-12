@@ -116,6 +116,48 @@ test("the button decides by device, not by breakpoint", () => {
   // It must consult the device and the install event, not just standalone.
   assert.match(src, /isIosSafari\(\)/, "device detection is actually called");
   assert.match(src, /beforeinstallprompt/, "the Chromium install event is handled");
-  // A device that cannot install renders nothing rather than a dead button.
-  assert.match(src, /kind === "none"\) return null/);
+  // An ALREADY-INSTALLED app renders nothing rather than a dead button.
+  //
+  // This used to assert `kind === "none") return null`, which also hid the
+  // button whenever no `beforeinstallprompt` was pending — and on Android that
+  // event fires once per eligibility window and never again after a dismissal,
+  // so a user who dismissed the native sheet once could never find the install
+  // route again. The button now falls back to the platform guide, which is
+  // always a truthful answer, and only `standalone` removes it entirely.
+  assert.match(src, /if \(!visible\) return null/);
+  assert.match(src, /visible: !standalone/, "only an installed app hides the button");
+  assert.match(
+    src,
+    /hasNativePrompt \? void promptInstall\(\) : setOpen\(true\)/,
+    "no native sheet available → the manual guide, never a dead click",
+  );
+});
+
+
+test("every platform gets its OWN install route, and an impossible one says so", async () => {
+  const { detectInstallPlatform } = await import("../src/components/pwa/IosInstallGuide");
+
+  // Reuses the file's own `withUserAgent` rather than assigning
+  // `globalThis.navigator`, which is getter-only in Node — and reusing it also
+  // keeps one notion of «what this UA looks like» in this file.
+  const expect = (ua: string, touch: number, platform: string) =>
+    withUserAgent(ua, touch, () => {
+      assert.equal(detectInstallPlatform(), platform, ua);
+    });
+
+  // iPhone Safari — the Share → Add to Home Screen walkthrough.
+  expect(UA.iphoneSafari, 5, "ios-safari");
+  // Chrome ON iOS is still WebKit, but exposes no «Add to Home Screen», so the
+  // guide must send the user to Safari rather than list steps their menu lacks.
+  expect(UA.iphoneChrome, 5, "ios-other");
+  // An iPad in desktop mode reports MacIntel + touch points — still iOS.
+  expect(UA.macSafari, 5, "ios-safari");
+  // Android Chrome — the three-dot menu route.
+  expect(UA.androidChrome, 1, "android");
+  // Desktop Chromium — the address-bar install icon.
+  expect(UA.windowsChrome, 0, "desktop");
+  // Desktop Safari (no touch points, so not an iPad) genuinely cannot install
+  // a PWA. Saying so plainly beats a walkthrough that dead-ends in a menu with
+  // no such item.
+  expect(UA.macSafari, 0, "unsupported");
 });

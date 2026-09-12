@@ -141,16 +141,30 @@ test("Landing — product preview uses static Toman samples with Persian digits"
   assert.doesNotMatch(landing, /getNetWorth/);
 });
 
-test("Landing — iOS install guide opens, closes, and uses the exact Persian copy", () => {
+test("Landing — the install guide covers every platform and stays accessible", () => {
   const guide = read("src/components/pwa/IosInstallGuide.tsx");
   assert.match(guide, /\"use client\"/);
+
+  // The iOS walkthrough is still the headline case, and still names the three
+  // real steps. The exact sentences were reworded when the guide grew to cover
+  // every platform, so this asserts the STEPS rather than the old phrasing.
   assert.match(guide, /نصب توازن روی آیفون/);
-  assert.match(guide, /برای تجربه بهتر، توازن را به صفحه اصلی گوشی اضافه کنید/);
-  assert.match(guide, /در Safari روی دکمه Share بزنید/);
-  assert.match(guide, /از منو گزینه «Add to Home Screen» را انتخاب کنید/);
-  assert.match(guide, /در مرحله آخر روی «Add» بزنید/);
+  assert.match(guide, /Share/);
+  assert.match(guide, /Add to Home Screen/);
   assert.match(guide, /متوجه شدم/);
   assert.match(guide, /نصب روی آیفون/);
+
+  // …and the other platforms now get their own real route instead of being shown
+  // iPhone instructions or nothing at all.
+  assert.match(guide, /نصب توازن روی اندروید/, "Android has its own steps");
+  assert.match(guide, /نصب توازن روی رایانه/, "desktop Chromium has its own steps");
+  assert.match(
+    guide,
+    /این مرورگر نصب را پشتیبانی نمی‌کند/,
+    "a browser that cannot install says so plainly instead of showing a dead walkthrough",
+  );
+
+  // Accessibility contract — unchanged.
   assert.match(guide, /role=\"dialog\"/);
   assert.match(guide, /aria-modal=\"true\"/);
   assert.match(guide, /aria-labelledby/);
@@ -158,6 +172,28 @@ test("Landing — iOS install guide opens, closes, and uses the exact Persian co
   assert.match(guide, /aria-label=\"بستن\"/);
   assert.match(guide, /min-h-12/);
   assert.doesNotMatch(guide, /Download iOS/);
+});
+
+test("Landing — the install dialog is PORTALLED out of the header", () => {
+  const guide = read("src/components/pwa/IosInstallGuide.tsx");
+  const css = read("src/app/globals.css");
+
+  // THE BUG THIS PINS. `.landing-header` carries `backdrop-filter`, which makes
+  // it a CONTAINING BLOCK for `position: fixed` descendants — so the dialog,
+  // rendered as a sibling of the button inside that header, was laid out
+  // relative to a 3.5rem-tall bar instead of the viewport, and trapped inside
+  // the header's z-index: 30 stacking context. The same header also carries
+  // `.landing-ink`, whose token remap the dialog inherited down the DOM tree,
+  // painting it in landing colours over an app-themed page.
+  //
+  // Portalling to <body> is what fixes all three at once.
+  assert.match(guide, /createPortal/, "the dialog escapes its DOM parent");
+  assert.match(guide, /createPortal\(dialog, document\.body\)/, "…specifically to <body>");
+  assert.match(css, /backdrop-filter: blur\(var\(--l-blur\)\)/, "the header really does create one");
+
+  // A portalled node is rendered client-side only; the guard must exist or the
+  // server pass would dereference `document`.
+  assert.match(guide, /!open \|\| !mounted/, "no portal is attempted during SSR");
 });
 
 test("iOS detection — Safari vs Chrome/Firefox/Edge iOS, plus standalone", () => {
