@@ -155,6 +155,13 @@
       "when": 1788914200000,
       "tag": "0021_obligation_direction_and_partial",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788914300000,
+      "tag": "0022_wallex_asset_catalog",
+      "breakpoints": true
     }
   ]
 }

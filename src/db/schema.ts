@@ -1140,6 +1140,52 @@ export const rwaValuationEvents = pgTable(
 /* CoinGecko asset identity catalog — no prices and no user data.       */
 /* ------------------------------------------------------------------ */
 
+/**
+ * والکس asset catalogue — Persian-named, with BOTH market quotes.
+ *
+ * WHY A SECOND CATALOGUE NEXT TO CoinGecko's
+ * They answer different questions for different users. CoinGecko supplies a
+ * global USD identity for 23 curated coins; Wallex supplies what an Iranian
+ * user actually trades — a few hundred assets, named in Persian by the source
+ * itself, quoted in BOTH تومان and تتر, with icons served from an Iranian host
+ * that resolves where CoinGecko's CDN often does not.
+ *
+ * TWO PRICES, NEITHER DERIVED FROM THE OTHER. `priceTmn` is Toman per unit and
+ * `priceUsdt` is Tether per unit, each read from the market that quotes it. A
+ * Toman market carries its own premium, so computing one from the other
+ * through a USD/IRT rate would produce a number that matches neither screen
+ * the user is comparing against. Either may be NULL — a thin asset trades in
+ * only one of the two.
+ *
+ * MARKET DATA ONLY. Rows are public exchange data keyed by symbol: no user, no
+ * holding, no transaction, no accounting value. Nothing here is an authority
+ * for the ledger — a purchase still records its own price and cost basis.
+ */
+export const wallexAssetCatalog = pgTable(
+  "wallex_asset_catalog",
+  {
+    /** Instrument symbol, e.g. "BTC" — the Wallex base asset. */
+    symbol: text("symbol").primaryKey(),
+    /** Persian name published by the source, e.g. «بیت‌کوین». */
+    displayName: text("display_name").notNull(),
+    /** Latin name, for search only. */
+    latinName: text("latin_name").notNull(),
+    /** crypto | stablecoin | gold — «gold» is a tokenised metal (XAUT, PAXG). */
+    kind: text("kind").notNull(),
+    logoUrl: text("logo_url"),
+    /** Toman per unit, from the TMN market. Never derived from priceUsdt. */
+    priceTmn: money("price_tmn"),
+    /** Tether per unit, from the USDT market. Never derived from priceTmn. */
+    priceUsdt: money("price_usdt"),
+    isActive: boolean("is_active").notNull().default(true),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("wallex_catalog_kind_idx").on(t.kind),
+    index("wallex_catalog_active_idx").on(t.isActive),
+  ],
+);
+
 export const coingeckoAssetCatalog = pgTable(
   "coingecko_asset_catalog",
   {

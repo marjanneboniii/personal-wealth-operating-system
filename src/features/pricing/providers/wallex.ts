@@ -80,6 +80,26 @@ function normalisePrice(raw: unknown): string | null {
   return trimmed;
 }
 
+/**
+ * One tradable asset on Wallex, with both of its quotes.
+ *
+ * `priceTmn` is Toman per unit and `priceUsdt` is Tether per unit, each read
+ * from the market that quotes it. Either may be null — a thin asset can trade
+ * in only one of the two — and neither is ever derived from the other.
+ */
+export type WallexMarketEntry = {
+  /** Stable instrument symbol, e.g. "BTC". */
+  symbol: string;
+  /** Persian display name from the source itself, e.g. «بیت‌کوین». */
+  displayName: string;
+  latinName: string;
+  kind: QuoteKind;
+  logoUrl: string | null;
+  priceTmn: string | null;
+  priceUsdt: string | null;
+  fetchedAt: string;
+};
+
 export type WallexProviderOptions = {
   fetchImpl?: typeof fetch;
   baseUrl?: string;
@@ -173,6 +193,69 @@ export class WallexProvider implements PriceProvider {
         latinName: str(row.enBaseAsset) ?? symbol,
         kind: kindOf(symbol),
         logoUrl: str(row.baseAsset_svg_icon) ?? str(row.baseAsset_png_icon),
+      });
+    }
+    return out.sort((a, b) => a.displayName.localeCompare(b.displayName, "fa"));
+  }
+
+  /**
+   * The catalogue with BOTH quotes an Iranian user actually reads.
+   *
+   * WHY TWO PRICES AND NOT ONE
+   * «قیمت تومانی» is what the money is spent in, and «قیمت تتری» is how this
+   * market talks about value — a user checks the Toman price to know what a
+   * purchase costs and the Tether price to compare against the global market
+   * without doing the FX arithmetic in their head. Reducing that to one figure
+   * and deriving the other through a USD/IRT rate would produce a third number
+   * that matches neither screen the user is comparing against, because a
+   * Toman market carries its own premium.
+   *
+   * So both are read from the SAME `/markets` payload, each from the market
+   * that actually quotes it, and neither is ever computed from the other.
+   *
+   * One upstream call answers both, plus the whole catalogue — the endpoint
+   * returns every market with its `stats.lastPrice` already attached.
+   */
+  async fetchMarketCatalog(): Promise<WallexMarketEntry[]> {
+    const symbols = await this.loadSymbols();
+    const fetchedAt = this.now().toISOString();
+
+    /** symbol → the row of each quote market it trades in. */
+    const byAsset = new Map<string, { tmn?: WallexSymbol; usdt?: WallexSymbol }>();
+    for (const row of Object.values(symbols)) {
+      const base = str(row.baseAsset)?.toUpperCase();
+      const quote = str(row.quoteAsset)?.toUpperCase();
+      if (!base || !quote) continue;
+      if (quote !== "TMN" && quote !== "USDT") continue;
+      const slot = byAsset.get(base) ?? {};
+      if (quote === "TMN") slot.tmn = row;
+      else slot.usdt = row;
+      byAsset.set(base, slot);
+    }
+
+    const out: WallexMarketEntry[] = [];
+    for (const [symbol, markets] of byAsset) {
+      const named = markets.tmn ?? markets.usdt;
+      // The Persian name is the whole point of preferring this source, so a row
+      // that has no `faBaseAsset` is skipped rather than shown in Latin.
+      const displayName = str(named?.faBaseAsset);
+      if (!displayName) continue;
+
+      const priceTmn = normalisePrice(markets.tmn?.stats?.lastPrice);
+      const priceUsdt = normalisePrice(markets.usdt?.stats?.lastPrice);
+      // A row quoted in neither market has nothing to show and nothing to
+      // value against.
+      if (priceTmn === null && priceUsdt === null) continue;
+
+      out.push({
+        symbol,
+        displayName,
+        latinName: str(named?.enBaseAsset) ?? symbol,
+        kind: kindOf(symbol),
+        logoUrl: str(named?.baseAsset_svg_icon) ?? str(named?.baseAsset_png_icon),
+        priceTmn,
+        priceUsdt,
+        fetchedAt,
       });
     }
     return out.sort((a, b) => a.displayName.localeCompare(b.displayName, "fa"));
