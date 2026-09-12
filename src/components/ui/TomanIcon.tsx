@@ -20,10 +20,12 @@
  *      asset row actually renders (20 / 24 / 28px) that is a third of a device
  *      pixel of ink and it simply disappeared, leaving a coloured blob.
  *
- * So: the same plate, the same 12px artwork margin, the same optical weight as
- * its siblings, and a glyph built from FILLED shapes rather than a hairline —
- * the lesson `FixedIncomeFundMark` already recorded, that a mark carried by
- * line work needs far more weight than a filled one to survive the same size.
+ * So: the same white plate and radius as its siblings, and the stroke taken to
+ * a weight that survives an asset row.
+ *
+ * THE GLYPH ITSELF IS NOT REDESIGNED. It is the product's original Toman curve,
+ * unchanged. A revision once swapped it for a bowl with three dots — which is
+ * «ث», not «ت» — and was reverted: the letterform was never the problem.
  *
  * THEME. Plate and ink are plain props with light-theme defaults, exactly like
  * the other marks, and the component is wrapped by `AssetLogo` in a rounded,
@@ -47,6 +49,16 @@ interface TomanIconProps {
 /** The one plate radius shared by every mark in the system (AssetTypeMarks). */
 const PLATE_RADIUS = 12;
 
+/**
+ * The Toman glyph, unchanged since the mark was first drawn. Kept as a named
+ * constant so it is obvious at a glance that this curve is the product's own
+ * letterform and not something to be re-invented.
+ */
+const GLYPH =
+  "M15 22 C15 27.5 19 29.5 24 29.5 " +
+  "C29 29.5 33 27.5 33 22 " +
+  "C33 21.4 25.8 21 21 21";
+
 const TomanIcon: React.FC<TomanIconProps> = ({
   size = 48,
   bgColor = "#FFFFFF",
@@ -68,26 +80,28 @@ const TomanIcon: React.FC<TomanIconProps> = ({
     >
       <rect width="48" height="48" rx={PLATE_RADIUS} fill={bgColor} />
       {/*
-        «ت» — the initial of تومان, drawn inside the same 12px margin the other
-        marks use.
+        THE ORIGINAL TOMAN GLYPH, restored exactly.
 
-        The bowl is a STROKE at weight 5 (the weight FixedIncomeFundMark had to
-        settle on for the same reason) rather than the 1.7 hairline it was, and
-        it opens upward like the letter does. The three dots above it are what
-        make the glyph unambiguously «ت» rather than a generic cup; they are
-        radius 2.2 — the smallest disc that still resolves to three separate
-        marks at 20px instead of merging into one smudge.
+        An earlier revision of this file replaced it with a bowl and THREE dots,
+        which does not read as «ت» at all — three dots is «ث». The mark is the
+        one the product has always used, and redrawing the letterform was never
+        what needed fixing: the plate and the weight were.
+
+        So the path below is byte-for-byte the original, still mirrored by the
+        same transform. Only the WEIGHT changed — from 1.7 to 3.6 — because at
+        1.7 on a 48 grid the stroke renders about 0.85px at the 24px an asset
+        row actually uses, and simply disappeared, leaving a coloured blob. 3.6
+        is as heavy as this curve takes before the bowl starts closing up.
       */}
-      <path
-        d="M14 22.4v3.2c0 5.2 4.4 8.6 10 8.6s10-3.4 10-8.6v-3.2"
-        stroke={letterColor}
-        strokeWidth="5"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <circle cx="18.2" cy="15.4" r="2.2" fill={letterColor} />
-      <circle cx="24" cy="15.4" r="2.2" fill={letterColor} />
-      <circle cx="29.8" cy="15.4" r="2.2" fill={letterColor} />
+      <g transform="scale(-1,1) translate(-48,0)">
+        <path
+          d={GLYPH}
+          stroke={letterColor}
+          strokeWidth="3.6"
+          strokeLinecap="round"
+          fill="none"
+        />
+      </g>
     </svg>
   );
 };
