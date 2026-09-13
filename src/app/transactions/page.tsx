@@ -2,19 +2,26 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { debts, entryFxSnapshots, installments } from "@/db/schema";
+import { debts, installments } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { getAccountBalances, getTransactions, type TxRow } from "@/features/ledger/queries";
+import { getEntryFxSnapshots } from "@/features/ledger/fxSnapshots";
 import { listCategoryTree } from "@/features/categories/service";
 import { PageHeader } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
+import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
 import TransactionsView, { type ClientTxRow } from "@/components/transactions/TransactionsView";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { todayIso } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "تراکنش‌ها" };
+
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+/** Rows fetched per view. Hitting it is announced — never a silent cut-off. */
+const ROW_LIMIT = 150;
 
 function monthShift(iso: string, months: number) {
   const d = new Date(iso + "T00:00:00Z");
@@ -43,7 +50,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
 
   const [rows, accounts, fx, categoryTree] = await Promise.all([
     getTransactions({
-      limit: 150,
+      limit: ROW_LIMIT,
       q: q || undefined,
       type: type || undefined,
       accountId: accountId || undefined,
@@ -58,34 +65,29 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     listCategoryTree(userId),
   ]);
 
-  // Attach FX freeze + installment linkage for the detail panel
+  // FX freeze + installment linkage for the detail panel. The ids come from the
+  // tenant-scoped query above.
   const ids = rows.map((r) => r.id);
-  const [fxRows, linkedRows] = ids.length
-    ? await Promise.all([
-        db.select().from(entryFxSnapshots).where(inArray(entryFxSnapshots.entryId, ids)),
-        db
+  const [fxBy, linkedRows] = await Promise.all([
+    getEntryFxSnapshots(ids),
+    ids.length
+      ? db
           .select({ entryId: installments.paidEntryId, seq: installments.seq, title: debts.title })
           .from(installments)
           .innerJoin(debts, eq(debts.id, installments.debtId))
-          .where(inArray(installments.paidEntryId, ids)),
-      ])
-    : [[], []];
-  const fxBy = new Map(fxRows.map((r) => [r.entryId, r]));
+          .where(inArray(installments.paidEntryId, ids))
+      : Promise.resolve([] as { entryId: string | null; seq: number; title: string }[]),
+  ]);
   const linkedBy = new Map(linkedRows.filter((r) => r.entryId).map((r) => [r.entryId as string, r]));
 
-  const clientRows: ClientTxRow[] = rows.map((r: TxRow) => ({
-    ...r,
-    fx: fxBy.get(r.id)
-      ? {
-          irtAmount: fxBy.get(r.id)!.irtAmount,
-          usdAmount: fxBy.get(r.id)!.usdAmount,
-          fxRate: fxBy.get(r.id)!.fxRate,
-          rateSource: fxBy.get(r.id)!.rateSource,
-          rateDate: fxBy.get(r.id)!.rateDate,
-        }
-      : null,
-    linkedInstallment: linkedBy.get(r.id) ? { title: linkedBy.get(r.id)!.title, seq: linkedBy.get(r.id)!.seq } : null,
-  }));
+  const clientRows: ClientTxRow[] = rows.map((r: TxRow) => {
+    const linked = linkedBy.get(r.id);
+    return {
+      ...r,
+      fx: fxBy.get(r.id) ?? null,
+      linkedInstallment: linked ? { title: linked.title, seq: linked.seq } : null,
+    };
+  });
 
   // Account filter covers money accounts; the category filter uses the
   // hierarchical expense category tree (parent matches all of its children).
@@ -106,22 +108,26 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   }));
 
   return (
-    <div>
-      <PageHeader
-        title="تراکنش‌ها"
-        action={
-          <Link href="/new" className="btn btn-primary">
-            <Icon name="plus" size={16} />
-            ثبت تراکنش
-          </Link>
-        }
-      />
+    <div className="space-y-5">
+      <div>
+        <PageHeader
+          title="تراکنش‌ها"
+          action={
+            <Link href="/new" className="btn btn-primary">
+              <Icon name="plus" size={16} />
+              ثبت تراکنش
+            </Link>
+          }
+        />
+        <ModuleTabs tabs={MONEY_TABS} active="/transactions" label="بخش‌های پول" />
+      </div>
       <TransactionsView
         rows={clientRows}
         accountGroups={accountGroups}
         categoryGroups={categoryGroups}
         rate={String(fx.rate ?? "")}
         filters={{ q, type, accountId, categoryId, review, range, sort }}
+        truncated={rows.length >= ROW_LIMIT}
       />
     </div>
   );

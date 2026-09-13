@@ -1,28 +1,9 @@
 "use client";
-// AccountListItem.tsx — one money-account row (presentation only).
+// AccountListItem.tsx — one account inside a multi-account wallet (presentation only).
 //
-// REGRESSION FIX: this component previously received `toIrt` — a FUNCTION —
-// from the Accounts server component. React Server Components cannot serialise
-// functions across the server/client boundary, so every render of a page that
-// had at least one wallet threw
-//   "Functions cannot be passed directly to Client Components"
-// and the whole «پول → حساب‌ها» page fell into the global error boundary
-// («مشکلی در نمایش این صفحه پیش آمد»).
-//
-// The fix is a display-layer contract change only: the server passes the
-// already-formatted strings it computed with its own helpers. No balance,
-// rate or valuation logic moved — the numbers are produced by exactly the
-// same ledger/FX code paths as before.
-//
-// UI CLEANUP (front-end only, ledger/FIFO untouched):
-//   • Redundant labels («— مانده اصلی», «ارزش:») removed — the row shows the
-//     primary amount + a single muted secondary line, no explanatory suffix.
-//   • Amounts reuse the server's formatMoney strings (Persian digits, max 2
-//     decimals, RLI…PDI bidi isolates), so crypto tickers (ETH…) keep the
-//     number-first order and never flip in RTL.
-//   • Title is never truncated to «…» — it wraps and uses the free space.
-//   • Icon is vertically centred with the title; padding/line-height are
-//     balanced so the two columns can never overlap.
+// The server passes already-formatted strings. A formatter FUNCTION must never
+// cross the server/client boundary — that used to crash «پول → حساب‌ها» with
+// "Functions cannot be passed directly to Client Components".
 import AssetLogo from "@/components/ui/AssetLogo";
 
 interface AccountListItemProps {
@@ -57,51 +38,37 @@ export default function AccountListItem({
   brandName,
   coingeckoId,
 }: AccountListItemProps) {
-  // A trailing separator left in a stored account name («بانک سامان ·»)
-  // otherwise renders as a lone dot next to the title.
+  // A trailing separator left in a stored name («بانک سامان ·») would render
+  // as a lone dot next to the title.
   const safeName = (name ?? "").replace(/^[\s·•\-—–|,]+|[\s·•\-—–|,]+$/g, "").trim() || "بدون نام";
-  const safeSymbol = symbol ?? "USD";
 
-  // Display-only mapping (no recalculation — strings come from the server):
-  //   • valuation exists (USDT/USD/crypto) → primary is the Toman valuation,
-  //     secondary is the exact canonical quantity (e.g. «۹۴۶.۴۸ تتر»).
-  //   • otherwise (IRT) → primary is the Toman balance, secondary is the
-  //     approximate USD equivalent («≈ … دلار»).
+  // valuation exists (USDT/USD/crypto) → Toman valuation first, exact quantity
+  // second («۹۴۶.۴۸ تتر»); otherwise the Toman balance with its «≈» dollar line.
   const primary = valuationLabel ?? balanceLabel;
-  const exactSecondary = valuationLabel ? balanceLabel : null;
-  const approxSecondary = !valuationLabel && baseValueLabel ? baseValueLabel : null;
+  const secondary = valuationLabel ? balanceLabel : baseValueLabel ? `≈ ${baseValueLabel}` : null;
 
   return (
-    <li className="acct-row flex items-center justify-between gap-3 px-4 py-3.5">
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <span className="acct-icon flex shrink-0 self-center">
-          <AssetLogo
-            symbol={safeSymbol}
-            name={safeName}
-            logoUrl={logoUrl}
-            assetClassName={assetClassName}
-            brandName={brandName}
-            coingeckoId={coingeckoId}
-            size={28}
-            radius={14}
-          />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="acct-title text-[length:var(--fs-xs)] font-semibold sm:text-[length:var(--fs-sm)]">{safeName}</p>
-        </div>
-      </div>
-      <div className="acct-amount max-w-[48%] shrink-0 text-left">
-        <p className="num money-nowrap text-[length:var(--fs-xs)] font-bold leading-6 sm:text-[length:var(--fs-sm)]" dir="rtl">
+    <li className="list-row">
+      <span className="acct-icon flex shrink-0">
+        <AssetLogo
+          symbol={symbol ?? "USD"}
+          name={safeName}
+          logoUrl={logoUrl}
+          assetClassName={assetClassName}
+          brandName={brandName}
+          coingeckoId={coingeckoId}
+          size={26}
+          radius={13}
+        />
+      </span>
+      <p className="acct-title min-w-0 flex-1 text-[length:var(--fs-xs)] font-medium sm:text-[length:var(--fs-sm)]">{safeName}</p>
+      <div className="acct-amount shrink-0 text-left">
+        <p className="num money-nowrap text-[length:var(--fs-xs)] font-semibold sm:text-[length:var(--fs-sm)]" dir="rtl">
           {primary}
         </p>
-        {exactSecondary && (
-          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[length:var(--fs-xs)] leading-5" dir="rtl">
-            {exactSecondary}
-          </p>
-        )}
-        {!exactSecondary && approxSecondary && (
-          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[length:var(--fs-xs)] leading-5" dir="rtl">
-            ≈ {approxSecondary}
+        {secondary && (
+          <p className="acct-secondary muted num money-nowrap text-[length:var(--fs-xs)]" dir="rtl">
+            {secondary}
           </p>
         )}
       </div>

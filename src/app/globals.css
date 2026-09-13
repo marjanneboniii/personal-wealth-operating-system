@@ -2658,83 +2658,70 @@ body {
    Presentation only — no figure, currency or rounding is changed.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.valuation-summary-header {
-  margin-bottom: 0.9rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border);
+/* One card, no nested tiles: the lead figure (ارزش روز) is large, the other
+   groups sit beside it (desktop) or as label/amount rows under it (phone).
+   The Toman amount is primary; the USD amount is its quiet second line. */
+.card.valuation-summary {
+  padding: 0 !important;
 }
 
-.valuation-summary-title {
+.valuation-summary-header {
   display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.875rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.5;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  padding: 0.9rem 1.1rem 0;
+}
+
+.valuation-summary-title,
+.valuation-group-title {
+  font-size: var(--fs-xs) !important;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--text-3);
 }
 
 .valuation-summary-hint {
-  margin-top: 0.3rem;
   font-size: var(--fs-xs);
-  line-height: 1.7;
+  line-height: 1.6;
   color: var(--text-3);
 }
 
 .valuation-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.7rem;
 }
 
 .valuation-group {
   min-width: 0;
-  padding: 0.7rem 0.8rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm, 10px);
-  background: var(--sunken);
+  padding: 0.8rem 1.1rem;
+  border-top: 1px solid var(--border);
 }
 
-.valuation-group-title {
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  line-height: 1.6;
-  color: var(--text-2, var(--text-3));
-  margin-bottom: 0.5rem;
-  padding-bottom: 0.4rem;
-  border-bottom: 1px dashed var(--border);
+.valuation-group-lead {
+  border-top: 0;
+  padding-bottom: 1rem;
 }
 
 .valuation-group-lines {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
-}
-
-/* Stacked label → amount. The amount never shares a line with its label. */
-.valuation-measure {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
   min-width: 0;
 }
 
-.valuation-measure-label {
-  font-size: var(--fs-xs);
-  line-height: 1.6;
-  font-weight: 500;
-  color: var(--text-3);
+.valuation-measure {
+  min-width: 0;
 }
 
 .valuation-measure-value {
   display: block;
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  line-height: 1.6;
-  letter-spacing: -0.01em;
-  /* Very long amounts scroll inside their own tile instead of overflowing the
-     card or being clipped — the figure always stays fully reachable. */
   max-width: 100%;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1.7;
+  color: var(--text-3);
+  /* Very long amounts scroll inside their own cell instead of being clipped. */
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
@@ -2744,34 +2731,649 @@ body {
   display: none;
 }
 
-@media (min-width: 640px) {
-  .valuation-grid {
-    gap: 0.8rem;
+.valuation-measure.is-primary .valuation-measure-value {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.valuation-group-lead .valuation-measure.is-primary .valuation-measure-value {
+  font-size: var(--fs-xl);
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 639px) {
+  .valuation-group:not(.valuation-group-lead) {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .valuation-group:not(.valuation-group-lead) .valuation-group-lines {
+    align-items: flex-end;
+  }
+  .valuation-group-lead .valuation-measure.is-primary .valuation-measure-value {
+    font-size: var(--fs-lg);
   }
 }
 
-/* Phone / PWA: the mobile block above shrinks every `.card` and `.num`; these
-   rules keep the valuation box legible and, above all, well spaced there. */
-@media (max-width: 640px) {
-  .card.valuation-summary {
-    padding: 0.85rem !important;
+@media (min-width: 640px) {
+  .valuation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .valuation-summary-header {
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.6rem;
+  .valuation-group-lead {
+    grid-column: 1 / -1;
   }
-  .valuation-group {
-    padding: 0.65rem 0.7rem 0.7rem;
+  .valuation-group:not(.valuation-group-lead):nth-child(odd) {
+    border-inline-start: 1px solid var(--border);
   }
-  .valuation-group-lines {
-    gap: 0.5rem;
+}
+
+@media (min-width: 1024px) {
+  .valuation-grid-3 {
+    grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr));
   }
-  .valuation-measure-value {
-    font-size: clamp(0.82rem, 3.9vw, 0.95rem) !important;
+  .valuation-grid-4 {
+    grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));
   }
-  .valuation-measure-label {
-    font-size: var(--fs-xs) !important;
+  .valuation-grid .valuation-group-lead {
+    grid-column: auto;
   }
+  .valuation-grid .valuation-group {
+    border-top: 0;
+    padding-block: 1rem;
+  }
+  .valuation-grid .valuation-group + .valuation-group {
+    border-inline-start: 1px solid var(--border);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Asset & commitment modules — shared layout pieces
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Module tab strip — underline tabs, scrolls sideways on a narrow phone. */
+.module-tabs {
+  display: flex;
+  gap: 1.35rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--border);
+}
+.module-tabs::-webkit-scrollbar {
+  display: none;
+}
+.module-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-3);
+  white-space: nowrap;
+  transition: color var(--motion-micro) var(--ease);
+}
+.module-tab:hover {
+  color: var(--text);
+}
+.module-tab-on {
+  color: var(--text);
+  font-weight: 600;
+}
+.module-tab-on::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--action);
+}
+
+/* KPI strip — one bordered surface split by hairlines instead of loose tiles. */
+.metric-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--border);
+}
+.metric-strip > * {
+  background: var(--surface);
+  padding: 0.85rem 1rem;
+}
+.metric-strip > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+@media (min-width: 640px) {
+  .metric-strip {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+  }
+  .metric-strip > :last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+}
+
+.price-flag {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--fs-xs);
+  color: var(--warning);
+}
+
+/* Obligation card */
+.card.obligation-card {
+  padding: 0.95rem 1.05rem;
+}
+.obligation-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.8rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Disclosure panel — a form folded away until asked for */
+.card.disclosure {
+  padding: 0;
+}
+.disclosure-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 52px;
+  padding: 0.6rem 1rem;
+  text-align: right;
+  color: var(--text);
+  border-radius: var(--r-lg);
+  transition: background var(--motion-micro) var(--ease);
+}
+.disclosure-toggle:hover {
+  background: var(--hover);
+}
+.disclosure-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  background: var(--action-soft);
+  color: var(--action);
+}
+.disclosure-body {
+  border-top: 1px solid var(--border);
+  padding: 1rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Overview & money modules
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* List card — one surface, hairline rows (activity, wallets, payments). */
+.card.list-card {
+  padding: 0;
+}
+.list-card > * + * {
+  border-top: 1px solid var(--border);
+}
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 58px;
+  padding: 0.6rem 1rem;
+}
+.list-row > .text-left {
+  max-width: 55%;
+}
+
+.flow-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  background: var(--sunken);
+  color: var(--text-2);
+}
+.flow-icon.is-in {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+/* Overview hero */
+.overview-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-top: 0.25rem;
+}
+@media (min-width: 768px) {
+  .overview-hero {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+  }
+}
+.overview-hero-value {
+  margin-top: 0.3rem;
+  font-size: var(--fs-hero);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.overview-hero-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+  margin-top: 0.45rem;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.quick-row {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 1px;
+}
+.quick-row::-webkit-scrollbar {
+  display: none;
+}
+.quick-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  transition: border-color var(--motion-micro) var(--ease), color var(--motion-micro) var(--ease);
+}
+.quick-pill:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+/* This month's three figures */
+.month-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+.month-figures > div {
+  min-width: 0;
+}
+.month-figures dt {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.month-figures dd {
+  margin-top: 0.15rem;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+@media (max-width: 639px) {
+  .month-figures {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .month-figures > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .month-figures > div:last-child {
+    border-bottom: 0;
+  }
+  .month-figures dd {
+    margin-top: 0;
+    font-size: var(--fs-sm);
+  }
+}
+
+/* Transactions */
+.tx-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  padding-inline: 0.25rem;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.card.tx-list {
+  padding: 0;
+}
+.tx-day {
+  padding: 0.45rem 1rem;
+  font-size: var(--fs-xs) !important;
+  font-weight: 600;
+  color: var(--text-3);
+  background: var(--sunken);
+  border-bottom: 1px solid var(--border);
+}
+.tx-list > section + section .tx-day {
+  border-top: 1px solid var(--border);
+}
+.tx-list ul > li + li {
+  border-top: 1px solid var(--border);
+}
+.tx-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0.75rem 0.5rem;
+}
+.tx-item-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 60px;
+  padding-block: 0.55rem;
+  text-align: right;
+}
+.tx-unreviewed-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--warning);
+}
+.tx-detail {
+  padding: 0.9rem 1rem 1rem;
+  background: var(--sunken);
+  border-top: 1px solid var(--border);
+}
+.tx-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem 1.25rem;
+  font-size: var(--fs-xs);
+}
+@media (min-width: 640px) {
+  .tx-detail-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.tx-detail-grid dt {
+  color: var(--text-3);
+}
+.tx-detail-grid dd {
+  margin-top: 0.1rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* Accounts — a wallet with several accounts lists them indented under it */
+.wallet-sub {
+  border-top: 1px solid var(--border);
+  background: var(--sunken);
+}
+.wallet-sub > li + li {
+  border-top: 1px solid var(--border);
+}
+.wallet-sub .list-row {
+  min-height: 48px;
+  padding-inline-start: 3.4rem;
+}
+.wallet-badge {
+  display: inline-flex;
+  align-self: flex-end;
+  margin-inline-start: -10px;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+}
+
+/* Cash-flow breakdowns */
+.card.breakdown {
+  padding: 0.2rem 1rem;
+}
+.breakdown-row {
+  padding: 0.75rem 0;
+}
+.breakdown-row + .breakdown-row {
+  border-top: 1px solid var(--border);
+}
+.breakdown-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.breakdown .meter {
+  height: 4px;
+  margin-top: 0.5rem;
+}
+.breakdown-leaves {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.2rem;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.breakdown-more {
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Setup wizard
+   ═══════════════════════════════════════════════════════════════════════════ */
+.setup-steps {
+  display: flex;
+  gap: 0.15rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.setup-steps::-webkit-scrollbar {
+  display: none;
+}
+.setup-step {
+  flex: 1 0 auto;
+  min-width: 0;
+}
+.setup-step button {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.25rem;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.setup-step button:disabled {
+  cursor: default;
+}
+.setup-step-dot {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 600;
+}
+.setup-step.is-done .setup-step-dot {
+  border-color: transparent;
+  background: var(--action-soft);
+  color: var(--action);
+}
+.setup-step.is-current .setup-step-dot {
+  border-color: var(--action);
+  background: var(--action);
+  color: var(--on-ink);
+}
+.setup-step.is-current button {
+  font-weight: 600;
+  color: var(--text);
+}
+@media (max-width: 639px) {
+  .setup-step:not(.is-current) .setup-step-label {
+    display: none;
+  }
+}
+.card.setup-card {
+  padding: 1.15rem;
+}
+.card.setup-row {
+  padding: 0.85rem 1rem;
+}
+.setup-nav {
+  display: flex;
+  gap: 0.5rem;
+}
+.setup-nav .btn-primary {
+  flex: 1;
+}
+.setup-units li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  padding: 0.6rem 0;
+}
+.setup-units li + li {
+  border-top: 1px solid var(--border);
+}
+.setup-unit {
+  min-width: 5.5rem;
+  flex-shrink: 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.setup-toggle {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 1rem;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.setup-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--action);
+}
+.setup-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  font-size: var(--fs-sm);
+}
+.setup-total + .setup-total {
+  border-top: 1px solid var(--border);
+}
+
+/* Allocation bar + legend */
+.card.alloc {
+  padding: 1rem 1.1rem 0.5rem;
+}
+.alloc-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--sunken);
+}
+.alloc-bar > span {
+  display: block;
+  height: 100%;
+}
+.alloc-legend {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 2rem;
+  margin-top: 0.6rem;
+}
+.alloc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 42px;
+  border-bottom: 1px solid var(--border);
+}
+.alloc-row:last-child {
+  border-bottom: 0;
+}
+.alloc-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+@media (min-width: 640px) {
+  .alloc-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .alloc-row:nth-last-child(2):nth-child(odd) {
+    border-bottom: 0;
+  }
+}
+
+/* Unheld registrations — one card, hairline rows */
+.card.unheld-list {
+  padding: 0;
+}
+.unheld-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.unheld-row:last-child {
+  border-bottom: 0;
+}
+
+.card.realized-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  padding: 0.85rem 1rem;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

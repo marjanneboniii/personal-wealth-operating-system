@@ -7,25 +7,27 @@ import { seedIfEmpty } from "@/db/seed";
 import { listMoneyAccountCurrencies } from "@/features/accounts/service";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { classifyAccountFamily, isLiquidAccount } from "@/features/accounts/classification";
-import { EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
+import { Alert, EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import AssetLogo from "@/components/ui/AssetLogo";
+import DisclosurePanel from "@/components/ui/DisclosurePanel";
+import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
 import { resolveAssetLogoDetailed } from "@/features/branding/assetLogo";
 import MoneyAccountForm from "@/components/forms/MoneyAccountForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
-import { faCount, formatMoney, toIrtMoney, toFaDigits } from "@/lib/format";
+import { faCount, formatMoney, formatPct, toIrtMoney, toFaDigits } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getUserProMode } from "@/features/preferences/service";
 import AccountListItem from "@/components/accounts/AccountListItem";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "حساب‌ها" };
+
 /**
- * Wallet-kind chips. Custody jargon is gone from the UI: a software (hot)
- * wallet is simply «کیف پول» — whether the keys sit on a device or with an
- * exchange is an implementation detail the user never has to decode to read
- * their own balances.
+ * Wallet-kind labels. Custody jargon is gone from the UI: a software (hot)
+ * wallet is simply «کیف پول».
  */
 const WALLET_KIND: Record<string, string> = {
   bank: "بانک",
@@ -37,39 +39,26 @@ const WALLET_KIND: Record<string, string> = {
 };
 
 /**
- * Subtitle under a wallet/bank card title.
- *
- * A bank's own name already carries the word «بانک» («بانک پاسارگاد»,
- * «بانک سامان — سپرده», «بانک تجارت - قرض الحسنه»), so prefixing the
- * `bank` kind label produced «بانک · بانک پاسارگاد» — the same word twice in
- * a row, once in the title and once directly under it. When the kind label is
- * already part of the title it is dropped and only the institution/network that
- * still adds information is kept; if nothing is left, there is no subtitle.
- */
-/**
- * Strips a dangling separator from a display name.
- *
- * Wallet/institution names arrive from seeds and user input as «بانک سامان —
- * سپرده», «بانک تجارت - قرض الحسنه» and sometimes with the qualifier deleted
- * but its separator left behind («بانک سامان ·»). Rendered as-is that orphan
- * glyph looks like a stray dot pinned to the account title.
+ * Strips a dangling separator from a display name («بانک سامان ·» → «بانک سامان»),
+ * which would otherwise render as a stray dot pinned to the title.
  */
 function cleanDisplayName(value: string): string {
   return value.replace(/[\s·•\-—–|,]+$/g, "").replace(/^[\s·•\-—–|,]+/g, "").trim();
 }
 
+/**
+ * Subtitle under a wallet title. A bank's own name already carries «بانک», so
+ * the kind label is dropped when the title contains it, and the institution is
+ * dropped when the title already names it. If nothing is left, no subtitle.
+ */
 function walletSubtitleOf(wallet: { name: string | null; kind: string | null; institution: string | null; network: string | null } | undefined) {
   if (!wallet) return null;
   const kindLabel = WALLET_KIND[wallet.kind ?? ""] ?? wallet.kind ?? "";
   const title = wallet.name ?? "";
   const detail = wallet.institution ?? wallet.network ?? "";
-  // Never repeat the institution either: «بانک سامان — سپرده» IS «بانک سامان».
   const detailAddsAnything = !!detail && detail !== title && !title.includes(detail);
   const kindAddsAnything = !!kindLabel && !title.includes(kindLabel) && kindLabel !== detail;
   const parts = [kindAddsAnything ? kindLabel : null, detailAddsAnything ? detail : null]
-    // A part that is only punctuation/whitespace (a stray «·», «—», «-» left in
-    // an institution or wallet name) must not survive: joined with the
-    // separator it renders as a lone dot hanging next to the account title.
     .map((part) => (part ?? "").replace(/^[\s·•\-—–|,]+|[\s·•\-—–|,]+$/g, "").trim())
     .filter((part) => part.length > 0);
   return parts.length ? parts.join(" · ") : null;
@@ -96,383 +85,363 @@ export default async function AccountsPage() {
       .leftJoin(institutions, eq(institutions.id, wallets.institutionId))
       .leftJoin(networks, eq(networks.id, wallets.networkId))
       .leftJoin(accounts, and(eq(accounts.walletId, wallets.id), sql`${accounts.deletedAt} is null`))
-      .where(
-        and(
-          sql`${wallets.deletedAt} is null`,
-          userId ? eq(wallets.userId, userId) : sql`1=1`,
-        ),
-      )
+      .where(and(sql`${wallets.deletedAt} is null`, userId ? eq(wallets.userId, userId) : sql`1=1`))
       .orderBy(asc(wallets.name)),
     getLatestUsdIrtRate(),
   ]);
 
+  type Balance = (typeof balances)[number];
+
   /**
-   * USD → Toman display helper. NO absolute value: a wallet that is short
-   * (overdrawn, or an asset account with a residual debit after a fee-bearing
-   * full exit) must READ as short. Masking the sign here is what let a broken
-   * balance look like a healthy balance (audit F-06).
+   * USD → Toman display helper. NO absolute value: a short (overdrawn) account
+   * must READ as short (audit F-06).
    */
   const toIrt = (usd: string | number) => toIrtMoney(D(usd).toString(), fx.rate);
 
-  /**
-   * Asset display metadata (stored logo + CoinGecko identity), read separately
-   * so the ledger balance query stays untouched. Presentation only: these
-   * columns never take part in posting, FIFO or valuation.
-   */
+  /** Asset display metadata (logo + CoinGecko identity) — presentation only. */
   const assetIds = [...new Set(balances.map((b) => b.assetId).filter((id): id is string => !!id))];
   const assetMetaRows = assetIds.length
     ? await db
-        .select({
-          id: assets.id,
-          logoUrl: assets.logoUrl,
-          coingeckoId: assets.coingeckoId,
-        })
+        .select({ id: assets.id, logoUrl: assets.logoUrl, coingeckoId: assets.coingeckoId })
         .from(assets)
         .where(inArray(assets.id, assetIds))
     : [];
   const assetMeta = new Map(assetMetaRows.map((row) => [row.id, row]));
 
-  // CURRENCY ISOLATION: Balance is canonical in its own currency, Valuation is derived.
-  // IRT Balance = quantity (Toman) canonical
-  // USDT Balance = quantity (USDT) canonical, Toman Valuation = qty * rate
-  // USD Balance = quantity (USD) canonical, Toman Valuation = qty * rate
-  const canonicalBalance = (b: (typeof balances)[number]) => {
+  const isIrt = (b: Balance) => b.symbol === "IRT" || b.symbol === "IRR";
+
+  // CURRENCY ISOLATION: a balance is canonical in its own currency; its Toman
+  // valuation is derived. IRT = quantity (Toman); USDT/USD = quantity × rate.
+  const canonicalBalance = (b: Balance) => {
     const q = D(b.quantity);
     if (b.symbol === "IRT") return formatMoney(q.toFixed(0), "IRT");
     if (b.symbol === "IRR") return formatMoney(q.div(10).toFixed(0), "IRT");
     if (b.symbol === "USDT") return formatMoney(q.toString(), "USDT");
     if (b.symbol === "USD") return formatMoney(q.toString(), "USD");
-    // Fallback for other assets: quantity in its own symbol
     return formatMoney(q.toString(), b.symbol ?? "USD");
   };
 
-  const valuationToman = (b: (typeof balances)[number]) => {
-    if (b.symbol === "IRT" || b.symbol === "IRR") return null; // IRT balance IS Toman, no separate valuation needed for primary
+  const valuationToman = (b: Balance) => {
+    if (isIrt(b)) return null; // an IRT balance IS Toman
     if (b.symbol === "USDT" || b.symbol === "USD") {
-      // Toman valuation = canonical qty * current rate (sign preserved)
       return toIrt(D(b.quantity).toString()) ?? formatMoney(D(b.baseValue).toString(), "IRT");
     }
     return toIrt(b.baseValue) ?? null;
   };
 
   /**
-   * MONEY MODULE SCOPE (audit F-11). This page renders LIQUID accounts only:
-   * bank / cash box / fund plus stablecoin (USDT, USDC, …) hot & cold wallets —
-   * the places money rests. Investment positions (volatile crypto, equities,
-   * funds, gold, commodities, real estate, vehicles) belong to the Assets
-   * module, which values them (market price, P&L, lots) instead of listing them
-   * as balances. The two modules therefore never show the same thing twice.
+   * Toman value of one account, on EXACTLY the basis its row displays.
+   *
+   * The page total used to be Σ(USD base value) × today's rate, while every
+   * Toman account row shows its canonical Toman quantity — so the headline
+   * disagreed with the sum of the rows beneath it whenever the two drifted.
+   * Totals are now summed from these per-row figures instead.
    */
-  const isInvestmentRow = (b: (typeof balances)[number]) =>
-    b.type === "asset" && classifyAccountFamily(b) === "investment";
+  const rate = fx.rate && D(fx.rate).gt(0) ? D(fx.rate) : null;
+  const tomanOf = (b: Balance): Decimal | null => {
+    if (b.symbol === "IRT") return D(b.quantity);
+    if (b.symbol === "IRR") return D(b.quantity).div(10);
+    if (!rate) return null;
+    return (b.symbol === "USDT" || b.symbol === "USD" ? D(b.quantity) : D(b.baseValue)).mul(rate);
+  };
+  const tomanTotal = (list: Balance[]): Decimal | null => {
+    let sum = Decimal.zero();
+    for (const b of list) {
+      const t = tomanOf(b);
+      if (!t) return null;
+      sum = sum.add(t);
+    }
+    return sum;
+  };
+  const usdTotal = (list: Balance[]) => list.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
+
+  /**
+   * MONEY MODULE SCOPE (audit F-11). LIQUID accounts only — bank, cash box,
+   * fund and stablecoin wallets. Investment positions belong to «دارایی‌ها».
+   */
+  const isInvestmentRow = (b: Balance) => b.type === "asset" && classifyAccountFamily(b) === "investment";
   const moneyAccountsRaw = balances.filter(
-    (b) =>
-      b.type === "asset" &&
-      isLiquidAccount(b) &&
-      (!!b.walletName || !D(b.quantity).isZero()),
+    (b) => b.type === "asset" && isLiquidAccount(b) && (!!b.walletName || !D(b.quantity).isZero()),
   );
   const investmentAccounts = balances.filter(isInvestmentRow);
-  const moneyById = new Map<string, (typeof moneyAccountsRaw)[number]>();
+  const moneyById = new Map<string, Balance>();
   for (const row of moneyAccountsRaw) {
     const prev = moneyById.get(row.accountId);
     if (!prev) {
       moneyById.set(row.accountId, row);
       continue;
     }
-    const preferIrt = row.symbol === "IRT" || row.symbol === "IRR";
-    const prevIrt = prev.symbol === "IRT" || prev.symbol === "IRR";
-    moneyById.set(row.accountId, preferIrt && !prevIrt ? row : prev);
+    moneyById.set(row.accountId, isIrt(row) && !isIrt(prev) ? row : prev);
   }
   const moneyAccounts = [...moneyById.values()];
   const liabilityAccounts = balances.filter((b) => b.type === "liability" && !D(b.baseValue).isZero());
-  const totalCash = moneyAccounts.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
   const controlSum = balances.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
+  const ledgerBalanced = controlSum.abs().lt("0.000001");
 
-  const walletIdByAccount = new Map(
-    walletRows.filter((w) => w.accountId).map((w) => [w.accountId as string, w.id]),
-  );
-  const byWallet = new Map<string, typeof moneyAccounts>();
+  const totalToman = tomanTotal(moneyAccounts);
+  const totalUsd = usdTotal(moneyAccounts);
+  const irtAccounts = moneyAccounts.filter(isIrt);
+  const fxAccounts = moneyAccounts.filter((b) => !isIrt(b));
+  const irtToman = tomanTotal(irtAccounts) ?? Decimal.zero();
+  const fxToman = tomanTotal(fxAccounts);
+  const shareOfTotal = (part: Decimal | null) =>
+    totalToman && part && totalToman.gt(0) ? `${formatPct(part.div(totalToman).mul(100).toFixed(0), 0)} از کل` : undefined;
+
+  const walletIdByAccount = new Map(walletRows.filter((w) => w.accountId).map((w) => [w.accountId as string, w.id]));
+  const byWallet = new Map<string, Balance[]>();
   for (const b of moneyAccounts) {
     const key = walletIdByAccount.get(b.accountId) ?? `account:${b.accountId}`;
     byWallet.set(key, [...(byWallet.get(key) ?? []), b]);
   }
 
-  return (
-    <div className="space-y-8">
-      <PageHeader
-        title="حساب‌های نقد"
-        subtitle="بانک، صندوق و کیف پول — همان‌جا که پول نگه داشته می‌شود."
-        action={
-          <Link
-            href="/assets"
-            className="inline-flex items-center gap-1 text-[length:var(--fs-xs)] font-medium sm:text-[length:var(--fs-xs)]"
-            style={{ color: "var(--action)" }}
-          >
-            دارایی‌ها و سرمایه‌گذاری
-            <Icon name="chevronLeft" size={14} />
-          </Link>
-        }
-      />
+  const walletViews = [...byWallet.entries()]
+    .map(([key, rows]) => {
+      const meta = walletRows.find((w) => w.id === key);
+      const name = cleanDisplayName(meta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف پول") || "بدون کیف پول";
+      return {
+        key,
+        meta,
+        name,
+        rows,
+        toman: tomanTotal(rows),
+        usd: usdTotal(rows),
+        subtitle: meta
+          ? walletSubtitleOf({ name, kind: meta.kind, institution: meta.institution ?? null, network: meta.network ?? null })
+          : null,
+      };
+    })
+    // Largest balance first — the list reads as «where is most of my money».
+    .sort((a, b) => Number((rate ? (b.toman ?? b.usd) : b.usd).sub(rate ? (a.toman ?? a.usd) : a.usd).toString()));
 
-      <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-3" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش پایه حساب‌های نقد" value={toIrt(totalCash.toString()) ?? formatMoney(totalCash.toString())} hint={fx.rate ? formatMoney(totalCash.toString()) : undefined} />
-        <Metric label="حساب‌های فعال" value={faCount(moneyAccounts.length + liabilityAccounts.length)} hint={`${faCount(byWallet.size)} کیف پول / نهاد`} />
-        <Metric
-          label="جمع کنترلی دفتر"
-          value={formatMoney(controlSum.toFixed(2))}
-          tone={controlSum.abs().lt("0.000001") ? "neutral" : "down"}
-          hint={controlSum.abs().lt("0.000001") ? "صفر — اصل دوطرفه رعایت شده" : "باید صفر باشد — نیاز به بررسی"}
+  return (
+    <div className="space-y-7">
+      <div>
+        <PageHeader
+          title="حساب‌ها"
+          action={
+            <Link href="#new-account" className="btn btn-primary">
+              <Icon name="plus" size={16} />
+              افزودن حساب
+            </Link>
+          }
         />
+        <ModuleTabs tabs={MONEY_TABS} active="/accounts" label="بخش‌های پول" />
+      </div>
+
+      {!ledgerBalanced && (
+        <Alert
+          tone="warn"
+          title="ناترازی در سوابق مالی"
+          action={
+            <Link href="/financial-records" className="btn btn-soft !px-3.5 text-[length:var(--fs-xs)]">
+              بررسی
+            </Link>
+          }
+        >
+          جمع کنترلی باید صفر باشد:{" "}
+          <span className="num" dir="rtl">
+            {formatMoney(controlSum.toFixed(2))}
+          </span>
+        </Alert>
+      )}
+
+      <section className="metric-strip">
+        <Metric
+          label="موجودی کل"
+          value={totalToman ? formatMoney(totalToman.toFixed(0), "IRT") : formatMoney(totalUsd.toString())}
+          hint={totalToman ? `≈ ${formatMoney(totalUsd.toString())}` : undefined}
+        />
+        <Metric label="تومانی" value={formatMoney(irtToman.toFixed(0), "IRT")} hint={shareOfTotal(irtToman)} />
+        {fxAccounts.length > 0 && (
+          <Metric
+            label="ارزی"
+            value={fxToman ? formatMoney(fxToman.toFixed(0), "IRT") : formatMoney(usdTotal(fxAccounts).toString())}
+            hint={fxToman ? `≈ ${formatMoney(usdTotal(fxAccounts).toString())}` : undefined}
+          />
+        )}
+        <Metric label="حساب‌ها" value={faCount(moneyAccounts.length)} hint={`${faCount(byWallet.size)} کیف و بانک`} />
       </section>
 
-      <Section>
-        {byWallet.size === 0 ? (
+      <Section title="کیف‌ها و بانک‌ها">
+        {walletViews.length === 0 ? (
           <div className="card">
             <EmptyState
               icon="accounts"
-              title="هنوز حساب نقدی فعال نیست"
+              title="هنوز حساب نقدی ندارید"
               body={
                 investmentAccounts.length > 0
-                  ? `${faCount(investmentAccounts.length)} حساب سرمایه‌گذاری دارید؛ آن‌ها در بخش دارایی‌ها ارزش‌گذاری می‌شوند. برای پول نقد، یک حساب بانکی یا کیف پول استیبل‌کوین اضافه کنید.`
-                  : "با راه‌اندازی اولیه یا ثبت موجودی، حساب‌های نقد و مانده‌هایشان اینجا نمایش داده می‌شوند."
+                  ? `${faCount(investmentAccounts.length)} حساب سرمایه‌گذاری شما در «دارایی‌ها» است.`
+                  : undefined
+              }
+              action={
+                <Link href="#new-account" className="btn btn-soft">
+                  افزودن حساب
+                </Link>
               }
             />
           </div>
         ) : (
-          <div className="space-y-2.5">
-            {[...byWallet.entries()].map(([walletKey, rows]) => {
-              const walletTotal = rows.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
-              const walletMeta = walletRows.find((w) => w.id === walletKey);
-              const walletName = cleanDisplayName(
-                walletMeta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف پول",
-              ) || "بدون کیف پول";
-              const irtOnly = rows.every((r) => r.symbol === "IRT" || r.symbol === "IRR");
-              const walletPrimary = irtOnly
-                ? formatMoney(
-                    rows.reduce((s, r) => s.add(r.symbol === "IRR" ? D(r.quantity).div(10) : D(r.quantity)), Decimal.zero()).toFixed(0),
-                    "IRT",
-                  )
-                : toIrt(walletTotal.toString()) ?? formatMoney(walletTotal.toString());
-              // Brand mark for the wallet/institution header — display only.
-              const walletLogo = resolveAssetLogoDetailed({
-                assetType: walletMeta?.kind === "exchange" ? "company" : "bank",
-                brandName: walletMeta?.institution ?? walletName,
-                name: walletName,
-              });
-              const walletSubtitle = walletMeta
-                ? walletSubtitleOf({
-                    name: walletName,
-                    kind: walletMeta.kind,
-                    institution: walletMeta.institution ?? null,
-                    network: walletMeta.network ?? null,
-                  })
-                : null;
-              // ── Single-account wallets: one summary card, no duplicate sub-row.
-              // Amounts reuse the exact same helpers (canonicalBalance /
-              // valuationToman) — only the redundant header+row split and the
-              // «حساب» / «مانده…» labels are gone.
-              if (rows.length === 1) {
-                const b = rows[0];
-                const singleValuation = valuationToman(b);
-                const singlePrimary = singleValuation ?? canonicalBalance(b);
-                const singleExact = singleValuation ? canonicalBalance(b) : null;
-                const singleApprox =
-                  !singleValuation && toIrt(D(b.baseValue).toString())
-                    ? formatMoney(D(b.baseValue).toString())
+          <ul className="card list-card" role="list">
+            {walletViews.map((w) => {
+              const single = w.rows.length === 1;
+              const first = w.rows[0];
+              const firstMeta = first.assetId ? assetMeta.get(first.assetId) : undefined;
+              const logoType = w.meta?.kind === "exchange" ? "company" : "bank";
+              const brandName = w.meta?.institution ?? w.name;
+              const useWalletMark = resolveAssetLogoDetailed({ assetType: logoType, brandName, name: w.name }).source === "persianlabs";
+              // A single stablecoin wallet keeps both marks (e.g. Nobitex + Tether).
+              const showAssetBadge = single && useWalletMark && !isIrt(first) && (!!firstMeta?.logoUrl || !!firstMeta?.coingeckoId);
+
+              let primary: string;
+              let secondary: string | null;
+              if (single) {
+                const valuation = valuationToman(first);
+                primary = valuation ?? canonicalBalance(first);
+                secondary = valuation
+                  ? canonicalBalance(first)
+                  : toIrt(D(first.baseValue).toString())
+                    ? `≈ ${formatMoney(D(first.baseValue).toString())}`
                     : null;
-                // Single summary keeps both marks when both are informative
-                // (e.g. Nobitex wallet + Tether asset) so merging the two
-                // rows never loses artwork. Pure flex, no absolute overlay.
-                const singleMeta = b.assetId ? assetMeta.get(b.assetId) : undefined;
-                const useWalletMark = walletLogo.source === "persianlabs";
-                const showAssetBadge =
-                  useWalletMark &&
-                  b.symbol !== "IRT" &&
-                  b.symbol !== "IRR" &&
-                  (!!singleMeta?.logoUrl || !!singleMeta?.coingeckoId);
-                return (
-                  <div key={walletKey} className="acct-card card overflow-hidden">
-                    <div className="acct-head flex items-center justify-between gap-3 px-4 py-3.5">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        {useWalletMark ? (
-                          <span className="acct-icon flex shrink-0 items-center self-center">
-                            <AssetLogo
-                              assetType={walletMeta?.kind === "exchange" ? "company" : "bank"}
-                              brandName={walletMeta?.institution ?? walletName}
-                              name={walletName}
-                              size={32}
-                              radius={16}
-                            />
-                            {showAssetBadge && (
-                              <span style={{ marginInlineStart: -10, alignSelf: "flex-end", border: "2px solid var(--surface)", borderRadius: 999 }}>
-                                <AssetLogo
-                                  symbol={b.symbol}
-                                  name={b.name ?? walletName}
-                                  logoUrl={singleMeta?.logoUrl ?? null}
-                                  assetClassName={b.className}
-                                  coingeckoId={singleMeta?.coingeckoId ?? null}
-                                  size={20}
-                                  radius={10}
-                                />
-                              </span>
-                            )}
-                          </span>
-                        ) : singleMeta?.logoUrl || singleMeta?.coingeckoId || b.symbol ? (
-                          <span className="acct-icon flex shrink-0 self-center">
-                            <AssetLogo
-                              symbol={b.symbol}
-                              name={b.name ?? walletName}
-                              logoUrl={singleMeta?.logoUrl ?? null}
-                              assetClassName={b.className}
-                              coingeckoId={singleMeta?.coingeckoId ?? null}
-                              size={32}
-                              radius={16}
-                            />
-                          </span>
-                        ) : (
-                          <span
-                            className="acct-icon flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full"
-                            style={{ background: "var(--surface)", color: "var(--action)", border: "1px solid var(--border)" }}
-                          >
-                            <Icon name="wallet" size={15} />
-                          </span>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="acct-title text-[length:var(--fs-xs)] font-semibold sm:text-[length:var(--fs-sm)]">{walletName}</p>
-                          {walletSubtitle && <p className="acct-subtitle muted mt-0.5 text-[length:var(--fs-xs)] leading-5">{walletSubtitle}</p>}
-                        </div>
-                      </div>
-                      <div className="acct-amount max-w-[48%] shrink-0 text-left">
-                        <p className="num money-nowrap text-[length:var(--fs-xs)] font-bold leading-6 sm:text-[length:var(--fs-sm)]" dir="rtl">
-                          {singlePrimary}
-                        </p>
-                        {singleExact && (
-                          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[length:var(--fs-xs)] leading-5" dir="rtl">
-                            {singleExact}
-                          </p>
-                        )}
-                        {!singleExact && singleApprox && (
-                          <p className="acct-secondary muted num money-nowrap mt-0.5 text-[length:var(--fs-xs)] leading-5" dir="rtl">
-                            ≈ {singleApprox}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
+              } else {
+                primary = w.toman ? formatMoney(w.toman.toFixed(0), "IRT") : formatMoney(w.usd.toString());
+                secondary = w.toman && !w.rows.every(isIrt) ? `≈ ${formatMoney(w.usd.toString())}` : null;
               }
+
               return (
-                <div key={walletKey} className="acct-card card overflow-hidden">
-                  <div className="acct-head flex items-center justify-between gap-3 px-4 py-3.5" style={{ background: "var(--sunken)" }}>
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      {walletLogo.source === "persianlabs" ? (
-                        <span className="acct-icon flex shrink-0 self-center">
-                          <AssetLogo
-                            assetType={walletMeta?.kind === "exchange" ? "company" : "bank"}
-                            brandName={walletMeta?.institution ?? walletName}
-                            name={walletName}
-                            size={32}
-                            radius={16}
-                          />
-                        </span>
-                      ) : (
-                        <span
-                          className="acct-icon flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full"
-                          style={{ background: "var(--surface)", color: "var(--action)" }}
-                        >
-                          <Icon name="wallet" size={15} />
-                        </span>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="acct-title text-[length:var(--fs-xs)] font-semibold sm:text-[length:var(--fs-sm)]">{walletName}</p>
-                        {walletSubtitle && <p className="acct-subtitle muted mt-0.5 text-[length:var(--fs-xs)] leading-5">{walletSubtitle}</p>}
-                      </div>
+                <li key={w.key}>
+                  <div className="list-row">
+                    {useWalletMark ? (
+                      <span className="acct-icon flex shrink-0 items-center">
+                        <AssetLogo assetType={logoType} brandName={brandName} name={w.name} size={34} radius={17} />
+                        {showAssetBadge && (
+                          <span className="wallet-badge">
+                            <AssetLogo
+                              symbol={first.symbol}
+                              name={first.name ?? w.name}
+                              logoUrl={firstMeta?.logoUrl ?? null}
+                              assetClassName={first.className}
+                              coingeckoId={firstMeta?.coingeckoId ?? null}
+                              size={18}
+                              radius={9}
+                            />
+                          </span>
+                        )}
+                      </span>
+                    ) : single && (firstMeta?.logoUrl || firstMeta?.coingeckoId || first.symbol) ? (
+                      <span className="acct-icon flex shrink-0">
+                        <AssetLogo
+                          symbol={first.symbol}
+                          name={first.name ?? w.name}
+                          logoUrl={firstMeta?.logoUrl ?? null}
+                          assetClassName={first.className}
+                          coingeckoId={firstMeta?.coingeckoId ?? null}
+                          size={34}
+                          radius={17}
+                        />
+                      </span>
+                    ) : (
+                      <span className="flow-icon" aria-hidden="true">
+                        <Icon name="wallet" size={15} />
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="acct-title text-[length:var(--fs-sm)] font-semibold">{w.name}</p>
+                      {w.subtitle && <p className="acct-subtitle muted text-[length:var(--fs-xs)]">{w.subtitle}</p>}
                     </div>
-                    <div className="acct-amount max-w-[46%] shrink-0 text-left">
-                      <p className="num money-nowrap text-[length:var(--fs-xs)] font-bold leading-6 sm:text-[length:var(--fs-sm)]" dir="rtl">
-                        {walletPrimary}
+                    <div className="acct-amount shrink-0 text-left">
+                      <p className="num money-nowrap text-[length:var(--fs-sm)] font-semibold" dir="rtl">
+                        {primary}
                       </p>
-                      {!irtOnly && toIrt(walletTotal.toString()) && <p className="acct-secondary muted num money-nowrap mt-0.5 text-[length:var(--fs-xs)] leading-5" dir="rtl">≈ {formatMoney(walletTotal.toString())}</p>}
+                      {secondary && (
+                        <p className="acct-secondary muted num money-nowrap text-[length:var(--fs-xs)]" dir="rtl">
+                          {secondary}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
-                    {rows.map((b) => {
-                      // Money is formatted on the SERVER with the existing
-                      // helpers; only plain strings cross into the client
-                      // component (functions are not serialisable — that was
-                      // the crash this page used to hit).
-                      const meta = b.assetId ? assetMeta.get(b.assetId) : undefined;
-                      return (
-                        <AccountListItem
-                          key={b.accountId}
-                          accountId={b.accountId}
-                          name={b.name}
-                          symbol={b.symbol}
-                          quantity={b.quantity}
-                          assetDecimals={b.assetDecimals}
-                          balanceLabel={canonicalBalance(b)}
-                          valuationLabel={valuationToman(b)}
-                          baseValueLabel={formatMoney(D(b.baseValue).toString())}
-                          walletName={b.walletName}
-                          logoUrl={meta?.logoUrl ?? null}
-                          assetClassName={b.className}
-                          coingeckoId={meta?.coingeckoId ?? null}
-                        />
-                      );
-                    })}
-                  </ul>
-                </div>
+                  {!single && (
+                    <ul className="wallet-sub">
+                      {w.rows.map((b) => {
+                        // Money is formatted on the SERVER; only strings cross
+                        // into the client component.
+                        const meta = b.assetId ? assetMeta.get(b.assetId) : undefined;
+                        return (
+                          <AccountListItem
+                            key={b.accountId}
+                            accountId={b.accountId}
+                            name={b.name}
+                            symbol={b.symbol}
+                            quantity={b.quantity}
+                            assetDecimals={b.assetDecimals}
+                            balanceLabel={canonicalBalance(b)}
+                            valuationLabel={valuationToman(b)}
+                            baseValueLabel={formatMoney(D(b.baseValue).toString())}
+                            walletName={b.walletName}
+                            logoUrl={meta?.logoUrl ?? null}
+                            assetClassName={b.className}
+                            coingeckoId={meta?.coingeckoId ?? null}
+                          />
+                        );
+                      })}
+                    </ul>
+                  )}
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
       </Section>
 
       {liabilityAccounts.length > 0 && (
-        <Section title="حساب‌های بدهی" action={<SectionLink href="/debts" label="مدیریت بدهی‌ها" />}>
-          <div className="card overflow-hidden">
-            <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
-              {liabilityAccounts.map((b) => (
-                <li key={b.accountId} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <div>
-                    <p className="text-[length:var(--fs-xs)] font-medium">{b.name}</p>
+        <Section title="حساب‌های بدهی" action={<SectionLink href="/debts" label="تعهدات" />}>
+          <ul className="card list-card" role="list">
+            {liabilityAccounts.map((b) => {
+              // Outstanding debt = −baseValue (a liability is stored as a
+              // credit). Flipping the sign is meaningful; abs() would render an
+              // over-paid liability as a debt of the same size.
+              const owed = D(b.baseValue).neg().toString();
+              const owedToman = toIrt(owed);
+              return (
+                <li key={b.accountId} className="list-row">
+                  <span className="flow-icon" aria-hidden="true">
+                    <Icon name="debts" size={15} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[length:var(--fs-sm)] font-medium">{b.name}</p>
                     {pro && (
                       <p className="muted num text-[length:var(--fs-xs)]" dir="ltr">
                         {toFaDigits(b.code)}
                       </p>
                     )}
                   </div>
-                  <div className="text-left">
-                    {/* Outstanding debt = −baseValue (a liability is a credit,
-                        hence stored negative). Flipping the sign is meaningful;
-                        an absolute value would silently render an over-paid
-                        (debit) liability as a debt of the same size. */}
-                    <p className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl" style={{ color: "var(--negative)" }}>
-                      {toIrt(D(b.baseValue).neg().toString()) ?? formatMoney(D(b.baseValue).neg().toString())}
+                  <div className="shrink-0 text-left">
+                    <p className="num money-nowrap text-[length:var(--fs-sm)] font-semibold" dir="rtl">
+                      {owedToman ?? formatMoney(owed)}
                     </p>
-                    {toIrt(D(b.baseValue).neg().toString()) && (
-                      <p className="muted num text-[length:var(--fs-xs)]" dir="rtl">
-                        ≈ {formatMoney(D(b.baseValue).neg().toString())}
+                    {owedToman && (
+                      <p className="muted num money-nowrap text-[length:var(--fs-xs)]" dir="rtl">
+                        ≈ {formatMoney(owed)}
                       </p>
                     )}
                   </div>
                 </li>
-              ))}
-            </ul>
-          </div>
+              );
+            })}
+          </ul>
         </Section>
       )}
 
-      <Section title="دفتر حساب‌ها">
-        <details className="card group overflow-hidden">
-          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-            <span className="text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-semibold">نمودار کامل حساب‌ها (Chart of Accounts)</span>
-            <span className="muted transition-transform group-open:rotate-180">
-              <Icon name="chevronDown" size={15} />
-            </span>
-          </summary>
-          <div className="border-t p-4" style={{ borderColor: "var(--border)" }}>
-            <div className="grid gap-6 sm:grid-cols-2">
+      {/* The chart of accounts is ledger-grade detail — PRO mode only. */}
+      {pro && (
+        <Section title="نمودار حساب‌ها">
+          <details className="card list-card group">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 marker:hidden [&::-webkit-details-marker]:hidden">
+              <span className="text-[length:var(--fs-sm)] font-semibold">درآمد، هزینه، سرمایه و بدهی</span>
+              <span className="muted transition-transform group-open:rotate-180">
+                <Icon name="chevronDown" size={15} />
+              </span>
+            </summary>
+            <div className="grid gap-6 p-4 sm:grid-cols-2">
               {(["income", "expense", "equity", "liability"] as AccountType[])
                 .map((t) => ({ t, rows: balances.filter((b) => b.type === t && !D(b.baseValue).isZero()) }))
                 .filter((g) => g.rows.length > 0)
@@ -481,19 +450,16 @@ export default async function AccountsPage() {
                     <p className="muted mb-2 text-[length:var(--fs-xs)] font-semibold">{ACCOUNT_TYPE_LABELS[g.t]}</p>
                     <ul className="space-y-1.5">
                       {g.rows.map((b) => (
-                        <li key={b.accountId} className="flex items-center justify-between text-[length:var(--fs-xs)]">
-                          <span>
-                            {pro && <span className="muted num ml-1.5">{toFaDigits(b.code)}</span>}
+                        <li key={b.accountId} className="flex items-center justify-between gap-3 text-[length:var(--fs-xs)]">
+                          <span className="min-w-0 truncate">
+                            <span className="muted num ml-1.5">{toFaDigits(b.code)}</span>
                             {b.name}
                           </span>
-                          <span className="num" dir="rtl">
+                          <span className="num shrink-0" dir="rtl">
                             {/* normal-side display: credit accounts are stored
                                 negative, so they are flipped, never abs()'d */}
                             {formatMoney(
-                              (g.t === "income" || g.t === "equity" || g.t === "liability"
-                                ? D(b.baseValue).neg()
-                                : D(b.baseValue)
-                              ).toString(),
+                              (g.t === "income" || g.t === "equity" || g.t === "liability" ? D(b.baseValue).neg() : D(b.baseValue)).toString(),
                             )}
                           </span>
                         </li>
@@ -502,23 +468,13 @@ export default async function AccountsPage() {
                   </div>
                 ))}
             </div>
-          </div>
-        </details>
-      </Section>
+          </details>
+        </Section>
+      )}
 
-      <Section title="معرفی حساب یا کیف پول جدید">
-        <details className="card group overflow-hidden">
-          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-            <span className="text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-semibold">افزودن حساب جدید</span>
-            <span className="muted transition-transform group-open:rotate-180">
-              <Icon name="chevronDown" size={15} />
-            </span>
-          </summary>
-          <div className="border-t p-4" style={{ borderColor: "var(--border)" }}>
-            <MoneyAccountForm currencies={currencyRows} usdIrtRate={fx.rate} />
-          </div>
-        </details>
-      </Section>
+      <DisclosurePanel anchor="new-account" label="افزودن حساب یا کیف پول">
+        <MoneyAccountForm currencies={currencyRows} usdIrtRate={fx.rate} />
+      </DisclosurePanel>
     </div>
   );
 }

@@ -1502,6 +1502,13 @@ const setupSchema = z.object({
   cryptoUnitPrice: z.string().optional(),
   goldOpeningQty: z.string().optional(),
   goldUnitPrice: z.string().optional(),
+  /** Currency each opening PRICE was typed in. Absent = USD (original contract). */
+  goldPriceCurrency: z.enum(["USD", "USDT", "IRT"]).optional(),
+  cryptoPriceCurrency: z.enum(["USD", "USDT", "IRT"]).optional(),
+  /** Every coin the user holds, as a JSON array (same FormData reason as instruments). */
+  cryptoHoldings: z.string().optional(),
+  /** USD→IRT rate confirmed on the wizard; the service range-checks it. */
+  fxRate: z.string().optional(),
   /**
    * صندوق‌ها و سهام, as a JSON array in one form field.
    *
@@ -1523,6 +1530,15 @@ const setupInstrumentSchema = z.object({
   name: z.string().trim().max(160).optional(),
   quantity: z.string().optional(),
   unitPrice: z.string().optional(),
+  priceCurrency: z.enum(["USD", "USDT", "IRT"]).optional(),
+});
+
+/** One coin the user holds — price in the currency it was bought with. */
+const setupCryptoSchema = z.object({
+  symbol: z.string().trim().min(1).max(20),
+  quantity: z.string().optional(),
+  unitPrice: z.string().optional(),
+  priceCurrency: z.enum(["USD", "USDT", "IRT"]).optional(),
 });
 
 /**
@@ -1585,17 +1601,19 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
       instruments: instrumentsJson,
       vehicles: vehiclesJson,
       properties: propertiesJson,
+      cryptoHoldings: cryptoJson,
       ...rest
     } = setupSchema.parse(raw);
 
     // Malformed JSON must fail the wizard loudly rather than silently dropping
     // what a user just spent time entering.
     const instruments = parseSetupList(instrumentsJson, setupInstrumentSchema, "فهرست صندوق و سهام");
+    const cryptoHoldings = parseSetupList(cryptoJson, setupCryptoSchema, "فهرست رمزارزها");
     const vehicles = parseSetupList(vehiclesJson, setupVehicleSchema, "فهرست خودرو");
     const properties = parseSetupList(propertiesJson, setupPropertySchema, "فهرست ملک");
 
     const result = await completeSetup(
-      { ...rest, instruments, vehicles, properties },
+      { ...rest, instruments, cryptoHoldings, vehicles, properties },
       setupUser?.id,
     );
     refreshAll();
@@ -1616,10 +1634,23 @@ export async function fetchSetupStateAction() {
   // the wizard is part of the app (Global System Directive §0). The client
   // redirects the visitor to /login on the loginRequired marker.
   const { user } = await getAuthContext();
-  if (!user) return { completed: false, loginRequired: true, usdIrtRate: "" };
+  if (!user) return { completed: false, loginRequired: true, usdIrtRate: "", rateSource: "" };
   const state = await getSetupState(user.id);
-  const fx = await getLatestUsdIrtRateForUser(user.id);
-  return { ...state, usdIrtRate: fx.rate };
+  // The wizard converts every Toman opening amount at this rate, so it tries
+  // the live Toman/Tether market first. `source` lets the wizard ask the user
+  // to confirm a rate when only the built-in fallback is available.
+  let fx: { rate: string; source: string };
+  if (state.completed) {
+    fx = await getLatestUsdIrtRateForUser(user.id);
+  } else {
+    try {
+      const { refreshUserFxRateFromMarket } = await import("@/features/fx/userRate");
+      fx = await refreshUserFxRateFromMarket(user.id);
+    } catch {
+      fx = await getLatestUsdIrtRateForUser(user.id);
+    }
+  }
+  return { ...state, usdIrtRate: fx.rate, rateSource: fx.source };
 }
 
 

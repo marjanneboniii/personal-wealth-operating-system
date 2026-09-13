@@ -6,6 +6,7 @@ import { accounts, assets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import SettleObligationSheet from "@/components/forms/SettleObligationSheet";
+import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
 import {
   INSTALLMENT_PARTIAL,
   isReceivable,
@@ -133,10 +134,13 @@ export default async function InstallmentsPage() {
         : undefined;
 
   return (
-    <div className="space-y-8">
-      <PageHeader title="اقساط" subtitle="مبلغ تومان هر قسط ثابت است؛ معادل دلاری با نرخ روز محاسبه می‌شود." />
+    <div className="space-y-7">
+      <div>
+        <PageHeader title="اقساط" />
+        <ModuleTabs tabs={DEBT_TABS} active="/debts/installments" label="بخش‌های تعهدات" />
+      </div>
 
-      <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
+      <section className="metric-strip">
         <Metric label="معوق" value={faCount(overdueList.length)} tone={overdueList.length ? "down" : "neutral"} />
         <Metric
           label={formatDaysWindow(30)}
@@ -168,9 +172,10 @@ export default async function InstallmentsPage() {
             </div>
           </div>
 
-          {/* The claim, with its arithmetic spelled out: the frozen Toman
-              balance, each side's rate, and the dollar figure that comes out of
-              dividing one by the other. */}
+          {/* The claim's arithmetic — the frozen Toman balance, each side's
+              rate and the dollar figure each produces — one tap away. */}
+          <details className="mt-2">
+            <summary className="muted cursor-pointer text-[length:var(--fs-xs)]">جزئیات محاسبه</summary>
           <dl className="mt-2 space-y-1 border-t pt-2 sm:grid sm:grid-cols-2 sm:gap-x-6 sm:space-y-0" style={{ borderColor: "var(--border)" }}>
             <InsightRow label="مانده اقساط پرداخت‌نشده" value={formatMoney(insight.amountToman, "IRT")} />
             <InsightRow
@@ -191,17 +196,16 @@ export default async function InstallmentsPage() {
             />
             <InsightRow label="معادلِ قسط‌های داخل این محاسبه" value={`${faCount(insight.count)} قسط`} />
           </dl>
-
-          <p className="muted mt-2 text-[length:var(--fs-xs)] leading-4">
-            مبلغ تومان هر قسط ثابت است، پس تنها چیزی که تغییر می‌کند معادل دلاری آن است: همین اختلاف، قسط‌به‌قسط داخل کارت هر قسط هم نوشته شده است.
-            {insight.missingOriginalCount > 0
-              ? ` ${faCount(insight.missingOriginalCount)} قسط نرخ زمان ثبت ندارد و در این مقایسه حساب نشده است.`
-              : ""}
-          </p>
+          {insight.missingOriginalCount > 0 && (
+            <p className="muted mt-2 text-[length:var(--fs-xs)] leading-5">
+              {faCount(insight.missingOriginalCount)} قسط نرخ زمان ثبت ندارد و محاسبه نشده است.
+            </p>
+          )}
+          </details>
         </section>
       )}
 
-      <Section title="زمان‌بندی اقساط" hint="از نزدیک‌ترین سررسید به دورترین">
+      <Section title="زمان‌بندی اقساط">
         {rows.length === 0 ? (
           <div className="card">
             <EmptyState

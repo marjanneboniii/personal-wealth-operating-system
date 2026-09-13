@@ -2,19 +2,10 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import { isRealLoanDebt, listDebts } from "@/features/planning/service";
-import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
-import Icon from "@/components/ui/Icon";
-import { D } from "@/domain/decimal";
-import {
-  formatJalaliIso,
-  formatMoney,
-  formatPct,
-  formatQty,
-  todayIso,
-  faCount,
-  formatTomanPrimary,
-  sumToman,
-} from "@/lib/format";
+import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
+import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import ObligationCard from "@/components/debts/ObligationCard";
+import { faCount, formatTomanPrimary, sumToman, todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -26,8 +17,7 @@ export const metadata = { title: "وام‌ها" };
  *
  * READ-ONLY VIEW. Every number comes from the existing `listDebts()` service.
  * Contractual Toman amounts are authoritative; USD is display-only and moves
- * with the live FX rate. Raising the dollar rate NEVER inflates the Toman
- * principal / outstanding / installment figures.
+ * with the live FX rate.
  */
 export default async function LoansPage() {
   await ensureAuth();
@@ -37,152 +27,57 @@ export default async function LoansPage() {
   const today = todayIso();
   // «قسط ≠ وام»: a real Loan / Facility is a debt with financing (interest
   // rate) or one already booked against a ledger liability account. A record
-  // that is only a repayment schedule / installment plan (planning-only debt
-  // with 0% interest, e.g. a store installment for a rug) is NOT a loan and
-  // stays in «بدهی‌ها»/«اقساط» — it must never be rendered as a Loan here.
+  // that is only a repayment schedule (planning-only debt with 0% interest,
+  // e.g. a store installment for a rug) is NOT a loan and stays in
+  // «بدهی‌ها»/«اقساط» — it must never be rendered as a Loan here.
   const loans = debts.filter(isRealLoanDebt);
   const active = loans.filter((d) => d.status !== "settled");
-  const settled = loans.filter((d) => d.status === "settled");
 
-  const totalOutstandingToman = sumToman(active.map((d) => d.outstandingToman));
-  const totalPrincipalToman = sumToman(loans.map((d) => d.principalToman));
+  const outDisp = formatTomanPrimary(sumToman(active.map((d) => d.outstandingToman)), fx.rate);
+  const prinDisp = formatTomanPrimary(sumToman(loans.map((d) => d.principalToman)), fx.rate);
   const totalPaid = loans.reduce((s, d) => s + d.paidCount, 0);
   const totalInstallments = loans.reduce((s, d) => s + d.totalCount, 0);
-  const outDisp = formatTomanPrimary(totalOutstandingToman, fx.rate);
-  const prinDisp = formatTomanPrimary(totalPrincipalToman, fx.rate);
+  const sorted = [...loans].sort((a, b) => Number(b.outstandingToman ?? 0) - Number(a.outstandingToman ?? 0));
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="وام‌ها"
-        subtitle="تسهیلات واقعی (با نرخ سود یا متصل به حساب بدهی دفترکل). برنامه‌های صرفاً قسطی در «بدهی‌ها» و «اقساط» هستند. مبلغ تومان ثابت است؛ معادل دلاری فقط نمایشی است."
-        action={
-          <Link href="/debts" className="btn btn-soft">
-            <Icon name="debts" size={16} />
-            همه بدهی‌ها
-          </Link>
-        }
-      />
+    <div className="space-y-7">
+      <div>
+        <PageHeader title="وام‌ها" />
+        <ModuleTabs tabs={DEBT_TABS} active="/debts/loans" label="بخش‌های تعهدات" />
+      </div>
 
-      <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
+      <section className="metric-strip">
         <Metric
-          label="مانده وام‌های فعال"
+          label="مانده وام‌ها"
           value={outDisp.primary}
-          tone={Number(totalOutstandingToman) > 0 ? "down" : "neutral"}
-          hint={outDisp.usdHint ? `معادل: ${outDisp.usdHint}` : `${faCount(active.length)} وام فعال`}
+          hint={outDisp.usdHint ? `≈ ${outDisp.usdHint}` : `${faCount(active.length)} وام فعال`}
         />
-        <Metric
-          label="اصل کل تسهیلات"
-          value={prinDisp.primary}
-          hint={prinDisp.usdHint ? `معادل: ${prinDisp.usdHint}` : undefined}
-        />
+        <Metric label="اصل تسهیلات" value={prinDisp.primary} hint={prinDisp.usdHint ? `≈ ${prinDisp.usdHint}` : undefined} />
         <Metric
           label="اقساط پرداخت‌شده"
           value={`${faCount(totalPaid)} از ${faCount(totalInstallments)}`}
           tone={totalInstallments > 0 && totalPaid === totalInstallments ? "up" : "neutral"}
         />
-        <Metric label="تسویه‌شده" value={faCount(settled.length)} />
       </section>
 
-      <Section title="وضعیت هر وام" hint="ترتیب بر اساس مانده قابل پرداخت (تومان)">
+      <Section title="وام‌های من" action={<span className="muted num text-[length:var(--fs-xs)]">{faCount(loans.length)}</span>}>
         {loans.length === 0 ? (
           <div className="card">
             <EmptyState
               icon="card"
               title="وامی ثبت نشده است"
-              body="وام‌هایی که نرخ سود دارند یا در سوابق مالی ثبت شده‌اند."
               action={
-                <Link href="/debts" className="btn btn-primary">
-                  ثبت بدهی جدید
+                <Link href="/debts#new" className="btn btn-soft">
+                  ثبت وام
                 </Link>
               }
             />
           </div>
         ) : (
-          <ul className="space-y-2.5">
-            {[...loans]
-              .sort((a, b) => Number(b.outstandingToman ?? 0) - Number(a.outstandingToman ?? 0))
-              .map((d) => {
-                const progress = d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0;
-                const isSettled = d.status === "settled";
-                const late = d.nextDue && d.nextDue.dueDate < today;
-                const outstandingT = D(isSettled ? "0" : (d.outstandingToman ?? "0"));
-                // «بازپرداخت‌شده» is what was ACTUALLY paid, not
-                // `principal − outstanding`: an interest-bearing schedule
-                // totals more than its principal, so that identity would
-                // understate the repaid figure by the whole interest share.
-                const repaidT = D(d.paidToman ?? "0");
-                const outD = formatTomanPrimary(outstandingT.toFixed(0), fx.rate);
-                const repaidD = formatTomanPrimary(repaidT.toFixed(0), fx.rate);
-                const nextToman = d.nextDue?.amountToman != null ? String(d.nextDue.amountToman) : null;
-                return (
-                  <li key={d.id} className="card p-4 sm:p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="flex flex-wrap items-center gap-2 text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-semibold tracking-tight money-nowrap">
-                          {d.title}
-                          <span className={isSettled ? "badge badge-pos" : "badge badge-neutral"}>{isSettled ? "تسویه شد" : "فعال"}</span>
-                          {late && <span className="badge badge-neg">قسط معوق</span>}
-                        </p>
-                        <p className="muted mt-1 text-[length:var(--fs-xs)]">
-                          {d.creditor} · شروع {formatJalaliIso(d.startDate)} · نرخ سود{" "}
-                          <span className="num" dir="rtl">
-                            {formatPct(d.interestRate, 2)}
-                          </span>
-                        </p>
-                      </div>
-                      <div className="text-left">
-                        <p className="muted text-[length:var(--fs-xs)]">مانده قابل پرداخت</p>
-                        <p className="num text-xl font-bold" dir="rtl" style={{ color: isSettled ? "var(--positive)" : "var(--negative)" }}>
-                          {outD.primary}
-                        </p>
-                        <p className="muted num mt-0.5 text-[length:var(--fs-xs)]" dir="rtl">
-                          {outD.usdHint ? <>معادل: {outD.usdHint} · </> : null}
-                          بازپرداخت‌شده: {repaidD.primary}
-                        </p>
-                      </div>
-                    </div>
-
-                    {d.totalCount > 0 && (
-                      <div className="mt-4">
-                        <div className="mb-1.5 flex items-center justify-between text-[length:var(--fs-xs)]">
-                          <span className="muted">
-                            <span className="num" dir="rtl">
-                              {faCount(d.paidCount)} از {faCount(d.totalCount)}
-                            </span>{" "}
-                            قسط پرداخت شده
-                          </span>
-                          <span className="num" dir="rtl">
-                            {formatPct(progress, 0)}
-                          </span>
-                        </div>
-                        <Progress value={progress} color={isSettled ? "var(--positive)" : "var(--action)"} />
-                      </div>
-                    )}
-
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3.5" style={{ borderColor: "var(--border)" }}>
-                      <p className="text-[length:var(--fs-xs)]" style={{ color: late ? "var(--negative)" : "var(--text-2)" }}>
-                        {d.nextDue ? (
-                          <>
-                            قسط بعدی:{" "}
-                            <b className="num">
-                              {nextToman != null ? formatMoney(nextToman, "IRT") : "—"}
-                            </b>{" "}
-                            · {formatJalaliIso(d.nextDue.dueDate)}
-                          </>
-                        ) : isSettled ? (
-                          "همه اقساط پرداخت شدند."
-                        ) : (
-                          "اقساطی تعریف نشده است."
-                        )}
-                      </p>
-                      <Link href="/debts/installments" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
-                        برنامه اقساط
-                      </Link>
-                    </div>
-                  </li>
-                );
-              })}
+          <ul className="space-y-2">
+            {sorted.map((d) => (
+              <ObligationCard key={d.id} d={d} today={today} rate={fx.rate} />
+            ))}
           </ul>
         )}
       </Section>

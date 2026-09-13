@@ -156,10 +156,17 @@ export default function DebtForm({
   const principalUsd =
     principalIrt && initialRate && D(initialRate).gt(0) ? D(principalIrt).div(initialRate).toFixed(2) : "";
 
+  // A due date before the start date blocks the preview. It used to be only
+  // flagged: the warning rendered while the preview button stayed enabled.
+  const firstDueBeforeStart =
+    scheduleMode === "recurring" && Boolean(firstDueDate) && Boolean(startDate) && firstDueDate < startDate;
+  const customDueBeforeStart =
+    scheduleMode === "custom" && Boolean(startDate) && filledCustomDates.some((due) => due < startDate);
+
   const scheduleReady =
     scheduleMode === "none" ||
-    (scheduleMode === "recurring" && count > 0 && Boolean(firstDueDate)) ||
-    (scheduleMode === "custom" && filledCustomDates.length > 0);
+    (scheduleMode === "recurring" && count > 0 && Boolean(firstDueDate) && !firstDueBeforeStart) ||
+    (scheduleMode === "custom" && filledCustomDates.length > 0 && !customDueBeforeStart);
 
   const canPreview = Boolean(
     title.trim() && creditor.trim() && principalIrt && D(principalIrt).gt(0) && startDate && scheduleReady,
@@ -219,11 +226,6 @@ export default function DebtForm({
                 طلب من
               </button>
             </div>
-            <p className="muted mt-1 text-[length:var(--fs-xs)]">
-              {receivable
-                ? "پولی که شخص یا شرکتی به شما بدهکار است. هنگام وصول، به موجودی شما اضافه می‌شود."
-                : "پولی که شما به شخص، بانک یا مؤسسه بدهکارید. هنگام پرداخت، از موجودی شما کم می‌شود."}
-            </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -256,7 +258,7 @@ export default function DebtForm({
                 inputMode="numeric"
                 dir="ltr"
                 unit="toman"
-                placeholder="مثلاً 500000000"
+                placeholder="مثلاً ۵۰۰٬۰۰۰٬۰۰۰"
               />
               <div className="mt-2">
                 <SmartAmountPreview
@@ -278,9 +280,6 @@ export default function DebtForm({
                 showWords={false}
                 unit="none"
               />
-              <p className="muted mt-1 text-[length:var(--fs-xs)]">
-                در این مرحله به‌عنوان اطلاعات {noun} ذخیره می‌شود؛ محاسبه خودکار سود انجام نمی‌گیرد.
-              </p>
             </div>
             <div className="sm:col-span-2">
               <DualDateInput
@@ -296,14 +295,9 @@ export default function DebtForm({
 
           {/* ── SCHEDULE ────────────────────────────────────────────────── */}
           <div className="rounded-[var(--r-lg)] border p-4" style={{ borderColor: "var(--border)" }}>
-            <div className="mb-3">
-              <h3 className="text-[length:var(--fs-sm)] font-bold">برنامه بازپرداخت</h3>
-              <p className="muted mt-1 text-[length:var(--fs-xs)]">
-                {receivable
-                  ? "اگر قرار است طلب شما قسطی وصول شود، زمان‌بندی آن را اینجا تعریف کنید."
-                  : "اگر قسطی تعریف نکنید، بدهی بدون زمان‌بندی ثبت می‌شود و هر زمان قابل پرداخت است."}
-              </p>
-            </div>
+            <h3 className="mb-3 text-[length:var(--fs-sm)] font-semibold">
+              {receivable ? "برنامه وصول" : "برنامه بازپرداخت"}
+            </h3>
 
             <div className="seg mb-3 flex-wrap" role="group" aria-label="نوع زمان‌بندی">
               <button
@@ -370,7 +364,7 @@ export default function DebtForm({
                     required
                     showGregorian={false}
                   />
-                  {firstDueDate && startDate && firstDueDate < startDate && (
+                  {firstDueBeforeStart && (
                     <p className="neg mt-1 text-[length:var(--fs-xs)]">
                       اولین سررسید باید در تاریخ شروع یا بعد از آن باشد.
                     </p>
@@ -381,10 +375,6 @@ export default function DebtForm({
 
             {scheduleMode === "custom" && (
               <div className="space-y-3">
-                <p className="muted text-[length:var(--fs-xs)] leading-5">
-                  تاریخ هر قسط را جداگانه انتخاب کنید. فاصله اقساط لازم نیست ثابت باشد — مثلاً قسط بعدی می‌تواند
-                  سه ماه بعد و قسط پس از آن شش ماه بعد باشد.
-                </p>
                 <ul className="space-y-2.5">
                   {customDates.map((iso, index) => (
                     <li key={index} className="flex flex-wrap items-end gap-2">
@@ -412,6 +402,9 @@ export default function DebtForm({
                     </li>
                   ))}
                 </ul>
+                {customDueBeforeStart && (
+                  <p className="neg text-[length:var(--fs-xs)]">سررسید اقساط باید در تاریخ شروع یا بعد از آن باشد.</p>
+                )}
                 <button
                   type="button"
                   onClick={() => setCustomDates((cur) => [...cur, ""])}
@@ -443,12 +436,6 @@ export default function DebtForm({
                   }
                   disabled={dueDates.length === 0}
                 />
-                {dueDates.length > 0 && (
-                  <p className="muted mt-1 text-[length:var(--fs-xs)]">
-                    در صورت خالی بودن، اصل مبلغ دقیقاً تقسیم می‌شود و باقی‌مانده تقسیم به اولین اقساط اضافه
-                    می‌شود؛ مجموع اقساط همیشه برابر اصل مبلغ می‌ماند.
-                  </p>
-                )}
               </div>
             )}
           </div>
@@ -459,11 +446,11 @@ export default function DebtForm({
             onClick={() => setShowPreview(true)}
             className="btn btn-primary w-full disabled:opacity-40"
           >
-            {canPreview ? "پیش‌نمایش قبل از ثبت نهایی" : "برای پیش‌نمایش، عنوان، طرف مقابل، مبلغ و تاریخ را کامل کنید"}
+            پیش‌نمایش
           </button>
         </>
       ) : (
-        <PreviewCard title={`پیش‌نمایش ثبت ${noun} — هنوز ذخیره نشده است`}>
+        <PreviewCard title={`پیش‌نمایش ${noun}`}>
           <div className="space-y-2 text-[length:var(--fs-xs)] leading-6">
             <div className="grid gap-2 sm:grid-cols-2">
               <div>
@@ -518,22 +505,12 @@ export default function DebtForm({
                     </li>
                   ))}
                 </ul>
-                {amounts.length > 0 && principalIrt && !installmentIrt && (
-                  <p className="muted mt-2 text-[length:var(--fs-xs)]">
-                    مجموع اقساط دقیقاً برابر اصل مبلغ است.
-                  </p>
-                )}
               </div>
             )}
 
-            <div
-              className="rounded-[var(--r-md)] border p-3 text-[length:var(--fs-xs)] leading-5"
-              style={{ borderColor: "var(--warning)", background: "var(--warning-soft)" }}
-            >
-              {receivable
-                ? "ثبت مالی هنگام وصول هر قسط انجام می‌شود؛ تا آن زمان دفترکل تغییری نمی‌کند."
-                : "ثبت مالی هنگام پرداخت هر قسط انجام می‌شود؛ تا آن زمان دفترکل تغییری نمی‌کند."}
-            </div>
+            <p className="muted text-[length:var(--fs-xs)] leading-5">
+              {receivable ? "تا وصول هر قسط، دفترکل تغییری نمی‌کند." : "تا پرداخت هر قسط، دفترکل تغییری نمی‌کند."}
+            </p>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => setShowPreview(false)} className="btn btn-ghost flex-1">

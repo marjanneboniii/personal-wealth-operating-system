@@ -2,16 +2,9 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import { listEvents, listObligations, upcomingInstallments } from "@/features/planning/service";
-import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
-import Icon from "@/components/ui/Icon";
-import {
-  formatDaysUntil,
-  formatJalaliIso,
-  todayIso,
-  faCount,
-  formatTomanPrimary,
-  sumToman,
-} from "@/lib/format";
+import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
+import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import { formatDaysUntil, formatJalaliIso, todayIso, faCount, formatTomanPrimary, sumToman } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -53,8 +46,7 @@ export default async function ObligationsPage() {
     date: string;
     /** Contractual Toman — never recomputed from USD. */
     amountToman: string;
-    kind: "installment" | "obligation" | "event";
-    badge: string;
+    kind: string;
     detail: string | null;
   };
 
@@ -64,8 +56,7 @@ export default async function ObligationsPage() {
       title: `قسط ${i.seq} — ${i.debtTitle}`,
       date: i.dueDate,
       amountToman: i.amountToman != null ? String(i.amountToman) : "0",
-      kind: "installment" as const,
-      badge: "قسط",
+      kind: "قسط",
       detail: i.creditor,
     })),
     ...obligations
@@ -75,8 +66,7 @@ export default async function ObligationsPage() {
         title: o.title,
         date: o.dueDate,
         amountToman: o.amountToman ?? String(o.amountBase),
-        kind: "obligation" as const,
-        badge: RECURRENCE_LABEL[o.recurrence] ?? "تعهد",
+        kind: RECURRENCE_LABEL[o.recurrence] ?? "تعهد",
         detail: o.note ?? null,
       })),
     ...events
@@ -86,8 +76,7 @@ export default async function ObligationsPage() {
         title: e.name,
         date: e.eventDate,
         amountToman: e.budgetToman ?? String(e.budgetBase),
-        kind: "event" as const,
-        badge: "رویداد",
+        kind: "رویداد",
         detail: e.note ?? null,
       })),
   ].sort((a, b) => a.date.localeCompare(b.date));
@@ -95,59 +84,36 @@ export default async function ObligationsPage() {
   const overdue = rows.filter((r) => r.date < today);
   const next30 = rows.filter((r) => r.date >= today && daysUntil(r.date) <= 30);
   const next90 = rows.filter((r) => r.date >= today && daysUntil(r.date) <= 90);
-  const totalCommittedToman = sumToman(rows.filter((r) => r.date >= today).map((r) => r.amountToman));
-  const next30Toman = sumToman(next30.map((r) => r.amountToman));
-  const next90Toman = sumToman(next90.map((r) => r.amountToman));
-  const totalDisp = formatTomanPrimary(totalCommittedToman, fx.rate);
-  const n30Disp = formatTomanPrimary(next30Toman, fx.rate);
-  const n90Disp = formatTomanPrimary(next90Toman, fx.rate);
+  const totalDisp = formatTomanPrimary(sumToman(rows.filter((r) => r.date >= today).map((r) => r.amountToman)), fx.rate);
+  const n30Disp = formatTomanPrimary(sumToman(next30.map((r) => r.amountToman)), fx.rate);
+  const n90Disp = formatTomanPrimary(sumToman(next90.map((r) => r.amountToman)), fx.rate);
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="تعهدات آینده"
-        subtitle="پرداخت‌های دانسته‌ای که هنوز رخ نداده‌اند — مبلغ تومان ثابت است؛ معادل دلاری فقط نمایشی است."
-        action={
-          <Link href="/debts" className="btn btn-soft">
-            <Icon name="debts" size={16} />
-            بدهی‌ها
-          </Link>
-        }
-      />
+    <div className="space-y-7">
+      <div>
+        <PageHeader title="تعهدات آینده" />
+        <ModuleTabs tabs={DEBT_TABS} active="/debts/obligations" label="بخش‌های تعهدات" />
+      </div>
 
-      <Alert tone="info" title="این‌ها هنوز تراکنش واقعی نیستند">
-        تعهد آینده با تراکنش ثبت‌شده یکی نیست. تا زمانی که پرداخت واقعی انجام نشود، هیچ سندی در سوابق مالی ایجاد
-        نمی‌شود و ارزش خالص شما تغییری نمی‌کند.
-      </Alert>
-
-      <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
+      <section className="metric-strip">
         <Metric label="سررسید گذشته" value={faCount(overdue.length)} tone={overdue.length ? "down" : "neutral"} />
+        <Metric label="۳۰ روز آینده" value={faCount(next30.length)} hint={next30.length ? n30Disp.primary : undefined} />
+        <Metric label="۹۰ روز آینده" value={faCount(next90.length)} hint={next90.length ? n90Disp.primary : undefined} />
         <Metric
-          label="۳۰ روز آینده"
-          value={faCount(next30.length)}
-          hint={next30.length ? n30Disp.primary : undefined}
-        />
-        <Metric
-          label="۹۰ روز آینده"
-          value={faCount(next90.length)}
-          hint={next90.length ? n90Disp.primary : undefined}
-        />
-        <Metric
-          label="مجموع تعهدات پیش‌رو"
+          label="مجموع پیش‌رو"
           value={totalDisp.primary}
-          hint={totalDisp.usdHint ? `معادل: ${totalDisp.usdHint}` : undefined}
+          hint={totalDisp.usdHint ? `≈ ${totalDisp.usdHint}` : undefined}
         />
       </section>
 
-      <Section title="زمان‌بندی تعهدات" hint="از نزدیک‌ترین سررسید به دورترین">
+      <Section title="زمان‌بندی تعهدات">
         {rows.length === 0 ? (
           <div className="card">
             <EmptyState
               icon="calendar"
               title="تعهد آینده‌ای ثبت نشده است"
-              body="اقساط سررسیدنشده، تعهدات دوره‌ای و رویدادهای برنامه‌ریزی‌شده اینجا کنار هم دیده می‌شوند."
               action={
-                <Link href="/goals" className="btn btn-primary">
+                <Link href="/goals" className="btn btn-soft">
                   ثبت تعهد یا رویداد
                 </Link>
               }
@@ -158,7 +124,6 @@ export default async function ObligationsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th scope="col">نوع</th>
                   <th scope="col">عنوان</th>
                   <th scope="col">سررسید</th>
                   <th scope="col" className="td-num">مبلغ</th>
@@ -166,26 +131,31 @@ export default async function ObligationsPage() {
               </thead>
               <tbody>
                 {rows.map((r) => {
-                  const late = r.date < today;
-                  const soon = !late && daysUntil(r.date) <= 14;
                   const d = daysUntil(r.date);
+                  const late = r.date < today;
+                  const soon = !late && d <= 14;
                   const disp = formatTomanPrimary(r.amountToman, fx.rate);
                   return (
                     <tr key={r.id}>
-                      <td>
-                        <span className={late ? "badge badge-neg" : soon ? "badge badge-warn" : "badge badge-neutral"}>{r.badge}</span>
-                      </td>
-                      <td style={{ minWidth: "9rem" }}>
-                        <span className="block text-[length:var(--fs-xs)] font-medium">{r.title}</span>
-                        {r.detail && <span className="muted block text-[length:var(--fs-xs)]">{r.detail}</span>}
+                      <td style={{ minWidth: "10rem" }}>
+                        <span className="block text-[length:var(--fs-sm)] font-medium">{r.title}</span>
+                        <span className="muted block text-[length:var(--fs-xs)]">
+                          {r.kind}
+                          {r.detail ? ` · ${r.detail}` : ""}
+                        </span>
                       </td>
                       <td style={{ whiteSpace: "nowrap" }}>
                         <span className="num block text-[length:var(--fs-xs)]">{formatJalaliIso(r.date)}</span>
-                        <span className="muted num text-[length:var(--fs-xs)]">{formatDaysUntil(d)}</span>
+                        <span
+                          className="num text-[length:var(--fs-xs)]"
+                          style={{ color: late ? "var(--negative)" : soon ? "var(--warning)" : "var(--text-3)" }}
+                        >
+                          {formatDaysUntil(d)}
+                        </span>
                       </td>
-                      <td className="td-num font-bold" dir="rtl">
-                        <div>{disp.primary}</div>
-                        {disp.usdHint && <div className="muted num text-[length:var(--fs-xs)]">معادل: {disp.usdHint}</div>}
+                      <td className="td-num" dir="rtl">
+                        <div className="font-semibold">{disp.primary}</div>
+                        {disp.usdHint && <div className="muted num text-[length:var(--fs-xs)]">≈ {disp.usdHint}</div>}
                       </td>
                     </tr>
                   );
@@ -195,11 +165,6 @@ export default async function ObligationsPage() {
           </div>
         )}
       </Section>
-
-      <p className="muted flex items-center gap-1.5 text-[length:var(--fs-xs)]">
-        <Icon name="info" size={13} />
-        برای پرداخت واقعی یک قسط، از «اقساط» یا فرم ثبت تراکنش استفاده کنید تا اثر مالی آن به‌درستی در سوابق مالی ثبت شود.
-      </p>
     </div>
   );
 }

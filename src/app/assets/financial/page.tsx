@@ -3,14 +3,16 @@ import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import { getPortfolioValuation, listRegisteredWithoutHoldings } from "@/features/portfolio/service";
 import { getRealizedPnl } from "@/features/ledger/queries";
-import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
-import Icon, { type IconName } from "@/components/ui/Icon";
+import { EmptyState, PageHeader, Section, SectionLink } from "@/components/ui/Card";
+import Icon from "@/components/ui/Icon";
+import ModuleTabs, { ASSET_TABS } from "@/components/ui/ModuleTabs";
 import HoldingsTable from "@/components/assets/HoldingsTable";
+import AllocationBar from "@/components/assets/AllocationBar";
 import UnheldRegistrations from "@/components/assets/UnheldRegistrations";
 import AssetValuationSummary, { valuationTotalsOf } from "@/components/assets/AssetValuationSummary";
 import { splitAssetFamilies } from "@/features/portfolio/assetFamilies";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatPct, formatSignedMoney, toIrtMoney, faCount, trendTone } from "@/lib/format";
+import { formatMoney, toIrtMoney, usdToIrt } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +23,7 @@ export const metadata = { title: "دارایی‌های مالی" };
  * دارایی‌ها → دارایی‌های مالی
  *
  * READ MODEL ONLY. Buckets (نقد / رمزارز / سهام / صندوق / سایر) are a
- * PRESENTATION grouping over the existing asset classes returned by
+ * PRESENTATION grouping over the asset classes returned by
  * `getPortfolioValuation()`. Realised P&L is read from the existing ledger
  * query. Nothing here re-computes cost basis, touches FIFO, or writes state.
  */
@@ -43,12 +45,12 @@ const BUCKET_OF: Record<string, string> = {
 
 const BUCKET_ORDER = ["نقد", "رمزارز", "سهام", "صندوق", "سایر"] as const;
 
-const BUCKET_ICON: Record<string, IconName> = {
-  "نقد": "wallet",
-  "رمزارز": "crypto",
-  "سهام": "trend-up",
-  "صندوق": "layers",
-  "سایر": "coins",
+const BUCKET_COLOR: Record<string, string> = {
+  "نقد": "var(--asset-cash)",
+  "رمزارز": "var(--asset-crypto)",
+  "سهام": "var(--asset-investment)",
+  "صندوق": "var(--asset-other)",
+  "سایر": "var(--border-strong)",
 };
 
 export default async function FinancialAssetsPage() {
@@ -59,10 +61,8 @@ export default async function FinancialAssetsPage() {
     getPortfolioValuation(),
     getRealizedPnl(),
     getLatestUsdIrtRate(),
-    // Registered identities that carry no position yet. They are deliberately
-    // OUTSIDE the valuation (a registration is not a holding), so they are
-    // fetched separately and rendered in their own section rather than being
-    // folded into a bucket with a zero value.
+    // Registered identities with no position yet. They are OUTSIDE the
+    // valuation (a registration is not a holding) and get their own list.
     listRegisteredWithoutHoldings(),
   ]);
   const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
@@ -74,112 +74,99 @@ export default async function FinancialAssetsPage() {
     const key = BUCKET_OF[a.className] ?? "سایر";
     buckets.set(key, [...(buckets.get(key) ?? []), a]);
   }
-  const ordered = BUCKET_ORDER.filter((b) => buckets.has(b)).map((b) => ({
-    name: b,
-    icon: BUCKET_ICON[b],
-    rows: buckets.get(b)!,
-    value: Decimal.sum(buckets.get(b)!.map((a) => a.currentValue)),
-  }));
 
-  // The strip on the summary card and the «ارزش‌گذاری دارایی‌ها» box below are
-  // fed by ONE set of totals, so a figure is never stated twice with two
-  // different numbers (Toman-canonical value/cost/P&L; USD stays the read
-  // model's own figure, never a Toman amount re-scaled at today's rate).
+  // Summary and table are fed by ONE set of Toman-canonical totals.
   const totals = valuationTotalsOf(financial);
-  const totalValue = D(totals.valueUsd);
+  const totalUsd = D(totals.valueUsd);
+  const ordered = BUCKET_ORDER.filter((b) => buckets.has(b)).map((name) => {
+    const rows = buckets.get(name)!;
+    const usd = Decimal.sum(rows.map((a) => a.currentValue));
+    return {
+      name,
+      rows,
+      percent: totalUsd.isZero() ? 0 : Number(usd.div(totalUsd).mul(100).toFixed(1)),
+      toman: formatMoney(Decimal.sum(rows.map((a) => a.currentValueToman)).toFixed(0), "IRT"),
+    };
+  });
+
   const financialSymbols = new Set(financial.map((a) => a.symbol));
-  const realized = Decimal.sum(pnl.bySymbol.filter((p) => financialSymbols.has(p.symbol)).map((p) => p.pnl));
+  const realized = Decimal.sum(pnl.bySymbol.filter((p) => financialSymbols.has(p.symbol)).map((p) => p.pnl)).toString();
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="دارایی‌های مالی"
-        subtitle="نقد، رمزارز، سهام و صندوق — ارزش روز از ارزش‌گذاری موجود و بهای تمام‌شده از سوابق مالی خوانده می‌شود."
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/crypto" className="btn btn-ghost">
-              <Icon name="crypto" size={16} />
-              رمزارزها
+    <div className="space-y-7">
+      <div>
+        <PageHeader
+          title="دارایی‌های مالی"
+          action={
+            <Link href="/new?type=buy" className="btn btn-primary">
+              <Icon name="plus" size={16} />
+              ثبت خرید
             </Link>
-            <Link href="/assets" className="btn btn-soft">
-              <Icon name="layers" size={16} />
-              همه دارایی‌ها
-            </Link>
-          </div>
-        }
-      />
-
-      <section className="rise grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="ارزش روز" value={formatMoney(totals.valueToman, "IRT")} hint={formatMoney(totals.valueUsd, "USD")} />
-        <Metric label="بهای تمام‌شده" value={formatMoney(totals.costToman, "IRT")} hint={formatMoney(totals.costUsd, "USD")} />
-        <Metric label="سود/زیان تحقق‌نیافته" value={formatSignedMoney(totals.pnlToman, "IRT")} tone={trendTone(totals.pnlToman)} hint={formatSignedMoney(totals.pnlUsd, "USD")} />
-        <Metric label="سود/زیان تحقق‌یافته" value={toIrt(realized.toString()) ?? formatMoney(realized.toString())} tone={trendTone(realized.toString())} hint="از فروش‌های ثبت‌شده" />
-      </section>
-
-      <AssetValuationSummary
-        totals={totals}
-        hint={`برای ${faCount(financial.length)} دارایی مالی · تومان ملاک محاسبه، دلار معادل نمایشی`}
-      />
+          }
+        />
+        <ModuleTabs tabs={ASSET_TABS} active="/assets/financial" label="بخش‌های دارایی" />
+      </div>
 
       {ordered.length === 0 ? (
         <div className="card">
           <EmptyState
             icon="coins"
             title="دارایی مالی‌ای ثبت نشده است"
-            body="با ثبت موجودی اولیه یا اولین خرید، نقد، رمزارز و صندوق‌های شما اینجا دیده می‌شوند."
             action={
-              <Link href="/new?type=buy" className="btn btn-primary">
-                ثبت خرید دارایی
+              <Link href="/new?type=buy" className="btn btn-soft">
+                ثبت اولین خرید
               </Link>
             }
           />
         </div>
       ) : (
         <>
-          <Section title="ترکیب دارایی‌های مالی">
-            <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-              {ordered.map((b) => (
-                <li key={b.name} className="card p-4">
-                  <span className="flex items-center gap-2">
-                    <span style={{ color: "var(--action)" }}>
-                      <Icon name={b.icon} size={16} />
-                    </span>
-                    <span className="text-[length:var(--fs-xs)] font-semibold">{b.name}</span>
-                  </span>
-                  <p className="num mt-2.5 text-lg font-bold" dir="rtl">
-                    {toIrt(b.value.toString()) ?? formatMoney(b.value.toString())}
-                  </p>
-                  {fx.rate && (
-                    <p className="muted num text-[length:var(--fs-xs)]" dir="rtl">
-                      ≈ {formatMoney(b.value.toString())}
-                    </p>
-                  )}
-                  <p className="muted num text-[length:var(--fs-xs)]" dir="rtl">
-                    {faCount(b.rows.length)} دارایی ·{" "}
-                    {formatPct(totalValue.isZero() ? "0.0" : b.value.div(totalValue).mul(100).toFixed(1), 1)}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </Section>
+          <AssetValuationSummary
+            totals={totals}
+            extra={{
+              name: "سود/زیان تحقق‌یافته",
+              toman: fx.rate ? usdToIrt(realized, fx.rate) : null,
+              usd: realized,
+              signed: true,
+            }}
+          />
+
+          {ordered.length > 1 && (
+            <Section title="ترکیب">
+              <AllocationBar
+                label="ترکیب دارایی‌های مالی"
+                slices={ordered.map((b) => ({
+                  key: b.name,
+                  label: b.name,
+                  percent: b.percent,
+                  value: b.toman,
+                  color: BUCKET_COLOR[b.name],
+                }))}
+              />
+            </Section>
+          )}
 
           {ordered.map((b) => (
-            <Section key={b.name} title={b.name} hint={`${faCount(b.rows.length)} دارایی · ${toIrt(b.value.toString()) ?? formatMoney(b.value.toString())}${fx.rate ? ` ≈ ${formatMoney(b.value.toString())}` : ""}`}>
+            <Section
+              key={b.name}
+              title={b.name}
+              action={
+                b.name === "رمزارز" ? (
+                  <SectionLink href="/crypto" label="کیف‌های رمزارز" />
+                ) : (
+                  <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
+                    {b.toman}
+                  </span>
+                )
+              }
+            >
               <HoldingsTable rows={b.rows} toIrt={toIrt} />
             </Section>
           ))}
         </>
       )}
 
-      {/* Placed AFTER the real holdings: these are the user's unfinished work,
-          not part of their portfolio, and they must not compete with it. */}
       <UnheldRegistrations rows={unheld} />
-
-      <p className="muted flex items-center gap-1.5 text-[length:var(--fs-xs)]">
-        <Icon name="info" size={13} />
-        قیمت‌های بازار فقط داده مرجع برای ارزش‌گذاری‌اند؛ هرگز تاریخچه تراکنش، بهای تمام‌شده یا سود محقق‌شده را تغییر
-        نمی‌دهند.
-      </p>
     </div>
   );
 }

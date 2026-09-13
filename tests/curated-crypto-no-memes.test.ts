@@ -73,6 +73,7 @@ test("the four groups hold the chosen coins, each exactly once", () => {
 });
 
 test("the setup wizard offers no meme coin", () => {
-  const page = readFileSync(new URL("../src/app/setup/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /SUPPORTED_CRYPTO_ASSETS\.filter\(\(c\) => !isMemeSymbol\(c\.symbol\)\)/);
+  // The wizard's crypto picker lives in the «رمزارز و طلا» step component.
+  const picker = readFileSync(new URL("../src/components/setup/SetupHoldingsStep.tsx", import.meta.url), "utf8");
+  assert.match(picker, /SUPPORTED_CRYPTO_ASSETS\.filter\(\(c\) => !isMemeSymbol\(c\.symbol\)\)/);
 });

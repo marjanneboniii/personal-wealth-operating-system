@@ -1,14 +1,18 @@
+import Link from "next/link";
 import { seedIfEmpty } from "@/db/seed";
 import { ensureAuth } from "@/lib/authGuard";
 import { getRealizedPnl } from "@/features/ledger/queries";
 import { getPortfolioValuation } from "@/features/portfolio/service";
-import { Alert, EmptyState, PageHeader, Section } from "@/components/ui/Card";
+import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
 import { Donut } from "@/components/charts/Charts";
+import Icon from "@/components/ui/Icon";
+import ModuleTabs, { ASSET_TABS } from "@/components/ui/ModuleTabs";
 import HoldingsTable from "@/components/assets/HoldingsTable";
+import AllocationBar from "@/components/assets/AllocationBar";
 import AssetValuationSummary from "@/components/assets/AssetValuationSummary";
-import { faCount, formatMoney, formatPct, formatSignedMoney, usdToIrt, trendTone } from "@/lib/format";
+import { D, Decimal } from "@/domain/decimal";
+import { faCount, formatMoney, formatSignedMoney, toneColor, trendTone, usdToIrt } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
-import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -16,92 +20,83 @@ export default async function PortfolioPage() {
   await ensureAuth();
   await seedIfEmpty();
 
-  const [valuation, pnl, fx] = await Promise.all([
-    getPortfolioValuation(),
-    getRealizedPnl(),
-    getLatestUsdIrtRate(),
-  ]);
+  const [valuation, pnl, fx] = await Promise.all([getPortfolioValuation(), getRealizedPnl(), getLatestUsdIrtRate()]);
 
   const tomanOf = (usd: string | number) => (fx.rate ? usdToIrt(usd, fx.rate) : null);
   const toIrt = (usd: string | number) => {
     const t = tomanOf(usd);
     return t ? formatMoney(t, "IRT") : null;
   };
-  // The headline Toman/USD figures live in <AssetValuationSummary> below. They
-  // are Toman-canonical and internally consistent (value = cost + unrealized
-  // P&L) because they come straight from the read model — never by re-scaling
-  // the frozen USD aggregates at the current rate, which is what used to
-  // produce a positive «سود/زیان» next to a value below cost.
+  // The headline Toman/USD figures come straight from the read model: they are
+  // Toman-canonical and internally consistent (value = cost + unrealized P&L),
+  // never the frozen USD aggregates re-scaled at the current rate.
+
+  const tomanByClass = new Map<string, Decimal>();
+  for (const a of valuation.assetValuations) {
+    tomanByClass.set(a.className, (tomanByClass.get(a.className) ?? Decimal.zero()).add(D(a.currentValueToman)));
+  }
+  const priceIssues = valuation.priceStatus.stale + valuation.priceStatus.unavailable;
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="سبد دارایی"
-        subtitle="ترکیب دارایی‌ها، ارزش روز و سود و زیان — این صفحه فقط نمایشی است و سندی ثبت نمی‌کند."
-        action={<Link href="/new?type=buy" className="btn btn-primary">ثبت خرید دارایی</Link>}
-      />
-
-      {(valuation.priceStatus.stale > 0 || valuation.priceStatus.unavailable > 0) && (
-        <Alert tone="warn" title="بخشی از قیمت‌های جاری قطعی نیست">
-          {valuation.priceStatus.stale > 0 ? `${faCount(valuation.priceStatus.stale)} قیمت قدیمی است. ` : ""}
-          {valuation.priceStatus.unavailable > 0 ? `${faCount(valuation.priceStatus.unavailable)} ارزش‌گذاری بدون قیمت بازار است و با بهای تمام‌شده نمایش داده می‌شود.` : ""}
-          هیچ مقدار دستی جایگزین قیمت جاری رمزارزها نشده است.
-        </Alert>
-      )}
-
-      <AssetValuationSummary
-        totals={{
-          valueToman: valuation.totalNetWorthToman,
-          valueUsd: valuation.totalNetWorth,
-          costToman: valuation.totalCostBasisToman,
-          costUsd: valuation.totalCostBasis,
-          pnlToman: valuation.totalUnrealizedPnlToman,
-          pnlUsd: valuation.totalUnrealizedPnl,
-        }}
-        hint={`برای ${faCount(valuation.assetValuations.length)} دارایی · نرخ مرجع ${fx.rate ? formatMoney(fx.rate, "IRT") : "—"} ≈ ۱ دلار`}
-        extra={{
-          name: "سود/زیان تحقق‌یافته",
-          toman: tomanOf(pnl.total),
-          usd: pnl.total,
-          signed: true,
-        }}
-      />
+    <div className="space-y-7">
+      <div>
+        <PageHeader
+          title="سبد دارایی"
+          action={
+            <Link href="/new?type=buy" className="btn btn-primary">
+              <Icon name="plus" size={16} />
+              ثبت خرید
+            </Link>
+          }
+        />
+        <ModuleTabs tabs={ASSET_TABS} active="/portfolio" label="بخش‌های دارایی" />
+      </div>
 
       {valuation.assetValuations.length === 0 ? (
         <div className="card">
           <EmptyState
             icon="portfolio"
             title="هنوز سرمایه‌گذاری‌ای ثبت نشده است"
-            body="یک دارایی اضافه کنید یا حساب متصل کنید تا سبد شما از همین‌جا ردیابی شود."
             action={
               <Link href="/new?type=buy" className="btn btn-soft">
-                ثبت خرید دارایی
+                ثبت اولین خرید
               </Link>
             }
           />
         </div>
       ) : (
         <>
-          <Section title="ثروت شما کجا قرار دارد؟" hint="ترکیب سبد بر اساس کلاس دارایی">
-            {valuation.allocationByClass.length === 0 ? (
-              <p className="muted py-6 text-center text-xs">هنوز ترکیبی برای نمایش ساخته نشده است.</p>
-            ) : (
-              <div className="card relative z-0 overflow-visible p-4 sm:p-6">
-                <div
-                  className="comp-bar mb-5"
-                  role="img"
-                  aria-label="نوار ترکیب ثروت"
-                >
-                  {valuation.allocationByClass.map((c) => (
-                    <span
-                      key={c.className}
-                      style={{ width: `${Math.max(0, Math.min(100, Number(c.percentage)))}%`, background: c.color }}
-                    />
-                  ))}
-                </div>
-                <div className="grid min-w-0 items-center gap-6 lg:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
+          <div className="space-y-2">
+            {priceIssues > 0 && (
+              <p className="price-flag">
+                <Icon name="alert" size={14} />
+                قیمت {faCount(priceIssues)} دارایی به‌روز نیست
+              </p>
+            )}
+            <AssetValuationSummary
+              totals={{
+                valueToman: valuation.totalNetWorthToman,
+                valueUsd: valuation.totalNetWorth,
+                costToman: valuation.totalCostBasisToman,
+                costUsd: valuation.totalCostBasis,
+                pnlToman: valuation.totalUnrealizedPnlToman,
+                pnlUsd: valuation.totalUnrealizedPnl,
+              }}
+              extra={{
+                name: "سود/زیان تحقق‌یافته",
+                toman: tomanOf(pnl.total),
+                usd: pnl.total,
+                signed: true,
+              }}
+            />
+          </div>
+
+          {valuation.allocationByClass.length > 0 && (
+            <Section title="ترکیب سبد">
+              <div className="grid items-stretch gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
+                <div className="card hidden items-center justify-center p-4 lg:flex">
                   <Donut
-                    size={200}
+                    size={188}
                     centerLabel="ارزش سبد"
                     showLegend={false}
                     data={valuation.allocationByClass.map((c) => ({
@@ -110,55 +105,46 @@ export default async function PortfolioPage() {
                       color: c.color,
                     }))}
                   />
-                  <ul className="min-w-0 space-y-3">
-                    {valuation.allocationByClass.map((c) => (
-                      <li key={c.className}>
-                        <div className="mb-1 flex items-baseline justify-between gap-3 text-[length:var(--fs-sm)]">
-                          <span className="flex min-w-0 items-center gap-2 font-medium">
-                            <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: c.color }} />
-                            <span className="truncate">{c.className}</span>
-                          </span>
-                          <span className="flex shrink-0 items-baseline gap-2">
-                            <span className="flex flex-col items-end">
-                              <span className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
-                                {toIrt(c.value) ?? formatMoney(c.value)}
-                              </span>
-                              {fx.rate && (
-                                <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
-                                  ≈ {formatMoney(c.value)}
-                                </span>
-                              )}
-                            </span>
-                            <span className="num muted w-11 text-left text-[length:var(--fs-xs)]" dir="rtl">
-                              {formatPct(c.percentage, 1)}
-                            </span>
-                          </span>
-                        </div>
-                        <div className="meter" aria-hidden="true">
-                          <i style={{ width: `${Math.max(0, Math.min(100, Number(c.percentage)))}%`, background: c.color }} />
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
+                <AllocationBar
+                  label="نوار ترکیب سبد"
+                  slices={valuation.allocationByClass.map((c) => {
+                    const toman = tomanByClass.get(c.className);
+                    return {
+                      key: c.className,
+                      label: c.className,
+                      percent: Number(c.percentage),
+                      color: c.color,
+                      value: toman ? formatMoney(toman.toFixed(0), "IRT") : (toIrt(c.value) ?? formatMoney(c.value)),
+                    };
+                  })}
+                />
               </div>
-            )}
-          </Section>
+            </Section>
+          )}
 
-          <Section title="فهرست ارزش‌گذاری دارایی‌ها" hint="به‌روزرسانی با آخرین قیمت‌ها — جمع همین سطرها، کارت خلاصه وضعیت بالای همین‌جا است.">
+          <Section
+            title="فهرست دارایی‌ها"
+            action={<span className="muted num text-[length:var(--fs-xs)]">{faCount(valuation.assetValuations.length)}</span>}
+          >
             <HoldingsTable rows={valuation.assetValuations} toIrt={toIrt} />
           </Section>
 
           {pnl.bySymbol.length > 0 && (
-            <Alert tone="info" icon="info" title="سود/زیان تحقق‌یافته بر اساس دارایی">
-              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+            <Section title="سود/زیان تحقق‌یافته">
+              <div className="card realized-list">
                 {pnl.bySymbol.map((p) => (
-                  <span key={p.symbol} className="num text-[length:var(--fs-xs)]" dir="rtl" style={{ color: trendTone(p.pnl) === "up" ? "var(--positive)" : trendTone(p.pnl) === "down" ? "var(--negative)" : "var(--text-2)" }}>
+                  <span
+                    key={p.symbol}
+                    className="num money-nowrap text-[length:var(--fs-sm)] font-medium"
+                    dir="rtl"
+                    style={{ color: toneColor(trendTone(p.pnl)) }}
+                  >
                     {formatSignedMoney(p.pnl, p.symbol)}
                   </span>
                 ))}
               </div>
-            </Alert>
+            </Section>
           )}
         </>
       )}

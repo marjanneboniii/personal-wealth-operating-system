@@ -4,948 +4,631 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { completeSetupAction, fetchSetupStateAction, type ActionResult } from "@/app/actions";
-import { getTranslations } from "@/i18n";
-import { D } from "@/domain/decimal";
-import { currencyLabel, faCount, formatMoney, formatMoneyWithSign, formatQty } from "@/lib/format";
+import { registerSetupDebtsAction, validateSetupDebtsAction } from "@/app/actions/setupDebts";
+import { faCount, formatMoney, formatQty } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
-import AssetLogo from "@/components/ui/AssetLogo";
-import { SUPPORTED_CRYPTO_ASSETS } from "@/features/pricing/supportedAssets";
-import { isMemeSymbol } from "@/features/pricing/wallexKinds";
-import SetupDebtsStep, { type DebtDraftRow } from "@/components/setup/SetupDebtsStep";
+import Icon from "@/components/ui/Icon";
+import StepIntro, { CurrencySwitch } from "@/components/setup/StepIntro";
+import SetupHoldingsStep, { type CryptoDraftRow } from "@/components/setup/SetupHoldingsStep";
 import SetupInstrumentsStep, { type InstrumentDraftRow } from "@/components/setup/SetupInstrumentsStep";
+import SetupDebtsStep, { type DebtDraftRow } from "@/components/setup/SetupDebtsStep";
 import SetupRealAssetsStep, {
   propertyRowReady,
   vehicleRowReady,
   type PropertyDraftRow,
   type VehicleDraftRow,
 } from "@/components/setup/SetupRealAssetsStep";
-import { registerSetupDebtsAction } from "@/app/actions/setupDebts";
+import { amountOf, isValidRate, lineValue, toToman } from "@/components/setup/setupMoney";
 
-const t = getTranslations("fa").setup;
+/**
+ * راه‌اندازی اولیه توازن.
+ *
+ * CURRENCY MODEL (see features/setup/service.ts): nothing here asks for an
+ * «accounting currency». Every holding is typed in the currency it was bought
+ * with — Toman for bank accounts, debts, property, vehicles, physical gold,
+ * funds and TSE stocks; Tether or Toman for crypto and US markets — and one
+ * confirmed USD→IRT rate converts them. The book currency (USD) is internal.
+ */
 
-type MoneySymbol = "IRT" | "USD" | "USDT";
+const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک و خودرو", "بدهی‌ها", "تأیید"] as const;
+const LAST_STEP = STEPS.length;
+const DEBTS_STEP = 6;
+// The calendar is not a preference: dates are always picked in Jalali. The
+// value is still submitted so the stored `date_calendar` config stays explicit.
+const dateCalendar = "jalali" as const;
 
-const MONEY_DENOMS: { symbol: MoneySymbol; label: string }[] = [
-  { symbol: "IRT", label: "تومان" },
-  { symbol: "USD", label: "دلار" },
-  { symbol: "USDT", label: "تتر" },
-];
+const RATE_SOURCE_LABEL: Record<string, string> = {
+  market: "نرخ بازار",
+  user_settings: "نرخ تنظیمات شما",
+  exchange_rates: "نرخ ثبت‌شده",
+  settings: "نرخ ثبت‌شده",
+  manual: "نرخ ثبت‌شده",
+};
 
-function amountUnit(symbol: MoneySymbol) {
-  return symbol === "IRT" ? "toman" : symbol === "USDT" ? "usdt" : "usd";
-}
-
-function nativeToBookUsd(qty: ReturnType<typeof D>, symbol: MoneySymbol, rate: ReturnType<typeof D>) {
-  if (!qty.gt(0)) return D("0");
-  if (symbol === "IRT") return rate.gt(0) ? qty.div(rate) : D("0");
-  return qty;
-}
+type ReviewItem = { key: string; label: string; detail?: string; toman: ReturnType<typeof amountOf> | null };
 
 export default function SetupWizardPage() {
   const router = useRouter();
+  const [status, setStatus] = useState<"loading" | "pending" | "completed">("loading");
   const [step, setStep] = useState(1);
-  const [setupStatus, setSetupStatus] = useState<"loading" | "pending" | "completed">("loading");
-  const [usdIrtRate, setUsdIrtRate] = useState("190000");
+  const [completionNote, setCompletionNote] = useState<string | null>(null);
+
+  // Step 1 — who, and the one rate every Toman amount converts at.
+  const [userName, setUserName] = useState("");
+  const [marketRate, setMarketRate] = useState({ rate: "", source: "" });
+  const [editingRate, setEditingRate] = useState(false);
+  const [rateInput, setRateInput] = useState("");
+
+  // Step 2 — cash. A bank account in Iran holds Toman; a cash box may be dollars.
+  const [bankAccountName, setBankAccountName] = useState("");
+  const [bankBalance, setBankBalance] = useState("");
+  const [hasCash, setHasCash] = useState(false);
+  const [cashName, setCashName] = useState("صندوق خانگی");
+  const [cashCurrency, setCashCurrency] = useState<"IRT" | "USD">("IRT");
+  const [cashBalance, setCashBalance] = useState("");
+
+  // Steps 3–6 — holdings and obligations, drafts until the final confirm.
+  const [cryptoRows, setCryptoRows] = useState<CryptoDraftRow[]>([]);
+  const [goldGrams, setGoldGrams] = useState("");
+  const [goldPrice, setGoldPrice] = useState("");
+  const [instrumentRows, setInstrumentRows] = useState<InstrumentDraftRow[]>([]);
+  const [vehicleRows, setVehicleRows] = useState<VehicleDraftRow[]>([]);
+  const [propertyRows, setPropertyRows] = useState<PropertyDraftRow[]>([]);
+  const [debtRows, setDebtRows] = useState<DebtDraftRow[]>([]);
+  const [debtError, setDebtError] = useState<{ message: string; index: number | null } | null>(null);
 
   useEffect(() => {
     let active = true;
     fetchSetupStateAction()
       .then((state) => {
         if (!active) return;
-        // LOGIN-GATED APP: an anonymous visitor never runs the wizard —
-        // they are sent to /login (landing stays the public surface).
+        // LOGIN-GATED APP: an anonymous visitor never runs the wizard.
         if ((state as { loginRequired?: boolean }).loginRequired) {
           router.replace("/login");
           return;
         }
-        setSetupStatus(state.completed ? "completed" : "pending");
-        if (state.usdIrtRate) setUsdIrtRate(state.usdIrtRate);
+        const s = state as { completed: boolean; usdIrtRate?: string; rateSource?: string };
+        setStatus(s.completed ? "completed" : "pending");
+        setMarketRate({ rate: s.usdIrtRate ?? "", source: s.rateSource ?? "" });
       })
       .catch(() => {
-        if (active) setSetupStatus("pending");
+        if (active) setStatus("pending");
       });
     return () => {
       active = false;
     };
   }, [router]);
 
-  // Step 1 State
-  const [userName, setUserName] = useState("مالک خانواده");
-  const [baseCurrency, setBaseCurrency] = useState("USD");
-  const [displayCurrency, setDisplayCurrency] = useState("IRT");
-  // The calendar is NOT a preference: dates are always picked in Jalali and the
-  // Gregorian equivalent is computed by the app. The value is still submitted so
-  // the stored `date_calendar` config stays explicit (and legacy rows valid).
-  const dateCalendar = "jalali" as const;
-  const [digitStyle, setDigitStyle] = useState<"fa" | "en">("fa");
+  // A fallback/default rate is not a market figure — the user must confirm one.
+  const needsRate = !isValidRate(marketRate.rate) || marketRate.source === "fallback" || marketRate.source === "default";
+  const rateEditable = needsRate || editingRate;
+  const rate = rateEditable ? rateInput : marketRate.rate;
+  const rateReady = isValidRate(rate);
 
-  // Step 2 State — names + native denomination (independent of book USD).
-  // NO hardcoded bank/account names (Directive §0): the user names their own
-  // accounts; only a neutral generic fallback exists server-side.
-  const [bankAccountName, setBankAccountName] = useState("");
-  const [cashWalletName, setCashWalletName] = useState("صندوق خانگی");
-  const [bankAssetSymbol, setBankAssetSymbol] = useState<MoneySymbol>("IRT");
-  const [cashAssetSymbol, setCashAssetSymbol] = useState<MoneySymbol>("IRT");
+  const debtDrafts = debtRows.map(({ key: _key, ...draft }) => draft);
 
-  // Step 3 State — amounts are native units of the selected denomination
-  const [bankOpeningBalance, setBankOpeningBalance] = useState("");
-  const [cashOpeningBalance, setCashOpeningBalance] = useState("");
-  // WHICH coin, chosen by the user. The wizard used to hard-code Ethereum, so
-  // everyone got a «کیف پول اتریوم» whether they held ETH or not. Empty means
-  // no crypto wallet is created at all.
-  // Step 4 — existing obligations. A list, because a person arriving here
-  // usually has more than one: a mortgage, a car plan, a loan from family.
-  const [debtRows, setDebtRows] = useState<DebtDraftRow[]>([]);
-  const [debtError, setDebtError] = useState<string | null>(null);
-
-  const [cryptoSymbol, setCryptoSymbol] = useState("");
-  const [cryptoQuery, setCryptoQuery] = useState("");
-  const [cryptoOpeningQty, setCryptoOpeningQty] = useState("");
-  const [cryptoUnitPrice, setCryptoUnitPrice] = useState("");
-  const [goldOpeningQty, setGoldOpeningQty] = useState("");
-  const [goldUnitPrice, setGoldUnitPrice] = useState("");
-  // Step 4 — صندوق و سهام. A list for the same reason the debts step is one:
-  // a person arriving here typically owns several, not exactly one.
-  const [instrumentRows, setInstrumentRows] = useState<InstrumentDraftRow[]>([]);
-  // Step 5 — خودرو و ملک. Registry assets, kept apart from the ledger balances
-  // above: they are written by the registry's own services, not by the opening
-  // entry (see features/setup/service.ts).
-  const [vehicleRows, setVehicleRows] = useState<VehicleDraftRow[]>([]);
-  const [propertyRows, setPropertyRows] = useState<PropertyDraftRow[]>([]);
-
-  const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
-    async (prev, fd) => {
-      const res = await completeSetupAction(prev, fd);
-      if (!res.ok) return res;
-
-      /*
-       * Debts are registered AFTER the base setup, and only if it succeeded:
-       * they belong to the user's tenant, which the wizard has just created.
-       * A failure here is reported but does NOT roll back the accounts — the
-       * user keeps a working setup and can add the obligations from the debts
-       * module instead of starting the whole wizard again.
-       */
-      if (debtRows.length > 0) {
-        const debtRes = await registerSetupDebtsAction(
-          debtRows.map(({ key: _key, ...draft }) => draft),
-        );
-        if (!debtRes.ok) {
-          setDebtError(debtRes.message ?? "ثبت بدهی‌ها ناموفق بود.");
-          setStep(6);
-          return { ok: false, message: debtRes.message ?? "ثبت بدهی‌ها ناموفق بود." };
-        }
+  const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(async (prev, fd) => {
+    // Debts are validated BEFORE setup commits: once setup is complete the
+    // wizard cannot be submitted again, so a bad row must be fixed now.
+    if (debtDrafts.length > 0) {
+      const check = await validateSetupDebtsAction(debtDrafts);
+      if (!check.ok) {
+        setDebtError({ message: check.message ?? "اطلاعات بدهی‌ها کامل نیست.", index: check.failedIndex ?? null });
+        setStep(DEBTS_STEP);
+        return { ok: false, message: check.message ?? "اطلاعات بدهی‌ها کامل نیست." };
       }
+    }
 
-      setSetupStatus("completed");
-      setTimeout(() => router.push("/"), 1000);
-      return res;
-    },
-    null,
-  );
+    const res = await completeSetupAction(prev, fd);
+    if (!res.ok) return res;
 
-  const selectedCrypto = useMemo(
-    () => SUPPORTED_CRYPTO_ASSETS.find((c) => c.symbol === cryptoSymbol),
-    [cryptoSymbol],
-  );
+    const notes: string[] = [];
+    if (res.message?.includes("ناموفق")) notes.push(res.message);
+    if (debtDrafts.length > 0) {
+      const debtRes = await registerSetupDebtsAction(debtDrafts);
+      if (!debtRes.ok) {
+        notes.push(`بدهی‌ها ثبت نشدند (${debtRes.message ?? "خطای نامشخص"}) — از «تعهدات مالی» اضافه کنید.`);
+      }
+    }
 
-  /** Matches on the Persian name OR the Latin ticker — a user may type either. */
-  const cryptoMatches = useMemo(() => {
-    const q = cryptoQuery.trim().toLowerCase();
-    if (!q) return [];
-    return SUPPORTED_CRYPTO_ASSETS.filter((c) => !isMemeSymbol(c.symbol)).filter(
-      (c) =>
-        c.displayName.includes(cryptoQuery.trim()) ||
-        c.symbol.toLowerCase().includes(q) ||
-        c.name.toLowerCase().includes(q),
-    ).slice(0, 8);
-  }, [cryptoQuery]);
+    setCompletionNote(notes.length ? notes.join(" ") : null);
+    setStatus("completed");
+    if (notes.length === 0) setTimeout(() => router.push("/"), 1200);
+    return res;
+  }, null);
 
-  // Unit label for crypto/gold cost basis (book currency remains USD).
-  const baseUnit = baseCurrency === "IRT" ? "toman" : baseCurrency === "IRR" ? "rial" : baseCurrency === "EUR" ? "eur" : "usd";
-  const bankUnit = amountUnit(bankAssetSymbol);
-  const cashUnit = amountUnit(cashAssetSymbol);
-  const fxRate = D(usdIrtRate || "0");
+  const readyVehicles = vehicleRows.filter(vehicleRowReady);
+  const readyProperties = propertyRows.filter(propertyRowReady);
+  const incompleteRealAssets = vehicleRows.length - readyVehicles.length + (propertyRows.length - readyProperties.length);
 
-  // Preview: native qty per account + server-style USD book value (non-authoritative).
-  const previewData = useMemo(() => {
-    const bankQty = D(bankOpeningBalance || "0");
-    const cashQty = D(cashOpeningBalance || "0");
-    const bankBook = nativeToBookUsd(bankQty, bankAssetSymbol, fxRate);
-    const cashBook = nativeToBookUsd(cashQty, cashAssetSymbol, fxRate);
-    const ethQty = D(cryptoSymbol ? cryptoOpeningQty || "0" : "0");
-    const ethPrice = D(cryptoUnitPrice || "0");
-    const ethVal = ethQty.mul(ethPrice);
-    const goldQty = D(goldOpeningQty || "0");
-    const goldPrice = D(goldUnitPrice || "0");
-    const goldVal = goldQty.mul(goldPrice);
+  /** Everything the user entered, in Toman, grouped the way the app shows it. */
+  const review = useMemo(() => {
+    const money: ReviewItem[] = [];
+    if (amountOf(bankBalance).gt(0)) {
+      money.push({ key: "bank", label: bankAccountName.trim() || "حساب بانکی اصلی", toman: amountOf(bankBalance) });
+    }
+    if (hasCash && amountOf(cashBalance).gt(0)) {
+      money.push({
+        key: "cash",
+        label: cashName.trim() || "صندوق نقد",
+        detail: cashCurrency === "USD" ? formatMoney(cashBalance, "USD") : undefined,
+        toman: toToman(amountOf(cashBalance), cashCurrency, rate),
+      });
+    }
 
-    // صندوق/سهام contribute to the SAME opening entry, so the equity
-    // counterweight the preview states must include them — otherwise the
-    // «از سرمایه اولیه» line would understate what is about to be posted.
-    const instrumentsVal = instrumentRows.reduce((sum, r) => {
-      const qty = D(r.quantity || "0");
-      const price = D(r.unitPrice || "0");
-      return qty.gt(0) && price.gt(0) ? sum.add(qty.mul(price)) : sum;
-    }, D("0"));
+    const investments: ReviewItem[] = [];
+    let usesRate = cashCurrency === "USD" && hasCash && amountOf(cashBalance).gt(0);
+    for (const row of cryptoRows) {
+      if (!amountOf(row.quantity).gt(0)) continue;
+      const cost = lineValue(row.quantity, row.unitPrice);
+      if (row.priceCurrency === "USDT") usesRate = true;
+      investments.push({
+        key: row.key,
+        label: row.name,
+        detail: `${formatQty(row.quantity, 8)} واحد`,
+        toman: cost.gt(0) ? toToman(cost, row.priceCurrency, rate) : null,
+      });
+    }
+    if (amountOf(goldGrams).gt(0)) {
+      const cost = lineValue(goldGrams, goldPrice);
+      investments.push({ key: "gold", label: "طلای ۱۸ عیار", detail: `${formatQty(goldGrams, 3)} گرم`, toman: cost.gt(0) ? cost : null });
+    }
+    for (const row of instrumentRows) {
+      const cost = lineValue(row.quantity, row.unitPrice);
+      if (row.priceCurrency === "USDT" && cost.gt(0)) usesRate = true;
+      investments.push({
+        key: row.key,
+        label: row.name,
+        detail: amountOf(row.quantity).gt(0) ? `${formatQty(row.quantity, 4)} واحد` : "فقط ثبت نماد",
+        toman: cost.gt(0) ? toToman(cost, row.priceCurrency, rate) : null,
+      });
+    }
 
-    const totalEquity = bankBook.add(cashBook).add(ethVal).add(goldVal).add(instrumentsVal);
+    const real: ReviewItem[] = [
+      ...readyVehicles.map((r) => ({ key: r.key, label: r.label, detail: "خودرو", toman: amountOf(r.currentValueToman || r.purchasePriceToman) })),
+      ...readyProperties.map((r) => ({ key: r.key, label: r.label || "ملک", detail: "ملک", toman: amountOf(r.currentValueToman) })),
+    ];
 
-    return {
-      bankQty: bankQty.toString(),
-      cashQty: cashQty.toString(),
-      bankBook: bankBook.toString(),
-      cashBook: cashBook.toString(),
-      ethQty: ethQty.toString(),
-      ethVal: ethVal.toString(),
-      goldQty: goldQty.toString(),
-      goldVal: goldVal.toString(),
-      totalEquity: totalEquity.toString(),
-      instrumentsVal: instrumentsVal.toString(),
-      hasItems:
-        totalEquity.gt(0) ||
-        bankQty.gt(0) ||
-        cashQty.gt(0) ||
-        ethQty.gt(0) ||
-        goldQty.gt(0) ||
-        instrumentsVal.gt(0),
-    };
-  }, [
-    cryptoSymbol,
-    bankOpeningBalance,
-    cashOpeningBalance,
-    bankAssetSymbol,
-    cashAssetSymbol,
-    fxRate,
-    cryptoOpeningQty,
-    cryptoUnitPrice,
-    goldOpeningQty,
-    goldUnitPrice,
-    instrumentRows,
-  ]);
+    const debts: ReviewItem[] = debtRows
+      .filter((r) => amountOf(r.principalIrt).gt(0))
+      .map((r) => ({ key: r.key, label: r.title.trim() || "بدهی", detail: r.creditor.trim() || undefined, toman: amountOf(r.principalIrt) }));
 
-  if (setupStatus === "loading") {
+    const sum = (items: ReviewItem[]) => items.reduce((s, i) => (i.toman ? s.add(i.toman) : s), amountOf("0"));
+    const assetsTotal = sum(money).add(sum(investments)).add(sum(real));
+    const debtsTotal = sum(debts);
+    return { money, investments, real, debts, assetsTotal, debtsTotal, net: assetsTotal.sub(debtsTotal), usesRate };
+  }, [bankBalance, bankAccountName, hasCash, cashBalance, cashName, cashCurrency, rate, cryptoRows, goldGrams, goldPrice, instrumentRows, readyVehicles, readyProperties, debtRows]);
+
+  const canContinue = step === 1 ? rateReady : step === 2 ? bankAccountName.trim().length > 0 : true;
+
+  if (status === "loading") {
     return (
       <div className="mx-auto max-w-2xl py-6">
-        <div className="card p-8 text-center">
-          <p className="muted text-sm" role="status">در حال بررسی وضعیت راه‌اندازی…</p>
-        </div>
+        <p className="card muted text-center text-[length:var(--fs-sm)]" role="status">
+          در حال بررسی وضعیت راه‌اندازی…
+        </p>
       </div>
     );
   }
 
-  if (setupStatus === "completed") {
+  if (status === "completed") {
     return (
       <div className="mx-auto max-w-2xl py-6">
-        <div className="card rise space-y-4 p-6 text-center">
-          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full text-xl" style={{ background: "var(--positive-soft)", color: "var(--positive)" }}>✓</span>
-          <div>
-            <h1 className="text-xl font-bold">راه‌اندازی اولیه کامل است</h1>
-            <p className="muted mt-2 text-xs leading-6">
-              حساب‌های پایه آماده‌اند. برای افزودن بانک، صندوق، صرافی یا کیف پول از بخش حساب‌ها استفاده کنید.
+        <div className="card setup-card space-y-4 text-center">
+          <span className="flow-icon is-in mx-auto" aria-hidden="true">
+            <Icon name="check" size={17} />
+          </span>
+          <h1 className="text-[length:var(--fs-lg)] font-bold">راه‌اندازی کامل شد</h1>
+          {completionNote && (
+            <p className="text-right text-[length:var(--fs-xs)] leading-6" role="alert" style={{ color: "var(--warning)" }}>
+              {completionNote}
             </p>
-          </div>
+          )}
           <div className="flex flex-wrap justify-center gap-2">
-            <Link href="/accounts" className="btn btn-primary">مدیریت حساب‌ها و کیف پول‌ها</Link>
-            <Link href="/" className="btn btn-ghost">بازگشت به نمای کلی</Link>
+            <Link href="/" className="btn btn-primary">
+              نمای کلی
+            </Link>
+            <Link href="/accounts" className="btn btn-ghost">
+              حساب‌ها
+            </Link>
           </div>
         </div>
       </div>
     );
   }
+
+  const next = () => setStep((s) => Math.min(LAST_STEP, s + 1));
+  const back = () => setStep((s) => Math.max(1, s - 1));
 
   return (
-    <div className="mx-auto max-w-2xl py-6">
-      <div className="card rise p-6">
-        <header className="mb-6 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">{t.title}</h1>
-          <p className="muted mt-1 text-xs">{t.subtitle}</p>
-
-          {/* Stepper Progress */}
-          <div className="mt-6 flex items-center justify-center gap-2">
-            {[1, 2, 3, 4, 5, 6, 7].map((s) => (
-              <div
-                key={s}
-                className="flex items-center gap-2"
-                onClick={() => s < step && setStep(s)}
-              >
-                <span
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                    s === step
-                      ? "bg-[var(--action)] text-white shadow-md"
-                      : s < step
-                        ? "bg-[var(--action-soft)] text-[var(--action)] cursor-pointer"
-                        : "bg-[var(--border)] muted"
-                  }`}
-                >
-                  {s}
-                </span>
-                {s < 6 && <div className="h-0.5 w-8 bg-[var(--border)]" />}
-              </div>
-            ))}
-          </div>
-        </header>
-
-        <form action={formAction} className="space-y-6">
-          {/* Hidden Form Inputs */}
-          <input type="hidden" name="userName" value={userName} />
-          <input type="hidden" name="baseCurrency" value={baseCurrency} />
-          <input type="hidden" name="displayCurrency" value={displayCurrency} />
-          <input type="hidden" name="dateCalendar" value={dateCalendar} />
-          <input type="hidden" name="digitStyle" value={digitStyle} />
-          <input type="hidden" name="bankAccountName" value={bankAccountName} />
-          <input type="hidden" name="cashWalletName" value={cashWalletName} />
-          <input type="hidden" name="bankAssetSymbol" value={bankAssetSymbol} />
-          <input type="hidden" name="cashAssetSymbol" value={cashAssetSymbol} />
-          <input type="hidden" name="bankOpeningBalance" value={bankOpeningBalance} />
-          <input type="hidden" name="cashOpeningBalance" value={cashOpeningBalance} />
-          <input type="hidden" name="cryptoSymbol" value={cryptoSymbol} />
-          <input type="hidden" name="cryptoOpeningQty" value={cryptoOpeningQty} />
-          <input type="hidden" name="cryptoUnitPrice" value={cryptoUnitPrice} />
-          <input type="hidden" name="goldOpeningQty" value={goldOpeningQty} />
-          <input type="hidden" name="goldUnitPrice" value={goldUnitPrice} />
-          {/* A FormData field cannot carry a list of objects and this is a
-              plain <form>, so the chosen صندوق/سهام travel as JSON. The server
-              action parses and validates them with zod before the service sees
-              them; malformed JSON fails loudly rather than silently dropping
-              what the user just entered. The internal `key` is a React list id
-              and is stripped here — it is not part of the contract. */}
-          <input
-            type="hidden"
-            name="instruments"
-            value={JSON.stringify(
-              instrumentRows
-                .filter((r) => r.symbol.trim().length > 0)
-                .map((r) => ({
-                  kind: r.kind,
-                  symbol: r.symbol,
-                  name: r.name,
-                  quantity: r.quantity,
-                  unitPrice: r.unitPrice,
-                })),
-            )}
-          />
-
-          {/* خودرو و ملک travel as JSON for the same reason صندوق/سهام do.
-              Only rows that are COMPLETE are sent: a half-filled card would
-              otherwise fail its registration after the wizard had already
-              committed the accounts, and the user would see an error for
-              something they had not finished entering. */}
-          <input
-            type="hidden"
-            name="vehicles"
-            value={JSON.stringify(
-              vehicleRows.filter(vehicleRowReady).map((r) => ({
-                catalogId: r.catalogId,
-                manufacturingYear: r.manufacturingYear,
-                ownershipDate: r.ownershipDate,
-                purchasePriceToman: r.purchasePriceToman,
-                currentValueToman: r.currentValueToman,
-              })),
-            )}
-          />
-          <input
-            type="hidden"
-            name="properties"
-            value={JSON.stringify(
-              propertyRows.filter(propertyRowReady).map((r) => ({
-                cityId: r.cityId,
-                neighborhoodId: r.neighborhoodId,
-                propertyTypeId: r.propertyTypeId,
-                acquisitionDate: r.acquisitionDate,
-                purchasePriceToman: r.purchasePriceToman,
-                currentValueToman: r.currentValueToman,
-                sizeSqm: r.sizeSqm,
-              })),
-            )}
-          />
-
-          {/* STEP 1 */}
-          {step === 1 && (
-            <section className="space-y-4">
-              <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
-                <h2 className="text-base font-semibold">{t.step1Title}</h2>
-                <p className="muted text-xs">{t.step1Desc}</p>
-              </div>
-
-              <div>
-                <label className="label">{t.userNameLabel}</label>
-                <input
-                  type="text"
-                  required
-                  value={userName}
-                  onChange={(e) => setUserName(e.target.value)}
-                  placeholder={t.userNamePlaceholder}
-                  className="field"
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="label">{t.accountingCurrencyLabel}</label>
-                  <select
-                    value={baseCurrency}
-                    onChange={(e) => setBaseCurrency(e.target.value)}
-                    className="field"
-                  >
-                    <option value="USD">دلار</option>
-                    <option value="EUR">یورو</option>
-                    <option value="IRT">تومان</option>
-                    <option value="IRR">ریال</option>
-                  </select>
-                  <p className="muted mt-1 text-[length:var(--fs-xs)]">{t.accountingCurrencyHelp}</p>
-                </div>
-
-                <div>
-                  <label className="label">{t.displayCurrencyLabel}</label>
-                  <select
-                    value={displayCurrency}
-                    onChange={(e) => setDisplayCurrency(e.target.value)}
-                    className="field"
-                  >
-                    <option value="IRT">تومان</option>
-                    <option value="USD">دلار</option>
-                    <option value="EUR">یورو</option>
-                  </select>
-                  <p className="muted mt-1 text-[length:var(--fs-xs)]">{t.displayCurrencyHelp}</p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="label">{t.dateCalendarLabel}</label>
-                  {/* Read-only on purpose: the Gregorian calendar is not an option. */}
-                  <div className="field flex items-center justify-between gap-2">
-                    <span className="text-[length:var(--fs-sm)] font-medium">{t.dateCalendarJalali}</span>
-                    <span className="badge badge-neutral">{t.dateCalendarFixedBadge}</span>
-                  </div>
-                  <p className="muted mt-1 text-[length:var(--fs-xs)]">{t.dateCalendarHelp}</p>
-                </div>
-
-                <div>
-                  <label className="label">سبد نمایش ارقام</label>
-                  <select
-                    value={digitStyle}
-                    onChange={(e) => setDigitStyle(e.target.value as "fa" | "en")}
-                    className="field"
-                  >
-                    <option value="fa">فارسی (۱۲۳۴۵۶۷۸۹۰)</option>
-                    <option value="en">English (1234567890)</option>
-                  </select>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="btn btn-primary w-full"
-              >
-                ادامه به مرحله بعد ←
-              </button>
-            </section>
-          )}
-
-          {/* STEP 2 */}
-          {step === 2 && (
-            <section className="space-y-4">
-              <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
-                <h2 className="text-base font-semibold">{t.step2Title}</h2>
-                <p className="muted text-xs">{t.step2Desc}</p>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="label">{t.mainBankAccount}</label>
-                  <input
-                    type="text"
-                    required
-                    value={bankAccountName}
-                    onChange={(e) => setBankAccountName(e.target.value)}
-                    placeholder="مثلاً حساب بانکی اصلی"
-                    className="field"
-                  />
-                </div>
-                <div>
-                  <label className="label">{t.accountDenominationLabel}</label>
-                  <select
-                    value={bankAssetSymbol}
-                    onChange={(e) => setBankAssetSymbol(e.target.value as MoneySymbol)}
-                    className="field"
-                  >
-                    {MONEY_DENOMS.map((item) => (
-                      <option key={item.symbol} value={item.symbol}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="chip mt-1 inline-block">{t.bookCurrencyChip}</span>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="label">
-                    {t.cashWallet} <span className="muted">(اختیاری)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={cashWalletName}
-                    onChange={(e) => setCashWalletName(e.target.value)}
-                    className="field"
-                    placeholder="خالی بگذارید تا بعداً از ماژول حساب‌ها اضافه کنید"
-                  />
-                </div>
-                <div>
-                  <label className="label">{t.accountDenominationLabel}</label>
-                  <select
-                    value={cashAssetSymbol}
-                    onChange={(e) => setCashAssetSymbol(e.target.value as MoneySymbol)}
-                    className="field"
-                  >
-                    {MONEY_DENOMS.map((item) => (
-                      <option key={item.symbol} value={item.symbol}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="card soft p-3 text-[length:var(--fs-xs)] leading-6">
-                <strong>چه چیزهایی ساخته می‌شود:</strong>
-                <ul className="mt-1 list-disc space-y-0.5 pr-4">
-                  <li>حساب بانکی اصلی — صندوق نقد فقط در صورت تمایل</li>
-                  <li>دسته‌های بدهی، درآمد و هزینه خانوار</li>
-                  <li>سرمایه اولیه برای شروع تصویر ثروت</li>
-                </ul>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="btn w-1/3"
-                >
-                  ← قبلی
+    <div className="mx-auto max-w-2xl space-y-5 py-4">
+      <header className="space-y-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <h1 className="text-[length:var(--fs-xl)] font-bold tracking-tight">راه‌اندازی توازن</h1>
+          <span className="muted num text-[length:var(--fs-xs)]">
+            {faCount(step)} از {faCount(LAST_STEP)}
+          </span>
+        </div>
+        <ol className="setup-steps" aria-label="مراحل راه‌اندازی">
+          {STEPS.map((label, i) => {
+            const n = i + 1;
+            const phase = n === step ? "is-current" : n < step ? "is-done" : "is-todo";
+            return (
+              <li key={label} className={`setup-step ${phase}`}>
+                <button type="button" disabled={n >= step || pending} onClick={() => setStep(n)} aria-current={n === step ? "step" : undefined}>
+                  <span className="setup-step-dot">{n < step ? <Icon name="check" size={12} /> : faCount(n)}</span>
+                  <span className="setup-step-label">{label}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setStep(3)}
-                  className="btn btn-primary w-2/3"
-                >
-                  ادامه به مرحله بعد ←
-                </button>
-              </div>
-            </section>
+              </li>
+            );
+          })}
+        </ol>
+      </header>
+
+      <form action={formAction} className="card setup-card space-y-6">
+        <input type="hidden" name="userName" value={userName} />
+        <input type="hidden" name="baseCurrency" value="USD" />
+        <input type="hidden" name="displayCurrency" value="IRT" />
+        <input type="hidden" name="dateCalendar" value={dateCalendar} />
+        <input type="hidden" name="digitStyle" value="fa" />
+        <input type="hidden" name="fxRate" value={rateReady ? rate : ""} />
+        <input type="hidden" name="bankAccountName" value={bankAccountName} />
+        <input type="hidden" name="bankAssetSymbol" value="IRT" />
+        <input type="hidden" name="bankOpeningBalance" value={bankBalance} />
+        <input type="hidden" name="cashWalletName" value={hasCash ? cashName : ""} />
+        <input type="hidden" name="cashAssetSymbol" value={cashCurrency} />
+        <input type="hidden" name="cashOpeningBalance" value={hasCash ? cashBalance : ""} />
+        <input
+          type="hidden"
+          name="cryptoHoldings"
+          value={JSON.stringify(
+            cryptoRows.map((r) => ({ symbol: r.symbol, quantity: r.quantity, unitPrice: r.unitPrice, priceCurrency: r.priceCurrency })),
           )}
+        />
+        <input type="hidden" name="goldOpeningQty" value={goldGrams} />
+        <input type="hidden" name="goldUnitPrice" value={goldPrice} />
+        <input type="hidden" name="goldPriceCurrency" value="IRT" />
+        <input
+          type="hidden"
+          name="instruments"
+          value={JSON.stringify(
+            instrumentRows.map((r) => ({
+              kind: r.kind,
+              symbol: r.symbol,
+              name: r.name,
+              quantity: r.quantity,
+              unitPrice: r.unitPrice,
+              priceCurrency: r.priceCurrency,
+            })),
+          )}
+        />
+        {/* Only COMPLETE registry rows are sent: a half-filled one would fail
+            after the accounts had already been committed. */}
+        <input
+          type="hidden"
+          name="vehicles"
+          value={JSON.stringify(
+            readyVehicles.map((r) => ({
+              catalogId: r.catalogId,
+              manufacturingYear: r.manufacturingYear,
+              ownershipDate: r.ownershipDate,
+              purchasePriceToman: r.purchasePriceToman,
+              currentValueToman: r.currentValueToman,
+            })),
+          )}
+        />
+        <input
+          type="hidden"
+          name="properties"
+          value={JSON.stringify(
+            readyProperties.map((r) => ({
+              cityId: r.cityId,
+              neighborhoodId: r.neighborhoodId,
+              propertyTypeId: r.propertyTypeId,
+              acquisitionDate: r.acquisitionDate,
+              purchasePriceToman: r.purchasePriceToman,
+              currentValueToman: r.currentValueToman,
+              sizeSqm: r.sizeSqm,
+            })),
+          )}
+        />
 
-          {/* STEP 3 */}
-          {step === 3 && (
-            <section className="space-y-4">
-              <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
-                <h2 className="text-base font-semibold">{t.step3Title}</h2>
-                <p className="muted text-xs">{t.step3Desc}</p>
-              </div>
+        {step === 1 && (
+          <section className="space-y-5">
+            <StepIntro title="شروع" text="چند دقیقه طول می‌کشد؛ هر مرحله‌ای که ندارید را رد کنید." />
 
-              <p className="muted text-[length:var(--fs-xs)] leading-5">{t.openingBalanceHelp}</p>
-              <span className="chip inline-block">{t.bookCurrencyChip}</span>
+            <div>
+              <label className="label" htmlFor="setup-name">
+                نام شما یا خانواده
+              </label>
+              <input id="setup-name" type="text" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="مثلاً علی و سارا" className="field" autoComplete="name" />
+            </div>
 
-              {/* فقط حساب بانکی الزامی است؛ بقیه موجودی‌ها کاملاً اختیاری هستند. */}
-              <div>
-                <label className="label">{t.cashAmount} ({currencyLabel(bankAssetSymbol)})</label>
-                <AmountInput
-                  type="text"
-                  inputMode="decimal"
-                  value={bankOpeningBalance}
-                  onChange={(e) => setBankOpeningBalance(e.target.value.replace(/[^\d.]/g, ""))}
-                  placeholder={bankAssetSymbol === "IRT" ? "مثلاً 35000000" : "0.00"}
-                  className="field num"
-                  dir="ltr"
-                  unit={bankUnit}
-                />
-                {D(previewData.bankQty).gt(0) && (
-                  <p className="mt-1 text-[length:var(--fs-xs)] leading-5" style={{ color: "var(--action)" }}>
-                    {t.bookValueApprox}: ≈ {formatMoney(previewData.bankBook, "USD")}
+            <div>
+              <h3 className="mb-1 text-[length:var(--fs-sm)] font-semibold">هر دارایی با واحدی که خریده‌اید ثبت می‌شود</h3>
+              <ul className="setup-units">
+                <li>
+                  <span className="setup-unit">تومان</span>
+                  <span className="muted text-[length:var(--fs-xs)] leading-6">حساب بانکی، بدهی و اقساط، ملک، خودرو، طلای آب‌شده، صندوق‌ها و سهام بورس</span>
+                </li>
+                <li>
+                  <span className="setup-unit">تتر یا تومان</span>
+                  <span className="muted text-[length:var(--fs-xs)] leading-6">رمزارز، سهام آمریکا، شاخص و کامودیتی</span>
+                </li>
+                <li>
+                  <span className="setup-unit">دلار</span>
+                  <span className="muted text-[length:var(--fs-xs)] leading-6">فقط مبنای داخلی سنجش سود و زیان؛ همه‌جا به تومان نمایش داده می‌شود</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="card setup-row space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[length:var(--fs-sm)] font-semibold">نرخ هر دلار (تتر) امروز</p>
+                  <p className="muted text-[length:var(--fs-xs)]">
+                    {needsRate ? "نرخ بازار دریافت نشد — نرخ امروز را وارد کنید" : RATE_SOURCE_LABEL[marketRate.source] ?? "نرخ ثبت‌شده"}
                   </p>
+                </div>
+                {!rateEditable && (
+                  <div className="flex items-center gap-2">
+                    <span className="num text-[length:var(--fs-sm)] font-semibold money-nowrap" dir="rtl">
+                      {formatMoney(marketRate.rate, "IRT")}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost !min-h-9 !px-3 text-[length:var(--fs-xs)]"
+                      onClick={() => {
+                        setRateInput(marketRate.rate);
+                        setEditingRate(true);
+                      }}
+                    >
+                      ویرایش
+                    </button>
+                  </div>
                 )}
-                <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">
-                  مبلغ را به واحد {currencyLabel(bankAssetSymbol)} همین حساب وارد کنید. اگر موجودی ندارید خالی بگذارید.
-                </p>
               </div>
-
-              {/* موجودی‌های اختیاری — صندوق نقد، رمزارز و طلا (بعداً هم از ماژول حساب‌ها قابل افزودن است) */}
-              <details className="card soft rounded-[var(--r-md)] p-3">
-                <summary className="cursor-pointer list-none text-xs font-semibold marker:hidden [&::-webkit-details-marker]:hidden">
-                  موجودی‌های اختیاری — صندوق نقد، رمزارز و طلا
-                  <span className="chip mr-2 text-[length:var(--fs-xs)]">اختیاری</span>
-                </summary>
-
-                <div className="mt-3 space-y-3">
-                  <div>
-                    <label className="label">موجودی صندوق نقد ({currencyLabel(cashAssetSymbol)}) — اختیاری</label>
-                    <AmountInput
-                      type="text"
-                      inputMode="decimal"
-                      value={cashOpeningBalance}
-                      onChange={(e) => setCashOpeningBalance(e.target.value.replace(/[^\d.]/g, ""))}
-                      placeholder={cashAssetSymbol === "IRT" ? "مثلاً 5000000" : "0.00"}
-                      className="field num"
-                      dir="ltr"
-                      unit={cashUnit}
-                    />
-                    {D(previewData.cashQty).gt(0) && (
-                      <p className="mt-1 text-[length:var(--fs-xs)] leading-5" style={{ color: "var(--action)" }}>
-                        {t.bookValueApprox}: ≈ {formatMoney(previewData.cashBook, "USD")}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Search → select → amount. The coin is the user's choice,
-                      not a preset, and skipping this creates no crypto wallet. */}
-                  <div className="space-y-2">
-                    <label className="label" htmlFor="crypto-search">رمزارز (اختیاری)</label>
-                    {selectedCrypto ? (
-                      <div className="field flex items-center gap-2.5">
-                        <AssetLogo symbol={selectedCrypto.symbol} name={selectedCrypto.displayName} size={26} />
-                        <span className="min-w-0 flex-1 truncate font-semibold">{selectedCrypto.displayName}</span>
-                        <button
-                          type="button"
-                          className="btn btn-ghost !min-h-9 !px-3 text-[length:var(--fs-xs)]"
-                          onClick={() => { setCryptoSymbol(""); setCryptoQuery(""); setCryptoOpeningQty(""); setCryptoUnitPrice(""); }}
-                        >
-                          تغییر
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <input
-                          id="crypto-search"
-                          type="text"
-                          value={cryptoQuery}
-                          onChange={(e) => setCryptoQuery(e.target.value)}
-                          placeholder="جست‌وجو: بیت‌کوین، تتر، BTC…"
-                          className="field"
-                        />
-                        {cryptoQuery.trim().length > 0 && (
-                          <ul className="max-h-56 space-y-1 overflow-y-auto rounded-[var(--r-lg)] border p-1" style={{ borderColor: "var(--border)" }}>
-                            {cryptoMatches.map((c) => (
-                              <li key={c.symbol}>
-                                <button
-                                  type="button"
-                                  className="flex w-full items-center gap-2.5 rounded-lg p-2 text-right hover:bg-[color:var(--hover)]"
-                                  onClick={() => { setCryptoSymbol(c.symbol); setCryptoQuery(""); }}
-                                >
-                                  <AssetLogo symbol={c.symbol} name={c.displayName} size={24} />
-                                  <span className="min-w-0 flex-1 truncate">{c.displayName}</span>
-                                  <span className="muted num text-[length:var(--fs-xs)]" dir="ltr">{c.symbol}</span>
-                                </button>
-                              </li>
-                            ))}
-                            {cryptoMatches.length === 0 && (
-                              <li className="muted p-3 text-center text-[length:var(--fs-xs)]">رمزارزی با این نام پیدا نشد.</li>
-                            )}
-                          </ul>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {selectedCrypto && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className="label">مقدار {selectedCrypto.displayName}</label>
-                        <AmountInput
-                          inputMode="decimal"
-                          value={cryptoOpeningQty}
-                          onChange={(e) => setCryptoOpeningQty(e.target.value)}
-                          placeholder="۰٫۰۰۰۰"
-                          className="field num"
-                          showWords={false}
-                          unit="none"
-                        />
-                      </div>
-                      <div>
-                        <label className="label">قیمت خرید هر {selectedCrypto.displayName} ({currencyLabel(baseCurrency)}) — فقط Cost Basis افتتاحیه</label>
-                        <AmountInput
-                          type="text"
-                          inputMode="decimal"
-                          value={cryptoUnitPrice}
-                          onChange={(e) => setCryptoUnitPrice(e.target.value.replace(/[^\d.]/g, ""))}
-                          placeholder="3000"
-                          className="field num"
-                          dir="ltr"
-                          unit={baseUnit}
-                        />
-                      </div>
-                    </div>
+              {rateEditable && (
+                <div>
+                  <AmountInput
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value.replace(/[^\d]/g, ""))}
+                    className="field num"
+                    dir="ltr"
+                    inputMode="numeric"
+                    unit="toman"
+                    placeholder="۰"
+                    aria-label="نرخ هر دلار به تومان"
+                  />
+                  {rateInput && !rateReady && (
+                    <p className="neg mt-1 text-[length:var(--fs-xs)]">نرخ باید بین ۱٬۰۰۰ و ۱۰٬۰۰۰٬۰۰۰ تومان باشد.</p>
                   )}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
+        {step === 2 && (
+          <section className="space-y-5">
+            <StepIntro title="حساب‌ها" text="موجودی امروز حساب‌ها را وارد کنید. کیف پول تتر در مرحلهٔ بعد است." />
+
+            <div className="card setup-row space-y-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flow-icon" aria-hidden="true">
+                  <Icon name="card" size={15} />
+                </span>
+                <b className="min-w-0 flex-1 text-[length:var(--fs-sm)]">حساب بانکی اصلی</b>
+                <span className="badge badge-neutral">تومان</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="label" htmlFor="setup-bank-name">
+                    نام حساب
+                  </label>
+                  <input id="setup-bank-name" type="text" value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} placeholder="مثلاً ملت جاری" className="field" autoComplete="off" />
+                </div>
+                <div>
+                  <label className="label">موجودی (تومان)</label>
+                  <AmountInput
+                    inputMode="numeric"
+                    value={bankBalance}
+                    onChange={(e) => setBankBalance(e.target.value.replace(/[^\d]/g, ""))}
+                    placeholder="۰"
+                    className="field num"
+                    dir="ltr"
+                    unit="toman"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="card list-card">
+              <label className="setup-toggle">
+                <input type="checkbox" checked={hasCash} onChange={(e) => setHasCash(e.target.checked)} />
+                صندوق نقد یا دلار نقد دارم
+              </label>
+              {hasCash && (
+                <div className="space-y-3 p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="label">طلا (گرم ۱۸ عیار)</label>
-                      <AmountInput
-                        inputMode="decimal"
-                        value={goldOpeningQty}
-                        onChange={(e) => setGoldOpeningQty(e.target.value)}
-                        placeholder="۰٫۰۰"
-                        className="field num"
-                        showWords={false}
-                        unit="none"
-                      />
+                      <label className="label">نام</label>
+                      <input type="text" value={cashName} onChange={(e) => setCashName(e.target.value)} className="field" autoComplete="off" />
                     </div>
                     <div>
-                      <label className="label">قیمت خرید هر گرم ({currencyLabel(baseCurrency)})</label>
-                      <AmountInput
-                        type="text"
-                        inputMode="decimal"
-                        value={goldUnitPrice}
-                        onChange={(e) => setGoldUnitPrice(e.target.value.replace(/[^\d.]/g, ""))}
-                        placeholder="60"
-                        className="field num"
-                        dir="ltr"
-                        unit={baseUnit}
+                      <label className="label">واحد</label>
+                      <CurrencySwitch
+                        label="واحد صندوق نقد"
+                        value={cashCurrency}
+                        onChange={setCashCurrency}
+                        options={[
+                          { value: "IRT", label: "تومان" },
+                          { value: "USD", label: "دلار نقد" },
+                        ]}
                       />
                     </div>
                   </div>
-
-                  <p className="muted text-[length:var(--fs-xs)] leading-5">
-                    می‌توانید این‌ها را بعداً هم اضافه کنید.</p>
-                </div>
-              </details>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="btn w-1/3"
-                >
-                  ← قبلی
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep(4)}
-                  className="btn btn-primary w-2/3"
-                >
-                  صندوق و سهام ←
-                </button>
-              </div>
-            </section>
-          )}
-
-          {/* STEP 4 — صندوق و سهام the user already owns */}
-          {step === 4 && (
-            <section className="space-y-4">
-              <SetupInstrumentsStep
-                rows={instrumentRows}
-                onChange={setInstrumentRows}
-                baseUnit={baseUnit}
-              />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setStep(3)} className="btn w-1/3">
-                  ← قبلی
-                </button>
-                <button type="button" onClick={() => setStep(5)} className="btn btn-primary w-2/3">
-                  {instrumentRows.length === 0 ? "ندارم، ادامه ←" : "خودرو و ملک ←"}
-                </button>
-              </div>
-            </section>
-          )}
-
-          {/* STEP 5 — خودرو و ملک the user already owns */}
-          {step === 5 && (
-            <section className="space-y-4">
-              <SetupRealAssetsStep
-                vehicles={vehicleRows}
-                properties={propertyRows}
-                onVehiclesChange={setVehicleRows}
-                onPropertiesChange={setPropertyRows}
-              />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setStep(4)} className="btn w-1/3">
-                  ← قبلی
-                </button>
-                <button type="button" onClick={() => setStep(6)} className="btn btn-primary w-2/3">
-                  {vehicleRows.length === 0 && propertyRows.length === 0
-                    ? "ندارم، ادامه ←"
-                    : "بدهی‌ها و اقساط ←"}
-                </button>
-              </div>
-            </section>
-          )}
-
-          {/* STEP 6 — existing obligations */}
-          {step === 6 && (
-            <section className="space-y-4">
-              {debtError && (
-                <div
-                  role="alert"
-                  className="card p-3 text-[length:var(--fs-sm)]"
-                  style={{ borderColor: "var(--negative)", color: "var(--negative)" }}
-                >
-                  {debtError}
+                  <div>
+                    <label className="label">موجودی ({cashCurrency === "IRT" ? "تومان" : "دلار"})</label>
+                    <AmountInput
+                      inputMode="decimal"
+                      value={cashBalance}
+                      onChange={(e) => setCashBalance(e.target.value.replace(/[^\d.]/g, ""))}
+                      placeholder="۰"
+                      className="field num"
+                      dir="ltr"
+                      unit={cashCurrency === "IRT" ? "toman" : "usd"}
+                    />
+                  </div>
                 </div>
               )}
-              <SetupDebtsStep rows={debtRows} onChange={(next) => { setDebtRows(next); setDebtError(null); }} />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setStep(5)} className="btn w-1/3">
-                  ← قبلی
-                </button>
-                <button type="button" onClick={() => setStep(7)} className="btn btn-primary w-2/3">
-                  {debtRows.length === 0 ? "بدهی ندارم، ادامه ←" : "پیش‌نمایش و تایید ←"}
-                </button>
-              </div>
-            </section>
-          )}
+            </div>
+          </section>
+        )}
 
-          {/* STEP 7 — preview & confirm */}
-          {step === 7 && (
-            <section className="space-y-4">
-              <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
-                <h2 className="text-base font-semibold">{t.step4Title}</h2>
-                <p className="muted text-xs">{t.step4Desc}</p>
-              </div>
+        {step === 3 && (
+          <SetupHoldingsStep
+            rows={cryptoRows}
+            onChange={setCryptoRows}
+            goldGrams={goldGrams}
+            goldPrice={goldPrice}
+            onGoldGramsChange={setGoldGrams}
+            onGoldPriceChange={setGoldPrice}
+            rate={rate}
+          />
+        )}
 
-              <div className="soft rounded-[var(--r-md)] p-4 space-y-3">
-                <h3 className="text-xs font-bold">{t.previewTitle}</h3>
-                <div className="divide-y text-xs" style={{ borderColor: "var(--border)" }}>
-                  {D(previewData.bankQty).gt(0) && (
-                    <div className="flex justify-between gap-3 py-2">
-                      <span>به {bankAccountName} ({formatMoney(previewData.bankQty, bankAssetSymbol)})</span>
-                      <span className="num font-bold" dir="rtl">
-                        {formatMoney(previewData.bankBook, "USD")}
-                      </span>
-                    </div>
-                  )}
+        {step === 4 && <SetupInstrumentsStep rows={instrumentRows} onChange={setInstrumentRows} rate={rate} />}
 
-                  {D(previewData.cashQty).gt(0) && (
-                    <div className="flex justify-between gap-3 py-2">
-                      <span>به {cashWalletName} ({formatMoney(previewData.cashQty, cashAssetSymbol)})</span>
-                      <span className="num font-bold" dir="rtl">
-                        {formatMoney(previewData.cashBook, "USD")}
-                      </span>
-                    </div>
-                  )}
+        {step === 5 && (
+          <SetupRealAssetsStep
+            vehicles={vehicleRows}
+            properties={propertyRows}
+            onVehiclesChange={setVehicleRows}
+            onPropertiesChange={setPropertyRows}
+          />
+        )}
 
-                  {D(previewData.ethQty).gt(0) && (
-                    <div className="flex justify-between py-2">
-                      <span>به کیف پول {selectedCrypto?.displayName ?? ""} (مقدار: {formatQty(previewData.ethQty, 8)})</span>
-                      <span className="num font-bold" dir="rtl">
-                        {formatMoney(previewData.ethVal, "USD")}
-                      </span>
-                    </div>
-                  )}
+        {step === 6 && (
+          <div className="space-y-3">
+            {debtError && (
+              <p className="text-[length:var(--fs-xs)]" role="alert" style={{ color: "var(--negative)" }}>
+                {debtError.message}
+              </p>
+            )}
+            <SetupDebtsStep
+              rows={debtRows}
+              failedIndex={debtError?.index ?? null}
+              onChange={(nextRows) => {
+                setDebtRows(nextRows);
+                setDebtError(null);
+              }}
+            />
+          </div>
+        )}
 
-                  {D(previewData.goldQty).gt(0) && (
-                    <div className="flex justify-between py-2">
-                      <span>به طلای ۱۸ عیار ({formatQty(previewData.goldQty, 2)} گرم)</span>
-                      <span className="num font-bold" dir="rtl">
-                        {formatMoney(previewData.goldVal, "USD")}
-                      </span>
-                    </div>
-                  )}
+        {step === 7 && (
+          <section className="space-y-5">
+            <StepIntro title="مرور و تأیید" text="همه‌چیز را یک بار ببینید؛ بعد از تأیید ثبت می‌شود." />
 
-                  {/* One line per instrument that carries an opening position.
-                      A registered-only row (no quantity) is deliberately absent
-                      here: it moves no money, so it has nothing to show on a
-                      preview whose subject is the opening entry. */}
-                  {instrumentRows
-                    .filter((r) => D(r.quantity || "0").gt(0) && D(r.unitPrice || "0").gt(0))
-                    .map((r) => (
-                      <div key={r.key} className="flex justify-between gap-3 py-2">
-                        <span>
-                          به {r.name} (مقدار: {formatQty(r.quantity, 2)})
+            {[
+              { title: "حساب‌ها", items: review.money },
+              { title: "سرمایه‌گذاری‌ها (بهای خرید)", items: review.investments },
+              { title: "ملک و خودرو", items: review.real },
+              { title: "بدهی‌ها", items: review.debts },
+            ]
+              .filter((group) => group.items.length > 0)
+              .map((group) => (
+                <div key={group.title} className="space-y-2">
+                  <h3 className="muted text-[length:var(--fs-xs)] font-semibold">{group.title}</h3>
+                  <ul className="card list-card">
+                    {group.items.map((item) => (
+                      <li key={item.key} className="list-row">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[length:var(--fs-sm)] font-medium">{item.label}</p>
+                          {item.detail && (
+                            <p className="muted num truncate text-[length:var(--fs-xs)]" dir="rtl">
+                              {item.detail}
+                            </p>
+                          )}
+                        </div>
+                        <span className="num shrink-0 text-[length:var(--fs-sm)] font-semibold money-nowrap" dir="rtl">
+                          {item.toman ? formatMoney(item.toman.toFixed(0), "IRT") : "—"}
                         </span>
-                        <span className="num font-bold" dir="rtl">
-                          {formatMoney(D(r.quantity).mul(r.unitPrice).toString(), "USD")}
-                        </span>
-                      </div>
+                      </li>
                     ))}
-
-                  {previewData.hasItems ? (
-                    <div className="flex justify-between py-2 font-bold" style={{ color: "var(--negative)" }}>
-                      <span>از سرمایه اولیه</span>
-                      <span className="num" dir="rtl">
-                        {formatMoneyWithSign("−", previewData.totalEquity, baseCurrency)}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="muted py-4 text-center">
-                      موجودی اولیه‌ای وارد نشده است. سیستم با حساب‌های خالی و موجودی صفر شروع می‌شود.
-                    </div>
-                  )}
+                  </ul>
                 </div>
+              ))}
 
-                {/* خودرو و ملک are REGISTRY assets, not ledger balances, so they
-                    are summarised in their own block below the opening entry
-                    rather than inside it. Putting them in the list above would
-                    imply they move the 3010 equity counterweight, which they do
-                    not — a property posts its own separate entry, and a vehicle
-                    posts none at all. */}
-                {(vehicleRows.filter(vehicleRowReady).length > 0 ||
-                  propertyRows.filter(propertyRowReady).length > 0) && (
-                  <div className="border-t pt-3" style={{ borderColor: "var(--border)" }}>
-                    <h3 className="text-xs font-bold">دارایی‌های واقعی</h3>
-                    <div className="mt-1.5 divide-y text-xs" style={{ borderColor: "var(--border)" }}>
-                      {vehicleRows.filter(vehicleRowReady).map((r) => (
-                        <div key={r.key} className="flex justify-between gap-3 py-2">
-                          <span>خودرو — {r.label}</span>
-                          <span className="num font-bold" dir="rtl">
-                            {formatMoney(r.currentValueToman || r.purchasePriceToman, "IRT")}
-                          </span>
-                        </div>
-                      ))}
-                      {propertyRows.filter(propertyRowReady).map((r) => (
-                        <div key={r.key} className="flex justify-between gap-3 py-2">
-                          <span>ملک — {r.label || "ملک"}</span>
-                          <span className="num font-bold" dir="rtl">
-                            {formatMoney(r.currentValueToman, "IRT")}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="muted mt-2 text-[length:var(--fs-xs)] leading-6">
-                      این موارد در «دارایی‌های واقعی» ثبت می‌شوند و جدا از موجودی حساب‌ها هستند.
-                    </p>
+            {review.assetsTotal.isZero() && review.debts.length === 0 ? (
+              <p className="card muted text-center text-[length:var(--fs-sm)]">موجودی‌ای وارد نشده؛ با حساب‌های خالی شروع می‌کنید.</p>
+            ) : (
+              <div className="card setup-row">
+                <div className="setup-total">
+                  <span className="muted">جمع دارایی‌ها</span>
+                  <span className="num font-semibold money-nowrap" dir="rtl">
+                    {formatMoney(review.assetsTotal.toFixed(0), "IRT")}
+                  </span>
+                </div>
+                {review.debtsTotal.gt(0) && (
+                  <div className="setup-total">
+                    <span className="muted">جمع بدهی‌ها</span>
+                    <span className="num font-semibold money-nowrap" dir="rtl">
+                      {formatMoney(review.debtsTotal.toFixed(0), "IRT")}
+                    </span>
                   </div>
                 )}
-
-                <p className="text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--action)" }}>
-                  {t.balancedCheck}
-                </p>
+                <div className="setup-total">
+                  <span className="font-semibold">خالص ارزش اولیه</span>
+                  <span className="num font-bold money-nowrap" dir="rtl">
+                    {formatMoney(review.net.toFixed(0), "IRT")}
+                  </span>
+                </div>
               </div>
+            )}
 
-              {state && (
-                <p
-                  className="rounded-[var(--r-md)] px-4 py-3 text-xs"
-                  style={{
-                    background: state.ok ? "var(--action-soft)" : "var(--negative-soft)",
-                    color: state.ok ? "var(--action)" : "var(--negative)",
-                  }}
-                >
-                  {state.message}
-                </p>
-              )}
+            {incompleteRealAssets > 0 && (
+              <p className="price-flag">
+                <Icon name="alert" size={14} />
+                {faCount(incompleteRealAssets)} ملک یا خودروی ناقص ثبت نمی‌شود
+              </p>
+            )}
+            {review.usesRate && (
+              <p className="muted text-[length:var(--fs-xs)] leading-6">
+                مبالغ تتری و دلاری با نرخ هر دلار{" "}
+                <span className="num" dir="rtl">
+                  {formatMoney(rate, "IRT")}
+                </span>{" "}
+                به تومان تبدیل شده‌اند.
+              </p>
+            )}
 
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStep(6)}
-                  disabled={pending}
-                  className="btn w-1/3"
-                >
-                  ← قبلی
-                </button>
-                <button
-                  type="submit"
-                  disabled={pending}
-                  className="btn btn-primary w-2/3"
-                >
-                  {pending ? t.submitting : t.submitBtn}
-                </button>
-              </div>
-            </section>
+            {state && !state.ok && (
+              <p className="text-[length:var(--fs-xs)]" role="alert" style={{ color: "var(--negative)" }}>
+                {state.message}
+              </p>
+            )}
+          </section>
+        )}
+
+        <div className="setup-nav">
+          {step > 1 && (
+            <button type="button" onClick={back} disabled={pending} className="btn btn-ghost">
+              قبلی
+            </button>
           )}
-        </form>
-      </div>
+          {step < LAST_STEP ? (
+            <button type="button" onClick={next} disabled={!canContinue} className="btn btn-primary">
+              ادامه
+            </button>
+          ) : (
+            <button type="submit" disabled={pending || !rateReady} className="btn btn-primary">
+              {pending ? "در حال ثبت…" : "تأیید و شروع"}
+            </button>
+          )}
+        </div>
+      </form>
     </div>
   );
 }
