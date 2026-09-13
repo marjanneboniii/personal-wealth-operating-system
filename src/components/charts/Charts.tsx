@@ -115,8 +115,8 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
       >
         <defs>
           <linearGradient id="pwosArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--data-line)" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="var(--data-line)" stopOpacity="0" />
           </linearGradient>
         </defs>
         {[0, 0.5, 1].map((t) => {
@@ -124,20 +124,20 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
           const val = max - span * t;
           return (
             <g key={t}>
-              <line x1={padX} x2={w - 8} y1={yPos} y2={yPos} stroke="var(--border)" strokeDasharray="2 4" strokeWidth="1" />
-              <text x={padX - 6} y={yPos + 3} textAnchor="end" fontSize="9" fill="var(--text-3)">
+              <line x1={padX} x2={w - 8} y1={yPos} y2={yPos} stroke="var(--data-grid)" strokeDasharray="2 4" strokeWidth="1" />
+              <text x={padX - 6} y={yPos + 3} textAnchor="end" fontSize="12" fill="var(--text-3)">
                 {formatNumber(val, { decimals: 0 })}
               </text>
             </g>
           );
         })}
         {[...new Set([0, points.length - 1, Math.floor(points.length / 2)])].map((i) => (
-          <text key={points[i].date + i} x={x(i)} y={h - 6} textAnchor="middle" fontSize="9" fill="var(--text-3)">
+          <text key={points[i].date + i} x={x(i)} y={h - 6} textAnchor="middle" fontSize="12" fill="var(--text-3)">
             {formatShortDate(points[i].date)}
           </text>
         ))}
         <path d={area} fill="url(#pwosArea)" />
-        <path d={line} fill="none" stroke="var(--brand)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={line} fill="none" stroke="var(--data-line)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         {hover != null && (
           <line x1={x(active)} y1={padTop} x2={x(active)} y2={h - padBottom} stroke="var(--border-strong)" strokeWidth="1" />
         )}
@@ -145,7 +145,7 @@ export function AreaChart({ data, height = 170 }: { data: SeriesPoint[]; height?
           cx={x(active)}
           cy={y(points[active].value)}
           r={hover != null ? 4.5 : 3.5}
-          fill="var(--brand)"
+          fill="var(--data-point)"
           stroke="var(--surface)"
           strokeWidth="2"
         />

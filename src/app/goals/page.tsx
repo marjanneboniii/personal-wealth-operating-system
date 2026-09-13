@@ -124,7 +124,7 @@ export default async function GoalsPage() {
                       )}
                     </span>
                   </div>
-                  <Progress value={g.progress} color={done ? "var(--positive)" : "var(--brand)"} />
+                  <Progress value={g.progress} color={done ? "var(--positive)" : "var(--action)"} />
                   <div className="muted mt-2 flex justify-between text-[length:var(--fs-xs)]">
                     <span className="num" dir="rtl">
                       {formatPct(g.progress, 0)}

@@ -62,7 +62,7 @@ function Result({ state }: { state: InflationResult | null }) {
   return (
     <p
       className="rounded-[var(--r-md)] p-3 text-xs"
-      style={{ background: state.ok ? "var(--brand-soft)" : "var(--negative-soft)", color: state.ok ? "var(--brand)" : "var(--negative)" }}
+      style={{ background: state.ok ? "var(--action-soft)" : "var(--negative-soft)", color: state.ok ? "var(--action)" : "var(--negative)" }}
     >
       {state.message}
     </p>
@@ -167,7 +167,7 @@ function ItemEdit({ item }: { item: InflationItemRow }) {
   const [state, action, pending] = useActionState(updateInflationItemAction, null);
   if (!mode)
     return (
-      <button className="text-xs" style={{ color: "var(--brand)" }} onClick={() => setMode(true)}>
+      <button className="text-xs" style={{ color: "var(--action)" }} onClick={() => setMode(true)}>
         ویرایش
       </button>
     );
@@ -189,7 +189,7 @@ function PriceEdit({ price }: { price: InflationHistoryPoint }) {
   const [state, action, pending] = useActionState(updateInflationPriceAction, null);
   if (!mode)
     return (
-      <button className="text-xs" style={{ color: "var(--brand)" }} onClick={() => setMode(true)}>
+      <button className="text-xs" style={{ color: "var(--action)" }} onClick={() => setMode(true)}>
         ویرایش
       </button>
     );

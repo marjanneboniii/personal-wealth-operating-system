@@ -132,7 +132,7 @@ export default async function AssetsPage() {
                 <span className="flex items-center gap-2.5">
                   <span
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
-                    style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+                    style={{ background: "var(--action-soft)", color: "var(--action)" }}
                   >
                     <Icon name={f.icon} size={18} />
                   </span>
@@ -170,7 +170,7 @@ export default async function AssetsPage() {
               title="هنوز دارایی‌ای ثبت نشده است"
               body="با ثبت اولین خرید یا موجودی اولیه، ترکیب دارایی‌های شما اینجا ساخته می‌شود."
               action={
-                <Link href="/new?type=buy" className="btn btn-primary">
+                <Link href="/new?type=buy" className="btn btn-soft">
                   ثبت خرید دارایی
                 </Link>
               }

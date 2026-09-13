@@ -206,7 +206,7 @@ export default async function AccountsPage() {
           <Link
             href="/assets"
             className="inline-flex items-center gap-1 text-[length:var(--fs-xs)] font-medium sm:text-[length:var(--fs-xs)]"
-            style={{ color: "var(--brand)" }}
+            style={{ color: "var(--action)" }}
           >
             دارایی‌ها و سرمایه‌گذاری
             <Icon name="chevronLeft" size={14} />
@@ -332,7 +332,7 @@ export default async function AccountsPage() {
                         ) : (
                           <span
                             className="acct-icon flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full"
-                            style={{ background: "var(--surface)", color: "var(--brand)", border: "1px solid var(--border)" }}
+                            style={{ background: "var(--surface)", color: "var(--action)", border: "1px solid var(--border)" }}
                           >
                             <Icon name="wallet" size={15} />
                           </span>
@@ -378,7 +378,7 @@ export default async function AccountsPage() {
                       ) : (
                         <span
                           className="acct-icon flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full"
-                          style={{ background: "var(--surface)", color: "var(--brand)" }}
+                          style={{ background: "var(--surface)", color: "var(--action)" }}
                         >
                           <Icon name="wallet" size={15} />
                         </span>

@@ -270,9 +270,9 @@ export default function SetupWizardPage() {
                 <span
                   className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${
                     s === step
-                      ? "bg-[var(--brand)] text-white shadow-md"
+                      ? "bg-[var(--action)] text-white shadow-md"
                       : s < step
-                        ? "bg-[var(--brand-soft)] text-[var(--brand)] cursor-pointer"
+                        ? "bg-[var(--action-soft)] text-[var(--action)] cursor-pointer"
                         : "bg-[var(--border)] muted"
                   }`}
                 >
@@ -562,7 +562,7 @@ export default function SetupWizardPage() {
                   unit={bankUnit}
                 />
                 {D(previewData.bankQty).gt(0) && (
-                  <p className="mt-1 text-[length:var(--fs-xs)] leading-5" style={{ color: "var(--brand)" }}>
+                  <p className="mt-1 text-[length:var(--fs-xs)] leading-5" style={{ color: "var(--action)" }}>
                     {t.bookValueApprox}: ≈ {formatMoney(previewData.bankBook, "USD")}
                   </p>
                 )}
@@ -592,7 +592,7 @@ export default function SetupWizardPage() {
                       unit={cashUnit}
                     />
                     {D(previewData.cashQty).gt(0) && (
-                      <p className="mt-1 text-[length:var(--fs-xs)] leading-5" style={{ color: "var(--brand)" }}>
+                      <p className="mt-1 text-[length:var(--fs-xs)] leading-5" style={{ color: "var(--action)" }}>
                         {t.bookValueApprox}: ≈ {formatMoney(previewData.cashBook, "USD")}
                       </p>
                     )}
@@ -625,7 +625,7 @@ export default function SetupWizardPage() {
                           className="field"
                         />
                         {cryptoQuery.trim().length > 0 && (
-                          <ul className="max-h-56 space-y-1 overflow-y-auto rounded-xl border p-1" style={{ borderColor: "var(--border)" }}>
+                          <ul className="max-h-56 space-y-1 overflow-y-auto rounded-[var(--r-lg)] border p-1" style={{ borderColor: "var(--border)" }}>
                             {cryptoMatches.map((c) => (
                               <li key={c.symbol}>
                                 <button
@@ -907,7 +907,7 @@ export default function SetupWizardPage() {
                   </div>
                 )}
 
-                <p className="text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--brand)" }}>
+                <p className="text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--action)" }}>
                   {t.balancedCheck}
                 </p>
               </div>
@@ -916,8 +916,8 @@ export default function SetupWizardPage() {
                 <p
                   className="rounded-[var(--r-md)] px-4 py-3 text-xs"
                   style={{
-                    background: state.ok ? "var(--brand-soft)" : "rgba(225,29,72,0.12)",
-                    color: state.ok ? "var(--brand)" : "var(--negative)",
+                    background: state.ok ? "var(--action-soft)" : "var(--negative-soft)",
+                    color: state.ok ? "var(--action)" : "var(--negative)",
                   }}
                 >
                   {state.message}

@@ -19,15 +19,17 @@ export default function PdfButton({ targetId = "monthly-report" }: { targetId?: 
           <meta charset="utf-8" />
           <title>گزارش ماهانه — PWOS</title>
           <style>
-            body { font-family: system-ui, -apple-system, sans-serif; padding: 24px; color: #111; }
-            .muted { color: #666; font-size: 11px; }
-            .num { font-family: ui-monospace, monospace; }
+            @font-face { font-family: Vazirmatn; src: url(/fonts/Vazirmatn-Regular.woff2) format("woff2"); font-weight: 400; }
+            :root { --ink-800: #1a2b3b; --ink-500: #687887; --paper-200: #e1e5e9; --paper-100: #edf0f2; }
+            body { font-family: Vazirmatn, sans-serif; padding: 24px; color: var(--ink-800); }
+            .muted { color: var(--ink-500); font-size: 12px; }
+            .num { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
             table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: right; }
-            th { background: #f5f5f5; }
+            th, td { border: 1px solid var(--paper-200); padding: 6px 8px; text-align: right; }
+            th { background: var(--paper-100); }
             h1 { font-size: 18px; margin-bottom: 4px; }
             h2 { font-size: 14px; margin: 16px 0 8px; }
-            .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 16px; }
+            .header { text-align: center; border-bottom: 2px solid var(--ink-800); padding-bottom: 12px; margin-bottom: 16px; }
             @media print { button { display:none } }
           </style>
         </head>

@@ -1,289 +1,74 @@
 @import "tailwindcss";
 
-/* ════════════════════════════════════════════════════════════════════
-   PWOS Design System — «توازن» / Calm Ledger
-   Premium financial OS. RTL-first. Editorial. Quiet confidence.
-   Principles:
-     • Brand is ink (#12131C) + violet accent (#6E6FF0) — never used as P/L color.
-     • Color carries MEANING — green = positive movement, red = negative.
-     • Module colors: expenses / commitments / wealth.
-     • Numbers are first-class citizens — tabular numerals everywhere.
-     • Whitespace/Dividers > Cards. Cards: 1px border, 12px radius, no shadow.
-     • Motion is subtle and only aids comprehension.
-   ════════════════════════════════════════════════════════════════════ */
-
-@font-face {
-  font-family: "Vazirmatn";
-  src: url("/fonts/Vazirmatn-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Vazirmatn";
-  src: url("/fonts/Vazirmatn-Medium.woff2") format("woff2");
-  font-weight: 500;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Vazirmatn";
-  src: url("/fonts/Vazirmatn-SemiBold.woff2") format("woff2");
-  font-weight: 600;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Vazirmatn";
-  src: url("/fonts/Vazirmatn-Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-display: swap;
-}
-
-@theme {
-  --font-sans: "Vazirmatn", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
-}
-
-/* ─────────────────────────── Tokens ───────────────────────────
-   ONE design system for the whole product: landing → auth → app.
-
-   Hierarchy (never invert it):
-     dark neutral foundation
-       → sky/cyan  interaction
-       → emerald   positive financial state
-       → amber/red negative financial state
-       → lavender  investment-only premium accent (small, tertiary)
-
-   Lavender is NOT the brand colour. It is reserved for investment
-   visualisation and small premium accents — never navigation, never the
-   primary CTA, never a background fill.
-   ───────────────────────────────────────────────────────────── */
-
-/* ── Palette primitives — the single source of truth for every hue.
-      Semantic tokens (and the landing layer) reference these, so a hue is
-      defined exactly once for the entire product. ── */
+/* توازن — shared visual tokens for landing, authentication, and application. */
+@font-face { font-family: "Vazirmatn"; src: url("/fonts/Vazirmatn-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Vazirmatn"; src: url("/fonts/Vazirmatn-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Vazirmatn"; src: url("/fonts/Vazirmatn-SemiBold.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Vazirmatn"; src: url("/fonts/Vazirmatn-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("/fonts/JetBrainsMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; size-adjust: 97%; }
+@font-face { font-family: "JetBrains Mono"; src: url("/fonts/JetBrainsMono-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; size-adjust: 97%; }
+@font-face { font-family: "JetBrains Mono"; src: url("/fonts/JetBrainsMono-SemiBold.woff2") format("woff2"); font-weight: 600; font-display: swap; size-adjust: 97%; }
+@font-face { font-family: "JetBrains Mono"; src: url("/fonts/JetBrainsMono-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; size-adjust: 97%; }
+@theme { --font-sans: "Vazirmatn", ui-sans-serif, system-ui, sans-serif; }
 :root {
-  --sky-300: #7dd3fc;
-  --sky-400: #38bdf8;
-  --sky-700: #0369a1;
-  --sky-800: #075985;
-  --cyan-600: #0891b2;
-
-  --emerald-400: #34d399;
-  --emerald-500: #10b981;
-  --emerald-700: #047857;
-
-  --amber-300: #fcd34d;
-  --amber-400: #fbbf24;
-  --amber-700: #b45309;
-  --amber-800: #92400e;
-
-  --red-400: #f87171;
-  --red-600: #dc2626;
-  --red-700: #b91c1c;
-
-  /* Investment accent only. Pale on dark, muted indigo where a light
-     surface needs it to stay readable at AA. */
-  --lavender-300: #c4b5fd;
-  --lavender-400: #a5b4fc;
-  --lavender-ink: #4c4a9e;
-}
-
-/* ── Light theme ── */
-:root {
-  /* Brand — ink surfaces + sky/cyan interaction.
-     Interaction colour is never used to signal financial direction. */
-  --color-primary: #0b1220;
-  --color-primary-hover: #16202f;
-  --color-accent: var(--sky-700);
-  --color-accent-hover: var(--sky-800);
-  --color-accent-active: #0c4a6e;
-  --on-primary: #f6f8fb;
-
-  --brand: var(--color-accent);
-  --brand-strong: var(--color-accent-hover);
-  --brand-soft: rgba(3, 105, 161, 0.1);
-  --brand-softer: rgba(3, 105, 161, 0.05);
-  --on-brand: #ffffff;
-  --primary: var(--color-accent);
-  --primary-hover: var(--color-accent-hover);
-  --primary-active: var(--color-accent-active);
-  --primary-soft: var(--brand-soft);
-
-  /* Surfaces — four layers: sunken → page → surface → elevated */
-  --bg-page: #f5f7fa;
-  --bg-surface: #ffffff;
-  --bg: var(--bg-page);
-  --surface: var(--bg-surface);
-  --surface-elev: var(--bg-surface);
-  --sunken: #eef2f7;
-  --hover: rgba(11, 18, 32, 0.05);
-  --pressed: rgba(11, 18, 32, 0.09);
-
-  /* Text — every step meets WCAG AA on --bg and --surface */
-  --text: #0b1220;
-  --text-2: #46536b;
-  --text-3: #5c6980;
-  --text-primary: var(--text);
-  --text-secondary: var(--text-2);
-  --text-muted: var(--text-3);
-
-  --border: #e1e7ef;
-  --border-strong: #c9d3e0;
-
-  --background: var(--bg);
-  --surface-elevated: var(--surface-elev);
-  --danger: var(--negative);
-  --success: var(--positive);
-
-  /* Modules — money is neutral, wealth is the interaction hue,
-     commitments carry the negative/attention hue. */
-  --color-module-expenses: #46536b;
-  --color-module-expenses-bg: #e8edf4;
-  --color-module-commitments: var(--amber-700);
-  --color-module-commitments-bg: rgba(245, 158, 11, 0.14);
-  --color-module-wealth: var(--sky-700);
-  --color-module-wealth-bg: rgba(3, 105, 161, 0.1);
-
-  /* Semantic — meaning, not decoration. */
-  --color-positive: var(--emerald-700);
-  --color-success: var(--color-positive);
-  --color-success-bg: rgba(16, 185, 129, 0.12);
-  --color-danger: var(--red-700);
-  --color-danger-tint: rgba(185, 28, 28, 0.1);
-  --color-warning: var(--amber-800);
-  --color-warning-bg: rgba(245, 158, 11, 0.14);
-  --color-danger-bg: var(--color-danger-tint);
-  --positive: var(--color-success);
-  --positive-soft: var(--color-success-bg);
-  --negative: var(--color-danger);
-  --negative-soft: var(--color-danger-bg);
-  --warning: var(--color-warning);
-  --warning-soft: var(--color-warning-bg);
-  --info: var(--color-accent);
-  --info-soft: var(--brand-soft);
-
-  /* Investment accent — the ONLY place lavender belongs. */
-  --investment: var(--lavender-ink);
-  --investment-soft: rgba(165, 180, 252, 0.2);
-
-  /* Asset-class identity (composition charts only) */
-  --asset-cash: var(--cyan-600);
-  --asset-investment: var(--lavender-ink);
-  --asset-crypto: #46536b;
-  --asset-other: #9fb0c4;
-
-  /* Radius — 8 controls · 12 fields · 16 cards · 20 sheets */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-xl: 20px;
-
-  /* Spacing rhythm — 4px base */
-  --s-1: 4px;
-  --s-2: 8px;
-  --s-3: 12px;
-  --s-4: 16px;
-  --s-6: 24px;
-  --s-8: 32px;
-  --s-12: 48px;
-
-  /* Typography scale — six steps, Persian-first (Vazirmatn).
-     Nothing financial may render below --fs-xs. */
-  --fs-xs: 12px;
-  --fs-sm: 14px;
-  --fs-md: 16px;
-  --fs-lg: 20px;
-  --fs-xl: 26px;
-  --fs-2xl: 34px;
-  --fs-hero: clamp(28px, 6.4vw, 40px);
-
-  /* Motion — three durations, one easing. Do not invent more. */
-  --motion-micro: 120ms;
-  --motion-data: 150ms;
-  --motion-sheet: 200ms;
-  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-
-  /* Elevation — layered micro, never a heavy black drop shadow */
-  --shadow-sm: 0 1px 2px rgba(11, 18, 32, 0.04);
-  --shadow-md: 0 1px 2px rgba(11, 18, 32, 0.05), 0 12px 28px -18px rgba(11, 18, 32, 0.3);
-  --shadow-lg: 0 2px 6px rgba(11, 18, 32, 0.08), 0 24px 56px -24px rgba(11, 18, 32, 0.34);
-
-  /* Z-index scale */
-  --z-base: 0;
-  --z-dropdown: 10;
-  --z-sticky: 30;
-  --z-nav: 40;
-  --z-overlay: 80;
-  --z-toast: 90;
-
-  --ring: 0 0 0 3px rgba(3, 105, 161, 0.34);
+  --font-sans: "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+  --font-num: "JetBrains Mono", "Vazirmatn", ui-monospace, SFMono-Regular, monospace;
+  --ink-900: #0d1726; --ink-800: #1a2b3b; --ink-700: #314352;
+  --ink-500: #687887; --ink-400: #8995a1;
+  --paper-400: #bdc2c8; --paper-300: #caced2; --paper-200: #e1e5e9;
+  --paper-100: #edf0f2; --paper-000: #ffffff;
+  --signal-voltage: #e4ff33; --signal-mint: #31f2bf;
+  --overlay: rgba(13,23,38,.55);
+  --money-in: #047857; --money-out: #b91c1c; --money-warn: #92400e;
+  --bg: var(--paper-100); --surface: var(--paper-000); --surface-elev: var(--paper-000);
+  --sunken: var(--paper-200); --ledger-surface: var(--ink-900);
+  --ledger-divider: rgba(230,236,242,.20);
+  --hover: rgba(26,43,59,.05); --pressed: rgba(26,43,59,.09);
+  --text: var(--ink-800); --text-2: var(--ink-700); --text-3: var(--ink-700);
+  --on-ink: var(--paper-000); --on-ledger: #e6ecf2;
+  --border: var(--paper-200); --border-strong: var(--paper-300);
+  --action: var(--ink-800); --action-hover: var(--ink-700); --action-active: var(--ink-900);
+  --action-soft: rgba(26,43,59,.07); --ring: 0 0 0 3px rgba(26,43,59,.28);
+  --positive: var(--money-in); --positive-soft: rgba(4,120,87,.10);
+  --negative: var(--money-out); --negative-soft: rgba(185,28,28,.09);
+  --warning: var(--money-warn); --warning-soft: rgba(146,64,14,.10);
+  --info: var(--ink-700); --info-soft: var(--action-soft);
+  --data-line: var(--ink-800); --data-point: var(--signal-mint); --data-grid: var(--paper-200);
+  --r-sm: 4px; --r-md: 8px; --r-lg: 12px; --r-pill: 999px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px;
+  --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px;
+  --fs-micro: 11px; --fs-xs: 12px; --fs-sm: 14px; --fs-md: 16px;
+  --fs-lg: 20px; --fs-xl: 24px; --fs-2xl: 32px; --fs-hero: clamp(28px,6.4vw,40px);
+  --motion-micro: 120ms; --motion-data: 150ms; --motion-sheet: 200ms;
+  --ease: cubic-bezier(.22,.61,.36,1);
+  --shadow-sm: 0 1px 3px rgba(12,25,39,.06);
+  --shadow-md: 0 6px 8px rgba(12,25,39,.03),0 18px 22px rgba(12,25,39,.09);
+  --shadow-lg: 0 6px 8px rgba(12,25,39,.05),0 16px 20px rgba(12,25,39,.06),0 50px 60px rgba(12,25,39,.10);
+  --z-base: 0; --z-dropdown: 10; --z-sticky: 30; --z-nav: 40; --z-overlay: 80; --z-toast: 90;
   --nav-w: 264px;
+  --asset-cash: var(--ink-800); --asset-investment: var(--ink-700);
+  --asset-crypto: var(--ink-500); --asset-other: var(--ink-400);
 }
-
-/* ── Dark theme — layered near-black, never pure black.
-      Same tokens, same semantics; only surface treatment changes. ── */
-.dark {
-  --bg: #080b11;
-  --surface: #0e131b;
-  --surface-elev: #141a24;
-  --sunken: #05080d;
-  --hover: rgba(233, 239, 247, 0.06);
-  --pressed: rgba(233, 239, 247, 0.1);
-
-  --text: #e9eff7;
-  --text-2: #a3b2c6;
-  --text-3: #8494a8;
-
-  --border: rgba(233, 239, 247, 0.1);
-  --border-strong: rgba(233, 239, 247, 0.2);
-
-  /* The bright sky range is only legible on dark surfaces — light theme
-     keeps sky-700 above for AA. */
-  --color-accent: var(--sky-400);
-  --color-accent-hover: var(--sky-300);
-  --color-accent-active: #bae6fd;
-  --brand: var(--sky-400);
-  --brand-strong: var(--sky-300);
-  --brand-soft: rgba(56, 189, 248, 0.12);
-  --brand-softer: rgba(56, 189, 248, 0.07);
-  --on-brand: #04121b;
-  --on-primary: #e9eff7;
-
-  --color-positive: var(--emerald-400);
-  --color-success: var(--color-positive);
-  --color-success-bg: rgba(52, 211, 153, 0.14);
-  --color-danger: var(--red-400);
-  --color-danger-tint: rgba(248, 113, 113, 0.14);
-  --color-warning: var(--amber-400);
-  --color-warning-bg: rgba(251, 191, 36, 0.14);
-  --color-danger-bg: var(--color-danger-tint);
-  --positive: var(--color-success);
-  --positive-soft: var(--color-success-bg);
-  --negative: var(--color-danger);
-  --negative-soft: var(--color-danger-bg);
-  --warning: var(--color-warning);
-  --warning-soft: var(--color-warning-bg);
-  --info: var(--sky-400);
-  --info-soft: rgba(56, 189, 248, 0.12);
-
-  --investment: var(--lavender-300);
-  --investment-soft: rgba(196, 181, 253, 0.14);
-
-  --color-module-expenses: #a3b2c6;
-  --color-module-expenses-bg: rgba(163, 178, 198, 0.12);
-  --color-module-commitments: var(--amber-400);
-  --color-module-commitments-bg: rgba(251, 191, 36, 0.14);
-  --color-module-wealth: var(--sky-400);
-  --color-module-wealth-bg: rgba(56, 189, 248, 0.12);
-
-  --asset-cash: var(--sky-300);
-  --asset-investment: var(--lavender-300);
-  --asset-crypto: #a3b2c6;
-  --asset-other: #64748b;
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 1px 0 rgba(233, 239, 247, 0.04) inset, 0 14px 34px -22px rgba(0, 0, 0, 0.9);
-  --shadow-lg: 0 1px 0 rgba(233, 239, 247, 0.06) inset, 0 28px 64px -24px rgba(0, 0, 0, 0.95);
-
-  --ring: 0 0 0 3px rgba(56, 189, 248, 0.38);
+.dark, .landing-ink {
+  --bg: #0d1726; --surface: #142235; --surface-elev: #1b2c42;
+  --sunken: #0a121e; --ledger-surface: #070e18;
+  --hover: rgba(230,236,242,.06); --pressed: rgba(230,236,242,.10);
+  --text: #e6ecf2; --text-2: #a4b2c0; --text-3: #8995a1;
+  --border: rgba(230,236,242,.10); --border-strong: rgba(230,236,242,.20);
+  --action: #e6ecf2; --action-hover: #ffffff; --action-active: #caced2;
+  --on-ink: #0d1726; --action-soft: rgba(230,236,242,.10);
+  --ring: 0 0 0 3px rgba(230,236,242,.30);
+  --positive: #34d399; --positive-soft: rgba(52,211,153,.14);
+  --negative: #f87171; --negative-soft: rgba(248,113,113,.14);
+  --warning: #fbbf24; --warning-soft: rgba(251,191,36,.14);
+  --info: #a4b2c0; --info-soft: var(--action-soft);
+  --data-line: #a4b2c0; --data-point: #2bd3a8; --data-grid: var(--border);
+  --signal-voltage: #c8e02d; --signal-mint: #2bd3a8;
+  --shadow-sm: 0 1px 3px rgba(7,14,24,.3);
+  --shadow-md: 0 6px 8px rgba(7,14,24,.3),0 18px 22px rgba(7,14,24,.45);
+  --shadow-lg: 0 6px 8px rgba(7,14,24,.3),0 16px 20px rgba(7,14,24,.4),0 50px 60px rgba(7,14,24,.55);
+  --asset-cash: var(--text); --asset-investment: var(--text-2);
+  --asset-crypto: var(--text-3); --asset-other: var(--paper-400);
 }
 
 /* ─────────────────────────── Base ─────────────────────────── */
@@ -306,6 +91,7 @@ body {
 
 body {
   font-family: var(--font-sans);
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-feature-settings: "ss01";
@@ -325,12 +111,13 @@ input[type="radio"] {
 }
 
 ::selection {
-  background: var(--brand-soft);
+  background: var(--action-soft);
   color: var(--text);
 }
 
 :focus-visible {
-  outline: none;
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
   box-shadow: var(--ring);
   border-radius: var(--r-sm);
 }
@@ -349,8 +136,10 @@ input[type="radio"] {
 
 /* Numbers are first-class UI — compact & nowrap for mobile PWA */
 .num {
+  font-family: var(--font-num);
+  font-feature-settings: normal;
   font-variant-numeric: tabular-nums lining-nums;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   word-break: keep-all;
   overflow-wrap: normal;
@@ -358,7 +147,7 @@ input[type="radio"] {
 
 .display-num {
   font-variant-numeric: tabular-nums lining-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   word-break: keep-all;
   overflow-wrap: normal;
@@ -397,7 +186,7 @@ input[type="radio"] {
   flex-wrap: nowrap;
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.15;
   font-size: clamp(1.4rem, 6vw, 2.1rem);
   max-width: 100%;
@@ -458,13 +247,13 @@ input[type="radio"] {
    11.5px labels, 13px "financial"). They are now aliases of the one token
    scale, so a page styled with either vocabulary lands on the same steps. */
 .type-page-title {
-  font-size: clamp(22px, 4vw, 24px);
+  font-size: var(--fs-xl);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.3;
 }
 .type-section-title {
-  font-size: 18px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   color: var(--text);
 }
@@ -557,7 +346,7 @@ input[type="radio"] {
  */
 .brand-wordmark {
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
   font-family: var(--font-sans);
 }
 
@@ -588,7 +377,7 @@ input[type="radio"] {
 }
 
 .accent {
-  color: var(--brand);
+  color: var(--action);
 }
 
 .pos {
@@ -626,10 +415,11 @@ a.chip:hover,
 button.chip:hover {
   background: var(--hover);
 }
+a.chip, button.chip { min-height: 44px; }
 .chip-on {
-  background: var(--brand-soft);
-  border-color: transparent;
-  color: var(--brand);
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--on-ink);
   font-weight: 600;
 }
 
@@ -638,7 +428,7 @@ button.chip:hover {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 0.15rem 0.5rem;
   font-size: var(--fs-xs);
   font-weight: 600;
@@ -650,8 +440,8 @@ button.chip:hover {
   color: var(--text-2);
 }
 .badge-brand {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--action-soft);
+  color: var(--action);
 }
 .badge-pos {
   background: var(--positive-soft);
@@ -679,13 +469,14 @@ button.chip:hover {
   gap: 0.4rem;
   border-radius: var(--r-md);
   padding: 0.55rem 0.95rem;
-  font-size: 0.84rem;
+  font-size: var(--fs-sm);
   font-weight: 500;
   min-height: 44px;
   border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  transition: background 0.15s ease, opacity 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+  background: transparent;
+  border-color: var(--action);
+  color: var(--action);
+  transition: background var(--motion-data) var(--ease), opacity 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
   cursor: pointer;
   user-select: none;
   touch-action: manipulation;
@@ -711,29 +502,30 @@ button.chip:hover {
   cursor: not-allowed;
   transform: none;
 }
-/* `--on-brand` (not `--color-primary`) is the foreground on an accent fill:
-   ink-on-cyan fails AA in the light theme, white-on-cyan passes. */
+/* Filled action uses the shared ink token. */
 .btn-primary {
-  background: var(--color-accent);
-  color: var(--on-brand);
+  background: var(--action);
+  color: var(--on-ink);
   border-color: transparent;
   font-weight: 600;
 }
 .btn-primary:hover {
-  background: var(--color-accent-hover);
-  color: var(--on-brand);
+  background: var(--action-hover);
+  color: var(--on-ink);
 }
 .btn-ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--text-2);
+  color: var(--action);
 }
 .btn-ghost:hover {
   background: var(--hover);
   color: var(--text);
 }
 .btn-soft {
-  background: var(--sunken);
+  background: var(--action-soft);
+  color: var(--action);
+  border-color: transparent;
 }
 .btn-danger {
   background: transparent;
@@ -770,10 +562,10 @@ button.chip:hover {
   width: 100%;
   min-height: 44px;
   border-radius: var(--r-md);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: var(--surface);
   padding: 0.6rem 0.85rem;
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
   color: var(--text);
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -783,7 +575,7 @@ button.chip:hover {
   color: var(--text-3);
 }
 .field:focus {
-  border-color: var(--brand);
+  border-color: var(--action);
   box-shadow: var(--ring);
 }
 .field:disabled {
@@ -811,7 +603,7 @@ button.chip:hover {
 }
 
 .label {
-  font-size: 0.76rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-2);
   margin-bottom: 0.35rem;
@@ -850,7 +642,7 @@ select.field {
   min-width: 1.35rem;
   height: 1.25rem;
   padding: 0 0.3rem;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--border-strong);
   border-bottom-width: 2px;
   background: var(--surface);
@@ -876,9 +668,9 @@ select.field {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  border-radius: 9px;
+  border-radius: var(--r-md);
   padding: 0.3rem 0.7rem;
-  font-size: 0.76rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-2);
   white-space: nowrap;
@@ -895,7 +687,7 @@ select.field {
   background: var(--surface);
   color: var(--text);
   font-weight: 600;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 /* ─────────────────────────── Table ─────────────────────────── */
@@ -903,7 +695,7 @@ select.field {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
 }
 .table th {
   text-align: right;
@@ -968,7 +760,7 @@ select.field {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--brand);
+  background: var(--action);
   transition: width 0.4s ease;
 }
 
@@ -1063,10 +855,11 @@ select.field {
   gap: 0.65rem;
   padding: 0.45rem 0.65rem;
   margin-inline: 0.5rem;
-  border-radius: 10px;
-  font-size: 0.83rem;
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
   color: var(--text-2);
   position: relative;
+  min-height: 44px;
   transition: background 0.14s ease, color 0.14s ease;
   outline: none;
   touch-action: manipulation;
@@ -1080,8 +873,8 @@ select.field {
   box-shadow: var(--ring);
 }
 .nav-item.nav-active {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--action-soft);
+  color: var(--action);
   font-weight: 600;
 }
 .nav-item.nav-active::before {
@@ -1092,48 +885,7 @@ select.field {
   bottom: 20%;
   width: 3px;
   border-radius: 3px;
-  background: var(--brand);
-}
-
-.nav-module-expenses .nav-item.nav-active {
-  background: var(--color-module-expenses-bg);
-  color: var(--color-module-expenses);
-}
-.nav-module-expenses .nav-item.nav-active::before,
-.nav-module-expenses .nav-group-toggle.is-active {
-  color: var(--color-module-expenses);
-}
-.nav-module-expenses .nav-item.nav-active::before {
-  background: var(--color-module-expenses);
-}
-
-.nav-module-commitments .nav-item.nav-active {
-  background: var(--color-module-commitments-bg);
-  color: var(--color-module-commitments);
-}
-.nav-module-commitments .nav-item.nav-active::before {
-  background: var(--color-module-commitments);
-}
-
-.nav-module-wealth .nav-item.nav-active {
-  background: var(--color-module-wealth-bg);
-  color: var(--color-module-wealth);
-}
-.nav-module-wealth .nav-item.nav-active::before {
-  background: var(--color-module-wealth);
-}
-
-.nav-module-expenses .nav-group-toggle.is-active,
-.nav-module-expenses .nav-group-toggle.is-active svg {
-  color: var(--color-module-expenses);
-}
-.nav-module-commitments .nav-group-toggle.is-active,
-.nav-module-commitments .nav-group-toggle.is-active svg {
-  color: var(--color-module-commitments);
-}
-.nav-module-wealth .nav-group-toggle.is-active,
-.nav-module-wealth .nav-group-toggle.is-active svg {
-  color: var(--color-module-wealth);
+  background: var(--action);
 }
 
 .nav-group-label {
@@ -1151,10 +903,11 @@ select.field {
   align-items: center;
   gap: 0.55rem;
   width: calc(100% - 1rem);
+  min-height: 44px;
   margin-inline: 0.5rem;
   margin-top: 0.5rem;
   padding: 0.4rem 0.65rem;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -1168,7 +921,7 @@ select.field {
   color: var(--text-2);
 }
 .nav-group-toggle.is-active {
-  color: var(--brand);
+  color: var(--action);
 }
 .nav-group-toggle:focus-visible {
   outline: none;
@@ -1233,7 +986,7 @@ select.field {
   font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-3);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   transition: color 0.15s ease, background 0.15s ease;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -1241,10 +994,11 @@ select.field {
   -webkit-user-select: none;
 }
 .tab-item.tab-active {
-  color: var(--brand);
+  color: var(--action);
   font-weight: 600;
-  background: var(--brand-softer);
+  background: var(--action-soft);
 }
+.nav-group-toggle.is-active { color: var(--action); }
 .tab-item svg {
   transition: transform 0.18s ease;
 }
@@ -1337,7 +1091,7 @@ select.field {
   flex: none;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: var(--r-md);
 }
 
 .action-item .btn {
@@ -1356,13 +1110,13 @@ select.field {
 }
 
 .section-link {
-  color: var(--brand);
+  color: var(--action);
   border-radius: var(--r-sm);
   transition: color var(--motion-micro) var(--ease);
 }
 
 .section-link:hover {
-  color: var(--brand-strong);
+  color: var(--action-hover);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -1397,24 +1151,24 @@ select.field {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--brand);
-  color: var(--on-brand);
+  background: var(--action);
+  color: var(--on-ink);
   border: none;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transform: translateX(50%);
-  box-shadow: var(--shadow-md), 0 0 0 4px var(--bg);
+  box-shadow: none;
   transition: transform var(--motion-micro) var(--ease), background var(--motion-micro) var(--ease);
 }
 
 .record-fab:active {
   transform: translateX(50%) scale(0.94);
-  background: var(--brand-strong);
+  background: var(--action-hover);
 }
 
 .record-fab:focus-visible {
-  box-shadow: var(--ring), var(--shadow-md);
+  box-shadow: var(--ring);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1525,141 +1279,19 @@ select.field {
   }
 }
 
-/* ─────────────────────── Public landing ───────────────────────
-   Scoped design-token layer for the public surface (landing + legal pages).
-   Identity: dark premium fintech · sky/cyan interaction · emerald positive ·
-   amber negative · pale lavender reserved for investment accents only.
-
-   IMPORTANT: every token here is scoped to `.landing` (and `.landing-ink`).
-   The application palette in :root/.dark is deliberately NOT modified, so the
-   authenticated product keeps its existing appearance.
-
-   Contrast notes (WCAG AA):
-     • Light theme uses sky-700 (#0369A1, 5.9:1 on white) rather than the
-       bright sky range, which cannot pass AA as text on a light surface.
-     • Dark theme uses the bright range (#38BDF8, 8.9:1 on #080B11).
-     • Lavender stays pale (#C4B5FD) only on dark surfaces; on light surfaces
-       the investment role falls back to a muted indigo (#4C4A9E, 7.6:1).
-   ──────────────────────────────────────────────────────────── */
+/* Public pages inherit the same semantic tokens as the application. */
 
 .landing {
-  /* — Light landing palette (independent, not an inversion of dark) — */
-  --l-ink: #0a1018;
-  --l-bg: #f5f7fa;
-  --l-surface: #ffffff;
-  --l-surface-raised: #ffffff;
-  --l-text: #0b1220;
-  --l-text-muted: #46536b;
-  --l-text-subtle: #5c6980;
-  --l-border: #e1e7ef;
-  --l-border-strong: #c9d3e0;
-
-  --l-accent: var(--sky-700);
-  --l-accent-strong: var(--sky-800);
-  --l-accent-soft: rgba(3, 105, 161, 0.1);
-  --l-on-accent: #ffffff;
-
-  --l-positive: var(--emerald-700);
-  --l-positive-soft: rgba(16, 185, 129, 0.12);
-  --l-negative: var(--amber-700);
-  --l-negative-soft: rgba(245, 158, 11, 0.14);
-  --l-investment: var(--lavender-ink);
-  --l-investment-soft: rgba(165, 180, 252, 0.2);
-
-  --l-glow-primary: rgba(3, 105, 161, 0.13);
-  --l-glow-positive: rgba(4, 120, 87, 0.08);
-  --l-elev-rest: 0 1px 2px rgba(11, 18, 32, 0.04), 0 8px 24px -18px rgba(11, 18, 32, 0.28);
-  --l-elev-hover: 0 1px 2px rgba(11, 18, 32, 0.05), 0 14px 32px -18px rgba(11, 18, 32, 0.34);
-  --l-blur: 14px;
-
-  /* — Remap the shared utility tokens inside the landing subtree only — */
-  --bg: var(--l-bg);
-  --surface: var(--l-surface);
-  --surface-elev: var(--l-surface-raised);
-  --sunken: #eef2f7;
-  --hover: rgba(11, 18, 32, 0.05);
-  --text: var(--l-text);
-  --text-2: var(--l-text-muted);
-  --text-3: var(--l-text-subtle);
-  --border: var(--l-border);
-  --border-strong: var(--l-border-strong);
-  --brand: var(--l-accent);
-  --brand-strong: var(--l-accent-strong);
-  --brand-soft: var(--l-accent-soft);
-  --color-accent: var(--l-accent);
-  --color-accent-hover: var(--l-accent-strong);
-  --positive: var(--l-positive);
-  --positive-soft: var(--l-positive-soft);
-  --negative: var(--l-negative);
-  --negative-soft: var(--l-negative-soft);
-  --ring: 0 0 0 3px rgba(3, 105, 161, 0.34);
-
   min-height: 100dvh;
   max-width: 100%;
   overflow-x: clip;
-  background: var(--l-bg);
-  color: var(--l-text);
+  background: var(--bg);
+  color: var(--text);
   padding-bottom: 0;
 }
-
-/* Dark landing palette — near-black, never pure black. */
-.dark .landing,
+/* The existing hero/header/footer are dark surfaces in either theme. */
 .landing-ink {
-  --l-ink: #060910;
-  --l-bg: #080b11;
-  --l-surface: rgba(233, 239, 247, 0.045);
-  --l-surface-raised: rgba(233, 239, 247, 0.075);
-  --l-text: #e9eff7;
-  --l-text-muted: #a3b2c6;
-  --l-text-subtle: #8494a8;
-  --l-border: rgba(233, 239, 247, 0.1);
-  --l-border-strong: rgba(233, 239, 247, 0.2);
-
-  --l-accent: var(--sky-400);
-  --l-accent-strong: var(--sky-300);
-  --l-accent-soft: rgba(56, 189, 248, 0.12);
-  --l-on-accent: #04121b;
-
-  --l-positive: var(--emerald-400);
-  --l-positive-soft: rgba(52, 211, 153, 0.14);
-  --l-negative: var(--amber-400);
-  --l-negative-soft: rgba(251, 191, 36, 0.14);
-  --l-investment: var(--lavender-300);
-  --l-investment-soft: rgba(196, 181, 253, 0.14);
-
-  --l-glow-primary: rgba(56, 189, 248, 0.16);
-  --l-glow-positive: rgba(52, 211, 153, 0.07);
-  --l-elev-rest: 0 1px 0 rgba(233, 239, 247, 0.04) inset, 0 12px 32px -22px rgba(0, 0, 0, 0.9);
-  --l-elev-hover: 0 1px 0 rgba(233, 239, 247, 0.07) inset, 0 18px 40px -22px rgba(0, 0, 0, 0.95);
-
-  --sunken: rgba(233, 239, 247, 0.05);
-  --hover: rgba(233, 239, 247, 0.07);
-  --ring: 0 0 0 3px rgba(56, 189, 248, 0.35);
-}
-
-/* The shared-token remap has to be repeated for the ink scope so nested
-   regions (header / hero / footer) hand the new values to .card, .sub, … */
-.landing-ink {
-  --bg: var(--l-ink);
-  --surface: var(--l-surface);
-  --surface-elev: var(--l-surface-raised);
-  --text: var(--l-text);
-  --text-2: var(--l-text-muted);
-  --text-3: var(--l-text-subtle);
-  --border: var(--l-border);
-  --border-strong: var(--l-border-strong);
-  --brand: var(--l-accent);
-  --brand-strong: var(--l-accent-strong);
-  --brand-soft: var(--l-accent-soft);
-  --color-accent: var(--l-accent);
-  --color-accent-hover: var(--l-accent-strong);
-  --positive: var(--l-positive);
-  --positive-soft: var(--l-positive-soft);
-  --negative: var(--l-negative);
-  --negative-soft: var(--l-negative-soft);
-  --on-primary: var(--l-text);
-  background: var(--l-ink);
-  color: var(--l-text);
+  background: var(--bg); color: var(--text);
 }
 
 /* Theme transition — colors only, so nothing can shift the layout. */
@@ -1692,50 +1324,49 @@ select.field {
   }
 }
 
-/* ── Buttons on the landing surface ──
-   The shared .btn geometry is reused; only the palette is restated so the
-   cyan accent (not the app violet) drives the primary action. */
+/* Public controls share the application button geometry. */
 
 .landing .btn-primary {
-  background: var(--l-accent);
-  color: var(--l-on-accent);
+  background: var(--action);
+  color: var(--on-ink);
   border-color: transparent;
   font-weight: 600;
-  border-radius: 999px;
+  border-radius: var(--r-md);
   box-shadow: none;
 }
 
 .landing .btn-primary:hover {
-  background: var(--l-accent-strong);
-  color: var(--l-on-accent);
+  background: var(--action-hover);
+  color: var(--on-ink);
 }
 
 .landing .btn:not(.btn-primary) {
-  border-radius: 999px;
+  border-radius: var(--r-md);
   background: transparent;
-  color: var(--l-text);
-  border-color: var(--l-border-strong);
+  color: var(--action);
+  border-color: var(--border-strong);
 }
 
 .landing .btn:not(.btn-primary):hover {
   background: var(--hover);
-  color: var(--l-text);
+  color: var(--text);
 }
 
 .landing .icon-btn {
-  color: var(--l-text-muted);
-  border-radius: 999px;
+  color: var(--text-2);
+  border-radius: var(--r-md);
 }
 
 .landing .icon-btn:hover {
   background: var(--hover);
-  color: var(--l-text);
+  color: var(--text);
 }
 
 .landing :focus-visible {
-  outline: none;
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
   box-shadow: var(--ring);
-  border-radius: 999px;
+  border-radius: var(--r-md);
 }
 
 /* ─────────────────────────── Header ─────────────────────────── */
@@ -1745,12 +1376,12 @@ select.field {
   position: sticky;
   top: 0;
   z-index: 30;
-  border-bottom: 1px solid var(--l-border);
+  border-bottom: 1px solid var(--border);
   padding-top: env(safe-area-inset-top);
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
-  background: color-mix(in oklab, var(--l-ink) 88%, transparent);
-  backdrop-filter: blur(var(--l-blur));
-  -webkit-backdrop-filter: blur(var(--l-blur));
+  background: color-mix(in oklab, var(--ink-900) 88%, transparent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .landing-header-inner {
@@ -1768,7 +1399,7 @@ select.field {
   min-width: 0;
   align-items: center;
   gap: 0.65rem;
-  color: var(--l-text);
+  color: var(--text);
   border-radius: 14px;
 }
 
@@ -1780,7 +1411,7 @@ select.field {
 }
 
 .landing-on-primary-muted {
-  color: var(--l-text-subtle);
+  color: var(--text-3);
 }
 
 /* ──────────────────────────── Hero ──────────────────────────── */
@@ -1791,33 +1422,7 @@ select.field {
   overflow: hidden;
 }
 
-/* Interactive background — cyan spotlight with a faint emerald tint.
-   Never interactive itself, never affects layout (absolute + pointer-events). */
-.landing-ambience {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(
-      42rem 26rem at var(--mx, 70%) var(--my, 12%),
-      var(--l-glow-primary),
-      transparent 70%
-    ),
-    radial-gradient(34rem 22rem at 8% 96%, var(--l-glow-positive), transparent 72%);
-}
-
-.landing-ambience::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(var(--l-border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--l-border) 1px, transparent 1px);
-  background-size: 72px 72px;
-  opacity: 0.35;
-  mask-image: radial-gradient(60rem 34rem at 60% 0%, #000 10%, transparent 78%);
-  -webkit-mask-image: radial-gradient(60rem 34rem at 60% 0%, #000 10%, transparent 78%);
-}
+.landing-ambience, .landing-ambience::after { display: none; }
 
 .landing-hero {
   display: grid;
@@ -1844,12 +1449,12 @@ select.field {
   gap: 0.4rem;
   padding: 0.28rem 0.7rem;
   border-radius: 999px;
-  border: 1px solid var(--l-border);
-  background: var(--l-accent-soft);
+  border: 1px solid var(--border);
+  background: var(--action-soft);
   font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: var(--l-accent);
+  color: var(--action);
   line-height: 1.6;
 }
 
@@ -1857,10 +1462,10 @@ select.field {
   margin-top: 0.9rem;
   font-size: clamp(1.65rem, 5.6vw, 3.1rem);
   font-weight: 700;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.015em;
   line-height: 1.32;
   text-wrap: balance;
-  color: var(--l-text);
+  color: var(--text);
 }
 
 .landing-lede {
@@ -1868,7 +1473,7 @@ select.field {
   max-width: 36rem;
   font-size: clamp(0.9rem, 1.6vw, 1rem);
   line-height: 1.85;
-  color: var(--l-text-muted);
+  color: var(--text-2);
   text-wrap: pretty;
 }
 
@@ -1898,7 +1503,7 @@ select.field {
   gap: 0.45rem;
   font-size: 0.78rem;
   line-height: 1.7;
-  color: var(--l-text-subtle);
+  color: var(--text-3);
 }
 
 .landing-hero-note::before {
@@ -1906,7 +1511,7 @@ select.field {
   inline-size: 6px;
   block-size: 6px;
   border-radius: 999px;
-  background: var(--l-positive);
+  background: var(--positive);
   flex: none;
 }
 
@@ -1954,16 +1559,16 @@ select.field {
   align-items: center;
   padding: 0.32rem 0.72rem;
   border-radius: 999px;
-  border: 1px solid var(--l-border);
-  background: color-mix(in oklab, var(--l-ink) 78%, transparent);
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--ink-900) 78%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  color: var(--l-text-muted);
+  color: var(--text-2);
   font-size: var(--fs-xs);
   font-weight: 500;
   line-height: 1.5;
   white-space: nowrap;
-  box-shadow: var(--l-elev-rest);
+  box-shadow: none;
 }
 
 @keyframes chip-drift {
@@ -1995,7 +1600,7 @@ select.field {
   margin-top: 0.4rem;
   font-size: var(--fs-sm);
   font-weight: 600;
-  color: var(--l-positive);
+  color: var(--positive);
 }
 
 .landing-preview-usd {
@@ -2008,10 +1613,10 @@ select.field {
   gap: 0.5rem;
   margin-top: 1rem;
   padding: 0.6rem 0.75rem;
-  border: 1px solid var(--l-border);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--l-surface-raised);
-  color: var(--l-text-muted);
+  background: var(--surface-elev);
+  color: var(--text-2);
   font-size: var(--fs-xs);
   line-height: 1.6;
 }
@@ -2021,19 +1626,19 @@ select.field {
   block-size: 7px;
   flex: none;
   border-radius: 999px;
-  background: var(--l-negative);
+  background: var(--negative);
 }
 
 /* ───────────────────────── Product preview ───────────────────────── */
 
 .landing-preview {
-  border: 1px solid var(--l-border);
-  border-radius: 20px;
-  background: var(--l-surface);
-  backdrop-filter: blur(var(--l-blur));
-  -webkit-backdrop-filter: blur(var(--l-blur));
-  box-shadow: var(--l-elev-rest);
-  color: var(--l-text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  color: var(--text);
   overflow: hidden;
   max-width: 100%;
   min-width: 0;
@@ -2044,8 +1649,8 @@ select.field {
   align-items: center;
   gap: 0.65rem;
   padding: 0.6rem 1rem;
-  border-bottom: 1px solid var(--l-border);
-  background: var(--l-surface-raised);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-elev);
 }
 
 .landing-preview-dots {
@@ -2057,14 +1662,14 @@ select.field {
   width: 8px;
   height: 8px;
   border-radius: 99px;
-  background: var(--l-border-strong);
+  background: var(--border-strong);
 }
 
 .landing-preview-badge {
   margin-inline-start: auto;
   font-size: var(--fs-xs);
   font-weight: 500;
-  color: var(--l-text-subtle);
+  color: var(--text-3);
   line-height: 1.4;
 }
 
@@ -2074,7 +1679,7 @@ select.field {
 }
 
 .landing-preview-label {
-  color: var(--l-text-subtle);
+  color: var(--text-3);
   font-size: var(--fs-xs);
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -2084,12 +1689,12 @@ select.field {
   margin-top: 0.3rem;
   font-size: clamp(1.25rem, 4.4vw, 1.9rem);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.5;
   white-space: nowrap;
   word-break: keep-all;
   overflow-wrap: normal;
-  color: var(--l-text);
+  color: var(--text);
 }
 
 /* Money values are atomic (never wrapped), so the columns only split once
@@ -2100,7 +1705,7 @@ select.field {
   gap: 0.75rem 1.25rem;
   margin-top: 1.15rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--l-border);
+  border-top: 1px solid var(--border);
   min-width: 0;
 }
 
@@ -2113,29 +1718,29 @@ select.field {
 .landing-preview-metric {
   min-width: 0;
   padding-inline-start: 0.6rem;
-  border-inline-start: 2px solid var(--l-border-strong);
+  border-inline-start: 2px solid var(--border-strong);
 }
 
 .landing-preview-metric-assets {
-  border-inline-start-color: var(--l-accent);
+  border-inline-start-color: var(--action);
 }
 .landing-preview-metric-debts {
-  border-inline-start-color: var(--l-negative);
+  border-inline-start-color: var(--negative);
 }
 .landing-preview-metric-liquidity {
-  border-inline-start-color: var(--l-positive);
+  border-inline-start-color: var(--positive);
 }
 
 .landing-preview-amount {
   margin-top: 0.2rem;
   font-size: clamp(var(--fs-xs), 1.05vw, 0.9rem);
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.55;
   white-space: nowrap;
   word-break: keep-all;
   overflow-wrap: normal;
-  color: var(--l-text);
+  color: var(--text);
   max-width: 100%;
 }
 
@@ -2165,14 +1770,14 @@ select.field {
 /* ───────────────────────── Section bands ───────────────────────── */
 
 .landing-band {
-  background: var(--l-bg);
+  background: var(--bg);
 }
 
 /* Alternating band: a quiet tint in light mode so the white cards separate
    from their background without adding another border. */
 .landing-band-surface {
   background: var(--sunken);
-  border-block: 1px solid var(--l-border);
+  border-block: 1px solid var(--border);
 }
 
 .dark .landing-band-surface {
@@ -2192,16 +1797,16 @@ select.field {
 .landing-h2 {
   font-size: clamp(1.15rem, 2.6vw, 1.7rem);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.5;
   text-wrap: balance;
-  color: var(--l-text);
+  color: var(--text);
 }
 
 .landing-support {
   margin-top: 0.75rem;
   max-width: 40rem;
-  color: var(--l-text-muted);
+  color: var(--text-2);
   font-size: clamp(0.88rem, 1.5vw, 0.95rem);
   line-height: 1.9;
 }
@@ -2217,12 +1822,12 @@ select.field {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
-  color: var(--l-accent);
+  color: var(--action);
   border-radius: 8px;
 }
 
 .landing-trust-links a:hover {
-  color: var(--l-accent-strong);
+  color: var(--action-hover);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -2248,28 +1853,28 @@ select.field {
   align-items: flex-start;
   padding: 1.05rem 1.1rem;
   min-width: 0;
-  border: 1px solid var(--l-border);
-  border-radius: 18px;
-  background: var(--l-surface);
-  box-shadow: var(--l-elev-rest);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: none;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .dark .landing-benefit {
-  backdrop-filter: blur(var(--l-blur));
-  -webkit-backdrop-filter: blur(var(--l-blur));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .landing-benefit:hover {
     transform: translateY(-2px);
-    border-color: var(--l-border-strong);
-    box-shadow: var(--l-elev-hover);
+    border-color: var(--border-strong);
+    box-shadow: none;
   }
 }
 
 .landing-benefit h3 {
-  color: var(--l-text);
+  color: var(--text);
 }
 
 .landing-benefit-title {
@@ -2280,9 +1885,9 @@ select.field {
 
 .landing-benefit-body {
   margin-top: 0.2rem;
-  font-size: 0.83rem;
+  font-size: var(--fs-sm);
   line-height: 1.85;
-  color: var(--l-text-muted);
+  color: var(--text-2);
 }
 
 .landing-icon {
@@ -2293,27 +1898,27 @@ select.field {
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  border: 1px solid var(--l-border);
-  background: var(--l-accent-soft);
-  color: var(--l-accent);
+  border: 1px solid var(--border);
+  background: var(--action-soft);
+  color: var(--action);
 }
 
 .landing-icon-wealth {
-  background: var(--l-accent-soft);
-  color: var(--l-accent);
+  background: var(--action-soft);
+  color: var(--action);
 }
 .landing-icon-commitments {
-  background: var(--l-negative-soft);
-  color: var(--l-negative);
+  background: var(--negative-soft);
+  color: var(--negative);
 }
 .landing-icon-liquidity {
-  background: var(--l-positive-soft);
-  color: var(--l-positive);
+  background: var(--positive-soft);
+  color: var(--positive);
 }
-/* Pale lavender — reserved for the investment/asset accent only. */
+/* Investment icon uses the shared neutral family. */
 .landing-icon-invest {
-  background: var(--l-investment-soft);
-  color: var(--l-investment);
+  background: var(--sunken);
+  color: var(--text-2);
 }
 
 /* Holds a Persian numeral, not an icon — see STEPS in LandingPage.tsx. The
@@ -2327,9 +1932,9 @@ select.field {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid var(--l-border);
-  background: var(--l-surface-raised);
-  color: var(--l-accent);
+  border: 1px solid var(--border);
+  background: var(--surface-elev);
+  color: var(--action);
   font-size: var(--fs-md);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -2349,11 +1954,11 @@ select.field {
 }
 
 .landing-kinds li {
-  border: 1px solid var(--l-border);
+  border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0.28rem 0.68rem;
-  background: color-mix(in oklab, var(--l-ink) 55%, transparent);
-  color: var(--l-text-muted);
+  background: color-mix(in oklab, var(--ink-900) 55%, transparent);
+  color: var(--text-2);
   font-size: var(--fs-xs);
   line-height: 1.5;
 }
@@ -2413,15 +2018,15 @@ select.field {
 }
 
 .landing-faq-item {
-  border: 1px solid var(--l-border);
-  border-radius: 16px;
-  background: var(--l-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
   overflow: hidden;
   transition: border-color 0.18s ease;
 }
 
 .landing-faq-item[open] {
-  border-color: var(--l-border-strong);
+  border-color: var(--border-strong);
 }
 
 .landing-faq-item summary {
@@ -2433,10 +2038,10 @@ select.field {
   min-height: 48px;
   padding: 0.9rem 1.05rem;
   list-style: none;
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   line-height: 1.7;
-  color: var(--l-text);
+  color: var(--text);
 }
 
 .landing-faq-item summary::-webkit-details-marker {
@@ -2449,13 +2054,13 @@ select.field {
 
 .landing-faq-chevron {
   flex: none;
-  color: var(--l-text-subtle);
+  color: var(--text-3);
   transition: transform 0.18s ease;
 }
 
 .landing-faq-item[open] .landing-faq-chevron {
   transform: rotate(180deg);
-  color: var(--l-accent);
+  color: var(--action);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2465,15 +2070,15 @@ select.field {
 }
 
 .landing-faq-answer {
-  border-top: 1px solid var(--l-border);
+  border-top: 1px solid var(--border);
   padding: 0.95rem 1.05rem 1.1rem;
   font-size: 0.85rem;
   line-height: 1.95;
-  color: var(--l-text-muted);
+  color: var(--text-2);
 }
 
 .landing-faq-answer a {
-  color: var(--l-accent);
+  color: var(--action);
   font-weight: 500;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -2503,13 +2108,11 @@ select.field {
 .landing-cta-final {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--l-border);
-  border-radius: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
   padding: clamp(1.75rem, 5vw, 2.75rem) clamp(1.1rem, 4vw, 2.5rem);
   text-align: center;
-  background:
-    radial-gradient(30rem 16rem at 50% 0%, var(--l-glow-primary), transparent 70%),
-    var(--l-surface);
+  background: var(--surface);
 }
 
 .landing-cta-final .landing-support {
@@ -2523,16 +2126,16 @@ select.field {
 /* ─────────────────────────── Footer ─────────────────────────── */
 
 .landing-footer {
-  border-top: 1px solid var(--l-border);
+  border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
 .landing-footer .sub {
-  color: var(--l-text-muted);
+  color: var(--text-2);
 }
 
 .landing-footer .muted {
-  color: var(--l-text-subtle);
+  color: var(--text-3);
 }
 
 .landing-footer a.sub {
@@ -2543,11 +2146,11 @@ select.field {
 }
 
 .landing-footer a.sub:hover {
-  color: var(--l-accent);
+  color: var(--action);
 }
 
 .landing-footer .border-t {
-  border-color: var(--l-border) !important;
+  border-color: var(--border) !important;
 }
 
 /* ─────────────────── Legal / marketing article ─────────────────── */
@@ -2556,11 +2159,11 @@ select.field {
   max-width: 44rem;
   margin-inline: auto;
   padding: clamp(1.75rem, 5vw, 2.75rem) 1rem 4rem;
-  color: var(--l-text);
+  color: var(--text);
 }
 
 .landing-legal .sub {
-  color: var(--l-text-muted);
+  color: var(--text-2);
 }
 
 .install-promo {
@@ -2576,28 +2179,7 @@ select.field {
   box-shadow: var(--shadow-md);
 }
 
-/* Public placement sits on the landing page, so it adopts the landing's cyan
-   accent instead of the in-app violet. The authenticated placement is
-   untouched — only this modifier is restyled. */
-.install-promo-public {
-  bottom: max(1rem, env(safe-area-inset-bottom));
-  --brand: var(--sky-700);
-  --brand-strong: var(--sky-800);
-  --brand-soft: rgba(3, 105, 161, 0.1);
-  --color-accent: var(--sky-700);
-  --color-accent-hover: var(--sky-800);
-  --on-brand: #ffffff;
-  border-radius: 18px;
-}
-
-.dark .install-promo-public {
-  --brand: var(--sky-400);
-  --brand-strong: var(--sky-300);
-  --brand-soft: rgba(56, 189, 248, 0.12);
-  --color-accent: var(--sky-400);
-  --color-accent-hover: var(--sky-300);
-  --on-brand: #04121b;
-}
+.install-promo-public { bottom: max(1rem, env(safe-area-inset-bottom)); border-radius: var(--r-lg); }
 
 .install-promo-public .btn {
   border-radius: 999px;
@@ -2658,8 +2240,8 @@ select.field {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--action-soft);
+  color: var(--action);
   font-size: 0.75rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -2681,15 +2263,15 @@ select.field {
 }
 
 .tab-item-plus {
-  color: var(--on-brand);
-  background: var(--brand);
-  border-radius: 16px;
+  color: var(--on-ink);
+  background: var(--action);
+  border-radius: var(--r-lg);
 }
 
 .tab-item-plus.tab-active,
 .tab-item-plus:active {
-  background: var(--brand-strong);
-  color: var(--on-brand);
+  background: var(--action-hover);
+  color: var(--on-ink);
 }
 
 /* Print */
@@ -2698,7 +2280,7 @@ select.field {
     display: none !important;
   }
   body {
-    background: #fff;
+    background: var(--paper-000);
   }
 }
 
@@ -3146,7 +2728,7 @@ body {
 
 .valuation-measure-value {
   display: block;
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
   font-weight: 700;
   line-height: 1.6;
   letter-spacing: -0.01em;
@@ -3647,3 +3229,24 @@ input {
     bottom: max(1.5rem, var(--safe-bottom)) !important;
   }
 }
+
+/* Financial figures use mono; currency units remain Persian sans. */
+.num-mono, .td-num, .display-num, .type-financial,
+.money-inline .num, .money-hero .num, .money-hero-sm .num,
+.metric-value .num, .stat-value .num {
+  font-family: var(--font-num); font-feature-settings: normal;
+  font-variant-numeric: tabular-nums lining-nums; white-space: nowrap;
+}
+.money-inline, .money-hero, .money-hero-sm { font-family: var(--font-sans); }
+.ledger-block { --sunken: var(--ledger-surface); --text-2: var(--on-ledger); --text-3: var(--paper-300); --border: var(--ledger-divider); --border-strong: var(--ledger-divider); background: var(--ledger-surface); color: var(--on-ledger); padding: var(--s-5); border-radius: var(--r-lg); }
+.ledger-block .table th, .ledger-block .muted { color: var(--text-2); }
+.ledger-block .table th, .ledger-block .table td { border-color: var(--border-strong); }
+.ledger-block .table-sticky th:first-child, .ledger-block .table-sticky td:first-child { background: var(--ledger-surface); }
+.ledger-block .badge-neutral { background: var(--action-soft); color: var(--text); }
+.integrity-bar *, .integrity-bar .muted { color: var(--ink-800) !important; }
+.integrity-bar { width: 100%; min-height: 44px; padding: var(--s-2) var(--s-4); background: var(--signal-voltage); color: var(--ink-800); font-weight: 500; border-radius: 0; box-shadow: none; }
+@media (pointer: coarse) { .integrity-bar { min-height: 48px; } }
+
+/* Keep currency labels in Vazirmatn even inside older money utilities. */
+.money-unit { font-family: var(--font-sans); font-feature-settings: "ss01"; font-weight: inherit; }
+.table .td-num { font-family: var(--font-num); font-feature-settings: normal; }

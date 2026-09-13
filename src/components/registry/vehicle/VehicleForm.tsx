@@ -224,10 +224,10 @@ export default function VehicleForm({
             />
           </Labeled>
 
-          <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
+          <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--action-soft)" }}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="text-[length:var(--fs-xs)] font-medium">معادل دلاری قیمت خرید (محاسبه خودکار)</span>
-              <strong className="num text-[length:var(--fs-sm)]" dir="rtl" style={{ color: "var(--brand)" }}>
+              <strong className="num text-[length:var(--fs-sm)]" dir="rtl" style={{ color: "var(--action)" }}>
                 {canPreview && rateLoading ? "…" : preview ? formatMoney(preview.usd, "USD") : "—"}
               </strong>
             </div>

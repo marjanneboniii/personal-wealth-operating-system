@@ -30,7 +30,7 @@ export default function UserPanel({ user }: { user: User }) {
   return (
     <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
+        <span className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold" style={{ background: "var(--action-soft)", color: "var(--action)" }}>
           {(user.username?.[0] || user.name?.[0] || "U").toUpperCase()}
         </span>
         <div>

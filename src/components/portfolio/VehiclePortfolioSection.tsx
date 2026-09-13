@@ -64,7 +64,7 @@ export default function VehiclePortfolioSection({
       title="خودروها"
       hint="ارزش هر خودرو از آخرین «ارزش‌گذاری ثبت‌شده» خوانده می‌شود — نه از نرخ لحظه‌ای دلار."
       action={
-        <Link href="/asset-registry#vehicle" className="inline-flex items-center gap-1 text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--brand)" }}>
+        <Link href="/asset-registry#vehicle" className="inline-flex items-center gap-1 text-[length:var(--fs-xs)] font-medium" style={{ color: "var(--action)" }}>
           مدیریت خودروها
         </Link>
       }

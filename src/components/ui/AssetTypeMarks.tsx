@@ -1,43 +1,6 @@
 /**
- * Asset-type marks — the dedicated logos for the asset classes the app
- * registers by hand: خودرو, ملک, the four صندوق kinds, and سهام.
- *
- * WHY KINDS AND NOT BRANDS, FOR THE FUNDS
- * There are 58 funds in the catalogue across 21 issuers, and no fund logo
- * exists in this repo — nor could one be fetched, since the Iranian sources
- * are unreachable from where this was built. Scraping 58 trademarked marks to
- * render them at 28px would also break the one thing that makes a mixed asset
- * list readable: a single visual system. So a fund is drawn by WHAT IT HOLDS
- * — طلا, درآمد ثابت, سهام, کالا — which is the distinction a user actually
- * needs when scanning a portfolio, and which no issuer logo conveys anyway.
- *
- * WHY THESE ARE INLINE SVG, NOT FILES
- * They follow the TomanIcon precedent. An asset list renders dozens of logos
- * at once; every `<img>` is a separate request, and on a slow or throttled
- * connection those are exactly the requests that arrive last and make the list
- * flash. Inline marks cost zero requests, cannot 404, render identically
- * offline in the PWA, and are ~0.4 KB of gzipped markup each.
- *
- * DESIGN CONTRACT
- *   • One 48×48 grid, one plate radius, one optical weight — the two marks are
- *     a designed PAIR and must read as siblings when stacked in a list.
- *   • WHITE plate + dark mark in the class hue — the same plate the brand
- *     emblems sit on. A saturated plate was tried and rejected: beside a real
- *     ایران‌خودرو or سایپا emblem it read LOUDER than the brand it stands in
- *     for, which is backwards for a fallback, and a column of full-bleed colour
- *     blocks is heavy in aggregate. Sharing the brand plate also gives a mixed
- *     list one silhouette instead of two.
- *   • Each mark keeps the HUE the app already used for that asset class
- *     (amber for خودرو, teal for ملک), so this reads as the same product
- *     drawn properly — not as a rebrand that strands existing users. The fund
- *     kinds take their hue from the thing they hold: gold amber, fixed income
- *     a calm slate (it is the boring one, and should look it), equity the
- *     brand indigo, commodity a saffron red.
- *   • Legibility is judged at 24-28px — the size an asset row actually renders.
- *     That budget is why each mark is 2-3 shapes and never carries a detail
- *     that collapses into mush (no window grids, no door handles, no grille).
- *
- * PRESENTATION ONLY — no financial data, no valuation, no side effects.
+ * Existing asset-type marks on the shared 48px plate. Their shapes and
+ * classification stay unchanged; visual ink comes from the shared palette.
  */
 import React from "react";
 
@@ -66,8 +29,8 @@ function Plate({ fill }: { fill: string }) {
  */
 export function VehicleMark({
   size = 48,
-  plate = "#FFFFFF",
-  ink = "#A25A12",
+  plate = "var(--paper-000)",
+  ink = "var(--ink-800)",
   className = "",
 }: MarkProps) {
   return (
@@ -105,8 +68,8 @@ export function VehicleMark({
  */
 export function RealEstateMark({
   size = 48,
-  plate = "#FFFFFF",
-  ink = "#0F6B62",
+  plate = "var(--paper-000)",
+  ink = "var(--ink-700)",
   className = "",
 }: MarkProps) {
   return (
@@ -146,7 +109,7 @@ export function RealEstateMark({
    ══════════════════════════════════════════════════════════════════════ */
 
 /** صندوق طلا — stacked bullion. Three bars survive 24px; a coin pile does not. */
-export function GoldFundMark({ size = 48, plate = "#FFFFFF", ink = "#A25A12", className = "" }: MarkProps) {
+export function GoldFundMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-800)", className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -164,7 +127,7 @@ export function GoldFundMark({ size = 48, plate = "#FFFFFF", ink = "#A25A12", cl
  * mark in the set: the product's whole promise is that it does not move much,
  * and a dramatic chart here would misrepresent it.
  */
-export function FixedIncomeFundMark({ size = 48, plate = "#FFFFFF", ink = "#44506B", className = "" }: MarkProps) {
+export function FixedIncomeFundMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-700)", className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -179,7 +142,7 @@ export function FixedIncomeFundMark({ size = 48, plate = "#FFFFFF", ink = "#4450
 }
 
 /** صندوق سهامی (ETF) — three columns with real variance, the opposite reading. */
-export function EquityFundMark({ size = 48, plate = "#FFFFFF", ink = "#4B4DC4", className = "" }: MarkProps) {
+export function EquityFundMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-800)", className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -191,7 +154,7 @@ export function EquityFundMark({ size = 48, plate = "#FFFFFF", ink = "#4B4DC4", 
 }
 
 /** صندوق کالایی — زعفران و مشابه. A stigma-and-petals mark, not a chart. */
-export function CommodityFundMark({ size = 48, plate = "#FFFFFF", ink = "#B23A48", className = "" }: MarkProps) {
+export function CommodityFundMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-700)", className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -209,7 +172,7 @@ export function CommodityFundMark({ size = 48, plate = "#FFFFFF", ink = "#B23A48
  * chart: every fund kind above already uses chart language, so reusing it here
  * would make the one non-fund instrument indistinguishable from the funds.
  */
-export function StockMark({ size = 48, plate = "#FFFFFF", ink = "#1F6F5C", className = "" }: MarkProps) {
+export function StockMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-700)", className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -232,7 +195,7 @@ export function StockMark({ size = 48, plate = "#FFFFFF", ink = "#1F6F5C", class
    ══════════════════════════════════════════════════════════════════════ */
 
 /** نفت — a single drop. A barrel needs hoops and a lid that die at 24px. */
-export function OilMark({ size = 48, plate = "#FFFFFF", ink = "#2B2F3A", className = "" }: MarkProps) {
+export function OilMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-800)", className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -244,7 +207,7 @@ export function OilMark({ size = 48, plate = "#FFFFFF", ink = "#2B2F3A", classNa
 }
 
 /** گاز طبیعی — a blue flame with its hollow core. */
-export function NaturalGasMark({ size = 48, plate = "#FFFFFF", ink = "#2F6FD1", className = "" }: MarkProps) {
+export function NaturalGasMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-700)", className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -259,7 +222,7 @@ export function NaturalGasMark({ size = 48, plate = "#FFFFFF", ink = "#2F6FD1", 
  * siblings, but stacked as a pyramid on a bar so they differ in silhouette and
  * not only in colour (a colour-blind user must still tell them apart).
  */
-export function SilverMark({ size = 48, plate = "#FFFFFF", ink = "#6E7787", className = "" }: MarkProps) {
+export function SilverMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-500)", className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -272,7 +235,7 @@ export function SilverMark({ size = 48, plate = "#FFFFFF", ink = "#6E7787", clas
 }
 
 /** پلاتین — a faceted hexagon: the one metal here sold as a «precious» cut. */
-export function PlatinumMark({ size = 48, plate = "#FFFFFF", ink = "#3E5C76", className = "" }: MarkProps) {
+export function PlatinumMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-700)", className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -287,7 +250,7 @@ export function PlatinumMark({ size = 48, plate = "#FFFFFF", ink = "#3E5C76", cl
  * coil was tried first and read as a MAGNIFYING GLASS — a search icon — which
  * in an app full of search boxes is a genuine misreading.
  */
-export function CopperMark({ size = 48, plate = "#FFFFFF", ink = "#B0602A", className = "" }: MarkProps) {
+export function CopperMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-700)", className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -302,7 +265,7 @@ export function CopperMark({ size = 48, plate = "#FFFFFF", ink = "#B0602A", clas
 }
 
 /** شاخص — an axis with a rising index line: a MARKET, not a single share. */
-export function IndexMark({ size = 48, plate = "#FFFFFF", ink = "#4B4DC4", className = "" }: MarkProps) {
+export function IndexMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-800)", className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />

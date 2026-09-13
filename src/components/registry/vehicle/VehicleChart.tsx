@@ -101,7 +101,7 @@ export default function VehicleChart({
               className="chip text-[length:var(--fs-xs)]"
               aria-pressed={showPurchase}
               onClick={() => setShowPurchase((s) => !s)}
-              style={showPurchase ? { background: "var(--brand-soft)", color: "var(--brand)" } : undefined}
+              style={showPurchase ? { background: "var(--action-soft)", color: "var(--action)" } : undefined}
             >
               نقطه خرید
             </button>
@@ -151,8 +151,8 @@ export default function VehicleChart({
       >
         <defs>
           <linearGradient id="vehGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--action)" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="var(--action)" stopOpacity="0" />
           </linearGradient>
         </defs>
 
@@ -169,7 +169,7 @@ export default function VehicleChart({
         ))}
 
         {area && <path d={area} fill="url(#vehGrad)" />}
-        {series.length > 1 && <path d={line} fill="none" stroke="var(--brand)" strokeWidth="2.2" strokeLinejoin="round" />}
+        {series.length > 1 && <path d={line} fill="none" stroke="var(--action)" strokeWidth="2.2" strokeLinejoin="round" />}
 
         {series.map((p, i) => (
           <circle
@@ -177,7 +177,7 @@ export default function VehicleChart({
             cx={x(i)}
             cy={y(values[i])}
             r={i === active ? 4.5 : 3}
-            fill={purchasePoint && p.date === purchasePoint.date ? "var(--warning)" : "var(--brand)"}
+            fill={purchasePoint && p.date === purchasePoint.date ? "var(--warning)" : "var(--action)"}
             stroke="var(--surface)"
             strokeWidth="1.5"
           />

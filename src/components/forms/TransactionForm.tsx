@@ -138,7 +138,7 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
       <h2 className="flex items-center gap-2 text-[length:var(--fs-sm)] font-bold">
         <span
           className="num inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[length:var(--fs-xs)]"
-          style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+          style={{ background: "var(--action-soft)", color: "var(--action)" }}
           aria-hidden="true"
         >
           {faCount(n)}
@@ -476,7 +476,7 @@ export default function TransactionForm({
   const noMoneyAccounts = (
     <p className="muted mt-1.5 text-[length:var(--fs-xs)] leading-5">
       هنوز حساب نقد یا بانکی ندارید.{" "}
-      <a href="/accounts" style={{ color: "var(--brand)" }}>
+      <a href="/accounts" style={{ color: "var(--action)" }}>
         افزودن حساب
       </a>
     </p>
@@ -555,9 +555,9 @@ export default function TransactionForm({
               aria-pressed={on}
               className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-[var(--r-md)] border px-1 py-2 text-[length:var(--fs-xs)] font-medium"
               style={{
-                borderColor: on ? "var(--brand)" : "var(--border)",
-                background: on ? "var(--brand-soft)" : "var(--surface)",
-                color: on ? "var(--brand)" : "inherit",
+                borderColor: on ? "var(--action)" : "var(--border)",
+                background: on ? "var(--action-soft)" : "var(--surface)",
+                color: on ? "var(--action)" : "inherit",
                 touchAction: "manipulation",
               }}
             >
@@ -670,7 +670,7 @@ export default function TransactionForm({
                 className="rounded-[var(--r-md)] p-2 text-[length:var(--fs-xs)] leading-5 sm:col-span-3"
                 style={
                   swapSupported
-                    ? { background: "var(--brand-soft)" }
+                    ? { background: "var(--action-soft)" }
                     : { background: "var(--warning-soft)", border: "1px solid var(--warning)" }
                 }
                 role="note"
@@ -838,7 +838,7 @@ export default function TransactionForm({
               ) : (
                 <>
                   نرخ دلار ثبت نشده است؛ پیش از ثبت، نرخ را در{" "}
-                  <a href="/settings" style={{ color: "var(--brand)" }}>
+                  <a href="/settings" style={{ color: "var(--action)" }}>
                     تنظیمات
                   </a>{" "}
                   وارد کنید.
@@ -937,8 +937,8 @@ export default function TransactionForm({
 
       {/* ── Review, then confirm. Nothing is written before «تأیید و ثبت». ── */}
       {confirming && ready ? (
-        <section className="card space-y-3 p-4" style={{ borderColor: "var(--brand)" }} aria-live="polite">
-          <h2 className="text-[length:var(--fs-sm)] font-bold" style={{ color: "var(--brand)" }}>
+        <section className="card space-y-3 p-4" style={{ borderColor: "var(--action)" }} aria-live="polite">
+          <h2 className="text-[length:var(--fs-sm)] font-bold" style={{ color: "var(--action)" }}>
             بررسی قبل از ثبت
           </h2>
           <dl className="divide-y text-[length:var(--fs-sm)]" style={{ borderColor: "var(--border)" }}>

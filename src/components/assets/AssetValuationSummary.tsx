@@ -163,7 +163,7 @@ export default function AssetValuationSummary({
       {showTitle && (
         <header className="valuation-summary-header">
           <h3 className="valuation-summary-title">
-            <span style={{ color: "var(--brand)" }}>
+            <span style={{ color: "var(--action)" }}>
               <Icon name="coins" size={15} />
             </span>
             {title}

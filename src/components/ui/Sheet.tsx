@@ -104,7 +104,7 @@ export default function Sheet({
         aria-hidden="true"
         className="fade-in absolute inset-0"
         style={{
-          background: "rgba(5,8,13,0.55)",
+          background: "var(--overlay)",
           backdropFilter: "blur(2px)",
           touchAction: "manipulation",
         }}
@@ -117,7 +117,7 @@ export default function Sheet({
       <div
         ref={ref}
         tabIndex={-1}
-        className={`sheet-panel sheet-in relative flex w-full flex-col overflow-hidden rounded-t-[var(--r-xl)] border outline-none sm:rounded-[var(--r-xl)] ${
+        className={`sheet-panel sheet-in relative flex w-full flex-col overflow-hidden rounded-t-[var(--r-lg)] border outline-none sm:rounded-[var(--r-lg)] ${
           wide ? "sm:w-[640px]" : "sm:w-[440px]"
         }`}
         style={{

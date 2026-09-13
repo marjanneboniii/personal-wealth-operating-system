@@ -169,7 +169,7 @@ export default function AssetLogo({
          * in a dark asset list. The plate is therefore always light, which also
          * gives every row in a mixed list the same 28px silhouette.
          */
-        background: "#fff",
+        background: "var(--paper-000)",
         padding: Math.max(1, Math.round(size * 0.08)),
       }}
       // Remote CoinGecko artwork may fail offline; fall back once to a local
