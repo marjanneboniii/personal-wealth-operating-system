@@ -193,3 +193,48 @@ test("a `mark:` logo renders the drawn mark, never an <img> with a bogus src", (
     assert.ok(new RegExp(`\\b${k}:\\s*\\w+Mark`).test(logo), `mark:${k} has a drawn mark`);
   }
 });
+
+test("USDG — no exchange lists it, so its prices are converted from CoinGecko", async () => {
+  await modulesReady;
+  await clean();
+  // The captured Wallex feed that carries a USDT Toman market.
+  const withUsdt = readFileSync(new URL("./fixtures/wallex-markets.json", import.meta.url), "utf8");
+  const quotes = async (ids: string[]) => {
+    assert.ok(ids.includes("global-dollar") && ids.includes("tether"), "one call for the coin and USDT");
+    return new Map([
+      ["global-dollar", { priceUsd: "1.0006" }],
+      ["tether", { priceUsd: "1.0002" }],
+    ]);
+  };
+  await refreshWallexCatalog(wallex(withUsdt), aban(), quotes);
+
+  const usdt = await getWallexAsset("USDT");
+  const usdg = await getWallexAsset("USDG");
+  assert.ok(usdg, "USDG is in the market list");
+  assert.equal(usdg.kind, "stablecoin");
+  assert.equal(usdg.displayName, "گلوبال دلار");
+  assert.equal(usdg.source, "coingecko");
+
+  // تتری = 1.0006 ÷ 1.0002, and تومانی = that × the catalogue's own USDT market.
+  const expectedUsdt = D("1.0006").div("1.0002");
+  assert.equal(D(usdg.priceUsdt).toFixed(6), expectedUsdt.toFixed(6));
+  assert.equal(D(usdg.priceTmn).toFixed(0), expectedUsdt.mul(usdt.priceTmn).toFixed(0));
+
+  // CoinGecko goes down: the row keeps its last prices instead of blanking.
+  await refreshWallexCatalog(wallex(withUsdt), aban(), async () => {
+    throw new Error("unreachable");
+  });
+  const after = await getWallexAsset("USDG");
+  assert.equal(D(after.priceTmn).toFixed(0), expectedUsdt.mul(usdt.priceTmn).toFixed(0), "last price kept");
+});
+
+test("a test that injects Wallex never reaches CoinGecko for registry prices", async () => {
+  await modulesReady;
+  await clean();
+  // No quotes function passed: with an injected provider this must not fetch.
+  await refreshWallexCatalog(wallex(), aban());
+  const usdg = await getWallexAsset("USDG");
+  assert.ok(usdg, "the row still exists");
+  assert.equal(usdg.priceTmn, null);
+  assert.equal(usdg.priceUsdt, null);
+});

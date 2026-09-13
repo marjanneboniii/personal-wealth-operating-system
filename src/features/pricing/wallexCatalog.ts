@@ -35,14 +35,30 @@ import { WallexProvider, type WallexMarketEntry } from "./providers/wallex";
 import type { AbanTetherProvider } from "./providers/abantether";
 import { rankMarketRows, type MarketRow } from "./marketSearch";
 import { getSupportedCryptoBySymbol } from "./supportedAssets";
+import { CoinGeckoClient } from "./coingecko";
+import { D } from "@/domain/decimal";
+import { getLatestUsdIrtRate } from "@/lib/fx";
 
 /**
  * Stablecoins the app supports that NO exchange feed lists (USDG «گلوبال دلار»,
  * verified absent from both on 2026-09-13). They get a catalogue row so they
- * can be found and picked; their prices stay empty rather than invented, and
- * picking one registers it on the live CoinGecko valuation path.
+ * can be found, picked and valued.
+ *
+ * THEIR PRICES ARE CONVERTED, AND THAT IS STATED HERE ON PURPOSE
+ * Every other row carries two prices read from two real markets. These have no
+ * Iranian market at all, so both are derived from CoinGecko's USD price:
+ *   • تتری  = coin USD ÷ USDT USD            (both from CoinGecko, one call)
+ *   • تومانی = تتری × the USDT Toman price of THIS catalogue
+ * Anchoring the Toman figure on the catalogue's own USDT market keeps the row
+ * consistent with the tether price a user sees one line above it. Only when
+ * no USDT Toman price exists does it fall back to the app's USD→IRT rate.
  */
 const REGISTRY_ONLY_SYMBOLS = ["USDG"] as const;
+
+/** USD prices by CoinGecko id — injectable so tests never reach the network. */
+export type RegistryUsdQuotes = (ids: string[]) => Promise<Map<string, { priceUsd: string }>>;
+
+const liveRegistryQuotes: RegistryUsdQuotes = (ids) => new CoinGeckoClient().fetchUsdPrices(ids);
 import { WALLEX_KIND_LABELS, WALLEX_RWA_KINDS, wallexKindLabel } from "./wallexKinds";
 
 // The vocabulary lives in a pure module so client components can share it.
@@ -97,6 +113,12 @@ export async function refreshWallexCatalog(
    * `null` always skips it.
    */
   abanProvider?: AbanTetherProvider | null,
+  /**
+   * USD quotes for the registry-only stablecoins. `undefined` uses CoinGecko —
+   * unless a Wallex provider was injected (a test), in which case no network
+   * call is made and those rows keep whatever price they already had.
+   */
+  registryQuotes?: RegistryUsdQuotes | null,
 ): Promise<WallexSyncResult> {
   // The registry is the ONE place a market source is declared, so providers
   // are taken FROM it rather than constructed alongside it. They can still be
@@ -205,12 +227,27 @@ export async function refreshWallexCatalog(
   // neither feed supplied the symbol.
   if (aban) {
     const fed = new Set([...wallexOwned, ...abanTaken.map((e) => e.symbol)]);
-    const registryRows: WallexMarketEntry[] = REGISTRY_ONLY_SYMBOLS.filter((s) => !fed.has(s)).flatMap((s) => {
-      const coin = getSupportedCryptoBySymbol(s);
-      return coin
-        ? [{ symbol: coin.symbol, displayName: coin.displayName, latinName: coin.name, kind: "stablecoin" as const, logoUrl: null, priceTmn: null, priceUsdt: null, fetchedAt: syncedAt.toISOString() }]
-        : [];
-    });
+    const coins = REGISTRY_ONLY_SYMBOLS.filter((s) => !fed.has(s))
+      .map((s) => getSupportedCryptoBySymbol(s))
+      .filter((c): c is NonNullable<typeof c> => Boolean(c));
+
+    const quotesFn = registryQuotes === undefined ? (provider ? null : liveRegistryQuotes) : registryQuotes;
+    const priced = coins.length > 0 && quotesFn
+      ? await convertRegistryPrices(coins.map((c) => c.coingeckoId), quotesFn, entries)
+      : new Map<string, { priceUsdt: string; priceTmn: string | null }>();
+
+    const registryRows: WallexMarketEntry[] = coins.map((coin) => ({
+      symbol: coin.symbol,
+      displayName: coin.displayName,
+      latinName: coin.name,
+      kind: "stablecoin" as const,
+      logoUrl: null,
+      // A failed quote leaves both null, and the upsert's coalesce keeps the
+      // last known prices instead of blanking them.
+      priceTmn: priced.get(coin.coingeckoId)?.priceTmn ?? null,
+      priceUsdt: priced.get(coin.coingeckoId)?.priceUsdt ?? null,
+      fetchedAt: syncedAt.toISOString(),
+    }));
     await upsertAll(registryRows, "coingecko");
   }
 
@@ -234,6 +271,60 @@ export async function refreshWallexCatalog(
 
   globalForWallex.__pwosWallexNextRetryAt = undefined;
   return { synced: entries.length + abanTaken.length, status: "fresh" };
+}
+
+/**
+ * CoinGecko USD → تتری and تومانی for the registry-only coins. Never throws:
+ * an unreachable CoinGecko yields no prices, and the caller keeps the old ones.
+ */
+async function convertRegistryPrices(
+  ids: string[],
+  quotes: RegistryUsdQuotes,
+  wallexEntries: WallexMarketEntry[],
+): Promise<Map<string, { priceUsdt: string; priceTmn: string | null }>> {
+  const out = new Map<string, { priceUsdt: string; priceTmn: string | null }>();
+  let usd: Map<string, { priceUsd: string }>;
+  try {
+    usd = await quotes([...ids, "tether"]);
+  } catch {
+    return out;
+  }
+
+  const usdtUsd = usd.get("tether")?.priceUsd;
+  // Toman per USDT: this sync's market first, then what is persisted, then the
+  // app's USD→IRT rate as the last resort.
+  let usdtToman: string | null = wallexEntries.find((e) => e.symbol === "USDT")?.priceTmn ?? null;
+  if (!usdtToman) {
+    const [row] = await db
+      .select({ priceTmn: wallexAssetCatalog.priceTmn })
+      .from(wallexAssetCatalog)
+      .where(eq(wallexAssetCatalog.symbol, "USDT"))
+      .limit(1);
+    usdtToman = row?.priceTmn ?? null;
+  }
+  let usdToman: string | null = null;
+  if (!usdtToman) {
+    try {
+      const fx = await getLatestUsdIrtRate();
+      usdToman = fx.rate && D(fx.rate).gt(0) ? fx.rate : null;
+    } catch {
+      usdToman = null;
+    }
+  }
+
+  for (const id of ids) {
+    const coinUsd = usd.get(id)?.priceUsd;
+    if (!coinUsd || !D(coinUsd).gt(0)) continue;
+    const priceUsdt =
+      usdtUsd && D(usdtUsd).gt(0) ? D(coinUsd).div(usdtUsd) : D(coinUsd);
+    const priceTmn = usdtToman
+      ? priceUsdt.mul(usdtToman).toFixed(0)
+      : usdToman
+        ? D(coinUsd).mul(usdToman).toFixed(0)
+        : null;
+    out.set(id, { priceUsdt: priceUsdt.toFixed(6).replace(/\.?0+$/, ""), priceTmn });
+  }
+  return out;
 }
 
 export async function getWallexCatalogStatus(): Promise<WallexCatalogStatus> {
