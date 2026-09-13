@@ -243,13 +243,13 @@ export default function VehicleForm({
               )}
             </div>
             <input type="hidden" name="purchaseUsdRate" value={digitsOnly(manualRate)} />
-            <input
+            <AmountInput
               className="field num mt-2"
-              dir="ltr"
               inputMode="numeric"
               value={manualRate}
               onChange={(e) => setManualRate(e.target.value)}
-              placeholder="نرخ دلار تاریخ خرید (اختیاری) — مثلاً 190000"
+              placeholder="نرخ دلار تاریخ خرید (اختیاری) — مثلاً ۱۹۰٬۰۰۰"
+              showWords={false}
             />
           </div>
         </div>
@@ -260,7 +260,7 @@ export default function VehicleForm({
           <input className="field" name="plate" placeholder="۱۲ الف ۳۴۵ ایران ۱۱" />
         </Labeled>
         <Labeled label="کارکرد (اختیاری) — کیلومتر">
-          <input className="field num" name="mileage" inputMode="numeric" dir="ltr" placeholder="32500" />
+          <AmountInput className="field num" name="mileage" inputMode="numeric" placeholder="۳۲٬۵۰۰" showWords={false} unit="none" />
         </Labeled>
         <Labeled label="یادداشت (اختیاری)">
           <input className="field" name="notes" placeholder="رنگ، وضعیت بدنه، توضیحات…" />
@@ -285,7 +285,7 @@ export default function VehicleForm({
               />
             </Labeled>
             <Labeled label="نرخ دلار (اختیاری)" hint="خالی بماند: نرخ همان تاریخ از سیستم نرخ ارز خوانده می‌شود.">
-              <input className="field num" name="initialValuationRate" inputMode="numeric" dir="ltr" placeholder="190000" />
+              <AmountInput className="field num" name="initialValuationRate" inputMode="numeric" placeholder="۱۹۰٬۰۰۰" showWords={false} />
             </Labeled>
           </div>
         )}

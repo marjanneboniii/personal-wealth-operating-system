@@ -1179,10 +1179,13 @@ export const wallexAssetCatalog = pgTable(
     priceUsdt: money("price_usdt"),
     isActive: boolean("is_active").notNull().default(true),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Exchange the row came from: "wallex" | "abantether". */
+    source: text("source").notNull().default("wallex"),
   },
   (t) => [
     index("wallex_catalog_kind_idx").on(t.kind),
     index("wallex_catalog_active_idx").on(t.isActive),
+    index("wallex_catalog_source_idx").on(t.source),
   ],
 );
 

@@ -677,6 +677,9 @@ const STATEMENTS = [
   );`,
   `CREATE INDEX IF NOT EXISTS wallex_catalog_kind_idx ON wallex_asset_catalog(kind);`,
   `CREATE INDEX IF NOT EXISTS wallex_catalog_active_idx ON wallex_asset_catalog(is_active);`,
+  // 0023 — which exchange a catalogue row came from (wallex | abantether).
+  `ALTER TABLE wallex_asset_catalog ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'wallex';`,
+  `CREATE INDEX IF NOT EXISTS wallex_catalog_source_idx ON wallex_asset_catalog(source);`,
   `CREATE TABLE IF NOT EXISTS onboarding_intents (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),

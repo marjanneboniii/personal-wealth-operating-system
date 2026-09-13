@@ -25,7 +25,25 @@ import {
   TOMAN_LOGO,
 } from "@/features/branding/persianIcons";
 import TomanIcon from "@/components/ui/TomanIcon";
-import { RealEstateMark, VehicleMark } from "@/components/ui/AssetTypeMarks";
+import {
+  CommodityFundMark,
+  FixedIncomeFundMark,
+  GoldFundMark,
+  IndexMark,
+  RealEstateMark,
+  StockMark,
+  VehicleMark,
+  WALLEX_ASSET_MARKS,
+} from "@/components/ui/AssetTypeMarks";
+
+/** `mark:<kind>` logo references → the drawn mark on the white plate. */
+const KIND_MARKS: Record<string, typeof StockMark> = {
+  stock: StockMark,
+  index: IndexMark,
+  bond: FixedIncomeFundMark,
+  gold: GoldFundMark,
+  commodity: CommodityFundMark,
+};
 
 function localFallback(assetType: string): string {
   if (assetType === "vehicle") return DEFAULT_AUTO_LOGO;
@@ -86,6 +104,32 @@ export default function AssetLogo({
    * all, so this mark — not a brand emblem — is what most users actually see
    * next to their car. Inline, so a list of assets costs no extra requests.
    */
+  /*
+   * Tokenised commodities (والکس) get the system's drawn mark even though the
+   * catalogue stored a logo: that stored image is the ISSUER badge — the same
+   * grey «iShares» disc for oil, silver and gas — so honouring it would make
+   * five different holdings indistinguishable. An explicit user logo still wins.
+   */
+  // A `mark:` logo is a catalogue row that has no trustworthy artwork
+  // (آبان‌تتر publishes none) and asks for the drawn mark of its kind instead.
+  const commodityMark = !input.userLogoUrl
+    ? WALLEX_ASSET_MARKS[(input.symbol ?? "").trim().toUpperCase()] ??
+      (input.logoUrl?.startsWith("mark:") ? KIND_MARKS[input.logoUrl.slice(5)] ?? StockMark : undefined)
+    : undefined;
+  if (commodityMark) {
+    const Mark = commodityMark;
+    return (
+      <span
+        className={`inline-flex shrink-0 overflow-hidden ${className}`}
+        style={{ width: size, height: size, borderRadius }}
+        role="img"
+        aria-label={alt}
+      >
+        <Mark size={size} />
+      </span>
+    );
+  }
+
   if (resolved.src === DEFAULT_AUTO_LOGO || resolved.src === REAL_ESTATE_LOGO) {
     const Mark = resolved.src === DEFAULT_AUTO_LOGO ? VehicleMark : RealEstateMark;
     return (

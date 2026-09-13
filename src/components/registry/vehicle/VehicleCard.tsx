@@ -388,7 +388,7 @@ function ValuationForm({ item }: { item: VehicleDashboardItem }) {
           />
         </Labeled>
         <Labeled label="نرخ دلار (اختیاری)" hint="خالی بماند: نرخ همان تاریخ از سیستم نرخ ارز خوانده می‌شود.">
-          <input className="field num" name="usdRate" inputMode="numeric" dir="ltr" placeholder="210000" />
+          <AmountInput className="field num" name="usdRate" inputMode="numeric" placeholder="۲۱۰٬۰۰۰" showWords={false} />
         </Labeled>
       </div>
 
@@ -431,7 +431,7 @@ function ManagePanel({
             <input className="field" name="plate" defaultValue={item.vehicle.licensePlate ?? ""} />
           </Labeled>
           <Labeled label="کارکرد (کیلومتر)">
-            <input className="field num" name="mileage" inputMode="numeric" dir="ltr" defaultValue={item.vehicle.mileage ?? ""} />
+            <AmountInput className="field num" name="mileage" inputMode="numeric" defaultValue={item.vehicle.mileage ?? ""} showWords={false} unit="none" />
           </Labeled>
         </div>
         <Labeled label="یادداشت">
@@ -457,7 +457,7 @@ function ManagePanel({
             </Labeled>
           </div>
           <Labeled label="نرخ دلار فروش (اختیاری)">
-            <input className="field num" name="saleUsdRate" inputMode="numeric" dir="ltr" placeholder="نرخ تاریخ فروش" />
+            <AmountInput className="field num" name="saleUsdRate" inputMode="numeric" placeholder="نرخ تاریخ فروش" showWords={false} />
           </Labeled>
           <Labeled label="واریز وجه فروش به حساب (اختیاری)">
             <select className="field" name="saleAccountId" defaultValue="">

@@ -21,6 +21,7 @@
  */
 import { ProviderRegistry, providerRegistry } from "./registry";
 import { WallexProvider } from "./wallex";
+import { AbanTetherProvider } from "./abantether";
 
 let bootstrapped = false;
 
@@ -34,6 +35,10 @@ export function bootstrapProviders(registry: ProviderRegistry = providerRegistry
     bootstrapped = true;
   }
   if (!registry.get("wallex")) registry.register(new WallexProvider());
+  // آبان‌تتر — verified live 2026-09-13 (HTTP 200, no key, 87 tokenised
+  // stocks / ETFs / commodities). Registered AFTER Wallex: where both quote a
+  // symbol, Wallex keeps priority.
+  if (!registry.get("abantether")) registry.register(new AbanTetherProvider());
   return registry;
 }
 
@@ -41,6 +46,7 @@ export { ProviderRegistry, providerRegistry, resolveQuotes } from "./registry";
 export type { ResolvedQuote, LastKnownLookup, ResolveOptions } from "./registry";
 export { QuoteCache, quoteCache, DEFAULT_TTL_MS } from "./cache";
 export { WallexProvider } from "./wallex";
+export { AbanTetherProvider } from "./abantether";
 export type {
   PriceProvider,
   PriceQuote,

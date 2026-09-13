@@ -40,9 +40,61 @@ const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG", "DAI
 /** Tokenised metal, surfaced as gold rather than as a generic coin. */
 const METAL_SYMBOLS = new Set(["XAUT", "PAXG"]);
 
-function kindOf(symbol: string): QuoteKind {
+/*
+ * Real-world assets Wallex lists alongside coins. VERIFIED against the live
+ * feed on 2026-09-13: seven US stocks («اپل استاک» AAPLX … «تسلا استاک»
+ * TSLAX) and five Ondo-tokenised commodity funds («گواهی نفت دیجیتال» USOON,
+ * «گواهی نقره دیجیتال» SLVON, …). No index token was listed on that date.
+ *
+ * The explicit sets pin what was seen; the name patterns below catch the
+ * next listing of the same family without a code change. Both read the
+ * source's own Latin name, never a guess about the ticker's shape.
+ */
+const COMMODITY_SYMBOLS = new Set(["USOON", "UNGON", "SLVON", "PPLTON", "COPXON"]);
+const TOKENIZED_STOCK_SYMBOLS = new Set(["AAPLX", "AMZNX", "COINX", "HOODX", "METAX", "NVDAX", "TSLAX"]);
+// Name patterns cover the three tokenisation families seen on آبان‌تتر too:
+// «SP500 tokenized ETF (xStock)», «Invesco QQQ Tokenized ETF (Ondo)»,
+// «iShares MSCI South Korea ETF Tokenized bStocks», «Netflix stock price».
+const INDEX_NAME_RE = /S&P\s*500|\bSP\s?500\b|Nasdaq|\bQQQ\b|\bMSCI\b|Dow Jones|Russell\s*2000|\bindex\b/i;
+const BOND_NAME_RE = /\b(treasury|bond)\b/i;
+const COMMODITY_NAME_RE = /\b(oil|natural gas|silver|copper|platinum|palladium|gold|commodit\w*)\b/i;
+const TOKENIZED_STOCK_NAME_RE = /tokeni[sz]ed|\(ondo\b|\bxstock\b|\bbstocks\b|\bstock price\b/i;
+
+/*
+ * Meme coins get their own section: they behave nothing like BTC or ETH, and
+ * a user scanning «رمزارز» for a store of value should not wade through them.
+ * Pinned by symbol — a meme coin's name rarely says so — from the live feed
+ * on 2026-09-13, plus the well-known ones likely to be listed next.
+ */
+const MEME_SYMBOLS = new Set([
+  "DOGE", "SHIB", "PEPE", "FLOKI", "BONK", "WIF", "1BBABYDOGE", "BABYDOGE", "MEME", "ELON",
+  "TURBO", "MOG", "NEIRO", "BOME", "PENGU", "TOSHI", "DOGS", "CAT", "CATS", "CATI", "HMSTR",
+  "NOT", "MAJOR", "MEMEFI", "GIGGLE", "PUMP", "TRUMP", "BRETT", "POPCAT", "MEW", "PNUT",
+  "GOAT", "SPX", "1000SATS", "PEOPLE", "BABY",
+]);
+
+/** Exported for tests: classification is the whole contract of this step. */
+export function kindOf(symbol: string, latinName = ""): QuoteKind {
   if (METAL_SYMBOLS.has(symbol)) return "gold";
   if (STABLECOIN_SYMBOLS.has(symbol)) return "stablecoin";
+  if (MEME_SYMBOLS.has(symbol)) return "meme";
+  if (COMMODITY_SYMBOLS.has(symbol)) return "commodity";
+  if (TOKENIZED_STOCK_SYMBOLS.has(symbol)) return "tokenized_stock";
+  // Only a name that says it is TOKENISED enters this branch, so a coin that
+  // merely calls itself «Silver» can never be mistaken for the metal. Inside,
+  // order matters: a gas fund's Latin name literally says «Tokenized Stock»,
+  // so the narrower family wins.
+  if (TOKENIZED_STOCK_NAME_RE.test(latinName)) {
+    // A leveraged or single-stock ETF («Semicon Bull 3X», «2X Long INTC») is
+    // a trade on shares, not the index — only a plain index fund is «شاخص».
+    // «ProShares UltraPro QQQ» (TQQQ) states no multiple, so the fund-family
+    // words count as leverage too.
+    const leveraged = /\b\d+X\b|\bUltra(Pro)?\b|\bBull\b|\bBear\b|\bInverse\b/i.test(latinName);
+    if (BOND_NAME_RE.test(latinName)) return "bond";
+    if (COMMODITY_NAME_RE.test(latinName)) return "commodity";
+    if (INDEX_NAME_RE.test(latinName) && !leveraged) return "index";
+    return "tokenized_stock";
+  }
   return "crypto";
 }
 
@@ -110,7 +162,15 @@ export type WallexProviderOptions = {
 export class WallexProvider implements PriceProvider {
   readonly id = "wallex";
   readonly displayName = "والکس";
-  readonly kinds: readonly QuoteKind[] = ["crypto", "stablecoin", "gold"];
+  readonly kinds: readonly QuoteKind[] = [
+    "crypto",
+    "meme",
+    "stablecoin",
+    "gold",
+    "tokenized_stock",
+    "commodity",
+    "index",
+  ];
   readonly quoteCurrency = "IRT";
 
   private readonly fetchImpl: typeof fetch;
@@ -191,7 +251,7 @@ export class WallexProvider implements PriceProvider {
         symbol,
         displayName,
         latinName: str(row.enBaseAsset) ?? symbol,
-        kind: kindOf(symbol),
+        kind: kindOf(symbol, str(row.enBaseAsset) ?? ""),
         logoUrl: str(row.baseAsset_svg_icon) ?? str(row.baseAsset_png_icon),
       });
     }
@@ -251,7 +311,7 @@ export class WallexProvider implements PriceProvider {
         symbol,
         displayName,
         latinName: str(named?.enBaseAsset) ?? symbol,
-        kind: kindOf(symbol),
+        kind: kindOf(symbol, str(named?.enBaseAsset) ?? ""),
         logoUrl: str(named?.baseAsset_svg_icon) ?? str(named?.baseAsset_png_icon),
         priceTmn,
         priceUsdt,

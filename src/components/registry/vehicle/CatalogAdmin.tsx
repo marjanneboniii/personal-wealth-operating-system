@@ -1,5 +1,6 @@
 "use client";
 
+import AmountInput from "@/components/ui/AmountInput";
 import { useActionState, useMemo, useState } from "react";
 import { createVehicleBrandAction, createVehicleModelAction } from "@/app/actions/registry";
 import type { VehicleBrand, VehicleCatalogModel } from "@/features/rwa/vehicle/types";
@@ -56,7 +57,7 @@ export default function CatalogAdmin({
               <input className="field" name="manufacturer" placeholder="در صورت وجود" />
             </Labeled>
             <Labeled label="سال مدل کاتالوگ (اختیاری)">
-              <input className="field num" name="modelYear" inputMode="numeric" dir="ltr" placeholder="2025" />
+              <AmountInput className="field num" name="modelYear" inputMode="numeric" placeholder="۲۰۲۵" showWords={false} unit="none" grouping={false} />
             </Labeled>
             <Labeled label="دسته‌بندی خودرو">
               <select className="field" name="category" defaultValue="">

@@ -269,13 +269,14 @@ export default function DebtForm({
             </div>
             <div>
               <label className="label">نرخ سود سالانه (درصد)</label>
-              <input
+              <AmountInput
                 value={interestRate}
-                onChange={(event) => setInterestRate(event.target.value.replace(/[^0-9.]/g, ""))}
+                onChange={(event) => setInterestRate(event.target.value)}
                 className="field num"
                 inputMode="decimal"
-                dir="ltr"
-                placeholder="18"
+                placeholder="۱۸"
+                showWords={false}
+                unit="none"
               />
               <p className="muted mt-1 text-[length:var(--fs-xs)]">
                 در این مرحله به‌عنوان اطلاعات {noun} ذخیره می‌شود؛ محاسبه خودکار سود انجام نمی‌گیرد.
@@ -335,13 +336,15 @@ export default function DebtForm({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="label">تعداد اقساط</label>
-                  <input
+                  <AmountInput
                     value={installmentCount}
-                    onChange={(event) => setInstallmentCount(event.target.value.replace(/[^0-9]/g, ""))}
+                    onChange={(event) => setInstallmentCount(event.target.value)}
                     className="field num"
                     inputMode="numeric"
-                    dir="ltr"
-                    placeholder="12"
+                    placeholder="۱۲"
+                    showWords={false}
+                    unit="none"
+                    grouping={false}
                   />
                 </div>
                 <div>

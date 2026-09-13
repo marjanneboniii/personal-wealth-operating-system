@@ -19,6 +19,7 @@ import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { invalidateTenantStateCache } from "@/lib/tenantState";
 import { rootCauseOf } from "@/db/init-schema";
 import { registerInstrument } from "@/features/funds/service";
+import { registerWallexAsset } from "@/features/pricing/wallexRegistration";
 import { createUserVehicle } from "@/features/rwa/vehicle/service";
 import { createRealEstateAsset } from "@/features/rwa/realEstate/service";
 import {
@@ -85,8 +86,9 @@ export type SetupInput = {
    * numbers later — and simply opens no lot.
    */
   instruments?: Array<{
-    kind: "fund" | "stock";
-    /** Tehran-exchange symbol in Persian, e.g. «عیار» or «فولاد». */
+    /** «wallex» = a US stock / commodity / index token from the والکس catalogue. */
+    kind: "fund" | "stock" | "wallex";
+    /** TSE symbol in Persian («عیار», «فولاد») or a Wallex symbol («AAPLX»). */
     symbol: string;
     name?: string;
     /** Units held. Empty means «register it, I will add the amount later». */
@@ -664,15 +666,21 @@ export async function completeSetup(
       const symbol = instrument.symbol?.trim();
       if (!symbol) continue;
 
-      const registered = await registerInstrument({
-        kind: instrument.kind,
-        symbol,
-        name: instrument.name,
-        userId: user.id,
-        // Enrolled in THIS transaction: a wizard that fails half-way must leave
-        // neither stray asset rows nor an unbalanced ledger.
-        tx: tx as unknown as typeof db,
-      });
+      // A والکس pick (سهام آمریکا، کامودیتی، شاخص) is registered by the same
+      // function the /funds picker delegates to; a TSE fund or stock by
+      // `registerInstrument`. Either way, enrolled in THIS transaction: a
+      // wizard that fails half-way must leave neither stray asset rows nor an
+      // unbalanced ledger.
+      const registered =
+        instrument.kind === "wallex"
+          ? await registerWallexAsset({ symbol, userId: user.id, tx: tx as unknown as typeof db })
+          : await registerInstrument({
+              kind: instrument.kind,
+              symbol,
+              name: instrument.name,
+              userId: user.id,
+              tx: tx as unknown as typeof db,
+            });
       if (!registered.accountId) continue;
 
       const qty = D(instrument.quantity || "0");

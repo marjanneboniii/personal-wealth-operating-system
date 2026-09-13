@@ -222,6 +222,109 @@ export function StockMark({ size = 48, plate = "#FFFFFF", ink = "#1F6F5C", class
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   کامودیتی و شاخص — the tokenised real-world assets listed on والکس.
+   Wallex's own artwork for these is the ISSUER's badge («iShares» on a grey
+   disc for oil, silver AND gas alike), which says nothing about what is held
+   and makes five different commodities look identical. So each is drawn by
+   the thing itself, on the same white plate as every mark above. The US
+   stocks keep their real brand logos — those do identify the holding.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/** نفت — a single drop. A barrel needs hoops and a lid that die at 24px. */
+export function OilMark({ size = 48, plate = "#FFFFFF", ink = "#2B2F3A", className = "" }: MarkProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
+      <Plate fill={plate} />
+      <path d="M24 11.4c-3.8 4.6-9.6 11.2-9.6 17.4a9.6 9.6 0 0 0 19.2 0c0-6.2-5.8-12.8-9.6-17.4z" fill={ink} />
+      {/* The sheen — the one detail that makes a drop read as LIQUID. */}
+      <path d="M19.4 29.2c.1 2.7 2 4.7 4.6 5.1" stroke={plate} strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** گاز طبیعی — a blue flame with its hollow core. */
+export function NaturalGasMark({ size = 48, plate = "#FFFFFF", ink = "#2F6FD1", className = "" }: MarkProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
+      <Plate fill={plate} />
+      <path d="M24.4 10.8c1 4.6 4.4 7.2 7 10.6 1.9 2.5 2.8 5 2.8 7.6 0 5.6-4.5 9.6-10.2 9.6s-10.2-4-10.2-9.6c0-3.9 2-6.9 4.6-9.2.3 2.6 1.4 4.4 3.2 5.2-.6-5 .8-10 2.8-14.2z" fill={ink} />
+      <path d="M24 26.4c2.4 2.2 3.8 4 3.8 6 0 2.2-1.7 3.8-3.8 3.8s-3.8-1.6-3.8-3.8c0-2 1.4-3.8 3.8-6z" fill={plate} />
+    </svg>
+  );
+}
+
+/**
+ * نقره — ingots, the SAME taper as صندوق طلا so the two metals read as
+ * siblings, but stacked as a pyramid on a bar so they differ in silhouette and
+ * not only in colour (a colour-blind user must still tell them apart).
+ */
+export function SilverMark({ size = 48, plate = "#FFFFFF", ink = "#6E7787", className = "" }: MarkProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
+      <Plate fill={plate} />
+      <path d="M19.4 16.4h9.2c.5 0 .9.3 1.1.8l1.6 4.2H16.7l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={ink} />
+      <path d="M14.2 24.6h9.2c.5 0 .9.3 1.1.8l1.6 4.2H11.5l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={ink} />
+      <path d="M24.6 24.6h9.2c.5 0 .9.3 1.1.8l1.6 4.2H21.9l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={ink} />
+      <rect x="11.5" y="32.6" width="25" height="3.4" rx="1.7" fill={ink} opacity="0.4" />
+    </svg>
+  );
+}
+
+/** پلاتین — a faceted hexagon: the one metal here sold as a «precious» cut. */
+export function PlatinumMark({ size = 48, plate = "#FFFFFF", ink = "#3E5C76", className = "" }: MarkProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
+      <Plate fill={plate} />
+      <path d="M24 11.6l10.8 6.2v12.4L24 36.4l-10.8-6.2V17.8z" fill={ink} />
+      <path d="M24 18.6l4.8 2.8v5.2L24 29.4l-4.8-2.8v-5.2z" fill={plate} />
+    </svg>
+  );
+}
+
+/**
+ * مس — a spool of wound wire: copper's use, not its ore. A ring-with-a-tail
+ * coil was tried first and read as a MAGNIFYING GLASS — a search icon — which
+ * in an app full of search boxes is a genuine misreading.
+ */
+export function CopperMark({ size = 48, plate = "#FFFFFF", ink = "#B0602A", className = "" }: MarkProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
+      <Plate fill={plate} />
+      {/* Two flanges, and the winding between them at lower weight. */}
+      <rect x="12.4" y="12.4" width="5" height="23.2" rx="2" fill={ink} />
+      <rect x="30.6" y="12.4" width="5" height="23.2" rx="2" fill={ink} />
+      <rect x="17.4" y="17" width="13.2" height="3.6" rx="1.2" fill={ink} opacity="0.6" />
+      <rect x="17.4" y="22.2" width="13.2" height="3.6" rx="1.2" fill={ink} opacity="0.6" />
+      <rect x="17.4" y="27.4" width="13.2" height="3.6" rx="1.2" fill={ink} opacity="0.6" />
+    </svg>
+  );
+}
+
+/** شاخص — an axis with a rising index line: a MARKET, not a single share. */
+export function IndexMark({ size = 48, plate = "#FFFFFF", ink = "#4B4DC4", className = "" }: MarkProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
+      <Plate fill={plate} />
+      <path d="M13 12.6v22.4h22.4" stroke={ink} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" opacity="0.45" />
+      <path d="M18 29l5-5.4 4.4 3.6 7-8.2" stroke={ink} strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * Wallex symbol → its drawn mark. Keyed by SYMBOL because that is what every
+ * asset row has; an unlisted future commodity simply falls back to the
+ * source's artwork on the white plate, never to another commodity's mark.
+ */
+export const WALLEX_ASSET_MARKS: Record<string, (props: MarkProps) => React.JSX.Element> = {
+  USOON: OilMark,
+  UNGON: NaturalGasMark,
+  SLVON: SilverMark,
+  PPLTON: PlatinumMark,
+  COPXON: CopperMark,
+};
+
 /** The fund kinds, keyed the way features/funds/catalogData.ts keys them. */
 export const FUND_KIND_MARKS = {
   gold: GoldFundMark,
