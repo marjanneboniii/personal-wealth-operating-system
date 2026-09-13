@@ -168,7 +168,7 @@ export default function WallexAssetPicker({
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="جست‌وجو: بیت‌کوین، دوج، اپل، S&P، نفت، BTC…"
+        placeholder="جست‌وجو: بیت‌کوین، مونرو، اپل، S&P، نفت، BTC…"
         className="field"
         aria-label="جست‌وجوی نماد"
         autoComplete="off"

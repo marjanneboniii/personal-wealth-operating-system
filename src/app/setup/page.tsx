@@ -10,6 +10,7 @@ import { currencyLabel, faCount, formatMoney, formatMoneyWithSign, formatQty } f
 import AmountInput from "@/components/ui/AmountInput";
 import AssetLogo from "@/components/ui/AssetLogo";
 import { SUPPORTED_CRYPTO_ASSETS } from "@/features/pricing/supportedAssets";
+import { isMemeSymbol } from "@/features/pricing/wallexKinds";
 import SetupDebtsStep, { type DebtDraftRow } from "@/components/setup/SetupDebtsStep";
 import SetupInstrumentsStep, { type InstrumentDraftRow } from "@/components/setup/SetupInstrumentsStep";
 import SetupRealAssetsStep, {
@@ -151,7 +152,7 @@ export default function SetupWizardPage() {
   const cryptoMatches = useMemo(() => {
     const q = cryptoQuery.trim().toLowerCase();
     if (!q) return [];
-    return SUPPORTED_CRYPTO_ASSETS.filter(
+    return SUPPORTED_CRYPTO_ASSETS.filter((c) => !isMemeSymbol(c.symbol)).filter(
       (c) =>
         c.displayName.includes(cryptoQuery.trim()) ||
         c.symbol.toLowerCase().includes(q) ||

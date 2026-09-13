@@ -79,7 +79,7 @@ export default function MarketView({ initial }: { initial: MarketCatalogLoadResu
             setQuery(e.target.value);
             setShown(PAGE);
           }}
-          placeholder="جست‌وجوی نام یا نماد: بیت‌کوین، دوج، اپل، S&P، نفت…"
+          placeholder="جست‌وجوی نام یا نماد: بیت‌کوین، مونرو، اپل، S&P، نفت…"
           className="field min-w-0 flex-1"
           aria-label="جست‌وجوی نماد"
           autoComplete="off"

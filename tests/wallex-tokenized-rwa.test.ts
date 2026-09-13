@@ -100,7 +100,9 @@ test("the live feed's US stocks and commodities classify by what they hold", asy
   // must still land as a commodity, not as a share.
   for (const s of ["USOON", "UNGON", "SLVON", "PPLTON", "COPXON"]) assert.equal(kind(s), "commodity", s);
   assert.equal(kind("BTC"), "crypto");
-  assert.equal(kind("AGLD"), "crypto", "«Adventure Gold» is a coin, not the metal");
+  // «Adventure Gold» is a coin, not the metal — and not on the curated list.
+  assert.equal(kindOf("AGLD", "Adventure Gold"), "crypto", "a coin, not the metal");
+  assert.equal(kind("AGLD"), undefined, "outside the curated crypto list, so not a market row");
 
   // Both markets, read independently, exactly like every other Wallex row.
   const nvda = entries.find((e: any) => e.symbol === "NVDAX");
