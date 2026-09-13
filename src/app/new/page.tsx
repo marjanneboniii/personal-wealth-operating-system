@@ -9,11 +9,6 @@ import { todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { listDebts } from "@/features/planning/service";
 import { ensureCategoryCatalog, listCategoryTree } from "@/features/categories/service";
-import {
-  ensureCoinGeckoCatalog,
-  getMarketCatalogStatus,
-  listPricedCoinGeckoCatalog,
-} from "@/features/pricing/catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +23,6 @@ export default async function NewTransactionPage({
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? null;
   await seedIfEmpty();
-  await ensureCoinGeckoCatalog();
   const params = await searchParams;
   const defaultType = VALID.includes(params.type as TxType) ? (params.type as TxType) : "expense";
 
@@ -36,7 +30,10 @@ export default async function NewTransactionPage({
     "3000", "3010", "3200", "4000", "4010", "4100", "4900",
     "5000", "5010", "5020", "5030", "5040", "5050", "5900", "5960",
   ];
-  const [rows, fxSnap, debts, marketAssets, categoryTree] = await Promise.all([
+  // The page no longer waits on any price catalogue: the asset picker loads
+  // the market list itself, once, in the browser. Waiting here on an upstream
+  // price refresh is what made «ثبت تراکنش» slow to open.
+  const [rows, fxSnap, debts, categoryTree] = await Promise.all([
     db
       .select({
         id: accounts.id,
@@ -69,10 +66,8 @@ export default async function NewTransactionPage({
       .orderBy(asc(accounts.code)),
     getLatestUsdIrtRate(),
     listDebts(userId ?? undefined),
-    listPricedCoinGeckoCatalog("", 500),
     ensureCategoryCatalog().then(() => listCategoryTree(userId ?? undefined)),
   ]);
-  const catalogStatus = await getMarketCatalogStatus();
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -91,22 +86,6 @@ export default async function NewTransactionPage({
             description: c.description,
           })),
         }))}
-        marketAssets={marketAssets.map((asset) => ({
-          coingeckoId: asset.coingeckoId,
-          symbol: asset.symbol,
-          name: asset.name,
-          displayName: asset.displayName,
-          logoUrl: asset.logoUrl,
-          priceUsd: asset.priceUsd,
-          priceFreshness: asset.priceFreshness,
-          priceFailureCode: asset.priceFailureCode,
-          priceObservedAt: asset.priceObservedAt,
-        }))}
-        marketCatalogStatus={{
-          total: catalogStatus.total,
-          crypto: catalogStatus.crypto,
-          bootstrapOnly: catalogStatus.usingOfflineFloor,
-        }}
         debts={debts as any}
         defaultType={defaultType}
         today={todayIso()}

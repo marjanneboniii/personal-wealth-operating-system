@@ -1,22 +1,49 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useRef, useTransition } from "react";
+/**
+ * ثبت تراکنش — rebuilt around the three questions a person actually answers:
+ *
+ *   ۱. چه اتفاقی افتاد؟   the type, then WHAT: a category, an income source,
+ *                          two accounts, an asset, or a debt
+ *   ۲. چقدر؟              the amount (and, for an asset, the quantity)
+ *   ۳. از کجا و کی؟       the money account, the date, a note
+ *
+ * WHAT THE OLD FORM GOT WRONG, AND WHAT REPLACED IT
+ *   • Account CODES («WLX-BTC — …», «1010 — …») were shown to users. Accounts
+ *     are now shown by name and unit only; codes stay in the ledger.
+ *   • The amount came first, before the user had said what the money was for.
+ *   • Buying an asset meant a search list AND a separate account select that
+ *     listed the same thing twice. The user's own assets are now one tap away,
+ *     the market list is behind «دارایی دیگر», and the pick shows its price.
+ *   • A transfer could name the same account as source and destination.
+ *   • A USDT commission was previewed as Toman.
+ *   • «شرح» was mandatory; it is now filled in from what was chosen, and only
+ *     overridden when the user types one.
+ *   • The disabled button said «complete the form» without saying WHAT was
+ *     missing. It now lists the missing items.
+ *   • Every number field accepts Persian or Latin digits and shows ۱٬۰۰۰٬۰۰۰.
+ *
+ * THE SERVER CONTRACT IS UNCHANGED. The same fields reach
+ * `createTransactionAction` with the same meanings (primaryAccountId /
+ * counterAccountId per type, irtAmount, quantity, fee + feeMode, categoryId,
+ * debtId / installmentId); only how they are collected changed. No accounting
+ * rule moved into the UI, and nothing is written before «تأیید و ثبت».
+ */
+import { useActionState, useEffect, useRef, useState } from "react";
 import { createTransactionAction, createCategoryAction, type ActionResult } from "@/app/actions";
-import {
-  refreshMarketCatalogAction,
-  registerMarketAssetAction,
-  searchMarketCatalogAction,
-} from "@/app/actions/pricing";
-import { currencyLabel, formatMoney, getDualDate, faCount, hasPersianCurrencyLabel } from "@/lib/format";
-import { SmartAmountPreview, PreviewCard, useLatestRate } from "@/components/ui/SmartPreview";
+import { currencyLabel, faCount, formatMoney, formatQty, getDualDate } from "@/lib/format";
+import { useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
-import Icon from "@/components/ui/Icon";
+import Icon, { type IconName } from "@/components/ui/Icon";
 import AssetLogo from "@/components/ui/AssetLogo";
+import WallexAssetPicker from "@/components/assets/WallexAssetPicker";
+import { loadMarketCatalog } from "@/components/assets/marketCatalogClient";
 import DebtInstallmentExplorer, { type DebtOption } from "./DebtInstallmentExplorer";
 import { D } from "@/domain/decimal";
 import { isLiquidAccount } from "@/features/accounts/classification";
-import type { PriceFailureCode, PriceFreshness } from "@/features/pricing/types";
+import type { MarketRow } from "@/features/pricing/marketSearch";
+import { normalizeNumericInput } from "@/lib/numericInput";
 import { FormStatus } from "@/components/ui/FormStatus";
 
 export type AccountOption = {
@@ -39,43 +66,6 @@ export type AccountOption = {
   walletKind?: string | null;
 };
 
-export type MarketAssetOption = {
-  coingeckoId: string;
-  symbol: string;
-  name: string;
-  displayName: string;
-  logoUrl: string;
-  priceUsd: string | null;
-  priceFreshness: PriceFreshness;
-  priceFailureCode?: PriceFailureCode;
-  priceObservedAt: string | null;
-};
-
-export type MarketCatalogStatus = {
-  total: number;
-  crypto: number;
-  bootstrapOnly: boolean;
-};
-
-function priceFailureLabel(code?: PriceFailureCode): string {
-  switch (code) {
-    case "rate_limited":
-      return "محدودیت درخواست CoinGecko";
-    case "timeout":
-      return "پاسخ CoinGecko بیش از حد طول کشید";
-    case "network_failure":
-      return "ارتباط سرور با CoinGecko برقرار نشد";
-    case "asset_not_found":
-      return "قیمت این شناسه در CoinGecko یافت نشد";
-    case "invalid_response":
-      return "پاسخ قیمت CoinGecko نامعتبر بود";
-    case "upstream_error":
-      return "سرویس CoinGecko موقتاً در دسترس نیست";
-    default:
-      return "قیمت فعلاً در دسترس نیست";
-  }
-}
-
 /** Hierarchical expense categories (parent → leaf children). */
 export type CategoryChildOption = {
   id: string;
@@ -92,50 +82,42 @@ export type CategoryGroupOption = {
 };
 
 const TYPES = [
-  { key: "expense", label: "هزینه", primary: "پرداخت از حساب", counter: "دسته هزینه" },
-  { key: "income", label: "درآمد", primary: "واریز به حساب", counter: "دسته درآمد" },
-  { key: "transfer", label: "انتقال", primary: "از حساب", counter: "به حساب" },
-  { key: "debt_repayment", label: "بازپرداخت بدهی", primary: "پرداخت از حساب نقد/بانک", counter: "سرفصل طبقه‌بندی خروج وجه" },
-  { key: "buy", label: "خرید دارایی", primary: "حساب دارایی خریداری‌شده", counter: "پرداخت از حساب" },
-  { key: "sell", label: "فروش دارایی", primary: "حساب دارایی فروخته‌شده", counter: "واریز به حساب" },
-] as const;
+  { key: "expense", label: "هزینه", icon: "card" },
+  { key: "income", label: "درآمد", icon: "download" },
+  { key: "transfer", label: "انتقال", icon: "swap" },
+  { key: "buy", label: "خرید دارایی", icon: "plus" },
+  { key: "sell", label: "فروش دارایی", icon: "upload" },
+  { key: "debt_repayment", label: "پرداخت بدهی", icon: "debts" },
+] as const satisfies ReadonlyArray<{ key: string; label: string; icon: IconName }>;
 
 type TxType = (typeof TYPES)[number]["key"];
 
-/**
- * ONE source of truth for both the option lists and the stale-selection
- * cleanup in `pickType`, so a select can never offer an account the submit path
- * would refuse. Pure + module-level, hence no hook dependencies to track:
- *   • the payment side of EVERY daily flow (هزینه، درآمد، بازپرداخت، پرداختِ
- *     خرید و دریافتِ فروش) is restricted to liquid accounts — bank, cash box,
- *     fund and stablecoin wallets (audit F-11);
- *   • a transfer may still move any position between two of the user's own
- *     accounts; buy/sell target a position, never a fiat wallet.
- */
-function primaryOptionsFor(key: TxType, cash: AccountOption[], liquidCash: AccountOption[]): AccountOption[] {
-  if (key === "buy" || key === "sell") return cash.filter((a) => !["IRT", "USD"].includes(a.symbol ?? ""));
-  if (key === "expense" || key === "income" || key === "debt_repayment") return liquidCash;
-  return cash;
+/** Units a money account holds that are never «an asset you trade». */
+const FIAT_SYMBOLS = new Set(["IRT", "IRR", "USD"]);
+/** Units the existing FX engine can anchor a cross-unit transfer on. */
+const SWAP_ANCHOR_ASSETS = new Set(["IRT", "USD", "USDT", "USDC", "USDG", "USDE", "USDS"]);
+
+/** An account by NAME and unit — never by its ledger code. */
+function accountLabel(a: AccountOption | undefined | null): string {
+  if (!a) return "—";
+  const unit = a.symbol ? currencyLabel(a.symbol) : "";
+  const named = unit && (a.name.includes(unit) || (a.symbol && a.name.includes(a.symbol)));
+  return unit && !named ? `${a.name} · ${unit}` : a.name;
 }
 
-function counterOptionsFor(
-  key: TxType,
-  accountOptions: AccountOption[],
-  cash: AccountOption[],
-  liquidCash: AccountOption[],
-): AccountOption[] {
-  if (key === "expense") return [];
-  if (key === "income") return accountOptions.filter((a) => a.type === "income");
-  if (key === "debt_repayment") return accountOptions.filter((a) => a.type === "expense");
-  // buy / sell are paid from — or credited to — a money account only.
-  return key === "buy" || key === "sell" ? liquidCash : cash;
+/**
+ * The chosen id when it is still valid for this list; otherwise the only
+ * option when there is exactly one (a user with one bank account should never
+ * have to pick it); otherwise nothing.
+ */
+function resolve(id: string, options: AccountOption[], autoSingle = true): string {
+  if (id && options.some((o) => o.id === id)) return id;
+  return autoSingle && options.length === 1 ? options[0].id : "";
 }
 
 type Props = {
   accounts: AccountOption[];
   categories?: CategoryGroupOption[];
-  marketAssets?: MarketAssetOption[];
-  marketCatalogStatus?: MarketCatalogStatus;
   debts?: DebtOption[];
   defaultType?: TxType;
   today: string;
@@ -150,11 +132,58 @@ type Props = {
   initialInstallmentId?: string;
 };
 
+function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <section className="card space-y-3 p-4">
+      <h2 className="flex items-center gap-2 text-[length:var(--fs-sm)] font-bold">
+        <span
+          className="num inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[length:var(--fs-xs)]"
+          style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+          aria-hidden="true"
+        >
+          {faCount(n)}
+        </span>
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+function AccountSelect({
+  label,
+  value,
+  options,
+  onChange,
+  empty,
+}: {
+  label: string;
+  value: string;
+  options: AccountOption[];
+  onChange: (id: string) => void;
+  empty?: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      <select className="field" value={value} onChange={(e) => onChange(e.target.value)} disabled={options.length === 0}>
+        <option value="" disabled>
+          {options.length === 0 ? "حسابی موجود نیست" : "انتخاب کنید…"}
+        </option>
+        {options.map((a) => (
+          <option key={a.id} value={a.id}>
+            {accountLabel(a)}
+          </option>
+        ))}
+      </select>
+      {options.length === 0 ? empty : null}
+    </div>
+  );
+}
+
 export default function TransactionForm({
   accounts,
   categories = [],
-  marketAssets = [],
-  marketCatalogStatus,
   debts = [],
   defaultType = "expense",
   today,
@@ -169,52 +198,34 @@ export default function TransactionForm({
   initialInstallmentId,
 }: Props) {
   const [type, setType] = useState<TxType>(defaultType);
-  const [irtAmount, setIrtAmount] = useState(initialIrtAmount ?? "");
-  /* Hierarchical expense category: parent group → leaf sub-category */
+  const [irtAmount, setIrtAmount] = useState(() => normalizeNumericInput(initialIrtAmount ?? ""));
+  const [quantity, setQuantity] = useState("");
+  const [fee, setFee] = useState("");
+  const [entryDate, setEntryDate] = useState(initialEntryDate ?? today);
+  const [description, setDescription] = useState(initialDescription ?? initialTitle ?? "");
+
+  // One selection per ROLE, not per ledger column: a bank account chosen to
+  // pay an expense is still selected when the user switches to «خرید دارایی».
+  const [moneyAccountId, setMoneyAccountId] = useState("");
+  const [assetAccountId, setAssetAccountId] = useState("");
+  const [fromAccountId, setFromAccountId] = useState("");
+  const [toAccountId, setToAccountId] = useState("");
+  const [incomeAccountId, setIncomeAccountId] = useState("");
+
+  const [categoryGroups, setCategoryGroups] = useState<CategoryGroupOption[]>(categories);
   const [categoryParentId, setCategoryParentId] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [categoryGroups, setCategoryGroups] = useState<CategoryGroupOption[]>(categories);
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [categoryMessage, setCategoryMessage] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [primaryAccountId, setPrimaryAccountId] = useState("");
-  const [counterAccountId, setCounterAccountId] = useState(() =>
-    defaultType === "expense" ? accounts.find((a) => a.type === "expense")?.id ?? "" : "",
-  );
-  const [entryDate, setEntryDate] = useState(initialEntryDate ?? today);
-  /**
-   * Independent «شرح» draft per transaction type. Switching type must never
-   * carry one type's description into another; each type keeps its own draft
-   * (preserved across type switches). This is UI state only — the description
-   * is still submitted to the ledger through the single `description` field.
-   */
-  const [descriptionDrafts, setDescriptionDrafts] = useState<Partial<Record<TxType, string>>>(() => {
-    const initial = initialDescription ?? initialTitle ?? "";
-    return initial ? { [defaultType]: initial } : {};
-  });
-  const description = descriptionDrafts[type] ?? "";
-  const setDescription = (value: string) =>
-    setDescriptionDrafts((cur) => ({ ...cur, [type]: value }));
-  const [fee, setFee] = useState("");
+
   const [selectedDebt, setSelectedDebt] = useState<DebtOption | null>(null);
   const [selectedInst, setSelectedInst] = useState<DebtOption["installments"][number] | null>(null);
-  const [showExplorer, setShowExplorer] = useState(defaultType === "debt_repayment");
-  const [showPreview, setShowPreview] = useState(false);
+
   const [accountOptions, setAccountOptions] = useState(accounts);
-  const [assetSearch, setAssetSearch] = useState("");
-  const [catalogMessage, setCatalogMessage] = useState("");
-  const [registering, startRegistration] = useTransition();
-  const [catalogResults, setCatalogResults] = useState<MarketAssetOption[]>(marketAssets);
-  const [catalogSearching, setCatalogSearching] = useState(false);
-  const [catalogStatus, setCatalogStatus] = useState<MarketCatalogStatus>(
-    marketCatalogStatus ?? {
-      total: marketAssets.length,
-      crypto: marketAssets.length,
-      bootstrapOnly: false,
-    },
-  );
-  const [refreshingCatalog, startCatalogRefresh] = useTransition();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [market, setMarket] = useState<Map<string, MarketRow>>(() => new Map());
+  const [confirming, setConfirming] = useState(false);
 
   const { rate, date: rateDate, source: rateSource } = useLatestRate(initialRate ?? null);
   const effectiveRate = initialRate ?? rate;
@@ -223,66 +234,166 @@ export default function TransactionForm({
 
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(createTransactionAction, null);
 
-  const meta = TYPES.find((t) => t.key === type)!;
-  const cash = accountOptions.filter((a) => a.type === "asset");
-  const liquidCash = useMemo(() => cash.filter((a) => isLiquidAccount(a)), [cash]);
-  const primaryOptions = useMemo(
-    () => primaryOptionsFor(type, cash, liquidCash),
-    [type, cash, liquidCash],
-  );
-  const counterOptions = useMemo(
-    () => counterOptionsFor(type, accountOptions, cash, liquidCash),
-    [type, accountOptions, cash, liquidCash],
-  );
-  const isAssetPicker = type === "buy" || type === "sell";
+  // A successful save clears the amounts for the next entry. Done while
+  // rendering (React's pattern for reacting to a changed value), not in an
+  // effect, so the cleared form never flashes the old numbers.
+  const [handledState, setHandledState] = useState(state);
+  if (state !== handledState) {
+    setHandledState(state);
+    setConfirming(false);
+    if (state?.ok) {
+      setIrtAmount("");
+      setQuantity("");
+      setFee("");
+      setDescription("");
+      setSelectedDebt(null);
+      setSelectedInst(null);
+    }
+  }
 
-  /* ── Expense category derivation ── */
+  const isTrade = type === "buy" || type === "sell";
+
+  /* ── Option lists ─────────────────────────────────────────────────── */
+  const assetAccounts = accountOptions.filter((a) => a.type === "asset");
+  // Daily money — bank, cash box, stablecoin wallets (audit F-11).
+  const moneyOptions = assetAccounts.filter((a) => isLiquidAccount(a));
+  // What can be bought or sold: any position that is not plain fiat.
+  const tradeOptions = assetAccounts.filter((a) => !FIAT_SYMBOLS.has((a.symbol ?? "").toUpperCase()));
+  const incomeOptions = accountOptions.filter((a) => a.type === "income");
+
+  const fromId = resolve(fromAccountId, assetAccounts, false);
+  // A transfer can never land in the account it left.
+  const toOptions = assetAccounts.filter((a) => a.id !== fromId);
+  const toId = resolve(toAccountId, toOptions, false);
+  const moneyId = resolve(moneyAccountId, moneyOptions);
+  const assetId = resolve(assetAccountId, tradeOptions, false);
+  const incomeId = resolve(incomeAccountId, incomeOptions);
+
+  const byId = (id: string) => accountOptions.find((a) => a.id === id);
+  const moneyAccount = byId(moneyId);
+  const assetAccount = byId(assetId);
+  const fromAccount = byId(fromId);
+  const toAccount = byId(toId);
+  const incomeAccount = byId(incomeId);
+
+  /* ── Expense category ─────────────────────────────────────────────── */
   const selectedParent = categoryGroups.find((g) => g.id === categoryParentId) ?? null;
   const selectedCategory = selectedParent?.children.find((c) => c.id === categoryId) ?? null;
-  const isNonCashCategory = selectedCategory?.nature === "non_cash";
-  const selectedDebtHasLedgerAccount = !!selectedDebt?.accountId;
+  const isNonCash = type === "expense" && selectedCategory?.nature === "non_cash";
 
   /**
-   * Type switch handler — expense / debt-repayment entries always need a
-   * counter expense account for the double-entry ledger, so it is defaulted
-   * to the first one here (in the event handler, not in an effect), keeping
-   * the category picker as the user's main decision.
-   *
-   * When switching to buy / sell / transfer, counter accounts MUST strictly be
-   * cash/bank asset accounts, so any leftover expense/income account is wiped.
+   * Counter for a repayment of a PLANNING-ONLY debt (no ledger liability
+   * account): 5960 «پرداخت اقساط», never 5900 «هزینه متفرقه» (audit F-3). A
+   * debt WITH a liability account needs no counter — the server reduces it.
    */
+  const installmentBucket =
+    accountOptions.find((a) => a.type === "expense" && a.code === "5960") ??
+    accountOptions.find((a) => a.type === "expense");
+
+  /* ── What the server receives, per type ───────────────────────────── */
+  let primaryAccountId = "";
+  let counterAccountId = "";
+  switch (type) {
+    case "expense":
+      primaryAccountId = isNonCash ? "" : moneyId;
+      break;
+    case "income":
+      primaryAccountId = moneyId;
+      counterAccountId = incomeId;
+      break;
+    case "transfer":
+      primaryAccountId = fromId;
+      counterAccountId = toId;
+      break;
+    case "buy":
+    case "sell":
+      primaryAccountId = assetId;
+      counterAccountId = moneyId;
+      break;
+    case "debt_repayment":
+      primaryAccountId = moneyId;
+      counterAccountId = selectedDebt?.accountId ? "" : installmentBucket?.id ?? "";
+      break;
+  }
+
+  /* ── Market price for the chosen asset ────────────────────────────── */
+  useEffect(() => {
+    if (!isTrade || market.size > 0) return;
+    let alive = true;
+    loadMarketCatalog().then((result) => {
+      if (alive && result.ok) setMarket(new Map(result.rows.map((row) => [row.symbol, row])));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isTrade, market.size]);
+
+  const marketRow = assetAccount?.symbol ? market.get(assetAccount.symbol.toUpperCase()) : undefined;
+  const assetName = marketRow?.displayName ?? assetAccount?.name ?? "";
+  const marketPrice = marketRow?.priceTmn ? D(marketRow.priceTmn) : null;
+  const amountValue = irtAmount ? D(irtAmount) : null;
+  const quantityValue = quantity ? D(quantity) : null;
+  const hasAmount = !!amountValue && amountValue.gt(0);
+  const hasQuantity = !!quantityValue && quantityValue.gt(0);
+  const qtyDecimals = Math.min(Math.max(assetAccount?.decimals ?? 8, 0), 8);
+  const tradeUnitPrice = hasAmount && hasQuantity ? amountValue!.div(quantityValue!) : null;
+
+  const trimQty = (fixed: string) => (fixed.includes(".") ? fixed.replace(/\.?0+$/, "") : fixed);
+
+  /* ── Fee: in the unit of the account that pays it ─────────────────── */
+  const feePayAccount = type === "transfer" ? fromAccount : moneyAccount;
+  const feeSymbol = (feePayAccount?.symbol ?? "IRT").toUpperCase();
+  const feeInToman = !feePayAccount || feeSymbol === "IRT" || feeSymbol === "IRR";
+
+  /* ── Transfer across units ────────────────────────────────────────── */
+  const isCrossUnitTransfer =
+    type === "transfer" && !!fromAccount?.symbol && !!toAccount?.symbol && fromAccount.symbol !== toAccount.symbol;
+  const swapSupported =
+    isCrossUnitTransfer &&
+    (SWAP_ANCHOR_ASSETS.has(fromAccount?.symbol ?? "") || SWAP_ANCHOR_ASSETS.has(toAccount?.symbol ?? ""));
+
+  const previewUsd = hasAmount && effectiveRate ? amountValue!.div(effectiveRate).toFixed(2) : "";
+
+  /* ── Description, filled in from what was chosen ──────────────────── */
+  const autoDescription = (() => {
+    switch (type) {
+      case "expense":
+        return selectedCategory ? `هزینه — ${selectedCategory.name}` : "هزینه";
+      case "income":
+        return incomeAccount ? `درآمد — ${incomeAccount.name}` : "درآمد";
+      case "transfer":
+        return fromAccount && toAccount ? `انتقال از ${fromAccount.name} به ${toAccount.name}` : "انتقال بین حساب‌ها";
+      case "buy":
+        return assetName ? `خرید ${assetName}` : "خرید دارایی";
+      case "sell":
+        return assetName ? `فروش ${assetName}` : "فروش دارایی";
+      case "debt_repayment":
+        if (selectedDebt && selectedInst) return `پرداخت قسط ${faCount(selectedInst.seq)} — ${selectedDebt.title}`;
+        return selectedDebt ? `بازپرداخت بدهی — ${selectedDebt.title}` : "بازپرداخت بدهی";
+    }
+  })();
+  const finalDescription = description.trim() || autoDescription;
+
+  /* ── What is still missing — said by name ─────────────────────────── */
+  const missing: string[] = [];
+  if (type === "debt_repayment" && !selectedDebt) missing.push("بدهی یا قسط");
+  if (isTrade && !assetId) missing.push("دارایی");
+  if (type === "expense" && !categoryId) missing.push("دسته هزینه");
+  if (type === "income" && !incomeId) missing.push("منبع درآمد");
+  if (type === "transfer" && !fromId) missing.push("حساب مبدأ");
+  if (type === "transfer" && !toId) missing.push("حساب مقصد");
+  if (type !== "transfer" && !isNonCash && !moneyId) {
+    missing.push(type === "income" || type === "sell" ? "حساب واریز" : "حساب پرداخت");
+  }
+  if (!hasAmount) missing.push("مبلغ");
+  if (!entryDate) missing.push("تاریخ");
+  const ready = missing.length === 0;
+
+  /* ── Handlers ─────────────────────────────────────────────────────── */
   const pickType = (key: TxType) => {
     setType(key);
-    if (key === "debt_repayment") {
-      setShowExplorer(true);
-    }
-    const targetPrimaryOptions = primaryOptionsFor(key, cash, liquidCash);
-    if (primaryAccountId && !targetPrimaryOptions.some((a) => a.id === primaryAccountId)) {
-      setPrimaryAccountId("");
-    }
-
-    if (key === "expense") {
-      const valid = accountOptions.some((a) => a.id === counterAccountId && a.type === "expense");
-      const first = accountOptions.find((a) => a.type === "expense");
-      if (!valid && first) setCounterAccountId(first.id);
-      else if (!valid) setCounterAccountId("");
-    } else if (key === "income") {
-      const valid = accountOptions.some((a) => a.id === counterAccountId && a.type === "income");
-      const first = accountOptions.find((a) => a.type === "income");
-      if (!valid && first) setCounterAccountId(first.id);
-      else if (!valid) setCounterAccountId("");
-    } else if (key === "debt_repayment") {
-      if (!selectedDebt?.accountId) {
-        const expAcc = defaultExpenseAccount();
-        if (expAcc) setCounterAccountId(expAcc.id);
-      }
-    } else {
-      // buy / sell: a money account. transfer: any of the user's accounts.
-      const valid = counterOptionsFor(key, accountOptions, cash, liquidCash).some((a) => a.id === counterAccountId);
-      if (!valid) {
-        setCounterAccountId("");
-      }
-    }
+    setConfirming(false);
+    setPickerOpen(false);
   };
 
   const handleCreateCategory = async () => {
@@ -293,166 +404,53 @@ export default function TransactionForm({
       return;
     }
     setCategoryMessage("");
+    const created = newCategoryName.trim();
     setNewCategoryName("");
     setShowNewCategory(false);
-    // Refresh the tree in place (server revalidated the path for others).
     setCategoryGroups((current) =>
       current.map((g) =>
         g.id === categoryParentId && res.id
-          ? {
-              ...g,
-              children: [...g.children, { id: res.id, code: "", name: newCategoryName.trim(), nature: "cash", description: null }],
-            }
+          ? { ...g, children: [...g.children, { id: res.id, code: "", name: created, nature: "cash", description: null }] }
           : g,
       ),
     );
     if (res.id) setCategoryId(res.id);
   };
 
-  /**
-   * The picker queries the FULL server-side catalog instead of filtering the
-   * small slice embedded in the page, so every synced crypto identity is
-   * reachable even when it is far down the market-cap ordering.
-   */
-  useEffect(() => {
-    if (!isAssetPicker) return;
-    const query = assetSearch.trim();
-    let cancelled = false;
-    const handle = window.setTimeout(async () => {
-      setCatalogSearching(true);
-      const response = await searchMarketCatalogAction(query);
-      if (cancelled) return;
-      setCatalogSearching(false);
-      if (!response.ok) {
-        setCatalogMessage(response.message ?? "جستجوی کاتالوگ ناموفق بود.");
-        return;
-      }
-      setCatalogResults(response.assets);
-      setCatalogStatus({
-        total: response.total,
-        crypto: response.total,
-        bootstrapOnly: response.bootstrapOnly,
-      });
-    }, query ? 250 : 0);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(handle);
-    };
-  }, [assetSearch, isAssetPicker]);
-
-  const catalogMatches = catalogResults;
-
-  const handleCatalogRefresh = () => {
-    startCatalogRefresh(async () => {
-      const response = await refreshMarketCatalogAction();
-      setCatalogMessage(response.message ?? "");
-      if (!response.assets.length) return;
-      setCatalogStatus({
-        total: response.total,
-        crypto: response.total,
-        bootstrapOnly: response.bootstrapOnly,
-      });
-      // Re-run the active query against the freshly synced catalog.
-      const refreshed = await searchMarketCatalogAction(assetSearch.trim());
-      if (refreshed.ok) setCatalogResults(refreshed.assets);
-    });
-  };
-
-  const selectCatalogAsset = (asset: MarketAssetOption) => {
-    const existing = accountOptions.find(
-      (account) => account.coingeckoId === asset.coingeckoId,
-    );
-    if (existing) {
-      setPrimaryAccountId(existing.id);
-      setCatalogMessage(`${asset.displayName} از حساب‌های شما انتخاب شد.`);
-      return;
-    }
-
-    startRegistration(async () => {
-      const response = await registerMarketAssetAction(asset.coingeckoId);
-      setCatalogMessage(response.message);
-      if (!response.ok || !response.account) return;
-      const account: AccountOption = { ...response.account, coingeckoId: asset.coingeckoId };
-      setAccountOptions((current) => [...current, account]);
-      setPrimaryAccountId(account.id);
-    });
-  };
-
-  const needsQty = type === "buy" || type === "sell" || type === "transfer";
-
-  /**
-   * Counter account for a repayment of a PLANNING-ONLY debt (no ledger
-   * liability account). It prefers 5960 «پرداخت اقساط» — the dedicated
-   * installment bucket — and only if the chart somehow has no such row does it
-   * fall back to any expense account. Never 5900 «هزینه متفرقه»: a loan payment
-   * is not miscellaneous spending, and mixing them is what made the bucket a
-   * grab-bag (audit F-3, 2026-09-07). The bucket is plumbing for the
-   * double-entry engine — the entry type stays `debt_repayment`, so the amount
-   * is reported under «بدهی و بازپرداخت», not as an expense — and the review
-   * row below still shows WHICH account received it.
-   */
-  const defaultExpenseAccount = () =>
-    accountOptions.find((a) => a.type === "expense" && a.code === "5960") ??
-    accountOptions.find((a) => a.type === "expense");
-
   const handleSelectDebt = (d: DebtOption) => {
     setSelectedDebt(d);
     setSelectedInst(null);
     const pendingInst = d.installments.find((i) => i.status === "pending");
-    // Phase 3: the contractual Toman amount is authoritative — never re-derived
-    // from a stored USD value, so an FX change cannot alter the Toman amount.
+    // The contractual Toman amount is authoritative — never re-derived from a
+    // stored USD value, so an FX change cannot alter the Toman amount.
     const amtToman = pendingInst ? pendingInst.amountToman : d.outstandingToman;
     const amtUsd = pendingInst ? pendingInst.amountBase : d.outstandingBase;
-    const irt = amtToman
-      ? D(amtToman).toFixed(0)
-      : effectiveRate
-        ? D(amtUsd).mul(effectiveRate).toFixed(0)
-        : amtUsd;
-    setIrtAmount(irt);
-    setDescriptionDrafts((cur) => ({ ...cur, debt_repayment: `بازپرداخت بدهی — ${d.title} (${d.creditor})` }));
+    setIrtAmount(
+      amtToman ? D(amtToman).toFixed(0) : effectiveRate ? D(amtUsd).mul(effectiveRate).toFixed(0) : normalizeNumericInput(amtUsd),
+    );
     setEntryDate(today);
     setType("debt_repayment");
-    setCategoryId("");
-    setCategoryParentId("");
-    setShowExplorer(false);
-    if (!d.accountId) {
-      const expAcc = defaultExpenseAccount();
-      if (expAcc) setCounterAccountId(expAcc.id);
-    }
-    const cashAcc = accountOptions.find((a) => a.type === "asset");
-    if (cashAcc) setPrimaryAccountId(cashAcc.id);
   };
 
   const handleSelectInstallment = (d: DebtOption, inst: DebtOption["installments"][number]) => {
     setSelectedDebt(d);
     setSelectedInst(inst);
-    // Phase 3: use the stored contractual Toman amount when present.
-    const irt = inst.amountToman
-      ? D(inst.amountToman).toFixed(0)
-      : effectiveRate
-        ? D(inst.amountBase).mul(effectiveRate).toFixed(0)
-        : inst.amountBase;
-    setIrtAmount(irt);
-    setDescriptionDrafts((cur) => ({ ...cur, debt_repayment: `پرداخت قسط ${inst.seq} — ${d.title}` }));
+    setIrtAmount(
+      inst.amountToman
+        ? D(inst.amountToman).toFixed(0)
+        : effectiveRate
+          ? D(inst.amountBase).mul(effectiveRate).toFixed(0)
+          : normalizeNumericInput(inst.amountBase),
+    );
     setEntryDate(inst.dueDate);
     setType("debt_repayment");
-    setCategoryId("");
-    setCategoryParentId("");
-    setShowExplorer(false);
-    if (!d.accountId) {
-      const expAcc = defaultExpenseAccount();
-      if (expAcc) setCounterAccountId(expAcc.id);
-    }
-    const cashAcc = accountOptions.find((a) => a.type === "asset");
-    if (cashAcc) setPrimaryAccountId(cashAcc.id);
   };
 
-  // Auto-populate from initialDebt/Installment ids — useEffect to avoid setState during render (mobile hydration fix)
+  // Auto-populate from ?debtId / ?installmentId — deferred so no setState runs
+  // during render (mobile hydration fix).
   const autoPopulatedRef = useRef(false);
   useEffect(() => {
-    if (autoPopulatedRef.current) return;
-    if (!debts.length) return;
+    if (autoPopulatedRef.current || !debts.length) return;
     if (initialInstallmentId) {
       for (const d of debts) {
         const inst = d.installments.find((i) => i.id === initialInstallmentId);
@@ -475,270 +473,105 @@ export default function TransactionForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debts, initialDebtId, initialInstallmentId]);
 
-  const primaryAccount = accountOptions.find((a) => a.id === primaryAccountId);
-  const counterAccount = accountOptions.find((a) => a.id === counterAccountId);
-
-  /**
-   * Fee unit follows the PAYING account so the ledger converts it with exactly
-   * the same unit price as the rest of the entry: Toman for a bank account,
-   * USDT for a stablecoin wallet, USD for a dollar account. The `feeMode`
-   * field tells the server which reading applies (`native` = the account's own
-   * unit). Without it a "5 USDT" commission was converted as 5 Toman.
-   */
-  const feePayAccount =
-    type === "buy" || type === "sell" ? counterAccount : primaryAccount ?? counterAccount;
-  const feeSymbol = (feePayAccount?.symbol ?? "IRT").toUpperCase();
-  const feeInToman = !feePayAccount || feeSymbol === "IRT" || feeSymbol === "IRR";
-  const feeUnitLabel = feeInToman ? "toman" : feeSymbol;
-  const isCrossCurrencyTransfer =
-    type === "transfer" &&
-    !!primaryAccount?.symbol &&
-    !!counterAccount?.symbol &&
-    primaryAccount.symbol !== counterAccount.symbol;
-  // The existing FX engine (resolveFxBookLegs / recordFx) can only anchor a
-  // conversion on IRT or a USD-face asset. Mirror that rule here so the UI
-  // tells the user honestly which cross-asset conversions are supported —
-  // without ever changing the engine itself.
-  const SWAP_ANCHOR_ASSETS = new Set(["IRT", "USD", "USDT", "USDC", "USDG", "USDE", "USDS"]);
-  const swapSupported =
-    isCrossCurrencyTransfer &&
-    (SWAP_ANCHOR_ASSETS.has(primaryAccount?.symbol ?? "") ||
-      SWAP_ANCHOR_ASSETS.has(counterAccount?.symbol ?? ""));
-
-  const previewUsd = irtAmount && effectiveRate ? D(irtAmount).div(effectiveRate).toFixed(2) : "";
-  const primaryNeeded = !(type === "expense" && isNonCashCategory);
-  const counterNeeded = type !== "expense" && !(type === "debt_repayment" && selectedDebt && selectedDebtHasLedgerAccount);
-  const canPreview = Boolean(
-    irtAmount &&
-      D(irtAmount).gt(0) &&
-      description &&
-      entryDate &&
-      (!primaryNeeded || (primaryAccountId && primaryOptions.some((a) => a.id === primaryAccountId))) &&
-      (!counterNeeded || (counterAccountId && counterOptions.some((a) => a.id === counterAccountId))) &&
-      (type !== "debt_repayment" || selectedDebt) &&
-      (type !== "expense" || !!categoryId),
+  const noMoneyAccounts = (
+    <p className="muted mt-1.5 text-[length:var(--fs-xs)] leading-5">
+      هنوز حساب نقد یا بانکی ندارید.{" "}
+      <a href="/accounts" style={{ color: "var(--brand)" }}>
+        افزودن حساب
+      </a>
+    </p>
   );
 
-  const debtStatusAfter = useMemo(() => {
-    if (!selectedDebt) return null;
-    if (selectedInst) {
-      const remaining = selectedDebt.installments.filter((i) => i.status === "pending").length - 1;
-      if (remaining <= 0) return "پرداخت کامل — بدهی تسویه می‌شود";
-      return `پرداخت بخشی — ${faCount(remaining)} قسط باقی می‌ماند`;
-    }
-    return D(selectedDebt.outstandingBase).lte(previewUsd || "0") ? "پرداخت کامل" : "پرداخت بخشی از مانده";
-  }, [selectedDebt, selectedInst, previewUsd]);
+  /* ── Summary rows shown before the final confirm ──────────────────── */
+  const summary: Array<[string, React.ReactNode]> = [
+    ["نوع", TYPES.find((t) => t.key === type)?.label],
+    [
+      "مبلغ",
+      <>
+        <b className="num">{hasAmount ? formatMoney(irtAmount, "IRT") : "—"}</b>
+        {previewUsd ? <span className="muted num"> ≈ {formatMoney(previewUsd, "USD")}</span> : null}
+      </>,
+    ],
+  ];
+  if (type === "expense") {
+    summary.push(["دسته", selectedParent && selectedCategory ? `${selectedParent.name} › ${selectedCategory.name}` : "—"]);
+  }
+  if (type === "income") summary.push(["منبع درآمد", accountLabel(incomeAccount)]);
+  if (isTrade) {
+    summary.push(["دارایی", assetName || "—"]);
+    if (hasQuantity) summary.push(["مقدار", <span key="q" className="num">{formatQty(quantity, qtyDecimals)}</span>]);
+    if (tradeUnitPrice) summary.push(["قیمت هر واحد", <span key="u" className="num">{formatMoney(tradeUnitPrice.toFixed(0), "IRT")}</span>]);
+  }
+  if (type === "transfer") {
+    summary.push(["از", accountLabel(fromAccount)], ["به", accountLabel(toAccount)]);
+    if (hasQuantity) summary.push(["مقدار", <span key="tq" className="num">{formatQty(quantity, 8)}</span>]);
+  } else if (!isNonCash) {
+    summary.push([type === "income" || type === "sell" ? "واریز به" : "پرداخت از", accountLabel(moneyAccount)]);
+  }
+  if (type === "debt_repayment" && selectedDebt) {
+    summary.push(["بدهی", selectedInst ? `${selectedDebt.title} — قسط ${faCount(selectedInst.seq)}` : selectedDebt.title]);
+  }
+  if (fee && D(fee).gt(0)) {
+    summary.push(["کارمزد", <span key="f" className="num">{formatMoney(fee, feeInToman ? "IRT" : feeSymbol)}</span>]);
+  }
+  summary.push(["تاریخ", entryDate ? getDualDate(entryDate).jalali : "—"], ["شرح", finalDescription]);
+
+  const stepOneTitle: Record<TxType, string> = {
+    expense: "برای چه خرج کردید؟",
+    income: "این درآمد از کجا آمد؟",
+    transfer: "از کدام حساب به کدام حساب؟",
+    buy: "چه دارایی‌ای خریدید؟",
+    sell: "چه دارایی‌ای فروختید؟",
+    debt_repayment: "کدام بدهی یا قسط را پرداخت کردید؟",
+  };
 
   return (
     <form action={formAction} className="space-y-4" style={{ touchAction: "manipulation" }}>
-      <p className="text-[length:var(--fs-sm)] font-semibold">چه اتفاقی افتاد؟</p>
-      <div className="seg max-w-full overflow-x-auto" role="group" aria-label="نوع تراکنش" style={{ touchAction: "pan-x" }}>
-        {TYPES.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => pickType(t.key)}
-            className={`!px-4 !min-h-9 ${type === t.key ? "seg-on" : ""}`}
-            aria-pressed={type === t.key}
-            style={{ touchAction: "manipulation" }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* ── What reaches the server — one place, every field. ── */}
       <input type="hidden" name="type" value={type} />
-      {/* hidden FX + debt linkage + expense category (leaf) */}
       <input type="hidden" name="irtAmount" value={irtAmount} />
+      <input type="hidden" name="amount" value={previewUsd} />
       <input type="hidden" name="categoryId" value={type === "expense" ? categoryId : ""} />
+      <input type="hidden" name="primaryAccountId" value={primaryAccountId} />
+      <input type="hidden" name="counterAccountId" value={counterAccountId} />
+      <input type="hidden" name="quantity" value={isTrade || type === "transfer" ? quantity : ""} />
+      <input type="hidden" name="fee" value={fee} />
+      <input type="hidden" name="feeMode" value={feeInToman ? "irt" : "native"} />
+      <input type="hidden" name="description" value={finalDescription} />
       <input type="hidden" name="fxRate" value={effectiveRate ?? ""} />
       <input type="hidden" name="fxRateDate" value={effectiveRateDate ?? ""} />
-      <input type="hidden" name="debtId" value={selectedDebt?.id ?? ""} />
-      <input type="hidden" name="installmentId" value={selectedInst?.id ?? ""} />
-      {type === "debt_repayment" && (
-        <div className="soft space-y-2 rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-6">
-          <p className="font-semibold">بدهی یا قسطی را که می‌خواهید پرداخت کنید، انتخاب کنید.</p>
-          <p className="muted text-[length:var(--fs-xs)]">
-            پول از حساب نقد یا بانک شما پرداخت می‌شود و همان مبلغ از مانده بدهی‌تان کم می‌شود.
-            جزئیات ثبت و حسابداری به‌صورت خودکار در پس‌زمینه مدیریت می‌شود و نیازی به تنظیم آن ندارید.
-          </p>
-        </div>
-      )}
-      {(type === "expense" || type === "debt_repayment") && debts.length > 0 && (
-        <div>
-          {type !== "debt_repayment" && (
-            <button type="button" onClick={() => setShowExplorer((v) => !v)} className="btn btn-ghost w-full !justify-between" style={{ touchAction: "manipulation" }}>
-              <span className="inline-flex items-center gap-1.5">
-                <Icon name="search" size={15} />
-                انتخاب بدهی / قسط
-              </span>
-              <span className="chip">{showExplorer ? "بستن" : "نمایش"} · {faCount(debts.length)} بدهی</span>
+      <input type="hidden" name="debtId" value={type === "debt_repayment" ? selectedDebt?.id ?? "" : ""} />
+      <input type="hidden" name="installmentId" value={type === "debt_repayment" ? selectedInst?.id ?? "" : ""} />
+
+      {/* ── Type ── */}
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6" role="group" aria-label="نوع تراکنش">
+        {TYPES.map((t) => {
+          const on = type === t.key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => pickType(t.key)}
+              aria-pressed={on}
+              className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-[var(--r-md)] border px-1 py-2 text-[length:var(--fs-xs)] font-medium"
+              style={{
+                borderColor: on ? "var(--brand)" : "var(--border)",
+                background: on ? "var(--brand-soft)" : "var(--surface)",
+                color: on ? "var(--brand)" : "inherit",
+                touchAction: "manipulation",
+              }}
+            >
+              <Icon name={t.icon} size={18} />
+              {t.label}
             </button>
-          )}
-          {(showExplorer || type === "debt_repayment") && (
-            <div className={type === "debt_repayment" ? "" : "mt-3"}>
-              <DebtInstallmentExplorer
-                debts={debts}
-                onSelectDebt={handleSelectDebt}
-                onSelectInstallment={handleSelectInstallment}
-                rate={effectiveRate}
-              />
-            </div>
-          )}
-          {(selectedDebt || selectedInst) && (
-            <div className="soft mt-2 flex flex-wrap items-center justify-between gap-2 rounded-[var(--r-md)] p-3 text-xs">
-              <span>انتخاب شده: <strong>{selectedDebt?.title}</strong>{selectedInst ? ` — قسط ${selectedInst.seq}` : ""}</span>
-              <button type="button" onClick={() => { setSelectedDebt(null); setSelectedInst(null); }} className="chip" style={{ touchAction: "manipulation" }}>حذف انتخاب</button>
-            </div>
-          )}
-        </div>
-      )}
-      {type === "debt_repayment" && debts.length === 0 && (
-        <p className="rounded-[var(--r-md)] px-3 py-2 text-xs" style={{ background: "var(--negative-soft)", color: "var(--negative)" }}>
-          هیچ بدهی یا قسطی ثبت نشده است. ابتدا از صفحه بدهی‌ها بدهی/قسط تعریف کنید.
-        </p>
-      )}
+          );
+        })}
+      </div>
 
-      <div className="card space-y-3 p-4">
-        <div>
-          <label className="label">مبلغ به تومان — مرجع برنامه‌ریزی</label>
-          <AmountInput
-            name="irtAmountInput"
-            inputMode="numeric"
-            required
-            value={irtAmount}
-            onChange={(e) => setIrtAmount(e.target.value.replace(/[^0-9]/g, ""))}
-            placeholder="مثال: 25000000"
-            className="field num !text-2xl !font-bold"
-            dir="ltr"
-            unit="toman"
-            style={{ touchAction: "manipulation" }}
-          />
-          <div className="mt-2">
-            <SmartAmountPreview irtAmount={irtAmount} rate={effectiveRate ?? null} rateDate={effectiveRateDate} rateSource={effectiveRateSource} />
-          </div>
-          {/* hidden USD amount for server fallback (computed) */}
-          <input type="hidden" name="amount" value={previewUsd} />
-        </div>
-
-        {needsQty && (
-          <div>
-            <label className="label">
-              مقدار دارایی {type === "transfer" ? "(اختیاری — اگر خالی باشد از مبلغ محاسبه می‌شود)" : ""}
-            </label>
-            <input
-              name="quantity"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value.replace(/[^0-9.]/g, ""))}
-              inputMode="decimal"
-              className="field num"
-              dir="ltr"
-              placeholder="0.00000000"
-              style={{ touchAction: "manipulation" }}
-            />
-          </div>
-        )}
-
-        {isAssetPicker && (
-          <div className="space-y-2">
-            <label className="label">انتخاب دارایی از CoinGecko — نام یا نماد را جستجو کنید</label>
-            <input
-              type="search"
-              value={assetSearch}
-              onChange={(event) => setAssetSearch(event.target.value)}
-              className="field"
-              placeholder="BTC، USDC، PAXG، WBTC…"
-              autoComplete="off"
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleCatalogRefresh}
-                disabled={refreshingCatalog}
-                className="chip"
-                style={{ touchAction: "manipulation" }}
-              >
-                {refreshingCatalog ? "در حال به‌روزرسانی…" : "به‌روزرسانی کاتالوگ"}
-              </button>
-              <span className="muted text-[length:var(--fs-xs)]">
-                {catalogStatus.total} دارایی
-                {catalogSearching ? " · در حال جستجو…" : ""}
-              </span>
-            </div>
-            {catalogStatus.bootstrapOnly && (
-              <p className="soft rounded-[var(--r-md)] p-2 text-[length:var(--fs-xs)] leading-5" role="status">
-                اتصال به CoinGecko برقرار نشده است؛ فعلاً فقط فهرست آفلاین در دسترس است.
-                برای دریافت فهرست کامل، دسترسی شبکهٔ سرور به <span dir="ltr">api.coingecko.com</span> یا مقدار
-                <span dir="ltr"> COINGECKO_API_KEY </span> را بررسی و سپس «به‌روزرسانی کاتالوگ» را بزنید.
-              </p>
-            )}
-            <div className="grid max-h-52 gap-1.5 overflow-y-auto rounded-[var(--r-md)] border p-2 sm:grid-cols-2" style={{ borderColor: "var(--border)" }}>
-              {catalogMatches.map((asset) => {
-                const registered = accountOptions.some(
-                  (account) => account.coingeckoId === asset.coingeckoId,
-                );
-                return (
-                  <button
-                    key={asset.coingeckoId}
-                    type="button"
-                    disabled={registering}
-                    onClick={() => selectCatalogAsset(asset)}
-                    className="flex min-h-12 items-center gap-2 rounded-[var(--r-sm)] px-2.5 py-2 text-start hover:bg-[var(--hover)] disabled:opacity-60"
-                  >
-                    {/* The catalog logo comes straight from CoinGecko; the
-                        resolver keeps fiat symbols on their local mark. */}
-                    <AssetLogo
-                      symbol={asset.symbol}
-                      name={asset.displayName}
-                      logoUrl={asset.logoUrl}
-                      coingeckoId={asset.coingeckoId}
-                      size={28}
-                      radius={14}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <b className="block truncate text-xs">
-                        {asset.displayName}
-                        {!hasPersianCurrencyLabel(asset.symbol) && (
-                          <span dir="ltr">({asset.symbol})</span>
-                        )}
-                      </b>
-                      <small className="muted block truncate" dir="ltr">{asset.name}</small>
-                      <small className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[length:var(--fs-xs)]">
-                        {asset.priceUsd ? (
-                          <span className="num font-semibold" dir="rtl">{formatMoney(asset.priceUsd, "USD")}</span>
-                        ) : (
-                          <span style={{ color: "var(--negative)" }}>{priceFailureLabel(asset.priceFailureCode)}</span>
-                        )}
-                        {/* Only a price problem is announced; a current price is
-                            the normal case and needs no badge (and «Fresh» must
-                            never be glued onto a Persian label). */}
-                        {asset.priceFreshness !== "fresh" && (
-                          <span
-                            className="chip"
-                            style={{ color: asset.priceFreshness === "stale" ? "var(--warning)" : "var(--negative)" }}
-                          >
-                            {asset.priceFreshness === "stale" ? "قیمت قدیمی" : "قیمت در دسترس نیست"}
-                          </span>
-                        )}
-                      </small>
-                    </span>
-                    <span className="chip">{registered ? "انتخاب" : "ثبت"}</span>
-                  </button>
-                );
-              })}
-              {!catalogMatches.length && (
-                <p className="muted p-2 text-xs">
-                  {catalogSearching ? "در حال جستجو…" : "دارایی مطابق جستجو یافت نشد — «به‌روزرسانی کاتالوگ» را امتحان کنید."}
-                </p>
-              )}
-            </div>
-            {catalogMessage && <p className="text-xs" role="status">{catalogMessage}</p>}
-          </div>
-        )}
-
-        {/* Expense category — hierarchical picker, active ONLY for expenses */}
+      {/* ── ۱. What ── */}
+      <Step n={1} title={stepOneTitle[type]}>
         {type === "expense" && (
-          <div className="soft space-y-2 rounded-[var(--r-md)] p-3">
-            <label className="label !mb-0">دسته هزینه</label>
+          <div className="space-y-2">
             <div className="grid gap-2 sm:grid-cols-2">
               <select
                 className="field"
@@ -747,25 +580,31 @@ export default function TransactionForm({
                   setCategoryParentId(e.target.value);
                   setCategoryId("");
                 }}
-                style={{ touchAction: "manipulation" }}
+                aria-label="دسته اصلی"
               >
-                <option value="" disabled>دسته اصلی…</option>
+                <option value="" disabled>
+                  دسته اصلی…
+                </option>
                 {categoryGroups.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
                 ))}
               </select>
               <select
-                name="categorySelect"
                 className="field"
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
                 disabled={!selectedParent}
-                style={{ touchAction: "manipulation" }}
+                aria-label="زیردسته"
               >
-                <option value="" disabled>{selectedParent ? "زیردسته…" : "ابتدا دسته اصلی را انتخاب کنید"}</option>
+                <option value="" disabled>
+                  {selectedParent ? "زیردسته…" : "ابتدا دسته اصلی"}
+                </option>
                 {selectedParent?.children.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name}{c.nature === "non_cash" ? " (غیرنقدی)" : ""}
+                    {c.name}
+                    {c.nature === "non_cash" ? " (غیرنقدی)" : ""}
                   </option>
                 ))}
               </select>
@@ -773,18 +612,19 @@ export default function TransactionForm({
             {selectedCategory?.description && (
               <p className="muted text-[length:var(--fs-xs)] leading-5">{selectedCategory.description}</p>
             )}
-            {isNonCashCategory && (
-              <p className="rounded-[var(--r-sm)] p-2 text-[length:var(--fs-xs)] leading-5" style={{ background: "var(--sunken)" }} role="note">
-                <strong>ثبت غیرنقدی (استهلاک/ذخیره):</strong> این دسته خروج وجه نیست و حساب نقدی شما تغییر نمی‌کند.</p>
+            {isNonCash && (
+              <p className="soft rounded-[var(--r-sm)] p-2 text-[length:var(--fs-xs)] leading-5" role="note">
+                ثبت غیرنقدی (استهلاک یا ذخیره) است؛ از هیچ حسابی پول خارج نمی‌شود.
+              </p>
             )}
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={() => setShowNewCategory((v) => !v)} disabled={!selectedParent} className="chip disabled:opacity-40" style={{ touchAction: "manipulation" }}>
-                {showNewCategory ? "بستن" : "+ زیردسته جدید"}
-              </button>
-              <span className="muted text-[length:var(--fs-xs)]">
-                {categoryMessage || "در صورت تکرار یک هزینهٔ متفرقه، برای آن زیردسته مستقل بسازید."}
-              </span>
-            </div>
+            {selectedParent && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => setShowNewCategory((v) => !v)} className="chip">
+                  {showNewCategory ? "بستن" : "+ زیردسته جدید"}
+                </button>
+                {categoryMessage && <span className="text-[length:var(--fs-xs)]">{categoryMessage}</span>}
+              </div>
+            )}
             {showNewCategory && selectedParent && (
               <div className="flex gap-2">
                 <input
@@ -792,9 +632,13 @@ export default function TransactionForm({
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
                   placeholder={`زیردسته جدید زیر «${selectedParent.name}»`}
-                  style={{ touchAction: "manipulation" }}
                 />
-                <button type="button" onClick={handleCreateCategory} disabled={!newCategoryName.trim()} className="btn btn-soft shrink-0 disabled:opacity-40" style={{ touchAction: "manipulation" }}>
+                <button
+                  type="button"
+                  onClick={handleCreateCategory}
+                  disabled={!newCategoryName.trim()}
+                  className="btn btn-soft shrink-0 disabled:opacity-40"
+                >
                   افزودن
                 </button>
               </div>
@@ -802,278 +646,337 @@ export default function TransactionForm({
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="label">{meta.primary}</label>
-            {type === "expense" && isNonCashCategory ? (
-              <input type="hidden" name="primaryAccountId" value="" />
-            ) : null}
-            {type === "expense" && isNonCashCategory ? (
-              <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5">
-                ثبت غیرنقدی — حساب نقدی درگیر نیست؛ طرف مقابل، خودکار «ذخیره استهلاک و تعمیرات آتی» است.
+        {type === "income" && (
+          <AccountSelect label="منبع درآمد" value={incomeId} options={incomeOptions} onChange={setIncomeAccountId} />
+        )}
+
+        {type === "transfer" && (
+          <div className="grid items-end gap-2 sm:grid-cols-[1fr_auto_1fr]">
+            <AccountSelect label="از حساب" value={fromId} options={assetAccounts} onChange={setFromAccountId} />
+            <button
+              type="button"
+              className="btn btn-ghost !min-h-11 justify-self-center"
+              aria-label="جابه‌جایی مبدأ و مقصد"
+              onClick={() => {
+                setFromAccountId(toId);
+                setToAccountId(fromId);
+              }}
+            >
+              <Icon name="swap" size={16} />
+            </button>
+            <AccountSelect label="به حساب" value={toId} options={toOptions} onChange={setToAccountId} />
+            {isCrossUnitTransfer && (
+              <p
+                className="rounded-[var(--r-md)] p-2 text-[length:var(--fs-xs)] leading-5 sm:col-span-3"
+                style={
+                  swapSupported
+                    ? { background: "var(--brand-soft)" }
+                    : { background: "var(--warning-soft)", border: "1px solid var(--warning)" }
+                }
+                role="note"
+              >
+                {swapSupported
+                  ? `تبدیل ${currencyLabel(fromAccount?.symbol)} به ${currencyLabel(toAccount?.symbol)} — نه هزینه است و نه درآمد؛ فقط ترکیب دارایی‌ها تغییر می‌کند.`
+                  : `تبدیل مستقیم ${currencyLabel(fromAccount?.symbol)} به ${currencyLabel(toAccount?.symbol)} پشتیبانی نمی‌شود؛ ابتدا به تومان، دلار یا تتر تبدیل کنید.`}
+              </p>
+            )}
+          </div>
+        )}
+
+        {isTrade && (
+          <div className="space-y-2">
+            {assetAccount && !pickerOpen ? (
+              <div className="soft flex items-center gap-3 rounded-[var(--r-md)] p-3">
+                <AssetLogo
+                  symbol={assetAccount.symbol}
+                  name={assetName}
+                  logoUrl={marketRow?.logoUrl ?? assetAccount.logoUrl ?? null}
+                  coingeckoId={assetAccount.coingeckoId ?? null}
+                  assetClassName={assetAccount.className ?? null}
+                  size={36}
+                  radius={10}
+                />
+                <div className="min-w-0 flex-1">
+                  <b className="block truncate text-[length:var(--fs-sm)]">{assetName}</b>
+                  <span className="muted text-[length:var(--fs-xs)]">
+                    {marketRow?.priceTmn ? (
+                      <>
+                        قیمت بازار هر واحد: <span className="num">{formatMoney(marketRow.priceTmn, "IRT")}</span>
+                      </>
+                    ) : (
+                      <span className="num" dir="ltr">{assetAccount.symbol}</span>
+                    )}
+                  </span>
+                </div>
+                <button type="button" className="btn btn-ghost !min-h-9 shrink-0" onClick={() => setPickerOpen(true)}>
+                  تغییر
+                </button>
               </div>
             ) : (
-              <select
-                name="primaryAccountId"
-                required
-                className="field"
-                value={primaryOptions.some((a) => a.id === primaryAccountId) ? primaryAccountId : ""}
-                onChange={(e) => setPrimaryAccountId(e.target.value)}
-                style={{ touchAction: "manipulation" }}
-              >
-                <option value="" disabled>انتخاب کنید…</option>
-                {primaryOptions.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name} {a.symbol ? `(${currencyLabel(a.symbol)})` : ""}
-                  </option>
-                ))}
-              </select>
-            )}
-            {primaryOptions.length === 0 && !(type === "expense" && isNonCashCategory) ? (
-              <p className="muted mt-1.5 text-[length:var(--fs-xs)] leading-5">
-                {type === "buy" || type === "sell"
-                  ? "برای خرید یا فروش، اول حساب دارایی را بسازید (دارایی‌ها ← ثبت دارایی). حساب‌های نقد و استیبل‌کوین در این فهرست نیامده‌اند."
-                  : "برای ثبت هزینه یا درآمد به یک حساب نقد نیاز دارید — بانک، صندوق یا کیف‌پول استیبل‌کوین. حساب‌های سرمایه‌گذاری (رمزارز نوسانی، طلا، ملک، خودرو) عمداً اینجا فهرست نمی‌شوند؛ آن‌ها فقط با خرید/فروش/انتقال جابه‌جا می‌شوند."}{' '}
-                <a href="/accounts" style={{ color: "var(--brand)" }}>
-                  افزودن حساب نقد
-                </a>
-              </p>
-            ) : null}
-          </div>
-          <div>
-            {type === "debt_repayment" ? (
               <>
-                {!selectedDebt ? (
-                  <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5">
-                    ابتدا بدهی یا قسط را از فهرست بالا انتخاب کنید تا جزئیات پرداخت تکمیل شود.
-                  </div>
-                ) : selectedDebtHasLedgerAccount ? (
+                {tradeOptions.length > 0 && !pickerOpen && (
                   <>
-                    <input type="hidden" name="counterAccountId" value="" />
-                    <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5">
-                      با این پرداخت، مبلغ مستقیماً از مانده بدهی «{selectedDebt.title}» کم می‌شود.
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <input type="hidden" name="counterAccountId" value={counterAccountId} />
-                    <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5">
-                      مبلغ پرداخت از حساب انتخابی شما کسر می‌شود و مانده این بدهی کاهش پیدا می‌کند. همه جزئیات ثبت به‌صورت خودکار انجام
-                      می‌شود؛ خروج وجه در سرفصل «پرداخت اقساط» بایگانی می‌شود — نه در «هزینه متفرقه» — و به همین دلیل در گزارش
-                      هزینه‌ها و در سقف بودجه‌های خرج شمارش نمی‌شود.
+                    <p className="muted text-[length:var(--fs-xs)]">دارایی‌های شما:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {tradeOptions.slice(0, 16).map((a) => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          className="chip !py-1.5"
+                          onClick={() => setAssetAccountId(a.id)}
+                        >
+                          <AssetLogo
+                            symbol={a.symbol}
+                            name={a.name}
+                            logoUrl={a.logoUrl ?? null}
+                            coingeckoId={a.coingeckoId ?? null}
+                            assetClassName={a.className ?? null}
+                            size={18}
+                            radius={5}
+                          />
+                          {market.get((a.symbol ?? "").toUpperCase())?.displayName ?? a.name}
+                        </button>
+                      ))}
                     </div>
                   </>
                 )}
-              </>
-            ) : type === "expense" ? (
-              <input type="hidden" name="counterAccountId" value="" />
-            ) : (
-              <>
-                <label className="label">{meta.counter}</label>
-                <select
-                  name="counterAccountId"
-                  required
-                  className="field"
-                  value={counterOptions.some((a) => a.id === counterAccountId) ? counterAccountId : ""}
-                  onChange={(e) => setCounterAccountId(e.target.value)}
-                  style={{ touchAction: "manipulation" }}
-                >
-                  <option value="" disabled>انتخاب کنید…</option>
-                  {counterOptions.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {/* Income categories are shown to the user by friendly name only —
-                          no account code and no currency label (e.g. «حقوق و درآمد» instead
-                          of «4010 — حقوق و درآمد (دلار)»). Presentation-only; the value
-                          submitted stays the real account id, so accounting is unchanged. */}
-                      {type === "income" ? a.name : `${a.code} — ${a.name}${a.symbol ? ` (${currencyLabel(a.symbol)})` : ""}`}
-                    </option>
-                  ))}
-                </select>
+                {pickerOpen || tradeOptions.length === 0 ? (
+                  <>
+                    <WallexAssetPicker
+                      actionLabel="انتخاب"
+                      hideFootnote
+                      onRegistered={({ account, row }) => {
+                        if (!account) return;
+                        setAccountOptions((current) =>
+                          current.some((a) => a.id === account.id) ? current : [...current, account],
+                        );
+                        setAssetAccountId(account.id);
+                        setMarket((current) => (current.has(row.symbol) ? current : new Map(current).set(row.symbol, row)));
+                        setPickerOpen(false);
+                      }}
+                    />
+                    {tradeOptions.length > 0 && (
+                      <button type="button" className="btn btn-ghost w-full" onClick={() => setPickerOpen(false)}>
+                        بازگشت به دارایی‌های من
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <button type="button" className="btn btn-soft w-full" onClick={() => setPickerOpen(true)}>
+                    <Icon name="search" size={15} />
+                    دارایی دیگر — جست‌وجو در بازار
+                  </button>
+                )}
               </>
             )}
           </div>
-        </div>
-
-        {type === "transfer" && isCrossCurrencyTransfer && (
-          swapSupported ? (
-            <div className="rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5" style={{ border: "1px solid var(--brand)", background: "var(--brand-soft)" }} role="note">
-              <div className="font-semibold">تبدیل دارایی</div>
-              <div>
-                از <strong>{primaryAccount?.name}</strong> ({currencyLabel(primaryAccount?.symbol)}) به{" "}
-                <strong>{counterAccount?.name}</strong> ({currencyLabel(counterAccount?.symbol)}).
-              </div>
-              <div className="muted">این تبدیل نه هزینه است و نه درآمد — فقط ترکیب دارایی‌های شما تغییر می‌کند.</div>
-            </div>
-          ) : (
-            <div className="rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5" style={{ background: "var(--warning-soft)", border: "1px solid var(--warning)" }} role="note">
-              تبدیل مستقیم {currencyLabel(primaryAccount?.symbol)} به {currencyLabel(counterAccount?.symbol)} در حال حاضر پشتیبانی نمی‌شود.
-              برای این تبدیل ابتدا به تومان، دلار یا تتر تبدیل کنید.
-            </div>
-          )
         )}
 
-        {/* Dual Date Engine — shared single source of truth */}
-        <DualDateInput name="entryDate" value={entryDate} onChange={setEntryDate} label="تاریخ سند" required />
-        <details className="rounded-[var(--r-md)] border px-3 py-1" style={{ borderColor: "var(--border)" }}>
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[length:var(--fs-sm)] font-medium marker:hidden [&::-webkit-details-marker]:hidden">
-            جزئیات بیشتر
-            <Icon name="chevronDown" size={15} className="muted" />
-          </summary>
-          <div className="grid gap-3 border-t pb-3 pt-3 sm:grid-cols-2" style={{ borderColor: "var(--border)" }}>
-            <div>
-              <label className="label">
-                {feeInToman ? "کارمزد (اختیاری) — به تومان" : `کارمزد (اختیاری) — به ${feeSymbol}`}
-              </label>
-              <AmountInput
-                name="fee"
-                value={fee}
-                onChange={(e) =>
-                  setFee(e.target.value.replace(feeInToman ? /[^0-9]/g : /[^0-9.]/g, ""))
-                }
-                inputMode="decimal"
-                className="field num"
-                dir="ltr"
-                unit={feeUnitLabel}
-                placeholder="0"
-                style={{ touchAction: "manipulation" }}
-              />
-              {fee && feeInToman && effectiveRate && (
-                <p className="muted mt-1 text-[length:var(--fs-xs)]">کارمزد دلاری ≈ {formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD")}</p>
-              )}
-            </div>
-            <p className="muted self-end text-[length:var(--fs-xs)] leading-5">
-              {feeInToman
-                ? "کارمزد نیز با همین نرخ تبدیل و در همان سند ثبت می‌شود."
-                : "کارمزد با نرخ رسمی همین حساب (واحد بومی) به دلار تبدیل و در همان سند ثبت می‌شود."}
+        {type === "debt_repayment" &&
+          (debts.length === 0 ? (
+            <p className="rounded-[var(--r-md)] px-3 py-2 text-[length:var(--fs-xs)]" style={{ background: "var(--negative-soft)", color: "var(--negative)" }}>
+              هنوز بدهی یا قسطی ثبت نشده است.{" "}
+              <a href="/debts" style={{ color: "inherit", textDecoration: "underline" }}>
+                افزودن بدهی
+              </a>
             </p>
-            <input type="hidden" name="feeMode" value={feeInToman ? "irt" : "native"} />
-          </div>
-        </details>
-
-        <div>
-          <label className="label">شرح</label>
-          <input
-            name="description"
-            required
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="field"
-            placeholder="مثلاً پرداخت قسط ۳ — وام مسکن"
-            style={{ touchAction: "manipulation" }}
-          />
-        </div>
-      </div>
-
-      {/* Smart Preview Before Commit */}
-      {showPreview ? (
-        type === "debt_repayment" ? (
-          <PreviewCard title="پیش‌نمایش پرداخت">
-            <div className="space-y-2 text-xs leading-6">
-              <div><span className="muted">نوع:</span> <strong>بازپرداخت بدهی</strong></div>
-              <div><span className="muted">بدهی:</span> <strong>{selectedDebt?.title ?? "—"}</strong></div>
-              {selectedInst && (
-                <div>
-                  <span className="muted">قسط:</span>{" "}
-                  <strong>{faCount(selectedInst.seq)} از {faCount(selectedDebt?.installments.length ?? 0)}</strong>
-                </div>
-              )}
-              <div className="soft rounded-xl p-3 space-y-1">
-                <div><span className="muted">مبلغ پرداخت:</span> <strong className="num" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</strong></div>
-                <div><span className="muted">معادل تقریبی:</span> <strong className="num" dir="rtl" style={{ color: "var(--brand)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"}</strong></div>
-                <div><span className="muted">نرخ تبدیل:</span> <strong className="num" dir="rtl">{effectiveRate ? `${formatMoney(effectiveRate, "IRT")} ≈ ۱ دلار` : "ثبت نشده"}</strong></div>
-              </div>
-              <div><span className="muted">از حساب:</span> <strong>{primaryAccount?.name ?? "—"}</strong></div>
-              <div>
-                <span className="muted">تاریخ:</span>{" "}
-                <strong>{entryDate ? getDualDate(entryDate).jalali : "—"}</strong>{" "}
-                <span className="muted num" dir="ltr">{entryDate || "—"}</span>
-              </div>
-              {debtStatusAfter && (
-                <div><span className="muted">پس از این پرداخت:</span> <strong style={{ color: "var(--brand)" }}>{debtStatusAfter}</strong></div>
-              )}
-              <div className="soft rounded-xl p-3 text-[length:var(--fs-xs)] leading-5">
-                <div className="font-semibold mb-1">خلاصه</div>
-                <ul className="space-y-1 list-disc pr-4">
-                  <li>مبلغ این بدهی کاهش پیدا می‌کند.</li>
-                  <li>موجودی حساب انتخاب‌شده کاهش پیدا می‌کند.</li>
-                  <li>ثبت حسابداری صحیح به‌صورت خودکار انجام می‌شود.</li>
-                  <li>ارزش خالص شما طبق منطق فعلی سیستم محاسبه می‌شود.</li>
-                </ul>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setShowPreview(false)} className="btn btn-ghost flex-1" style={{ touchAction: "manipulation" }}>بازگشت به ویرایش</button>
-              <button type="submit" disabled={pending} className="btn btn-primary flex-1" style={{ touchAction: "manipulation" }}>
-                {pending ? "در حال ثبت…" : "تأیید و ثبت پرداخت"}
+          ) : selectedDebt ? (
+            <div className="soft flex flex-wrap items-center justify-between gap-2 rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)]">
+              <span>
+                <b>{selectedDebt.title}</b>
+                {selectedInst ? ` — قسط ${faCount(selectedInst.seq)}` : ""}
+                <span className="muted">
+                  {" "}
+                  · {selectedDebt.accountId ? "از مانده بدهی کم می‌شود" : "در «پرداخت اقساط» ثبت می‌شود، نه در هزینه‌ها"}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="chip"
+                onClick={() => {
+                  setSelectedDebt(null);
+                  setSelectedInst(null);
+                }}
+              >
+                تغییر
               </button>
             </div>
-          </PreviewCard>
-        ) : (
-        <PreviewCard title="پیش‌نمایش هوشمند قبل از ثبت نهایی — فقط نمایشی">
-          <div className="space-y-2 text-xs leading-6">
-            <div><span className="muted">نوع تراکنش:</span> <strong>{TYPES.find(t=>t.key===type)?.label}</strong></div>
-            <div><span className="muted">عنوان/شرح:</span> <strong>{description || "—"}</strong></div>
-            {type === "expense" && (
-              <div>
-                <span className="muted">دسته هزینه:</span>{" "}
-                <strong>{selectedParent && selectedCategory ? `${selectedParent.name} › ${selectedCategory.name}` : "—"}</strong>
-                {isNonCashCategory && <span className="chip">غیرنقدی — بدون خروج وجه</span>}
+          ) : (
+            <DebtInstallmentExplorer
+              debts={debts}
+              onSelectDebt={handleSelectDebt}
+              onSelectInstallment={handleSelectInstallment}
+              rate={effectiveRate}
+            />
+          ))}
+      </Step>
+
+      {/* ── ۲. How much ── */}
+      <Step n={2} title="چقدر؟">
+        <div>
+          <label className="label">مبلغ به تومان</label>
+          <AmountInput
+            value={irtAmount}
+            onValueChange={setIrtAmount}
+            placeholder="مثلاً ۲۵٬۰۰۰٬۰۰۰"
+            className="field num !text-2xl !font-bold"
+            unit="toman"
+            aria-label="مبلغ به تومان"
+          />
+          {hasAmount && (
+            <p className="muted mt-1 text-[length:var(--fs-xs)]">
+              {previewUsd ? (
+                <>
+                  معادل تقریبی <span className="num">{formatMoney(previewUsd, "USD")}</span>
+                  {effectiveRate ? (
+                    <>
+                      {" "}
+                      · نرخ <span className="num">{formatMoney(effectiveRate, "IRT")}</span>
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  نرخ دلار ثبت نشده است؛ پیش از ثبت، نرخ را در{" "}
+                  <a href="/settings" style={{ color: "var(--brand)" }}>
+                    تنظیمات
+                  </a>{" "}
+                  وارد کنید.
+                </>
+              )}
+            </p>
+          )}
+        </div>
+
+        {(isTrade || type === "transfer") && (
+          <div>
+            <label className="label">
+              {isTrade ? `مقدار ${assetName || "دارایی"}` : "مقدار (اختیاری — اگر خالی بماند از مبلغ محاسبه می‌شود)"}
+            </label>
+            <AmountInput
+              inputMode="decimal"
+              maxDecimals={isTrade ? qtyDecimals : 8}
+              value={quantity}
+              onValueChange={setQuantity}
+              placeholder="مثلاً ۰٫۰۵"
+              className="field num"
+              showWords={false}
+              unit="none"
+              aria-label="مقدار دارایی"
+            />
+            {isTrade && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[length:var(--fs-xs)]">
+                {tradeUnitPrice && (
+                  <span className="muted">
+                    قیمت هر واحد در این معامله: <span className="num">{formatMoney(tradeUnitPrice.toFixed(0), "IRT")}</span>
+                  </span>
+                )}
+                {marketPrice && hasQuantity && !hasAmount && (
+                  <button type="button" className="chip" onClick={() => setIrtAmount(quantityValue!.mul(marketPrice).toFixed(0))}>
+                    مبلغ از قیمت بازار
+                  </button>
+                )}
+                {marketPrice && hasAmount && !hasQuantity && (
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => setQuantity(trimQty(amountValue!.div(marketPrice).toFixed(qtyDecimals)))}
+                  >
+                    مقدار از قیمت بازار
+                  </button>
+                )}
+                {!hasQuantity && !marketPrice && (
+                  <span className="muted">اگر مقدار را وارد نکنید، از مبلغ و آخرین قیمت محاسبه می‌شود.</span>
+                )}
               </div>
             )}
-            <div className="soft rounded-xl p-2">
-              <div className="muted text-[length:var(--fs-xs)]">مبلغ به تومان و معادل دلاری (با نرخ لحظه‌ای)</div>
-              <div className="num font-bold" dir="rtl">{irtAmount ? formatMoney(irtAmount, "IRT") : "—"}</div>
-              <div className="num" dir="rtl" style={{ color:"var(--brand)" }}>{previewUsd ? formatMoney(previewUsd, "USD") : "—"} <span className="muted text-[length:var(--fs-xs)]"> نرخ: {effectiveRate ? formatMoney(effectiveRate, "IRT")+" ≈ ۱ دلار" : "ثبت نشده"}</span></div>
-              {effectiveRateDate && <div className="muted text-[length:var(--fs-xs)]">تاریخ نرخ: <span dir="ltr" className="num">{effectiveRateDate}</span> · منبع: {effectiveRateSource ?? "—"}</div>}
-            </div>
-            <div className="grid sm:grid-cols-2 gap-2">
-              <div><span className="muted">حساب مبدأ:</span> <strong>{accountOptions.find(a=>a.id===primaryAccountId)?.name ?? "—"}</strong> <span className="chip">{accountOptions.find(a=>a.id===primaryAccountId)?.code ?? ""}</span></div>
-              {type !== "expense" && <div><span className="muted">حساب مقابل:</span> <strong>{accountOptions.find(a=>a.id===counterAccountId)?.name ?? "—"}</strong> <span className="chip">{accountOptions.find(a=>a.id===counterAccountId)?.code ?? ""}</span></div>}
-            </div>
-            <div>
-              <span className="muted">تاریخ سند:</span>
-              <div className="soft rounded-xl p-2 mt-1 flex flex-wrap gap-3 text-[length:var(--fs-xs)]">
-                <span>شمسی: <strong dir="rtl" className="num">{entryDate ? getDualDate(entryDate).jalali : "—"}</strong></span>
-                <span>میلادی (خودکار): <strong dir="ltr" className="num ltr-isolate">{entryDate || "—"}</strong></span>
-              </div>
-            </div>
-            {needsQty && <div><span className="muted">مقدار دارایی:</span> <strong dir="ltr" className="num">{quantity || "محاسبه خودکار از مبلغ"}</strong></div>}
-            {fee && <div><span className="muted">کارمزد:</span> <strong dir="rtl" className="num">{formatMoney(fee, "IRT")}</strong> ≈ {effectiveRate ? formatMoney(D(fee).div(effectiveRate).toFixed(2), "USD") : "—"}</div>}
-            {(selectedDebt || selectedInst) && (
-              <div className="soft rounded-xl p-2 border" style={{ borderColor:"var(--border)" }}>
-                <div className="font-bold">مرجع بدهی/قسط</div>
-                <div>بدهی: <strong>{selectedDebt?.title}</strong> — {selectedDebt?.creditor}</div>
-                {selectedInst && <div>قسط: <strong>#{selectedInst.seq}</strong> — سررسید <span dir="rtl" className="num">{getDualDate(selectedInst.dueDate).jalali}</span> — مبلغ <span dir="rtl">{selectedInst.amountToman ? formatMoney(selectedInst.amountToman, "IRT") : formatMoney(selectedInst.amountBase, "USD")}</span></div>}
-                <div>وضعیت پس از پرداخت: <strong style={{ color:"var(--brand)" }}>{debtStatusAfter}</strong></div>
-                <div className="muted text-[length:var(--fs-xs)]">شناسه مرجع در سند حسابداری ذخیره و قابل پیگیری از هر دو سمت خواهد بود.</div>
-              </div>
-            )}
-            <div className="muted text-[length:var(--fs-xs)] leading-5">
-              تا تأیید نهایی چیزی ثبت نمی‌شود.</div>
           </div>
+        )}
+
+        <details className="rounded-[var(--r-md)] border px-3 py-1" style={{ borderColor: "var(--border)" }}>
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[length:var(--fs-sm)] font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+            کارمزد (اختیاری)
+            <Icon name="chevronDown" size={15} className="muted" />
+          </summary>
+          <div className="border-t pb-3 pt-3" style={{ borderColor: "var(--border)" }}>
+            <label className="label">{feeInToman ? "کارمزد به تومان" : `کارمزد به ${currencyLabel(feeSymbol)}`}</label>
+            <AmountInput
+              inputMode={feeInToman ? "numeric" : "decimal"}
+              value={fee}
+              onValueChange={setFee}
+              className="field num"
+              unit={feeInToman ? "toman" : feeSymbol}
+              placeholder="۰"
+            />
+          </div>
+        </details>
+      </Step>
+
+      {/* ── ۳. From where, and when ── */}
+      <Step n={3} title={type === "income" || type === "sell" ? "به کجا و کی؟" : type === "transfer" ? "کی؟" : "از کجا و کی؟"}>
+        {type !== "transfer" && !isNonCash && (
+          <AccountSelect
+            label={type === "income" || type === "sell" ? "واریز به حساب" : "پرداخت از حساب"}
+            value={moneyId}
+            options={moneyOptions}
+            onChange={setMoneyAccountId}
+            empty={noMoneyAccounts}
+          />
+        )}
+        <DualDateInput name="entryDate" value={entryDate} onChange={setEntryDate} label="تاریخ" required />
+        <div>
+          <label className="label">شرح (اختیاری)</label>
+          <input
+            className="field"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={autoDescription}
+          />
+        </div>
+      </Step>
+
+      {/* ── Review, then confirm. Nothing is written before «تأیید و ثبت». ── */}
+      {confirming && ready ? (
+        <section className="card space-y-3 p-4" style={{ borderColor: "var(--brand)" }} aria-live="polite">
+          <h2 className="text-[length:var(--fs-sm)] font-bold" style={{ color: "var(--brand)" }}>
+            بررسی قبل از ثبت
+          </h2>
+          <dl className="divide-y text-[length:var(--fs-sm)]" style={{ borderColor: "var(--border)" }}>
+            {summary.map(([label, value]) => (
+              <div key={label} className="flex items-baseline justify-between gap-3 py-2">
+                <dt className="muted shrink-0">{label}</dt>
+                <dd className="min-w-0 text-end">{value}</dd>
+              </div>
+            ))}
+          </dl>
           <div className="flex gap-2">
-            <button type="button" onClick={() => setShowPreview(false)} className="btn btn-ghost flex-1" style={{ touchAction: "manipulation" }}>بازگشت به ویرایش</button>
-            <button type="submit" disabled={pending} className="btn btn-primary flex-1" style={{ touchAction: "manipulation" }}>
-              {pending ? "در حال ثبت…" : "تأیید نهایی ثبت تراکنش"}
+            <button type="button" onClick={() => setConfirming(false)} className="btn btn-ghost flex-1">
+              ویرایش
+            </button>
+            <button type="submit" disabled={pending} className="btn btn-primary flex-1">
+              {pending ? "در حال ثبت…" : "تأیید و ثبت"}
             </button>
           </div>
-        </PreviewCard>
-        )
+        </section>
       ) : (
-        <button
-          type="button"
-          disabled={!canPreview}
-          onClick={() => setShowPreview(true)}
-          className="btn btn-primary w-full disabled:opacity-40"
-          style={{ touchAction: "manipulation" }}
-        >
-          {canPreview ? "پیش‌نمایش هوشمند قبل از ثبت نهایی" : "برای پیش‌نمایش، مبلغ، تاریخ و حساب‌ها را تکمیل کنید"}
-        </button>
+        <div className="space-y-1.5">
+          <button
+            type="button"
+            disabled={!ready}
+            onClick={() => setConfirming(true)}
+            className="btn btn-primary w-full disabled:opacity-40"
+          >
+            بررسی و ثبت
+          </button>
+          {!ready && (
+            <p className="muted text-center text-[length:var(--fs-xs)]" role="status">
+              باقی مانده: {missing.join("، ")}
+            </p>
+          )}
+        </div>
       )}
 
       <FormStatus state={state} />
-
-      {/* entryDate is provided by DualDateInput hidden input */}
     </form>
   );
 }

@@ -652,14 +652,14 @@ export default function SetupWizardPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <label className="label">مقدار {selectedCrypto.displayName}</label>
-                        <input
-                          type="text"
+                        <AmountInput
                           inputMode="decimal"
                           value={cryptoOpeningQty}
-                          onChange={(e) => setCryptoOpeningQty(e.target.value.replace(/[^\d.]/g, ""))}
-                          placeholder="0.0000"
+                          onChange={(e) => setCryptoOpeningQty(e.target.value)}
+                          placeholder="۰٫۰۰۰۰"
                           className="field num"
-                          dir="ltr"
+                          showWords={false}
+                          unit="none"
                         />
                       </div>
                       <div>
@@ -681,14 +681,14 @@ export default function SetupWizardPage() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="label">طلا (گرم ۱۸ عیار)</label>
-                      <input
-                        type="text"
+                      <AmountInput
                         inputMode="decimal"
                         value={goldOpeningQty}
-                        onChange={(e) => setGoldOpeningQty(e.target.value.replace(/[^\d.]/g, ""))}
-                        placeholder="0.00"
+                        onChange={(e) => setGoldOpeningQty(e.target.value)}
+                        placeholder="۰٫۰۰"
                         className="field num"
-                        dir="ltr"
+                        showWords={false}
+                        unit="none"
                       />
                     </div>
                     <div>

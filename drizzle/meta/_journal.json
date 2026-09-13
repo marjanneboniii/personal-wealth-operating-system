@@ -162,6 +162,13 @@
       "when": 1788914300000,
       "tag": "0022_wallex_asset_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788914400000,
+      "tag": "0023_market_catalog_source",
+      "breakpoints": true
     }
   ]
 }

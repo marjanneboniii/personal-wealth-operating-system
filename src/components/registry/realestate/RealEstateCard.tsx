@@ -221,7 +221,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
               <AmountInput className="field num" name="currentValueToman" inputMode="numeric" dir="ltr" placeholder="7500000000" unit="toman" required />
             </Labeled>
             <Labeled label="نرخ دلار (اختیاری)" hint="خالی بماند: نرخ همان تاریخ از موتور نرخ ارز خوانده می‌شود.">
-              <input className="field num" name="valuationFxRate" inputMode="numeric" dir="ltr" placeholder="190000" />
+              <AmountInput className="field num" name="valuationFxRate" inputMode="numeric" placeholder="۱۹۰٬۰۰۰" showWords={false} />
             </Labeled>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3">

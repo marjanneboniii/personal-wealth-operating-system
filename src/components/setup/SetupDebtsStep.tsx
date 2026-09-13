@@ -172,16 +172,14 @@ export default function SetupDebtsStep({
                     </div>
                     <div>
                       <label className="label">نرخ سود سالانه (٪) — اختیاری</label>
-                      <input
-                        type="text"
+                      <AmountInput
                         inputMode="decimal"
                         value={row.interestRate ?? "0"}
-                        onChange={(e) =>
-                          patch(row.key, { interestRate: e.target.value.replace(/[^\d.]/g, "") })
-                        }
+                        onChange={(e) => patch(row.key, { interestRate: e.target.value })}
                         placeholder="۱۸"
                         className="field num"
-                        dir="ltr"
+                        showWords={false}
+                        unit="none"
                       />
                     </div>
                   </div>
@@ -197,18 +195,17 @@ export default function SetupDebtsStep({
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="label">تعداد اقساط — صفر یعنی بدون قسط</label>
-                      <input
-                        type="text"
+                      <AmountInput
                         inputMode="numeric"
                         value={String(row.installmentCount ?? 0)}
                         onChange={(e) =>
-                          patch(row.key, {
-                            installmentCount: Number(e.target.value.replace(/[^\d]/g, "") || 0),
-                          })
+                          patch(row.key, { installmentCount: Number(e.target.value || 0) })
                         }
                         placeholder="۲۴"
                         className="field num"
-                        dir="ltr"
+                        showWords={false}
+                        unit="none"
+                        grouping={false}
                       />
                     </div>
                     {count > 0 && (

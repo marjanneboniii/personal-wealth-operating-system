@@ -304,13 +304,13 @@ export default function RealEstateForm({
                 "قیمت خرید و تاریخ تملک را وارد کنید."
               )}
             </div>
-            <input
+            <AmountInput
               className="field num mt-2"
-              dir="ltr"
               inputMode="numeric"
               value={manualPurchaseRate}
               onChange={(e) => setManualPurchaseRate(e.target.value)}
               placeholder="نرخ دلار تاریخ خرید (اختیاری)"
+              showWords={false}
             />
             <input type="hidden" name="purchaseFxRate" value={digitsOnly(manualPurchaseRate)} />
           </div>
@@ -347,13 +347,13 @@ export default function RealEstateForm({
                 "ارزش فعلی و تاریخ ارزش‌گذاری را وارد کنید."
               )}
             </div>
-            <input
+            <AmountInput
               className="field num mt-2"
-              dir="ltr"
               inputMode="numeric"
               value={manualValuationRate}
               onChange={(e) => setManualValuationRate(e.target.value)}
               placeholder="نرخ دلار تاریخ ارزش‌گذاری (اختیاری)"
+              showWords={false}
             />
             <input type="hidden" name="valuationFxRate" value={digitsOnly(manualValuationRate)} />
           </div>
@@ -371,13 +371,13 @@ export default function RealEstateForm({
             <input className="field" name="address" placeholder="نشانی دقیق یا پلاک ثبتی" />
           </Labeled>
           <Labeled label="متراژ (متر مربع)">
-            <input className="field num" name="sizeSqm" inputMode="numeric" dir="ltr" placeholder="120" />
+            <AmountInput className="field num" name="sizeSqm" inputMode="numeric" placeholder="۱۲۰" showWords={false} unit="none" />
           </Labeled>
           <Labeled label="طبقه">
-            <input className="field num" name="floor" inputMode="numeric" dir="ltr" placeholder="۳" />
+            <AmountInput className="field num" name="floor" inputMode="numeric" placeholder="۳" showWords={false} unit="none" grouping={false} />
           </Labeled>
           <Labeled label="سال ساخت">
-            <input className="field num" name="yearBuilt" inputMode="numeric" dir="ltr" placeholder="1395" />
+            <AmountInput className="field num" name="yearBuilt" inputMode="numeric" placeholder="۱۳۹۵" showWords={false} unit="none" grouping={false} />
           </Labeled>
           <Labeled label="شماره سند">
             <input className="field" name="deedNumber" placeholder="شماره سند مالکیت" />

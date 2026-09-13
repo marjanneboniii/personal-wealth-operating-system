@@ -1,5 +1,6 @@
 "use server";
 
+import { normalizeNumericInput } from "@/lib/numericInput";
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -434,6 +435,12 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
 
   try {
     const raw = Object.fromEntries(fd) as Record<string, string>;
+    // Safety net: every amount field is posted canonical by AmountInput, but a
+    // Persian or Arabic digit that reaches here any other way must still mean
+    // the same number — never a Decimal parse error, never a different value.
+    for (const key of ["irtAmount", "amount", "quantity", "fee", "fxRate"]) {
+      if (typeof raw[key] === "string") raw[key] = normalizeNumericInput(raw[key], { decimal: true });
+    }
     const idempotencyKey = String(raw.idempotencyKey || fd.get("idempotencyKey") || "").trim() || undefined;
     // Support both legacy 'amount' (USD) and new 'irtAmount' (IRT) — IRT is reference, USD is computed via server rate (freeze)
     const input = txSchema.parse(raw);
@@ -1511,7 +1518,7 @@ const setupSchema = z.object({
 
 /** One صندوق/سهم row from the wizard, after JSON parsing. */
 const setupInstrumentSchema = z.object({
-  kind: z.enum(["fund", "stock"]),
+  kind: z.enum(["fund", "stock", "wallex"]),
   symbol: z.string().trim().min(1).max(40),
   name: z.string().trim().max(160).optional(),
   quantity: z.string().optional(),

@@ -26,11 +26,21 @@ export type { PriceFailureCode };
 /** What kind of instrument a reference denotes. */
 export type QuoteKind =
   | "crypto"
+  /** A meme coin (DOGE, SHIB, PEPE…) — its own section, apart from crypto. */
+  | "meme"
   | "stablecoin"
   | "fund"
   | "stock"
   | "gold"
-  | "fx";
+  | "fx"
+  /** A US equity held as a token, e.g. AAPLX «اپل استاک». */
+  | "tokenized_stock"
+  /** Oil, gas, silver, copper, platinum — held as a tokenised fund share. */
+  | "commodity"
+  /** A market index held as a token (S&P 500, Nasdaq…). */
+  | "index"
+  /** A bond ETF held as a token (US Treasuries, aggregate bond). */
+  | "bond";
 
 export type PriceQuote = {
   /** Exact decimal string in `currency`. Never a JS number. */

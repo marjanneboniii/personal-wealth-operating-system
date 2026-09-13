@@ -288,17 +288,17 @@ export default function SetupRealAssetsStep({
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <label className="label">سال ساخت</label>
-                        <input
+                        <AmountInput
                           className="field num"
-                          dir="ltr"
                           inputMode="numeric"
-                          placeholder="1400"
+                          placeholder="۱۴۰۰"
                           value={row.manufacturingYear}
                           onChange={(event) =>
-                            patchVehicle(row.key, {
-                              manufacturingYear: event.target.value.replace(/[^0-9]/g, ""),
-                            })
+                            patchVehicle(row.key, { manufacturingYear: event.target.value })
                           }
+                          showWords={false}
+                          unit="none"
+                          grouping={false}
                         />
                       </div>
                       <div>
@@ -469,17 +469,14 @@ export default function SetupRealAssetsStep({
                         </div>
                         <div>
                           <label className="label">متراژ — اختیاری</label>
-                          <input
+                          <AmountInput
                             className="field num"
-                            dir="ltr"
                             inputMode="decimal"
-                            placeholder="120"
+                            placeholder="۱۲۰"
                             value={row.sizeSqm}
-                            onChange={(event) =>
-                              patchProperty(row.key, {
-                                sizeSqm: event.target.value.replace(/[^0-9.]/g, ""),
-                              })
-                            }
+                            onChange={(event) => patchProperty(row.key, { sizeSqm: event.target.value })}
+                            showWords={false}
+                            unit="none"
                           />
                         </div>
                         <div className="sm:col-span-2">

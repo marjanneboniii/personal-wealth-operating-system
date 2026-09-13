@@ -44,7 +44,7 @@ export default function AssetRegistrarTabs() {
           className={source === "market" ? "seg-on" : ""}
           onClick={() => setSource("market")}
         >
-          رمزارز و فلز توکنیزه
+          رمزارز، سهام آمریکا، شاخص و کامودیتی
         </button>
       </div>
 
@@ -53,11 +53,10 @@ export default function AssetRegistrarTabs() {
       ) : (
         <div className="card space-y-3 p-4 sm:p-5">
           <div>
-            <h2 className="text-[length:var(--fs-sm)] font-bold">رمزارز و فلز توکنیزه</h2>
+            <h2 className="text-[length:var(--fs-sm)] font-bold">رمزارز، میم‌کوین، سهام آمریکا، شاخص، کامودیتی و اوراق</h2>
             <p className="muted mt-1 text-[length:var(--fs-xs)] leading-6">
-              فهرست و قیمت‌ها از والکس می‌آید: نام فارسی از خودِ منبع، و دو قیمت مستقل —
-              <strong> قیمت تومانی</strong> از بازار تومانی و <strong>قیمت تتری</strong> از بازار
-              تتری. هیچ‌کدام از روی دیگری محاسبه نمی‌شود.
+              هر نماد با نام فارسی و دو قیمت مستقل نمایش داده می‌شود: <strong>قیمت تومانی</strong> و{" "}
+              <strong>قیمت تتری</strong>. هیچ‌کدام از روی دیگری محاسبه نمی‌شود.
             </p>
           </div>
           <WallexAssetPicker />

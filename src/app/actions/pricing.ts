@@ -12,14 +12,16 @@ import {
   refreshCoinGeckoCatalog,
   type PricedCoinGeckoCatalogEntry,
 } from "@/features/pricing/catalog";
-import { getSupportedCryptoByCoinGeckoId } from "@/features/pricing/supportedAssets";
+import { getSupportedCryptoByCoinGeckoId, getSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
 import {
   ensureWallexCatalog,
   getWallexAsset,
+  getWallexCatalogStatus,
+  listMarketRows,
   refreshWallexCatalog,
-  searchWallexCatalog,
-  type WallexCatalogResult,
 } from "@/features/pricing/wallexCatalog";
+import type { MarketRow } from "@/features/pricing/marketSearch";
+import { registerWallexAsset } from "@/features/pricing/wallexRegistration";
 import type { PriceFailureCode, PriceFreshness } from "@/features/pricing/types";
 
 export type RegisterMarketAssetResult = {
@@ -288,19 +290,20 @@ export async function refreshMarketCatalogAction(): Promise<SearchMarketCatalogR
 
 
 /* ══════════════════════════════════════════════════════════════════════
-   والکس — the Persian-named catalogue with BOTH market quotes.
+   بازار — the Persian-named catalogue with BOTH market quotes (تومان, تتر):
+   coins, meme coins, tokenised US stocks, indices, bonds and commodities.
 
-   Separate from the CoinGecko actions above rather than merged into them,
-   because the two sources answer different questions and disagree by design:
-   CoinGecko gives a global USD identity for 23 curated coins, Wallex gives a
-   few hundred assets named in Persian with a تومان price AND a تتر price, plus
-   the tokenised metals the curated list cannot express. Collapsing them into
-   one action would have forced one price shape onto both.
+   PRODUCT RULE: nothing returned here names an exchange. Messages speak of
+   «قیمت‌ها», never of where they came from.
+
+   SPEED: `loadMarketCatalogAction` is called ONCE per screen and the client
+   searches in memory. It never waits on the network when rows exist — a stale
+   catalogue is returned at once and refreshed in the background.
    ══════════════════════════════════════════════════════════════════════ */
 
-export type WallexCatalogActionResult = {
+export type MarketCatalogLoadResult = {
   ok: boolean;
-  assets: WallexCatalogResult[];
+  rows: MarketRow[];
   /** fresh | stale | unavailable — the UI must disclose a stale price. */
   freshness: "fresh" | "stale" | "unavailable";
   total: number;
@@ -308,209 +311,102 @@ export type WallexCatalogActionResult = {
   message?: string;
 };
 
-/**
- * Search the persisted Wallex catalogue, refreshing it first when stale.
- *
- * Never throws on an upstream outage: the persisted rows are served and the
- * freshness is reported as `stale`, because a search box that empties itself
- * during a network blip reads as «the feature is gone».
- */
-export async function searchWallexCatalogAction(
-  query: string,
-  kind?: string,
-): Promise<WallexCatalogActionResult> {
+/** Every active market row, for in-memory search on the client. */
+export async function loadMarketCatalogAction(): Promise<MarketCatalogLoadResult> {
   try {
     await requireRegistrationIdentity();
     const status = await ensureWallexCatalog();
-    const assets = await searchWallexCatalog(query, { kind, limit: 100 });
+    const rows = await listMarketRows();
     return {
       ok: true,
-      assets,
+      rows,
       freshness: status.freshness,
-      total: status.total,
+      total: rows.length,
       syncedAt: status.lastSyncedAt ? status.lastSyncedAt.toISOString() : null,
     };
   } catch (error) {
     return {
       ok: false,
-      assets: [],
+      rows: [],
       freshness: "unavailable",
       total: 0,
       syncedAt: null,
-      message: error instanceof Error ? error.message : "جست‌وجوی کاتالوگ والکس ناموفق بود.",
+      message: error instanceof Error ? error.message : "دریافت فهرست بازار ناموفق بود.",
     };
   }
 }
 
-/** Manual re-sync. Touches the identity/price catalogue and nothing else. */
-export async function refreshWallexCatalogAction(): Promise<WallexCatalogActionResult> {
+/** Manual re-sync, waited for — the user asked for it explicitly. */
+export async function refreshMarketCatalogNowAction(): Promise<MarketCatalogLoadResult> {
   try {
     await requireRegistrationIdentity();
     const sync = await refreshWallexCatalog();
-    const status = await getWallexCatalogStatusSafe();
-    const assets = await searchWallexCatalog("", { limit: 100 });
-    revalidatePath("/new");
-    revalidatePath("/funds");
+    const status = await getWallexCatalogStatus();
+    const rows = await listMarketRows();
+    revalidatePath("/market");
     return {
       ok: sync.status === "fresh",
-      assets,
+      rows,
       freshness: status.freshness,
-      total: status.total,
+      total: rows.length,
       syncedAt: status.lastSyncedAt ? status.lastSyncedAt.toISOString() : null,
       message:
         sync.status === "fresh"
-          ? `کاتالوگ والکس به‌روزرسانی شد — ${sync.synced} دارایی با قیمت تومانی و تتری.`
-          : "اتصال به والکس برقرار نشد؛ آخرین فهرست ذخیره‌شده نمایش داده می‌شود.",
+          ? `قیمت‌ها به‌روز شد — ${rows.length} نماد.`
+          : "قیمت‌ها به‌روز نشد؛ آخرین قیمت‌های ذخیره‌شده نمایش داده می‌شود.",
     };
   } catch (error) {
     return {
       ok: false,
-      assets: [],
+      rows: [],
       freshness: "unavailable",
       total: 0,
       syncedAt: null,
-      message: error instanceof Error ? error.message : "به‌روزرسانی کاتالوگ والکس ناموفق بود.",
+      message: error instanceof Error ? error.message : "به‌روزرسانی قیمت‌ها ناموفق بود.",
     };
   }
 }
 
-async function getWallexCatalogStatusSafe() {
-  const { getWallexCatalogStatus } = await import("@/features/pricing/wallexCatalog");
-  return getWallexCatalogStatus();
-}
-
 /**
- * Register a Wallex identity plus the tenant-owned asset account.
+ * Register a market asset plus the tenant-owned asset account.
  *
- * Mirrors `registerMarketAssetAction` exactly in what it does NOT do: no
- * transaction, no journal entry, no posting, no FIFO lot, no balance. The
- * account opens at zero and the existing purchase flow stays the only path
- * that touches accounting.
+ * No transaction, no journal entry, no posting, no FIFO lot, no balance. The
+ * account opens at zero and the purchase flow stays the only path that
+ * touches accounting.
  *
- * The identity is taken from the PERSISTED catalogue, never from the caller's
- * strings: a client that could supply a name and a symbol could mis-map a
- * holding onto the wrong asset. The symbol is the only thing it chooses, and
- * it must already exist in a catalogue synced from the exchange.
+ * A coin the app already values live (BTC, ETH, SOL…) is registered through
+ * that path, so choosing it here keeps its live valuation. Everything else is
+ * registered from the persisted catalogue — never from caller strings, so a
+ * client cannot mis-map a holding onto the wrong asset.
  */
 export async function registerWallexAssetAction(
   symbol: string,
 ): Promise<RegisterMarketAssetResult> {
   try {
     const user = await requireRegistrationIdentity();
+
+    const supported = getSupportedCryptoBySymbol(symbol);
+    if (supported) {
+      const live = await registerMarketAssetAction(supported.coingeckoId);
+      if (live.ok) {
+        return { ...live, message: `${supported.displayName} انتخاب شد؛ اکنون مقدار و مبلغ را وارد کنید.` };
+      }
+      // Fall through: the catalogue path below still registers it.
+    }
+
     await ensureWallexCatalog();
-
     const entry = await getWallexAsset(symbol);
-    if (!entry) throw new Error("این دارایی در کاتالوگ والکس یافت نشد.");
+    if (!entry) throw new Error("این نماد در فهرست بازار یافت نشد.");
 
-    // Tokenised metal lands in the gold class, a stablecoin in its own, so a
-    // portfolio's allocation chart reads correctly the moment it is bought.
-    const classSeed =
-      entry.kind === "gold"
-        ? { code: "gold", name: "طلا", color: "#363850", sortOrder: 4 }
-        : entry.kind === "stablecoin"
-          ? { code: "stable", name: "استیبل‌کوین", color: "#9aa3c7", sortOrder: 2 }
-          : { code: "crypto", name: "رمزارز", color: "#c9cafa", sortOrder: 3 };
-
-    let [assetClass] = await db
-      .select()
-      .from(assetClasses)
-      .where(eq(assetClasses.code, classSeed.code))
-      .limit(1);
-    if (!assetClass) {
-      [assetClass] = await db
-        .insert(assetClasses)
-        .values(classSeed)
-        .onConflictDoNothing({ target: assetClasses.code })
-        .returning();
-      if (!assetClass) {
-        [assetClass] = await db
-          .select()
-          .from(assetClasses)
-          .where(eq(assetClasses.code, classSeed.code))
-          .limit(1);
-      }
-    }
-    if (!assetClass) throw new Error("کلاس دارایی قابل ایجاد نیست.");
-
-    const [existing] = await db.select().from(assets).where(eq(assets.symbol, entry.symbol)).limit(1);
-    let asset = existing;
-    if (asset) {
-      // An asset already priced by CoinGecko keeps that pricing method — the
-      // valuation layer knows how to read it, and switching a held asset's
-      // price source is not a side effect a registration may cause.
-      [asset] = await db
-        .update(assets)
-        .set({
-          name: asset.name || entry.displayName,
-          logoUrl: asset.logoUrl || entry.logoUrl,
-          isActive: true,
-          deletedAt: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(assets.id, asset.id))
-        .returning();
-    } else {
-      [asset] = await db
-        .insert(assets)
-        .values({
-          symbol: entry.symbol,
-          name: entry.displayName,
-          classId: assetClass.id,
-          decimals: 8,
-          pricingMethod: "manual",
-          priceSource: "wallex",
-          logoUrl: entry.logoUrl,
-        })
-        .returning();
-    }
-    if (!asset) throw new Error("ثبت شناسه دارایی ناموفق بود.");
-
-    const ownership = user ? eq(accounts.userId, user.id) : sql`${accounts.userId} is null`;
-    let [account] = await db
-      .select()
-      .from(accounts)
-      .where(and(eq(accounts.assetId, asset.id), eq(accounts.type, "asset"), ownership))
-      .limit(1);
-
-    if (!account) {
-      const codeBase = `WLX-${entry.symbol}`.toUpperCase().replace(/[^A-Z0-9-]/g, "-").slice(0, 48);
-      [account] = await db
-        .insert(accounts)
-        .values({
-          userId: user?.id ?? null,
-          code: codeBase,
-          name: `${entry.displayName} (${entry.symbol})`,
-          type: "asset",
-          assetId: asset.id,
-          isActive: true,
-        })
-        .onConflictDoNothing()
-        .returning();
-      if (!account) {
-        [account] = await db
-          .select()
-          .from(accounts)
-          .where(and(eq(accounts.assetId, asset.id), eq(accounts.type, "asset"), ownership))
-          .limit(1);
-      }
-    }
-    if (!account) throw new Error("ایجاد حساب دارایی ناموفق بود.");
+    const registered = await registerWallexAsset({ symbol: entry.symbol, userId: user?.id ?? null });
 
     revalidatePath("/new");
     revalidatePath("/portfolio");
     revalidatePath("/crypto");
     return {
       ok: true,
-      message: `${entry.displayName} (${entry.symbol}) ثبت شد؛ اکنون خرید را با مقدار و قیمت واقعی تکمیل کنید.`,
-      account: {
-        id: account.id,
-        code: account.code,
-        name: account.name,
-        type: "asset",
-        symbol: asset.symbol,
-        decimals: asset.decimals,
-        logoUrl: asset.logoUrl,
-      },
+      message: `${entry.displayName} (${entry.symbol}) انتخاب شد؛ اکنون مقدار و مبلغ را وارد کنید.`,
+      account: registered.account,
     };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "ثبت دارایی ناموفق بود." };
