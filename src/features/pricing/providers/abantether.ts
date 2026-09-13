@@ -46,6 +46,17 @@ const DEFAULT_TIMEOUT_MS = 25_000;
 /** A tokenised real-world asset, by the source's own Latin name. */
 const RWA_NAME_RE = /tokeni[sz]ed|\(xstock\)|bstocks|\(ondo\)|\bstock price\b/i;
 
+/**
+ * Stablecoins taken from this feed because والکس does not list them (verified
+ * 2026-09-13), each with the Persian name the rest of the app uses. Anything
+ * else coin-shaped stays out: a second copy of a coin Wallex already quotes
+ * would give one symbol two prices.
+ */
+const STABLECOIN_PICKS: Readonly<Record<string, string>> = {
+  USDE: "اتنا یو‌اس‌دی‌ای",
+  PYUSD: "پی‌پل یو‌اس‌دی",
+};
+
 type AbanCoin = {
   symbol?: unknown;
   name?: unknown;
@@ -84,7 +95,7 @@ function markFor(kind: QuoteKind, latinName: string): string {
 export class AbanTetherProvider implements PriceProvider {
   readonly id = "abantether";
   readonly displayName = "آبان‌تتر";
-  readonly kinds: readonly QuoteKind[] = ["tokenized_stock", "commodity", "index", "bond"];
+  readonly kinds: readonly QuoteKind[] = ["tokenized_stock", "commodity", "index", "bond", "stablecoin"];
   readonly quoteCurrency = "IRT";
 
   private readonly fetchImpl: typeof fetch;
@@ -110,7 +121,8 @@ export class AbanTetherProvider implements PriceProvider {
     for (const coin of coins) {
       const symbol = str(coin.symbol)?.toUpperCase();
       const latinName = str(coin.name) ?? "";
-      if (!symbol || !RWA_NAME_RE.test(latinName)) continue;
+      const stablecoinName = symbol ? STABLECOIN_PICKS[symbol] : undefined;
+      if (!symbol || (!stablecoinName && !RWA_NAME_RE.test(latinName))) continue;
       if (coin.is_active === false) continue;
       const persian = str(coin.persian_name);
       if (!persian) continue;
@@ -121,17 +133,17 @@ export class AbanTetherProvider implements PriceProvider {
       const priceUsdt = positive(coin.tether_price);
       if (priceTmn === null && priceUsdt === null) continue;
 
-      const kind = kindOf(symbol, latinName);
+      const kind = stablecoinName ? "stablecoin" : kindOf(symbol, latinName);
 
       out.push({
         symbol,
         // The asset's own Persian name, never tagged with an issuer or
         // tokenisation family: the symbol shown beside it (TSLAX vs TSLAON)
         // is what tells two tokens of one company apart.
-        displayName: persian,
+        displayName: stablecoinName ?? persian,
         latinName,
         kind: kind === "crypto" ? "tokenized_stock" : kind,
-        logoUrl: markFor(kind, latinName),
+        logoUrl: stablecoinName ? null : markFor(kind, latinName),
         priceTmn,
         priceUsdt,
         fetchedAt,

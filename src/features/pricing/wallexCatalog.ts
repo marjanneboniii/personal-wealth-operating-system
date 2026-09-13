@@ -34,6 +34,15 @@ import { bootstrapProviders } from "./providers";
 import { WallexProvider, type WallexMarketEntry } from "./providers/wallex";
 import type { AbanTetherProvider } from "./providers/abantether";
 import { rankMarketRows, type MarketRow } from "./marketSearch";
+import { getSupportedCryptoBySymbol } from "./supportedAssets";
+
+/**
+ * Stablecoins the app supports that NO exchange feed lists (USDG «گلوبال دلار»,
+ * verified absent from both on 2026-09-13). They get a catalogue row so they
+ * can be found and picked; their prices stay empty rather than invented, and
+ * picking one registers it on the live CoinGecko valuation path.
+ */
+const REGISTRY_ONLY_SYMBOLS = ["USDG"] as const;
 import { WALLEX_KIND_LABELS, WALLEX_RWA_KINDS, wallexKindLabel } from "./wallexKinds";
 
 // The vocabulary lives in a pure module so client components can share it.
@@ -132,7 +141,7 @@ export async function refreshWallexCatalog(
    * a full sync is ~280 rows, and doing them one at a time was the slowest
    * part of every refresh.
    */
-  const upsertAll = async (rows: WallexMarketEntry[], from: "wallex" | "abantether") => {
+  const upsertAll = async (rows: WallexMarketEntry[], from: "wallex" | "abantether" | "coingecko") => {
     const unique = [...new Map(rows.map((r) => [r.symbol, r])).values()];
     for (let i = 0; i < unique.length; i += UPSERT_CHUNK) {
       const chunk = unique.slice(i, i + UPSERT_CHUNK);
@@ -191,6 +200,19 @@ export async function refreshWallexCatalog(
   );
   const abanTaken = abanEntries.filter((e) => !wallexOwned.has(e.symbol));
   await upsertAll(abanTaken, "abantether");
+
+  // Registry-only stablecoins, only on a full (non-test) sync and only where
+  // neither feed supplied the symbol.
+  if (aban) {
+    const fed = new Set([...wallexOwned, ...abanTaken.map((e) => e.symbol)]);
+    const registryRows: WallexMarketEntry[] = REGISTRY_ONLY_SYMBOLS.filter((s) => !fed.has(s)).flatMap((s) => {
+      const coin = getSupportedCryptoBySymbol(s);
+      return coin
+        ? [{ symbol: coin.symbol, displayName: coin.displayName, latinName: coin.name, kind: "stablecoin" as const, logoUrl: null, priceTmn: null, priceUsdt: null, fetchedAt: syncedAt.toISOString() }]
+        : [];
+    });
+    await upsertAll(registryRows, "coingecko");
+  }
 
   // Symbols a feed no longer carries are deactivated, never deleted: a user
   // may already hold one, and its identity must survive a delisting. Each

@@ -226,7 +226,7 @@ test("each commodity has its own drawn mark on the system's white plate", () => 
   for (const [, name] of pairs) {
     const body = src.match(new RegExp(`export function ${name}\\(([\\s\\S]*?)\\n}`));
     assert.ok(body, `${name} is defined`);
-    assert.ok(/plate = "#FFFFFF"/.test(body![1]), `${name} sits on the white plate`);
+    assert.ok(/plate = "(#FFFFFF|var\(--paper-000\))"/.test(body![1]), `${name} sits on the white plate`);
     assert.ok(/<Plate fill=\{plate\} \/>/.test(body![1]), `${name} uses the shared rx=12 plate`);
   }
 

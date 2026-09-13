@@ -25,6 +25,7 @@ import {
   TOMAN_LOGO,
 } from "@/features/branding/persianIcons";
 import TomanIcon from "@/components/ui/TomanIcon";
+import { marketLogoFor } from "@/features/branding/marketLogos";
 import {
   CommodityFundMark,
   FixedIncomeFundMark,
@@ -79,7 +80,15 @@ export default function AssetLogo({
   // `failed` is reset by the `key` below whenever the resolved asset changes,
   // so a previous load error never sticks to a different asset.
   const [failed, setFailed] = useState(false);
-  const src = failed ? localFallback(resolved.assetType) : resolved.src;
+  /*
+   * A market symbol with a real brand logo (Apple, S&P 500, PayPal USD…) shows
+   * it from a local file — see features/branding/marketLogos. It beats a
+   * stored exchange artwork and a drawn `mark:` fallback, but never an explicit
+   * user choice.
+   */
+  const marketLogo = input.userLogoUrl ? null : marketLogoFor(input.symbol);
+  const primarySrc = marketLogo ?? resolved.src;
+  const src = failed ? localFallback(resolved.assetType) : primarySrc;
 
   const alt = title ?? input.name ?? input.symbol ?? "";
   const borderRadius = radius ?? Math.round(size * 0.28);
@@ -112,7 +121,7 @@ export default function AssetLogo({
    */
   // A `mark:` logo is a catalogue row that has no trustworthy artwork
   // (آبان‌تتر publishes none) and asks for the drawn mark of its kind instead.
-  const commodityMark = !input.userLogoUrl
+  const commodityMark = !input.userLogoUrl && !marketLogo
     ? WALLEX_ASSET_MARKS[(input.symbol ?? "").trim().toUpperCase()] ??
       (input.logoUrl?.startsWith("mark:") ? KIND_MARKS[input.logoUrl.slice(5)] ?? StockMark : undefined)
     : undefined;
@@ -147,7 +156,7 @@ export default function AssetLogo({
   return (
     /* eslint-disable-next-line @next/next/no-img-element */
     <img
-      key={resolved.src}
+      key={primarySrc}
       src={src}
       alt={alt}
       width={size}

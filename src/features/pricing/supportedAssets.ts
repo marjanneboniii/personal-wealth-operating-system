@@ -102,7 +102,7 @@ export const SUPPORTED_CRYPTO_ASSETS = [
   {
     symbol: "USDS",
     name: "USDS",
-    displayName: "USDS",
+    displayName: "یو‌اس‌دی‌اس",
     coingeckoId: "usds",
     logoUrl: "https://coin-images.coingecko.com/coins/images/39926/large/usds.webp",
     marketCapRank: 12,
@@ -126,7 +126,7 @@ export const SUPPORTED_CRYPTO_ASSETS = [
   {
     symbol: "USDE",
     name: "Ethena USDe",
-    displayName: "Ethena USDe",
+    displayName: "اتنا یو‌اس‌دی‌ای",
     coingeckoId: "ethena-usde",
     logoUrl: "https://coin-images.coingecko.com/coins/images/33613/large/usde.png",
     marketCapRank: 24,
@@ -142,10 +142,18 @@ export const SUPPORTED_CRYPTO_ASSETS = [
   {
     symbol: "USDG",
     name: "Global Dollar",
-    displayName: "Global Dollar",
+    displayName: "گلوبال دلار",
     coingeckoId: "global-dollar",
     logoUrl: "https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png",
     marketCapRank: 28,
+  },
+  {
+    symbol: "PYUSD",
+    name: "PayPal USD",
+    displayName: "پی‌پل یو‌اس‌دی",
+    coingeckoId: "paypal-usd",
+    logoUrl: "https://coin-images.coingecko.com/coins/images/31212/large/PYUSD_Token_Logo_2x.png",
+    marketCapRank: null,
   },
   {
     symbol: "XAUT",
@@ -158,7 +166,7 @@ export const SUPPORTED_CRYPTO_ASSETS = [
   {
     symbol: "PAXG",
     name: "PAX Gold",
-    displayName: "PAX Gold",
+    displayName: "پکس گلد",
     coingeckoId: "pax-gold",
     logoUrl: "https://coin-images.coingecko.com/coins/images/9519/large/asset-paxg.png",
     marketCapRank: 42,
@@ -166,7 +174,7 @@ export const SUPPORTED_CRYPTO_ASSETS = [
   {
     symbol: "CBBTC",
     name: "Coinbase Wrapped BTC",
-    displayName: "Coinbase Wrapped BTC",
+    displayName: "بیت‌کوین رپ‌شدهٔ کوین‌بیس",
     coingeckoId: "coinbase-wrapped-btc",
     logoUrl: "https://coin-images.coingecko.com/coins/images/40143/large/cbbtc.webp",
     marketCapRank: null,
@@ -174,7 +182,7 @@ export const SUPPORTED_CRYPTO_ASSETS = [
   {
     symbol: "WBTC",
     name: "Wrapped Bitcoin",
-    displayName: "Wrapped Bitcoin",
+    displayName: "رپد بیت‌کوین",
     coingeckoId: "wrapped-bitcoin",
     logoUrl: "https://coin-images.coingecko.com/coins/images/7598/large/WBTCLOGO.png",
     marketCapRank: null,
