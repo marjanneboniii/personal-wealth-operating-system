@@ -14,6 +14,8 @@ export const WALLEX_KIND_LABELS: Record<string, string> = {
   commodity: "کامودیتی",
   bond: "اوراق قرضه",
   gold: "فلز توکنیزه",
+  ir_fund: "صندوق بورسی",
+  ir_stock: "سهام بورسی",
 };
 
 /** Section order on «نمای بازار» and in every picker's tabs. */
@@ -25,6 +27,8 @@ export const MARKET_KIND_ORDER = [
   "commodity",
   "bond",
   "gold",
+  "ir_fund",
+  "ir_stock",
 ] as const;
 
 /**
@@ -60,7 +64,7 @@ export const CRYPTO_GROUPS = {
   defi: [
     "UNI", "AAVE", "CRV", "CVX", "SNX", "1INCH", "SUSHI", "YFI", "LRC", "DYDX", "CAKE",
     "JUP", "RAY", "ENA", "ETHFI", "MORPHO", "ONDO", "RUNE", "PYTH", "ZRX", "BAND", "API3",
-    "SKY",
+    "SKY", "ASTER", "LIT",
   ],
   classic: ["XTZ", "EGLD", "FLOW", "QNT"],
   privacy: ["XMR", "ZEC", "DASH", "ZEN"],

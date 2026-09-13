@@ -53,7 +53,12 @@ import { getLatestUsdIrtRate } from "@/lib/fx";
  * consistent with the tether price a user sees one line above it. Only when
  * no USDT Toman price exists does it fall back to the app's USD→IRT rate.
  */
-const REGISTRY_ONLY_SYMBOLS = ["USDG"] as const;
+const REGISTRY_ONLY: ReadonlyArray<{ symbol: string; kind: "stablecoin" | "crypto" }> = [
+  { symbol: "USDG", kind: "stablecoin" },
+  // Lighter — a perp-DEX token no Iranian exchange feed lists (verified
+  // 2026-09-14); CAKE and ASTER trade on Wallex and use that market instead.
+  { symbol: "LIT", kind: "crypto" },
+];
 
 /** USD prices by CoinGecko id — injectable so tests never reach the network. */
 export type RegistryUsdQuotes = (ids: string[]) => Promise<Map<string, { priceUsd: string }>>;
@@ -227,8 +232,11 @@ export async function refreshWallexCatalog(
   // neither feed supplied the symbol.
   if (aban) {
     const fed = new Set([...wallexOwned, ...abanTaken.map((e) => e.symbol)]);
-    const coins = REGISTRY_ONLY_SYMBOLS.filter((s) => !fed.has(s))
-      .map((s) => getSupportedCryptoBySymbol(s))
+    const coins = REGISTRY_ONLY.filter((r) => !fed.has(r.symbol))
+      .map((r) => {
+        const coin = getSupportedCryptoBySymbol(r.symbol);
+        return coin ? { ...coin, kind: r.kind } : null;
+      })
       .filter((c): c is NonNullable<typeof c> => Boolean(c));
 
     const quotesFn = registryQuotes === undefined ? (provider ? null : liveRegistryQuotes) : registryQuotes;
@@ -240,7 +248,7 @@ export async function refreshWallexCatalog(
       symbol: coin.symbol,
       displayName: coin.displayName,
       latinName: coin.name,
-      kind: "stablecoin" as const,
+      kind: coin.kind,
       logoUrl: null,
       // A failed quote leaves both null, and the upsert's coalesce keeps the
       // last known prices instead of blanking them.

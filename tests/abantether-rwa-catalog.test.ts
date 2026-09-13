@@ -203,6 +203,7 @@ test("USDG — no exchange lists it, so its prices are converted from CoinGecko"
     assert.ok(ids.includes("global-dollar") && ids.includes("tether"), "one call for the coin and USDT");
     return new Map([
       ["global-dollar", { priceUsd: "1.0006" }],
+      ["lighter", { priceUsd: "4.16" }],
       ["tether", { priceUsd: "1.0002" }],
     ]);
   };
@@ -219,6 +220,15 @@ test("USDG — no exchange lists it, so its prices are converted from CoinGecko"
   const expectedUsdt = D("1.0006").div("1.0002");
   assert.equal(D(usdg.priceUsdt).toFixed(6), expectedUsdt.toFixed(6));
   assert.equal(D(usdg.priceTmn).toFixed(0), expectedUsdt.mul(usdt.priceTmn).toFixed(0));
+
+  // LIT (Lighter): no exchange lists it — a crypto row priced the same way.
+  const lit = await getWallexAsset("LIT");
+  assert.ok(lit, "LIT is in the market list");
+  assert.equal(lit.kind, "crypto");
+  assert.equal(lit.displayName, "لایتر");
+  const litUsdt = D("4.16").div("1.0002");
+  assert.equal(D(lit.priceUsdt).toFixed(6), litUsdt.toFixed(6));
+  assert.equal(D(lit.priceTmn).toFixed(0), litUsdt.mul(usdt.priceTmn).toFixed(0));
 
   // CoinGecko goes down: the row keeps its last prices instead of blanking.
   await refreshWallexCatalog(wallex(withUsdt), aban(), async () => {

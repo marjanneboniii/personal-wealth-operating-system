@@ -1,6 +1,7 @@
 import { ensureAuth } from "@/lib/authGuard";
 import { ensureWallexCatalog, listMarketRows } from "@/features/pricing/wallexCatalog";
 import MarketView from "@/components/assets/MarketView";
+import { tseMarketRows } from "@/features/pricing/tseMarketRows";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,9 @@ export const metadata = { title: "نمای بازار — توازن" };
 export default async function MarketPage() {
   await ensureAuth();
   const status = await ensureWallexCatalog();
-  const rows = await listMarketRows();
+  // Tehran-exchange funds and stocks are listed without prices until a live
+  // feed exists; they are appended here, not persisted, so no picker offers them.
+  const rows = [...(await listMarketRows()), ...tseMarketRows()];
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 py-6">
