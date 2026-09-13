@@ -20,6 +20,7 @@ import { faCount, formatMoney, formatPct, toIrtMoney, toFaDigits } from "@/lib/f
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getUserProMode } from "@/features/preferences/service";
 import AccountListItem from "@/components/accounts/AccountListItem";
+import { walletLogoFor } from "@/features/setup/holdingWallets";
 
 export const dynamic = "force-dynamic";
 
@@ -197,7 +198,12 @@ export default async function AccountsPage() {
   const walletViews = [...byWallet.entries()]
     .map(([key, rows]) => {
       const meta = walletRows.find((w) => w.id === key);
-      const name = cleanDisplayName(meta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف پول") || "بدون کیف پول";
+      // Older setups stored a coin as «کیف پول تتر» with no real wallet. A coin
+      // is not a wallet, so such a row reads as the coin itself.
+      const legacyCoinWallet = !meta && rows.length === 1 && rows[0]?.assetName && rows[0]?.name === `کیف پول ${rows[0].assetName}`;
+      const name =
+        cleanDisplayName(legacyCoinWallet ? rows[0].assetName! : (meta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف پول")) ||
+        "بدون کیف پول";
       return {
         key,
         meta,
@@ -206,7 +212,14 @@ export default async function AccountsPage() {
         toman: tomanTotal(rows),
         usd: usdTotal(rows),
         subtitle: meta
-          ? walletSubtitleOf({ name, kind: meta.kind, institution: meta.institution ?? null, network: meta.network ?? null })
+          ? [
+              // A wallet holding one coin names that coin — «Trust Wallet» alone
+              // would not say it holds USDC rather than USDT.
+              rows.length === 1 && rows[0]?.assetName && !isIrt(rows[0]) ? rows[0].assetName : null,
+              walletSubtitleOf({ name, kind: meta.kind, institution: meta.institution ?? null, network: meta.network ?? null }),
+            ]
+              .filter(Boolean)
+              .join(" · ") || null
           : null,
       };
     })
@@ -288,7 +301,10 @@ export default async function AccountsPage() {
               const firstMeta = first.assetId ? assetMeta.get(first.assetId) : undefined;
               const logoType = w.meta?.kind === "exchange" ? "company" : "bank";
               const brandName = w.meta?.institution ?? w.name;
-              const useWalletMark = resolveAssetLogoDetailed({ assetType: logoType, brandName, name: w.name }).source === "persianlabs";
+              // A known crypto wallet (بیت‌پین، لجر، متامسک…) shows its own local logo.
+              const walletLogo = w.meta ? walletLogoFor(w.meta.name) : null;
+              const useWalletMark =
+                !!walletLogo || resolveAssetLogoDetailed({ assetType: logoType, brandName, name: w.name }).source === "persianlabs";
               // A single stablecoin wallet keeps both marks (e.g. Nobitex + Tether).
               const showAssetBadge = single && useWalletMark && !isIrt(first) && (!!firstMeta?.logoUrl || !!firstMeta?.coingeckoId);
 
@@ -312,7 +328,14 @@ export default async function AccountsPage() {
                   <div className="list-row">
                     {useWalletMark ? (
                       <span className="acct-icon flex shrink-0 items-center">
-                        <AssetLogo assetType={logoType} brandName={brandName} name={w.name} size={34} radius={17} />
+                        <AssetLogo
+                          assetType={logoType}
+                          brandName={brandName}
+                          name={w.name}
+                          userLogoUrl={walletLogo ?? undefined}
+                          size={34}
+                          radius={17}
+                        />
                         {showAssetBadge && (
                           <span className="wallet-badge">
                             <AssetLogo
@@ -369,7 +392,8 @@ export default async function AccountsPage() {
                           <AccountListItem
                             key={b.accountId}
                             accountId={b.accountId}
-                            name={b.name}
+                            // Inside its wallet «تتر - بیت‌پین» reads as «تتر».
+                            name={b.name?.endsWith(` - ${w.name}`) ? b.name.slice(0, -` - ${w.name}`.length) : b.name}
                             symbol={b.symbol}
                             quantity={b.quantity}
                             assetDecimals={b.assetDecimals}
