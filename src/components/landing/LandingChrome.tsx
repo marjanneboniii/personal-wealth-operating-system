@@ -8,9 +8,9 @@ export function LandingHeader() {
     <header className="landing-header landing-ink">
       <div className="landing-wrap landing-header-inner">
         <Link href="/" className="landing-brand" aria-label="توازن — سیستم‌عامل ثروت شخصی">
-          <BrandMark size={28} style={{ color: "var(--l-accent)" }} />
+          <BrandMark size={28} style={{ color: "var(--action)" }} />
           <span className="min-w-0 leading-tight">
-            <BrandWordmark className="block text-[length:var(--fs-md)] text-[color:var(--l-text)]" />
+            <BrandWordmark className="block text-[length:var(--fs-md)] text-[color:var(--text)]" />
             <span className="landing-on-primary-muted hidden text-[length:var(--fs-xs)] sm:block">سیستم‌عامل ثروت شخصی</span>
           </span>
         </Link>
@@ -24,7 +24,7 @@ export function LandingHeader() {
           <Link href="/login" className="btn btn-ghost !min-h-12 !px-2.5 text-[length:var(--fs-sm)] sm:!px-4">
             ورود
           </Link>
-          <Link href="/register" className="btn btn-primary !min-h-12 !px-3 text-[length:var(--fs-sm)] sm:!px-4">
+          <Link href="/register" className="btn btn-soft !min-h-12 !px-3 text-[length:var(--fs-sm)] sm:!px-4">
             ایجاد حساب
           </Link>
         </nav>
@@ -38,9 +38,9 @@ export function LandingFooter() {
     <footer className="landing-footer landing-ink">
       <div className="landing-wrap flex flex-col gap-6 py-9 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="flex items-center gap-2" style={{ color: "var(--l-accent)" }}>
+          <div className="flex items-center gap-2" style={{ color: "var(--action)" }}>
             <BrandMark size={22} />
-            <BrandWordmark className="text-[length:var(--fs-md)] text-[color:var(--l-text)]" />
+            <BrandWordmark className="text-[length:var(--fs-md)] text-[color:var(--text)]" />
           </div>
           <p className="sub mt-2.5 max-w-xs text-[length:var(--fs-sm)] leading-7">سیستم‌عامل ثروت شخصی — آرام، خصوصی، دقیق.</p>
         </div>

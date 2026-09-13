@@ -1,6 +1,7 @@
 "use client";
 
 import { formatDualMoneyFromIrt, formatDualMoneyFromUsd } from "@/lib/format";
+import FormattedMoney from "@/components/ui/FormattedMoney";
 
 type PropsIrt = { irt: string | number; rate: string | null; digits?: "fa" | "en" };
 type PropsUsd = { usd: string | number; rate: string | null; digits?: "fa" | "en" };
@@ -9,9 +10,9 @@ export function DualMoneyFromIrt({ irt, rate }: PropsIrt) {
   const { irt: irtLabel, usd, rateLabel } = formatDualMoneyFromIrt(irt, rate, "fa");
   return (
     <span className="inline-flex flex-col items-start gap-1 min-w-0">
-      <span className="type-financial num money-nowrap text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)]" dir="rtl">{irtLabel}</span>
+      <span className="type-financial money-inline money-nowrap text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)]" dir="rtl"><FormattedMoney value={irtLabel} /></span>
       <span className="type-caption flex flex-wrap items-center gap-1 money-nowrap">
-        معادل: <span className="num money-nowrap text-[length:var(--fs-xs)]" dir="ltr" style={{ color: "var(--brand)" }}>{usd}</span>
+        معادل: <span className="money-inline money-nowrap text-[length:var(--fs-xs)]" dir="rtl" style={{ color: "var(--text-2)" }}><FormattedMoney value={usd} /></span>
       </span>
       <span className="chip text-[length:var(--fs-xs)] money-nowrap">{rateLabel}</span>
     </span>
@@ -22,9 +23,9 @@ export function DualMoneyFromUsd({ usd, rate }: PropsUsd) {
   const { irt, usd: usdLabel, rateLabel } = formatDualMoneyFromUsd(usd, rate, "fa");
   return (
     <span className="inline-flex flex-col items-start gap-1 min-w-0">
-      <span className="type-financial num money-nowrap text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)]" dir="rtl">{irt}</span>
+      <span className="type-financial money-inline money-nowrap text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)]" dir="rtl"><FormattedMoney value={irt} /></span>
       <span className="type-caption flex flex-wrap items-center gap-1 money-nowrap">
-        معادل: <span className="num money-nowrap text-[length:var(--fs-xs)]" dir="ltr" style={{ color: "var(--brand)" }}>{usdLabel}</span>
+        معادل: <span className="money-inline money-nowrap text-[length:var(--fs-xs)]" dir="rtl" style={{ color: "var(--text-2)" }}><FormattedMoney value={usdLabel} /></span>
       </span>
       <span className="chip text-[length:var(--fs-xs)] money-nowrap">{rateLabel}</span>
     </span>

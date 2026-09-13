@@ -256,7 +256,7 @@ export function IosInstallGuide({
         aria-label="بستن"
         className="fade-in absolute inset-0 cursor-default"
         style={{
-          background: "rgba(10,12,16,0.55)",
+          background: "var(--overlay)",
           backdropFilter: "blur(3px)",
           WebkitBackdropFilter: "blur(3px)",
           touchAction: "manipulation",
@@ -266,7 +266,7 @@ export function IosInstallGuide({
       <div
         ref={panelRef}
         dir="rtl"
-        className="ios-guide sheet-in relative flex w-full flex-col overflow-hidden rounded-t-[var(--r-xl)] border sm:rounded-[var(--r-xl)]"
+        className="ios-guide sheet-in relative flex w-full flex-col overflow-hidden rounded-t-[var(--r-lg)] border sm:rounded-[var(--r-lg)]"
         style={{
           background: "var(--surface-elev)",
           color: "var(--text)",
@@ -300,8 +300,8 @@ export function IosInstallGuide({
         >
           <div className="text-center">
             <span
-              className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[18px]"
-              style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+              className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[var(--r-lg)]"
+              style={{ background: "var(--action-soft)", color: "var(--action)" }}
               aria-hidden="true"
             >
               <Icon name={copy.icon} size={28} />

@@ -59,7 +59,7 @@ export default async function RegisterPage() {
 
         <p className="muted mt-6 text-center text-[length:var(--fs-xs)]">
           قبلاً ثبت‌نام کرده‌اید؟{" "}
-          <a href="/login" className="font-semibold underline underline-offset-4" style={{ color: "var(--brand)" }}>
+          <a href="/login" className="font-semibold underline underline-offset-4" style={{ color: "var(--action)" }}>
             ورود
           </a>
         </p>

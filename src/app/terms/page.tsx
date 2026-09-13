@@ -22,7 +22,7 @@ export default function TermsPage() {
           می‌شود.
         </p>
         <p className="mt-8">
-          <Link href="/" className="font-semibold" style={{ color: "var(--brand)" }}>
+          <Link href="/" className="font-semibold" style={{ color: "var(--action)" }}>
             بازگشت به معرفی
           </Link>
         </p>

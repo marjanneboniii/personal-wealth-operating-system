@@ -214,7 +214,7 @@ export default function TransactionsView({
       {/* ─────────── List ─────────── */}
       {rows.length === 0 ? (
         <div className="card flex flex-col items-center gap-2 px-6 py-12 text-center">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
+          <span className="flex h-11 w-11 items-center justify-center rounded-full" style={{ background: "var(--action-soft)", color: "var(--action)" }}>
             <Icon name="search" size={19} />
           </span>
           <p className="text-[length:var(--fs-sm)] font-semibold">تراکنشی مطابق این فیلترها پیدا نشد</p>
@@ -244,7 +244,7 @@ export default function TransactionsView({
                     onClick={(ev) => ev.stopPropagation()}
                     aria-label={`انتخاب «${e.description}»`}
                     className="hidden h-4 w-4 shrink-0 cursor-pointer sm:block"
-                    style={{ accentColor: "var(--brand)", touchAction: "manipulation" }}
+                    style={{ accentColor: "var(--action)", touchAction: "manipulation" }}
                   />
 
                   {/* Main row button — isolated, no nested clickable inside */}
@@ -414,7 +414,7 @@ export default function TransactionsView({
 
       <p className="muted px-1 text-[length:var(--fs-xs)]">
         {faCount(rows.length)} رکورد · ترتیب: {filters.sort === "old" ? "قدیمی‌ترین" : filters.sort === "amount" ? "بیشترین مبلغ" : "جدیدترین"} · کلید <kbd className="kbd">/</kbd> برای جستجو · جزئیات حسابداری کامل در{" "}
-        <a href="/financial-records" className="underline underline-offset-2" style={{ color: "var(--brand)" }}>
+        <a href="/financial-records" className="underline underline-offset-2" style={{ color: "var(--action)" }}>
           سوابق مالی
         </a>
       </p>

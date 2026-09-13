@@ -160,7 +160,7 @@ export default async function PlanningPage() {
                 <li key={q.kind + q.id} className="flex items-center gap-3 py-3">
                   <span
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-                    style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+                    style={{ background: "var(--action-soft)", color: "var(--action)" }}
                   >
                     <Icon name={kindIcon[q.kind]} size={16} />
                   </span>
@@ -186,12 +186,12 @@ export default async function PlanningPage() {
                   {q.kind === "installment" && (
                     <Link
                       href={`/new?type=expense&installmentId=${q.id}&entryDate=${q.date}&title=${encodeURIComponent(q.title)}`}
-                      className="btn btn-primary !min-h-9 shrink-0 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]"
+                      className="btn btn-soft !min-h-9 shrink-0 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]"
                     >
                       پرداخت
                     </Link>
                   )}
-                  {q.kind === "plan" && <RowAction kind="execute-plan" id={q.id} label="اجرا" primary />}
+                  {q.kind === "plan" && <RowAction kind="execute-plan" id={q.id} label="اجرا" />}
                 </li>
               );
             })}
@@ -223,7 +223,7 @@ export default async function PlanningPage() {
             { href: "/installments", label: "اقساط", q: "چه زمانی سر می‌رسد؟", icon: "installments" as const },
           ].map((l) => (
             <Link key={l.href} href={l.href} className="card group p-4 transition-transform hover:-translate-y-0.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
+              <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "var(--action-soft)", color: "var(--action)" }}>
                 <Icon name={l.icon} size={17} />
               </span>
               <p className="mt-2.5 text-[length:var(--fs-sm)] font-semibold">{l.label}</p>

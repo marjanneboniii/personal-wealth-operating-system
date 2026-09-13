@@ -6,7 +6,7 @@ export default function NotFound() {
     <div className="flex min-h-[68dvh] flex-col items-center justify-center px-6 text-center">
       <span
         className="mb-4 flex h-14 w-14 items-center justify-center rounded-full"
-        style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+        style={{ background: "var(--action-soft)", color: "var(--action)" }}
       >
         <Icon name="search" size={26} />
       </span>

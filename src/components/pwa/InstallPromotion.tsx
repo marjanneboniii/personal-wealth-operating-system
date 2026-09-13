@@ -104,7 +104,7 @@ export default function InstallPromotion({
         <div className="flex items-start gap-3">
           <span
             className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
-            style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+            style={{ background: "var(--action-soft)", color: "var(--action)" }}
           >
             <Icon name="download" size={16} />
           </span>

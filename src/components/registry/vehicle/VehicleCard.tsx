@@ -273,7 +273,7 @@ function HistoryTable({
         </thead>
         <tbody>
           {purchasePoint && (
-            <tr style={{ background: "var(--brand-softer)" }}>
+            <tr style={{ background: "var(--hover)" }}>
               <td className="whitespace-nowrap text-[length:var(--fs-xs)]">
                 <JDate iso={purchasePoint.date} /> <span className="muted">· خرید</span>
               </td>

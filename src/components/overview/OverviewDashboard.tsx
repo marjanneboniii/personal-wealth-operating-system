@@ -153,7 +153,7 @@ export default async function OverviewDashboard() {
           icon="info"
           title="راه‌اندازی اولیه انجام نشده است"
           action={
-            <Link href="/setup" className="btn btn-primary !px-4 text-[length:var(--fs-xs)]">
+            <Link href="/setup" className="btn btn-soft !px-4 text-[length:var(--fs-xs)]">
               شروع راه‌اندازی
             </Link>
           }
@@ -202,7 +202,7 @@ export default async function OverviewDashboard() {
                 >
                   <span
                     className="flex h-6 w-6 items-center justify-center rounded-full sm:h-7 sm:w-7"
-                    style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+                    style={{ background: "var(--action-soft)", color: "var(--action)" }}
                   >
                     <Icon name={q.icon} size={13} />
                   </span>
@@ -225,14 +225,14 @@ export default async function OverviewDashboard() {
           style={{ borderColor: "var(--border)" }}
         >
             {[
-              { label: "کل دارایی‌ها", value: nw.totalAssets, toman: nw.totalAssetsToman, tone: "var(--color-module-wealth)" },
+              { label: "کل دارایی‌ها", value: nw.totalAssets, toman: nw.totalAssetsToman, tone: "var(--text)" },
               // «کل بدهی‌ها» is the DEBT the user can see and pay — `totalDebt*`,
               // which unifies the ledger liability accounts with the debts the
               // planning module owns. It used to read `totalLiabilities*` (the
               // ledger only) and flipped its sign twice: a debt registered in
               // «بدهی‌ها» never created a ledger account, so this tile showed
               // ۰, and its USD line rendered a negative amount.
-              { label: "کل بدهی‌ها", value: nw.totalDebtUsd, toman: nw.totalDebtToman, tone: "var(--color-module-commitments)" },
+              { label: "کل بدهی‌ها", value: nw.totalDebtUsd, toman: nw.totalDebtToman, tone: "var(--text)" },
               // «کل مطالبات» is NOT netted against «کل بدهی‌ها» and is not part
               // of net worth: an uncollected receivable is a contractual
               // expectation until the ledger records the money arriving — the
@@ -248,7 +248,7 @@ export default async function OverviewDashboard() {
                     },
                   ]
                 : []),
-              { label: "نقدشونده", value: nw.liquid, toman: nw.liquidToman, tone: "var(--color-module-expenses)" },
+              { label: "نقدشونده", value: nw.liquid, toman: nw.liquidToman, tone: "var(--text)" },
             ].map((m) => (
             <div
               key={m.label}

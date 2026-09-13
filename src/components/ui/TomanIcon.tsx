@@ -1,39 +1,6 @@
 /**
- * TomanIcon — the تومان currency mark.
- *
- * WHY THIS WAS REDRAWN RATHER THAN REPLACED
- * The mark existed and was already wired everywhere (`AssetLogo` intercepts
- * TOMAN_LOGO and renders this component inline), so a second Toman icon would
- * have been a parallel truth, not a fix. What it was NOT doing was belonging to
- * the app's mark system, on three counts that are all visible in a mixed asset
- * list:
- *
- *   1. SHAPE — it was a CIRCLE while every other hand-drawn mark
- *      (VehicleMark, RealEstateMark, the four صندوق kinds, سهام) sits on a
- *      48×48 plate with rx=12, and so do the fetched brand emblems. One round
- *      token in a column of rounded squares reads as a foreign object.
- *   2. PLATE — it was a saturated mint fill (#B8F4E8) where the system's plate
- *      is WHITE. A coloured plate makes the mark LOUDER than the currency marks
- *      and brand emblems beside it, which is backwards: تومان is the app's most
- *      frequent unit and should be the quietest, not the most shouted.
- *   3. WEIGHT — the glyph was a 1.7px stroke on a 48 grid. At the sizes an
- *      asset row actually renders (20 / 24 / 28px) that is a third of a device
- *      pixel of ink and it simply disappeared, leaving a coloured blob.
- *
- * So: the same white plate and radius as its siblings, and the stroke taken to
- * a weight that survives an asset row.
- *
- * THE GLYPH ITSELF IS NOT REDESIGNED. It is the product's original Toman curve,
- * unchanged. A revision once swapped it for a bowl with three dots — which is
- * «ث», not «ت» — and was reverted: the letterform was never the problem.
- *
- * THEME. Plate and ink are plain props with light-theme defaults, exactly like
- * the other marks, and the component is wrapped by `AssetLogo` in a rounded,
- * clipped span. The white plate is the constant across both themes by design:
- * every brand emblem in the list carries its own white ground, so a mark that
- * inverted in dark mode would be the only one that did.
- *
- * PRESENTATION ONLY — no data, no valuation, no side effects.
+ * Currency mark for تومان. The existing glyph and 48px plate are preserved;
+ * plate and ink now use the shared paper/ink palette in both themes.
  */
 import React from "react";
 
@@ -61,10 +28,8 @@ const GLYPH =
 
 const TomanIcon: React.FC<TomanIconProps> = ({
   size = 48,
-  bgColor = "#FFFFFF",
-  // The teal the app already used for Toman, taken to full ink strength so it
-  // holds at 20px. The old #0D3B36 was nearly black and read as "no colour".
-  letterColor = "#0F6B62",
+  bgColor = "var(--paper-000)",
+  letterColor = "var(--ink-700)",
   className = "",
 }) => {
   return (

@@ -58,7 +58,7 @@ export default async function CryptoPage() {
             title="هیچ رمزارزی در سبد شما نیست"
             body="با ثبت خرید رمزارز یا انتقال به کیف‌پول خود، این صفحه زنده می‌شود."
             action={
-              <Link href="/new?type=buy" className="btn btn-primary">
+              <Link href="/new?type=buy" className="btn btn-soft">
                 ثبت خرید رمزارز
               </Link>
             }
@@ -123,7 +123,7 @@ export default async function CryptoPage() {
                           </span>
                         </div>
                         <div className="meter">
-                          <i style={{ width: `${Math.min(100, share)}%`, background: "var(--brand)" }} />
+                          <i style={{ width: `${Math.min(100, share)}%`, background: "var(--action)" }} />
                         </div>
                       </li>
                     );

@@ -327,7 +327,7 @@ function HistoryPanel({ item }: { item: RealEstateDashboardItem }) {
         </thead>
         <tbody>
           {item.purchasePoint && (
-            <tr style={{ background: "var(--brand-softer)" }}>
+            <tr style={{ background: "var(--hover)" }}>
               <td className="whitespace-nowrap text-[length:var(--fs-xs)]">
                 <JDate iso={item.purchasePoint.date} /> <span className="muted">· خرید</span>
               </td>

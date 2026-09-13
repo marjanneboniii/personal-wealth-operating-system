@@ -28,13 +28,13 @@ export function SmartAmountPreview({ irtAmount, rate, rateDate, rateSource }: Sm
     );
   }
   return (
-    <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-6" style={{ background: "var(--brand-soft)", border: "1px solid var(--border)" }}>
+    <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-6" style={{ background: "var(--action-soft)", border: "1px solid var(--border)" }}>
       <div className="flex flex-wrap items-center gap-2">
         <span>مبلغ:</span>
         <strong className="num text-xs" dir="ltr">{preview!.irt}</strong>
         <span className="muted">·</span>
         <span>معادل تقریبی:</span>
-        <strong className="num text-xs" dir="ltr" style={{ color: "var(--brand)" }}>{preview!.usd}</strong>
+        <strong className="num text-xs" dir="ltr" style={{ color: "var(--action)" }}>{preview!.usd}</strong>
       </div>
       <div className="muted text-[length:var(--fs-xs)] mt-1">
         {preview!.rateLabel}
@@ -70,8 +70,8 @@ export function useLatestRate(initialRate?: string | null) {
 
 export function PreviewCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="card soft p-4 space-y-2 border" style={{ borderColor: "var(--brand)" }}>
-      <div className="text-xs font-bold" style={{ color: "var(--brand)" }}>{title}</div>
+    <div className="card soft p-4 space-y-2 border" style={{ borderColor: "var(--action)" }}>
+      <div className="text-xs font-bold" style={{ color: "var(--action)" }}>{title}</div>
       {children}
       <div className="muted text-[length:var(--fs-xs)]">این پیش‌نمایش فقط نمایشی است — تا قبل از «تأیید نهایی» هیچ تغییری ثبت نمی‌شود.</div>
     </div>

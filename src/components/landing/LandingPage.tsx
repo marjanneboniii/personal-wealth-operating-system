@@ -113,7 +113,7 @@ const STEP_NUMERALS = ["۱", "۲", "۳"] as const;
 function CtaCluster({ align = "start" }: { align?: "start" | "center" }) {
   return (
     <div className={align === "center" ? "landing-cta-cluster landing-cta-cluster-center" : "landing-cta-cluster"}>
-      <Link href="/register" className="btn btn-primary !min-h-12 w-full sm:w-auto sm:px-6">
+      <Link href="/register" className={`btn ${align === "center" ? "btn-soft" : "btn-primary"} !min-h-12 w-full sm:w-auto sm:px-6`}>
         شروع رایگان
       </Link>
       {/* «ورود» stays visually secondary next to the single primary CTA. */}
@@ -181,10 +181,10 @@ function ProductPreview() {
           <span>{PREVIEW_SAMPLE.attention}</span>
         </div>
         <div className="comp-bar" aria-hidden="true">
-          <span style={{ width: "42%", background: "var(--l-accent)" }} />
-          <span style={{ width: "28%", background: "var(--l-positive)" }} />
-          <span style={{ width: "18%", background: "var(--l-investment)" }} />
-          <span style={{ width: "12%", background: "var(--l-negative)" }} />
+          <span style={{ width: "42%", background: "var(--action)" }} />
+          <span style={{ width: "28%", background: "var(--positive)" }} />
+          <span style={{ width: "18%", background: "var(--text-2)" }} />
+          <span style={{ width: "12%", background: "var(--negative)" }} />
         </div>
       </div>
     </figure>

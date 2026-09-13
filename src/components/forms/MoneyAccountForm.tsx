@@ -160,7 +160,7 @@ export default function MoneyAccountForm({
           پیش‌نمایش
         </button>
       ) : (
-        <div className="soft rounded-xl p-3">
+        <div className="soft rounded-[var(--r-lg)] p-3">
           <div className="muted mb-2">پیش‌نمایش — هنوز حسابی ایجاد نشده است</div>
           <div className="flex flex-wrap items-center gap-2">
             {kind === "bank" && <BankLogo name={name} size={32} />}

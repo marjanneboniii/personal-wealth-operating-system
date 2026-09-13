@@ -72,7 +72,7 @@ export default async function LoginPage({
 
         <p className="muted mt-6 text-center text-[length:var(--fs-xs)]">
           حساب ندارید؟{" "}
-          <a href="/register" className="font-semibold underline underline-offset-4" style={{ color: "var(--brand)" }}>
+          <a href="/register" className="font-semibold underline underline-offset-4" style={{ color: "var(--action)" }}>
             ثبت‌نام
           </a>
         </p>

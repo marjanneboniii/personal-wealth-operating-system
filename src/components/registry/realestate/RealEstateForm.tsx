@@ -232,10 +232,10 @@ export default function RealEstateForm({
       </section>
 
       {/* ── شناسه عددی ملک — تولید خودکار ── */}
-      <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
+      <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--action-soft)" }}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="min-w-0">
-            <div className="mt-0.5 text-[length:var(--fs-xs)] font-semibold" style={{ color: "var(--brand)" }}>
+            <div className="mt-0.5 text-[length:var(--fs-xs)] font-semibold" style={{ color: "var(--action)" }}>
               شناسه منحصر به‌فرد ملک: <span className="num font-bold text-[length:var(--fs-sm)]">{loadingIdentity ? "…" : identityPreview?.symbol ? toFaDigits(identityPreview.symbol) : "—"}</span>
             </div>
           </div>
@@ -287,10 +287,10 @@ export default function RealEstateForm({
               required
             />
           </Labeled>
-          <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
+          <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--action-soft)" }}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="text-[length:var(--fs-xs)] font-medium">معادل دلاری قیمت خرید (نرخ تاریخ تملک)</span>
-              <strong className="num text-[length:var(--fs-sm)]" dir="rtl" style={{ color: "var(--brand)" }}>
+              <strong className="num text-[length:var(--fs-sm)]" dir="rtl" style={{ color: "var(--action)" }}>
                 {canPreviewPurchase && loadingPurchase ? "…" : purchaseUsdPreview ? formatMoney(purchaseUsdPreview.usd, "USD") : "—"}
               </strong>
             </div>
@@ -330,10 +330,10 @@ export default function RealEstateForm({
               required
             />
           </Labeled>
-          <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--brand-soft)" }}>
+          <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--action-soft)" }}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="text-[length:var(--fs-xs)] font-medium">معادل دلاری ارزش فعلی (نرخ تاریخ ارزش‌گذاری)</span>
-              <strong className="num text-[length:var(--fs-sm)]" dir="rtl" style={{ color: "var(--brand)" }}>
+              <strong className="num text-[length:var(--fs-sm)]" dir="rtl" style={{ color: "var(--action)" }}>
                 {canPreviewValuation && loadingValuation ? "…" : valuationUsdPreview ? formatMoney(valuationUsdPreview.usd, "USD") : "—"}
               </strong>
             </div>

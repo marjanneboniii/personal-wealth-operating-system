@@ -70,8 +70,8 @@ export default function NetWorthChart({
       >
         <defs>
           <linearGradient id="nwArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.16" />
-            <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--data-line)" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="var(--data-line)" stopOpacity="0" />
           </linearGradient>
         </defs>
         {[0.25, 0.5, 0.75].map((t) => (
@@ -81,7 +81,7 @@ export default function NetWorthChart({
               x2={w - padX}
               y1={padTop + (h - padTop - padBottom) * t}
               y2={padTop + (h - padTop - padBottom) * t}
-              stroke="var(--border)"
+              stroke="var(--data-grid)"
               strokeDasharray="2 4"
               strokeWidth="1"
             />
@@ -89,7 +89,7 @@ export default function NetWorthChart({
               x={w - padX - 2}
               y={padTop + (h - padTop - padBottom) * t - 4}
               textAnchor="end"
-              fontSize="9"
+              fontSize="12"
               fill="var(--text-3)"
             >
               {formatMoney(max - span * t)}
@@ -97,11 +97,11 @@ export default function NetWorthChart({
           </g>
         ))}
         <path d={area} fill="url(#nwArea)" />
-        <path d={line} fill="none" stroke="var(--brand)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={line} fill="none" stroke="var(--data-line)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         {hover != null && (
           <line x1={x(active)} y1={padTop} x2={x(active)} y2={h - padBottom} stroke="var(--border-strong)" strokeWidth="1" />
         )}
-        <circle cx={x(active)} cy={y(points[active].value)} r="4.5" fill="var(--brand)" stroke="var(--surface)" strokeWidth="2" />
+        <circle cx={x(active)} cy={y(points[active].value)} r="4.5" fill="var(--data-point)" stroke="var(--surface)" strokeWidth="2" />
         {/* Hover readout — visible value even without a legend */}
         {hover != null && (
           <g>
@@ -117,15 +117,15 @@ export default function NetWorthChart({
             <text x={Math.min(Math.max(x(active), padX + 70), w - 78)} y={Math.max(y(points[active].value) - 28, 16)} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--text)">
               {formatMoney(points[active].value)}
             </text>
-            <text x={Math.min(Math.max(x(active), padX + 70), w - 78)} y={Math.max(y(points[active].value) - 14, 30)} textAnchor="middle" fontSize="9" fill="var(--text-3)">
+            <text x={Math.min(Math.max(x(active), padX + 70), w - 78)} y={Math.max(y(points[active].value) - 14, 30)} textAnchor="middle" fontSize="12" fill="var(--text-3)">
               {formatDate(points[active].date, "en")}
             </text>
           </g>
         )}
-        <text x={padX + 2} y={h - 6} fontSize="9" fill="var(--text-3)">
+        <text x={padX + 2} y={h - 6} fontSize="12" fill="var(--text-3)">
           {formatDate(firstLabel, "en")}
         </text>
-        <text x={w - padX - 2} y={h - 6} textAnchor="end" fontSize="9" fill="var(--text-3)">
+        <text x={w - padX - 2} y={h - 6} textAnchor="end" fontSize="12" fill="var(--text-3)">
           {formatDate(lastLabel, "en")}
         </text>
       </svg>

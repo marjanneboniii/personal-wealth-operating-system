@@ -156,7 +156,7 @@ export default async function LoansPage() {
                             {formatPct(progress, 0)}
                           </span>
                         </div>
-                        <Progress value={progress} color={isSettled ? "var(--positive)" : "var(--brand)"} />
+                        <Progress value={progress} color={isSettled ? "var(--positive)" : "var(--action)"} />
                       </div>
                     )}
 

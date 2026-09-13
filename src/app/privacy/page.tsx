@@ -21,7 +21,7 @@ export default function PrivacyPage() {
         پشتیبان‌گیری و بازیابی فقط برای نقش‌های مجاز در تنظیمات در دسترس است. این صفحه گواهی امنیتی شخص ثالث ادعا نمی‌کند.
       </p>
       <p className="mt-8">
-        <Link href="/" className="font-semibold" style={{ color: "var(--brand)" }}>
+        <Link href="/" className="font-semibold" style={{ color: "var(--action)" }}>
           بازگشت به معرفی
         </Link>
       </p>

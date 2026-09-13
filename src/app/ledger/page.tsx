@@ -114,8 +114,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
 
       {/* Register certification strip */}
       <div
-        className="rise flex flex-wrap items-center gap-x-5 gap-y-2 border-y py-3 text-[length:var(--fs-xs)]"
-        style={{ borderColor: "var(--border)" }}
+        className={`rise flex flex-wrap items-center gap-x-5 gap-y-2 border-y py-3 text-[length:var(--fs-xs)] ${bad ? "integrity-bar" : ""}`}
+        style={bad ? undefined : { borderColor: "var(--border)" }}
         role="status"
       >
         <span className="flex items-center gap-2 font-semibold" style={{ color: bad ? "var(--negative)" : "var(--positive)" }}>
@@ -134,7 +134,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
             : "«سرمایه افتتاحیه» عددی نیست که خودتان وارد کرده باشید: مجموع موجودی‌های اولیه‌ای است که هنگام ساخت حساب‌ها و ثبت دارایی‌ها اعلام کرده‌اید. در حسابداری دوطرفه هر دارایی که بدون منبع وارد دفتر می‌شود، با همین حساب موازنه می‌شود."
         }
       >
-        <div className="card overflow-x-auto">
+        <div className={`card overflow-x-auto ${pro ? "ledger-block" : ""}`}>
           <table className="table">
             {pro ? (
               <thead>
@@ -227,7 +227,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
 
       {/* Accounting detail — available on demand, never gated behind a global
           preference. Plain <details>: no client JS, no extra request. */}
-      <details className="card overflow-hidden">
+      <details className="card overflow-hidden ledger-block">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-[length:var(--fs-sm)] font-semibold marker:hidden [&::-webkit-details-marker]:hidden">
           جزئیات حسابداری
           <Icon name="chevronDown" size={16} />
@@ -281,8 +281,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
               <details
                 key={e.id}
                 id={e.id}
-                className={`card group overflow-hidden ${isFocused ? "ring-1" : ""}`}
-                style={isFocused ? ({ boxShadow: "0 0 0 2px var(--brand)", borderColor: "var(--brand)" } as CSSProperties) : undefined}
+                className={`card ledger-block group overflow-hidden ${isFocused ? "ring-1" : ""}`}
+                style={isFocused ? ({ boxShadow: "0 0 0 2px var(--action)", borderColor: "var(--action)" } as CSSProperties) : undefined}
                 open={isFocused}
               >
                 <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-2.5 marker:hidden [&::-webkit-details-marker]:hidden">
@@ -405,7 +405,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                     )}
                     {focusedProperty.length > 0 && (
                       <span>
-                        <Link href="/asset-registry" className="font-medium underline" style={{ color: "var(--brand)" }}>
+                        <Link href="/asset-registry" className="font-medium underline" style={{ color: "var(--action)" }}>
                           ← سند تملک ملک (شناسه {toFaDigits(focusedProperty[0].symbol)})
                         </Link>
                       </span>

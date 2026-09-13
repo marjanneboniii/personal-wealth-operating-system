@@ -12,8 +12,8 @@
     "standalone",
     "minimal-ui"
   ],
-  "background_color": "#f5f7fa",
-  "theme_color": "#f5f7fa",
+  "background_color": "#edf0f2",
+  "theme_color": "#edf0f2",
   "orientation": "any",
   "categories": [
     "finance",

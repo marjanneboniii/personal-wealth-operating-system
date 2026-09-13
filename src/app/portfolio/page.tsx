@@ -74,7 +74,7 @@ export default async function PortfolioPage() {
             title="هنوز سرمایه‌گذاری‌ای ثبت نشده است"
             body="یک دارایی اضافه کنید یا حساب متصل کنید تا سبد شما از همین‌جا ردیابی شود."
             action={
-              <Link href="/new?type=buy" className="btn btn-primary">
+              <Link href="/new?type=buy" className="btn btn-soft">
                 ثبت خرید دارایی
               </Link>
             }

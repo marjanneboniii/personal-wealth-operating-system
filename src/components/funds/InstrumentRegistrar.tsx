@@ -94,19 +94,19 @@ function StockMark({ size }: { size: number }) {
       aria-hidden="true"
     >
       <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="48" height="48" rx="12" fill="#FFFFFF" />
+        <rect width="48" height="48" rx="12" fill="var(--paper-000)" />
         {/* A rising line with its two turning points marked — the only chart
             shape that still reads as «سهم» rather than «نمودار» at 24px. */}
         <path
           d="M12.5 31.5l7.5-7.8 5.6 4.9 10.4-11.4"
-          stroke="#4B4DC4"
+          stroke="var(--ink-800)"
           strokeWidth="4.4"
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"
         />
-        <circle cx="20" cy="23.7" r="2.6" fill="#4B4DC4" />
-        <circle cx="25.6" cy="28.6" r="2.6" fill="#4B4DC4" />
+        <circle cx="20" cy="23.7" r="2.6" fill="var(--ink-800)" />
+        <circle cx="25.6" cy="28.6" r="2.6" fill="var(--ink-800)" />
       </svg>
     </span>
   );

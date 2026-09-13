@@ -119,11 +119,11 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       <button
         aria-label="بستن"
         className="fade-in absolute inset-0 cursor-default"
-        style={{ background: "rgba(10,12,16,0.45)", backdropFilter: "blur(2px)" }}
+        style={{ background: "var(--overlay)", backdropFilter: "blur(2px)" }}
         onClick={onClose}
       />
       <div
-        className="command-palette-panel pop-in absolute inset-x-3 top-[12dvh] mx-auto flex max-h-[66dvh] w-full max-w-xl flex-col overflow-hidden rounded-[var(--r-xl)] border sm:inset-x-0"
+        className="command-palette-panel pop-in absolute inset-x-3 top-[12dvh] mx-auto flex max-h-[66dvh] w-full max-w-xl flex-col overflow-hidden rounded-[var(--r-lg)] border sm:inset-x-0"
         style={{ background: "var(--surface-elev)", borderColor: "var(--border-strong)", boxShadow: "var(--shadow-lg)" }}
       >
         <h2 id="cmdk-title" className="sr-only">
@@ -173,19 +173,19 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                   router.push(item.cmd.href);
                 }}
                 className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-right"
-                style={{ background: item.idx === index ? "var(--brand-soft)" : "transparent" }}
+                style={{ background: item.idx === index ? "var(--action-soft)" : "transparent" }}
               >
                 <span
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px]"
                   style={{
-                    background: item.idx === index ? "var(--brand)" : "var(--sunken)",
-                    color: item.idx === index ? "var(--on-brand)" : "var(--text-2)",
+                    background: item.idx === index ? "var(--action)" : "var(--sunken)",
+                    color: item.idx === index ? "var(--on-ink)" : "var(--text-2)",
                   }}
                 >
                   <Icon name={item.cmd.icon} size={16} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[length:var(--fs-sm)] font-medium" style={{ color: item.idx === index ? "var(--brand)" : "var(--text)" }}>
+                  <span className="block truncate text-[length:var(--fs-sm)] font-medium" style={{ color: item.idx === index ? "var(--action)" : "var(--text)" }}>
                     {item.cmd.label}
                   </span>
                   {item.cmd.hint && <span className="muted block truncate text-[length:var(--fs-xs)]">{item.cmd.hint}</span>}

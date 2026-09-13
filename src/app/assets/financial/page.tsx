@@ -141,7 +141,7 @@ export default async function FinancialAssetsPage() {
               {ordered.map((b) => (
                 <li key={b.name} className="card p-4">
                   <span className="flex items-center gap-2">
-                    <span style={{ color: "var(--brand)" }}>
+                    <span style={{ color: "var(--action)" }}>
                       <Icon name={b.icon} size={16} />
                     </span>
                     <span className="text-[length:var(--fs-xs)] font-semibold">{b.name}</span>

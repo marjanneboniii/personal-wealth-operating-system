@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import Icon from "@/components/ui/Icon";
 import { formatMoney, formatPercent, formatSignedMoney } from "@/lib/format";
+import FormattedMoney from "@/components/ui/FormattedMoney";
 
 /* ───────────────────────────── Card ─────────────────────────────
    Use sparingly: only for a true semantic group or interactive
@@ -73,7 +74,7 @@ export function SectionLink({ href, label = "مشاهده همه" }: { href: str
       href={href}
       aria-label={`مشاهده همه ${label}`}
       className="section-link inline-flex min-h-11 items-center gap-1 text-[length:var(--fs-sm)] font-medium"
-      style={{ color: "var(--brand)" }}
+      style={{ color: "var(--action)" }}
     >
       {label}
       <Icon name="chevronLeft" size={14} />
@@ -113,7 +114,7 @@ export function Money({
       {arrow && n !== 0 && (
         <Icon name={n > 0 ? "trend-up" : "trend-down"} size={size === "xl" ? 15 : 12} strokeWidth={2.2} />
       )}
-      <span className="money-nowrap">{formatMoney(value, currency)}</span>
+      <span className="money-inline"><FormattedMoney value={formatMoney(value, currency)} /></span>
     </span>
   );
 }
@@ -139,8 +140,8 @@ export function Delta({
   const arrow = zero ? null : up ? "↑" : "↓";
   return (
     <span className={`inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 ${className} money-nowrap`} style={{ color }}>
-      <span className="num text-[length:var(--fs-sm)] font-semibold rtl-isolate money-nowrap" dir="rtl">
-        {arrow} {formatSignedMoney(n, currency)}
+      <span className="money-inline text-[length:var(--fs-sm)] font-semibold rtl-isolate money-nowrap" dir="rtl">
+        {arrow} <FormattedMoney value={formatSignedMoney(n, currency)} />
       </span>
       {pct != null && Number.isFinite(Number(pct)) && (
         <span className="num text-[length:var(--fs-xs)] opacity-80 rtl-isolate money-nowrap" dir="rtl">
@@ -179,8 +180,8 @@ export function Stat({
   return (
     <div className="stat-tile card p-3 sm:p-3.5 min-w-0 overflow-hidden">
       <div className="muted text-[length:var(--fs-xs)] font-medium truncate">{label}</div>
-      <div className="stat-value mt-1.5 text-[length:var(--fs-lg)] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
-        {value}
+      <div className="stat-value money-inline mt-1.5 text-[length:var(--fs-lg)] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
+        <FormattedMoney value={value} />
       </div>
       {hint && <div className="muted mt-1.5 text-[length:var(--fs-xs)] leading-5 line-clamp-2">{hint}</div>}
     </div>
@@ -212,7 +213,7 @@ export function Metric({
   );
 }
 
-export function Progress({ value, color = "var(--brand)", "aria-label": ariaLabel = "پیشرفت" }: { value: number; color?: string; "aria-label"?: string }) {
+export function Progress({ value, color = "var(--action)", "aria-label": ariaLabel = "پیشرفت" }: { value: number; color?: string; "aria-label"?: string }) {
   return (
     <div className="meter" role="progressbar" aria-label={ariaLabel} aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}>
       <i style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: color }} />
@@ -242,7 +243,7 @@ export function EmptyState({
     <div className="flex flex-col items-center gap-2 px-4 py-8 text-center sm:px-6 sm:py-10">
       <span
         className="mb-1 flex h-10 w-10 items-center justify-center rounded-full sm:h-11 sm:w-11"
-        style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+        style={{ background: "var(--action-soft)", color: "var(--action)" }}
       >
         <Icon name={icon} size={18} />
       </span>
@@ -331,8 +332,8 @@ export function StateBlock({
   body?: string;
   action?: ReactNode;
 }) {
-  const tone = kind === "error" ? "var(--negative)" : "var(--brand)";
-  const bg = kind === "error" ? "var(--negative-soft)" : "var(--brand-soft)";
+  const tone = kind === "error" ? "var(--negative)" : "var(--action)";
+  const bg = kind === "error" ? "var(--negative-soft)" : "var(--action-soft)";
   return (
     <div
       className="flex flex-col items-center gap-2 px-4 py-10 text-center sm:px-6"
@@ -397,7 +398,7 @@ export function Alert({
     warn: { c: "var(--warning)", bg: "var(--warning-soft)", i: "alert" },
     neg: { c: "var(--negative)", bg: "var(--negative-soft)", i: "alert" },
     pos: { c: "var(--positive)", bg: "var(--positive-soft)", i: "check-circle" },
-    brand: { c: "var(--brand)", bg: "var(--brand-soft)", i: "info" },
+    brand: { c: "var(--action)", bg: "var(--action-soft)", i: "info" },
   }[tone];
   return (
     <div

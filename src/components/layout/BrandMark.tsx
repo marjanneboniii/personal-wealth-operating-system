@@ -41,7 +41,7 @@ export default function BrandMark({
   size?: number;
   style?: CSSProperties;
   className?: string;
-  /** کاشی نیلی با خطوط طلایی — برای هدر اپ روی پس‌زمینه روشن */
+  /** کاشی نیلی با نقش روشن — برای هدر اپ روی پس‌زمینه روشن */
   framed?: boolean;
 }) {
   if (framed) {
@@ -55,8 +55,8 @@ export default function BrandMark({
           width: size,
           height: size,
           borderRadius: Math.max(8, Math.round(size * 0.22)),
-          background: "var(--color-primary)",
-          color: "var(--color-accent)",
+          background: "var(--action)",
+          color: "var(--on-ink)",
           flexShrink: 0,
           ...style,
         }}
@@ -93,7 +93,7 @@ export function BrandLockup({
   subtitle?: string;
   onDark?: boolean;
 }) {
-  const color = onDark ? "var(--color-accent)" : "var(--color-primary)";
+  const color = onDark ? "var(--text)" : "var(--action)";
   const word = (
     <span className="leading-tight">
       <BrandWordmark className="block text-[length:var(--fs-md)] tracking-tight" />

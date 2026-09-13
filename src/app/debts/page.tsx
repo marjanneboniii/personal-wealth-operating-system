@@ -135,7 +135,7 @@ function ObligationCard({ d, today, rate }: { d: Obligation; today: string; rate
             </span>
             <span className="num" dir="rtl">{formatPct(progress, 0)}</span>
           </div>
-          <Progress value={progress} color={settled ? "var(--positive)" : "var(--brand)"} />
+          <Progress value={progress} color={settled ? "var(--positive)" : "var(--action)"} />
         </div>
       )}
 
@@ -172,7 +172,7 @@ function ObligationCard({ d, today, rate }: { d: Obligation; today: string; rate
             (d.totalCount > 0 ? (
               <Link
                 href="/debts/installments"
-                className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]"
+                className="btn btn-soft !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]"
               >
                 مشاهده اقساط
               </Link>
@@ -181,7 +181,7 @@ function ObligationCard({ d, today, rate }: { d: Obligation; today: string; rate
                  card with no way to settle it at all. */
               <Link
                 href={settleHref}
-                className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]"
+                className="btn btn-soft !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]"
               >
                 {receivable ? "ثبت دریافت" : "پرداخت بدهی"}
               </Link>

@@ -112,7 +112,7 @@ export default async function SettingsPage() {
           <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
             <li>
               <Link href="/financial-records" className="flex items-center gap-3 px-4 py-3.5" style={{ touchAction: "manipulation" }}>
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]" style={{ background: "var(--action-soft)", color: "var(--action)" }}>
                   <Icon name="ledger" size={18} />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -124,7 +124,7 @@ export default async function SettingsPage() {
             </li>
             <li>
               <Link href="/audit" className="flex items-center gap-3 px-4 py-3.5" style={{ touchAction: "manipulation" }}>
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]" style={{ background: "var(--action-soft)", color: "var(--action)" }}>
                   <Icon name="audit" size={18} />
                 </span>
                 <span className="min-w-0 flex-1">

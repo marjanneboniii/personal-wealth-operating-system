@@ -37,6 +37,13 @@ export default async function AuditPage() {
     <div className="space-y-8">
       <PageHeader title="حسابرسی و یکپارچگی" />
 
+      {fails > 0 && (
+        <div className="integrity-bar flex items-center gap-2" role="alert">
+          <Icon name="xcircle" size={18} />
+          <span>{faCount(fails)} مشکل جدی نیاز به اقدام دارد</span>
+        </div>
+      )}
+
       {/* ═══ FINANCIAL INTEGRITY banner ═══ */}
       <section
         className="rise rounded-[var(--r-lg)] border p-5"

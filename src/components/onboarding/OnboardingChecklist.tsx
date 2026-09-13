@@ -186,7 +186,7 @@ export default function OnboardingChecklist() {
 
         {view.promisedButEmpty.length > 0 && (
           <div
-            className="rounded-xl p-3 text-[length:var(--fs-xs)] leading-6"
+            className="rounded-[var(--r-lg)] p-3 text-[length:var(--fs-xs)] leading-6"
             style={{ background: "var(--warning-soft, var(--sunken))", color: "var(--warning)" }}
           >
             گفتید این‌ها را دارید ولی هنوز ثبتشان نکرده‌اید:{" "}

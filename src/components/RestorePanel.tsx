@@ -49,7 +49,7 @@ export default function RestorePanel() {
       />
       {busy && <p className="muted mt-2 text-[length:var(--fs-xs)]">در حال بازیابی…</p>}
       {status && (
-        <p className="mt-2 text-[length:var(--fs-xs)]" style={{ color: status.ok ? "var(--brand)" : "var(--negative)" }}>
+        <p className="mt-2 text-[length:var(--fs-xs)]" style={{ color: status.ok ? "var(--action)" : "var(--negative)" }}>
           {status.msg}
         </p>
       )}

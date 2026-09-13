@@ -103,11 +103,11 @@ function AccountLink({ user, compact = false }: { user: ShellUser | null; compac
       <Link
         href="/settings"
         className={`inline-flex items-center gap-1.5 rounded-[var(--r-md)] text-[length:var(--fs-xs)] font-medium ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
-        style={{ background: "var(--brand-soft)", color: "var(--brand)", touchAction: "manipulation" }}
+        style={{ background: "var(--action-soft)", color: "var(--action)", touchAction: "manipulation" }}
         aria-label={`حساب کاربری ${label}`}
         title={user.email || user.username || label}
       >
-        <span className="flex h-5 w-5 items-center justify-center rounded-full text-[length:var(--fs-xs)] font-bold" style={{ background: "var(--brand)", color: "var(--on-brand)" }}>
+        <span className="flex h-5 w-5 items-center justify-center rounded-full text-[length:var(--fs-xs)] font-bold" style={{ background: "var(--action)", color: "var(--on-ink)" }}>
           {(user.username?.[0] || user.name?.[0] || "U").toUpperCase()}
         </span>
         {!compact && <span className="max-w-[110px] truncate">{label}</span>}
@@ -119,7 +119,7 @@ function AccountLink({ user, compact = false }: { user: ShellUser | null; compac
     <Link
       href="/login"
       className={`inline-flex items-center gap-1.5 rounded-[var(--r-md)] text-[length:var(--fs-xs)] font-semibold ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
-      style={{ background: "var(--brand-soft)", color: "var(--brand)", touchAction: "manipulation" }}
+      style={{ background: "var(--action-soft)", color: "var(--action)", touchAction: "manipulation" }}
       aria-label="ورود یا ساخت حساب کاربری"
     >
       <Icon name="lock" size={14} />
@@ -190,7 +190,7 @@ function NavGroupBlock({
   const groupActive = isGroupActive(pathname, group);
   const prefs = useGroupPrefs();
 
-  const moduleClass = group.module ? `nav-module nav-module-${group.module}` : "";
+  const moduleClass = "nav-group";
 
   // Simple groups (خانه، بینش‌ها، گزارش‌ها) render as plain links.
   if (!group.collapsible) {
@@ -291,7 +291,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
               className="soft flex flex-col items-center gap-1.5 rounded-[var(--r-md)] px-2 py-3 text-[length:var(--fs-xs)] font-medium"
               style={{ color: "var(--text-2)", touchAction: "manipulation" }}
             >
-              <span style={{ color: "var(--brand)" }}>
+              <span style={{ color: "var(--action)" }}>
                 <Icon name={a.icon} size={17} />
               </span>
               {a.label}
@@ -304,12 +304,8 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
             <ul>
               {g.items.map((n) => {
                 const active = isNavActive(pathname, n.href);
-                const activeColor = g.module
-                  ? `var(--color-module-${g.module})`
-                  : "var(--brand)";
-                const activeBg = g.module
-                  ? `var(--color-module-${g.module}-bg)`
-                  : "var(--brand-soft)";
+                const activeColor = "var(--action)";
+                const activeBg = "var(--action-soft)";
                 return (
                   <li key={n.href}>
                     <Link
@@ -629,7 +625,7 @@ export default function Shell({
           {MOBILE_TABS.map((t) => {
             const active = t.match!.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m)));
             return (
-              <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`tab-item ${active ? "tab-active" : ""} ${t.module ? `tab-module-${t.module}` : ""}`} style={{ touchAction: "manipulation" }}>
+              <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`tab-item ${active ? "tab-active" : ""}`} style={{ touchAction: "manipulation" }}>
                 <Icon name={t.icon as IconName} size={20} strokeWidth={active ? 2 : 1.7} />
                 <span className="tab-label">{t.label}</span>
               </Link>
@@ -665,7 +661,7 @@ export default function Shell({
               >
                 <span
                   className="flex h-9 w-9 items-center justify-center rounded-[10px]"
-                  style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+                  style={{ background: "var(--action-soft)", color: "var(--action)" }}
                 >
                   <Icon name={a.icon} size={16} />
                 </span>
