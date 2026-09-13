@@ -29,6 +29,7 @@ export const LIQUID_SYMBOLS: ReadonlySet<string> = new Set([
   "USDG",
   "USDE",
   "USDS",
+  "PYUSD",
   "BUSD",
   "DAI",
   "USDD",

@@ -39,7 +39,7 @@ test("the Toman mark shares the system's plate: 48 grid, rx=12, white", () => {
   );
   assert.ok(/const PLATE_RADIUS = 12/.test(src), "the one plate radius shared by the mark system");
   assert.ok(
-    /bgColor = "#FFFFFF"/.test(src),
+    /bgColor = "(#FFFFFF|var\(--paper-000\))"/.test(src),
     "a WHITE plate — the saturated mint fill made it louder than the brand emblems beside it",
   );
   assert.ok(!/<circle[^>]*r="24"/.test(src), "the full-bleed circle plate is gone for good");
@@ -101,10 +101,20 @@ test("the static SVG and the React component are the SAME mark, not two", () => 
   );
   assert.ok(!/<circle/.test(svg), "and neither carries dots");
 
+  // The static file cannot read CSS variables, so it carries a hex ink; the
+  // component may carry the design-system ink token instead (PR #149). Either
+  // way both must declare one — a missing ink is what this guards.
   const svgInk = svg.match(/stroke="(#[0-9A-Fa-f]{6})"/);
-  const componentInk = src.match(/letterColor = "(#[0-9A-Fa-f]{6})"/);
+  const componentInk = src.match(/letterColor = "(#[0-9A-Fa-f]{6}|var\(--ink-\d+\))"/);
   assert.ok(svgInk && componentInk, "both declare an ink colour");
-  assert.equal(svgInk![1], componentInk![1], "…in the same hue");
+  // A hex ink must match exactly. A token ink cannot be compared to the static
+  // hex from source alone — the token resolves in CSS — so there the check is
+  // that the static file still carries a concrete, non-white ink.
+  if (componentInk![1].startsWith("#")) {
+    assert.equal(svgInk![1], componentInk![1], "…in the same hue");
+  } else {
+    assert.notEqual(svgInk![1].toUpperCase(), "#FFFFFF", "…and the static ink is not the plate colour");
+  }
 
   const svgStroke = svg.match(/stroke-width="(\d+(?:\.\d+)?)"/);
   const componentStroke = src.match(/strokeWidth="(\d+(?:\.\d+)?)"/);

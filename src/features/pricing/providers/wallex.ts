@@ -23,6 +23,7 @@
  *
  * No database, ledger or valuation imports — this is pure I/O plus parsing.
  */
+import { isCuratedCrypto, isMemeSymbol } from "../wallexKinds";
 import type {
   PriceFailureCode,
   PriceProvider,
@@ -36,7 +37,7 @@ const DEFAULT_BASE_URL = "https://api.wallex.ir/v1";
 const DEFAULT_TIMEOUT_MS = 8_000;
 
 /** Coins that are a claim on a fiat unit. Kept in step with setup/service.ts. */
-const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG", "DAI", "FDUSD"]);
+const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG", "PYUSD", "DAI", "FDUSD"]);
 /** Tokenised metal, surfaced as gold rather than as a generic coin. */
 const METAL_SYMBOLS = new Set(["XAUT", "PAXG"]);
 
@@ -60,24 +61,23 @@ const BOND_NAME_RE = /\b(treasury|bond)\b/i;
 const COMMODITY_NAME_RE = /\b(oil|natural gas|silver|copper|platinum|palladium|gold|commodit\w*)\b/i;
 const TOKENIZED_STOCK_NAME_RE = /tokeni[sz]ed|\(ondo\b|\bxstock\b|\bbstocks\b|\bstock price\b/i;
 
-/*
- * Meme coins get their own section: they behave nothing like BTC or ETH, and
- * a user scanning «رمزارز» for a store of value should not wade through them.
- * Pinned by symbol — a meme coin's name rarely says so — from the live feed
- * on 2026-09-13, plus the well-known ones likely to be listed next.
+
+/**
+ * What reaches the market list: never a meme coin, and a plain «crypto» coin
+ * only when it is on the curated list. Stablecoins, tokenised gold, stocks,
+ * indices, bonds and commodities are not affected by the curation.
  */
-const MEME_SYMBOLS = new Set([
-  "DOGE", "SHIB", "PEPE", "FLOKI", "BONK", "WIF", "1BBABYDOGE", "BABYDOGE", "MEME", "ELON",
-  "TURBO", "MOG", "NEIRO", "BOME", "PENGU", "TOSHI", "DOGS", "CAT", "CATS", "CATI", "HMSTR",
-  "NOT", "MAJOR", "MEMEFI", "GIGGLE", "PUMP", "TRUMP", "BRETT", "POPCAT", "MEW", "PNUT",
-  "GOAT", "SPX", "1000SATS", "PEOPLE", "BABY",
-]);
+export function isListed(symbol: string, kind: QuoteKind): boolean {
+  if (kind === "meme") return false;
+  if (kind === "crypto") return isCuratedCrypto(symbol);
+  return true;
+}
 
 /** Exported for tests: classification is the whole contract of this step. */
 export function kindOf(symbol: string, latinName = ""): QuoteKind {
   if (METAL_SYMBOLS.has(symbol)) return "gold";
   if (STABLECOIN_SYMBOLS.has(symbol)) return "stablecoin";
-  if (MEME_SYMBOLS.has(symbol)) return "meme";
+  if (isMemeSymbol(symbol)) return "meme";
   if (COMMODITY_SYMBOLS.has(symbol)) return "commodity";
   if (TOKENIZED_STOCK_SYMBOLS.has(symbol)) return "tokenized_stock";
   // Only a name that says it is TOKENISED enters this branch, so a coin that
@@ -246,6 +246,7 @@ export class WallexProvider implements PriceProvider {
       const symbol = str(row.baseAsset)?.toUpperCase();
       const displayName = str(row.faBaseAsset);
       if (!symbol || !displayName) continue;
+      if (!isListed(symbol, kindOf(symbol, str(row.enBaseAsset) ?? ""))) continue;
       out.push({
         ref: market,
         symbol,
@@ -301,6 +302,10 @@ export class WallexProvider implements PriceProvider {
       const displayName = str(named?.faBaseAsset);
       if (!displayName) continue;
 
+      // Meme coins and coins outside the curated list are not market rows.
+      const kind = kindOf(symbol, str(named?.enBaseAsset) ?? "");
+      if (!isListed(symbol, kind)) continue;
+
       const priceTmn = normalisePrice(markets.tmn?.stats?.lastPrice);
       const priceUsdt = normalisePrice(markets.usdt?.stats?.lastPrice);
       // A row quoted in neither market has nothing to show and nothing to
@@ -311,7 +316,7 @@ export class WallexProvider implements PriceProvider {
         symbol,
         displayName,
         latinName: str(named?.enBaseAsset) ?? symbol,
-        kind: kindOf(symbol, str(named?.enBaseAsset) ?? ""),
+        kind,
         logoUrl: str(named?.baseAsset_svg_icon) ?? str(named?.baseAsset_png_icon),
         priceTmn,
         priceUsdt,

@@ -100,7 +100,9 @@ test("the live feed's US stocks and commodities classify by what they hold", asy
   // must still land as a commodity, not as a share.
   for (const s of ["USOON", "UNGON", "SLVON", "PPLTON", "COPXON"]) assert.equal(kind(s), "commodity", s);
   assert.equal(kind("BTC"), "crypto");
-  assert.equal(kind("AGLD"), "crypto", "«Adventure Gold» is a coin, not the metal");
+  // «Adventure Gold» is a coin, not the metal — and not on the curated list.
+  assert.equal(kindOf("AGLD", "Adventure Gold"), "crypto", "a coin, not the metal");
+  assert.equal(kind("AGLD"), undefined, "outside the curated crypto list, so not a market row");
 
   // Both markets, read independently, exactly like every other Wallex row.
   const nvda = entries.find((e: any) => e.symbol === "NVDAX");
@@ -226,7 +228,7 @@ test("each commodity has its own drawn mark on the system's white plate", () => 
   for (const [, name] of pairs) {
     const body = src.match(new RegExp(`export function ${name}\\(([\\s\\S]*?)\\n}`));
     assert.ok(body, `${name} is defined`);
-    assert.ok(/plate = "#FFFFFF"/.test(body![1]), `${name} sits on the white plate`);
+    assert.ok(/plate = "(#FFFFFF|var\(--paper-000\))"/.test(body![1]), `${name} sits on the white plate`);
     assert.ok(/<Plate fill=\{plate\} \/>/.test(body![1]), `${name} uses the shared rx=12 plate`);
   }
 

@@ -2,7 +2,7 @@
  * نمای بازار — sections by kind, instant search, and no exchange names.
  *
  * WHAT THIS PINS
- *   • Meme coins have their own section; BTC stays «رمزارز».
+ *   • Meme coins are not a market section at all.
  *   • Search is a pure in-memory ranking the browser runs — exact symbol, then
  *     prefix, then name — with Persian folding (Arabic ي/ك still match).
  *   • A client-facing market row carries no provenance field at all.
@@ -33,24 +33,21 @@ const row = (symbol: string, displayName: string, kind: string, latinName = symb
   priceUsdt: "1",
 });
 
-test("meme coins get their own section, apart from crypto", () => {
-  for (const s of ["DOGE", "SHIB", "PEPE", "FLOKI", "BONK", "WIF", "1BBABYDOGE", "PENGU"]) {
-    assert.equal(kindOf(s, "whatever"), "meme", s);
-  }
+test("there is no meme section; crypto stays «رمزارز»", () => {
   assert.equal(kindOf("BTC", "Bitcoin"), "crypto");
   assert.equal(kindOf("ETH", "Ethereum"), "crypto");
-  assert.equal(WALLEX_KIND_LABELS.meme, "میم‌کوین");
+  assert.equal(WALLEX_KIND_LABELS.meme, undefined, "no meme label");
   assert.deepEqual(
     [...MARKET_KIND_ORDER],
-    ["crypto", "meme", "stablecoin", "tokenized_stock", "index", "commodity", "bond", "gold"],
-    "every section the user asked for, in a stable order",
+    ["crypto", "stablecoin", "tokenized_stock", "index", "commodity", "bond", "gold", "ir_fund", "ir_stock"],
+    "every section, in a stable order — without memes",
   );
 });
 
 test("in-memory ranking: exact symbol, then prefix, then name — with Persian folding", () => {
   const rows = [
-    row("DOGE", "دوج کوین", "meme", "Dogecoin"),
-    row("DOGS", "داگز", "meme"),
+    row("DOGE", "دوج کوین", "crypto", "Dogecoin"),
+    row("DOGS", "داگز", "stablecoin"),
     row("BTC", "بیت کوین", "crypto", "Bitcoin"),
     row("SPYON", "توکن صندوق اس‌اندپی ۵۰۰", "index", "SPDR S&P 500 Tokenized ETF (Ondo)"),
     row("PAXG", "پکس گلد", "gold", "Paxos Gold"),
@@ -67,8 +64,8 @@ test("in-memory ranking: exact symbol, then prefix, then name — with Persian f
   assert.equal(rankMarketRows(rows, "پكس")[0].symbol, "PAXG", "Arabic ك folds to ک");
   assert.equal(rankMarketRows(rows, "S&P")[0].symbol, "SPYON", "Latin name is searched too");
   assert.deepEqual(
-    rankMarketRows(rows, "", { kinds: ["meme"] }).map((r) => r.symbol).sort(),
-    ["DOGE", "DOGS"],
+    rankMarketRows(rows, "", { kinds: ["crypto"] }).map((r) => r.symbol).sort(),
+    ["BTC", "DOGE"],
     "a section filter returns only that kind",
   );
 });

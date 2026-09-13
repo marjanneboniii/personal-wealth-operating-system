@@ -16,6 +16,7 @@ import type { MarketCatalogLoadResult } from "@/app/actions/pricing";
 import { rankMarketRows } from "@/features/pricing/marketSearch";
 import { MARKET_KIND_ORDER, WALLEX_KIND_LABELS } from "@/features/pricing/wallexKinds";
 import AssetLogo from "@/components/ui/AssetLogo";
+import NoLivePrice from "./NoLivePrice";
 import { formatMoney, toFaDigits } from "@/lib/format";
 import { primeMarketCatalog, refreshMarketCatalog } from "./marketCatalogClient";
 
@@ -79,7 +80,7 @@ export default function MarketView({ initial }: { initial: MarketCatalogLoadResu
             setQuery(e.target.value);
             setShown(PAGE);
           }}
-          placeholder="جست‌وجوی نام یا نماد: بیت‌کوین، دوج، اپل، S&P، نفت…"
+          placeholder="جست‌وجوی نام یا نماد: بیت‌کوین، مونرو، اپل، S&P، نفت، فولاد…"
           className="field min-w-0 flex-1"
           aria-label="جست‌وجوی نماد"
           autoComplete="off"
@@ -117,12 +118,18 @@ export default function MarketView({ initial }: { initial: MarketCatalogLoadResu
               <span className="chip mt-0.5 text-[length:var(--fs-xs)]">{row.kindLabel}</span>
             </div>
             <div className="shrink-0 text-end text-[length:var(--fs-xs)] leading-5">
-              <div className="num" dir="rtl">
-                {row.priceTmn ? <b>{formatMoney(row.priceTmn, "IRT")}</b> : <span className="muted">—</span>}
-              </div>
-              <div className="num muted" dir="rtl">
-                {row.priceUsdt ? formatMoney(row.priceUsdt, "USDT") : "—"}
-              </div>
+              {row.priceTmn || row.priceUsdt ? (
+                <>
+                  <div className="num" dir="rtl">
+                    {row.priceTmn ? <b>{formatMoney(row.priceTmn, "IRT")}</b> : <span className="muted">—</span>}
+                  </div>
+                  <div className="num muted" dir="rtl">
+                    {row.priceUsdt ? formatMoney(row.priceUsdt, "USDT") : "—"}
+                  </div>
+                </>
+              ) : (
+                <NoLivePrice />
+              )}
             </div>
           </li>
         ))}

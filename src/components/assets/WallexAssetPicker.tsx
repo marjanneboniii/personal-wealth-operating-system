@@ -5,6 +5,7 @@ import { registerWallexAssetAction, type MarketCatalogLoadResult, type RegisterM
 import { rankMarketRows, type MarketRow } from "@/features/pricing/marketSearch";
 import { MARKET_KIND_ORDER, WALLEX_KIND_LABELS } from "@/features/pricing/wallexKinds";
 import AssetLogo from "@/components/ui/AssetLogo";
+import NoLivePrice from "./NoLivePrice";
 import { formatMoney, toFaDigits } from "@/lib/format";
 import { loadMarketCatalog, refreshMarketCatalog, subscribeMarketCatalog } from "./marketCatalogClient";
 
@@ -168,7 +169,7 @@ export default function WallexAssetPicker({
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="جست‌وجو: بیت‌کوین، دوج، اپل، S&P، نفت، BTC…"
+        placeholder="جست‌وجو: بیت‌کوین، مونرو، اپل، S&P، نفت، BTC…"
         className="field"
         aria-label="جست‌وجوی نماد"
         autoComplete="off"
@@ -216,16 +217,22 @@ export default function WallexAssetPicker({
                   <span className="muted num" dir="ltr">{asset.symbol}</span>
                   <span className="chip text-[length:var(--fs-xs)]">{asset.kindLabel}</span>
                 </b>
-                <small className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[length:var(--fs-xs)]">
-                  <span className="num" dir="rtl">
-                    <span className="muted">تومانی: </span>
-                    {asset.priceTmn ? <b>{formatMoney(asset.priceTmn, "IRT")}</b> : <span className="muted">—</span>}
-                  </span>
-                  <span className="num" dir="rtl">
-                    <span className="muted">تتری: </span>
-                    {asset.priceUsdt ? <b>{formatMoney(asset.priceUsdt, "USDT")}</b> : <span className="muted">—</span>}
-                  </span>
-                </small>
+                {asset.priceTmn || asset.priceUsdt ? (
+                  <small className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[length:var(--fs-xs)]">
+                    <span className="num" dir="rtl">
+                      <span className="muted">تومانی: </span>
+                      {asset.priceTmn ? <b>{formatMoney(asset.priceTmn, "IRT")}</b> : <span className="muted">—</span>}
+                    </span>
+                    <span className="num" dir="rtl">
+                      <span className="muted">تتری: </span>
+                      {asset.priceUsdt ? <b>{formatMoney(asset.priceUsdt, "USDT")}</b> : <span className="muted">—</span>}
+                    </span>
+                  </small>
+                ) : (
+                  <small className="mt-0.5 flex">
+                    <NoLivePrice />
+                  </small>
+                )}
               </span>
               <span className="chip shrink-0">{registering === asset.symbol ? "…" : actionLabel}</span>
             </button>

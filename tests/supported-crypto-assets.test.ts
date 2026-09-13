@@ -21,6 +21,10 @@ const EXPECTED_MAPPING: Record<string, string> = {
   USDE: "ethena-usde",
   AVAX: "avalanche-2",
   USDG: "global-dollar",
+  PYUSD: "paypal-usd",
+  ASTER: "aster-2",
+  LIT: "lighter",
+  CAKE: "pancakeswap-token",
   XAUT: "tether-gold",
   PAXG: "pax-gold",
   CBBTC: "coinbase-wrapped-btc",
@@ -29,15 +33,15 @@ const EXPECTED_MAPPING: Record<string, string> = {
   BTC: "bitcoin",
 };
 
-test("supported crypto registry is the exact 20-asset product allowlist", () => {
-  assert.equal(SUPPORTED_CRYPTO_ASSETS.length, 20);
+test("supported crypto registry is the exact 24-asset product allowlist", () => {
+  assert.equal(SUPPORTED_CRYPTO_ASSETS.length, 24);
   assert.deepEqual(
     Object.fromEntries(SUPPORTED_CRYPTO_ASSETS.map((asset) => [asset.symbol, asset.coingeckoId])),
     EXPECTED_MAPPING,
   );
 
-  assert.equal(new Set(SUPPORTED_CRYPTO_ASSETS.map((asset) => asset.symbol)).size, 20);
-  assert.equal(new Set(SUPPORTED_CRYPTO_ASSETS.map((asset) => asset.coingeckoId)).size, 20);
+  assert.equal(new Set(SUPPORTED_CRYPTO_ASSETS.map((asset) => asset.symbol)).size, 24);
+  assert.equal(new Set(SUPPORTED_CRYPTO_ASSETS.map((asset) => asset.coingeckoId)).size, 24);
   assert.ok(SUPPORTED_CRYPTO_ASSETS.every((asset) => asset.displayName && /^https:\/\//.test(asset.logoUrl)));
 });
 

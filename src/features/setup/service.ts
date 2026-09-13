@@ -34,7 +34,7 @@ import {
  * portfolio's liquidity filter both count as نقدینگی — so «dry powder» parked
  * in a cold wallet reads as liquidity, not as crypto exposure.
  */
-const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG"]);
+const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG", "PYUSD"]);
 
 /** Native units a cash/bank account may hold. Book currency stays USD. */
 export const SETUP_MONEY_SYMBOLS = ["IRT", "USD", "USDT"] as const;
