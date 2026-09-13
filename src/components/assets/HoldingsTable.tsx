@@ -1,16 +1,32 @@
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, trendArrow, trendColor, trendTone } from "@/lib/format";
-import Icon from "@/components/ui/Icon";
+import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, trendArrow, trendColor } from "@/lib/format";
 import AssetLogo from "@/components/ui/AssetLogo";
 import { vehicleDisplayLabel } from "@/features/rwa/vehicle/display";
 import type { AssetValuation } from "@/features/portfolio/types";
 
+/** A money cell: the Toman figure, with its USD equivalent as a quiet second line. */
+function MoneyCell({ primary, usd, strong = false }: { primary: string; usd?: string | null; strong?: boolean }) {
+  return (
+    <>
+      <div className={`num money-nowrap text-[length:var(--fs-sm)] ${strong ? "font-semibold" : "font-medium"}`} dir="rtl">
+        {primary}
+      </div>
+      {usd != null && (
+        <div className="muted num money-nowrap text-[length:var(--fs-xs)]" dir="rtl">
+          ≈ {formatMoney(usd)}
+        </div>
+      )}
+    </>
+  );
+}
+
 /**
- * Holdings valuation table — compact for mobile PWA, nowrap money.
+ * Holdings valuation table — Toman-canonical. On a phone it shows the three
+ * columns a balance is read from (asset · value · P&L); price, share, cost and
+ * average buy price join as the screen widens.
  */
 export default function HoldingsTable({
   rows,
-  toIrt,
 }: {
   rows: AssetValuation[];
   toIrt: (usd: string | number) => string | null;
@@ -21,50 +37,38 @@ export default function HoldingsTable({
         <thead>
           <tr>
             <th scope="col">دارایی</th>
-            <th scope="col" className="td-num">مقدار</th>
-            <th scope="col" className="td-num">قیمت بازار</th>
+            <th scope="col" className="td-num hidden sm:table-cell">قیمت</th>
             <th scope="col" className="td-num hidden lg:table-cell">بهای تمام‌شده</th>
-            <th scope="col" className="td-num hidden lg:table-cell">میانگین قیمت خرید</th>
+            <th scope="col" className="td-num hidden lg:table-cell">میانگین خرید</th>
             <th scope="col" className="td-num">ارزش روز</th>
-            <th scope="col" className="td-num hidden sm:table-cell">سود/زیان</th>
+            <th scope="col" className="td-num">سود/زیان</th>
             <th scope="col" className="td-num hidden sm:table-cell">سهم</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((a) => {
-            // ── Presentation-layer Toman figures ──────────────────────────────
-            // The row is shown Toman-canonical so every column is internally
-            // consistent and cannot contradict the others. For inherently-Toman
-            // assets (ملک/خودرو/نقد تومانی) the market price is the asset's own
-            // static Toman value — never a frozen USD figure re-scaled by the
-            // current rate (that used to inflate the Toman price when USD rose).
-            // The unit line under the asset name is only useful when it adds
-            // something: once «ETH» reads «اتریوم», printing it again under an
-            // asset already named «اتریوم» (or «تومان» under «تومان») is noise.
+            // Presentation-layer Toman figures. For inherently-Toman assets
+            // (ملک/خودرو/نقد تومانی) the market price is the asset's own static
+            // Toman value — never a frozen USD figure re-scaled by today's rate.
+            // The unit is printed only when it adds something: «۴» under
+            // «اتریوم» needs no second «اتریوم».
             const unitLabel = currencyLabel(a.symbol) || null;
-            const sameAsName = unitLabel != null && unitLabel === a.name;
+            const showUnit = unitLabel != null && unitLabel !== a.name;
 
             const pnlToman = D(a.unrealizedPnlToman);
-            const pnlToneToman = trendTone(a.unrealizedPnlToman);
             const qtyD = D(a.quantity);
-            const priceToman = qtyD.isZero()
-              ? D(a.currentValueToman)
-              : D(a.currentValueToman).div(qtyD);
+            const priceToman = qtyD.isZero() ? D(a.currentValueToman) : D(a.currentValueToman).div(qtyD);
             const costToman = D(a.costBasisToman ?? a.currentValueToman);
             // Mixed-currency DCA: Σ(qty × unit cost × FX frozen at the buy) over
-            // the lots still held. Shown next to the cost basis so the user can
-            // see WHICH unit the average was measured in, and whether any lot
-            // had to be estimated with today's rate (pre-snapshot buys).
+            // the lots still held.
             const dca = a.dca;
-            const dcaHeld = dca ? D(dca.quantityHeld) : D("0");
-            const dcaUsable = !!dca && dcaHeld.gt(0);
-            const roiToman = costToman.isZero() || costToman.isNegative()
-              ? "0"
-              : pnlToman.div(costToman).mul("100").toFixed(2);
+            const dcaUsable = !!dca && D(dca.quantityHeld).gt(0);
+            const roiToman =
+              costToman.isZero() || costToman.isNegative() ? "0" : pnlToman.div(costToman).mul("100").toFixed(2);
             return (
               <tr key={a.assetId}>
                 <td className="min-w-0">
-                  <div className="flex items-center gap-2 sm:gap-2.5">
+                  <div className="flex items-center gap-2.5">
                     <AssetLogo
                       symbol={a.symbol}
                       name={a.name}
@@ -74,123 +78,84 @@ export default function HoldingsTable({
                       radius={9}
                     />
                     <div className="min-w-0">
-                      {/* A stored vehicle name is «brand model (manufacturing year)»,
-                          which `truncate` clips mid-word — losing exactly the part
-                          that tells two cars apart. The short label drops the year
-                          and the repeated assembler prefix; `title` keeps the full
-                          stored name one hover away, and every non-vehicle name
-                          passes through untouched. */}
-                      <div
-                        className="truncate text-[length:var(--fs-xs)] font-semibold tracking-tight sm:text-[length:var(--fs-sm)]"
-                        dir="rtl"
-                        title={a.name}
-                      >
+                      {/* The short vehicle label drops the year and the repeated
+                          assembler prefix; `title` keeps the full stored name. */}
+                      <div className="truncate text-[length:var(--fs-sm)] font-semibold leading-6" dir="rtl" title={a.name}>
                         {vehicleDisplayLabel(a.name)}
                       </div>
-                      {unitLabel && !sameAsName && (
-                        <div className="muted truncate text-[length:var(--fs-xs)] font-normal" dir="ltr">
-                          {unitLabel}
-                        </div>
-                      )}
-                      <div className="mt-1 flex flex-wrap items-center gap-1">
-                        {/* Valuation-basis chips («مبنای تومان» / «مبنای دلار»)
-                            and the price-freshness chip are internal accounting
-                            metadata, not something the user reads a balance
-                            from. They are removed from the UI; the underlying
-                            `valuationBase` / `priceFreshness` fields are
-                            untouched and still drive the numbers. Only a real
-                            price PROBLEM is still surfaced below. */}
-                        {a.priceFreshness === "stale" && (
-                          <span className="chip text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }} title="قیمت این دارایی قدیمی است و باید تازه‌سازی شود">
-                            قیمت قدیمی
-                          </span>
-                        )}
-                        {a.priceFreshness === "unavailable" && (
-                          <span className="chip text-[length:var(--fs-xs)]" style={{ color: "var(--negative)" }} title="قیمت بازار برای این دارایی در دسترس نیست">
-                            قیمت در دسترس نیست
-                          </span>
+                      <div className="muted truncate text-[length:var(--fs-xs)] leading-5" dir="rtl">
+                        <span className="num">{formatQty(a.quantity, a.decimals)}</span>
+                        {showUnit && (
+                          <>
+                            {" "}
+                            <bdi>{unitLabel}</bdi>
+                          </>
                         )}
                       </div>
+                      {/* Only a real price PROBLEM is surfaced; a current price is the normal case. */}
+                      {a.priceFreshness === "stale" && (
+                        <span className="badge badge-warn mt-1" title="قیمت این دارایی قدیمی است و باید تازه‌سازی شود">
+                          قیمت قدیمی
+                        </span>
+                      )}
+                      {a.priceFreshness === "unavailable" && (
+                        <span className="badge badge-neg mt-1" title="قیمت بازار برای این دارایی در دسترس نیست">
+                          قیمت در دسترس نیست
+                        </span>
+                      )}
                     </div>
                   </div>
                 </td>
-                <td className="td-num money-nowrap text-[length:var(--fs-xs)] sm:text-[length:var(--fs-xs)]" dir="rtl">
-                  {formatQty(a.quantity, a.decimals)}
-                </td>
-                <td className="td-num money-nowrap" dir="rtl">
+                <td className="td-num hidden sm:table-cell" dir="rtl">
                   {a.marketPrice !== "0" ? (
-                    <>
-                      <div className="text-[length:var(--fs-xs)] font-medium money-nowrap sm:text-[length:var(--fs-xs)]">
-                        {a.symbol === "IRT" || a.symbol === "IRR"
+                    <MoneyCell
+                      primary={
+                        a.symbol === "IRT" || a.symbol === "IRR"
                           ? formatMoney(a.currentValueToman, "IRT")
-                          : formatMoney(priceToman.toFixed(0), "IRT")}
-                      </div>
-                      <div className="muted num text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
-                        ≈ {formatMoney(a.marketPrice)}
-                      </div>
-                    </>
+                          : formatMoney(priceToman.toFixed(0), "IRT")
+                      }
+                      usd={a.marketPrice}
+                    />
                   ) : (
-                    <div className="text-[length:var(--fs-xs)] font-medium money-nowrap sm:text-[length:var(--fs-xs)]">
+                    <span className="muted text-[length:var(--fs-xs)]">
                       {a.priceFreshness === "unavailable" && a.valuationBasis === "cost_basis_fallback"
                         ? "در دسترس نیست"
                         : formatMoney(a.marketPrice)}
-                    </div>
+                    </span>
                   )}
                 </td>
-                <td className="td-num hidden lg:table-cell money-nowrap text-[length:var(--fs-xs)]" dir="rtl">
-                  <div className="text-[length:var(--fs-xs)] font-medium money-nowrap sm:text-[length:var(--fs-xs)]">{formatMoney(costToman.toFixed(0), "IRT")}</div>
-                  <div className="muted num text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
-                    ≈ {formatMoney(a.costBasis)}
-                  </div>
+                <td className="td-num hidden lg:table-cell" dir="rtl">
+                  <MoneyCell primary={formatMoney(costToman.toFixed(0), "IRT")} usd={a.costBasis} />
                 </td>
-                <td className="td-num hidden lg:table-cell money-nowrap text-[length:var(--fs-xs)]" dir="rtl">
+                <td className="td-num hidden lg:table-cell" dir="rtl">
                   {dcaUsable ? (
                     <>
-                      <div className="text-[length:var(--fs-xs)] font-medium money-nowrap sm:text-[length:var(--fs-xs)]">
-                        {formatMoney(dca!.dcaUnitPriceToman, "IRT")}
-                      </div>
-                      <div className="muted num text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
-                        ≈ {formatMoney(dca!.dcaUnitPriceUsd)}
-                      </div>
-                      <div className="muted text-[length:var(--fs-xs)] leading-4">
-                        {formatQty(dca!.quantityHeld, a.decimals)} واحد
-                        {dca!.hasEstimatedFx ? " · با برآورد نرخ" : ""}
-                      </div>
+                      <MoneyCell primary={formatMoney(dca!.dcaUnitPriceToman, "IRT")} usd={dca!.dcaUnitPriceUsd} />
+                      {dca!.hasEstimatedFx && <div className="muted text-[length:var(--fs-xs)]">با برآورد نرخ</div>}
                     </>
                   ) : (
-                    <div className="muted text-[length:var(--fs-xs)]">—</div>
+                    <span className="muted text-[length:var(--fs-xs)]">—</span>
                   )}
                 </td>
-                <td className="td-num money-nowrap" dir="rtl">
-                  <div className="num text-[length:var(--fs-xs)] font-bold money-nowrap sm:text-[length:var(--fs-xs)]">{formatMoney(a.currentValueToman, "IRT")}</div>
-                  <div className="muted num text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
-                    ≈ {formatMoney(a.currentValue)}
-                  </div>
+                <td className="td-num" dir="rtl">
+                  <MoneyCell primary={formatMoney(a.currentValueToman, "IRT")} usd={a.currentValue} strong />
                 </td>
-                <td className="td-num hidden sm:table-cell money-nowrap" dir="rtl" style={{ color: trendColor(a.unrealizedPnlToman) }}>
-                  <div className="text-[length:var(--fs-xs)] font-semibold money-nowrap sm:text-[length:var(--fs-xs)]">
+                <td className="td-num" dir="rtl" style={{ color: trendColor(a.unrealizedPnlToman) }}>
+                  <div className="num money-nowrap text-[length:var(--fs-sm)] font-semibold">
                     {formatSignedMoney(pnlToman.toString(), "IRT")}
                   </div>
-                  <div className="num text-[length:var(--fs-xs)] money-nowrap">
+                  <div className="num money-nowrap text-[length:var(--fs-xs)]">
                     {trendArrow(roiToman)} {formatPct(D(roiToman).abs().toString(), 2)}
                   </div>
                 </td>
-                <td className="td-num hidden sm:table-cell money-nowrap text-[length:var(--fs-xs)]" dir="rtl">
-                  <span className="num">{formatPct(a.sharePercentage, 2)}</span>
+                <td className="td-num hidden sm:table-cell" dir="rtl">
+                  <span className="num text-[length:var(--fs-xs)]">{formatPct(a.sharePercentage, 1)}</span>
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      <div
-        className="muted flex items-center gap-1 border-t px-3 py-2 text-[length:var(--fs-xs)] sm:hidden"
-        style={{ borderColor: "var(--border)" }}
-        aria-hidden="true"
-      >
-        <Icon name="chevronLeft" size={13} />
-        برای دیدن قیمت‌ها، جدول را بکشید
-      </div>
     </div>
   );
 }

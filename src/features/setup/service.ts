@@ -6,6 +6,7 @@ import {
   assets,
   auditLog,
   currencies,
+  entryFxSnapshots,
   prices,
   settings,
   userSetupState,
@@ -26,13 +27,39 @@ import {
   SUPPORTED_CRYPTO_ASSETS,
   getSupportedCryptoBySymbol,
   requireSupportedCryptoBySymbol,
+  type SupportedCryptoAsset,
 } from "@/features/pricing/supportedAssets";
 
 /**
+ * CURRENCY MODEL OF THE SETUP (the answer to «دلار، تتر یا تومان؟»)
+ *
+ *   BOOK (functional) currency — USD, fixed, never a user choice.
+ *     `postings.base_value`, FIFO `unit_cost_base` and realized P&L are in USD
+ *     (docs/DESIGN-ACCOUNT-DENOMINATION-AND-FX.md). It is the stable yardstick
+ *     that lets a flat, a gold fund and a bitcoin be compared and lets a gain
+ *     be told apart from inflation. The app's live rate is the Toman/Tether
+ *     market rate, so «USD» in the book is the Tether-market dollar.
+ *
+ *   TRANSACTION currency — what the user actually paid, per holding:
+ *     Toman only    bank accounts, debts, property, vehicles, physical gold,
+ *                   TSE funds (incl. gold funds) and TSE stocks
+ *     USDT or Toman crypto, US stocks, indices and commodities
+ *
+ *   Every Toman amount of one setup converts at ONE rate — the rate the user
+ *   confirmed on the wizard — and that rate is frozen on the opening entry
+ *   (`entry_fx_snapshots`). The portfolio derives each position's historical
+ *   Toman cost from exactly that snapshot, so a Toman price typed here comes
+ *   back as the same Toman cost later.
+ *
+ *   USDT is an ASSET, not a unit of account: it has its own price and can
+ *   depeg. It is booked at face (1 USDT = 1 USD), the same rule a USDT cash
+ *   account already uses, and its market value comes from its price feed.
+ */
+
+/**
  * Coins that are a claim on a fiat unit rather than a volatile asset. They are
- * classed «استیبل‌کوین», which is the class `getWealthSnapshot` and the
- * portfolio's liquidity filter both count as نقدینگی — so «dry powder» parked
- * in a cold wallet reads as liquidity, not as crypto exposure.
+ * classed «استیبل‌کوین», which the portfolio's liquidity filter counts as
+ * نقدینگی — dry powder in a wallet reads as liquidity, not crypto exposure.
  */
 const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG", "PYUSD"]);
 
@@ -40,16 +67,34 @@ const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG", "PYU
 export const SETUP_MONEY_SYMBOLS = ["IRT", "USD", "USDT"] as const;
 export type SetupMoneySymbol = (typeof SETUP_MONEY_SYMBOLS)[number];
 const SETUP_MONEY_SYMBOL_SET = new Set<string>(SETUP_MONEY_SYMBOLS);
+
+/** Currency an opening PRICE was entered in. Absent means USD (the original API contract). */
+export type SetupPriceCurrency = "USD" | "USDT" | "IRT";
+
 const SETUP_USDT = requireSupportedCryptoBySymbol("USDT");
 const SETUP_BTC = requireSupportedCryptoBySymbol("BTC");
 const SETUP_ETH = requireSupportedCryptoBySymbol("ETH");
 
+/** Sanity band for a USD→IRT rate, the same band the rate settings enforce. */
+const RATE_MIN = "1000";
+const RATE_MAX = "10000000";
+/** Chart codes 1200–1299 hold the crypto wallets opened by the setup. */
+const CRYPTO_CODE_BASE = 1200;
+const MAX_CRYPTO_WALLETS = 100;
+
 export type SetupInput = {
   userName: string;
-  baseCurrency: string; // Accounting currency (e.g. USD, EUR, IRR)
-  displayCurrency: string; // User display currency (e.g. USD, IRT, EUR)
+  /**
+   * Kept for API compatibility only. The book currency is USD for every tenant;
+   * a different value no longer creates a pseudo «ارز پایه» asset or re-points
+   * income/expense accounts at it.
+   */
+  baseCurrency: string;
+  displayCurrency: string;
   dateCalendar: "jalali" | "gregorian";
   digitStyle: "fa" | "en";
+  /** USD→IRT rate the user confirmed. Out of range or absent → the user's latest rate. */
+  fxRate?: string;
   bankAccountName?: string;
   cashWalletName?: string;
   /** Native denomination of the bank account (IRT | USD | USDT). */
@@ -61,62 +106,49 @@ export type SetupInput = {
   /** Native quantity in the cash account's own unit — never book USD. */
   cashOpeningBalance?: string;
   /**
-   * WHICH coin the user holds, chosen from SUPPORTED_CRYPTO_ASSETS. The wizard
-   * used to hard-code a «کیف پول اتریوم» for everyone, so a user who owns no
-   * ETH still got an Ethereum wallet and a user who owns SOL got nowhere to
-   * put it. No coin chosen (or a zero quantity) now means NO crypto wallet is
-   * created at all — one can be added later from the Accounts module.
+   * Every coin the user holds. Each becomes its own «کیف پول …» wallet and,
+   * with a quantity, a posting and a FIFO lot in the single opening entry.
    */
+  cryptoHoldings?: Array<{
+    symbol: string;
+    quantity?: string;
+    unitPrice?: string;
+    priceCurrency?: SetupPriceCurrency;
+  }>;
+  /** Legacy single-coin fields — merged into `cryptoHoldings`. */
   cryptoSymbol?: string;
   cryptoOpeningQty?: string;
-  cryptoUnitPrice?: string; // Price in base currency
-  goldOpeningQty?: string; // in grams
-  goldUnitPrice?: string; // Price per gram in base currency
+  cryptoUnitPrice?: string;
+  cryptoPriceCurrency?: SetupPriceCurrency;
+  /** Physical gold, in grams of 18 karat. */
+  goldOpeningQty?: string;
+  goldUnitPrice?: string;
+  goldPriceCurrency?: SetupPriceCurrency;
   /**
-   * صندوق‌ها و سهام the user already owns.
-   *
-   * A LIST, because a person arriving at this wizard typically owns several —
-   * the same reason the debts step is a list. The crypto slot above is a single
-   * choice for historical reasons; this one was built as a list from the start.
-   *
-   * Each row is registered (identity + tenant-owned asset account) and, when it
-   * carries a quantity, contributes an opening posting and a FIFO lot to the
-   * SAME single opening entry as every other balance. A row with no quantity is
-   * still registered — the user is telling us they own it and will enter the
-   * numbers later — and simply opens no lot.
+   * صندوق‌ها، سهام and والکس assets the user already owns. Each row is registered
+   * (identity + tenant-owned asset account) and, with a quantity, opens a
+   * position in the same opening entry. A row with no quantity is registered
+   * only — no lot is fabricated.
    */
   instruments?: Array<{
     /** «wallex» = a US stock / commodity / index token from the والکس catalogue. */
     kind: "fund" | "stock" | "wallex";
-    /** TSE symbol in Persian («عیار», «فولاد») or a Wallex symbol («AAPLX»). */
     symbol: string;
     name?: string;
-    /** Units held. Empty means «register it, I will add the amount later». */
     quantity?: string;
-    /** Purchase price per unit, in base currency — opening cost basis only. */
+    /** Purchase price per unit — opening cost basis only. */
     unitPrice?: string;
+    priceCurrency?: SetupPriceCurrency;
   }>;
-
   /**
-   * خودرو و ملک the user already owns.
-   *
-   * These are REGISTRY assets, not ledger balances, so they are deliberately
-   * NOT folded into the single opening entry above. Each is written by the
-   * registry's own function — `createUserVehicle` / `createRealEstateAsset` —
-   * which owns rules the wizard must not restate: catalogue-only vehicle
-   * models, acquisition-date FX, RWA symbol sequencing, valuation snapshots,
-   * and (for a property) its own ledger entry. Each of those functions opens
-   * its own transaction and does not accept an external one, which is also why
-   * they run AFTER the opening transaction commits rather than inside it.
+   * خودرو و ملک — REGISTRY assets, written by the registry's own services after
+   * the opening transaction commits (see the note at the end of `completeSetup`).
    */
   vehicles?: Array<{
-    /** Must exist in the vehicle catalogue — free text is refused upstream. */
     catalogId: string;
     manufacturingYear: string;
-    /** ISO Gregorian, converted from the user's Jalali pick by the widget. */
     ownershipDate: string;
     purchasePriceToman: string;
-    /** Optional first valuation snapshot — never derived from the purchase. */
     currentValueToman?: string;
   }>;
   properties?: Array<{
@@ -131,9 +163,8 @@ export type SetupInput = {
 };
 
 /**
- * Translate the two known Chart-of-Accounts insert failures into an
- * operator-facing message. The accounting core is not involved — this is
- * only the setup write of header/leaf account *metadata*.
+ * Translate the known Chart-of-Accounts insert failures into an
+ * operator-facing message. Only the setup write of account metadata is involved.
  */
 function rethrowChartInsertError(err: unknown): never {
   const root = rootCauseOf(err);
@@ -159,33 +190,53 @@ function rethrowChartInsertError(err: unknown): never {
   throw err instanceof Error ? err : new Error(root.message);
 }
 
-function resolveMoneyDenomination(explicit: string | undefined, fallback: string): SetupMoneySymbol {
-  const candidate = (explicit || fallback || "USD").toUpperCase();
+function resolveMoneyDenomination(explicit: string | undefined): SetupMoneySymbol {
+  const candidate = (explicit || "USD").toUpperCase();
   if (SETUP_MONEY_SYMBOL_SET.has(candidate)) return candidate as SetupMoneySymbol;
   return "USD";
 }
 
+/** A user-entered decimal, or zero when blank. Malformed input fails loudly. */
+function amountOf(value: string | undefined): Decimal {
+  const text = (value ?? "").trim();
+  if (!text) return Decimal.zero();
+  const amount = D(text);
+  if (amount.isNegative()) throw new Error("مبالغ راه‌اندازی نمی‌توانند منفی باشند.");
+  return amount;
+}
+
+/** The confirmed rate when it is inside the sanity band; otherwise null. */
+function confirmedRateOf(value: string | undefined): Decimal | null {
+  try {
+    const rate = D((value ?? "").trim());
+    return rate.gte(RATE_MIN) && rate.lte(RATE_MAX) ? rate : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Opening price → USD book value. USD and USDT at face; Toman ÷ the setup rate. */
+function priceToBookUsd(price: Decimal, currency: SetupPriceCurrency | undefined, rate: Decimal): Decimal {
+  if ((currency ?? "USD") !== "IRT") return price;
+  if (!rate.gt(0)) throw new Error("نرخ تبدیل دلار به تومان معتبر نیست.");
+  return price.div(rate);
+}
+
 /**
- * Server-authoritative conversion: read the persisted account's assetId,
- * interpret `nativeQty` in that unit, and compute USD `base_value`.
- * Client labels / claimed book values are ignored.
- * Mirrors `registerMoneyAccount` for opening book value (IRT ÷ current
- * USD→IRT rate; USD/USDT = 1). Live USDT valuation remains CoinGecko-based.
+ * Server-authoritative conversion of a cash opening balance: read the persisted
+ * account's denomination, interpret the quantity in that unit, and compute its
+ * USD `base_value` at the setup rate. Client labels are never trusted.
  */
 async function bookUsdFromAccountNative(
   tx: any,
   accountId: string,
   nativeQtyInput: string,
-  userId: string | undefined,
+  rate: Decimal,
 ): Promise<{ assetId: string; quantity: string; baseValue: string; symbol: string }> {
-  const qty = D(nativeQtyInput);
-  if (qty.isNegative()) throw new Error("موجودی اولیه نمی‌تواند منفی باشد.");
+  const qty = amountOf(nativeQtyInput);
 
   const [row] = await tx
-    .select({
-      assetId: accounts.assetId,
-      symbol: assets.symbol,
-    })
+    .select({ assetId: accounts.assetId, symbol: assets.symbol })
     .from(accounts)
     .innerJoin(assets, eq(assets.id, accounts.assetId))
     .where(eq(accounts.id, accountId))
@@ -195,20 +246,13 @@ async function bookUsdFromAccountNative(
     throw new Error("حساب انتخاب‌شده واحد بومی (assetId) ندارد.");
   }
 
-  let unitPriceUsd = D("1");
+  let baseValue = qty;
   if (row.symbol === "IRT") {
-    const fx = await getLatestUsdIrtRateForUser(userId, tx);
-    const usdIrtRate = D(fx.rate);
-    if (usdIrtRate.lte(0)) throw new Error("نرخ تبدیل دلار به تومان معتبر نیست.");
-    unitPriceUsd = D("1").div(usdIrtRate);
+    if (!rate.gt(0)) throw new Error("نرخ تبدیل دلار به تومان معتبر نیست.");
+    baseValue = qty.div(rate);
   }
 
-  return {
-    assetId: row.assetId,
-    symbol: row.symbol,
-    quantity: qty.toString(),
-    baseValue: qty.mul(unitPriceUsd).toString(),
-  };
+  return { assetId: row.assetId, symbol: row.symbol, quantity: qty.toString(), baseValue: baseValue.toString() };
 }
 
 export async function getSetupState(userId?: string) {
@@ -221,21 +265,22 @@ export async function getSetupState(userId?: string) {
   return { completed: rows[0].completed, currentStep: rows[0].currentStep };
 }
 
+type OpenLot = { accountId: string; assetId: string; quantity: string; costBase: string };
+
 /**
  * Setup Wizard Orchestrator
  *
- * Enforces:
  * - Duplicate prevention (throws if setup is already completed).
- * - All financial mutations go strictly through postEntry() — never direct SQL inserts to ledger.
- * - Accounting Currency and Display Currency remain separate.
- * - Clean onboarding without demo transactions.
+ * - All financial mutations go through postEntry() — never direct ledger inserts.
+ * - One opening entry for every ledger balance, balanced against 3010 in USD,
+ *   with the setup rate frozen on it.
+ * - No demo transactions.
  */
 export async function completeSetup(
   input: SetupInput,
   /** When supplied, setup is isolated to this existing authenticated tenant. */
   userId?: string,
 ): Promise<{ ok: boolean; message: string }> {
-  // 1. Prevent duplicate setup in the relevant tenant scope.
   const existingState = await getSetupState(userId);
   if (existingState.completed) {
     throw new Error("راه‌اندازی اولیه قبلاً انجام شده است.");
@@ -244,10 +289,8 @@ export async function completeSetup(
   const setupResult = await db.transaction(async (tx) => {
     const today = todayIso();
 
-    // 2. Configure shared reference data idempotently. Per-user onboarding may
-    // run after another tenant has already populated part of these catalogs;
-    // inserting only when an entire table is empty would leave required rows
-    // (for example IRR or GOLD18) missing.
+    // Shared reference data, idempotent: another tenant may already have
+    // populated part of these catalogs.
     await tx
       .insert(currencies)
       .values([
@@ -260,7 +303,6 @@ export async function completeSetup(
     const curList = await tx.select().from(currencies);
     const curMap = Object.fromEntries(curList.map((c) => [c.code, c.id]));
 
-    // 3. Configure Reference Asset Classes
     await tx
       .insert(assetClasses)
       .values([
@@ -273,18 +315,10 @@ export async function completeSetup(
     const clsList = await tx.select().from(assetClasses);
     const clsMap = Object.fromEntries(clsList.map((c) => [c.code, c.id]));
 
-    // 4. Configure Reference Assets
     const requiredAssets = new Map(
       [
-        {
-          symbol: input.baseCurrency,
-          name: `${input.baseCurrency} (ارز پایه)`,
-          classId: clsMap.cash,
-          currencyId: curMap[input.baseCurrency] ?? curMap.USD,
-          decimals: input.baseCurrency === "IRT" || input.baseCurrency === "IRR" ? 0 : 2,
-        },
-        // Account/wallet denominations are always available, regardless of the
-        // accounting base currency selected above.
+        // Money denominations are always available. There is no separate
+        // «ارز پایه» asset any more — the book currency is USD.
         { symbol: "IRT", name: "تومان", classId: clsMap.cash, currencyId: curMap.IRT, decimals: 0 },
         { symbol: "USD", name: "دلار آمریکا", classId: clsMap.cash, currencyId: curMap.USD, decimals: 2 },
         {
@@ -317,16 +351,8 @@ export async function completeSetup(
           coingeckoId: SETUP_ETH.coingeckoId,
           logoUrl: SETUP_ETH.logoUrl,
         },
-        /*
-         * Every coin the picker can offer needs an asset identity, otherwise
-         * choosing anything outside BTC/ETH/USDT would have had nowhere to post.
-         * Stablecoins are deliberately classed «استیبل‌کوین», not «رمزارز»:
-         * that class is what makes a USDT/USDC balance read as نقدینگی rather
-         * than as crypto exposure — see the note on the wallet account below.
-         */
-        ...SUPPORTED_CRYPTO_ASSETS.filter(
-          (c) => !["BTC", "ETH", "USDT"].includes(c.symbol),
-        ).map((c) => ({
+        // Every coin the picker offers needs an identity to post against.
+        ...SUPPORTED_CRYPTO_ASSETS.filter((c) => !["BTC", "ETH", "USDT"].includes(c.symbol)).map((c) => ({
           symbol: c.symbol,
           name: c.displayName,
           classId: STABLECOIN_SYMBOLS.has(c.symbol) ? clsMap.stable : clsMap.crypto,
@@ -341,9 +367,8 @@ export async function completeSetup(
     );
     await tx.insert(assets).values([...requiredAssets.values()]).onConflictDoNothing();
 
-    // Older setup/runtime paths could leave these shared asset identities with
-    // default manual pricing. Reconcile pricing metadata only; never touch an
-    // account, journal, posting, quantity, lot, cost basis or snapshot.
+    // Older paths could leave these identities with manual pricing. Reconcile
+    // pricing metadata only; never touch an account, posting, lot or snapshot.
     for (const identity of [SETUP_USDT, SETUP_BTC, SETUP_ETH]) {
       await tx
         .update(assets)
@@ -362,9 +387,8 @@ export async function completeSetup(
     const astList = await tx.select().from(assets);
     const assetMap = Object.fromEntries(astList.map((a) => [a.symbol, a.id]));
 
-    // 5. User resolution & settings storage. Authenticated setup configures
-    // the existing session tenant; legacy single-tenant setup keeps the
-    // original bootstrap behavior of creating its first owner.
+    // User resolution. Authenticated setup configures the existing tenant; the
+    // legacy single-tenant path creates its first owner.
     let user: typeof users.$inferSelect | undefined;
     if (userId) {
       [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -381,21 +405,22 @@ export async function completeSetup(
         .returning();
     }
     if (!user) throw new Error("ایجاد کاربر راه‌اندازی ناموفق بود.");
-    // A (possibly) new user row invalidates the shared tenant-state cache.
-    // Harmless on rollback: the cache is only cleared, never populated.
     invalidateTenantStateCache();
 
-    const configItems = [
-      { key: "base_currency", value: input.baseCurrency },
-      { key: "display_currency", value: input.displayCurrency },
-      { key: "date_calendar", value: input.dateCalendar },
-      { key: "digit_style", value: input.digitStyle },
-    ];
+    // ONE rate for the whole setup: the user's confirmed rate, else their latest.
+    const latestFx = await getLatestUsdIrtRateForUser(user.id, tx);
+    const confirmedRate = confirmedRateOf(input.fxRate);
+    const setupRate = confirmedRate ?? (confirmedRateOf(latestFx.rate) ?? Decimal.zero());
+    const rateSource = confirmedRate ? "setup_confirmed" : latestFx.source;
 
-    // `settings` is a legacy global table. Never let one authenticated tenant
-    // overwrite another tenant's presentation preferences. The legacy
-    // single-owner bootstrap still persists these values as before.
+    // `settings` is a legacy global table: authenticated tenants never write it.
     if (!userId) {
+      const configItems = [
+        { key: "base_currency", value: "USD" },
+        { key: "display_currency", value: input.displayCurrency },
+        { key: "date_calendar", value: input.dateCalendar },
+        { key: "digit_style", value: input.digitStyle },
+      ];
       for (const cfg of configItems) {
         await tx
           .insert(settings)
@@ -404,92 +429,86 @@ export async function completeSetup(
       }
     }
 
-    // 6. Chart of Accounts Creation
-    const baseAssetId = assetMap[input.baseCurrency] ?? assetMap.USD;
-    // Book / functional currency is always USD. Account denomination
-    // (native holding unit) is independent and lives on accounts.assetId.
-    const bookAssetId = assetMap.USD ?? baseAssetId;
-    const bankDenom = resolveMoneyDenomination(input.bankAssetSymbol, input.baseCurrency);
-    const cashDenom = resolveMoneyDenomination(input.cashAssetSymbol, input.baseCurrency);
-    const bankAssetId = assetMap[bankDenom] ?? bookAssetId;
-    const cashAssetId = assetMap[cashDenom] ?? bookAssetId;
-    // Only the bank account is mandatory during onboarding. A cash box is
-    // provisioned only when the user explicitly names it or funds it; otherwise
-    // they can add one later from the Accounts module. The ETH / gold accounts
-    // stay as zero-balance containers because the buy/sell asset flows need a
-    // destination account — they are invisible until actually funded.
+    // Chart of accounts. Book / functional currency is USD for every row that
+    // is not a holding; a holding's asset is its denomination.
+    const bookAssetId = assetMap.USD;
+    const bankAssetId = assetMap[resolveMoneyDenomination(input.bankAssetSymbol)] ?? bookAssetId;
+    const cashAssetId = assetMap[resolveMoneyDenomination(input.cashAssetSymbol)] ?? bookAssetId;
+    // Only the bank account is mandatory. A cash box exists only when the user
+    // named or funded one.
     const wantsCashWallet = Boolean(
-      input.cashWalletName?.trim() || (input.cashOpeningBalance && D(input.cashOpeningBalance).gt(0)),
+      input.cashWalletName?.trim() || amountOf(input.cashOpeningBalance).gt(0),
     );
-    /*
-     * The coin the user picked. An unknown or absent symbol resolves to
-     * undefined, which simply means no crypto wallet is created — never a
-     * silent fallback to some other coin's account.
-     */
-    const chosenCrypto = input.cryptoSymbol
-      ? getSupportedCryptoBySymbol(input.cryptoSymbol)
-      : undefined;
+
+    // The coins the user picked, de-duplicated, each with its own chart code.
+    // An unknown symbol is skipped — never a silent fallback to another coin.
+    const cryptoPicks: Array<{
+      chosenCrypto: SupportedCryptoAsset;
+      code: string;
+      quantity?: string;
+      unitPrice?: string;
+      priceCurrency?: SetupPriceCurrency;
+    }> = [];
+    const legacyCrypto = input.cryptoSymbol
+      ? [{ symbol: input.cryptoSymbol, quantity: input.cryptoOpeningQty, unitPrice: input.cryptoUnitPrice, priceCurrency: input.cryptoPriceCurrency }]
+      : [];
+    for (const holding of [...(input.cryptoHoldings ?? []), ...legacyCrypto]) {
+      const chosenCrypto = getSupportedCryptoBySymbol(holding.symbol);
+      if (!chosenCrypto || !assetMap[chosenCrypto.symbol]) continue;
+      if (cryptoPicks.some((pick) => pick.chosenCrypto.symbol === chosenCrypto.symbol)) continue;
+      if (cryptoPicks.length >= MAX_CRYPTO_WALLETS) break;
+      cryptoPicks.push({
+        chosenCrypto,
+        code: String(CRYPTO_CODE_BASE + cryptoPicks.length),
+        quantity: holding.quantity,
+        unitPrice: holding.unitPrice,
+        priceCurrency: holding.priceCurrency,
+      });
+    }
+
     const acctRows = [
       { code: "1000", name: "دارایی‌ها", type: "asset" },
       { code: "1010", name: input.bankAccountName?.trim() || "حساب بانکی اصلی", type: "asset", assetId: bankAssetId },
       ...(wantsCashWallet
         ? [{ code: "1020", name: input.cashWalletName?.trim() || "صندوق نقد", type: "asset", assetId: cashAssetId }]
         : []),
-      /*
-       * The crypto wallet exists only if the user actually named a coin. It is
-       * named after THAT coin («کیف پول بیت‌کوین»), because a hard-coded
-       * Ethereum wallet was both wrong for the user who holds no ETH and
-       * useless to the user who holds SOL.
-       */
-      ...(chosenCrypto && assetMap[chosenCrypto.symbol]
-        ? [{
-            code: "1200",
-            name: `کیف پول ${chosenCrypto.displayName}`,
-            type: "asset" as const,
-            assetId: assetMap[chosenCrypto.symbol],
-          }]
-        : []),
+      // One wallet per coin the user holds, named after THAT coin.
+      ...cryptoPicks.map(({ chosenCrypto, code }) => ({
+        code,
+        name: `کیف پول ${chosenCrypto.displayName}`,
+        type: "asset" as const,
+        assetId: assetMap[chosenCrypto.symbol],
+      })),
       { code: "1300", name: "طلای ۱۸ عیار", type: "asset", assetId: assetMap.GOLD18 },
       { code: "2000", name: "بدهی‌ها", type: "liability" },
-      { code: "2010", name: "وام / بدهی عمومی", type: "liability", assetId: baseAssetId },
+      { code: "2010", name: "وام / بدهی عمومی", type: "liability", assetId: bookAssetId },
       { code: "3000", name: "سرمایه", type: "equity" },
       { code: "3010", name: "سرمایه افتتاحیه", type: "equity", assetId: bookAssetId },
-      // Non-cash reserve: counter account of depreciation / reserve expense
-      // entries (nature = non_cash) so no cash account ever moves.
-      { code: "3200", name: "ذخیره استهلاک و تعمیرات آتی", type: "equity", assetId: baseAssetId },
+      // Non-cash reserve: counter account of depreciation / reserve entries.
+      { code: "3200", name: "ذخیره استهلاک و تعمیرات آتی", type: "equity", assetId: bookAssetId },
       { code: "4000", name: "درآمدها", type: "income" },
-      { code: "4010", name: "حقوق و درآمد", type: "income", assetId: baseAssetId },
-      { code: "4100", name: "سود سرمایه‌ای تحقق‌یافته", type: "income", assetId: baseAssetId },
-      { code: "4900", name: "درآمد متفرقه", type: "income", assetId: baseAssetId },
+      { code: "4010", name: "حقوق و درآمد", type: "income", assetId: bookAssetId },
+      { code: "4100", name: "سود سرمایه‌ای تحقق‌یافته", type: "income", assetId: bookAssetId },
+      { code: "4900", name: "درآمد متفرقه", type: "income", assetId: bookAssetId },
       { code: "5000", name: "هزینه‌ها", type: "expense" },
-      { code: "5010", name: "خوراک و خانه", type: "expense", assetId: baseAssetId },
-      { code: "5020", name: "مسکن و اجاره", type: "expense", assetId: baseAssetId },
-      { code: "5030", name: "حمل‌ونقل", type: "expense", assetId: baseAssetId },
-      // FEE ACCOUNT — NOT optional. The buy/sell entry builders debit the
-      // commission here; when the row is absent the entry cannot balance and
-      // the whole transaction fails («سند تراز نیست» — audit F-02). It must
-      // therefore be part of the chart created at setup, for every tenant.
-      { code: "5040", name: "کارمزد و بانک", type: "expense", assetId: baseAssetId },
-      { code: "5050", name: "سفر و رویداد", type: "expense", assetId: baseAssetId },
-      { code: "5900", name: "هزینه متفرقه", type: "expense", assetId: baseAssetId },
-      // INSTALLMENT-PAYMENT BUCKET — NOT optional, and NOT the same thing as
-      // 5900. A repayment of a planning-only debt has no liability account to
-      // reduce, so its debit needs a home; putting it on «هزینه متفرقه» made a
-      // loan payment look like groceries (audit F-3). It is reported as a debt
-      // movement, never as consumption (see the 5960 note in
-      // src/features/accounts/systemAccounts.ts).
-      { code: "5960", name: "پرداخت اقساط", type: "expense", assetId: baseAssetId },
+      { code: "5010", name: "خوراک و خانه", type: "expense", assetId: bookAssetId },
+      { code: "5020", name: "مسکن و اجاره", type: "expense", assetId: bookAssetId },
+      { code: "5030", name: "حمل‌ونقل", type: "expense", assetId: bookAssetId },
+      // FEE ACCOUNT — required: buy/sell entries debit the commission here
+      // («سند تراز نیست» without it — audit F-02).
+      { code: "5040", name: "کارمزد و بانک", type: "expense", assetId: bookAssetId },
+      { code: "5050", name: "سفر و رویداد", type: "expense", assetId: bookAssetId },
+      { code: "5900", name: "هزینه متفرقه", type: "expense", assetId: bookAssetId },
+      // INSTALLMENT-PAYMENT BUCKET — required, and not «هزینه متفرقه» (audit F-3).
+      { code: "5960", name: "پرداخت اقساط", type: "expense", assetId: bookAssetId },
     ];
 
     const ownedAcctRows = acctRows.map((row) => ({ ...row, userId: userId ?? null }));
     let insertedAccounts: Array<typeof accounts.$inferSelect>;
     if (userId) {
-      // A user may have added a wallet before opening this now-visible wizard.
-      // Keep any existing baseline code (notably lazily provisioned 3010) and
-      // fill only the missing chart rows. Look up first so we do not depend
-      // on ON CONFLICT (user_id, code) — that target is missing on some
-      // legacy databases and produces the same "Failed query: insert into
-      // accounts" wrapper as a NOT NULL violation on header rows.
+      // A user may already own part of the chart (e.g. a lazily provisioned
+      // 3010). Fill only the missing rows; each insert runs in a SAVEPOINT so a
+      // duplicate never aborts the whole setup transaction.
       for (const row of ownedAcctRows) {
         const [existing] = await tx
           .select({ id: accounts.id })
@@ -497,13 +516,6 @@ export async function completeSetup(
           .where(and(eq(accounts.userId, userId), eq(accounts.code, row.code)))
           .limit(1);
         if (existing) continue;
-        // Wrap each insert in a SAVEPOINT (drizzle nested tx.transaction).
-        // A duplicate-key failure (23505) must NOT abort the whole setup
-        // transaction: continuing to run the next statement on an aborted
-        // transaction would surface the misleading "current transaction is
-        // aborted" error and hide the real cause (the duplicate). Rolling back
-        // to the savepoint leaves the outer transaction fully usable, so the
-        // subsequent account rows and the opening entry still commit.
         try {
           await tx.transaction(async (sp) => {
             await sp.insert(accounts).values(row);
@@ -511,12 +523,6 @@ export async function completeSetup(
         } catch (err) {
           const root = rootCauseOf(err);
           if (root.code === "23505") {
-            // Savepoint already rolled back; the outer transaction is usable.
-            // A duplicate only legitimately means this tenant already owns the
-            // row (e.g. a concurrent provisioning race). Re-check — if it is
-            // really present for this user, skip; otherwise it is a real
-            // cross-tenant conflict (legacy global UNIQUE(code)) and must not
-            // be silently ignored.
             const [now] = await tx
               .select({ id: accounts.id })
               .from(accounts)
@@ -544,133 +550,64 @@ export async function completeSetup(
       throw new Error("ایجاد نمودار حساب‌های اولیه کامل نشد.");
     }
 
-    // Standard hierarchical expense category catalog (reporting dimension).
-    // Idempotent; runs inside the setup transaction.
     await ensureCategoryCatalog(tx);
 
-    // 7. Physical gold is a manually valued real asset. The crypto unit price
-    // entered above is purchase/cost information only (used by the opening
-    // journal/FIFO lot below) and is deliberately NOT stored as a current
-    // crypto price. Current ETH price comes only from CoinGecko.
-    if (!userId && input.goldUnitPrice && D(input.goldUnitPrice).gt(0) && assetMap.GOLD18) {
+    // Physical gold is manually valued. Legacy single-owner setup seeds a first
+    // price (in USD, the price table's unit); tenants value it later.
+    const goldPriceUsd = priceToBookUsd(amountOf(input.goldUnitPrice), input.goldPriceCurrency, setupRate);
+    if (!userId && goldPriceUsd.gt(0) && assetMap.GOLD18) {
       await tx
         .insert(prices)
-        .values({
-          assetId: assetMap.GOLD18,
-          asOf: today,
-          priceBase: D(input.goldUnitPrice).toString(),
-          source: "manual",
-        })
+        .values({ assetId: assetMap.GOLD18, asOf: today, priceBase: goldPriceUsd.toString(), source: "manual" })
         .onConflictDoNothing();
     }
 
-    // 8. Opening Balances Entry Creation
-    // Cash/bank quantities are native units of accounts.assetId. Server
-    // computes USD base_value. Do not trust client currency labels.
-    // Cash/bank openings never open FIFO lots.
-    const draftPostings = [];
+    // Opening balances — native quantities, USD base values computed here.
+    const draftPostings: Array<{ accountId: string; assetId: string; quantity: string; baseValue: string; memo: string }> = [];
+    const lotsToOpen: OpenLot[] = [];
     let totalOpeningEquityBase = Decimal.zero();
 
-    // Bank Opening Balance — interpret in the persisted account denomination.
-    if (input.bankOpeningBalance && D(input.bankOpeningBalance).gt(0)) {
-      const bank = await bookUsdFromAccountNative(tx, acctMap["1010"], input.bankOpeningBalance, user.id);
-      draftPostings.push({
-        accountId: acctMap["1010"],
-        assetId: bank.assetId,
-        quantity: bank.quantity,
-        baseValue: bank.baseValue,
-        memo: "موجودی اولیه بانک",
-      });
+    if (amountOf(input.bankOpeningBalance).gt(0)) {
+      const bank = await bookUsdFromAccountNative(tx, acctMap["1010"], input.bankOpeningBalance!, setupRate);
+      draftPostings.push({ accountId: acctMap["1010"], assetId: bank.assetId, quantity: bank.quantity, baseValue: bank.baseValue, memo: "موجودی اولیه بانک" });
       totalOpeningEquityBase = totalOpeningEquityBase.add(bank.baseValue);
     }
 
-    // Cash Opening Balance — interpret in the persisted account denomination.
-    if (input.cashOpeningBalance && D(input.cashOpeningBalance).gt(0)) {
+    if (amountOf(input.cashOpeningBalance).gt(0)) {
       if (!acctMap["1020"]) throw new Error("حساب صندوق نقد برای ثبت موجودی اولیه ایجاد نشده است.");
-      const cash = await bookUsdFromAccountNative(tx, acctMap["1020"], input.cashOpeningBalance, user.id);
-      draftPostings.push({
-        accountId: acctMap["1020"],
-        assetId: cash.assetId,
-        quantity: cash.quantity,
-        baseValue: cash.baseValue,
-        memo: "موجودی اولیه نقد",
-      });
+      const cash = await bookUsdFromAccountNative(tx, acctMap["1020"], input.cashOpeningBalance!, setupRate);
+      draftPostings.push({ accountId: acctMap["1020"], assetId: cash.assetId, quantity: cash.quantity, baseValue: cash.baseValue, memo: "موجودی اولیه نقد" });
       totalOpeningEquityBase = totalOpeningEquityBase.add(cash.baseValue);
     }
 
-    // Crypto Opening Balance — for the coin the USER chose, if any.
-    let ethLotInfo: { accountId: string; assetId: string; quantity: string; costBase: string } | undefined;
-    const cryptoAssetId = chosenCrypto ? assetMap[chosenCrypto.symbol] : undefined;
-    if (chosenCrypto && cryptoAssetId && acctMap["1200"] && input.cryptoOpeningQty && D(input.cryptoOpeningQty).gt(0)) {
-      const cryptoQty = D(input.cryptoOpeningQty);
-      const cryptoPrice = D(input.cryptoUnitPrice || "0");
-      const cryptoValue = cryptoQty.mul(cryptoPrice);
-      draftPostings.push({
-        accountId: acctMap["1200"],
-        assetId: cryptoAssetId,
-        quantity: cryptoQty.toString(),
-        baseValue: cryptoValue.toString(),
-        memo: `موجودی اولیه ${chosenCrypto.displayName}`,
-      });
-      totalOpeningEquityBase = totalOpeningEquityBase.add(cryptoValue);
-      ethLotInfo = {
-        accountId: acctMap["1200"],
-        assetId: cryptoAssetId,
-        quantity: cryptoQty.toString(),
-        costBase: cryptoValue.toString(),
-      };
+    for (const pick of cryptoPicks) {
+      const accountId = acctMap[pick.code];
+      const assetId = assetMap[pick.chosenCrypto.symbol];
+      const qty = amountOf(pick.quantity);
+      if (!accountId || !assetId || !qty.gt(0)) continue;
+      const value = qty.mul(priceToBookUsd(amountOf(pick.unitPrice), pick.priceCurrency, setupRate));
+      draftPostings.push({ accountId, assetId, quantity: qty.toString(), baseValue: value.toString(), memo: `موجودی اولیه ${pick.chosenCrypto.displayName}` });
+      totalOpeningEquityBase = totalOpeningEquityBase.add(value);
+      lotsToOpen.push({ accountId, assetId, quantity: qty.toString(), costBase: value.toString() });
     }
 
-    // Gold Opening Balance
-    let goldLotInfo: { accountId: string; assetId: string; quantity: string; costBase: string } | undefined;
-    if (input.goldOpeningQty && D(input.goldOpeningQty).gt(0)) {
-      const goldQty = D(input.goldOpeningQty);
-      const goldPrice = D(input.goldUnitPrice || "0");
-      const goldValue = goldQty.mul(goldPrice);
-      draftPostings.push({
-        accountId: acctMap["1300"],
-        assetId: assetMap.GOLD18,
-        quantity: goldQty.toString(),
-        baseValue: goldValue.toString(),
-        memo: "موجودی اولیه طلای ۱۸ عیار",
-      });
+    const goldQty = amountOf(input.goldOpeningQty);
+    if (goldQty.gt(0)) {
+      const goldValue = goldQty.mul(goldPriceUsd);
+      draftPostings.push({ accountId: acctMap["1300"], assetId: assetMap.GOLD18, quantity: goldQty.toString(), baseValue: goldValue.toString(), memo: "موجودی اولیه طلای ۱۸ عیار" });
       totalOpeningEquityBase = totalOpeningEquityBase.add(goldValue);
-      goldLotInfo = {
-        accountId: acctMap["1300"],
-        assetId: assetMap.GOLD18,
-        quantity: goldQty.toString(),
-        costBase: goldValue.toString(),
-      };
+      lotsToOpen.push({ accountId: acctMap["1300"], assetId: assetMap.GOLD18, quantity: goldQty.toString(), costBase: goldValue.toString() });
     }
 
     /*
-     * صندوق و سهام — registered here, and given an opening position when the
-     * user entered one.
-     *
-     * Registration is DELEGATED to `registerInstrument`, the same function the
-     * /funds registrar calls. That matters: it resolves the catalogue name,
-     * files the asset under the right «صندوق سرمایه‌گذاری» / «سهام» class, and
-     * creates the tenant-owned asset account the purchase form needs — four
-     * rules the wizard would otherwise have had to restate and would have
-     * drifted from the first time one of them changed.
-     *
-     * The money side stays here and stays in the SINGLE opening entry below:
-     * one posting per instrument that carries a quantity, one FIFO lot, and the
-     * same 3010 equity counterweight as every other opening balance. An
-     * instrument with no quantity is registered and contributes nothing — the
-     * user said they own it, not how much, and a fabricated lot would be worse
-     * than an empty one.
+     * صندوق، سهام و والکس. Registration is DELEGATED to the same functions the
+     * /funds registrar uses (catalogue name, asset class, tenant account), inside
+     * this transaction. The money side stays in the single opening entry.
      */
-    const instrumentLots: { accountId: string; assetId: string; quantity: string; costBase: string }[] = [];
     for (const instrument of input.instruments ?? []) {
       const symbol = instrument.symbol?.trim();
       if (!symbol) continue;
 
-      // A والکس pick (سهام آمریکا، کامودیتی، شاخص) is registered by the same
-      // function the /funds picker delegates to; a TSE fund or stock by
-      // `registerInstrument`. Either way, enrolled in THIS transaction: a
-      // wizard that fails half-way must leave neither stray asset rows nor an
-      // unbalanced ledger.
       const registered =
         instrument.kind === "wallex"
           ? await registerWallexAsset({ symbol, userId: user.id, tx: tx as unknown as typeof db })
@@ -683,28 +620,15 @@ export async function completeSetup(
             });
       if (!registered.accountId) continue;
 
-      const qty = D(instrument.quantity || "0");
+      const qty = amountOf(instrument.quantity);
       if (!qty.gt(0)) continue;
 
-      const unitPrice = D(instrument.unitPrice || "0");
-      const value = qty.mul(unitPrice);
-      draftPostings.push({
-        accountId: registered.accountId,
-        assetId: registered.assetId,
-        quantity: qty.toString(),
-        baseValue: value.toString(),
-        memo: `موجودی اولیه ${registered.name}`,
-      });
+      const value = qty.mul(priceToBookUsd(amountOf(instrument.unitPrice), instrument.priceCurrency, setupRate));
+      draftPostings.push({ accountId: registered.accountId, assetId: registered.assetId, quantity: qty.toString(), baseValue: value.toString(), memo: `موجودی اولیه ${registered.name}` });
       totalOpeningEquityBase = totalOpeningEquityBase.add(value);
-      instrumentLots.push({
-        accountId: registered.accountId,
-        assetId: registered.assetId,
-        quantity: qty.toString(),
-        costBase: value.toString(),
-      });
+      lotsToOpen.push({ accountId: registered.accountId, assetId: registered.assetId, quantity: qty.toString(), costBase: value.toString() });
     }
 
-    // Balance against Opening Balance Equity (3010) in book USD.
     if (draftPostings.length > 0) {
       const [equity] = await tx
         .select({ assetId: accounts.assetId })
@@ -719,13 +643,7 @@ export async function completeSetup(
         memo: "موازنه سرمایه افتتاحیه",
       });
 
-      const lotsToOpen = [];
-      if (ethLotInfo) lotsToOpen.push(ethLotInfo);
-      if (goldLotInfo) lotsToOpen.push(goldLotInfo);
-      for (const lot of instrumentLots) lotsToOpen.push(lot);
-
-      // Post single atomic opening entry strictly via postEntry()
-      await postEntry(
+      const opening = await postEntry(
         {
           entryDate: today,
           type: "opening",
@@ -737,30 +655,40 @@ export async function completeSetup(
         },
         tx,
       );
+
+      // Freeze the setup rate on the opening entry. The portfolio derives each
+      // opening position's historical Toman cost from THIS snapshot; without it
+      // every position opened here had no Toman cost at all.
+      if (opening?.id && setupRate.gt(0)) {
+        await tx
+          .insert(entryFxSnapshots)
+          .values({
+            entryId: opening.id,
+            irtAmount: totalOpeningEquityBase.mul(setupRate).toFixed(0),
+            usdAmount: totalOpeningEquityBase.toString(),
+            fxRate: setupRate.toString(),
+            rateSource,
+            rateDate: today,
+          })
+          .onConflictDoNothing();
+      }
     }
 
-    // 9. Mark setup as completed in user_setup_state
-    await tx.insert(userSetupState).values({
-      userId: user.id,
-      completed: true,
-      currentStep: 4,
-    });
+    await tx.insert(userSetupState).values({ userId: user.id, completed: true, currentStep: 7 });
 
-    // 10. Audit Log
     await tx.insert(auditLog).values({
       action: "complete_setup",
       entityType: "system",
       userId: user.id,
       payload: JSON.stringify({
-        baseCurrency: input.baseCurrency,
+        bookCurrency: "USD",
         displayCurrency: input.displayCurrency,
+        fxRate: setupRate.toString(),
+        rateSource,
         openingPostingsCount: draftPostings.length,
       }),
     });
 
-    // `userId` and `today` travel out because the خودرو/ملک registration below
-    // runs after this transaction and must use the SAME tenant and the same
-    // «today» the opening entry was dated with — not a second clock read.
     return {
       ok: true,
       message: "راه‌اندازی اولیه سیستم با موفقیت ثبت شد.",
@@ -772,26 +700,11 @@ export async function completeSetup(
   /*
    * خودرو و ملک — registered AFTER the opening transaction has committed.
    *
-   * WHY NOT INSIDE IT
-   * `createUserVehicle` and `createRealEstateAsset` each open their own
-   * `db.transaction` and take no external handle. Calling them from inside the
-   * wizard's transaction would run them on a DIFFERENT connection while this
-   * one still holds its locks — which on a single-connection driver deadlocks
-   * and on a pooled one silently escapes the wizard's atomicity anyway.
-   * Refactoring both services to thread a `tx` would mean reworking working
-   * accounting code (the property path posts its own ledger entry) for no gain
-   * the user can see.
-   *
-   * WHAT THAT COSTS, STATED PLAINLY
-   * The accounts and the opening balance are already durable at this point, so
-   * a failure here cannot corrupt them. A vehicle that fails to register
-   * leaves the rest intact and is reported by name — the user adds it from
-   * «دارایی‌های واقعی», which is the same screen they would have used anyway.
-   * That is strictly better than failing the whole wizard and making them
-   * re-enter every account and balance.
-   *
-   * Each row is delegated whole: no rule about catalogue models, acquisition
-   * FX, symbol sequencing or valuation snapshots is restated here.
+   * `createUserVehicle` and `createRealEstateAsset` open their own transactions
+   * and take no external handle; running them inside the wizard's transaction
+   * would deadlock a single-connection driver. The accounts and opening balance
+   * are already durable here, so a failed row is reported by name and added
+   * later from «دارایی‌های واقعی» instead of failing the whole wizard.
    */
   const realAssetErrors: string[] = [];
 
@@ -804,21 +717,13 @@ export async function completeSetup(
         manufacturingYear: Number(vehicle.manufacturingYear),
         ownershipDate: vehicle.ownershipDate,
         purchasePriceToman: vehicle.purchasePriceToman,
-        // A current value is a SNAPSHOT and is only recorded when the user
-        // actually gave one — never inferred from the purchase price.
         initialValuation:
           vehicle.currentValueToman && D(vehicle.currentValueToman).gt(0)
-            ? {
-                valueToman: vehicle.currentValueToman,
-                snapshotDate: setupResult.today,
-                note: "ثبت اولیه در راه‌اندازی",
-              }
+            ? { valueToman: vehicle.currentValueToman, snapshotDate: setupResult.today, note: "ثبت اولیه در راه‌اندازی" }
             : undefined,
       });
     } catch (error) {
-      realAssetErrors.push(
-        `خودرو: ${error instanceof Error ? error.message : "ثبت ناموفق بود"}`,
-      );
+      realAssetErrors.push(`خودرو: ${error instanceof Error ? error.message : "ثبت ناموفق بود"}`);
     }
   }
 
@@ -831,17 +736,13 @@ export async function completeSetup(
         neighborhoodId: property.neighborhoodId,
         propertyTypeId: property.propertyTypeId,
         acquisitionDate: property.acquisitionDate,
-        // The registry values a property on its own valuation date; at setup
-        // that is today, because today is when the user is telling us.
         valuationDate: setupResult.today,
         purchasePriceToman: property.purchasePriceToman,
         currentValueToman: property.currentValueToman,
         sizeSqm: property.sizeSqm || null,
       });
     } catch (error) {
-      realAssetErrors.push(
-        `ملک: ${error instanceof Error ? error.message : "ثبت ناموفق بود"}`,
-      );
+      realAssetErrors.push(`ملک: ${error instanceof Error ? error.message : "ثبت ناموفق بود"}`);
     }
   }
 

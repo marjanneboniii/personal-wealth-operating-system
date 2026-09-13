@@ -2,7 +2,7 @@ import { ensureAuth } from "@/lib/authGuard";
 import { ensureSchemaOnce } from "@/db/init-schema";
 import { loadAssetRegistryData } from "@/features/registry/loadAssetRegistryData";
 import { PageHeader } from "@/components/ui/Card";
-import { faCount } from "@/lib/format";
+import ModuleTabs, { ASSET_TABS } from "@/components/ui/ModuleTabs";
 import { splitAssetFamilies } from "@/features/portfolio/assetFamilies";
 import AssetValuationSummary, { valuationTotalsOf } from "@/components/assets/AssetValuationSummary";
 import RegistryWorkspace from "@/components/registry/RegistryWorkspace";
@@ -36,13 +36,13 @@ export default async function AssetRegistryPage() {
   const { real: realValuations } = splitAssetFamilies(data.portfolioValuation.assetValuations);
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="دارایی‌های واقعی" />
+    <div className="space-y-7">
+      <div>
+        <PageHeader title="دارایی‌های واقعی" />
+        <ModuleTabs tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
+      </div>
 
-      <AssetValuationSummary
-        totals={valuationTotalsOf(realValuations)}
-        hint={`برای ${faCount(realValuations.length)} دارایی واقعی · تومان ملاک محاسبه، دلار معادل نمایشی`}
-      />
+      {realValuations.length > 0 && <AssetValuationSummary totals={valuationTotalsOf(realValuations)} />}
       <RegistryWorkspace
         vehicles={data.vehicles}
         ownerships={data.ownerships}

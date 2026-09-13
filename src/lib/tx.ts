@@ -1,7 +1,25 @@
 import { ENTRY_TYPE_LABELS, type EntryType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
 import type { LedgerRow } from "@/features/ledger/queries";
-import { currencyLabel, formatQty } from "@/lib/format";
+import { currencyLabel, formatMoneyWithSign, formatQty } from "@/lib/format";
+
+/**
+ * The signed Toman amount shown for one transaction.
+ *
+ * ONE-WAY DYNAMIC EQUIVALENT (Directive §1): the native IRT leg first, then the
+ * commit-time snapshot — both frozen, never re-derived from today's FX. Only
+ * when neither exists is it computed live from the FULL-PRECISION base amount,
+ * and then it is marked «≈». Without a rate it falls back to the base amount.
+ * The sign and «≈» go through the formatter so they stay inside the amount's
+ * own bidi isolate.
+ */
+export function txAmountLabel(h: HumanTx, frozenIrt: string | null | undefined, rate: string | null | undefined): string {
+  const sign: "+" | "−" | "" = h.sign > 0 ? "+" : h.sign < 0 ? "−" : "";
+  const frozen = h.nativeIrt || (frozenIrt ? D(frozenIrt).toFixed(0) : null);
+  if (frozen) return formatMoneyWithSign(sign, frozen, "IRT");
+  if (rate && D(rate).gt(0)) return formatMoneyWithSign(sign, D(h.amountExact).mul(rate).toFixed(0), "IRT", "≈ ");
+  return formatMoneyWithSign(sign, h.amount, "USD");
+}
 
 /**
  * Human rendering of a ledger entry.

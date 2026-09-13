@@ -1,22 +1,35 @@
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
-import {
-  countUnreviewed,
-  getCashflow,
-  getSnapshotSeries,
-  getRecent,
-} from "@/features/ledger/queries";
+import { countUnreviewed, getCashflow, getSnapshotSeries, getRecent, type TxRow } from "@/features/ledger/queries";
+import { getEntryFxSnapshots, type EntryFxSnapshot } from "@/features/ledger/fxSnapshots";
 import { projectCashflow, upcomingInstallments } from "@/features/planning/service";
 import { getSetupState } from "@/features/setup/service";
-import { ActionItem, Alert, AllClear, Delta, EmptyState, Section, SectionLink } from "@/components/ui/Card";
-import { AreaChart, BarsChart, Donut } from "@/components/charts/Charts";
-import Icon from "@/components/ui/Icon";
-import { humanizeEntry, moneyFlowLabel } from "@/lib/tx";
-import { D } from "@/domain/decimal";
-import { faCount, formatDaysUntil, formatMoney, formatMoneyWithSign, formatPct, formatShortDate, formatSignedMoney, inflowTone, irtToUsd, outflowTone, toJalali, toneColor, trendColor, usdToIrt } from "@/lib/format";
-import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
+import { ActionItem, Alert, EmptyState, Metric, Section, SectionLink } from "@/components/ui/Card";
+import { AreaChart, BarsChart } from "@/components/charts/Charts";
+import Icon from "@/components/ui/Icon";
+import AllocationBar from "@/components/assets/AllocationBar";
+import FlowIcon from "@/components/transactions/FlowIcon";
+import { humanizeEntry, moneyFlowLabel, txAmountLabel } from "@/lib/tx";
+import { monthToman } from "@/lib/cashflowToman";
+import { D, Decimal } from "@/domain/decimal";
+import {
+  faCount,
+  formatDaysUntil,
+  formatMoney,
+  formatPct,
+  formatShortDate,
+  formatSignedMoney,
+  inflowTone,
+  outflowTone,
+  toJalali,
+  toneColor,
+  trendArrow,
+  trendTone,
+  usdToIrt,
+} from "@/lib/format";
+import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +41,45 @@ const QUICK = [
   { href: "/new?type=sell", label: "فروش دارایی", icon: "arrow-down" as const },
 ];
 
+const FA_MONTHS = ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
+
 function daysUntil(iso: string) {
   return Math.ceil((new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
+}
+
+type CashflowRows = Awaited<ReturnType<typeof getCashflow>>;
+type InstallmentRows = Awaited<ReturnType<typeof upcomingInstallments>>;
+
+function RecentActivity({ rows, frozen, rate }: { rows: TxRow[]; frozen: Map<string, EntryFxSnapshot>; rate: string }) {
+  if (rows.length === 0) {
+    return <p className="card muted text-center text-[length:var(--fs-sm)]">هنوز تراکنشی ثبت نشده است</p>;
+  }
+  return (
+    <ul className="card list-card" role="list">
+      {rows.map((e) => {
+        const h = humanizeEntry(e);
+        const flow = moneyFlowLabel(h.from, h.to);
+        return (
+          <li key={e.id} className="list-row">
+            <FlowIcon sign={h.sign} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[length:var(--fs-sm)] font-medium">{e.description}</p>
+              <p className="muted truncate text-[length:var(--fs-xs)]">
+                {formatShortDate(e.entryDate)} · {flow ?? h.typeLabel}
+              </p>
+            </div>
+            <span
+              className="num shrink-0 text-[length:var(--fs-sm)] font-semibold money-nowrap"
+              dir="rtl"
+              style={h.sign > 0 ? { color: "var(--positive)" } : undefined}
+            >
+              {txAmountLabel(h, frozen.get(e.id)?.irtAmount, rate)}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 export default async function OverviewDashboard() {
@@ -54,43 +104,54 @@ export default async function OverviewDashboard() {
     optionalRead("setup state", { completed: false, currentStep: 1 }, () => getSetupState(userId)),
     optionalRead("net-worth history", [], () => getSnapshotSeries(40, userId)),
     optionalRead("recent activity", [], () => getRecent(6, userId)),
-    optionalRead("upcoming installments", [], () => upcomingInstallments(3, userId)),
-    optionalRead("cash flow", [], () => getCashflow(6, userId)),
+    optionalRead("upcoming installments", [] as InstallmentRows, () => upcomingInstallments(3, userId)),
+    optionalRead("cash flow", [] as CashflowRows, () => getCashflow(6, userId)),
     optionalRead("cash-flow projection", { startingLiquidity: "0", netWorth: "0", startingLiquidityToman: "0", netWorthToman: "0", startingLiquidityUsd: "0", netWorthUsd: "0", points: [], scenario: "base" as const, unit: "IRT" as const }, () => projectCashflow(6, "base", userId)),
     optionalRead("unreviewed transactions", 0, () => countUnreviewed(userId)),
     optionalRead("exchange rate", { rate: "", effectiveDate: "", source: "unavailable" }, () => getLatestUsdIrtRateForUser(userId)),
   ]);
+  // The recent rows show their frozen commit-time Toman, exactly like the
+  // transactions page — not a current-rate guess.
+  const frozenByEntry = await optionalRead("recent activity", new Map<string, EntryFxSnapshot>(), () =>
+    getEntryFxSnapshots(tx.map((e) => e.id)),
+  );
 
-  const staleCount = nw.valuation.priceStatus.stale + nw.valuation.priceStatus.unavailable;
   const rate = fx.rate && D(fx.rate).gt(0) ? fx.rate : "";
-  const toIrt = (usd: string | number) => (rate ? usdToIrt(usd, rate) : null);
-  const toUsd = (irt: string | number) => (rate ? irtToUsd(irt, rate) : null);
+  const staleCount = nw.valuation.priceStatus.stale + nw.valuation.priceStatus.unavailable;
 
   const series = [...snaps]
     .reverse()
     .map((s) => ({ date: s.asOf, value: Number(s.netWorth) }))
     .concat([{ date: new Date().toISOString().slice(0, 10), value: Number(nw.netWorth) }]);
 
+  // Snapshots are stored in USD, so the change is stated as a DOLLAR change,
+  // next to the dollar equivalent — never glued onto the Toman headline.
   const lastSnap = snaps[0];
-  const deltaAbs = lastSnap ? D(nw.netWorth).sub(lastSnap.netWorth).toString() : "0";
-  const deltaPct = lastSnap && !D(lastSnap.netWorth).isZero()
-    ? D(deltaAbs).div(lastSnap.netWorth).abs().mul(100).toFixed(2)
-    : null;
+  const deltaUsd = lastSnap ? D(nw.netWorth).sub(lastSnap.netWorth) : null;
+  const deltaPct =
+    deltaUsd && lastSnap && !D(lastSnap.netWorth).isZero()
+      ? deltaUsd.div(D(lastSnap.netWorth).abs()).mul(100).toFixed(1)
+      : null;
 
-  const monthFlow = flow.at(-1) as any;
-  const monthInflowToman = monthFlow?.inflowToman && D(monthFlow.inflowToman).gt(0) ? monthFlow.inflowToman : toIrt(monthFlow?.inflow ?? 0);
-  const monthOutflowToman = monthFlow?.outflowToman && D(monthFlow.outflowToman).gt(0) ? monthFlow.outflowToman : toIrt(monthFlow?.outflow ?? 0);
-  const monthNetToman = monthInflowToman && monthOutflowToman ? D(monthInflowToman).sub(monthOutflowToman).toString() : toIrt((Number(monthFlow?.inflow ?? 0) - Number(monthFlow?.outflow ?? 0)).toString());
-  const netMonthUsd = monthFlow ? Number(monthFlow.inflow) - Number(monthFlow.outflow) : 0;
+  // This month — Toman under the shared frozen-Toman rule, and every colour is
+  // taken from the figure that is actually printed (a Toman gain is never red
+  // because its USD equivalent fell).
+  const monthRow = flow.at(-1);
+  const month = monthToman(monthRow, rate);
+  const monthInflow = month ? formatMoney(month.inflow, "IRT") : formatMoney(monthRow?.inflow ?? 0);
+  const monthOutflow = month ? formatMoney(month.outflow, "IRT") : formatMoney(monthRow?.outflow ?? 0);
+  const monthNetValue = month ? month.net : D(monthRow?.inflow ?? 0).sub(monthRow?.outflow ?? 0).toString();
+  const monthNet = formatSignedMoney(monthNetValue, month ? "IRT" : "USD");
+  const flowToman = flow.map((f) => monthToman(f, rate));
+  const barsInToman = flowToman.length > 0 && flowToman.every((m) => m != null);
   const nextDeficit = projection.points.find((p) => p.deficit);
 
-  const attention: { icon: "alert" | "clock" | "refresh" | "check"; tone: "warn" | "neg" | "info" | "pos"; text: string; detail: string; href: string; action: string }[] = [];
+  const attention: { icon: "alert" | "clock" | "refresh" | "check"; tone: "warn" | "neg" | "info" | "pos"; text: string; detail?: string; href: string; action: string }[] = [];
   if (unreviewed > 0)
     attention.push({
       icon: "check",
       tone: "warn",
       text: `${faCount(unreviewed)} تراکنش بررسی‌نشده`,
-      detail: "قبل از اعتماد به گزارش‌ها، این رکوردها را تأیید کنید.",
       href: "/transactions?review=unreviewed",
       action: "بررسی",
     });
@@ -98,19 +159,14 @@ export default async function OverviewDashboard() {
   if (soonInst) {
     const d = daysUntil(soonInst.dueDate);
     // amountToman is contractual (authoritative). Never rebuild Toman from USD×rate.
-    const instToman =
-      (soonInst as any).amountToman != null
-        ? String((soonInst as any).amountToman)
-        : toIrt(soonInst.amountBase);
+    const contractual = (soonInst as { amountToman?: string | number | null }).amountToman;
+    const instToman = contractual != null ? String(contractual) : rate ? usdToIrt(soonInst.amountBase, rate) : null;
     attention.push({
       icon: "clock",
       tone: d < 0 ? "neg" : "info",
-      text:
-        d < 0
-          ? `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${formatDaysUntil(d)}`
-          : `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» ${formatDaysUntil(d)} سر می‌رسد`,
-      detail: `${instToman ? formatMoney(instToman, "IRT") : "—"} — ${soonInst.creditor}`,
-      href: "/installments",
+      text: `قسط ${faCount(soonInst.seq)} «${soonInst.debtTitle}» · ${formatDaysUntil(d)}`,
+      detail: instToman ? formatMoney(instToman, "IRT") : undefined,
+      href: "/debts/installments",
       action: "مشاهده",
     });
   }
@@ -118,185 +174,129 @@ export default async function OverviewDashboard() {
     attention.push({
       icon: "alert",
       tone: "neg",
-      text: `کسری نقدینگی در راه است`,
-      detail: `اگر برنامه‌ها همان‌طور اجرا شوند، در ${formatShortDate(nextDeficit.month)} نقدینگی شما منفی می‌شود.`,
+      text: "کسری نقدینگی در راه است",
+      detail: `از ${formatShortDate(nextDeficit.month)}`,
       href: "/planning",
-      action: "دیدن پیش‌بینی",
+      action: "پیش‌بینی",
     });
   if (staleCount > 0)
     attention.push({
       icon: "refresh",
       tone: "warn",
-      text: `${faCount(staleCount)} دارایی قیمت تازه ندارد`,
-      detail: "ارزش‌گذاری این دارایی‌ها ممکن است قدیمی باشد.",
+      text: `قیمت ${faCount(staleCount)} دارایی به‌روز نیست`,
       href: "/portfolio",
-      action: "تحلیل",
+      action: "مشاهده",
     });
 
   const hasAnything = !D(nw.totalAssets).isZero();
-  // Receivables surface on the hero strip only for a user who has one. The
-  // figure comes from the backend, already direction-filtered — this component
-  // never re-derives a money value.
-  const receivableToman = (nw as { totalReceivableToman?: string }).totalReceivableToman ?? "0";
+  // Receivables surface only for a user who has one. The figure comes from the
+  // backend, already direction-filtered.
+  const receivableToman = nw.totalReceivableToman ?? "0";
   const hasReceivables = D(receivableToman).gt(0);
 
+  // «کل بدهی‌ها» is `totalDebt*` — ledger liabilities AND planning debts, the
+  // same figure «تعهدات مالی» shows. «کل مطالبات» is never netted against it
+  // and is not part of net worth.
+  const tiles: { label: string; toman: string; usd: string; tone?: "up" }[] = [
+    { label: "کل دارایی‌ها", toman: nw.totalAssetsToman, usd: nw.totalAssets },
+    { label: "کل بدهی‌ها", toman: nw.totalDebtToman, usd: nw.totalDebtUsd },
+    ...(hasReceivables
+      ? [{ label: "کل مطالبات", toman: receivableToman, usd: nw.totalReceivableUsd ?? "0", tone: "up" as const }]
+      : []),
+    { label: "نقدشونده", toman: nw.liquidToman, usd: nw.liquid },
+  ];
+
+  // Per-class Toman from the valuation rows (the class aggregate is USD only).
+  const tomanByClass = new Map<string, Decimal>();
+  for (const a of nw.valuation.assetValuations) {
+    tomanByClass.set(a.className, (tomanByClass.get(a.className) ?? Decimal.zero()).add(D(a.currentValueToman)));
+  }
+  const slices = nw.byClass.map((c) => {
+    const toman = tomanByClass.get(c.className);
+    return {
+      key: c.className,
+      label: c.className,
+      percent: Number(c.share),
+      color: c.color,
+      value: toman ? formatMoney(toman.toFixed(0), "IRT") : formatMoney(c.value),
+    };
+  });
+
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-7">
       {unavailableWidgets.length > 0 && (
-        <Alert tone="warn" icon="alert" title="بخشی از نمای کلی فعلاً در دسترس نیست">
-          بخشی از کارت‌ها بارگذاری نشد. داده‌های شما تغییری نکرده — چند لحظه دیگر تازه‌سازی کنید.
-        </Alert>
+        <Alert tone="warn" icon="alert" title="بخشی از داده‌ها بارگذاری نشد — چند لحظه بعد تازه‌سازی کنید" />
       )}
       {!setupState.completed && (
         <Alert
           tone="brand"
           icon="info"
-          title="راه‌اندازی اولیه انجام نشده است"
+          title="راه‌اندازی اولیه کامل نشده است"
           action={
             <Link href="/setup" className="btn btn-soft !px-4 text-[length:var(--fs-xs)]">
-              شروع راه‌اندازی
+              شروع
             </Link>
           }
-        >
-          ارز پایه، حساب‌های اصلی و موجودی اولیه را پیکربندی کنید تا اعداد دقیق شوند.
-        </Alert>
+        />
       )}
 
-      {/* ═══ HERO — compact, tidy, no huge fonts on mobile PWA ═══ */}
-      <section className="pt-1">
-        <div className="flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-x-8 sm:gap-y-6">
-          <div className="min-w-0 flex-1">
-            <p className="muted text-[length:var(--fs-xs)] font-medium">ارزش خالص دارایی</p>
-            <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 sm:gap-y-2">
-              {/* The single most important number on the page — it dominates. */}
-              <span className="money-hero text-[length:var(--fs-hero)] font-bold leading-[1.1] tracking-tight money-nowrap" dir="rtl">
-                {nw.netWorthToman ? formatMoney(nw.netWorthToman, "IRT") : formatMoney(nw.netWorth)}
+      <section className="overview-hero">
+        <div className="min-w-0">
+          <p className="muted text-[length:var(--fs-xs)] font-medium">ارزش خالص</p>
+          <p className="overview-hero-value num money-nowrap" dir="rtl">
+            {nw.netWorthToman ? formatMoney(nw.netWorthToman, "IRT") : formatMoney(nw.netWorth)}
+          </p>
+          <p className="overview-hero-sub">
+            <span className="num money-nowrap" dir="rtl">
+              ≈ {formatMoney(nw.netWorth)}
+            </span>
+            {deltaUsd && deltaPct != null && lastSnap && (
+              <span className="money-nowrap" title="تغییر ارزش دلاری نسبت به آخرین ثبت">
+                <span className="num font-semibold" dir="rtl" style={{ color: toneColor(trendTone(deltaUsd.toString())) }}>
+                  {trendArrow(deltaUsd.toString())} {formatPct(D(deltaPct).abs().toString(), 1)}
+                </span>{" "}
+                از {formatShortDate(lastSnap.asOf)}
               </span>
-              {lastSnap && (
-                <Delta
-                  value={deltaAbs}
-                  pct={deltaPct}
-                  suffix={lastSnap ? `از ${formatShortDate(lastSnap.asOf)}` : undefined}
-                  className="text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)]"
-                />
-              )}
-            </div>
-            {nw.netWorthToman && (
-              <p className="muted mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-xs)]">
-                <span className="money-nowrap">≈ <span className="num">{formatMoney(nw.netWorth)}</span></span>
-                <span className="opacity-40 hidden sm:inline">·</span>
-                <span className="money-nowrap">نرخ مرجع <span className="num" dir="rtl">{formatMoney(rate, "IRT")}</span> ≈ ۱ دلار</span>
-              </p>
             )}
-          </div>
-
-          <div className="shrink-0">
-            <p className="muted mb-2 text-[length:var(--fs-xs)] font-medium">ثبت سریع</p>
-            <div className="quick-actions flex gap-1.5">
-              {QUICK.map((q) => (
-                <Link
-                  key={q.href}
-                  href={q.href}
-                  className="card interactive-card flex min-h-[60px] w-[66px] flex-col items-center justify-center gap-1.5 py-2.5 text-[length:var(--fs-xs)] font-medium"
-                  style={{ color: "var(--text-2)" }}
-                >
-                  <span
-                    className="flex h-6 w-6 items-center justify-center rounded-full sm:h-7 sm:w-7"
-                    style={{ background: "var(--action-soft)", color: "var(--action)" }}
-                  >
-                    <Icon name={q.icon} size={13} />
-                  </span>
-                  {q.label}
-                </Link>
-              ))}
-            </div>
-          </div>
+          </p>
         </div>
-
-        {/* THREE tiles normally, FOUR only when the user actually has a
-            receivable. «کل مطالبات» is real information for someone who is
-            owed money and pure noise for everyone else, and this strip is the
-            one place in the app that must stay scannable at a glance on a
-            phone — so it earns its place per-user rather than by default. */}
-        <div
-          className={`overview-summary mt-5 grid divide-x divide-x-reverse border-t pt-3 sm:mt-6 sm:pt-4 ${
-            hasReceivables ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
-          }`}
-          style={{ borderColor: "var(--border)" }}
-        >
-            {[
-              { label: "کل دارایی‌ها", value: nw.totalAssets, toman: nw.totalAssetsToman, tone: "var(--text)" },
-              // «کل بدهی‌ها» is the DEBT the user can see and pay — `totalDebt*`,
-              // which unifies the ledger liability accounts with the debts the
-              // planning module owns. It used to read `totalLiabilities*` (the
-              // ledger only) and flipped its sign twice: a debt registered in
-              // «بدهی‌ها» never created a ledger account, so this tile showed
-              // ۰, and its USD line rendered a negative amount.
-              { label: "کل بدهی‌ها", value: nw.totalDebtUsd, toman: nw.totalDebtToman, tone: "var(--text)" },
-              // «کل مطالبات» is NOT netted against «کل بدهی‌ها» and is not part
-              // of net worth: an uncollected receivable is a contractual
-              // expectation until the ledger records the money arriving — the
-              // mirror of the rule that keeps a planning-only debt out of net
-              // worth.
-              ...(hasReceivables
-                ? [
-                    {
-                      label: "کل مطالبات",
-                      value: (nw as { totalReceivableUsd?: string }).totalReceivableUsd ?? "0",
-                      toman: receivableToman,
-                      tone: "var(--positive)",
-                    },
-                  ]
-                : []),
-              { label: "نقدشونده", value: nw.liquid, toman: nw.liquidToman, tone: "var(--text)" },
-            ].map((m) => (
-            <div
-              key={m.label}
-              className="min-w-0 px-2.5 first:pr-0 last:pl-0 sm:px-4"
-              style={{ borderColor: "var(--border)" }}
-              title={
-                m.label === "کل بدهی‌ها"
-                  ? "مانده قابل پرداخت همه بدهی‌ها — همان عددی که در «تعهدات مالی» با برچسب «کل بدهی‌های من» می‌بینید. مطالبات شما در این عدد نیست. ارزش خالص دارایی مطابق اصول دوطرفه فقط بدهی ثبت‌شده در سوابق مالی را کم می‌کند."
-                  : m.label === "کل مطالبات"
-                    ? "مانده قابل دریافت همه طلب‌های شما — همان عددی که در «تعهدات مالی» با برچسب «کل مطالبات من» می‌بینید. تا زمانی که وصول نشود، در ارزش خالص دارایی و در درآمد شمرده نمی‌شود."
-                    : undefined
-              }
-            >
-              <p className="muted truncate text-[length:var(--fs-xs)]">{m.label}</p>
-              <p className="num mt-1.5 text-[length:var(--fs-lg)] font-bold leading-[1.25] money-nowrap" dir="rtl" style={{ color: m.tone }}>
-                {formatMoney(D(m.toman).abs().toString(), "IRT")}
-              </p>
-              <p className="muted num mt-1 hidden text-[length:var(--fs-xs)] money-nowrap sm:block" dir="rtl">
-                ≈ {formatMoney(D(m.value).abs().toString())}
-              </p>
-            </div>
+        <nav className="quick-row" aria-label="ثبت سریع">
+          {QUICK.map((q) => (
+            <Link key={q.href} href={q.href} className="quick-pill">
+              <Icon name={q.icon} size={14} />
+              {q.label}
+            </Link>
           ))}
-        </div>
+        </nav>
       </section>
 
-      {/* ═══ نیاز به توجه — the decisions waiting for the user ═══
-          These items were computed but never rendered before this redesign.
-          They are placed directly under the hero: what changed, then what to
-          do about it. */}
-      {hasAnything && (
-        <Section title="نیاز به توجه شما">
-          {attention.length > 0 ? (
-            <ul className="list-none" role="list">
-              {attention.map((a) => (
-                <ActionItem
-                  key={`${a.href}-${a.text}`}
-                  icon={a.icon}
-                  tone={a.tone}
-                  text={a.text}
-                  detail={a.detail}
-                  href={a.href}
-                  action={a.action}
-                />
-              ))}
-            </ul>
-          ) : (
-            <AllClear />
-          )}
+      <section className="metric-strip">
+        {tiles.map((t) => (
+          <Metric
+            key={t.label}
+            label={t.label}
+            value={formatMoney(D(t.toman).abs().toString(), "IRT")}
+            tone={t.tone ?? "neutral"}
+            hint={`≈ ${formatMoney(D(t.usd).abs().toString())}`}
+          />
+        ))}
+      </section>
+
+      {hasAnything && attention.length > 0 && (
+        <Section title="نیاز به توجه">
+          <ul className="list-none" role="list">
+            {attention.map((a) => (
+              <ActionItem
+                key={`${a.href}-${a.text}`}
+                icon={a.icon}
+                tone={a.tone}
+                text={a.text}
+                detail={a.detail}
+                href={a.href}
+                action={a.action}
+              />
+            ))}
+          </ul>
         </Section>
       )}
 
@@ -304,125 +304,99 @@ export default async function OverviewDashboard() {
         <div className="card">
           <EmptyState
             icon="networth"
-            title="هنوز هیچ دارایی‌ای ثبت نشده است"
-            body="با ثبت اولین تراکنش یا اجرای راه‌اندازی اولیه، تصویر کامل ثروت شما اینجا ساخته می‌شود."
+            title="هنوز دارایی‌ای ثبت نشده است"
             action={
-              <Link href="/new" className="btn btn-primary">
-                ثبت اولین تراکنش
+              <Link href="/setup" className="btn btn-primary">
+                شروع راه‌اندازی
               </Link>
             }
           />
         </div>
       ) : (
         <>
-          <Section title="ثروت شما چگونه تغییر کرده است؟" action={<SectionLink href="/net-worth" label="تحلیل ارزش خالص" />}>
-            <div className="card p-3 sm:p-4">
-              <AreaChart data={series} />
-            </div>
-          </Section>
-
-          <div className="grid items-start gap-6 sm:gap-8 lg:grid-cols-2">
-            <Section title="ثروت شما کجا قرار دارد؟" action={<SectionLink href="/portfolio" label="سبد دارایی" />}>
-              {nw.byClass.length === 0 ? (
-                <p className="muted py-6 text-xs">دارایی‌ای ثبت نشده است.</p>
-              ) : (
-                <div className="card relative z-0 overflow-visible p-3 sm:p-4">
-                  <Donut
-                    data={nw.byClass.map((c) => ({ label: c.className, value: Number(c.value), color: c.color }))}
-                    centerLabel="مجموع"
-                  />
-                </div>
-              )}
+          <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <Section title="روند ارزش خالص (دلاری)" action={<SectionLink href="/net-worth" label="تحلیل" />}>
+              <div className="card p-3 sm:p-4">
+                <AreaChart data={series} />
+              </div>
             </Section>
 
-            <Section title="پول این ماه چه کرد؟" action={<SectionLink href="/cash-flow" label="جریان نقدی" />}>
+            <Section title="این ماه" action={<SectionLink href="/cash-flow" label="جریان نقدی" />}>
               <div className="card p-3 sm:p-4">
-                <div className="kpi-grid mb-3 grid grid-cols-3 gap-2 sm:mb-4">
-                  <div className="min-w-0">
-                    <p className="muted truncate text-[length:var(--fs-xs)]">درآمد</p>
-                    <p className="num mt-1 text-[length:var(--fs-md)] font-bold money-nowrap" dir="rtl" style={{ color: toneColor(inflowTone(monthFlow?.inflow ?? 0)) }}>
-                      {monthInflowToman ? formatMoney(monthInflowToman, "IRT") : formatMoney(monthFlow?.inflow ?? 0)}
-                    </p>
-                    {rate && <p className="muted num mt-1 text-[length:var(--fs-xs)] money-nowrap" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.inflow ?? 0)}</p>}
+                <dl className="month-figures">
+                  <div>
+                    <dt>درآمد</dt>
+                    <dd className="num money-nowrap" dir="rtl" style={{ color: toneColor(inflowTone(month?.inflow ?? monthRow?.inflow ?? 0)) }}>
+                      {monthInflow}
+                    </dd>
                   </div>
-                  <div className="min-w-0">
-                    <p className="muted truncate text-[length:var(--fs-xs)]">هزینه</p>
-                    <p className="num mt-1 text-[length:var(--fs-md)] font-bold money-nowrap" dir="rtl" style={{ color: toneColor(outflowTone(monthFlow?.outflow ?? 0)) }}>
-                      {monthOutflowToman ? formatMoney(monthOutflowToman, "IRT") : formatMoney(monthFlow?.outflow ?? 0)}
-                    </p>
-                    {rate && <p className="muted num mt-1 text-[length:var(--fs-xs)] money-nowrap" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(monthFlow?.outflow ?? 0)}</p>}
+                  <div>
+                    <dt>هزینه</dt>
+                    <dd className="num money-nowrap" dir="rtl" style={{ color: toneColor(outflowTone(month?.outflow ?? monthRow?.outflow ?? 0)) }}>
+                      {monthOutflow}
+                    </dd>
                   </div>
-                  <div className="min-w-0">
-                    <p className="muted truncate text-[length:var(--fs-xs)]">خالص</p>
-                    <p className="num mt-1 text-[length:var(--fs-md)] font-bold money-nowrap" dir="rtl" style={{ color: trendColor(netMonthUsd) }}>
-                      {monthNetToman ? formatSignedMoney(monthNetToman, "IRT") : formatSignedMoney(netMonthUsd)}
-                    </p>
-                    {rate && <p className="muted num mt-1 text-[length:var(--fs-xs)] money-nowrap" dir="rtl" style={{ color: "var(--text-2)" }}>≈ {formatMoney(Math.abs(netMonthUsd))}</p>}
+                  <div>
+                    <dt>خالص</dt>
+                    <dd className="num money-nowrap" dir="rtl" style={{ color: toneColor(trendTone(monthNetValue)) }}>
+                      {monthNet}
+                    </dd>
                   </div>
-                </div>
+                </dl>
                 <BarsChart
-                  height={160}
-                  data={flow.map((f: any) => ({
-                    label: (() => {
-                      const j = toJalali(f.month);
-                      return ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"][j.m];
-                    })(),
-                    positive: Number(f.inflow),
-                    negative: Number(f.outflow),
+                  height={120}
+                  currency={barsInToman ? "IRT" : "USD"}
+                  data={flow.map((f, i) => ({
+                    label: FA_MONTHS[toJalali(f.month).m],
+                    positive: Number(barsInToman ? flowToman[i]!.inflow : f.inflow),
+                    negative: Number(barsInToman ? flowToman[i]!.outflow : f.outflow),
                   }))}
                 />
               </div>
             </Section>
           </div>
 
+          <div className="grid items-start gap-7 lg:grid-cols-2">
+            {slices.length > 0 && (
+              <Section title="ترکیب دارایی‌ها" action={<SectionLink href="/assets" label="دارایی‌ها" />}>
+                <AllocationBar slices={slices} label="ترکیب دارایی‌ها بر اساس کلاس" />
+              </Section>
+            )}
+
+            <Section title="پرداخت‌های پیش‌رو" action={<SectionLink href="/debts/installments" label="اقساط" />}>
+              {insts.length === 0 ? (
+                <p className="card muted text-center text-[length:var(--fs-sm)]">پرداختی در راه نیست</p>
+              ) : (
+                <ul className="card list-card" role="list">
+                  {insts.map((i) => {
+                    const d = daysUntil(i.dueDate);
+                    const contractual = (i as { amountToman?: string | number | null }).amountToman;
+                    const toman = contractual != null ? String(contractual) : rate ? usdToIrt(i.amountBase, rate) : null;
+                    return (
+                      <li key={i.id} className="list-row">
+                        <span className="flow-icon" aria-hidden="true">
+                          <Icon name="calendar" size={15} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[length:var(--fs-sm)] font-medium">{i.debtTitle}</p>
+                          <p className="muted truncate text-[length:var(--fs-xs)]">
+                            قسط {faCount(i.seq)} ·{" "}
+                            <span style={d < 0 ? { color: "var(--negative)" } : undefined}>{formatDaysUntil(d)}</span>
+                          </p>
+                        </div>
+                        <span className="num shrink-0 text-[length:var(--fs-sm)] font-semibold money-nowrap" dir="rtl">
+                          {toman ? formatMoney(toman, "IRT") : formatMoney(i.amountBase)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Section>
+          </div>
+
           <Section title="فعالیت اخیر" action={<SectionLink href="/transactions" label="همه تراکنش‌ها" />}>
-            <ul className="divide-y border-t border-b" style={{ borderColor: "var(--border)" }} role="list">
-              {tx.map((e) => {
-                const h = humanizeEntry(e);
-                const hasNativeIrt = h.nativeIrt != null && D(h.nativeIrt).gt(0);
-                const displayToman = hasNativeIrt ? h.nativeIrt! : (rate ? usdToIrt(h.amountExact, rate) : null);
-                // The USD figure shown is the ledger's canonical base value
-                // (frozen). Never re-derive it from the Toman at today's FX —
-                // that would distort a frozen purchase (e.g. a historical real
-                // estate acquisition booked in USD) into a current-rate guess.
-                const displayUsd = h.amountExact;
-                return (
-                  <li key={e.id} className="tx-row flex items-start gap-2.5 py-2.5 sm:gap-3 sm:py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="tx-description truncate text-[length:var(--fs-sm)] font-medium">{e.description}</p>
-                      <p className="muted mt-1 flex flex-wrap items-center gap-x-1.5 text-[length:var(--fs-xs)]">
-                        <span>{formatShortDate(e.entryDate)}</span>
-                        <span className="opacity-40">·</span>
-                        <span>{h.typeLabel}</span>
-                        {moneyFlowLabel(h.from, h.to) && (
-                          <>
-                            <span className="opacity-40">·</span>
-                            <span className="truncate">{moneyFlowLabel(h.from, h.to)}</span>
-                          </>
-                        )}
-                      </p>
-                    </div>
-                    <div className="tx-amount-col">
-                      <span
-                        className="num tx-amount block text-[length:var(--fs-md)] font-bold money-nowrap"
-                        dir="rtl"
-                        style={{
-                          color: h.sign > 0 ? "var(--positive)" : h.sign < 0 ? "var(--negative)" : "var(--text)",
-                        }}
-                      >
-                        {displayToman
-                          ? formatMoneyWithSign(h.sign > 0 ? "+" : h.sign < 0 ? "−" : "", displayToman, "IRT")
-                          : formatMoneyWithSign(h.sign > 0 ? "+" : h.sign < 0 ? "−" : "", h.amount, "USD")}
-                      </span>
-                      {rate && (
-                        <p className="muted num mt-1 block text-[length:var(--fs-xs)] money-nowrap">≈ {formatMoney(displayUsd)}</p>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-              {!tx.length && <li className="muted py-8 text-center text-[length:var(--fs-sm)]">هنوز تراکنشی ثبت نشده است.</li>}
-            </ul>
+            <RecentActivity rows={tx} frozen={frozenByEntry} rate={rate} />
           </Section>
         </>
       )}
