@@ -211,12 +211,11 @@ test("no UI label calls a wallet «کیف داغ» anymore", async () => {
   }
   // The container accounts the wizard provisions read Persian too.
   const setup = await fs.readFile(new URL("../src/features/setup/service.ts", import.meta.url), "utf8");
-  // The wallet is named after the coin the USER picked, so the Persian name
-  // comes from the registry's displayName rather than a hard-coded «اتریوم».
-  assert.ok(
-    setup.includes("`کیف پول ${chosenCrypto.displayName}`"),
-    "the crypto container is named «کیف پول <نام فارسی ارز>»",
-  );
+  // The coin account is named after the coin the USER picked (registry
+  // displayName, never a hard-coded «اتریوم»). A coin is not a wallet: the
+  // place it is held is a separate `wallets` row.
+  assert.ok(setup.includes("chosenCrypto.displayName"), "the coin account carries the Persian coin name");
+  assert.ok(!setup.includes("`کیف پول ${chosenCrypto.displayName}`"), "a coin is no longer stored as «کیف پول <ارز>»");
   assert.ok(!setup.includes("(ETH)"), "no Latin ticker inside a stored account name");
 });
 

@@ -11,7 +11,15 @@ import {
   settings,
   userSetupState,
   users,
+  wallets,
 } from "@/db/schema";
+import {
+  canonicalWalletName,
+  holdingAccountName,
+  holdingKeyOf,
+  walletKeyOf,
+  walletKindOf,
+} from "@/features/setup/holdingWallets";
 import { postEntry } from "@/features/ledger/service";
 import { ensureCategoryCatalog } from "@/features/categories/service";
 import { D, Decimal } from "@/domain/decimal";
@@ -106,14 +114,17 @@ export type SetupInput = {
   /** Native quantity in the cash account's own unit — never book USD. */
   cashOpeningBalance?: string;
   /**
-   * Every coin the user holds. Each becomes its own «کیف پول …» wallet and,
-   * with a quantity, a posting and a FIFO lot in the single opening entry.
+   * Every coin the user holds, per place. Each line is its own account named
+   * after the coin; lines naming the same `walletName` share one wallet. With
+   * a quantity, a line also gets a posting and a FIFO lot in the opening entry.
    */
   cryptoHoldings?: Array<{
     symbol: string;
     quantity?: string;
     unitPrice?: string;
     priceCurrency?: SetupPriceCurrency;
+    /** Exchange or wallet holding the coin. Blank = no wallet container. */
+    walletName?: string;
   }>;
   /** Legacy single-coin fields — merged into `cryptoHoldings`. */
   cryptoSymbol?: string;
@@ -440,22 +451,34 @@ export async function completeSetup(
       input.cashWalletName?.trim() || amountOf(input.cashOpeningBalance).gt(0),
     );
 
-    // The coins the user picked, de-duplicated, each with its own chart code.
-    // An unknown symbol is skipped — never a silent fallback to another coin.
+    // The coins the user picked, one line per (coin, place), each with its own
+    // chart code. An unknown symbol is skipped — never a silent fallback to
+    // another coin. The same coin twice in the SAME place is refused rather
+    // than silently dropping one of the two quantities.
     const cryptoPicks: Array<{
       chosenCrypto: SupportedCryptoAsset;
       code: string;
       quantity?: string;
       unitPrice?: string;
       priceCurrency?: SetupPriceCurrency;
+      walletName: string;
     }> = [];
     const legacyCrypto = input.cryptoSymbol
       ? [{ symbol: input.cryptoSymbol, quantity: input.cryptoOpeningQty, unitPrice: input.cryptoUnitPrice, priceCurrency: input.cryptoPriceCurrency }]
       : [];
+    const holdingSeen = new Set<string>();
     for (const holding of [...(input.cryptoHoldings ?? []), ...legacyCrypto]) {
       const chosenCrypto = getSupportedCryptoBySymbol(holding.symbol);
       if (!chosenCrypto || !assetMap[chosenCrypto.symbol]) continue;
-      if (cryptoPicks.some((pick) => pick.chosenCrypto.symbol === chosenCrypto.symbol)) continue;
+      // «metamask» and «متامسک» are one place, stored under its Persian name.
+      const walletName = canonicalWalletName("walletName" in holding ? holding.walletName : "");
+      const key = holdingKeyOf(chosenCrypto.symbol, walletName);
+      if (holdingSeen.has(key)) {
+        throw new Error(
+          `${chosenCrypto.displayName}${walletName ? ` در «${walletName}»` : " بدون محل نگهداری"} دو بار وارد شده است؛ مقدارها را در یک ردیف جمع کنید.`,
+        );
+      }
+      holdingSeen.add(key);
       if (cryptoPicks.length >= MAX_CRYPTO_WALLETS) break;
       cryptoPicks.push({
         chosenCrypto,
@@ -463,7 +486,28 @@ export async function completeSetup(
         quantity: holding.quantity,
         unitPrice: holding.unitPrice,
         priceCurrency: holding.priceCurrency,
+        walletName,
       });
+    }
+
+    // One wallet per distinct place (first spelling wins); an existing wallet
+    // of this user with the same name is reused, never duplicated.
+    const walletIdByKey = new Map<string, string>();
+    const ownedWallets = await tx
+      .select({ id: wallets.id, name: wallets.name })
+      .from(wallets)
+      .where(and(sql`${wallets.deletedAt} is null`, eq(wallets.userId, user.id)));
+    for (const w of ownedWallets) {
+      if (!walletIdByKey.has(walletKeyOf(w.name))) walletIdByKey.set(walletKeyOf(w.name), w.id);
+    }
+    for (const pick of cryptoPicks) {
+      const key = walletKeyOf(pick.walletName);
+      if (!key || walletIdByKey.has(key)) continue;
+      const [created] = await tx
+        .insert(wallets)
+        .values({ userId: user.id, name: pick.walletName, kind: walletKindOf(pick.walletName) })
+        .returning({ id: wallets.id });
+      walletIdByKey.set(key, created.id);
     }
 
     const acctRows = [
@@ -472,12 +516,15 @@ export async function completeSetup(
       ...(wantsCashWallet
         ? [{ code: "1020", name: input.cashWalletName?.trim() || "صندوق نقد", type: "asset", assetId: cashAssetId }]
         : []),
-      // One wallet per coin the user holds, named after THAT coin.
-      ...cryptoPicks.map(({ chosenCrypto, code }) => ({
+      // One account per coin per place, named «<ارز> - <محل>» (e.g. «تتر -
+      // بیت‌پین») — a coin is not a wallet. The place is also the wallet the
+      // account is linked to, so the money page groups by it.
+      ...cryptoPicks.map(({ chosenCrypto, code, walletName }) => ({
         code,
-        name: `کیف پول ${chosenCrypto.displayName}`,
+        name: holdingAccountName(chosenCrypto.displayName, walletName),
         type: "asset" as const,
         assetId: assetMap[chosenCrypto.symbol],
+        walletId: walletIdByKey.get(walletKeyOf(walletName)) ?? null,
       })),
       { code: "1300", name: "طلای ۱۸ عیار", type: "asset", assetId: assetMap.GOLD18 },
       { code: "2000", name: "بدهی‌ها", type: "liability" },

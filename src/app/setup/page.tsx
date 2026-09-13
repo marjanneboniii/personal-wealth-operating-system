@@ -9,7 +9,7 @@ import { faCount, formatMoney, formatQty } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
 import StepIntro, { CurrencySwitch } from "@/components/setup/StepIntro";
-import SetupHoldingsStep, { type CryptoDraftRow } from "@/components/setup/SetupHoldingsStep";
+import SetupHoldingsStep, { flattenHoldings, type CryptoDraftRow } from "@/components/setup/SetupHoldingsStep";
 import SetupInstrumentsStep, { type InstrumentDraftRow } from "@/components/setup/SetupInstrumentsStep";
 import SetupDebtsStep, { type DebtDraftRow } from "@/components/setup/SetupDebtsStep";
 import SetupRealAssetsStep, {
@@ -158,13 +158,13 @@ export default function SetupWizardPage() {
 
     const investments: ReviewItem[] = [];
     let usesRate = cashCurrency === "USD" && hasCash && amountOf(cashBalance).gt(0);
-    for (const row of cryptoRows) {
+    for (const row of flattenHoldings(cryptoRows)) {
       if (!amountOf(row.quantity).gt(0)) continue;
       const cost = lineValue(row.quantity, row.unitPrice);
       if (row.priceCurrency === "USDT") usesRate = true;
       investments.push({
         key: row.key,
-        label: row.name,
+        label: row.walletName ? `${row.name} - ${row.walletName}` : row.name,
         detail: `${formatQty(row.quantity, 8)} واحد`,
         toman: cost.gt(0) ? toToman(cost, row.priceCurrency, rate) : null,
       });
@@ -199,7 +199,9 @@ export default function SetupWizardPage() {
     return { money, investments, real, debts, assetsTotal, debtsTotal, net: assetsTotal.sub(debtsTotal), usesRate };
   }, [bankBalance, bankAccountName, hasCash, cashBalance, cashName, cashCurrency, rate, cryptoRows, goldGrams, goldPrice, instrumentRows, readyVehicles, readyProperties, debtRows]);
 
-  const canContinue = step === 1 ? rateReady : step === 2 ? bankAccountName.trim().length > 0 : true;
+  // Every coin needs at least one picked place before the wizard moves on.
+  const holdingsPlaced = cryptoRows.every((r) => r.places.length > 0);
+  const canContinue = step === 1 ? rateReady : step === 2 ? bankAccountName.trim().length > 0 : step === 3 ? holdingsPlaced : true;
 
   if (status === "loading") {
     return (
@@ -282,7 +284,13 @@ export default function SetupWizardPage() {
           type="hidden"
           name="cryptoHoldings"
           value={JSON.stringify(
-            cryptoRows.map((r) => ({ symbol: r.symbol, quantity: r.quantity, unitPrice: r.unitPrice, priceCurrency: r.priceCurrency })),
+            flattenHoldings(cryptoRows).map((r) => ({
+              symbol: r.symbol,
+              quantity: r.quantity,
+              unitPrice: r.unitPrice,
+              priceCurrency: r.priceCurrency,
+              walletName: r.walletName,
+            })),
           )}
         />
         <input type="hidden" name="goldOpeningQty" value={goldGrams} />

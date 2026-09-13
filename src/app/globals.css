@@ -2956,20 +2956,18 @@ body {
   color: var(--positive);
 }
 
-/* Overview hero */
+/* Overview hero — the figure owns its own full-width line and the quick actions
+   sit BELOW it. Sharing one row let a long Toman amount (nowrap by rule) run
+   into the first pill at tablet/laptop widths. */
 .overview-hero {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
   padding-top: 0.25rem;
 }
-@media (min-width: 768px) {
-  .overview-hero {
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 2rem;
-  }
+.overview-hero > :first-child {
+  min-width: 0;
+  max-width: 100%;
 }
 .overview-hero-value {
   margin-top: 0.3rem;
@@ -3015,6 +3013,146 @@ body {
 .quick-pill:hover {
   border-color: var(--border-strong);
   color: var(--text);
+}
+/* Wider screens: one tidy toolbar of equal buttons instead of loose pills.
+   Phones (and the installed PWA) keep the swipeable pill row above. */
+@media (min-width: 768px) {
+  .quick-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.5rem;
+    overflow: visible;
+    padding: 0;
+  }
+  .quick-pill {
+    justify-content: center;
+    border-radius: var(--r-md);
+    padding: 0 0.75rem;
+  }
+  .quick-pill svg {
+    color: var(--text-3);
+  }
+  .quick-pill:hover svg {
+    color: var(--action);
+  }
+}
+
+/* Setup — where a coin is held: picked lines, the add button, the logo grid. */
+.place-lines > li + li {
+  border-top: 1px solid var(--border);
+}
+.place-line {
+  display: grid;
+  gap: 0.6rem;
+  padding-block: 0.75rem;
+}
+.place-lines > li:first-child {
+  padding-top: 0.15rem;
+}
+.place-add {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-2);
+  transition: border-color var(--motion-micro) var(--ease), color var(--motion-micro) var(--ease);
+}
+.place-add.is-empty {
+  min-height: 52px;
+  border-style: dashed;
+  border-color: var(--border-strong);
+  color: var(--action);
+}
+.place-add:hover {
+  border-color: var(--action);
+  color: var(--action);
+}
+.place-mark-other {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 25%;
+  background: var(--sunken);
+  color: var(--text-2);
+}
+.place-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+@media (min-width: 640px) {
+  .place-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.place-tile {
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 92px;
+  padding: 0.8rem 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  transition: border-color var(--motion-micro) var(--ease), background var(--motion-micro) var(--ease), color var(--motion-micro) var(--ease);
+}
+.place-tile:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.place-tile.is-on {
+  border-color: var(--action);
+  background: var(--action-soft);
+  color: var(--text);
+}
+.place-tile-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.place-tile-check {
+  position: absolute;
+  top: 0.4rem;
+  inset-inline-end: 0.4rem;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: transparent;
+  transition: background var(--motion-micro) var(--ease), border-color var(--motion-micro) var(--ease);
+}
+.place-tile.is-on .place-tile-check {
+  border-color: var(--action);
+  background: var(--action);
+  color: #fff;
+}
+.place-sheet-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-elev);
 }
 
 /* This month's three figures */

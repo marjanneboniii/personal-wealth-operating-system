@@ -1539,6 +1539,8 @@ const setupCryptoSchema = z.object({
   quantity: z.string().optional(),
   unitPrice: z.string().optional(),
   priceCurrency: z.enum(["USD", "USDT", "IRT"]).optional(),
+  /** Where the coin is held (exchange or wallet). Same name ⇒ same wallet. */
+  walletName: z.string().trim().max(80).optional(),
 });
 
 /**
