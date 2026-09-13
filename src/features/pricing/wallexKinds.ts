@@ -53,16 +53,16 @@ export function wallexKindLabel(kind: string): string {
  */
 export const CRYPTO_GROUPS = {
   major: [
-    "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "TRX", "TON", "AVAX", "DOT", "LINK", "LTC", "BCH",
+    "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "TRX", "GRAM", "AVAX", "DOT", "LINK", "LTC", "BCH",
     "XLM", "ATOM", "NEAR", "APT", "SUI", "HBAR", "ICP", "FIL", "ETC", "ALGO", "POL", "ARB",
-    "HYPE", "TAO", "KAS", "WBTC", "MNT", "STRK",
+    "HYPE", "TAO", "KAS", "WBTC", "MNT",
   ],
   defi: [
-    "UNI", "AAVE", "CRV", "CVX", "SNX", "1INCH", "SUSHI", "BAL", "YFI", "LRC", "DYDX", "CAKE",
-    "JUP", "RAY", "ENA", "ETHFI", "MORPHO", "ONDO", "RUNE", "PYTH", "UMA", "ZRX", "BAND", "API3",
-    "TRB", "SKY",
+    "UNI", "AAVE", "CRV", "CVX", "SNX", "1INCH", "SUSHI", "YFI", "LRC", "DYDX", "CAKE",
+    "JUP", "RAY", "ENA", "ETHFI", "MORPHO", "ONDO", "RUNE", "PYTH", "ZRX", "BAND", "API3",
+    "SKY",
   ],
-  classic: ["XTZ", "EGLD", "BAT", "FLOW", "QNT"],
+  classic: ["XTZ", "EGLD", "FLOW", "QNT"],
   privacy: ["XMR", "ZEC", "DASH", "ZEN"],
 } as const;
 
