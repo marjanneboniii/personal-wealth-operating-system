@@ -4177,16 +4177,14 @@ input {
 .expense-results button:hover,
 .expense-results button[aria-selected="true"] { background: var(--hover); }
 
-/* Square selectable tiles — groups, subcategories and accounts share them. */
-.expense-squares { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
-.expense-squares-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Text-only selectable tiles for categories — uniform height, wrapping grid,
+   no icons and no sideways scrolling. */
+.expense-squares { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
 @media (min-width: 640px) {
-  .expense-squares { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .expense-squares-3 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .expense-squares { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (min-width: 1024px) {
-  .expense-squares { grid-template-columns: repeat(8, minmax(0, 1fr)); }
-  .expense-squares-3 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .expense-squares { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 .expense-square {
   position: relative;
@@ -4194,10 +4192,10 @@ input {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.375rem;
-  aspect-ratio: 1 / 1;
+  gap: 0.25rem;
   min-width: 0;
-  padding: 0.5rem 0.375rem;
+  min-height: 3.75rem;
+  padding: 0.625rem 1.25rem;
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   background: var(--surface);
@@ -4243,6 +4241,42 @@ input {
   background: var(--text);
   color: var(--bg);
 }
+
+/* Paying accounts — minimal rows: radio dot, name, balance. Wraps, never scrolls. */
+.expense-accounts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+@media (min-width: 640px) { .expense-accounts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.expense-acct {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  min-height: 3.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-align: start;
+  touch-action: manipulation;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.expense-acct:hover { background: var(--hover); }
+.expense-acct[data-on] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.expense-radio {
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.expense-acct[data-on] .expense-radio { border-color: var(--text); background: var(--text); box-shadow: inset 0 0 0 3px var(--surface); }
+.expense-acct-text { display: grid; flex: 1; gap: 0.125rem; min-width: 0; }
+.expense-acct-name,
+.expense-acct-bal { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.expense-acct-name { font-size: var(--fs-sm); font-weight: 500; }
+.expense-acct[data-on] .expense-acct-name { font-weight: 700; }
+.expense-acct-bal { font-size: var(--fs-xs); color: var(--text-3); }
 
 /* Drill-in header for one group. */
 .expense-crumb { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
