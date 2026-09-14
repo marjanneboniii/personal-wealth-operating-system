@@ -113,6 +113,35 @@ export type AccountBalance = {
  * every tenant's money. `getHoldings()` already applied this rule; this was
  * the one read path that did not.
  */
+/**
+ * How the user usually records an expense, read from their last posted
+ * expenses: the categories they reach for most (ties → most recent first) and
+ * the account that paid the latest one. Presentation hints only — the expense
+ * form uses them to pre-select, and the user can always change the choice.
+ */
+export async function getExpenseHabits(
+  userId?: string,
+  limit = 8,
+): Promise<{ categoryIds: string[]; lastAccountId: string | null }> {
+  const u = await resolveQueryUserId(userId);
+  // Fail-closed: without a resolved identity there are no personal habits.
+  if (!u) return { categoryIds: [], lastAccountId: null };
+  const recent = await rows<{ categoryId: string | null; accountId: string }>(sql`
+    select je.category_id as "categoryId", p.account_id as "accountId"
+    from journal_entries je
+      join postings p on p.entry_id = je.id and p.quantity < 0
+      join accounts a on a.id = p.account_id and a.type = 'asset'
+    where je.user_id = ${u} and je.type = 'expense' and je.status = 'posted'
+    order by je.entry_date desc, je.created_at desc
+    limit 120
+  `);
+  const score = new Map<string, number>();
+  for (const r of recent) if (r.categoryId) score.set(r.categoryId, (score.get(r.categoryId) ?? 0) + 1);
+  // Map keeps first-seen (most recent) order, so a stable sort breaks ties by recency.
+  const categoryIds = [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([id]) => id);
+  return { categoryIds, lastAccountId: recent[0]?.accountId ?? null };
+}
+
 export async function getAccountBalances(userId?: string): Promise<AccountBalance[]> {
   const u = await resolveQueryUserId(userId);
   // Fail-closed: in a multi-tenant database an unresolved identity must not
