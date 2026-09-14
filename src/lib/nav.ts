@@ -134,34 +134,6 @@ export const NAV_GROUPS: NavGroup[] = [
         keywords: ["rwa", "real estate", "vehicle", "gold", "ملک", "خودرو", "طلا", "ارزش‌گذاری"],
       },
       {
-        /**
-         * «ثبت صندوق و سهام» — the page and its registrar
-         * (components/funds/InstrumentRegistrar) were fully built, but the
-         * route had NO entry here, so the only way in was the onboarding
-         * checklist (features/onboarding/categories). A user who dismissed or
-         * finished onboarding could not reach it again from anywhere in the
-         * product, which read as «the feature is missing» when it was only
-         * unlinked. Nothing about the registrar changes — this is the missing
-         * navigation, not a new implementation.
-         */
-        href: "/funds",
-        label: "ثبت صندوق و سهام",
-        icon: "chart",
-        question: "صندوق یا سهم جدیدم را کجا ثبت کنم؟",
-        keywords: [
-          "fund",
-          "etf",
-          "stock",
-          "equity",
-          "صندوق",
-          "سهام",
-          "سهم",
-          "طلا",
-          "درآمد ثابت",
-          "ثبت صندوق",
-        ],
-      },
-      {
         href: "/market",
         label: "نمای بازار",
         icon: "globe",
@@ -377,24 +349,25 @@ export const SECONDARY_ITEMS: NavItem[] = [
     href: "/settings",
     label: "تنظیمات",
     icon: "settings",
-    question: "پیکربندی، امنیت و بخش پیشرفته",
+    question: "حساب کاربری، نرخ ارز و پشتیبان‌گیری",
     keywords: ["settings", "backup", "security", "تنظیمات", "پشتیبان", "امنیت"],
   },
 ];
 
 /**
- * Advanced / accounting-grade destinations.
+ * Accounting-grade destinations.
  *
- * Deliberately de-emphasised for the everyday user (§38): they live under
- * «تنظیمات → پیشرفته», stay reachable from the command palette, and are NOT
- * part of the primary sidebar. `/ledger` remains the canonical technical route;
- * `/financial-records` is the user-facing alias.
+ * Not shown to the everyday user: they are out of the sidebar, the mobile
+ * «بیشتر» sheet, settings and the command palette. The routes stay alive for
+ * deep links (an entry opened from a transaction, integrity service links);
+ * they are listed here only so page titles still resolve.
  */
 export const ADVANCED_ITEMS: NavItem[] = [
   {
     href: "/financial-records",
     label: "سوابق مالی",
     icon: "ledger",
+    paletteHidden: true,
     question: "دقیقاً چه اثر مالی‌ای ثبت شده است؟",
     keywords: [
       "financial records",
@@ -412,6 +385,7 @@ export const ADVANCED_ITEMS: NavItem[] = [
     href: "/audit",
     label: "حسابرسی",
     icon: "audit",
+    paletteHidden: true,
     question: "چه کسی چه چیزی را کِی تغییر داد؟",
     keywords: ["audit", "integrity", "history", "حسابرسی", "یکپارچگی", "تاریخچه تغییرات"],
   },

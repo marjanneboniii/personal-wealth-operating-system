@@ -107,6 +107,16 @@ export type CategoryGroupOption = {
   children: CategoryChildOption[];
 };
 
+/** Icon per standard income group; user-made groups fall back to «layers». */
+const INCOME_GROUP_ICON = {
+  "INC-SAL": "wallet",
+  "INC-BIZ": "trend-up",
+  "INC-INV": "coins",
+  "INC-PEN": "calendar",
+  "INC-SUP": "home",
+  "INC-OTH": "more",
+} as const;
+
 const TYPES = [
   { key: "expense", label: "هزینه", icon: "card" },
   { key: "income", label: "درآمد", icon: "download" },
@@ -910,10 +920,10 @@ export default function TransactionForm({
         )}
 
         {type === "income" && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {suggestedIncome.length > 0 && (
-              <>
-                <p className="muted text-[length:var(--fs-xs)]">پرکاربرد برای شما:</p>
+              <div className="space-y-1.5">
+                <p className="muted text-[length:var(--fs-xs)]">پرکاربرد برای شما</p>
                 <div className="flex flex-wrap gap-2">
                   {suggestedIncome.map((c) => {
                     const on = incomeCategoryId === c.id;
@@ -927,6 +937,7 @@ export default function TransactionForm({
                         onClick={() => {
                           setIncomeParentId(c.parentId);
                           setIncomeCategoryId(c.id);
+                          setShowNewCategory(false);
                         }}
                       >
                         {c.name}
@@ -934,73 +945,115 @@ export default function TransactionForm({
                     );
                   })}
                 </div>
-              </>
+              </div>
             )}
-            <div className="grid gap-2 sm:grid-cols-2">
-              <select
-                className="field"
-                value={incomeParentId}
-                onChange={(e) => {
-                  setIncomeParentId(e.target.value);
-                  setIncomeCategoryId("");
-                }}
-                aria-label="گروه درآمد"
-              >
-                <option value="" disabled>
-                  گروه درآمد…
-                </option>
-                {incomeGroups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="field"
-                value={incomeCategoryId}
-                onChange={(e) => setIncomeCategoryId(e.target.value)}
-                disabled={!incomeParent}
-                aria-label="منبع درآمد"
-              >
-                <option value="" disabled>
-                  {incomeParent ? "منبع درآمد…" : "ابتدا گروه درآمد"}
-                </option>
-                {incomeParent?.children.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+
+            {/* Step A — the kind of income, as cards: name, icon and what it covers. */}
+            <div className="space-y-1.5">
+              <p className="muted text-[length:var(--fs-xs)]">نوع درآمد</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="گروه درآمد">
+                {incomeGroups.map((g) => {
+                  const on = incomeParentId === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => {
+                        if (on) return;
+                        setIncomeParentId(g.id);
+                        setIncomeCategoryId("");
+                        setShowNewCategory(false);
+                      }}
+                      className="flex min-h-[4.75rem] flex-col items-start gap-1 rounded-[var(--r-md)] border p-2.5 text-right"
+                      style={{
+                        borderColor: on ? "var(--action)" : "var(--border)",
+                        background: on ? "var(--action-soft)" : "var(--surface)",
+                        touchAction: "manipulation",
+                      }}
+                    >
+                      <span className="flex items-center gap-1.5 text-[length:var(--fs-sm)] font-semibold" style={on ? { color: "var(--action)" } : undefined}>
+                        <Icon name={INCOME_GROUP_ICON[g.code as keyof typeof INCOME_GROUP_ICON] ?? "layers"} size={16} />
+                        {g.name}
+                      </span>
+                      <span className="muted line-clamp-2 text-[length:var(--fs-xs)] leading-5">
+                        {g.children.slice(0, 3).map((c) => c.name).join("، ")}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            {(incomeCategory?.description || incomeParent?.description) && (
-              <p className="muted text-[length:var(--fs-xs)] leading-5">{incomeCategory?.description ?? incomeParent?.description}</p>
-            )}
+
+            {/* Step B — the exact source inside the chosen kind. */}
             {incomeParent && (
-              <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => setShowNewCategory((v) => !v)} className="chip">
-                  {showNewCategory ? "بستن" : "+ منبع درآمد جدید"}
-                </button>
-                {categoryMessage && <span className="text-[length:var(--fs-xs)]">{categoryMessage}</span>}
+              <div className="soft space-y-2.5 rounded-[var(--r-md)] p-3">
+                <p className="text-[length:var(--fs-xs)] font-semibold">از کدام منبع «{incomeParent.name}»؟</p>
+                {incomeParent.description && (
+                  <p className="muted text-[length:var(--fs-xs)] leading-5">{incomeParent.description}</p>
+                )}
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="منبع درآمد">
+                  {incomeParent.children.map((c) => {
+                    const on = incomeCategoryId === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        className="chip !py-1.5"
+                        style={on ? { borderColor: "var(--action)", background: "var(--action-soft)", color: "var(--action)" } : undefined}
+                        onClick={() => setIncomeCategoryId(c.id)}
+                      >
+                        {on && <Icon name="check" size={12} />}
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setShowNewCategory((v) => !v)}
+                    className="chip !py-1.5"
+                    style={{ borderStyle: "dashed" }}
+                  >
+                    {showNewCategory ? "بستن" : "+ منبع دیگر"}
+                  </button>
+                </div>
+                {incomeCategory?.description && (
+                  <p className="muted text-[length:var(--fs-xs)] leading-5">{incomeCategory.description}</p>
+                )}
+                {categoryMessage && <p className="text-[length:var(--fs-xs)]">{categoryMessage}</p>}
+                {showNewCategory && (
+                  <div className="flex gap-2">
+                    <input
+                      className="field"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder={`نام منبع جدید در «${incomeParent.name}»`}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateCategory}
+                      disabled={!newCategoryName.trim()}
+                      className="btn btn-soft shrink-0 disabled:opacity-40"
+                    >
+                      افزودن
+                    </button>
+                  </div>
+                )}
               </div>
             )}
-            {showNewCategory && incomeParent && (
-              <div className="flex gap-2">
-                <input
-                  className="field"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder={`منبع جدید زیر «${incomeParent.name}»`}
-                />
-                <button
-                  type="button"
-                  onClick={handleCreateCategory}
-                  disabled={!newCategoryName.trim()}
-                  className="btn btn-soft shrink-0 disabled:opacity-40"
-                >
-                  افزودن
-                </button>
-              </div>
-            )}
+
+            <details className="text-[length:var(--fs-xs)]">
+              <summary className="muted cursor-pointer">چه چیزی درآمد حساب نمی‌شود؟</summary>
+              <ul className="muted mt-1.5 list-disc space-y-1 pr-5 leading-5">
+                <li>جابه‌جایی پول بین حساب‌های خودتان — از «انتقال» استفاده کنید.</li>
+                <li>وامی که گرفته‌اید یا طلبی که پس گرفته‌اید.</li>
+                <li>سود فروش سهام، طلا، رمزارز، ملک یا خودرو — هنگام «فروش دارایی» خودکار محاسبه می‌شود.</li>
+                <li>پول برگشتی یک خرید — هزینه را کم می‌کند.</li>
+              </ul>
+            </details>
           </div>
         )}
 

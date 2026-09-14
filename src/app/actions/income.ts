@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Recurring income reminders and the occupation profile.
+ * Recurring income reminders. (Occupations are chosen in the setup wizard.)
  *
  * Recording a reminder goes through `createTransactionAction` — the same
  * validation, ledger write, FX freeze and tenant checks as the form — with the
@@ -14,7 +14,6 @@ import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { todayIso } from "@/lib/format";
 import { D } from "@/domain/decimal";
 import { closeIncomeOccurrence, getIncomePlan, stopIncomePlan } from "@/features/income/service";
-import { setUserOccupations } from "@/features/preferences/service";
 
 const LOGIN_REQUIRED: ActionResult = { ok: false, message: "برای ادامه ابتدا وارد شوید." };
 
@@ -62,17 +61,4 @@ export async function stopPlannedIncomeFormAction(formData: FormData): Promise<v
   if (!user) return;
   await stopIncomePlan(String(formData.get("planId") ?? ""), user.id);
   revalidatePath("/");
-}
-
-export async function saveOccupationsAction(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const user = await getCurrentUser();
-  if (!user) return LOGIN_REQUIRED;
-  try {
-    const saved = await setUserOccupations(user.id, formData.getAll("occupations").map(String));
-    revalidatePath("/settings");
-    revalidatePath("/new");
-    return { ok: true, message: saved.length ? "وضعیت شغلی ذخیره شد." : "وضعیت شغلی پاک شد." };
-  } catch {
-    return { ok: false, message: "ذخیرهٔ وضعیت شغلی ممکن نشد — دوباره تلاش کنید." };
-  }
 }

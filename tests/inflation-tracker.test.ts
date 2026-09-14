@@ -110,11 +110,14 @@ async function reset() {
   await db.delete(schema.commodityItems);
   await db.delete(schema.commodityCategories);
   await db.delete(schema.sessions);
+  await db.delete(schema.userSetupState);
   await db.delete(schema.users);
 }
 
 async function seedUser(name: string, username: string) {
   const [user] = await db.insert(schema.users).values({ name, username, role: "user" }).returning();
+  // Initial setup is mandatory before app pages render.
+  await db.insert(schema.userSetupState).values({ userId: user.id, completed: true, currentStep: 7 });
   return user as { id: string };
 }
 

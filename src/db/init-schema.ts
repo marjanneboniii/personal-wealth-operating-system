@@ -1203,6 +1203,10 @@ const MAX_ATTEMPTS = 5;
  * defence: a stored snapshot can never be rewritten by an FX-rate change.
  */
 const OPTIONAL_STATEMENTS = [
+  /* One live system category per code — mirrors drizzle/0028. Optional: an
+     embedded database that already holds copies keeps working (the tree
+     read de-duplicates). */
+  `CREATE UNIQUE INDEX IF NOT EXISTS expense_categories_system_code_uq ON expense_categories(code) WHERE user_id IS NULL AND deleted_at IS NULL;`,
   `CREATE OR REPLACE FUNCTION vehicle_valuation_snapshots_immutable()
      RETURNS trigger AS $$
    BEGIN

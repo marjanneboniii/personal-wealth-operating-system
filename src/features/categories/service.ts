@@ -43,68 +43,118 @@ function tenantScope(userId?: string) {
     : sql`1=1`;
 }
 
+/** Serialises catalogue seeding across concurrent requests (any constant bigint). */
+const CATALOG_LOCK_KEY = 7311204915;
+
+const ALL_CATALOG_CODES = [...EXPENSE_CATEGORY_CATALOG, ...INCOME_CATEGORY_CATALOG].flatMap((parent) => [
+  parent.code,
+  ...(parent.children ?? []).map((child) => child.code),
+]);
+
 /**
  * Guarantees the standard category catalog exists. Idempotent and
- * non-destructive: when any category row already exists, nothing is
- * inserted (the tree is then managed through the extension APIs).
+ * non-destructive: missing system codes are added, existing rows are kept
+ * (a soft-deleted system category is never resurrected).
+ *
+ * The check-then-insert runs under a transaction-scoped advisory lock. Without
+ * it, two concurrent requests (the transaction form loads the expense and
+ * income trees in parallel) both saw an empty catalogue and both seeded it,
+ * so every group — «حقوق و دستمزد» included — appeared twice.
  * Accepts a transaction client so setup/seed can run it atomically.
  */
 export async function ensureCategoryCatalog(client: any = db): Promise<void> {
-  const counts = await client
-    .select({ kind: expenseCategories.kind, c: sql<number>`count(*)::int` })
+  const present = await client
+    .select({ code: expenseCategories.code })
     .from(expenseCategories)
-    .where(isNull(expenseCategories.userId))
-    .groupBy(expenseCategories.kind);
-  const countOf = (kind: CategoryKind) => Number(counts.find((row: { kind: string }) => row.kind === kind)?.c ?? 0);
+    .where(isNull(expenseCategories.userId));
+  const codes = new Set(present.map((row: { code: string }) => row.code));
+  if (ALL_CATALOG_CODES.every((code) => codes.has(code))) return;
 
-  // Each kind is seeded on its own, so a database that already holds the
-  // expense tree still receives the income tree the first time it is needed.
-  if (countOf("expense") === 0) {
-    await seedCatalog(client, EXPENSE_CATEGORY_CATALOG, "expense");
+  if (client === db) {
+    let seededExpense = false;
+    await db.transaction(async (tx) => {
+      seededExpense = await syncCatalogLocked(tx);
+    });
+    if (seededExpense) await backfillLegacyCategories(db);
+  } else if (await syncCatalogLocked(client)) {
     await backfillLegacyCategories(client);
   }
-  if (countOf("income") === 0) await seedCatalog(client, INCOME_CATEGORY_CATALOG, "income");
 }
 
-async function seedCatalog(client: any, catalog: CatalogNode[], kind: CategoryKind): Promise<void> {
-  let sortOrder = 0;
-  for (const parent of catalog) {
-    const [parentRow] = await client
-      .insert(expenseCategories)
-      .values({
-        userId: null,
-        code: parent.code,
-        name: parent.name,
-        nameEn: parent.nameEn,
-        parentId: null,
-        level: 0,
-        sortOrder: sortOrder++,
-        nature: "cash",
-        description: parent.description ?? null,
-        isSystem: true,
-        isActive: true,
-        kind,
-      })
-      .returning();
+type SystemRow = { id: string; code: string; kind: string; sortOrder: number; deletedAt: Date | null };
+
+/** Adds missing system codes; returns true when the expense tree was seeded from empty. */
+async function syncCatalogLocked(tx: any): Promise<boolean> {
+  await tx.execute(sql`select pg_advisory_xact_lock(${CATALOG_LOCK_KEY})`);
+  const rows: SystemRow[] = await tx
+    .select({
+      id: expenseCategories.id,
+      code: expenseCategories.code,
+      kind: expenseCategories.kind,
+      sortOrder: expenseCategories.sortOrder,
+      deletedAt: expenseCategories.deletedAt,
+    })
+    .from(expenseCategories)
+    .where(isNull(expenseCategories.userId))
+    .orderBy(asc(expenseCategories.createdAt), asc(expenseCategories.id));
+  // Prefer a live row per code over a soft-deleted one; oldest first.
+  const byCode = new Map<string, SystemRow>();
+  for (const row of rows) {
+    const current = byCode.get(row.code);
+    if (!current || (current.deletedAt && !row.deletedAt)) byCode.set(row.code, row);
+  }
+  const hadExpense = rows.some((row) => row.kind === "expense");
+  await syncCatalog(tx, EXPENSE_CATEGORY_CATALOG, "expense", byCode);
+  await syncCatalog(tx, INCOME_CATEGORY_CATALOG, "income", byCode);
+  return !hadExpense;
+}
+
+function systemValues(node: CatalogNode, kind: CategoryKind, parentId: string | null, sortOrder: number) {
+  return {
+    userId: null,
+    code: node.code,
+    name: node.name,
+    nameEn: node.nameEn,
+    parentId,
+    level: parentId ? 1 : 0,
+    sortOrder,
+    nature: parentId ? (node.nature ?? "cash") : "cash",
+    description: node.description ?? null,
+    isSystem: true,
+    isActive: true,
+    kind,
+  };
+}
+
+async function syncCatalog(tx: any, catalog: CatalogNode[], kind: CategoryKind, byCode: Map<string, SystemRow>): Promise<void> {
+  for (const [parentIndex, parent] of catalog.entries()) {
+    let parentRow = byCode.get(parent.code);
+    if (!parentRow) {
+      [parentRow] = await tx
+        .insert(expenseCategories)
+        .values(systemValues(parent, kind, null, parentIndex))
+        .returning({
+          id: expenseCategories.id,
+          code: expenseCategories.code,
+          kind: expenseCategories.kind,
+          sortOrder: expenseCategories.sortOrder,
+          deletedAt: expenseCategories.deletedAt,
+        });
+      byCode.set(parent.code, parentRow!);
+    }
+    // A group the operator removed keeps its children removed too.
+    if (!parentRow || parentRow.deletedAt) continue;
 
     const children = parent.children ?? [];
-    if (!children.length) continue;
-    await client.insert(expenseCategories).values(
-      children.map((child, index) => ({
-        userId: null,
-        code: child.code,
-        name: child.name,
-        nameEn: child.nameEn,
-        parentId: parentRow.id,
-        level: 1,
-        sortOrder: index,
-        nature: child.nature ?? "cash",
-        description: child.description ?? null,
-        isSystem: true,
-        isActive: true,
-        kind,
-      })),
-    );
+    const missing = children.flatMap((child, index) => (byCode.has(child.code) ? [] : [systemValues(child, kind, parentRow!.id, index)]));
+    if (missing.length) await tx.insert(expenseCategories).values(missing);
+    // New leaves are placed before «سایر …»: keep existing leaves in catalogue order.
+    for (const [index, child] of children.entries()) {
+      const existing = byCode.get(child.code);
+      if (existing && existing.sortOrder !== index) {
+        await tx.update(expenseCategories).set({ sortOrder: index }).where(eq(expenseCategories.id, existing.id));
+      }
+    }
   }
 }
 
@@ -154,15 +204,36 @@ export async function listCategoryTree(userId?: string, kind: CategoryKind = "ex
         tenantScope(userId),
       ),
     )
-    .orderBy(asc(expenseCategories.level), asc(expenseCategories.sortOrder), asc(expenseCategories.name));
+    .orderBy(
+      asc(expenseCategories.level),
+      asc(expenseCategories.sortOrder),
+      asc(expenseCategories.name),
+      asc(expenseCategories.createdAt),
+    );
 
-  const parents: CategoryTreeNode[] = rows
+  // Defensive: a database seeded twice before migration 0028 holds copies of
+  // the system rows. Show each system code once; children of a copied group
+  // attach to the kept group.
+  const keptByCode = new Map<string, string>();
+  const alias = new Map<string, string>();
+  const unique = rows.filter((row) => {
+    if (row.userId) return true;
+    const kept = keptByCode.get(row.code);
+    if (kept) {
+      alias.set(row.id, kept);
+      return false;
+    }
+    keptByCode.set(row.code, row.id);
+    return true;
+  });
+
+  const parents: CategoryTreeNode[] = unique
     .filter((r) => r.level === 0)
     .map((r) => ({ ...r, children: [] }));
   const byId = new Map(parents.map((p) => [p.id, p]));
-  for (const row of rows) {
+  for (const row of unique) {
     if (row.level === 0 || !row.parentId) continue;
-    const parent = byId.get(row.parentId);
+    const parent = byId.get(alias.get(row.parentId) ?? row.parentId);
     if (parent) parent.children.push(row);
   }
   return parents;
