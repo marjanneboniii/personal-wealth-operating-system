@@ -389,12 +389,14 @@ export default function Shell({
     return () => document.removeEventListener("keydown", onKey);
   }, [pathname, publicHome]);
 
-  // PWA service worker: production always; preview HTTPS too. Skip localhost so HMR stays intact.
+  // PWA service worker: production builds only. In dev (localhost or a phone on
+  // the LAN) a worker left behind serves stale CSS cache-first, so remove it.
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-    const host = window.location.hostname;
-    const isLocal = host === "localhost" || host === "127.0.0.1";
-    if (process.env.NODE_ENV !== "production" && isLocal) return;
+    if (process.env.NODE_ENV !== "production") {
+      void navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => void r.unregister()));
+      return;
+    }
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
 
@@ -411,6 +413,17 @@ export default function Shell({
     t.match?.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m))),
   );
   const moreActive = !anyTabActive;
+  // «ثبت» sits in the middle of the tab bar: equal tabs on each side.
+  const recordAt = Math.ceil(MOBILE_TABS.length / 2);
+  const tabLink = (t: (typeof MOBILE_TABS)[number]) => {
+    const active = t.match!.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m)));
+    return (
+      <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`tab-item ${active ? "tab-active" : ""}`} style={{ touchAction: "manipulation" }}>
+        <Icon name={t.icon as IconName} size={20} strokeWidth={active ? 2 : 1.7} />
+        <span className="tab-label">{t.label}</span>
+      </Link>
+    );
+  };
 
   const isAuthRoute = pathname === "/login" || pathname === "/register";
   const isMarketing = MARKETING_PATHS.has(pathname);
@@ -578,23 +591,6 @@ export default function Shell({
         )}
       </main>
 
-      {/* ───────────── Mobile record action ─────────────
-          The primary transaction action: a raised 56px target centred above
-          the tab bar. It opens the quick-action Sheet, which previously had
-          no way of being opened at all. */}
-      {!hideAppNav && (
-        <button
-          type="button"
-          onClick={() => setQuickOpen(true)}
-          aria-label="ثبت تراکنش جدید"
-          aria-haspopup="dialog"
-          aria-expanded={quickOpen}
-          className="record-fab lg:hidden"
-        >
-          <Icon name="plus" size={24} strokeWidth={2.1} />
-        </button>
-      )}
-
       {/* ───────────── Mobile bottom nav (app only — never on landing/auth/legal) ───────────── */}
       {!hideAppNav && (
       <nav
@@ -611,16 +607,29 @@ export default function Shell({
         {/* One row, always. The column count follows the real item count
             (tabs + «بیشتر»); a hard-coded 5 made the sixth item wrap onto a
             second row that fell below the bottom of the screen on iOS PWA. */}
-        <div className="tab-row" style={{ gridTemplateColumns: `repeat(${MOBILE_TABS.length + 1}, minmax(0, 1fr))` }}>
-          {MOBILE_TABS.map((t) => {
-            const active = t.match!.some((m) => (m === "/" ? pathname === "/" : isNavActive(pathname, m)));
-            return (
-              <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`tab-item ${active ? "tab-active" : ""}`} style={{ touchAction: "manipulation" }}>
-                <Icon name={t.icon as IconName} size={20} strokeWidth={active ? 2 : 1.7} />
-                <span className="tab-label">{t.label}</span>
-              </Link>
-            );
-          })}
+        {/* The record action lives INSIDE the bar: a floating button covered
+            content on every page (and leaked onto desktop). */}
+        <div
+          className="tab-row"
+          style={{
+            gridTemplateColumns: `repeat(${recordAt}, minmax(0, 1fr)) 3.25rem repeat(${MOBILE_TABS.length - recordAt + 1}, minmax(0, 1fr))`,
+          }}
+        >
+          {MOBILE_TABS.slice(0, recordAt).map(tabLink)}
+          <button
+            type="button"
+            onClick={() => setQuickOpen(true)}
+            aria-label="ثبت تراکنش جدید"
+            aria-haspopup="dialog"
+            aria-expanded={quickOpen}
+            className="tab-record"
+            data-active={pathname === "/new" || undefined}
+          >
+            <span className="tab-record-mark" aria-hidden="true">
+              <Icon name="plus" size={20} strokeWidth={2.2} />
+            </span>
+          </button>
+          {MOBILE_TABS.slice(recordAt).map(tabLink)}
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
