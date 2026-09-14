@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AssetRegistrarTabs from "@/components/funds/AssetRegistrarTabs";
+import { ensureAuth } from "@/lib/authGuard";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,8 @@ export const metadata = { title: "ثبت دارایی — توازن" };
  * Registering is never buying: it creates the identity and the tenant's asset
  * account at zero. The purchase form stays the only path into accounting.
  */
-export default function FundsPage() {
+export default async function FundsPage() {
+  await ensureAuth();
   return (
     <div className="mx-auto max-w-2xl space-y-5 py-6">
       <header className="space-y-2">

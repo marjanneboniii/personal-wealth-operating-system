@@ -40,7 +40,7 @@ mock.module("next/navigation", {
   },
 });
 
-let db: any, createSchemaIfNotExists: any, users: any, sessions: any, accounts: any, institutions: any;
+let db: any, createSchemaIfNotExists: any, users: any, sessions: any, accounts: any, institutions: any, userSetupState: any;
 let createSession: any;
 let ensureAuth: any, requireAuthForApi: any;
 let resolveHomeMode: any;
@@ -50,7 +50,7 @@ let completeSetupAction: any, fetchSetupStateAction: any;
 async function loadModules() {
   ({ db } = await import("../src/db"));
   ({ createSchemaIfNotExists } = await import("../src/db/init-schema"));
-  ({ users, sessions, accounts, institutions } = await import("../src/db/schema"));
+  ({ users, sessions, accounts, institutions, userSetupState } = await import("../src/db/schema"));
   ({ createSession } = await import("../src/lib/auth"));
   ({ ensureAuth, requireAuthForApi } = await import("../src/lib/authGuard"));
   ({ resolveHomeMode } = await import("../src/lib/publicEntry"));
@@ -64,17 +64,20 @@ async function clean() {
   await db.delete(accounts);
   await db.delete(institutions);
   await db.delete(sessions);
+  await db.delete(userSetupState);
   await db.delete(users);
 }
 
-async function redirectsToLogin(fn: () => Promise<unknown>): Promise<boolean> {
+async function redirectsTo(path: string, fn: () => Promise<unknown>): Promise<boolean> {
   try {
     await fn();
     return false;
   } catch (e: any) {
-    return e?.message === `${REDIRECT_MARK}/login`;
+    return e?.message === `${REDIRECT_MARK}${path}`;
   }
 }
+
+const redirectsToLogin = (fn: () => Promise<unknown>) => redirectsTo("/login", fn);
 
 test("§0 a signed-out visitor is redirected from every app page — even on a fresh install", async () => {
   await modulesReady;
@@ -101,6 +104,9 @@ test("§0 a signed-out visitor is redirected from every app page — even on a f
     .values({ name: "Alice", username: "alice-gate", role: "user" })
     .returning();
   cookieJar.value = (await createSession(alice.id)).token;
+  // Initial setup is mandatory: a new user is sent to /setup first.
+  assert.equal(await redirectsTo("/setup", () => ensureAuth()), true, "a new user must finish setup first");
+  await db.insert(userSetupState).values({ userId: alice.id, completed: true, currentStep: 7 });
   const u = await ensureAuth();
   assert.equal(u.id, alice.id);
   assert.equal(await resolveHomeMode(u), "app");

@@ -239,3 +239,30 @@ test("salary in Toman and freelance income in Tether, by source, with a monthly 
   await setUserOccupations(f.user.id, ["retired", "freelancer", "bogus"]);
   assert.deepEqual(await getUserOccupations(f.user.id), ["freelancer", "retired"]);
 });
+
+test("concurrent requests seed the category catalogue once — no group appears twice", async () => {
+  await modulesReady;
+  await createSchemaIfNotExists();
+  await ensureCategoryCatalog();
+  await db.delete(expenseCategories).where(eq(expenseCategories.kind, "income"));
+
+  // The transaction form loads the expense and income trees in parallel.
+  await Promise.all([
+    listCategoryTree(undefined, "income"),
+    listCategoryTree(undefined, "expense"),
+    ensureCategoryCatalog(),
+    ensureCategoryCatalog(),
+  ]);
+
+  const systemIncome = await db
+    .select({ code: expenseCategories.code })
+    .from(expenseCategories)
+    .where(and(eq(expenseCategories.kind, "income"), sql`${expenseCategories.userId} is null`));
+  const codes = systemIncome.map((r: { code: string }) => r.code);
+  assert.equal(new Set(codes).size, codes.length, "every income code is stored once");
+
+  const tree = await listCategoryTree(undefined, "income");
+  const names = tree.map((g: { name: string }) => g.name);
+  assert.equal(names.filter((n: string) => n === "حقوق و دستمزد").length, 1);
+  assert.equal(tree.length, INCOME_CATEGORY_CATALOG.length);
+});

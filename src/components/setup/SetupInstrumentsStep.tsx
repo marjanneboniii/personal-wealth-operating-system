@@ -171,7 +171,7 @@ export default function SetupInstrumentsStep({
                     </button>
                   </li>
                 ))}
-                {results.length === 0 && <li className="muted p-3 text-center text-[length:var(--fs-xs)]">پیدا نشد — بعداً از «ثبت صندوق و سهام» اضافه کنید</li>}
+                {results.length === 0 && <li className="muted p-3 text-center text-[length:var(--fs-xs)]">پیدا نشد — نام یا نماد دیگری را امتحان کنید</li>}
               </ul>
             )}
           </>

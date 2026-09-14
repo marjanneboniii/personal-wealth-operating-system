@@ -11,7 +11,6 @@ import InstallPromotion, { usePwaInstallState } from "@/components/pwa/InstallPr
 import {
   NAV_GROUPS,
   SECONDARY_ITEMS,
-  ADVANCED_ITEMS,
   MOBILE_TABS,
   QUICK_ACTIONS,
   isNavActive,
@@ -334,11 +333,11 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
           </section>
         ))}
 
-        {/* System and accounting-grade views: one quiet list at the end. */}
-        <section aria-label="سیستم و پیشرفته">
-          <h3 className="more-group-title">سیستم و پیشرفته</h3>
+        {/* Setup and settings: one quiet list at the end. */}
+        <section aria-label="سیستم">
+          <h3 className="more-group-title">سیستم</h3>
           <ul className="more-list">
-            {[...SECONDARY_ITEMS, ...ADVANCED_ITEMS].map((n) => {
+            {SECONDARY_ITEMS.map((n) => {
               const active = isNavActive(pathname, n.href);
               return (
                 <li key={n.href}>
@@ -417,12 +416,14 @@ export default function Shell({
   const isMarketing = MARKETING_PATHS.has(pathname);
   const isLanding = pathname === "/" && publicHome;
   const isPublicChrome = isAuthRoute || isMarketing || isLanding;
+  // Initial setup is mandatory and focused: no app navigation while on it.
+  const hideAppNav = isPublicChrome || pathname === "/setup";
 
   return (
     <div
       className="shell-root min-h-dvh"
       data-chrome={isPublicChrome ? "public" : "app"}
-      style={{ ["--nav-w" as never]: isPublicChrome ? "0px" : collapsed ? "76px" : "264px" }}
+      style={{ ["--nav-w" as never]: hideAppNav ? "0px" : collapsed ? "76px" : "264px" }}
     >
       {/* Offline banner — trust first: never lose context */}
       {!online && (
@@ -438,7 +439,7 @@ export default function Shell({
       )}
 
       {/* ───────────── Desktop sidebar (hidden on public/marketing/auth) ───────────── */}
-      {!isPublicChrome && (
+      {!hideAppNav && (
       <aside
         className={`desktop-sidebar fixed inset-y-0 right-0 z-40 hidden flex-col border-l transition-[width] duration-200 lg:flex ${collapsed ? "nav-collapsed w-[76px]" : "w-[264px]"}`}
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
@@ -527,7 +528,7 @@ export default function Shell({
       )}
 
       {/* ───────────── Mobile top bar (app only) ───────────── */}
-      {!isPublicChrome && (
+      {!hideAppNav && (
       <header
         className="app-topbar sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 backdrop-blur-xl lg:hidden"
         style={{
@@ -581,7 +582,7 @@ export default function Shell({
           The primary transaction action: a raised 56px target centred above
           the tab bar. It opens the quick-action Sheet, which previously had
           no way of being opened at all. */}
-      {!isPublicChrome && (
+      {!hideAppNav && (
         <button
           type="button"
           onClick={() => setQuickOpen(true)}
@@ -595,7 +596,7 @@ export default function Shell({
       )}
 
       {/* ───────────── Mobile bottom nav (app only — never on landing/auth/legal) ───────────── */}
-      {!isPublicChrome && (
+      {!hideAppNav && (
       <nav
         className="app-bottom-nav fixed inset-x-0 bottom-0 z-40 lg:hidden"
         aria-label="ناوبری اصلی موبایل"
@@ -636,8 +637,8 @@ export default function Shell({
       </nav>
       )}
 
-      {!isPublicChrome && <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} authUser={authUser} />}
-      {!isPublicChrome && (
+      {!hideAppNav && <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} authUser={authUser} />}
+      {!hideAppNav && (
         <Sheet open={quickOpen} onClose={() => setQuickOpen(false)} title="ثبت تراکنش">
           <nav className="grid grid-cols-1 gap-1 px-3 py-3" aria-label="اقدامات سریع">
             {QUICK_ACTIONS.filter((a) => a.href.startsWith("/new?type=")).map((a) => (
@@ -660,7 +661,7 @@ export default function Shell({
           </nav>
         </Sheet>
       )}
-      {!isPublicChrome && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
+      {!hideAppNav && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
     </div>
   );
 }

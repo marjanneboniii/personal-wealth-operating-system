@@ -1883,8 +1883,8 @@ export async function integrityCheckAction(): Promise<ActionResult> {
   `);
   const count = bad.rows.length;
   return count === 0
-    ? { ok: true, message: "بررسی یکپارچگی: همه اسناد دفترکل تراز هستند." }
-    : { ok: false, message: `${count} سند نامتوازن یافت شد!` };
+    ? { ok: true, message: "همه‌چیز درست است؛ مشکلی در اعداد شما پیدا نشد." }
+    : { ok: false, message: `${count} تراکنش نیاز به بررسی دارد.` };
 }
 
 export async function overviewCounts(_userId?: string) {

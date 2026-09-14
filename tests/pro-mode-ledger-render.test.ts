@@ -37,13 +37,13 @@ mock.module("next/navigation", {
   },
 });
 
-let db: any, createSchemaIfNotExists: any, users: any, sessions: any, userPreferences: any;
+let db: any, createSchemaIfNotExists: any, users: any, sessions: any, userPreferences: any, userSetupState: any;
 let createSession: any, preferences: any, LedgerPage: any, renderToReadableStream: any;
 
 async function loadModules() {
   ({ db } = await import("../src/db"));
   ({ createSchemaIfNotExists } = await import("../src/db/init-schema"));
-  ({ users, sessions, userPreferences } = await import("../src/db/schema"));
+  ({ users, sessions, userPreferences, userSetupState } = await import("../src/db/schema"));
   ({ createSession } = await import("../src/lib/auth"));
   preferences = await import("../src/features/preferences/service");
   ({ default: LedgerPage } = await import("../src/app/ledger/page"));
@@ -63,12 +63,15 @@ test("§2 /ledger leads with plain language and keeps the accounting detail on d
   await createSchemaIfNotExists();
   await db.delete(userPreferences);
   await db.delete(sessions);
+  await db.delete(userSetupState);
   await db.delete(users);
 
   const [alice] = await db
     .insert(users)
     .values({ name: "Alice Ledger", username: "alice-ledger", role: "owner" })
     .returning();
+  // Initial setup is mandatory before app pages render.
+  await db.insert(userSetupState).values({ userId: alice.id, completed: true, currentStep: 7 });
   sessionToken = (await createSession(alice.id)).token;
 
   const page = await renderLedger();

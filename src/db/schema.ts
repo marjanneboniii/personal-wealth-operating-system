@@ -163,6 +163,10 @@ export const expenseCategories = pgTable(
   },
   (t) => [
     uniqueIndex("expense_categories_user_code_uq").on(t.userId, t.code),
+    /** One live system row per code — the catalogue cannot be seeded twice (0028). */
+    uniqueIndex("expense_categories_system_code_uq")
+      .on(t.code)
+      .where(sql`${t.userId} is null and ${t.deletedAt} is null`),
     index("expense_categories_parent_idx").on(t.parentId),
     index("expense_categories_user_idx").on(t.userId),
   ],

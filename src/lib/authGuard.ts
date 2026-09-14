@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, getCurrentUserFromRequest } from "@/lib/auth";
 import { safeEqual } from "@/lib/rateLimit";
+import { isSetupRequired } from "@/lib/setupGate";
 
 /** Roles considered privileged (administrative). Assigned server-side only. */
 export function isAdminOrOwner(user: { role?: string | null } | null | undefined): boolean {
@@ -14,12 +15,15 @@ export function isAdminOrOwner(user: { role?: string | null } | null | undefined
  * landing lives at `/`. The historical legacy path (anonymous access while no
  * auth users existed yet) has been removed: the app is visible only after
  * login/registration, and every tenant sees only their own data.
+ * Initial setup is mandatory: a signed-in user who has not finished it is sent
+ * to /setup before any app page renders.
  * Fail-Closed: DB/session errors throw instead of allowing access.
  */
 export async function ensureAuth() {
   const user = await getCurrentUser();
-  if (user) return user;
-  redirect("/login");
+  if (!user) redirect("/login");
+  if (await isSetupRequired(user.id)) redirect("/setup");
+  return user;
 }
 
 export async function requireAuth() {

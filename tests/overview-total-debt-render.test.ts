@@ -77,7 +77,7 @@ function debtTile(html: string): string {
 
 async function cleanAll() {
   await createSchemaIfNotExists();
-  const { installments, debts, postings, journalEntries, accounts, assets, assetClasses, currencies, userFxSettings, users, sessions } = schema;
+  const { installments, debts, postings, journalEntries, accounts, assets, assetClasses, currencies, userFxSettings, users, sessions, userSetupState } = schema;
   await db.delete(installments);
   await db.delete(debts);
   await db.delete(postings);
@@ -88,6 +88,7 @@ async function cleanAll() {
   await db.delete(currencies);
   await db.delete(userFxSettings);
   await db.delete(sessions);
+  await db.delete(userSetupState);
   await db.delete(users);
 }
 
@@ -100,6 +101,8 @@ test("overview shows the debt of a planning-only debt instead of ۰", async () =
     .insert(users)
     .values({ name: "نمای کلی", username: "overview-render", role: "owner" } as any)
     .returning();
+  // Initial setup is mandatory before app pages render.
+  await db.insert(schema.userSetupState).values({ userId: user.id, completed: true, currentStep: 7 });
   await db.insert(userFxSettings).values({ userId: user.id, currentRate: RATE } as any);
   sessionToken = (await createSession(user.id)).token;
 
@@ -151,6 +154,7 @@ test("overview stays consistent when nothing is owed", async () => {
     .insert(users)
     .values({ name: "بدون بدهی", username: "overview-clean", role: "owner" } as any)
     .returning();
+  await db.insert(schema.userSetupState).values({ userId: user.id, completed: true, currentStep: 7 });
   await db.insert(userFxSettings).values({ userId: user.id, currentRate: RATE } as any);
   sessionToken = (await createSession(user.id)).token;
 

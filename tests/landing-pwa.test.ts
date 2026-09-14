@@ -27,7 +27,9 @@ test("Landing — Shell paints standalone public chrome without app nav", () => 
   const shell = read("src/components/layout/Shell.tsx");
   assert.match(shell, /publicHome/);
   assert.match(shell, /pathname === "\/" && publicHome/);
-  assert.match(shell, /!isPublicChrome && \(/);
+  // App nav is hidden on public chrome (and on the mandatory setup screen).
+  assert.match(shell, /const hideAppNav = isPublicChrome \|\|/);
+  assert.match(shell, /!hideAppNav && \(/);
   assert.match(shell, /isLanding \|\| isMarketing/);
   assert.match(shell, /InstallPromotion/);
   assert.match(shell, /usePwaInstallState/);

@@ -50,6 +50,12 @@ type ReviewItem = { key: string; label: string; detail?: string; toman: ReturnTy
 
 export default function SetupWizardPage() {
   const router = useRouter();
+  // The app navigation is hidden during the mandatory setup, so the wizard
+  // offers its own way out.
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    router.replace("/login");
+  };
   const [status, setStatus] = useState<"loading" | "pending" | "completed">("loading");
   const [step, setStep] = useState(1);
   const [completionNote, setCompletionNote] = useState<string | null>(null);
@@ -250,10 +256,18 @@ export default function SetupWizardPage() {
       <header className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
           <h1 className="text-[length:var(--fs-xl)] font-bold tracking-tight">راه‌اندازی توازن</h1>
-          <span className="muted num text-[length:var(--fs-xs)]">
-            {faCount(step)} از {faCount(LAST_STEP)}
+          <span className="flex items-center gap-2">
+            <span className="muted num text-[length:var(--fs-xs)]">
+              {faCount(step)} از {faCount(LAST_STEP)}
+            </span>
+            <button type="button" onClick={logout} className="btn btn-ghost !min-h-8 !px-2.5 text-[length:var(--fs-xs)]">
+              خروج
+            </button>
           </span>
         </div>
+        <p className="muted text-[length:var(--fs-xs)] leading-6">
+          برای شروع استفاده از توازن، ابتدا این مراحل را کامل کنید. هر بخشی که ندارید را می‌توانید رد کنید.
+        </p>
         <ol className="setup-steps" aria-label="مراحل راه‌اندازی">
           {STEPS.map((label, i) => {
             const n = i + 1;
@@ -379,7 +393,7 @@ export default function SetupWizardPage() {
                   );
                 })}
               </div>
-              <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">منابع درآمد مرتبط در فرم درآمد زودتر نمایش داده می‌شوند. بعداً از تنظیمات قابل تغییر است.</p>
+              <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">منابع درآمد مرتبط با شغل شما در فرم ثبت درآمد زودتر نمایش داده می‌شوند.</p>
             </div>
 
             <div>
