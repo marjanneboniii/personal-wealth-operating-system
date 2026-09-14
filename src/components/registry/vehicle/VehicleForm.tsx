@@ -34,10 +34,13 @@ export default function VehicleForm({
   brands,
   models,
   ownerName,
+  bankAccounts = [],
 }: {
   brands: VehicleBrand[];
   models: VehicleCatalogModel[];
   ownerName: string;
+  /** Toman bank accounts a car bought now may be paid from. */
+  bankAccounts?: { id: string; name: string }[];
 }) {
   const [state, action, pending] = useActionState(saveVehicleAction, null);
   const today = todayIso();
@@ -254,6 +257,20 @@ export default function VehicleForm({
           </div>
         </div>
       </div>
+
+      <Labeled
+        label="پرداخت از حساب بانکی"
+        hint="اگر خودرو را همین حالا می‌خرید، حساب بانکی را انتخاب کنید تا مبلغ خرید از آن کسر شود. برای خودرویی که از قبل دارید خالی بگذارید."
+      >
+        <select className="field" name="paymentAccountId" defaultValue="">
+          <option value="">بدون کسر از حساب (خودروی فعلی)</option>
+          {bankAccounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+      </Labeled>
 
       <div className="grid gap-3 md:grid-cols-3">
         <Labeled label="پلاک (اختیاری)">

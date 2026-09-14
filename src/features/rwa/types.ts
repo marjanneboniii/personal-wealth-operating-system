@@ -31,6 +31,8 @@ export type VehicleAsset = {
   id: string;
   assetId: string;
   assetSymbol?: string;
+  userSeq?: number | null;
+  label?: string;
   userId: string | null;
   brand: string;
   model: string;

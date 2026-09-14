@@ -21,14 +21,15 @@
 
 import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, assetClasses, assets, rwaOwnershipRecords, vehicleAssets } from "@/db/schema";
+import { accounts, assetClasses, assets, entryFxSnapshots, rwaOwnershipRecords, vehicleAssets } from "@/db/schema";
 import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
-import { recordRegistryDisposal } from "@/features/ledger/service";
+import { postEntry, recordRegistryDisposal } from "@/features/ledger/service";
+import { requireTomanBankAccount, tomanToNative } from "@/features/trade/bankAccount";
 import { ensureSchemaOnce } from "@/db/init-schema";
 import { D } from "@/domain/decimal";
 import { vehicleDisplayLabel } from "./display";
 import { todayIso } from "@/lib/format";
-import { nextRwaSymbol } from "@/features/rwa/symbol";
+import { buildRwaLabel, nextRwaSymbol, nextUserRwaSeq } from "@/features/rwa/symbol";
 import { decryptSensitive, encryptSensitive } from "@/lib/fieldEncryption";
 import type { CreateVehicleInput, VehicleAsset } from "../types";
 import {
@@ -115,6 +116,8 @@ function mapVehicleAsset(r: typeof vehicleAssets.$inferSelect & { assetSymbol?: 
     id: r.id,
     assetId: r.assetId,
     assetSymbol: r.assetSymbol,
+    userSeq: r.userSeq ?? null,
+    label: buildRwaLabel("vehicle", r.userSeq),
     userId: r.userId,
     brand: r.brand,
     model: r.model,
@@ -159,6 +162,8 @@ function mapUserVehicle(r: typeof vehicleAssets.$inferSelect, assetSymbol?: stri
     id: r.id,
     assetId: r.assetId,
     assetSymbol,
+    userSeq: r.userSeq ?? null,
+    label: buildRwaLabel("vehicle", r.userSeq),
     userId: r.userId,
     catalogId: r.catalogId ?? null,
     brand: r.brand,
@@ -205,7 +210,9 @@ async function ensureRwaAssetClassId(): Promise<string> {
  *  - سال ساخت، تاریخ تملک و قیمت خرید اجباری
  *  - معادل دلاری قیمت خرید با نرخ دلارِ «تاریخ تملک» محاسبه و ذخیره می‌شود
  */
-export async function createUserVehicle(input: CreateUserVehicleInput): Promise<{ id: string; assetId: string; symbol: string }> {
+export async function createUserVehicle(
+  input: CreateUserVehicleInput,
+): Promise<{ id: string; assetId: string; symbol: string; userSeq: number; label: string }> {
   if (!input.catalogId) throw new Error("خودرو باید از فهرست (کاتالوگ) انتخاب شود.");
   const model = await getCatalogModel(input.catalogId);
   if (!model) throw new Error("خودروی انتخاب‌شده در کاتالوگ یافت نشد.");
@@ -233,8 +240,9 @@ export async function createUserVehicle(input: CreateUserVehicleInput): Promise<
 
   // Asset identity and vehicle row commit atomically. Locking the shared RWA
   // class row also serialises the compact numeric sequence with properties.
-  const { asset, row, symbol } = await db.transaction(async (tx) => {
+  const { asset, row, symbol, userSeq } = await db.transaction(async (tx) => {
     const symbol = await nextRwaSymbol(tx, classId);
+    const userSeq = await nextUserRwaSeq(tx, "vehicle", input.userId);
     const [asset] = await tx
       .insert(assets)
       .values({ name, symbol, classId, decimals: 2, priceSource: "manual" })
@@ -246,6 +254,7 @@ export async function createUserVehicle(input: CreateUserVehicleInput): Promise<
       .values({
         assetId: asset.id,
         userId: input.userId ?? null,
+        userSeq,
         catalogId: model.id,
         brand: model.brandName,
         model: model.modelName,
@@ -262,7 +271,67 @@ export async function createUserVehicle(input: CreateUserVehicleInput): Promise<
       .returning();
     if (!row) throw new Error("ثبت خودروی کاربر ناموفق بود.");
 
-    return { asset, row, symbol };
+    // Bought now with money from a bank account: the price leaves the bank and
+    // the car is carried in the ledger at its purchase value, so a later sale
+    // books a real realized result instead of opening equity.
+    if (input.paymentAccountId) {
+      const bank = await requireTomanBankAccount(tx, input.paymentAccountId, input.userId);
+      const label = buildRwaLabel("vehicle", userSeq);
+      const code = `VEH-${symbol}`;
+      let [vehicleAccount] = await tx
+        .insert(accounts)
+        .values({ userId: input.userId ?? null, code, name: label, type: "asset", assetId: asset.id })
+        .onConflictDoNothing()
+        .returning();
+      if (!vehicleAccount) {
+        [vehicleAccount] = await tx
+          .select()
+          .from(accounts)
+          .where(and(eq(accounts.code, code), input.userId ? eq(accounts.userId, input.userId) : isNull(accounts.userId)))
+          .limit(1);
+      }
+      if (!vehicleAccount) throw new Error("حساب دفترکل خودرو ایجاد نشد.");
+
+      const priceToman = purchase.toFixed(0);
+      const entry = await postEntry(
+        {
+          entryDate: ownershipDate,
+          type: "buy",
+          description: `خرید ${label} — ${name}`,
+          userId: input.userId ?? undefined,
+          idempotencyKey: `vehicle-purchase:${row.id}`,
+          // «ثبت نشود»: a purchase the bank balance cannot cover is refused.
+          preventOverdraft: true,
+          postings: [
+            { accountId: vehicleAccount.id, assetId: asset.id, quantity: "1", baseValue: purchaseValueUsd },
+            {
+              accountId: bank.id,
+              assetId: bank.assetId,
+              quantity: `-${tomanToNative(priceToman, bank.symbol)}`,
+              baseValue: D(purchaseValueUsd).neg().toString(),
+              memo: "پرداخت خرید خودرو",
+            },
+          ],
+        },
+        tx,
+      );
+      await tx.insert(entryFxSnapshots).values({
+        entryId: entry.id,
+        irtAmount: priceToman,
+        usdAmount: purchaseValueUsd,
+        fxRate: D(purchaseUsdRate).toString(),
+        rateSource: "purchase",
+        rateDate: ownershipDate,
+        tradeSymbol: label,
+        tradeQuantity: "1",
+        settleSymbol: bank.symbol,
+        settleQuantity: priceToman,
+        unitPriceIrt: priceToman,
+        priceMode: "registry",
+      });
+    }
+
+    return { asset, row, symbol, userSeq };
   });
 
   // Optional first valuation snapshot (never derived from the purchase price).
@@ -279,7 +348,7 @@ export async function createUserVehicle(input: CreateUserVehicleInput): Promise<
     });
   }
 
-  return { id: row.id, assetId: asset.id, symbol };
+  return { id: row.id, assetId: asset.id, symbol, userSeq, label: buildRwaLabel("vehicle", userSeq) };
 }
 
 /** Mutable, non-historical details only (plate + mileage + notes). */
@@ -377,7 +446,8 @@ export async function sellVehicle(
       throw new Error("حساب دریافت وجه فروش نامعتبر یا متعلق به این کاربر نیست.");
     }
 
-    const unitPriceUsd = D(await nativeUnitPriceUsd(cashAccount.assetId, input.userId ?? null));
+    // Inside the transaction: read through `tx`, or a single-connection driver deadlocks.
+    const unitPriceUsd = D(await nativeUnitPriceUsd(cashAccount.assetId, input.userId ?? null, tx));
     const cashQuantity = unitPriceUsd.gt(0) ? netUsd.div(unitPriceUsd).toString() : netUsd.toString();
 
     const entry = await recordRegistryDisposal(

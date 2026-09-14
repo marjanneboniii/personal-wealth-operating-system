@@ -19,6 +19,7 @@ import SetupRealAssetsStep, {
   type VehicleDraftRow,
 } from "@/components/setup/SetupRealAssetsStep";
 import { amountOf, isValidRate, lineValue, toToman } from "@/components/setup/setupMoney";
+import { OCCUPATIONS } from "@/features/income/occupations";
 
 /**
  * راه‌اندازی اولیه توازن.
@@ -55,6 +56,8 @@ export default function SetupWizardPage() {
 
   // Step 1 — who, and the one rate every Toman amount converts at.
   const [userName, setUserName] = useState("");
+  // Occupations only order the income sources offered first; optional, several allowed.
+  const [occupations, setOccupations] = useState<string[]>([]);
   const [marketRate, setMarketRate] = useState({ rate: "", source: "" });
   const [editingRate, setEditingRate] = useState(false);
   const [rateInput, setRateInput] = useState("");
@@ -269,6 +272,7 @@ export default function SetupWizardPage() {
 
       <form action={formAction} className="card setup-card space-y-6">
         <input type="hidden" name="userName" value={userName} />
+        <input type="hidden" name="occupations" value={JSON.stringify(occupations)} />
         <input type="hidden" name="baseCurrency" value="USD" />
         <input type="hidden" name="displayCurrency" value="IRT" />
         <input type="hidden" name="dateCalendar" value={dateCalendar} />
@@ -350,6 +354,32 @@ export default function SetupWizardPage() {
                 نام شما یا خانواده
               </label>
               <input id="setup-name" type="text" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="مثلاً علی و سارا" className="field" autoComplete="name" />
+            </div>
+
+            <div>
+              <p className="label">وضعیت شغلی (اختیاری — چند مورد مجاز است)</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="وضعیت شغلی">
+                {OCCUPATIONS.map((occupation) => {
+                  const on = occupations.includes(occupation.code);
+                  return (
+                    <button
+                      key={occupation.code}
+                      type="button"
+                      className="chip"
+                      aria-pressed={on}
+                      style={on ? { borderColor: "var(--action)", background: "var(--action-soft)", color: "var(--action)" } : undefined}
+                      onClick={() =>
+                        setOccupations((current) =>
+                          on ? current.filter((code) => code !== occupation.code) : [...current, occupation.code],
+                        )
+                      }
+                    >
+                      {occupation.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">منابع درآمد مرتبط در فرم درآمد زودتر نمایش داده می‌شوند. بعداً از تنظیمات قابل تغییر است.</p>
             </div>
 
             <div>

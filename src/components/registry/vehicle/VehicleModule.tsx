@@ -24,7 +24,10 @@ export default function VehicleModule({
   summary,
   ownerName,
   payoutAccounts = [],
+  bankAccounts = [],
 }: {
+  /** Toman bank accounts a car bought now may be paid from. */
+  bankAccounts?: { id: string; name: string }[];
   brands: VehicleBrand[];
   models: VehicleCatalogModel[];
   dashboard: VehicleDashboardItem[];
@@ -115,7 +118,7 @@ export default function VehicleModule({
 
       {tab === "add" && (
         <div className="space-y-3">
-          <VehicleForm brands={brands} models={models} ownerName={ownerName} />
+          <VehicleForm brands={brands} models={models} ownerName={ownerName} bankAccounts={bankAccounts} />
         </div>
       )}
 

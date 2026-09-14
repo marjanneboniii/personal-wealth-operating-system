@@ -51,7 +51,9 @@ export default function RealEstateModule({
   propertyTypes,
   ownerName,
   fxRate,
+  bankAccounts = [],
 }: {
+  bankAccounts?: { id: string; name: string }[];
   dashboard?: RealEstateDashboardItem[] | null;
   summary?: RealEstatePortfolioSummary | null;
   cities?: City[] | null;
@@ -162,7 +164,7 @@ export default function RealEstateModule({
                           <td className="num text-[length:var(--fs-xs)] font-semibold">
                             <span className="flex items-center gap-1.5">
                               <RealEstateLogo size={22} />
-                              {toFaDigits(item.symbol)}
+                              {item.label}
                             </span>
                           </td>
                           <td>{item.propertyTypeNameFa ?? item.propertyType ?? "—"}</td>
@@ -223,7 +225,7 @@ export default function RealEstateModule({
             <span className="muted">مالک:</span>
             <strong>{ownerName}</strong>
           </div>
-          <RealEstateForm cities={cityList} neighborhoods={neighborhoodList} propertyTypes={propertyTypeList} />
+          <RealEstateForm cities={cityList} neighborhoods={neighborhoodList} propertyTypes={propertyTypeList} bankAccounts={bankAccounts} />
         </div>
       )}
 

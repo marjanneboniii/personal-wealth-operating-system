@@ -40,11 +40,12 @@ import { listVehicleBrands, listVehicleCatalogModels } from "@/features/rwa/vehi
 import { listOwnershipRecords } from "@/features/rwa/ownership/service";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { isLiquidAccount } from "@/features/accounts/classification";
+import { isTomanBankAccount } from "@/features/trade/rules";
 import { getPortfolioValuation } from "@/features/portfolio/service";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { allNamed } from "@/lib/namedPromises";
 
-export type PayoutAccount = { id: string; name: string; symbol: string | null };
+export type PayoutAccount = { id: string; name: string; symbol: string | null; walletKind: string | null };
 
 /** Current USD/IRT rate of this tenant, as a plain string. */
 async function loadFxRate(userId?: string | null): Promise<string> {
@@ -65,8 +66,13 @@ function loadPayoutAccounts(userId?: string | null) {
   return getAccountBalances(userId ?? undefined).then((rows) =>
     rows
       .filter((r) => r.type === "asset" && isLiquidAccount(r))
-      .map((r) => ({ id: r.accountId, name: r.name, symbol: r.symbol })),
+      .map((r) => ({ id: r.accountId, name: r.name, symbol: r.symbol, walletKind: r.walletKind ?? null })),
   );
+}
+
+/** Paying accounts of a property or vehicle bought now: Toman bank accounts only. */
+function loadBankAccounts(userId?: string | null) {
+  return loadPayoutAccounts(userId).then((rows) => rows.filter((r) => isTomanBankAccount(r)));
 }
 
 export type AssetRegistryData = Awaited<ReturnType<typeof loadAssetRegistryData>>;
@@ -109,6 +115,7 @@ export async function loadAssetRegistryData(
     neighborhoods: listNeighborhoods(undefined, true),
     propertyTypes: listPropertyTypes(true),
     payoutAccounts: loadPayoutAccounts(userId ?? null),
+    bankAccounts: loadBankAccounts(userId ?? null),
     // Current USD/IRT rate of THIS tenant — the real-estate summary shows it
     // as «نرخ جاری سیستم» (used only for dates with no stored rate).
     fxRate: loadFxRate(userId ?? null),

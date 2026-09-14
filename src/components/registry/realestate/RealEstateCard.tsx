@@ -59,7 +59,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
         <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
           <h5 className="mb-1 text-[length:var(--fs-xs)] font-bold">اطلاعات دارایی</h5>
           <DetailRow label="شناسه دارایی">
-            <span className="num font-semibold">{toFaDigits(a.symbol)}</span>
+            <span className="num font-semibold">{a.label}</span>
           </DetailRow>
           <DetailRow label="نوع ملک">
             {a.propertyTypeNameFa ?? a.propertyType ?? "—"}
@@ -171,7 +171,7 @@ export default function RealEstateCard({ item }: { item: RealEstateDashboardItem
               disabled={deleting}
               onClick={() => {
                 const ok = window.confirm(
-                  `ملک ${toFaDigits(a.symbol)} از گزارش‌ها، سبد و شاخص‌های ثروت حذف می‌شود. سند دفترکل دست‌نخورده می‌ماند. ادامه می‌دهید؟`,
+                  `${a.label} از گزارش‌ها، سبد و شاخص‌های ثروت حذف می‌شود. سند دفترکل دست‌نخورده می‌ماند. ادامه می‌دهید؟`,
                 );
                 if (!ok) return;
                 startDelete(async () => {

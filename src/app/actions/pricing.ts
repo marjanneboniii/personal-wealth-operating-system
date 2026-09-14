@@ -22,6 +22,7 @@ import {
 } from "@/features/pricing/wallexCatalog";
 import type { MarketRow } from "@/features/pricing/marketSearch";
 import { registerWallexAsset } from "@/features/pricing/wallexRegistration";
+import { ensureCryptoNetworks, refreshCryptoNetworks } from "@/features/trade/networkSync";
 import type { PriceFailureCode, PriceFreshness } from "@/features/pricing/types";
 
 export type RegisterMarketAssetResult = {
@@ -316,6 +317,8 @@ export async function loadMarketCatalogAction(): Promise<MarketCatalogLoadResult
   try {
     await requireRegistrationIdentity();
     const status = await ensureWallexCatalog();
+    // Networks of newly listed coins are picked up without anyone editing a list.
+    void ensureCryptoNetworks();
     const rows = await listMarketRows();
     return {
       ok: true,
@@ -341,6 +344,7 @@ export async function refreshMarketCatalogNowAction(): Promise<MarketCatalogLoad
   try {
     await requireRegistrationIdentity();
     const sync = await refreshWallexCatalog();
+    await refreshCryptoNetworks().catch(() => undefined);
     const status = await getWallexCatalogStatus();
     const rows = await listMarketRows();
     revalidatePath("/market");

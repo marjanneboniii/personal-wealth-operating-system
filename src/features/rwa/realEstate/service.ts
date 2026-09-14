@@ -41,7 +41,8 @@ import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
 import { ensureRealizedPnlAccount } from "@/features/accounts/systemAccounts";
 import { resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { formatMoney } from "@/lib/format";
-import { buildRwaSymbol, nextRwaSymbol } from "@/features/rwa/symbol";
+import { buildRwaLabel, buildRwaSymbol, nextRwaSymbol, nextUserRwaSeq } from "@/features/rwa/symbol";
+import { requireTomanBankAccount, tomanToNative, type TomanBankAccount } from "@/features/trade/bankAccount";
 import { isOrphanedRwaAsset } from "@/features/rwa/orphanFilter";
 import {
   getCity,
@@ -181,17 +182,15 @@ export async function previewRealEstateIdentity(
   cityId: string,
   neighborhoodId: string,
   propertyTypeId: string,
+  userId?: string | null,
 ): Promise<RealEstateNamePreview | null> {
   const [city, hood, ptype] = await Promise.all([getCity(cityId), getNeighborhood(neighborhoodId), getPropertyType(propertyTypeId)]);
   if (!city || !hood || !ptype) return null;
   const sequence = await nextPropertySequence(cityId, neighborhoodId, propertyTypeId);
-  const symbol = await nextRwaSymbol();
-  return {
-    assetName: symbol,
-    // Preview is advisory; the final transaction resolves and locks again.
-    symbol,
-    sequence,
-  };
+  // Preview is advisory; the final transaction resolves again under the per-user lock.
+  const userSeq = await nextUserRwaSeq(db, "property", userId, { lock: false });
+  const label = buildRwaLabel("property", userSeq);
+  return { assetName: label, label, userSeq, sequence };
 }
 
 /* ─────────────────────── performance (derived, never stored) ─────────────────────── */
@@ -353,6 +352,8 @@ function mapAsset(r: PropertyRow): RealEstateAsset {
     assetId: r.assetId,
     symbol: r.assetSymbol,
     assetName: r.assetName,
+    userSeq: r.userSeq ?? null,
+    label: buildRwaLabel("property", r.userSeq),
     userId: r.userId,
     cityId: r.cityId ?? null,
     cityNameFa: null,
@@ -421,6 +422,8 @@ async function postRealEstateOpeningEntry(
     purchaseFxRateSource: string;
     /** Effective date of the frozen rate (may differ from entryDate when nearest). */
     purchaseFxRateDate: string;
+    /** Paid now from this bank account — credited instead of opening equity. */
+    payment?: TomanBankAccount | null;
   },
 ): Promise<string> {
   const { assetAccountId, openingEquityAccountId } = await ensureRealEstateLedgerAccounts(tx);
@@ -429,8 +432,8 @@ async function postRealEstateOpeningEntry(
   const result = await postEntry(
     {
       entryDate: input.entryDate,
-      type: "opening",
-      description: `تملک تاریخی — ملک ${input.symbol}${input.acquisitionDatePersian ? ` — ${input.acquisitionDatePersian}` : ""} | قیمت خرید: ${formatMoney(input.purchasePriceToman, "IRT")}`,
+      type: input.payment ? "buy" : "opening",
+      description: `${input.payment ? "خرید" : "تملک تاریخی"} — ${input.assetName}${input.acquisitionDatePersian ? ` — ${input.acquisitionDatePersian}` : ""} | قیمت خرید: ${formatMoney(input.purchasePriceToman, "IRT")}`,
       source: "manual",
       reference: input.symbol,
       userId: input.userId ?? undefined,
@@ -443,14 +446,25 @@ async function postRealEstateOpeningEntry(
           baseValue: input.purchaseValueUsd,
           memo: `تملک ملک — قیمت خرید: ${formatMoney(input.purchasePriceToman, "IRT")}`,
         },
-        {
-          accountId: openingEquityAccountId,
-          assetId: usdAssetId,
-          quantity: D(input.purchaseValueUsd).neg().toString(),
-          baseValue: D(input.purchaseValueUsd).neg().toString(),
-          memo: "افتتاحیه تملک تاریخی (Opening Balance)",
-        },
+        input.payment
+          ? {
+              // Bought now: the price leaves the bank, in Toman.
+              accountId: input.payment.id,
+              assetId: input.payment.assetId,
+              quantity: `-${tomanToNative(D(input.purchasePriceToman).toFixed(0), input.payment.symbol)}`,
+              baseValue: D(input.purchaseValueUsd).neg().toString(),
+              memo: "پرداخت خرید ملک از حساب بانکی",
+            }
+          : {
+              accountId: openingEquityAccountId,
+              assetId: usdAssetId,
+              quantity: D(input.purchaseValueUsd).neg().toString(),
+              baseValue: D(input.purchaseValueUsd).neg().toString(),
+              memo: "افتتاحیه تملک تاریخی (Opening Balance)",
+            },
       ],
+      // A purchase the bank balance cannot cover is refused.
+      preventOverdraft: !!input.payment,
     },
     tx,
   );
@@ -469,6 +483,16 @@ async function postRealEstateOpeningEntry(
       fxRate: D(input.purchaseFxRate).toString(),
       rateSource: input.purchaseFxRateSource,
       rateDate: input.purchaseFxRateDate,
+      ...(input.payment
+        ? {
+            tradeSymbol: input.assetName,
+            tradeQuantity: "1",
+            settleSymbol: input.payment.symbol,
+            settleQuantity: D(input.purchasePriceToman).toFixed(0),
+            unitPriceIrt: D(input.purchasePriceToman).toFixed(0),
+            priceMode: "registry",
+          }
+        : {}),
     })
     .onConflictDoNothing();
 
@@ -508,6 +532,9 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
   id: string;
   assetId: string;
   symbol: string;
+  userSeq: number;
+  /** User-facing identifier, e.g. «ملک ۱». */
+  label: string;
   assetName: string;
   ledgerEntryId: string;
 }> {
@@ -561,8 +588,10 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
   const classId = await ensureRwaAssetClassId();
 
   const created = await db.transaction(async (tx) => {
+    const payment = input.paymentAccountId ? await requireTomanBankAccount(tx, input.paymentAccountId, input.userId) : null;
     const symbol = await nextRwaSymbol(tx, classId);
-    const assetName = symbol;
+    const userSeq = await nextUserRwaSeq(tx, "property", input.userId);
+    const assetName = buildRwaLabel("property", userSeq);
     const [asset] = await tx
       .insert(assets)
       .values({ name: assetName, symbol, classId, decimals: 2, priceSource: "manual" })
@@ -574,6 +603,7 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
       .values({
         assetId: asset.id,
         userId: input.userId ?? null,
+        userSeq,
         // master-data identity
         cityId: city.id,
         neighborhoodId: hood.id,
@@ -638,6 +668,7 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
       purchaseFxRate: D(purchaseFx.rate).toString(),
       purchaseFxRateSource: purchaseFx.source,
       purchaseFxRateDate: purchaseFx.effectiveDate,
+      payment,
     });
 
     await tx
@@ -668,10 +699,10 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
       tx,
     );
 
-    return { id: prop.id, assetId: asset.id, ledgerEntryId, symbol };
+    return { id: prop.id, assetId: asset.id, ledgerEntryId, symbol, userSeq, label: assetName };
   });
 
-  return { ...created, assetName: created.symbol };
+  return { ...created, assetName: created.label };
 }
 
 /* ─────────────────────── reads / dashboard ─────────────────────── */
@@ -1021,6 +1052,7 @@ export async function sellRealEstateAsset(input: {
 }): Promise<{
   assetId: string;
   symbol: string;
+  label: string;
   ledgerEntryId: string;
   saleValueUsd: string;
   realizedToman: string;
@@ -1070,7 +1102,8 @@ export async function sellRealEstateAsset(input: {
   const realizedUsd = D(saleValueUsd).sub(carrying);
   const realizedToman = salePrice.sub(purchaseToman);
   const symbol = prop.assetSymbol;
-  const description = `فروش ملک ${symbol}${input.saleDatePersian ? ` — ${input.saleDatePersian}` : ""}`;
+  const label = buildRwaLabel("property", prop.p.userSeq);
+  const description = `فروش ${label}${input.saleDatePersian ? ` — ${input.saleDatePersian}` : ""}`;
 
   const entry = await db.transaction(async (tx) => {
     const { assetAccountId } = await ensureRealEstateLedgerAccounts(tx);
@@ -1183,6 +1216,7 @@ export async function sellRealEstateAsset(input: {
   return {
     assetId: prop.p.assetId,
     symbol,
+    label,
     ledgerEntryId: entry.entryId,
     saleValueUsd: D(saleValueUsd).toString(),
     realizedToman: realizedToman.toFixed(0),
@@ -1214,7 +1248,7 @@ export async function sellRealEstateAsset(input: {
 export async function deleteRealEstateAsset(input: {
   propertyId: string;
   userId?: string | null;
-}): Promise<{ assetId: string; symbol: string }> {
+}): Promise<{ assetId: string; symbol: string; label: string }> {
   // 1. Load the property with its asset
   const [prop] = await db
     .select({
@@ -1234,6 +1268,7 @@ export async function deleteRealEstateAsset(input: {
 
   const assetId = prop.p.assetId;
   const symbol = prop.assetSymbol;
+  const label = buildRwaLabel("property", prop.p.userSeq);
 
   await db.transaction(async (tx) => {
     // 2. Delete the property row (CASCADE → real_estate_valuation_snapshots)
@@ -1271,7 +1306,7 @@ export async function deleteRealEstateAsset(input: {
     );
   });
 
-  return { assetId, symbol };
+  return { assetId, symbol, label };
 }
 
 /* ─────────────────────── repair orphaned data ─────────────────────── */
@@ -1546,11 +1581,15 @@ export async function createRealEstateProperty(input: {
   const [assetRow] = await db.select().from(assets).where(eq(assets.id, input.assetId)).limit(1);
   if (!assetRow) throw new Error(`Asset not found: ${input.assetId}`);
 
-  const [inserted] = await db
+  const inserted = await db.transaction(async (tx) => {
+  // An existing row keeps its number: the conflict branch below never touches user_seq.
+  const userSeq = await nextUserRwaSeq(tx, "property", input.userId);
+  const [row] = await tx
     .insert(realEstateProperties)
     .values({
       assetId: input.assetId,
       userId: input.userId ?? null,
+      userSeq,
       propertyType: input.propertyType ?? "apartment",
       city: input.city ?? "Ahvaz",
       area: input.area ?? null,
@@ -1578,6 +1617,8 @@ export async function createRealEstateProperty(input: {
       },
     })
     .returning();
+  return row;
+  });
 
   return { id: inserted.id };
 }

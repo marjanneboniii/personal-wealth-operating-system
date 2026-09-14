@@ -2,12 +2,25 @@ import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { entryFxSnapshots } from "@/db/schema";
 
+/** What a buy / sell / swap was at commit time — frozen, never recomputed. */
+export type EntryTradeSnapshot = {
+  tradeSymbol: string;
+  tradeQuantity: string;
+  settleSymbol: string | null;
+  settleQuantity: string | null;
+  unitPriceIrt: string | null;
+  unitPriceUsdt: string | null;
+  usdtRateIrt: string | null;
+  priceMode: string | null;
+};
+
 export type EntryFxSnapshot = {
   irtAmount: string;
   usdAmount: string;
   fxRate: string;
   rateSource: string;
   rateDate: string;
+  trade: EntryTradeSnapshot | null;
 };
 
 /**
@@ -28,6 +41,19 @@ export async function getEntryFxSnapshots(entryIds: string[]): Promise<Map<strin
         fxRate: r.fxRate,
         rateSource: r.rateSource,
         rateDate: r.rateDate,
+        trade:
+          r.tradeSymbol && r.tradeQuantity
+            ? {
+                tradeSymbol: r.tradeSymbol,
+                tradeQuantity: r.tradeQuantity,
+                settleSymbol: r.settleSymbol ?? null,
+                settleQuantity: r.settleQuantity ?? null,
+                unitPriceIrt: r.unitPriceIrt ?? null,
+                unitPriceUsdt: r.unitPriceUsdt ?? null,
+                usdtRateIrt: r.usdtRateIrt ?? null,
+                priceMode: r.priceMode ?? null,
+              }
+            : null,
       },
     ]),
   );

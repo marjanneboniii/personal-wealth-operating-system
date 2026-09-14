@@ -183,6 +183,22 @@ const STATEMENTS = [
     created_at timestamptz NOT NULL DEFAULT now()
   );`,
   `CREATE INDEX IF NOT EXISTS entry_fx_snap_entry_idx ON entry_fx_snapshots(entry_id);`,
+  /* Coin networks, synced from CoinGecko — mirrors drizzle/0026. */
+  `CREATE TABLE IF NOT EXISTS crypto_networks (
+    symbol text PRIMARY KEY,
+    coingecko_id text,
+    networks text NOT NULL,
+    synced_at timestamptz NOT NULL DEFAULT now()
+  );`,
+  /* Buy / sell / swap freeze — mirrors drizzle/0025. */
+  `ALTER TABLE entry_fx_snapshots ADD COLUMN IF NOT EXISTS trade_symbol text;`,
+  `ALTER TABLE entry_fx_snapshots ADD COLUMN IF NOT EXISTS trade_quantity numeric(38,18);`,
+  `ALTER TABLE entry_fx_snapshots ADD COLUMN IF NOT EXISTS settle_symbol text;`,
+  `ALTER TABLE entry_fx_snapshots ADD COLUMN IF NOT EXISTS settle_quantity numeric(38,18);`,
+  `ALTER TABLE entry_fx_snapshots ADD COLUMN IF NOT EXISTS unit_price_irt numeric(38,18);`,
+  `ALTER TABLE entry_fx_snapshots ADD COLUMN IF NOT EXISTS unit_price_usdt numeric(38,18);`,
+  `ALTER TABLE entry_fx_snapshots ADD COLUMN IF NOT EXISTS usdt_rate_irt numeric(38,18);`,
+  `ALTER TABLE entry_fx_snapshots ADD COLUMN IF NOT EXISTS price_mode text;`,
 
   `CREATE TABLE IF NOT EXISTS prices (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -721,6 +737,11 @@ const STATEMENTS = [
   `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS sale_usd_rate numeric(38,18);`,
   `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS sale_value_usd numeric(38,18);`,
   `CREATE INDEX IF NOT EXISTS vehicle_assets_catalog_idx ON vehicle_assets(catalog_id);`,
+  /* Per-user RWA identifiers («ملک ۱», «خودرو ۱») — mirrors drizzle/0024. */
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS user_seq integer;`,
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS user_seq integer;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS real_estate_properties_user_seq_unique ON real_estate_properties(user_id, user_seq);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS vehicle_assets_user_seq_unique ON vehicle_assets(user_id, user_seq);`,
 
   `CREATE TABLE IF NOT EXISTS rwa_ownership_records (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1043,6 +1064,13 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS expense_categories_parent_idx ON expense_categories(parent_id);`,
   `CREATE INDEX IF NOT EXISTS expense_categories_user_idx ON expense_categories(user_id);`,
   `ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES expense_categories(id) ON DELETE SET NULL;`,
+  /* Income redesign — mirrors drizzle/0027. */
+  `ALTER TABLE expense_categories ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'expense';`,
+  `CREATE INDEX IF NOT EXISTS expense_categories_kind_idx ON expense_categories(kind);`,
+  `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS occupations text;`,
+  `ALTER TABLE planned_transactions ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES expense_categories(id) ON DELETE SET NULL;`,
+  `ALTER TABLE planned_transactions ADD COLUMN IF NOT EXISTS amount_native numeric(38,18);`,
+  `ALTER TABLE planned_transactions ADD COLUMN IF NOT EXISTS day_of_month integer;`,
   `CREATE INDEX IF NOT EXISTS entries_category_idx ON journal_entries(category_id);`,
 
   // ───────────── FINAL SECURITY REMEDIATION: Portfolio Snapshot Isolation & Role Default ─────────────

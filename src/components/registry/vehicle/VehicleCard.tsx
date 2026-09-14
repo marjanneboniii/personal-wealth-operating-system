@@ -70,9 +70,7 @@ export default function VehicleCard({
           <div className="min-w-0">
             <h3 className="flex flex-wrap items-center gap-2 text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)] font-bold tracking-tight">
               {title}
-              {vehicle.assetSymbol && (
-                <span className="badge badge-neutral num">شناسه {toFaDigits(vehicle.assetSymbol)}</span>
-              )}
+              {vehicle.label && <span className="badge badge-neutral num">{vehicle.label}</span>}
               <StatusChip status={vehicle.status} />
               {valuation.scope === "catalog" && (
                 <span className="muted text-[length:var(--fs-xs)]">ارزش‌گذاری در سطح مدل (بازار)</span>

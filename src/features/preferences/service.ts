@@ -2,6 +2,33 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { userPreferences } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { normalizeOccupations } from "@/features/income/occupations";
+
+/** The user's occupations (codes) — orders income suggestions. Empty on any error. */
+export async function getUserOccupations(userId: string | null | undefined): Promise<string[]> {
+  if (!userId) return [];
+  try {
+    const [row] = await db
+      .select({ occupations: userPreferences.occupations })
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, userId))
+      .limit(1);
+    return normalizeOccupations(row?.occupations ?? "");
+  } catch {
+    return [];
+  }
+}
+
+export async function setUserOccupations(userId: string, input: unknown, client: any = db): Promise<string[]> {
+  const occupations = normalizeOccupations(input);
+  const value = occupations.join(",");
+  await client.insert(userPreferences).values({ userId, occupations: value }).onConflictDoNothing();
+  await client
+    .update(userPreferences)
+    .set({ occupations: value, updatedAt: new Date() })
+    .where(eq(userPreferences.userId, userId));
+  return occupations;
+}
 
 /*
  * ──────────────────────────────────────────────────────────────────────────

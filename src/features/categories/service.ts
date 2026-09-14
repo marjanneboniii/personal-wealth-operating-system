@@ -19,11 +19,15 @@ import { D } from "@/domain/decimal";
 import { hasMultipleUsers, resolveQueryUserId } from "@/features/ledger/queries";
 import {
   EXPENSE_CATEGORY_CATALOG,
+  INCOME_CATEGORY_CATALOG,
+  INCOME_MISC_CATEGORY_CODE,
   LEGACY_ACCOUNT_CATEGORY_MAP,
   MISC_CATEGORY_CODE,
+  type CatalogNode,
 } from "./catalog";
 
 export type CategoryRow = typeof expenseCategories.$inferSelect;
+export type CategoryKind = "expense" | "income";
 
 export type CategoryTreeNode = CategoryRow & {
   children: CategoryRow[];
@@ -46,13 +50,25 @@ function tenantScope(userId?: string) {
  * Accepts a transaction client so setup/seed can run it atomically.
  */
 export async function ensureCategoryCatalog(client: any = db): Promise<void> {
-  const existing = await client
-    .select({ c: sql<number>`count(*)::int` })
-    .from(expenseCategories);
-  if ((existing[0]?.c ?? 0) > 0) return;
+  const counts = await client
+    .select({ kind: expenseCategories.kind, c: sql<number>`count(*)::int` })
+    .from(expenseCategories)
+    .where(isNull(expenseCategories.userId))
+    .groupBy(expenseCategories.kind);
+  const countOf = (kind: CategoryKind) => Number(counts.find((row: { kind: string }) => row.kind === kind)?.c ?? 0);
 
+  // Each kind is seeded on its own, so a database that already holds the
+  // expense tree still receives the income tree the first time it is needed.
+  if (countOf("expense") === 0) {
+    await seedCatalog(client, EXPENSE_CATEGORY_CATALOG, "expense");
+    await backfillLegacyCategories(client);
+  }
+  if (countOf("income") === 0) await seedCatalog(client, INCOME_CATEGORY_CATALOG, "income");
+}
+
+async function seedCatalog(client: any, catalog: CatalogNode[], kind: CategoryKind): Promise<void> {
   let sortOrder = 0;
-  for (const parent of EXPENSE_CATEGORY_CATALOG) {
+  for (const parent of catalog) {
     const [parentRow] = await client
       .insert(expenseCategories)
       .values({
@@ -67,6 +83,7 @@ export async function ensureCategoryCatalog(client: any = db): Promise<void> {
         description: parent.description ?? null,
         isSystem: true,
         isActive: true,
+        kind,
       })
       .returning();
 
@@ -85,11 +102,10 @@ export async function ensureCategoryCatalog(client: any = db): Promise<void> {
         description: child.description ?? null,
         isSystem: true,
         isActive: true,
+        kind,
       })),
     );
   }
-
-  await backfillLegacyCategories(client);
 }
 
 /**
@@ -124,8 +140,8 @@ async function backfillLegacyCategories(client: any): Promise<void> {
   }
 }
 
-/** The full active tree visible to a tenant: parents with their children. */
-export async function listCategoryTree(userId?: string): Promise<CategoryTreeNode[]> {
+/** The full active tree of one kind visible to a tenant: parents with their children. */
+export async function listCategoryTree(userId?: string, kind: CategoryKind = "expense"): Promise<CategoryTreeNode[]> {
   await ensureCategoryCatalog();
   const rows: CategoryRow[] = await db
     .select()
@@ -134,6 +150,7 @@ export async function listCategoryTree(userId?: string): Promise<CategoryTreeNod
       and(
         isNull(expenseCategories.deletedAt),
         eq(expenseCategories.isActive, true),
+        eq(expenseCategories.kind, kind),
         tenantScope(userId),
       ),
     )
@@ -182,6 +199,11 @@ export async function getCategoryByCode(code: string): Promise<CategoryRow | nul
 /** The fallback "miscellaneous" leaf — used when no category is supplied. */
 export async function getMiscCategory(): Promise<CategoryRow | null> {
   return getCategoryByCode(MISC_CATEGORY_CODE);
+}
+
+/** «درآمد متفرقه» — the income fallback for callers that send no category. */
+export async function getIncomeMiscCategory(): Promise<CategoryRow | null> {
+  return getCategoryByCode(INCOME_MISC_CATEGORY_CODE);
 }
 
 /**
@@ -247,6 +269,8 @@ export async function addCustomCategory(
       description: null,
       isSystem: false,
       isActive: true,
+      // A sub-category belongs to its parent's flow: an income group gets income leaves.
+      kind: parent.kind,
     })
     .returning();
   return created;
@@ -297,25 +321,32 @@ export type CategoryFlowRow = {
  * category. It is read from the immutable commit-time snapshot — it is never
  * stored as a derived figure and never re-derived from the current rate.
  */
-export async function getFlowByCategory(months = 6, userId?: string): Promise<CategoryFlowRow[]> {
+export async function getFlowByCategory(
+  months = 6,
+  userId?: string,
+  kind: CategoryKind = "expense",
+): Promise<CategoryFlowRow[]> {
   await ensureCategoryCatalog();
   const u = await resolveQueryUserId(userId);
   // Fail-closed: never blend tenants' expense history.
   if (!u && (await hasMultipleUsers())) return [];
+  // An income account is credited (negative base value); report it as a positive total.
+  const signed = kind === "income" ? sql`-p.base_value` : sql`p.base_value`;
   const res = await db.execute(sql`
     with per_entry as (
       select c.id as cat_id,
              je.id as entry_id,
-             coalesce(sum(p.base_value), 0) as total_usd,
+             coalesce(sum(${signed}), 0) as total_usd,
              s.irt_amount::numeric as irt_amount
       from postings p
         join journal_entries je on je.id = p.entry_id
         join accounts a on a.id = p.account_id
         join expense_categories c on c.id = je.category_id
         left join entry_fx_snapshots s on s.entry_id = je.id
-      where a.type = 'expense'
+      where a.type = ${kind}
+        and c.kind = ${kind}
         and je.status = 'posted'
-        and je.type = 'expense'
+        and je.type = ${kind}
         and je.entry_date >= (current_date - (${months} || ' months')::interval)
         ${u ? sql`and je.user_id = ${u}` : sql``}
       group by c.id, je.id, s.irt_amount

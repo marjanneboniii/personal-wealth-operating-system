@@ -45,6 +45,79 @@ test("0013 enforces assets.symbol uniqueness only for active rows", async () => 
   await client.close();
 });
 
+test("0024 numbers existing properties and vehicles per user, and relabels system-named property assets", async () => {
+  const client = new PGlite();
+  const migrationDb = drizzle(client);
+  await migrate(migrationDb, {
+    migrationsFolder: "./drizzle",
+    migrationsTable: "__drizzle_migrations",
+    migrationsSchema: "public",
+  });
+
+  // Production shape before 0024: one global counter, so user B's first property is "002"
+  // and user C's is "005". user_seq is NULL on every pre-existing row.
+  await client.exec(`
+    INSERT INTO auth.users (id) VALUES
+      ('00000000-0000-0000-0000-00000000a001'),
+      ('00000000-0000-0000-0000-00000000b001'),
+      ('00000000-0000-0000-0000-00000000c001');
+    INSERT INTO users (id, name) VALUES
+      ('00000000-0000-0000-0000-00000000a001', 'A'),
+      ('00000000-0000-0000-0000-00000000b001', 'B'),
+      ('00000000-0000-0000-0000-00000000c001', 'C')
+    ON CONFLICT (id) DO NOTHING;
+    INSERT INTO asset_classes (id, code, name) VALUES ('00000000-0000-0000-0000-000000000901', 'RWA-0024', 'RWA');
+    INSERT INTO assets (id, symbol, name, class_id) VALUES
+      ('00000000-0000-0000-0000-000000000911', '001', '001', '00000000-0000-0000-0000-000000000901'),
+      ('00000000-0000-0000-0000-000000000912', '002', '002', '00000000-0000-0000-0000-000000000901'),
+      ('00000000-0000-0000-0000-000000000913', '003', 'Peugeot 206', '00000000-0000-0000-0000-000000000901'),
+      ('00000000-0000-0000-0000-000000000914', '004', 'Pride', '00000000-0000-0000-0000-000000000901'),
+      ('00000000-0000-0000-0000-000000000915', '005', '005', '00000000-0000-0000-0000-000000000901'),
+      ('00000000-0000-0000-0000-000000000916', '006', 'ویلای شمال', '00000000-0000-0000-0000-000000000901');
+    INSERT INTO real_estate_properties (asset_id, user_id, created_at) VALUES
+      ('00000000-0000-0000-0000-000000000911', '00000000-0000-0000-0000-00000000a001', '2026-01-01T00:00:00Z'),
+      ('00000000-0000-0000-0000-000000000912', '00000000-0000-0000-0000-00000000b001', '2026-01-02T00:00:00Z'),
+      ('00000000-0000-0000-0000-000000000915', '00000000-0000-0000-0000-00000000c001', '2026-01-05T00:00:00Z'),
+      ('00000000-0000-0000-0000-000000000916', '00000000-0000-0000-0000-00000000a001', '2026-01-06T00:00:00Z');
+    INSERT INTO vehicle_assets (asset_id, user_id, brand, model, year, created_at) VALUES
+      ('00000000-0000-0000-0000-000000000913', '00000000-0000-0000-0000-00000000a001', 'Peugeot', '206', 1400, '2026-01-03T00:00:00Z'),
+      ('00000000-0000-0000-0000-000000000914', '00000000-0000-0000-0000-00000000b001', 'Saipa', 'Pride', 1390, '2026-01-04T00:00:00Z');
+  `);
+
+  // Re-run 0024 over that data (it is idempotent: IF NOT EXISTS + WHERE user_seq IS NULL).
+  for (const statement of readFileSync("drizzle/0024_rwa_per_user_sequence.sql", "utf8").split("--> statement-breakpoint")) {
+    if (statement.replace(/--.*$/gm, "").trim()) await client.exec(statement);
+  }
+
+  const properties = await client.query<{ user_id: string; user_seq: number; name: string }>(`
+    SELECT p.user_id::text, p.user_seq, a.name
+    FROM real_estate_properties p JOIN assets a ON a.id = p.asset_id
+    ORDER BY p.user_id, p.user_seq
+  `);
+  assert.deepEqual(
+    properties.rows.map((r) => [r.user_id.slice(-4), r.user_seq, r.name]),
+    [
+      ["a001", 1, "ملک ۱"],
+      ["a001", 2, "ویلای شمال"],
+      ["b001", 1, "ملک ۱"],
+      ["c001", 1, "ملک ۱"],
+    ],
+    "each user's properties start at 1; only system-generated names are relabelled",
+  );
+
+  const vehicles = await client.query<{ user_id: string; user_seq: number }>(
+    `SELECT user_id::text, user_seq FROM vehicle_assets ORDER BY user_id`,
+  );
+  assert.deepEqual(vehicles.rows.map((r) => [r.user_id.slice(-4), r.user_seq]), [["a001", 1], ["b001", 1]]);
+
+  await assert.rejects(
+    () => client.exec(`UPDATE real_estate_properties SET user_seq = 1 WHERE asset_id = '00000000-0000-0000-0000-000000000916'`),
+    /real_estate_properties_user_seq_unique|unique/i,
+  );
+
+  await client.close();
+});
+
 test("0008 renames existing property/vehicle symbols globally and records before/after audit", async () => {
   const client = new PGlite();
   const migrationDb = drizzle(client);

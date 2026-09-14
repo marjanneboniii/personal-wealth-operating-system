@@ -41,6 +41,12 @@ test("the server contract is unchanged — every field is still posted", () => {
     "fxRateDate",
     "debtId",
     "installmentId",
+    "settleQuantity",
+    "unitPrice",
+    "priceMode",
+    "nativeAmount",
+    "recurring",
+    "planId",
   ]) {
     assert.match(CODE, new RegExp(`name="${name}"`), name);
   }

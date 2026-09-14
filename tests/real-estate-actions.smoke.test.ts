@@ -80,7 +80,7 @@ actions.saveRealEstateAction(null, fd({
   }));
 
   assert.equal(result.ok, true, result.message);
-  assert.match(result.message, /شناسه ۰۰۱/);
+  assert.match(result.message, /«ملک ۱»/);
 
   const [prop] = await db.select().from(realEstateProperties);
   assert.ok(prop);
@@ -90,7 +90,7 @@ actions.saveRealEstateAction(null, fd({
   assert.equal(prop!.isHistorical, true);
   assert.ok(prop!.ledgerEntryId, "ledger link must be stored");
 
-  // Second registration gets the next compact RWA identity.
+  // Second registration gets the next per-user property label.
   const result2 = await 
 actions.saveRealEstateAction(null, fd({
     cityId,
@@ -104,7 +104,7 @@ actions.saveRealEstateAction(null, fd({
     currentValueToman: "7000000000",
   }));
   assert.equal(result2.ok, true, result2.message);
-  assert.match(result2.message, /شناسه ۰۰۲/);
+  assert.match(result2.message, /«ملک ۲»/);
 });
 
 test("preview actions return generated identity and USD values", async () => {
@@ -117,8 +117,8 @@ test("preview actions return generated identity and USD values", async () => {
   const id = await 
 actions.previewRealEstateIdentityAction(cityId, neighborhoodId, propertyTypeId);
   assert.equal(id.ok, true);
-  assert.equal(id.symbol, "001");
-  assert.equal(id.assetName, "001");
+  assert.equal(id.label, "ملک ۱");
+  assert.equal(id.assetName, "ملک ۱");
 
   const usd = await 
 actions.previewRealEstateUsdAction("4500000000", jalaliToIso(1404, 5, 20));

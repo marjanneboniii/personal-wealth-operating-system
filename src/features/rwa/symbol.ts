@@ -12,8 +12,69 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { assets } from "@/db/schema";
+import { toFaDigits } from "@/lib/format";
 
 export const RWA_SYMBOL_MIN_WIDTH = 3;
+
+/**
+ * USER-FACING identity of a real asset: «ملک ۱», «خودرو ۲».
+ *
+ * `assets.symbol` stays the internal, globally unique key (asset rows are
+ * shared infrastructure without a tenant column, and symbol lookups rely on
+ * that uniqueness). What a user sees is a per-user, per-kind counter stored on
+ * the tenant-owned row (`real_estate_properties.user_seq`,
+ * `vehicle_assets.user_seq`), so every account starts at 1 for properties and
+ * independently at 1 for vehicles, regardless of what other users register.
+ */
+export type RwaKind = "property" | "vehicle";
+
+const RWA_KIND_LABEL: Record<RwaKind, string> = { property: "ملک", vehicle: "خودرو" };
+
+export function buildRwaLabel(kind: RwaKind, userSeq: number | null | undefined): string {
+  if (!userSeq || !Number.isSafeInteger(userSeq) || userSeq < 1) return RWA_KIND_LABEL[kind];
+  return `${RWA_KIND_LABEL[kind]} ${toFaDigits(String(userSeq))}`;
+}
+
+const RWA_KIND_TABLE: Record<RwaKind, string> = {
+  property: "real_estate_properties",
+  vehicle: "vehicle_assets",
+};
+
+/**
+ * Lowest free per-user counter for one kind of real asset.
+ *
+ * Must run inside the write transaction that inserts the row. A transaction-
+ * scoped advisory lock keyed on (kind, user) serialises concurrent creates of
+ * the SAME user only — different users never wait on each other — and the
+ * unique index (user_id, user_seq) is the database backstop.
+ *
+ * Numbers freed by deleting a property are reused (the row is removed), which
+ * mirrors the previous behaviour of the compact symbol. A sold vehicle keeps
+ * its row and therefore its number.
+ */
+export async function nextUserRwaSeq(
+  tx: any,
+  kind: RwaKind,
+  userId: string | null | undefined,
+  options: { lock?: boolean } = {},
+): Promise<number> {
+  const table = sql.raw(RWA_KIND_TABLE[kind]);
+  const owner = userId ?? null;
+  // Previews pass `lock: false`: they are advisory, and the final write resolves again under the lock.
+  if (options.lock !== false) {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`rwa-user-seq:${kind}:${owner ?? "none"}`}))`);
+  }
+  const result = await tx.execute(
+    owner
+      ? sql`select user_seq from ${table} where user_id = ${owner} and user_seq is not null`
+      : sql`select user_seq from ${table} where user_id is null and user_seq is not null`,
+  );
+  const rows = ((result as { rows?: unknown[] }).rows ?? result) as Array<{ user_seq: number | string }>;
+  const taken = new Set(rows.map((row) => Number(row.user_seq)));
+  let seq = 1;
+  while (taken.has(seq)) seq++;
+  return seq;
+}
 
 export function buildRwaSymbol(sequence: number): string {
   if (!Number.isSafeInteger(sequence) || sequence < 1) {

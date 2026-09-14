@@ -504,6 +504,42 @@ export async function getPortfolioValuation(
     : [];
   const realEstate = new Map(realEstateRows.map((row) => [row.assetId, row]));
 
+  // A vehicle bought from a bank account is carried in the ledger (quantity 1),
+  // so it arrives here as a holding and `loadUnheldRealAssets` skips it. Its
+  // value must still be its latest valuation snapshot — never the purchase price
+  // frozen in the ledger's cost basis.
+  const heldVehicleRows = assetIds.length
+    ? await db
+        .select({
+          vehicleId: vehicleAssets.id,
+          assetId: vehicleAssets.assetId,
+          purchaseValueUsd: vehicleAssets.purchaseValueUsd,
+          purchasePriceToman: vehicleAssets.purchasePriceToman,
+        })
+        .from(vehicleAssets)
+        .where(and(
+          inArray(vehicleAssets.assetId, assetIds),
+          userId ? eq(vehicleAssets.userId, userId) : sql`1=1`,
+          sql`coalesce(${vehicleAssets.status}, 'active') <> 'sold'`,
+        ))
+    : [];
+  const heldVehicleSnapshots = heldVehicleRows.length
+    ? await db
+        .select()
+        .from(vehicleValuationSnapshots)
+        .where(inArray(vehicleValuationSnapshots.userVehicleId, heldVehicleRows.map((row) => row.vehicleId)))
+        .orderBy(desc(vehicleValuationSnapshots.snapshotDate), desc(vehicleValuationSnapshots.createdAt))
+    : [];
+  const latestHeldVehicleSnapshot = new Map<string, (typeof heldVehicleSnapshots)[number]>();
+  for (const snap of heldVehicleSnapshots) {
+    if (snap.userVehicleId && !latestHeldVehicleSnapshot.has(snap.userVehicleId)) {
+      latestHeldVehicleSnapshot.set(snap.userVehicleId, snap);
+    }
+  }
+  const heldVehicles = new Map(
+    heldVehicleRows.map((row) => [row.assetId, { ...row, snap: latestHeldVehicleSnapshot.get(row.vehicleId) ?? null }]),
+  );
+
   const genericOwnershipRows = assetIds.length
     ? await db
         .select({
@@ -571,6 +607,7 @@ export async function getPortfolioValuation(
     const meta = metadata.get(holding.assetId);
     const market = marketValuations.get(holding.assetId);
     const property = realEstate.get(holding.assetId);
+    const vehicle = heldVehicles.get(holding.assetId);
     const generic = latestGenericValuation.get(holding.assetId);
     const isMarketClass = !!meta && MARKET_CLASS_CODES.has(meta.classCode.toLowerCase());
 
@@ -645,6 +682,24 @@ export async function getPortfolioValuation(
       priceFreshness = "fresh";
       priceObservedAt = property.valuationDate ? `${property.valuationDate}T00:00:00.000Z` : null;
       // A property is valued in Toman by its owner; the USD figure is derived.
+      valuationBase = "toman";
+    } else if (vehicle) {
+      const snap = vehicle.snap;
+      currentValue = snap?.currentValueUsd?.toString() ?? vehicle.purchaseValueUsd?.toString() ?? costBasis;
+      currentValueToman = snap?.currentValueToman
+        ? D(snap.currentValueToman).toFixed(0)
+        : vehicle.purchasePriceToman
+          ? D(vehicle.purchasePriceToman).toFixed(0)
+          : D(currentValue).mul(fx.rate).toFixed(0);
+      marketPrice = qty.isZero() ? "0" : D(currentValue).div(qty).toString();
+      historicalCostToman = vehicle.purchasePriceToman ? D(vehicle.purchasePriceToman).toFixed(0) : null;
+      unrealizedPnl = calculateUnrealizedPnl(currentValue, costBasis);
+      unrealizedPnlToman = historicalCostToman
+        ? D(currentValueToman).sub(historicalCostToman).toFixed(0)
+        : D(unrealizedPnl).mul(fx.rate).toFixed(0);
+      valuationBasis = "manual_real_asset";
+      priceFreshness = snap ? "fresh" : "unavailable";
+      priceObservedAt = snap?.snapshotDate ? `${snap.snapshotDate}T00:00:00.000Z` : null;
       valuationBase = "toman";
     } else if (generic && (generic.priceUSD || generic.priceIRR || generic.priceBase)) {
       const unitUsd = generic.priceUSD?.toString() ?? generic.priceBase?.toString() ?? null;

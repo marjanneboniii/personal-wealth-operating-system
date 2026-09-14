@@ -9,11 +9,23 @@ import FlowIcon from "@/components/transactions/FlowIcon";
 import { markManyReviewedAction, markReviewedAction } from "@/app/actions";
 import { humanizeEntry, moneyFlowLabel, txAmountLabel } from "@/lib/tx";
 import type { TxRow } from "@/features/ledger/queries";
-import { faCount, formatJalaliIso, formatMoney, formatShortDate, toFaDigits, toJalali, todayIso } from "@/lib/format";
+import type { EntryFxSnapshot } from "@/features/ledger/fxSnapshots";
+import {
+  currencyLabel,
+  faCount,
+  formatJalaliIso,
+  formatMoney,
+  formatQty,
+  formatShortDate,
+  toFaDigits,
+  toJalali,
+  todayIso,
+} from "@/lib/format";
+import { D } from "@/domain/decimal";
 import { useProMode } from "@/components/layout/ProModeProvider";
 
 export type ClientTxRow = TxRow & {
-  fx: { irtAmount: string; usdAmount: string; fxRate: string; rateSource: string; rateDate: string } | null;
+  fx: EntryFxSnapshot | null;
   linkedInstallment: { title: string; seq: number } | null;
 };
 
@@ -26,6 +38,7 @@ const TYPE_OPTIONS = [
   { key: "debt_repayment", label: "بازپرداخت بدهی" },
   { key: "buy", label: "خرید" },
   { key: "sell", label: "فروش" },
+  { key: "fx", label: "تبدیل / سواپ" },
   { key: "installment", label: "قسط" },
   { key: "adjustment", label: "اصلاحی" },
 ];
@@ -161,7 +174,15 @@ export default function TransactionsView({
     const isVoid = e.status === "void";
     const flow = moneyFlowLabel(h.from, h.to);
     const category = e.categoryName ? `${e.categoryParentName ? `${e.categoryParentName} › ` : ""}${e.categoryName}` : null;
-    const meta = [h.typeLabel, category, flow].filter(Boolean).join(" · ");
+    // A buy / sell / swap is recorded with its frozen quantity and unit prices.
+    const trade = e.fx?.trade ?? null;
+    // A property or vehicle sale is one whole asset: its label («ملک ۱») is the quantity.
+    const tradeQty = trade
+      ? trade.priceMode === "registry"
+        ? trade.tradeSymbol
+        : `${formatQty(trade.tradeQuantity, 8)} ${currencyLabel(trade.tradeSymbol)}`
+      : null;
+    const meta = [h.typeLabel, tradeQty, category, flow].filter(Boolean).join(" · ");
     const amount = txAmountLabel(h, e.fx?.irtAmount, rate);
 
     return (
@@ -237,13 +258,64 @@ export default function TransactionsView({
                   </dd>
                 </div>
               )}
-              {h.qtyLabel && (
-                <div>
-                  <dt>مقدار</dt>
-                  <dd className="num" dir="rtl">
-                    {h.qtyLabel}
-                  </dd>
-                </div>
+              {trade ? (
+                <>
+                  <div>
+                    <dt>{trade.priceMode === "registry" ? "دارایی فروخته‌شده" : "مقدار"}</dt>
+                    <dd className="num" dir="rtl">
+                      {tradeQty}
+                    </dd>
+                  </div>
+                  {trade.settleSymbol && trade.settleQuantity && (
+                    <div>
+                      <dt>تسویه با</dt>
+                      <dd className="num" dir="rtl">
+                        {trade.settleSymbol === "IRT"
+                          ? formatMoney(D(trade.settleQuantity).toFixed(0), "IRT")
+                          : `${formatQty(trade.settleQuantity, 6)} ${currencyLabel(trade.settleSymbol)}`}
+                      </dd>
+                    </div>
+                  )}
+                  {trade.unitPriceIrt && (
+                    <div>
+                      <dt>قیمت هر واحد (تومان)</dt>
+                      <dd className="num" dir="rtl">
+                        {formatMoney(D(trade.unitPriceIrt).toFixed(0), "IRT")}
+                      </dd>
+                    </div>
+                  )}
+                  {trade.unitPriceUsdt && (
+                    <div>
+                      <dt>قیمت هر واحد (تتر)</dt>
+                      <dd className="num" dir="rtl">
+                        {formatQty(trade.unitPriceUsdt, 6)} تتر
+                      </dd>
+                    </div>
+                  )}
+                  {trade.usdtRateIrt && (
+                    <div>
+                      <dt>نرخ تتر زمان ثبت</dt>
+                      <dd className="num" dir="rtl">
+                        {formatMoney(D(trade.usdtRateIrt).toFixed(0), "IRT")}
+                      </dd>
+                    </div>
+                  )}
+                  {trade.priceMode && trade.priceMode !== "registry" && (
+                    <div>
+                      <dt>نوع قیمت</dt>
+                      <dd>{trade.priceMode === "limit" ? "لیمیت (دلخواه)" : "بازار"}</dd>
+                    </div>
+                  )}
+                </>
+              ) : (
+                h.qtyLabel && (
+                  <div>
+                    <dt>مقدار</dt>
+                    <dd className="num" dir="rtl">
+                      {h.qtyLabel}
+                    </dd>
+                  </div>
+                )
               )}
               <div>
                 <dt>معادل دلاری</dt>

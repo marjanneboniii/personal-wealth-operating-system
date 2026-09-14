@@ -204,12 +204,13 @@ function categoryGroups(rows: CategoryFlowRow[], rate: string | null) {
 export default async function CashFlowPage() {
   await ensureAuth();
   await seedIfEmpty();
-  const [flow, expenses, incomes, fx, categoryFlows] = await Promise.all([
+  const [flow, expenses, incomes, fx, categoryFlows, incomeCategoryFlows] = await Promise.all([
     getCashflow(12),
     getFlowByAccount("expense", 6),
     getFlowByAccount("income", 6),
     getLatestUsdIrtRate(),
     getFlowByCategory(6),
+    getFlowByCategory(6, undefined, "income"),
   ]);
   const rate = fx.rate && D(fx.rate).gt(0) ? String(fx.rate) : null;
 
@@ -229,7 +230,9 @@ export default async function CashFlowPage() {
   const barsInToman = flowToman.length > 0 && flowToman.every((m) => m != null);
 
   const categories = categoryGroups(categoryFlows, rate);
-  const noData = flow.length === 0 && expenses.length === 0 && incomes.length === 0 && categoryFlows.length === 0;
+  const incomeSources = categoryGroups(incomeCategoryFlows, rate);
+  const noData =
+    flow.length === 0 && expenses.length === 0 && incomes.length === 0 && categoryFlows.length === 0 && incomeCategoryFlows.length === 0;
 
   return (
     <div className="space-y-7">
@@ -341,14 +344,37 @@ export default async function CashFlowPage() {
             <Section
               title="درآمدهای ۶ ماه اخیر"
               action={
-                incomes.length > 0 ? (
+                incomeCategoryFlows.length > 0 || incomes.length > 0 ? (
                   <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
-                    {totalLabel(incomes, rate)}
+                    {incomeCategoryFlows.length > 0 ? incomeSources.total : totalLabel(incomes, rate)}
                   </span>
                 ) : undefined
               }
             >
-              <FlowList rows={incomes} color="var(--positive)" rate={rate} empty="درآمدی ثبت نشده است" />
+              {incomeCategoryFlows.length > 0 ? (
+                <div className="card breakdown">
+                  <ul>
+                    {incomeSources.groups.map((g) => (
+                      <BreakdownRow key={g.key} name={g.name} share={g.share} toman={g.toman} usd={g.usd} color="var(--positive)">
+                        {g.leaves.length > 1 && (
+                          <ul className="breakdown-leaves">
+                            {g.leaves.map((l) => (
+                              <li key={l.key} className="flex items-center justify-between gap-2">
+                                <span className="min-w-0 truncate">{l.name}</span>
+                                <span className="num shrink-0 money-nowrap" dir="rtl">
+                                  {l.label}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </BreakdownRow>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <FlowList rows={incomes} color="var(--positive)" rate={rate} empty="درآمدی ثبت نشده است" />
+              )}
             </Section>
           </div>
         </>

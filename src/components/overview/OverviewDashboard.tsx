@@ -30,6 +30,9 @@ import {
   usdToIrt,
 } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
+import { listDueIncomePlans, type IncomePlan } from "@/features/income/service";
+import { recordPlannedIncomeFormAction, skipPlannedIncomeFormAction } from "@/app/actions/income";
+import { currencyLabel, formatQty } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -115,6 +118,11 @@ export default async function OverviewDashboard() {
   const frozenByEntry = await optionalRead("recent activity", new Map<string, EntryFxSnapshot>(), () =>
     getEntryFxSnapshots(tx.map((e) => e.id)),
   );
+
+  // Recurring incomes due within three days (or overdue) — recorded only on a tap.
+  const dueIncome = userId
+    ? await optionalRead("recurring income", [] as IncomePlan[], () => listDueIncomePlans(userId))
+    : [];
 
   const rate = fx.rate && D(fx.rate).gt(0) ? fx.rate : "";
   const staleCount = nw.valuation.priceStatus.stale + nw.valuation.priceStatus.unavailable;
@@ -296,6 +304,46 @@ export default async function OverviewDashboard() {
                 action={a.action}
               />
             ))}
+          </ul>
+        </Section>
+      )}
+
+      {dueIncome.length > 0 && (
+        <Section title="درآمدهای پیش‌رو" action={<SectionLink href="/new?type=income" label="ثبت درآمد" />}>
+          <ul className="card list-card" role="list">
+            {dueIncome.map((plan) => {
+              const d = daysUntil(plan.plannedDate);
+              const isToman = plan.symbol === "IRT" || plan.symbol === "IRR";
+              return (
+                <li key={plan.id} className="list-row flex-wrap">
+                  <span className="flow-icon is-in" aria-hidden="true">
+                    <Icon name="arrow-up" size={15} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[length:var(--fs-sm)] font-medium">{plan.title}</p>
+                    <p className="muted truncate text-[length:var(--fs-xs)]">
+                      {plan.categoryName} · {plan.accountName} · {formatDaysUntil(d)}
+                    </p>
+                  </div>
+                  <span className="num shrink-0 text-[length:var(--fs-sm)] font-semibold money-nowrap" dir="rtl" style={{ color: "var(--positive)" }}>
+                    {isToman ? formatMoney(D(plan.amountNative).toFixed(0), "IRT") : `${formatQty(plan.amountNative, 6)} ${currencyLabel(plan.symbol)}`}
+                  </span>
+                  <div className="flex w-full flex-wrap justify-end gap-2">
+                    <form action={recordPlannedIncomeFormAction}>
+                      <input type="hidden" name="planId" value={plan.id} />
+                      <button className="btn btn-primary !min-h-9 !px-3 text-[length:var(--fs-xs)]">ثبت دریافت</button>
+                    </form>
+                    <Link href={`/new?type=income&planId=${plan.id}`} className="btn btn-ghost !min-h-9 !px-3 text-[length:var(--fs-xs)]">
+                      ویرایش مبلغ
+                    </Link>
+                    <form action={skipPlannedIncomeFormAction}>
+                      <input type="hidden" name="planId" value={plan.id} />
+                      <button className="btn btn-ghost !min-h-9 !px-3 text-[length:var(--fs-xs)]">این ماه دریافت نشد</button>
+                    </form>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </Section>
       )}

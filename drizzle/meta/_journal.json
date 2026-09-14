@@ -169,6 +169,34 @@
       "when": 1788914400000,
       "tag": "0023_market_catalog_source",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788914500000,
+      "tag": "0024_rwa_per_user_sequence",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788914600000,
+      "tag": "0025_entry_fx_trade_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788914700000,
+      "tag": "0026_crypto_networks",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1788914800000,
+      "tag": "0027_income_redesign",
+      "breakpoints": true
     }
   ]
 }

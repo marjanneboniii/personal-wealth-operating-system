@@ -145,6 +145,7 @@ test("purchase USD value uses the FX rate of the ownership date and is frozen", 
   const [asset] = await db.select().from(assets).where(eq(assets.id, created.assetId)).limit(1);
   assert.equal(created.symbol, "001");
   assert.equal(asset.symbol, "001", "vehicle uses the compact global RWA identity");
+  assert.equal(created.label, "خودرو ۱", "the user-facing identifier is the per-user vehicle counter");
   assert.equal(D(row.purchasePriceToman!.toString()).toFixed(0), "8500000000");
   assert.equal(D(row.purchaseUsdRate!.toString()).toString(), "95000", "must use the OWNERSHIP-DATE rate");
   assert.equal(D(row.purchaseValueUsd!.toString()).toFixed(2), tomanToUsd("8500000000", "95000")); // 89473.68
