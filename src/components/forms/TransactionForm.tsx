@@ -40,6 +40,7 @@ import AssetLogo from "@/components/ui/AssetLogo";
 import WallexAssetPicker from "@/components/assets/WallexAssetPicker";
 import { loadMarketCatalog } from "@/components/assets/marketCatalogClient";
 import DebtInstallmentExplorer, { type DebtOption } from "./DebtInstallmentExplorer";
+import ExpenseFields from "./ExpenseFields";
 import { D } from "@/domain/decimal";
 import { isLiquidAccount } from "@/features/accounts/classification";
 import type { MarketRow } from "@/features/pricing/marketSearch";
@@ -178,6 +179,10 @@ type Props = {
   /** Opened from a recurring-income reminder: its values, to edit before recording. */
   initialIncome?: { planId: string; categoryId: string; parentId: string; accountId: string; amount: string } | null;
   categories?: CategoryGroupOption[];
+  /** Expense categories the user reaches for most, most used first. */
+  expenseRecentCategoryIds?: string[];
+  /** The account that paid the user's latest expense — pre-selected. */
+  lastExpenseAccountId?: string | null;
   debts?: DebtOption[];
   defaultType?: TxType;
   today: string;
@@ -250,6 +255,8 @@ export default function TransactionForm({
   incomeSuggestions = [],
   initialIncome = null,
   categories = [],
+  expenseRecentCategoryIds = [],
+  lastExpenseAccountId = null,
   debts = [],
   defaultType = "expense",
   today,
@@ -403,7 +410,23 @@ export default function TransactionForm({
     : isTrade && assetAccount
       ? moneyOptions.filter((a) => !tradePairError(type, assetInstrument, a) && venueAllows(a))
       : moneyOptions;
-  const moneyId = resolve(moneyAccountId, isTrade ? settleOptions : moneyOptions);
+  // Everyday spending leaves a Toman bank account or the cash box — never a
+  // stablecoin wallet, a fund or an exchange. Banks first.
+  const expenseOptions = moneyOptions
+    .filter((a) => {
+      const unit = (a.symbol ?? "").toUpperCase();
+      const kind = (a.walletKind ?? "").toLowerCase();
+      return (unit === "IRT" || unit === "IRR") && (!kind || kind === "bank" || kind === "cash");
+    })
+    .sort((a, b) => Number(a.walletKind === "cash") - Number(b.walletKind === "cash"));
+  // The expense account is chosen for the user: their pick, else the one that
+  // paid the last expense, else the first bank account.
+  const moneyId =
+    type === "expense"
+      ? resolve(moneyAccountId, expenseOptions, false) ||
+        resolve(lastExpenseAccountId ?? "", expenseOptions, false) ||
+        (expenseOptions[0]?.id ?? "")
+      : resolve(moneyAccountId, isTrade ? settleOptions : moneyOptions);
 
   const moneyAccount = byId(moneyId);
   const fromAccount = byId(fromId);
@@ -774,7 +797,7 @@ export default function TransactionForm({
   if (type === "debt_repayment" && selectedDebt) {
     summary.push(["بدهی", selectedInst ? `${selectedDebt.title} — قسط ${faCount(selectedInst.seq)}` : selectedDebt.title]);
   }
-  if (fee && D(fee).gt(0)) {
+  if (type !== "expense" && fee && D(fee).gt(0)) {
     summary.push(["کارمزد", <span key="f" className="num">{formatMoney(fee, feeInToman ? "IRT" : feeSymbol)}</span>]);
   }
   summary.push(["تاریخ", entryDate ? getDualDate(entryDate).jalali : "—"], ["شرح", finalDescription]);
@@ -808,7 +831,7 @@ export default function TransactionForm({
       <input type="hidden" name="primaryAccountId" value={primaryAccountId} />
       <input type="hidden" name="counterAccountId" value={counterAccountId} />
       <input type="hidden" name="quantity" value={(isTrade && !isRegistrySale) || type === "transfer" ? quantity : ""} />
-      <input type="hidden" name="fee" value={fee} />
+      <input type="hidden" name="fee" value={type === "expense" ? "" : fee} />
       <input type="hidden" name="feeMode" value={feeInToman ? "irt" : "native"} />
       <input type="hidden" name="description" value={finalDescription} />
       <input type="hidden" name="fxRate" value={effectiveRate ?? ""} />
@@ -841,84 +864,35 @@ export default function TransactionForm({
         })}
       </div>
 
+      {type === "expense" ? (
+        <ExpenseFields
+          groups={categoryGroups}
+          setGroups={setCategoryGroups}
+          parentId={categoryParentId}
+          categoryId={categoryId}
+          onPick={(parentId, leafId) => {
+            setCategoryParentId(parentId);
+            setCategoryId(leafId);
+          }}
+          recentCategoryIds={expenseRecentCategoryIds}
+          amount={irtAmount}
+          setAmount={setIrtAmount}
+          previewUsd={previewUsd}
+          accounts={expenseOptions}
+          balances={balances}
+          accountId={moneyId}
+          setAccountId={setMoneyAccountId}
+          entryDate={entryDate}
+          setEntryDate={setEntryDate}
+          today={today}
+          description={description}
+          setDescription={setDescription}
+          autoDescription={autoDescription}
+        />
+      ) : (
+      <>
       {/* ── ۱. What ── */}
       <Step n={1} title={stepOneTitle[type]}>
-        {type === "expense" && (
-          <div className="space-y-2">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <select
-                className="field"
-                value={categoryParentId}
-                onChange={(e) => {
-                  setCategoryParentId(e.target.value);
-                  setCategoryId("");
-                }}
-                aria-label="دسته اصلی"
-              >
-                <option value="" disabled>
-                  دسته اصلی…
-                </option>
-                {categoryGroups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="field"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                disabled={!selectedParent}
-                aria-label="زیردسته"
-              >
-                <option value="" disabled>
-                  {selectedParent ? "زیردسته…" : "ابتدا دسته اصلی"}
-                </option>
-                {selectedParent?.children.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.nature === "non_cash" ? " (غیرنقدی)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {selectedCategory?.description && (
-              <p className="muted text-[length:var(--fs-xs)] leading-5">{selectedCategory.description}</p>
-            )}
-            {isNonCash && (
-              <p className="soft rounded-[var(--r-sm)] p-2 text-[length:var(--fs-xs)] leading-5" role="note">
-                ثبت غیرنقدی (استهلاک یا ذخیره) است؛ از هیچ حسابی پول خارج نمی‌شود.
-              </p>
-            )}
-            {selectedParent && (
-              <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => setShowNewCategory((v) => !v)} className="chip">
-                  {showNewCategory ? "بستن" : "+ زیردسته جدید"}
-                </button>
-                {categoryMessage && <span className="text-[length:var(--fs-xs)]">{categoryMessage}</span>}
-              </div>
-            )}
-            {showNewCategory && selectedParent && (
-              <div className="flex gap-2">
-                <input
-                  className="field"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder={`زیردسته جدید زیر «${selectedParent.name}»`}
-                />
-                <button
-                  type="button"
-                  onClick={handleCreateCategory}
-                  disabled={!newCategoryName.trim()}
-                  className="btn btn-soft shrink-0 disabled:opacity-40"
-                >
-                  افزودن
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
         {type === "income" && (
           <div className="space-y-3">
             {suggestedIncome.length > 0 && (
@@ -1640,6 +1614,8 @@ export default function TransactionForm({
           />
         </div>
       </Step>
+      </>
+      )}
 
       {/* ── Review, then confirm. Nothing is written before «تأیید و ثبت». ── */}
       {confirming && ready ? (
@@ -1670,14 +1646,20 @@ export default function TransactionForm({
           </div>
         </section>
       ) : (
-        <div className="space-y-1.5">
+        <div className="tx-submit-bar space-y-1.5">
           <button
             type="button"
             disabled={!ready}
             onClick={() => setConfirming(true)}
             className="btn btn-primary w-full disabled:opacity-40"
           >
-            بررسی و ثبت
+            {type === "expense" && hasAmount ? (
+              <>
+                ثبت هزینه <span className="num">{formatMoney(irtAmount, "IRT")}</span>
+              </>
+            ) : (
+              "بررسی و ثبت"
+            )}
           </button>
           {!ready && (
             <p className="muted text-center text-[length:var(--fs-xs)]" role="status">

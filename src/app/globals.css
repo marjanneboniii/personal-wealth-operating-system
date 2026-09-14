@@ -4106,3 +4106,108 @@ input {
 /* Keep currency labels in Vazirmatn even inside older money utilities. */
 .money-unit { font-family: var(--font-sans); font-feature-settings: "ss01"; font-weight: inherit; }
 .table .td-num { font-family: var(--font-num); font-feature-settings: normal; }
+
+/* ─────────────────── Expense entry (/new?type=expense) ─────────────────── */
+.expense-amount-input {
+  text-align: center;
+  font-size: clamp(28px, 8vw, 40px) !important;
+  font-weight: 700 !important;
+  min-height: 64px;
+  border-color: transparent;
+  background: transparent;
+}
+.expense-amount-input:focus { border-color: var(--border); }
+.expense-amount .amount-words { text-align: center; }
+.expense-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--r-md);
+  background: var(--sunken);
+  color: var(--text-2);
+}
+.expense-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 84px;
+  padding: 0.5rem 0.2rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  font-size: var(--fs-micro);
+  color: var(--text-2);
+  touch-action: manipulation;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.expense-tile:hover { background: var(--hover); }
+.expense-tile[data-on] { border-color: var(--action); color: var(--action); font-weight: 600; }
+.expense-tile[data-on] .expense-icon { background: var(--action); color: var(--on-ink); }
+.expense-selected { background: var(--sunken); touch-action: manipulation; }
+.expense-selected:hover { background: var(--hover); }
+.expense-results {
+  max-height: 18rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.expense-results li + li { border-top: 1px solid var(--border); }
+.expense-results button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 48px;
+  padding: 0 0.75rem;
+  font-size: var(--fs-sm);
+  text-align: right;
+}
+.expense-results button:hover,
+.expense-results button[aria-selected="true"] { background: var(--hover); }
+/* Horizontal chip rows scroll on phones instead of wrapping into a wall. */
+.expense-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-inline: -0.25rem;
+  padding: 0.125rem 0.25rem;
+  scroll-snap-type: x proximity;
+}
+.expense-scroll::-webkit-scrollbar { display: none; }
+.expense-scroll > * { scroll-snap-align: start; }
+.expense-details > .expense-row + .expense-row { border-top: 1px solid var(--border); }
+.expense-row { display: grid; gap: 0.5rem; padding: 0.875rem 1rem; }
+.expense-row-label { font-size: var(--fs-xs); color: var(--text-3); }
+@media (min-width: 640px) {
+  .expense-row { grid-template-columns: 6.5rem minmax(0, 1fr); align-items: center; }
+  .expense-row > :not(.expense-row-label) { grid-column: 2; }
+}
+.expense-account {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  max-width: 14rem;
+  min-height: 48px;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-2);
+  touch-action: manipulation;
+}
+.expense-account[data-on] { border-color: var(--action); background: var(--action-soft); color: var(--action); }
+
+/* The primary action stays reachable while scrolling a long form (PWA + web). */
+.tx-submit-bar {
+  position: sticky;
+  bottom: max(4.75rem, calc(4.25rem + env(safe-area-inset-bottom)));
+  z-index: 20;
+  padding-block: 0.5rem;
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+@media (min-width: 1024px) {
+  .tx-submit-bar { bottom: 0; }
+}

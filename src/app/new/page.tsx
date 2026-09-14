@@ -9,7 +9,7 @@ import { todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { listDebts } from "@/features/planning/service";
 import { ensureCategoryCatalog, listCategoryTree } from "@/features/categories/service";
-import { getAccountBalances } from "@/features/ledger/queries";
+import { getAccountBalances, getExpenseHabits } from "@/features/ledger/queries";
 import { listRealEstateAssets } from "@/features/rwa/realEstate/service";
 import { listUserVehicles } from "@/features/rwa/vehicle/service";
 import { ensureCryptoNetworks, getCryptoNetworks } from "@/features/trade/networkSync";
@@ -43,7 +43,7 @@ export default async function NewTransactionPage({
   // price refresh is what made «ثبت تراکنش» slow to open.
   // Coin networks refresh in the background (at most daily); the page reads what is stored now.
   void ensureCryptoNetworks();
-  const [rows, fxSnap, debts, categoryTree, balances, properties, vehicles, assetNetworks, incomeTree, occupations, incomePlan] = await Promise.all([
+  const [rows, fxSnap, debts, categoryTree, balances, properties, vehicles, assetNetworks, incomeTree, occupations, incomePlan, expenseHabits] = await Promise.all([
     db
       .select({
         id: accounts.id,
@@ -88,6 +88,8 @@ export default async function NewTransactionPage({
     ensureCategoryCatalog().then(() => listCategoryTree(userId ?? undefined, "income")),
     getUserOccupations(userId),
     userId && params.planId && /^[0-9a-f-]{36}$/i.test(params.planId) ? getIncomePlan(params.planId, userId) : Promise.resolve(null),
+    // Recent categories and the last paying account — the expense form pre-selects from them.
+    userId ? getExpenseHabits(userId) : Promise.resolve({ categoryIds: [], lastAccountId: null }),
   ]);
   const incomePlanParent = incomePlan ? incomeTree.find((p) => p.children.some((c) => c.id === incomePlan.categoryId)) : undefined;
 
@@ -147,6 +149,8 @@ export default async function NewTransactionPage({
             description: c.description,
           })),
         }))}
+        expenseRecentCategoryIds={expenseHabits.categoryIds}
+        lastExpenseAccountId={expenseHabits.lastAccountId}
         debts={debts as any}
         defaultType={defaultType}
         today={todayIso()}
