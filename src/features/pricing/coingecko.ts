@@ -155,6 +155,31 @@ export class CoinGeckoClient {
     return result;
   }
 
+  /**
+   * Every coin with the chains it is deployed on (`/coins/list?include_platform=true`).
+   * A few MB — callers give this client a longer timeout.
+   */
+  async fetchCoinPlatforms(): Promise<Array<{ id: string; symbol: string; platforms: Record<string, string> }>> {
+    const data = await this.request("/coins/list", new URLSearchParams({ include_platform: "true" }));
+    if (!Array.isArray(data)) {
+      throw new CoinGeckoRequestError("invalid_response", "CoinGecko coin list payload is not an array");
+    }
+    return data
+      .filter((row: any) => typeof row?.id === "string" && row.id && typeof row?.symbol === "string" && row.symbol)
+      .map((row: any) => ({
+        id: row.id as string,
+        symbol: String(row.symbol).toUpperCase(),
+        platforms:
+          row.platforms && typeof row.platforms === "object" && !Array.isArray(row.platforms)
+            ? Object.fromEntries(
+                Object.entries(row.platforms as Record<string, unknown>)
+                  .filter(([key]) => !!key)
+                  .map(([key, value]) => [key, typeof value === "string" ? value : ""]),
+              )
+            : {},
+      }));
+  }
+
   async fetchTopAssets(limit = 150): Promise<CoinGeckoCatalogAsset[]> {
     return this.fetchAssetPage(
       new URLSearchParams({

@@ -260,3 +260,45 @@ test("an empty real-asset list changes nothing at all", async () => {
   assert.equal((await listUserVehicles()).length, 0);
   assert.equal((await listRealEstateAssets()).length, 0);
 });
+
+test("every account numbers its own properties and vehicles from 1, independently of other users", async () => {
+  await freshDb();
+  const { model, city, hood, propertyType } = await catalogs();
+  assert.ok(model && city && hood && propertyType);
+
+  const property = {
+    cityId: city!.id,
+    neighborhoodId: hood!.id,
+    propertyTypeId: propertyType!.id,
+    acquisitionDate: "2023-05-10",
+    purchasePriceToman: "45000000000",
+    currentValueToman: "62000000000",
+  };
+  const vehicle = {
+    catalogId: model.id,
+    manufacturingYear: "1400",
+    ownershipDate: "2024-06-01",
+    purchasePriceToman: "8500000000",
+  };
+
+  const [userA] = await db.insert(users).values({ name: "کاربر الف" }).returning();
+  const [userB] = await db.insert(users).values({ name: "کاربر ب" }).returning();
+  const [userC] = await db.insert(users).values({ name: "کاربر ج" }).returning();
+
+  // A registers two properties and one vehicle; B and C each register one of each afterwards.
+  const a = await completeSetup({ ...BASE, userName: "کاربر الف", properties: [property, property], vehicles: [vehicle] }, userA.id);
+  assert.equal(a.ok, true, a.message);
+  const b = await completeSetup({ ...BASE, userName: "کاربر ب", properties: [property], vehicles: [vehicle] }, userB.id);
+  assert.equal(b.ok, true, b.message);
+  const c = await completeSetup({ ...BASE, userName: "کاربر ج", properties: [property], vehicles: [vehicle] }, userC.id);
+  assert.equal(c.ok, true, c.message);
+
+  const labels = async (userId: string) => ({
+    properties: (await listRealEstateAssets(userId)).map((p) => p.label).sort(),
+    vehicles: (await listUserVehicles(userId)).map((v) => v.label).sort(),
+  });
+
+  assert.deepEqual(await labels(userA.id), { properties: ["ملک ۱", "ملک ۲"], vehicles: ["خودرو ۱"] });
+  assert.deepEqual(await labels(userB.id), { properties: ["ملک ۱"], vehicles: ["خودرو ۱"] }, "B starts at 1, not after A");
+  assert.deepEqual(await labels(userC.id), { properties: ["ملک ۱"], vehicles: ["خودرو ۱"] }, "C starts at 1 as well");
+});

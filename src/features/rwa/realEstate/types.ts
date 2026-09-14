@@ -59,8 +59,13 @@ export type PropertyType = {
 export type RealEstateAsset = {
   id: string;
   assetId: string;
+  /** Internal, globally unique asset key — never shown as the user's identifier. */
   symbol: string;
   assetName: string;
+  /** Per-user property counter (1, 2, …) — independent of vehicles and other users. */
+  userSeq: number | null;
+  /** User-facing identifier, e.g. «ملک ۱». */
+  label: string;
   userId: string | null;
   /* master data */
   cityId: string | null;
@@ -188,6 +193,12 @@ export type RealEstatePortfolioSummary = {
 
 export type CreateRealEstateAssetInput = {
   userId?: string | null;
+  /**
+   * A purchase paid now from a Toman bank account: the opening entry credits
+   * that bank instead of opening equity. Omitted, the property is registered as
+   * a past acquisition, exactly as before.
+   */
+  paymentAccountId?: string | null;
   /* master data (must be ACTIVE) */
   cityId: string;
   neighborhoodId: string;
@@ -226,6 +237,8 @@ export type RecordRealEstateValuationInput = {
 
 export type RealEstateNamePreview = {
   assetName: string;
-  symbol: string;
+  /** The next per-user label, e.g. «ملک ۱». */
+  label: string;
+  userSeq: number;
   sequence: number;
 };

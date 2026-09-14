@@ -15,6 +15,8 @@ import { refreshUserFxRateFromMarket } from "@/features/fx/userRate";
 import FxSettings from "@/components/settings/FxSettings";
 import UserPanel from "@/components/settings/UserPanel";
 import AuthAccessCard from "@/components/auth/AuthAccessCard";
+import OccupationSettings from "@/components/settings/OccupationSettings";
+import { getUserOccupations } from "@/features/preferences/service";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +45,7 @@ export default async function SettingsPage() {
     user ? refreshUserFxRateFromMarket(user.id) : Promise.resolve({ rate: "190000", lastUpdatedAt: null, source: "default" } as any),
   ]);
   const c = counts.rows[0] as Record<string, string>;
+  const occupations = user ? await getUserOccupations(user.id) : [];
 
   return (
     <div className="space-y-8">
@@ -53,6 +56,9 @@ export default async function SettingsPage() {
           <Section title="حساب کاربری">
             <UserPanel user={sanitizeUser(user) as any} />
             {(user.role === "owner" || user.role === "admin") && <Link href="/admin" className="btn btn-ghost mt-3">مدیریت کاربران</Link>}
+          </Section>
+          <Section title="وضعیت شغلی">
+            <OccupationSettings initial={occupations} />
           </Section>
         </>
       )}

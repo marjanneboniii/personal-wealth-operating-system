@@ -16,6 +16,7 @@ import { getUserProMode } from "@/features/preferences/service";
 import { eq, inArray } from "drizzle-orm";
 import { assets, debts, entryFxSnapshots, installments, realEstateProperties } from "@/db/schema";
 import { summariseBalances } from "@/features/ledger/summary";
+import { buildRwaLabel } from "@/features/rwa/symbol";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
   // Asset ↔ ledger navigation back-link: which real-estate property owns this entry?
   const focusedProperty = focusEntryId
     ? await db
-        .select({ id: realEstateProperties.id, name: assets.name, symbol: assets.symbol })
+        .select({ id: realEstateProperties.id, name: assets.name, symbol: assets.symbol, userSeq: realEstateProperties.userSeq })
         .from(realEstateProperties)
         .innerJoin(assets, eq(assets.id, realEstateProperties.assetId))
         .where(eq(realEstateProperties.ledgerEntryId, focusEntryId))
@@ -406,7 +407,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                     {focusedProperty.length > 0 && (
                       <span>
                         <Link href="/asset-registry" className="font-medium underline" style={{ color: "var(--action)" }}>
-                          ← سند تملک ملک (شناسه {toFaDigits(focusedProperty[0].symbol)})
+                          ← سند تملک {buildRwaLabel("property", focusedProperty[0].userSeq)}
                         </Link>
                       </span>
                     )}

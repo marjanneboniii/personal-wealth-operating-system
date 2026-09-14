@@ -153,8 +153,8 @@ test("«املاک من» renders the property list as the DEFAULT tab, with its
   // 2. The LIST table — this is what the positional mismatch used to hide.
   assert.ok(html.includes("قیمت خرید تومان"), "the property list table header must render");
   assert.ok(html.includes("ارزش فعلی دلار"), "the property list columns must render");
-  const symbolFa = String(property.symbol).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
-  assert.ok(html.includes(symbolFa), `the generated property id (${property.symbol}) must be listed`);
+  assert.ok(html.includes(property.label), `the per-user property label (${property.label}) must be listed`);
+  assert.ok(html.includes("ملک ۱"), "a user's first property is «ملک ۱», whatever other users registered");
 
   // 3. The portfolio totals strip — driven by realEstateSummary.count.
   assert.ok(html.includes("مجموع ارزش املاک"), "the property totals must render (summary.count > 0)");

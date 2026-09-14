@@ -51,6 +51,7 @@ export default async function AssetRegistryPage() {
         vehicleDashboard={data.vehicleDashboard}
         vehicleSummary={data.vehicleSummary}
         payoutAccounts={data.payoutAccounts}
+        bankAccounts={data.bankAccounts}
         realEstateDashboard={data.realEstateDashboard}
         realEstateSummary={data.realEstateSummary}
         cities={data.cities}

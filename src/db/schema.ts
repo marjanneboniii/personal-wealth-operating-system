@@ -158,6 +158,8 @@ export const expenseCategories = pgTable(
     /** System catalog entries are managed by the standard taxonomy. */
     isSystem: boolean("is_system").notNull().default(true),
     isActive: boolean("is_active").notNull().default(true),
+    /** expense | income — the same parent → leaf tree classifies both flows. */
+    kind: text("kind").notNull().default("expense"),
   },
   (t) => [
     uniqueIndex("expense_categories_user_code_uq").on(t.userId, t.code),
@@ -594,6 +596,10 @@ export const plannedTransactions = pgTable(
     goalId: uuid("goal_id").references(() => goals.id),
     eventId: uuid("event_id").references(() => events.id),
     note: text("note"),
+    /** Recurring income: its income category, amount in the receiving account's unit, and Jalali day of month. */
+    categoryId: uuid("category_id").references(() => expenseCategories.id, { onDelete: "set null" }),
+    amountNative: money("amount_native"),
+    dayOfMonth: integer("day_of_month"),
   },
   (t) => [
     index("planned_date_idx").on(t.plannedDate, t.status),
@@ -880,9 +886,12 @@ export const realEstateProperties = pgTable(
     currentValueUsd: money("current_value_usd"),
     /* ── ledger link (asset ↔ journal entry navigation) ── */
     ledgerEntryId: uuid("ledger_entry_id").references(() => journalEntries.id),
+    /** Per-user property counter shown as «ملک ۱», independent of vehicles and other users. */
+    userSeq: integer("user_seq"),
   },
   (t) => [
     index("real_estate_properties_user_idx").on(t.userId),
+    uniqueIndex("real_estate_properties_user_seq_unique").on(t.userId, t.userSeq),
     index("real_estate_properties_city_area_idx").on(t.city, t.area),
     index("real_estate_properties_city_idx").on(t.cityId),
     index("real_estate_properties_neighborhood_idx").on(t.neighborhoodId),
@@ -1077,9 +1086,12 @@ export const vehicleAssets = pgTable(
     saleUsdRate: money("sale_usd_rate"),
     saleValueUsd: money("sale_value_usd"),
     notes: text("notes"),
+    /** Per-user vehicle counter shown as «خودرو ۱», independent of properties and other users. */
+    userSeq: integer("user_seq"),
   },
   (t) => [
     index("vehicle_assets_user_idx").on(t.userId),
+    uniqueIndex("vehicle_assets_user_seq_unique").on(t.userId, t.userSeq),
     index("vehicle_assets_catalog_idx").on(t.catalogId),
   ],
 );
@@ -1188,6 +1200,19 @@ export const wallexAssetCatalog = pgTable(
     index("wallex_catalog_source_idx").on(t.source),
   ],
 );
+
+/**
+ * MARKET DATA ONLY. The network families each coin lives on («evm», «bitcoin»,
+ * «solana»…), derived from CoinGecko platform data by `features/trade/networkSync`.
+ * Rows with `synced_at` = epoch are the offline seed, replaced by the first sync.
+ */
+export const cryptoNetworks = pgTable("crypto_networks", {
+  symbol: text("symbol").primaryKey(),
+  coingeckoId: text("coingecko_id"),
+  /** comma-separated, sorted families */
+  networks: text("networks").notNull(),
+  syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const coingeckoAssetCatalog = pgTable(
   "coingecko_asset_catalog",
@@ -1336,6 +1361,18 @@ export const entryFxSnapshots = pgTable(
     fxRate: money("fx_rate").notNull(),
     rateSource: text("rate_source").notNull().default("settings"),
     rateDate: date("rate_date").notNull(),
+    /* ── Buy / sell / swap freeze (display + audit only; null for other entries) ── */
+    tradeSymbol: text("trade_symbol"),
+    tradeQuantity: money("trade_quantity"),
+    /** what left (buy) or reached (sell) the settlement account, in its own unit */
+    settleSymbol: text("settle_symbol"),
+    settleQuantity: money("settle_quantity"),
+    unitPriceIrt: money("unit_price_irt"),
+    unitPriceUsdt: money("unit_price_usdt"),
+    /** Toman per 1 USDT at commit time */
+    usdtRateIrt: money("usdt_rate_irt"),
+    /** market | limit */
+    priceMode: text("price_mode"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("entry_fx_snap_entry_idx").on(t.entryId)],
@@ -1551,6 +1588,8 @@ export const userPreferences = pgTable(
       .references(() => users.id, { onDelete: "cascade" })
       .unique(),
     proMode: boolean("pro_mode").notNull().default(false),
+    /** Comma-separated occupation codes (features/income/occupations) — orders income suggestions. */
+    occupations: text("occupations"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

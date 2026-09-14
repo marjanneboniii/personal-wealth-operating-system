@@ -45,6 +45,28 @@ import { isLiquidAccount } from "@/features/accounts/classification";
 import type { MarketRow } from "@/features/pricing/marketSearch";
 import { normalizeNumericInput } from "@/lib/numericInput";
 import { FormStatus } from "@/components/ui/FormStatus";
+import {
+  isStablecoin,
+  isTomanOnlyInstrument,
+  priceUnitFor,
+  quoteTrade,
+  registrySaleError,
+  tradePairError,
+  type PriceUnit,
+} from "@/features/trade/rules";
+import { DOMESTIC_EXCHANGE_NAMES, venueTradeError, venueTransferError } from "@/features/trade/venues";
+import { AutomobileLogo, RealEstateLogo } from "@/components/ui/IranLogo";
+import { jalaliDayOf } from "@/features/income/recurring";
+
+/** A property or vehicle the user owns, sellable from «فروش دارایی». */
+export type RegistrySaleOption = {
+  kind: "property" | "vehicle";
+  id: string;
+  /** «ملک ۱» / «خودرو ۲» */
+  label: string;
+  detail: string;
+  valueToman: string | null;
+};
 
 export type AccountOption = {
   id: string;
@@ -64,6 +86,8 @@ export type AccountOption = {
   classCode?: string | null;
   className?: string | null;
   walletKind?: string | null;
+  /** `wallets.name` — the place the account is held in (بیت‌پین، ربی والت…). */
+  walletName?: string | null;
 };
 
 /** Hierarchical expense categories (parent → leaf children). */
@@ -78,6 +102,8 @@ export type CategoryGroupOption = {
   id: string;
   code: string;
   name: string;
+  /** Assignment rule of the group, shown under the picker. */
+  description?: string | null;
   children: CategoryChildOption[];
 };
 
@@ -115,8 +141,32 @@ function resolve(id: string, options: AccountOption[], autoSingle = true): strin
   return autoSingle && options.length === 1 ? options[0].id : "";
 }
 
+/** Cut (never round up) to `decimals` places — «همه» must not exceed the holding. */
+function cutDecimals(value: string, decimals: number): string {
+  const [int, frac = ""] = value.split(".");
+  const cut = frac.slice(0, decimals).replace(/0+$/, "");
+  return cut ? `${int}.${cut}` : int;
+}
+
+/** A unit price or total in the price unit: Toman whole, Tether to 6 places. */
+function formatInUnit(value: string | null | undefined, unit: PriceUnit): string {
+  if (!value) return "—";
+  return unit === "IRT" ? formatMoney(D(value).toFixed(0), "IRT") : `${formatQty(value, 6)} تتر`;
+}
+
 type Props = {
   accounts: AccountOption[];
+  /** Posted quantity per account id, in the account's own unit. */
+  balances?: Record<string, string>;
+  registryAssets?: RegistrySaleOption[];
+  /** symbol → network families, synced from CoinGecko platform data */
+  assetNetworks?: Record<string, string[]>;
+  /** Income sources — the income category tree (never ledger accounts). */
+  incomeCategories?: CategoryGroupOption[];
+  /** Income category codes to offer first, from the user's occupations. */
+  incomeSuggestions?: string[];
+  /** Opened from a recurring-income reminder: its values, to edit before recording. */
+  initialIncome?: { planId: string; categoryId: string; parentId: string; accountId: string; amount: string } | null;
   categories?: CategoryGroupOption[];
   debts?: DebtOption[];
   defaultType?: TxType;
@@ -183,6 +233,12 @@ function AccountSelect({
 
 export default function TransactionForm({
   accounts,
+  balances = {},
+  registryAssets = [],
+  assetNetworks = {},
+  incomeCategories = [],
+  incomeSuggestions = [],
+  initialIncome = null,
   categories = [],
   debts = [],
   defaultType = "expense",
@@ -200,17 +256,33 @@ export default function TransactionForm({
   const [type, setType] = useState<TxType>(defaultType);
   const [irtAmount, setIrtAmount] = useState(() => normalizeNumericInput(initialIrtAmount ?? ""));
   const [quantity, setQuantity] = useState("");
+  // Buy / sell: the market price, or a limit price the user types.
+  const [priceMode, setPriceMode] = useState<"market" | "limit">("market");
+  const [limitPrice, setLimitPrice] = useState("");
+  // Sell: a property or vehicle («property:<id>»), sold for a Toman price.
+  const [registryKey, setRegistryKey] = useState("");
+  const [salePrice, setSalePrice] = useState("");
+  // A Toman buy: the Iranian exchange it happens at.
+  const [placeName, setPlaceName] = useState("");
   const [fee, setFee] = useState("");
   const [entryDate, setEntryDate] = useState(initialEntryDate ?? today);
   const [description, setDescription] = useState(initialDescription ?? initialTitle ?? "");
 
   // One selection per ROLE, not per ledger column: a bank account chosen to
   // pay an expense is still selected when the user switches to «خرید دارایی».
-  const [moneyAccountId, setMoneyAccountId] = useState("");
+  const [moneyAccountId, setMoneyAccountId] = useState(initialIncome?.accountId ?? "");
   const [assetAccountId, setAssetAccountId] = useState("");
   const [fromAccountId, setFromAccountId] = useState("");
   const [toAccountId, setToAccountId] = useState("");
-  const [incomeAccountId, setIncomeAccountId] = useState("");
+  // Income: a SOURCE from the income category tree (never a ledger account), an
+  // amount in the receiving account's own unit, and an optional monthly repeat.
+  const [incomeGroups, setIncomeGroups] = useState<CategoryGroupOption[]>(incomeCategories);
+  const [incomeParentId, setIncomeParentId] = useState(initialIncome?.parentId ?? "");
+  const [incomeCategoryId, setIncomeCategoryId] = useState(initialIncome?.categoryId ?? "");
+  const [incomeAmount, setIncomeAmount] = useState(initialIncome?.amount ?? "");
+  const [recurring, setRecurring] = useState(false);
+  const [recurringDay, setRecurringDay] = useState(() => jalaliDayOf(initialEntryDate ?? today));
+  const planId = initialIncome?.planId ?? "";
 
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroupOption[]>(categories);
   const [categoryParentId, setCategoryParentId] = useState("");
@@ -244,6 +316,11 @@ export default function TransactionForm({
     if (state?.ok) {
       setIrtAmount("");
       setQuantity("");
+      setLimitPrice("");
+      setRegistryKey("");
+      setSalePrice("");
+      setIncomeAmount("");
+      setRecurring(false);
       setFee("");
       setDescription("");
       setSelectedDebt(null);
@@ -259,22 +336,68 @@ export default function TransactionForm({
   const moneyOptions = assetAccounts.filter((a) => isLiquidAccount(a));
   // What can be bought or sold: any position that is not plain fiat.
   const tradeOptions = assetAccounts.filter((a) => !FIAT_SYMBOLS.has((a.symbol ?? "").toUpperCase()));
-  const incomeOptions = accountOptions.filter((a) => a.type === "income");
+  const incomeParent = incomeGroups.find((g) => g.id === incomeParentId) ?? null;
+  const incomeCategory = incomeParent?.children.find((c) => c.id === incomeCategoryId) ?? null;
+  const suggestedIncome = incomeSuggestions.flatMap((code) =>
+    incomeGroups.flatMap((g) => g.children.filter((c) => c.code === code).map((c) => ({ ...c, parentId: g.id }))),
+  );
+  const byId = (id: string) => accountOptions.find((a) => a.id === id);
+  const balanceOf = (id: string | undefined) => {
+    const raw = id ? balances[id] : undefined;
+    return raw ? D(raw) : null;
+  };
+  // Only what is actually held can be sold.
+  const chipOptions = type === "sell" ? tradeOptions.filter((a) => balanceOf(a.id)?.gt(0)) : tradeOptions;
+  const registryItem =
+    type === "sell" ? (registryAssets.find((r) => `${r.kind}:${r.id}` === registryKey) ?? null) : null;
+  const isRegistrySale = !!registryItem;
 
   const fromId = resolve(fromAccountId, assetAccounts, false);
   // A transfer can never land in the account it left.
   const toOptions = assetAccounts.filter((a) => a.id !== fromId);
-  const toId = resolve(toAccountId, toOptions, false);
-  const moneyId = resolve(moneyAccountId, moneyOptions);
-  const assetId = resolve(assetAccountId, tradeOptions, false);
-  const incomeId = resolve(incomeAccountId, incomeOptions);
-
-  const byId = (id: string) => accountOptions.find((a) => a.id === id);
-  const moneyAccount = byId(moneyId);
+  // …nor in a wallet that does not support the coin's network.
+  const transferSymbol = (byId(fromId)?.symbol ?? "").toUpperCase();
+  const transferTargets = toOptions.filter((a) => !venueTransferError(transferSymbol, a, assetNetworks[transferSymbol]));
+  const toId = resolve(toAccountId, transferTargets, false);
+  const assetId = isRegistrySale ? "" : resolve(assetAccountId, type === "sell" ? chipOptions : tradeOptions, false);
   const assetAccount = byId(assetId);
+  const assetInstrument = {
+    symbol: assetAccount?.symbol,
+    classCode: assetAccount?.classCode,
+    className: assetAccount?.className,
+  };
+  // The money a trade may settle in — the same rule the server enforces:
+  // Toman or a stablecoin, and a Toman BANK account for Iranian-market assets,
+  // properties and vehicles. Accounts that do not qualify are simply not listed.
+  const assetPlace = { walletName: assetAccount?.walletName, walletKind: assetAccount?.walletKind };
+  // WHERE it trades: a bank pays at an Iranian exchange; a stablecoin pays only
+  // where it is held, in the coins that place trades (see features/trade/venues).
+  const venueAllows = (a: AccountOption) => {
+    if (!isTrade || isTomanOnlyInstrument(assetInstrument)) return true;
+    const side = type === "sell" ? "sell" : "buy";
+    const target =
+      side === "sell"
+        ? assetPlace
+        : priceUnitFor(a.symbol) === "IRT"
+          ? { walletName: placeName || DOMESTIC_EXCHANGE_NAMES[0], walletKind: "exchange" }
+          : { walletName: a.walletName, walletKind: a.walletKind };
+    return !venueTradeError(
+      side,
+      { ...assetInstrument, place: assetPlace, networks: assetNetworks[(assetAccount?.symbol ?? "").toUpperCase()] },
+      { symbol: a.symbol, walletKind: a.walletKind, walletName: a.walletName, name: a.name },
+      target,
+    );
+  };
+  const settleOptions = isRegistrySale
+    ? moneyOptions.filter((a) => !registrySaleError(a))
+    : isTrade && assetAccount
+      ? moneyOptions.filter((a) => !tradePairError(type, assetInstrument, a) && venueAllows(a))
+      : moneyOptions;
+  const moneyId = resolve(moneyAccountId, isTrade ? settleOptions : moneyOptions);
+
+  const moneyAccount = byId(moneyId);
   const fromAccount = byId(fromId);
   const toAccount = byId(toId);
-  const incomeAccount = byId(incomeId);
 
   /* ── Expense category ─────────────────────────────────────────────── */
   const selectedParent = categoryGroups.find((g) => g.id === categoryParentId) ?? null;
@@ -298,8 +421,8 @@ export default function TransactionForm({
       primaryAccountId = isNonCash ? "" : moneyId;
       break;
     case "income":
+      // The income account is resolved on the server from the chosen source.
       primaryAccountId = moneyId;
-      counterAccountId = incomeId;
       break;
     case "transfer":
       primaryAccountId = fromId;
@@ -318,7 +441,8 @@ export default function TransactionForm({
 
   /* ── Market price for the chosen asset ────────────────────────────── */
   useEffect(() => {
-    if (!isTrade || market.size > 0) return;
+    // Trades need prices; an income into a Tether wallet needs the Tether rate.
+    if (!(isTrade || type === "income") || market.size > 0) return;
     let alive = true;
     loadMarketCatalog().then((result) => {
       if (alive && result.ok) setMarket(new Map(result.rows.map((row) => [row.symbol, row])));
@@ -326,19 +450,79 @@ export default function TransactionForm({
     return () => {
       alive = false;
     };
-  }, [isTrade, market.size]);
+  }, [isTrade, type, market.size]);
 
   const marketRow = assetAccount?.symbol ? market.get(assetAccount.symbol.toUpperCase()) : undefined;
   const assetName = marketRow?.displayName ?? assetAccount?.name ?? "";
-  const marketPrice = marketRow?.priceTmn ? D(marketRow.priceTmn) : null;
+  const assetSymbol = (assetAccount?.symbol ?? "").toUpperCase();
   const amountValue = irtAmount ? D(irtAmount) : null;
   const quantityValue = quantity ? D(quantity) : null;
-  const hasAmount = !!amountValue && amountValue.gt(0);
   const hasQuantity = !!quantityValue && quantityValue.gt(0);
   const qtyDecimals = Math.min(Math.max(assetAccount?.decimals ?? 8, 0), 8);
-  const tradeUnitPrice = hasAmount && hasQuantity ? amountValue!.div(quantityValue!) : null;
+  const heldQty = balanceOf(assetId);
 
-  const trimQty = (fixed: string) => (fixed.includes(".") ? fixed.replace(/\.?0+$/, "") : fixed);
+  /* ── Trade price: in the settlement unit (Toman, or Tether for a stablecoin wallet) ── */
+  const priceUnit = priceUnitFor(moneyAccount?.symbol);
+  const priceUnitLabel = priceUnit === "IRT" ? "تومان" : "تتر";
+  // A coin bought with Toman is bought — and held — at an Iranian exchange.
+  const needsPlace =
+    type === "buy" &&
+    !isRegistrySale &&
+    !!assetAccount &&
+    !!moneyAccount &&
+    priceUnit === "IRT" &&
+    !isTomanOnlyInstrument(assetInstrument) &&
+    !isStablecoin(assetSymbol);
+  const usdtToman = market.get("USDT")?.priceTmn ?? effectiveRate ?? null;
+  const marketUnitPrice = !assetAccount
+    ? null
+    : priceUnit === "USDT" && isStablecoin(assetSymbol)
+      ? "1"
+      : priceUnit === "IRT"
+        ? (marketRow?.priceTmn ?? null)
+        : (marketRow?.priceUsdt ?? null);
+  const usingMarket = priceMode === "market" && !!marketUnitPrice;
+  const unitPrice = usingMarket ? (marketUnitPrice ?? "") : limitPrice;
+  const quote = isTrade && hasQuantity && unitPrice ? quoteTrade({ quantity, unitPrice, priceUnit, usdtToman }) : null;
+  const overHeld = type === "sell" && hasQuantity && !!heldQty && quantityValue!.gt(heldQty);
+  // A trade's Toman amount is DERIVED from quantity × price; it is never typed.
+  const salePriceValue = salePrice ? D(salePrice) : null;
+  // Income is typed in the receiving account's unit; its Toman value is derived for the preview.
+  const incomeSymbol = (type === "income" ? (moneyAccount?.symbol ?? "IRT") : "IRT").toUpperCase();
+  const incomeIsToman = incomeSymbol === "IRT" || incomeSymbol === "IRR";
+  const incomeValue = incomeAmount ? D(incomeAmount) : null;
+  const incomeToman =
+    !incomeValue || incomeValue.lte(0)
+      ? ""
+      : incomeIsToman
+        ? (incomeSymbol === "IRR" ? incomeValue.div(10) : incomeValue).toFixed(0)
+        : incomeSymbol === "USDT" && usdtToman
+          ? incomeValue.mul(usdtToman).toFixed(0)
+          : effectiveRate
+            ? incomeValue.mul(effectiveRate).toFixed(0)
+            : "";
+  const postedIrt = isRegistrySale
+    ? salePrice
+    : isTrade
+      ? quote
+        ? D(quote.totalToman).toFixed(0)
+        : ""
+      : type === "income"
+        ? incomeToman
+        : irtAmount;
+  const hasAmount = isRegistrySale
+    ? !!salePriceValue && salePriceValue.gt(0)
+    : isTrade
+      ? !!quote
+      : type === "income"
+        ? !!incomeToman
+        : !!amountValue && amountValue.gt(0);
+  const settleTotalLabel = quote
+    ? priceUnit === "IRT"
+      ? formatMoney(D(quote.total).toFixed(0), "IRT")
+      : `${formatQty(quote.total, 6)} ${currencyLabel(moneyAccount?.symbol)}`
+    : "—";
+  const qtyWithUnit = hasQuantity ? `${formatQty(quantity, qtyDecimals)} ${currencyLabel(assetSymbol)}` : "—";
 
   /* ── Fee: in the unit of the account that pays it ─────────────────── */
   const feePayAccount = type === "transfer" ? fromAccount : moneyAccount;
@@ -352,7 +536,7 @@ export default function TransactionForm({
     isCrossUnitTransfer &&
     (SWAP_ANCHOR_ASSETS.has(fromAccount?.symbol ?? "") || SWAP_ANCHOR_ASSETS.has(toAccount?.symbol ?? ""));
 
-  const previewUsd = hasAmount && effectiveRate ? amountValue!.div(effectiveRate).toFixed(2) : "";
+  const previewUsd = hasAmount && effectiveRate ? D(postedIrt).div(effectiveRate).toFixed(2) : "";
 
   /* ── Description, filled in from what was chosen ──────────────────── */
   const autoDescription = (() => {
@@ -360,13 +544,14 @@ export default function TransactionForm({
       case "expense":
         return selectedCategory ? `هزینه — ${selectedCategory.name}` : "هزینه";
       case "income":
-        return incomeAccount ? `درآمد — ${incomeAccount.name}` : "درآمد";
+        return incomeCategory ? `درآمد — ${incomeCategory.name}` : "درآمد";
       case "transfer":
         return fromAccount && toAccount ? `انتقال از ${fromAccount.name} به ${toAccount.name}` : "انتقال بین حساب‌ها";
       case "buy":
-        return assetName ? `خرید ${assetName}` : "خرید دارایی";
+        return assetName ? `خرید ${hasQuantity ? `${formatQty(quantity, qtyDecimals)} ` : ""}${assetName}` : "خرید دارایی";
       case "sell":
-        return assetName ? `فروش ${assetName}` : "فروش دارایی";
+        if (registryItem) return `فروش ${registryItem.label} — ${registryItem.detail}`;
+        return assetName ? `فروش ${hasQuantity ? `${formatQty(quantity, qtyDecimals)} ` : ""}${assetName}` : "فروش دارایی";
       case "debt_repayment":
         if (selectedDebt && selectedInst) return `پرداخت قسط ${faCount(selectedInst.seq)} — ${selectedDebt.title}`;
         return selectedDebt ? `بازپرداخت بدهی — ${selectedDebt.title}` : "بازپرداخت بدهی";
@@ -377,15 +562,23 @@ export default function TransactionForm({
   /* ── What is still missing — said by name ─────────────────────────── */
   const missing: string[] = [];
   if (type === "debt_repayment" && !selectedDebt) missing.push("بدهی یا قسط");
-  if (isTrade && !assetId) missing.push("دارایی");
+  if (isTrade && !assetId && !isRegistrySale) missing.push("دارایی");
   if (type === "expense" && !categoryId) missing.push("دسته هزینه");
-  if (type === "income" && !incomeId) missing.push("منبع درآمد");
+  if (type === "income" && !incomeCategoryId) missing.push("منبع درآمد");
   if (type === "transfer" && !fromId) missing.push("حساب مبدأ");
   if (type === "transfer" && !toId) missing.push("حساب مقصد");
   if (type !== "transfer" && !isNonCash && !moneyId) {
-    missing.push(type === "income" || type === "sell" ? "حساب واریز" : "حساب پرداخت");
+    missing.push(isRegistrySale ? "حساب بانکی واریز" : type === "income" || type === "sell" ? "حساب واریز" : "حساب پرداخت");
   }
-  if (!hasAmount) missing.push("مبلغ");
+  if (isRegistrySale) {
+    if (!hasAmount) missing.push("مبلغ فروش");
+  } else if (isTrade) {
+    if (!hasQuantity) missing.push("مقدار");
+    else if (!unitPrice) missing.push("قیمت هر واحد");
+    else if (!quote) missing.push("نرخ تتر");
+    if (overHeld) missing.push("مقدار کمتر یا برابر موجودی");
+    if (needsPlace && !placeName) missing.push("صرافی محل خرید");
+  } else if (!hasAmount) missing.push("مبلغ");
   if (!entryDate) missing.push("تاریخ");
   const ready = missing.length === 0;
 
@@ -397,8 +590,10 @@ export default function TransactionForm({
   };
 
   const handleCreateCategory = async () => {
-    if (!categoryParentId || !newCategoryName.trim()) return;
-    const res = await createCategoryAction({ name: newCategoryName.trim(), parentId: categoryParentId });
+    const forIncome = type === "income";
+    const parentId = forIncome ? incomeParentId : categoryParentId;
+    if (!parentId || !newCategoryName.trim()) return;
+    const res = await createCategoryAction({ name: newCategoryName.trim(), parentId });
     if (!res.ok) {
       setCategoryMessage(res.message);
       return;
@@ -407,14 +602,19 @@ export default function TransactionForm({
     const created = newCategoryName.trim();
     setNewCategoryName("");
     setShowNewCategory(false);
-    setCategoryGroups((current) =>
+    const addLeaf = (current: CategoryGroupOption[]) =>
       current.map((g) =>
-        g.id === categoryParentId && res.id
+        g.id === parentId && res.id
           ? { ...g, children: [...g.children, { id: res.id, code: "", name: created, nature: "cash", description: null }] }
           : g,
-      ),
-    );
-    if (res.id) setCategoryId(res.id);
+      );
+    if (forIncome) {
+      setIncomeGroups(addLeaf);
+      if (res.id) setIncomeCategoryId(res.id);
+    } else {
+      setCategoryGroups(addLeaf);
+      if (res.id) setCategoryId(res.id);
+    }
   };
 
   const handleSelectDebt = (d: DebtOption) => {
@@ -483,30 +683,83 @@ export default function TransactionForm({
   );
 
   /* ── Summary rows shown before the final confirm ──────────────────── */
-  const summary: Array<[string, React.ReactNode]> = [
-    ["نوع", TYPES.find((t) => t.key === type)?.label],
-    [
+  const summary: Array<[string, React.ReactNode]> = [["نوع", TYPES.find((t) => t.key === type)?.label]];
+  if (!isTrade) {
+    summary.push([
       "مبلغ",
       <>
-        <b className="num">{hasAmount ? formatMoney(irtAmount, "IRT") : "—"}</b>
+        <b className="num">
+          {!hasAmount
+            ? "—"
+            : type === "income" && !incomeIsToman
+              ? `${formatQty(incomeAmount, 6)} ${currencyLabel(incomeSymbol)}`
+              : formatMoney(postedIrt, "IRT")}
+        </b>
         {previewUsd ? <span className="muted num"> ≈ {formatMoney(previewUsd, "USD")}</span> : null}
       </>,
-    ],
-  ];
+    ]);
+  }
   if (type === "expense") {
     summary.push(["دسته", selectedParent && selectedCategory ? `${selectedParent.name} › ${selectedCategory.name}` : "—"]);
   }
-  if (type === "income") summary.push(["منبع درآمد", accountLabel(incomeAccount)]);
-  if (isTrade) {
-    summary.push(["دارایی", assetName || "—"]);
-    if (hasQuantity) summary.push(["مقدار", <span key="q" className="num">{formatQty(quantity, qtyDecimals)}</span>]);
-    if (tradeUnitPrice) summary.push(["قیمت هر واحد", <span key="u" className="num">{formatMoney(tradeUnitPrice.toFixed(0), "IRT")}</span>]);
+  if (type === "income") {
+    summary.push(["منبع درآمد", incomeParent && incomeCategory ? `${incomeParent.name} › ${incomeCategory.name}` : "—"]);
+    if (planId) summary.push(["یادآوری ماهانه", "این ماه ثبت می‌شود و ماه بعد دوباره یادآوری می‌شود"]);
+    else if (recurring) summary.push(["تکرار", `هر ماه، روز ${faCount(recurringDay)}`]);
+  }
+  if (registryItem) {
+    summary.push(
+      ["دارایی", `${registryItem.label} — ${registryItem.detail}`],
+      ["کم می‌شود از دارایی‌ها", <b key="ro" className="num" style={{ color: "var(--negative)" }}>− {registryItem.label}</b>],
+      [
+        `واریز می‌شود به ${accountLabel(moneyAccount)}`,
+        <b key="ri" className="num" style={{ color: "var(--positive)" }}>
+          + {hasAmount ? formatMoney(salePrice, "IRT") : "—"}
+        </b>,
+      ],
+    );
+  } else if (isTrade) {
+    summary.push([
+      "دارایی",
+      <span key="a">
+        {assetName || "—"} {assetSymbol ? <span className="muted num" dir="ltr">{assetSymbol}</span> : null}
+      </span>,
+    ]);
+    const outRow: [string, React.ReactNode] =
+      type === "buy"
+        ? [`کم می‌شود از ${accountLabel(moneyAccount)}`, <b key="o" className="num" style={{ color: "var(--negative)" }}>− {settleTotalLabel}</b>]
+        : [`کم می‌شود از ${assetName || "دارایی"}`, <b key="o" className="num" style={{ color: "var(--negative)" }}>− {qtyWithUnit}</b>];
+    const inRow: [string, React.ReactNode] =
+      type === "buy"
+        ? [`اضافه می‌شود به ${assetName || "دارایی"}`, <b key="i" className="num" style={{ color: "var(--positive)" }}>+ {qtyWithUnit}</b>]
+        : [`واریز می‌شود به ${accountLabel(moneyAccount)}`, <b key="i" className="num" style={{ color: "var(--positive)" }}>+ {settleTotalLabel}</b>];
+    summary.push(outRow, inRow);
+    if (needsPlace && placeName) summary.push(["محل خرید و نگهداری", placeName]);
+    if (quote) {
+      summary.push(
+        [
+          "قیمت هر واحد",
+          <span key="u" className="num">
+            {formatInUnit(quote.unitToman, "IRT")}
+            {quote.unitUsdt ? ` · ${formatInUnit(quote.unitUsdt, "USDT")}` : ""}
+          </span>,
+        ],
+        [
+          "ارزش کل",
+          <span key="t" className="num">
+            {formatInUnit(quote.totalToman, "IRT")}
+            {quote.totalUsdt ? ` · ${formatInUnit(quote.totalUsdt, "USDT")}` : ""}
+          </span>,
+        ],
+        ["نوع قیمت", usingMarket ? "قیمت بازار" : "قیمت لیمیت (دلخواه)"],
+      );
+    }
   }
   if (type === "transfer") {
     summary.push(["از", accountLabel(fromAccount)], ["به", accountLabel(toAccount)]);
     if (hasQuantity) summary.push(["مقدار", <span key="tq" className="num">{formatQty(quantity, 8)}</span>]);
-  } else if (!isNonCash) {
-    summary.push([type === "income" || type === "sell" ? "واریز به" : "پرداخت از", accountLabel(moneyAccount)]);
+  } else if (!isNonCash && !isTrade) {
+    summary.push([type === "income" ? "واریز به" : "پرداخت از", accountLabel(moneyAccount)]);
   }
   if (type === "debt_repayment" && selectedDebt) {
     summary.push(["بدهی", selectedInst ? `${selectedDebt.title} — قسط ${faCount(selectedInst.seq)}` : selectedDebt.title]);
@@ -529,12 +782,22 @@ export default function TransactionForm({
     <form action={formAction} className="space-y-4" style={{ touchAction: "manipulation" }}>
       {/* ── What reaches the server — one place, every field. ── */}
       <input type="hidden" name="type" value={type} />
-      <input type="hidden" name="irtAmount" value={irtAmount} />
+      <input type="hidden" name="irtAmount" value={postedIrt} />
+      <input type="hidden" name="settleQuantity" value={isRegistrySale ? salePrice : isTrade && quote ? quote.total : ""} />
+      <input type="hidden" name="unitPrice" value={isTrade && !isRegistrySale ? unitPrice : ""} />
+      <input type="hidden" name="priceMode" value={isTrade && !isRegistrySale ? (usingMarket ? "market" : "limit") : ""} />
+      <input type="hidden" name="registryKind" value={registryItem?.kind ?? ""} />
+      <input type="hidden" name="registryId" value={registryItem?.id ?? ""} />
+      <input type="hidden" name="placeName" value={needsPlace ? placeName : ""} />
       <input type="hidden" name="amount" value={previewUsd} />
-      <input type="hidden" name="categoryId" value={type === "expense" ? categoryId : ""} />
+      <input type="hidden" name="categoryId" value={type === "expense" ? categoryId : type === "income" ? incomeCategoryId : ""} />
+      <input type="hidden" name="nativeAmount" value={type === "income" ? incomeAmount : ""} />
+      <input type="hidden" name="recurring" value={type === "income" && recurring && !planId ? "monthly" : ""} />
+      <input type="hidden" name="recurringDay" value={type === "income" && recurring ? String(recurringDay) : ""} />
+      <input type="hidden" name="planId" value={type === "income" ? planId : ""} />
       <input type="hidden" name="primaryAccountId" value={primaryAccountId} />
       <input type="hidden" name="counterAccountId" value={counterAccountId} />
-      <input type="hidden" name="quantity" value={isTrade || type === "transfer" ? quantity : ""} />
+      <input type="hidden" name="quantity" value={(isTrade && !isRegistrySale) || type === "transfer" ? quantity : ""} />
       <input type="hidden" name="fee" value={fee} />
       <input type="hidden" name="feeMode" value={feeInToman ? "irt" : "native"} />
       <input type="hidden" name="description" value={finalDescription} />
@@ -647,7 +910,98 @@ export default function TransactionForm({
         )}
 
         {type === "income" && (
-          <AccountSelect label="منبع درآمد" value={incomeId} options={incomeOptions} onChange={setIncomeAccountId} />
+          <div className="space-y-2">
+            {suggestedIncome.length > 0 && (
+              <>
+                <p className="muted text-[length:var(--fs-xs)]">پرکاربرد برای شما:</p>
+                <div className="flex flex-wrap gap-2">
+                  {suggestedIncome.map((c) => {
+                    const on = incomeCategoryId === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="chip !py-1.5"
+                        aria-pressed={on}
+                        style={on ? { borderColor: "var(--action)", background: "var(--action-soft)", color: "var(--action)" } : undefined}
+                        onClick={() => {
+                          setIncomeParentId(c.parentId);
+                          setIncomeCategoryId(c.id);
+                        }}
+                      >
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              <select
+                className="field"
+                value={incomeParentId}
+                onChange={(e) => {
+                  setIncomeParentId(e.target.value);
+                  setIncomeCategoryId("");
+                }}
+                aria-label="گروه درآمد"
+              >
+                <option value="" disabled>
+                  گروه درآمد…
+                </option>
+                {incomeGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="field"
+                value={incomeCategoryId}
+                onChange={(e) => setIncomeCategoryId(e.target.value)}
+                disabled={!incomeParent}
+                aria-label="منبع درآمد"
+              >
+                <option value="" disabled>
+                  {incomeParent ? "منبع درآمد…" : "ابتدا گروه درآمد"}
+                </option>
+                {incomeParent?.children.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {(incomeCategory?.description || incomeParent?.description) && (
+              <p className="muted text-[length:var(--fs-xs)] leading-5">{incomeCategory?.description ?? incomeParent?.description}</p>
+            )}
+            {incomeParent && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => setShowNewCategory((v) => !v)} className="chip">
+                  {showNewCategory ? "بستن" : "+ منبع درآمد جدید"}
+                </button>
+                {categoryMessage && <span className="text-[length:var(--fs-xs)]">{categoryMessage}</span>}
+              </div>
+            )}
+            {showNewCategory && incomeParent && (
+              <div className="flex gap-2">
+                <input
+                  className="field"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder={`منبع جدید زیر «${incomeParent.name}»`}
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateCategory}
+                  disabled={!newCategoryName.trim()}
+                  className="btn btn-soft shrink-0 disabled:opacity-40"
+                >
+                  افزودن
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {type === "transfer" && (
@@ -664,7 +1018,7 @@ export default function TransactionForm({
             >
               <Icon name="swap" size={16} />
             </button>
-            <AccountSelect label="به حساب" value={toId} options={toOptions} onChange={setToAccountId} />
+            <AccountSelect label="به حساب" value={toId} options={transferTargets} onChange={setToAccountId} />
             {isCrossUnitTransfer && (
               <p
                 className="rounded-[var(--r-md)] p-2 text-[length:var(--fs-xs)] leading-5 sm:col-span-3"
@@ -685,7 +1039,18 @@ export default function TransactionForm({
 
         {isTrade && (
           <div className="space-y-2">
-            {assetAccount && !pickerOpen ? (
+            {registryItem ? (
+              <div className="soft flex items-center gap-3 rounded-[var(--r-md)] p-3">
+                {registryItem.kind === "property" ? <RealEstateLogo size={36} /> : <AutomobileLogo name={registryItem.detail} size={36} />}
+                <div className="min-w-0 flex-1">
+                  <b className="block truncate text-[length:var(--fs-sm)]">{registryItem.label}</b>
+                  <span className="muted block truncate text-[length:var(--fs-xs)]">{registryItem.detail}</span>
+                </div>
+                <button type="button" className="btn btn-ghost !min-h-9 shrink-0" onClick={() => setRegistryKey("")}>
+                  تغییر
+                </button>
+              </div>
+            ) : assetAccount && !pickerOpen ? (
               <div className="soft flex items-center gap-3 rounded-[var(--r-md)] p-3">
                 <AssetLogo
                   symbol={assetAccount.symbol}
@@ -697,16 +1062,21 @@ export default function TransactionForm({
                   radius={10}
                 />
                 <div className="min-w-0 flex-1">
-                  <b className="block truncate text-[length:var(--fs-sm)]">{assetName}</b>
-                  <span className="muted text-[length:var(--fs-xs)]">
-                    {marketRow?.priceTmn ? (
-                      <>
-                        قیمت بازار هر واحد: <span className="num">{formatMoney(marketRow.priceTmn, "IRT")}</span>
-                      </>
-                    ) : (
-                      <span className="num" dir="ltr">{assetAccount.symbol}</span>
-                    )}
+                  <b className="flex min-w-0 items-baseline gap-1.5 text-[length:var(--fs-sm)]">
+                    <span className="truncate">{assetName}</span>
+                    <span className="muted num shrink-0 text-[length:var(--fs-xs)] font-medium" dir="ltr">
+                      {assetSymbol}
+                    </span>
+                  </b>
+                  <span className="muted block text-[length:var(--fs-xs)]">
+                    موجودی شما: <span className="num">{heldQty ? formatQty(heldQty.toString(), qtyDecimals) : "۰"}</span>
                   </span>
+                  {(marketRow?.priceTmn || marketRow?.priceUsdt) && (
+                    <span className="muted block text-[length:var(--fs-xs)]">
+                      قیمت بازار: <span className="num">{marketRow?.priceTmn ? formatInUnit(marketRow.priceTmn, "IRT") : "—"}</span>
+                      {marketRow?.priceUsdt ? <span className="num"> · {formatInUnit(marketRow.priceUsdt, "USDT")}</span> : null}
+                    </span>
+                  )}
                 </div>
                 <button type="button" className="btn btn-ghost !min-h-9 shrink-0" onClick={() => setPickerOpen(true)}>
                   تغییر
@@ -714,16 +1084,19 @@ export default function TransactionForm({
               </div>
             ) : (
               <>
-                {tradeOptions.length > 0 && !pickerOpen && (
+                {chipOptions.length > 0 && !pickerOpen && (
                   <>
                     <p className="muted text-[length:var(--fs-xs)]">دارایی‌های شما:</p>
                     <div className="flex flex-wrap gap-2">
-                      {tradeOptions.slice(0, 16).map((a) => (
+                      {chipOptions.slice(0, 24).map((a) => (
                         <button
                           key={a.id}
                           type="button"
                           className="chip !py-1.5"
-                          onClick={() => setAssetAccountId(a.id)}
+                          onClick={() => {
+                            setAssetAccountId(a.id);
+                            setRegistryKey("");
+                          }}
                         >
                           <AssetLogo
                             symbol={a.symbol}
@@ -735,12 +1108,60 @@ export default function TransactionForm({
                             radius={5}
                           />
                           {market.get((a.symbol ?? "").toUpperCase())?.displayName ?? a.name}
+                          <span className="muted num text-[length:var(--fs-xs)]" dir="ltr">
+                            {a.symbol}
+                          </span>
+                          {balanceOf(a.id)?.gt(0) && (
+                            <span className="num text-[length:var(--fs-xs)]">
+                              {formatQty(balanceOf(a.id)!.toString(), Math.min(Math.max(a.decimals, 0), 8))}
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
                   </>
                 )}
-                {pickerOpen || tradeOptions.length === 0 ? (
+                {type === "buy" && !pickerOpen && (
+                  <div className="flex flex-wrap gap-2">
+                    <a href="/asset-registry" className="chip !py-1.5">
+                      <RealEstateLogo size={18} />
+                      خرید ملک
+                    </a>
+                    <a href="/asset-registry" className="chip !py-1.5">
+                      <AutomobileLogo size={18} />
+                      خرید خودرو
+                    </a>
+                  </div>
+                )}
+                {type === "sell" && registryAssets.length > 0 && (
+                  <>
+                    <p className="muted text-[length:var(--fs-xs)]">ملک و خودرو:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {registryAssets.map((r) => (
+                        <button
+                          key={`${r.kind}:${r.id}`}
+                          type="button"
+                          className="chip !py-1.5"
+                          onClick={() => {
+                            setRegistryKey(`${r.kind}:${r.id}`);
+                            setAssetAccountId("");
+                          }}
+                        >
+                          {r.kind === "property" ? <RealEstateLogo size={18} /> : <AutomobileLogo name={r.detail} size={18} />}
+                          {r.label}
+                          <span className="muted text-[length:var(--fs-xs)]">{r.detail}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {type === "sell" ? (
+                  chipOptions.length === 0 && registryAssets.length === 0 ? (
+                    <p className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5" role="note">
+                      هنوز دارایی‌ای برای فروش ثبت نشده است.
+                    </p>
+                  ) : null
+                ) : pickerOpen || chipOptions.length === 0 ? (
                   <>
                     <WallexAssetPicker
                       actionLabel="انتخاب"
@@ -755,7 +1176,7 @@ export default function TransactionForm({
                         setPickerOpen(false);
                       }}
                     />
-                    {tradeOptions.length > 0 && (
+                    {chipOptions.length > 0 && (
                       <button type="button" className="btn btn-ghost w-full" onClick={() => setPickerOpen(false)}>
                         بازگشت به دارایی‌های من
                       </button>
@@ -812,7 +1233,264 @@ export default function TransactionForm({
       </Step>
 
       {/* ── ۲. How much ── */}
-      <Step n={2} title="چقدر؟">
+      <Step
+        n={2}
+        title={
+          isRegistrySale
+            ? "به چه مبلغ و به کدام حساب بانکی؟"
+            : isTrade
+              ? type === "buy"
+                ? "چه مقدار، با چه پولی و چه قیمتی؟"
+                : "چه مقدار، به کجا و با چه قیمتی؟"
+              : "چقدر؟"
+        }
+      >
+        {registryItem ? (
+          <div className="space-y-3">
+            <AccountSelect
+              label="واریز به حساب بانکی"
+              value={moneyId}
+              options={settleOptions}
+              onChange={setMoneyAccountId}
+              empty={
+                <p className="muted mt-1.5 text-[length:var(--fs-xs)] leading-5">
+                  حساب بانکی تومانی ثبت نشده است.{" "}
+                  <a href="/accounts" style={{ color: "var(--action)" }}>
+                    افزودن حساب بانکی
+                  </a>
+                </p>
+              }
+            />
+            <div>
+              <label className="label">مبلغ فروش به تومان</label>
+              <AmountInput
+                value={salePrice}
+                onValueChange={setSalePrice}
+                placeholder="مثلاً ۴٬۵۰۰٬۰۰۰٬۰۰۰"
+                className="field num !text-2xl !font-bold"
+                unit="toman"
+                aria-label="مبلغ فروش به تومان"
+              />
+              {registryItem.valueToman && D(registryItem.valueToman).gt(0) && (
+                <button
+                  type="button"
+                  className="chip mt-1.5"
+                  onClick={() => setSalePrice(D(registryItem.valueToman!).toFixed(0))}
+                >
+                  آخرین ارزش ثبت‌شده: <span className="num">{formatMoney(D(registryItem.valueToman).toFixed(0), "IRT")}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : isTrade ? (
+          <div className="space-y-3">
+            <AccountSelect
+              label={type === "buy" ? "پرداخت با" : "واریز وجه فروش به"}
+              value={moneyId}
+              options={settleOptions}
+              onChange={(id) => {
+                setMoneyAccountId(id);
+                // A limit price is typed in the settlement unit; a new unit needs a new price.
+                setLimitPrice("");
+              }}
+              empty={noMoneyAccounts}
+            />
+
+            {needsPlace && (
+              <div>
+                <label className="label">خرید در صرافی</label>
+                <select className="field" value={placeName} onChange={(e) => setPlaceName(e.target.value)}>
+                  <option value="" disabled>
+                    انتخاب صرافی…
+                  </option>
+                  {DOMESTIC_EXCHANGE_NAMES.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <label className="label">
+                  مقدار {assetName || "دارایی"}
+                  {assetSymbol ? ` (${assetSymbol})` : ""}
+                </label>
+                {assetAccount && (
+                  <span className="muted text-[length:var(--fs-xs)]">
+                    موجودی: <span className="num">{heldQty ? formatQty(heldQty.toString(), qtyDecimals) : "۰"}</span>
+                  </span>
+                )}
+              </div>
+              <AmountInput
+                inputMode="decimal"
+                maxDecimals={qtyDecimals}
+                value={quantity}
+                onValueChange={setQuantity}
+                placeholder="مثلاً ۰٫۵"
+                className="field num !text-2xl !font-bold"
+                showWords={false}
+                unit="none"
+                aria-label="مقدار دارایی"
+              />
+              {type === "sell" && heldQty?.gt(0) && (
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["۲۵٪", "0.25"],
+                      ["۵۰٪", "0.5"],
+                      ["همه", "1"],
+                    ] as const
+                  ).map(([label, share]) => (
+                    <button
+                      key={share}
+                      type="button"
+                      className="chip"
+                      onClick={() => setQuantity(cutDecimals(heldQty.mul(share).toString(), qtyDecimals))}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {overHeld && (
+                <p className="mt-1 text-[length:var(--fs-xs)]" style={{ color: "var(--negative)" }} role="alert">
+                  مقدار واردشده از موجودی شما بیشتر است.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <span className="label">قیمت</span>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="نوع قیمت">
+                {(
+                  [
+                    ["market", "قیمت بازار"],
+                    ["limit", "قیمت لیمیت"],
+                  ] as const
+                ).map(([key, label]) => {
+                  const on = key === "market" ? usingMarket : !usingMarket;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      aria-pressed={on}
+                      disabled={key === "market" && !marketUnitPrice}
+                      onClick={() => setPriceMode(key)}
+                      className="btn !min-h-10 disabled:opacity-40"
+                      style={{
+                        borderColor: on ? "var(--action)" : "var(--border)",
+                        background: on ? "var(--action-soft)" : "var(--surface)",
+                        color: on ? "var(--action)" : "inherit",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              {usingMarket ? (
+                <p className="muted mt-1.5 text-[length:var(--fs-xs)]">
+                  قیمت بازار هر واحد: <span className="num">{formatInUnit(marketUnitPrice, priceUnit)}</span>
+                </p>
+              ) : (
+                <div className="mt-2">
+                  <label className="label">قیمت هر واحد به {priceUnitLabel}</label>
+                  <AmountInput
+                    inputMode="decimal"
+                    maxDecimals={priceUnit === "IRT" ? 0 : 6}
+                    value={limitPrice}
+                    onValueChange={setLimitPrice}
+                    placeholder={marketUnitPrice ? formatInUnit(marketUnitPrice, priceUnit) : priceUnit === "IRT" ? "مثلاً ۱۲۰٬۰۰۰" : "مثلاً ۳٬۲۰۰"}
+                    className="field num"
+                    unit={priceUnit === "IRT" ? "toman" : "USDT"}
+                    aria-label="قیمت لیمیت هر واحد"
+                  />
+                  {!marketUnitPrice && assetAccount && (
+                    <p className="muted mt-1 text-[length:var(--fs-xs)]">قیمت بازار این دارایی در دسترس نیست؛ قیمت هر واحد را وارد کنید.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {quote && (
+              <dl className="soft space-y-1.5 rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)]" aria-live="polite">
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="muted">{type === "buy" ? "از حساب کم می‌شود" : "به حساب واریز می‌شود"}</dt>
+                  <dd className="num text-[length:var(--fs-sm)] font-bold">{settleTotalLabel}</dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="muted">ارزش کل</dt>
+                  <dd className="num">
+                    {formatInUnit(quote.totalToman, "IRT")}
+                    {quote.totalUsdt ? ` · ${formatInUnit(quote.totalUsdt, "USDT")}` : ""}
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="muted">قیمت هر واحد</dt>
+                  <dd className="num">
+                    {formatInUnit(quote.unitToman, "IRT")}
+                    {quote.unitUsdt ? ` · ${formatInUnit(quote.unitUsdt, "USDT")}` : ""}
+                  </dd>
+                </div>
+              </dl>
+            )}
+          </div>
+        ) : type === "income" ? (
+          <div className="space-y-3">
+            <AccountSelect label="واریز به حساب" value={moneyId} options={moneyOptions} onChange={setMoneyAccountId} empty={noMoneyAccounts} />
+            <div>
+              <label className="label">
+                {incomeCategory?.code?.startsWith("INC-SAL") ? "خالص دریافتی" : "مبلغ دریافتی"}
+                {moneyAccount ? ` به ${incomeIsToman ? "تومان" : currencyLabel(incomeSymbol)}` : ""}
+              </label>
+              <AmountInput
+                inputMode={incomeIsToman ? "numeric" : "decimal"}
+                maxDecimals={incomeIsToman ? 0 : 6}
+                value={incomeAmount}
+                onValueChange={setIncomeAmount}
+                placeholder={incomeIsToman ? "مثلاً ۴۵٬۰۰۰٬۰۰۰" : "مثلاً ۲۵۰"}
+                className="field num !text-2xl !font-bold"
+                unit={incomeIsToman ? "toman" : incomeSymbol}
+                aria-label="مبلغ دریافتی"
+              />
+              {hasAmount && !incomeIsToman && (
+                <p className="muted mt-1 text-[length:var(--fs-xs)]">
+                  معادل تقریبی <span className="num">{formatMoney(postedIrt, "IRT")}</span>
+                </p>
+              )}
+            </div>
+            {planId ? (
+              <p className="soft rounded-[var(--r-md)] p-2 text-[length:var(--fs-xs)] leading-5" role="note">
+                ثبت یادآوری ماهانه — مبلغ را اگر تغییر کرده اصلاح کنید؛ ماه بعد با همین مبلغ یادآوری می‌شود.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <label className="flex min-h-11 cursor-pointer items-center gap-2 text-[length:var(--fs-sm)]">
+                  <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
+                  این درآمد هر ماه تکرار می‌شود
+                </label>
+                {recurring && (
+                  <div>
+                    <label className="label">روز واریز در ماه</label>
+                    <select className="field" value={recurringDay} onChange={(e) => setRecurringDay(Number(e.target.value))}>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                        <option key={day} value={day}>
+                          {faCount(day)}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">
+                      هر ماه در همین روز در «نمای کلی» یادآوری می‌شود تا با یک لمس ثبت کنید. هیچ مبلغی بدون تأیید شما ثبت نمی‌شود.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
         <div>
           <label className="label">مبلغ به تومان</label>
           <AmountInput
@@ -847,15 +1525,14 @@ export default function TransactionForm({
             </p>
           )}
         </div>
+        )}
 
-        {(isTrade || type === "transfer") && (
+        {type === "transfer" && (
           <div>
-            <label className="label">
-              {isTrade ? `مقدار ${assetName || "دارایی"}` : "مقدار (اختیاری — اگر خالی بماند از مبلغ محاسبه می‌شود)"}
-            </label>
+            <label className="label">مقدار (اختیاری — اگر خالی بماند از مبلغ محاسبه می‌شود)</label>
             <AmountInput
               inputMode="decimal"
-              maxDecimals={isTrade ? qtyDecimals : 8}
+              maxDecimals={8}
               value={quantity}
               onValueChange={setQuantity}
               placeholder="مثلاً ۰٫۰۵"
@@ -864,35 +1541,10 @@ export default function TransactionForm({
               unit="none"
               aria-label="مقدار دارایی"
             />
-            {isTrade && (
-              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[length:var(--fs-xs)]">
-                {tradeUnitPrice && (
-                  <span className="muted">
-                    قیمت هر واحد در این معامله: <span className="num">{formatMoney(tradeUnitPrice.toFixed(0), "IRT")}</span>
-                  </span>
-                )}
-                {marketPrice && hasQuantity && !hasAmount && (
-                  <button type="button" className="chip" onClick={() => setIrtAmount(quantityValue!.mul(marketPrice).toFixed(0))}>
-                    مبلغ از قیمت بازار
-                  </button>
-                )}
-                {marketPrice && hasAmount && !hasQuantity && (
-                  <button
-                    type="button"
-                    className="chip"
-                    onClick={() => setQuantity(trimQty(amountValue!.div(marketPrice).toFixed(qtyDecimals)))}
-                  >
-                    مقدار از قیمت بازار
-                  </button>
-                )}
-                {!hasQuantity && !marketPrice && (
-                  <span className="muted">اگر مقدار را وارد نکنید، از مبلغ و آخرین قیمت محاسبه می‌شود.</span>
-                )}
-              </div>
-            )}
           </div>
         )}
 
+        {!isRegistrySale && (
         <details className="rounded-[var(--r-md)] border px-3 py-1" style={{ borderColor: "var(--border)" }}>
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[length:var(--fs-sm)] font-medium marker:hidden [&::-webkit-details-marker]:hidden">
             کارمزد (اختیاری)
@@ -910,13 +1562,14 @@ export default function TransactionForm({
             />
           </div>
         </details>
+        )}
       </Step>
 
       {/* ── ۳. From where, and when ── */}
-      <Step n={3} title={type === "income" || type === "sell" ? "به کجا و کی؟" : type === "transfer" ? "کی؟" : "از کجا و کی؟"}>
-        {type !== "transfer" && !isNonCash && (
+      <Step n={3} title={isTrade || type === "transfer" || type === "income" ? "کی؟" : "از کجا و کی؟"}>
+        {type !== "transfer" && !isNonCash && !isTrade && type !== "income" && (
           <AccountSelect
-            label={type === "income" || type === "sell" ? "واریز به حساب" : "پرداخت از حساب"}
+            label="پرداخت از حساب"
             value={moneyId}
             options={moneyOptions}
             onChange={setMoneyAccountId}
@@ -941,6 +1594,11 @@ export default function TransactionForm({
           <h2 className="text-[length:var(--fs-sm)] font-bold" style={{ color: "var(--action)" }}>
             بررسی قبل از ثبت
           </h2>
+          {isTrade && (
+            <p className="muted text-[length:var(--fs-xs)] leading-5">
+              پیش‌نمایش معامله — پس از تأیید، موجودی‌ها مطابق ردیف‌های زیر تغییر می‌کنند و مقدار، قیمت تومانی و تتری در تاریخچه فریز می‌شود.
+            </p>
+          )}
           <dl className="divide-y text-[length:var(--fs-sm)]" style={{ borderColor: "var(--border)" }}>
             {summary.map(([label, value]) => (
               <div key={label} className="flex items-baseline justify-between gap-3 py-2">

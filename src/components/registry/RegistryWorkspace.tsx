@@ -16,6 +16,8 @@ type RegistryWorkspaceProps = {
   vehicleDashboard?: any;
   vehicleSummary?: any;
   payoutAccounts?: PayoutAccount[];
+  /** Toman bank accounts a property or vehicle bought now may be paid from. */
+  bankAccounts?: PayoutAccount[];
   /**
    * LIST of properties — an ARRAY. It is the single most confusing prop here:
    * `realEstateSummary` is the TOTALS object for the very same rows. They were
@@ -41,6 +43,7 @@ export default function RegistryWorkspace({
   vehicleDashboard = [],
   vehicleSummary,
   payoutAccounts = [],
+  bankAccounts = [],
   realEstateDashboard = [],
   realEstateSummary,
   cities = [],
@@ -63,6 +66,7 @@ export default function RegistryWorkspace({
             propertyTypes={propertyTypes}
             ownerName={ownerName}
             fxRate={fxRate}
+            bankAccounts={bankAccounts}
           />
         </ErrorBoundary>
       </div>
@@ -76,6 +80,7 @@ export default function RegistryWorkspace({
           summary={vehicleSummary}
           ownerName={ownerName}
           payoutAccounts={payoutAccounts}
+          bankAccounts={bankAccounts}
         />
         )}
       </div>

@@ -99,7 +99,20 @@ type ShellUser = {
 function AccountLink({ user, compact = false }: { user: ShellUser | null; compact?: boolean }) {
   if (user) {
     const label = user.name || user.username || "حساب کاربری";
+    const isAdmin = user.role === "owner" || user.role === "admin";
     return (
+      <span className="inline-flex items-center gap-1.5">
+      {isAdmin && (
+        <Link
+          href="/admin"
+          className={`inline-flex items-center rounded-[var(--r-md)] text-[length:var(--fs-xs)] font-medium ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
+          style={{ background: "var(--sunken)", color: "var(--text)", touchAction: "manipulation" }}
+          aria-label="پنل مدیریت کاربران"
+          title="پنل مدیریت کاربران"
+        >
+          مدیریت
+        </Link>
+      )}
       <Link
         href="/settings"
         className={`inline-flex items-center gap-1.5 rounded-[var(--r-md)] text-[length:var(--fs-xs)] font-medium ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
@@ -112,6 +125,7 @@ function AccountLink({ user, compact = false }: { user: ShellUser | null; compac
         </span>
         {!compact && <span className="max-w-[110px] truncate">{label}</span>}
       </Link>
+      </span>
     );
   }
 

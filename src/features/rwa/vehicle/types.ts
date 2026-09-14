@@ -60,6 +60,10 @@ export type UserVehicle = {
   id: string;
   assetId: string;
   assetSymbol?: string;
+  /** Per-user vehicle counter (1, 2, …) — independent of properties and other users. */
+  userSeq?: number | null;
+  /** User-facing identifier, e.g. «خودرو ۱». */
+  label?: string;
   userId: string | null;
   catalogId: string | null;
   /** Catalog-standardised brand name (denormalised for display/legacy rows) */
@@ -86,6 +90,12 @@ export type UserVehicle = {
 
 export type CreateUserVehicleInput = {
   userId?: string | null;
+  /**
+   * A purchase paid now from a Toman bank account. The price leaves the bank and
+   * the car is carried in the ledger at its purchase value. Omitted, the car is
+   * only registered (a past acquisition), exactly as before.
+   */
+  paymentAccountId?: string | null;
   catalogId: string;
   /** اجباری — سال ساخت واقعی خودروی کاربر */
   manufacturingYear: number;

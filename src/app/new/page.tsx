@@ -9,6 +9,14 @@ import { todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { listDebts } from "@/features/planning/service";
 import { ensureCategoryCatalog, listCategoryTree } from "@/features/categories/service";
+import { getAccountBalances } from "@/features/ledger/queries";
+import { listRealEstateAssets } from "@/features/rwa/realEstate/service";
+import { listUserVehicles } from "@/features/rwa/vehicle/service";
+import { ensureCryptoNetworks, getCryptoNetworks } from "@/features/trade/networkSync";
+import { getUserOccupations } from "@/features/preferences/service";
+import { suggestedIncomeCodes } from "@/features/income/occupations";
+import { getIncomePlan } from "@/features/income/service";
+import { D } from "@/domain/decimal";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +26,7 @@ const VALID: TxType[] = ["expense", "income", "transfer", "buy", "sell", "debt_r
 export default async function NewTransactionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; debtId?: string; installmentId?: string; irtAmount?: string; title?: string; entryDate?: string }>;
+  searchParams: Promise<{ type?: string; debtId?: string; installmentId?: string; irtAmount?: string; title?: string; entryDate?: string; planId?: string }>;
 }) {
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? null;
@@ -33,7 +41,9 @@ export default async function NewTransactionPage({
   // The page no longer waits on any price catalogue: the asset picker loads
   // the market list itself, once, in the browser. Waiting here on an upstream
   // price refresh is what made «ثبت تراکنش» slow to open.
-  const [rows, fxSnap, debts, categoryTree] = await Promise.all([
+  // Coin networks refresh in the background (at most daily); the page reads what is stored now.
+  void ensureCryptoNetworks();
+  const [rows, fxSnap, debts, categoryTree, balances, properties, vehicles, assetNetworks, incomeTree, occupations, incomePlan] = await Promise.all([
     db
       .select({
         id: accounts.id,
@@ -49,6 +59,8 @@ export default async function NewTransactionPage({
         classCode: assetClasses.code,
         className: assetClasses.name,
         walletKind: wallets.kind,
+        // Where the account is held (بیت‌پین، ربی والت…) — decides where it can trade.
+        walletName: wallets.name,
       })
       .from(accounts)
       .leftJoin(assets, eq(assets.id, accounts.assetId))
@@ -67,13 +79,62 @@ export default async function NewTransactionPage({
     getLatestUsdIrtRate(),
     listDebts(userId ?? undefined),
     ensureCategoryCatalog().then(() => listCategoryTree(userId ?? undefined)),
+    // Holdings, so buy / sell shows what the user owns and caps a sale at it.
+    getAccountBalances(userId ?? undefined),
+    // Registry assets the user owns — sellable from «فروش دارایی».
+    userId ? listRealEstateAssets(userId) : Promise.resolve([]),
+    userId ? listUserVehicles(userId) : Promise.resolve([]),
+    getCryptoNetworks(),
+    ensureCategoryCatalog().then(() => listCategoryTree(userId ?? undefined, "income")),
+    getUserOccupations(userId),
+    userId && params.planId && /^[0-9a-f-]{36}$/i.test(params.planId) ? getIncomePlan(params.planId, userId) : Promise.resolve(null),
   ]);
+  const incomePlanParent = incomePlan ? incomeTree.find((p) => p.children.some((c) => c.id === incomePlan.categoryId)) : undefined;
 
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader title="ثبت تراکنش" subtitle="پول از کجا آمده و به کجا رفته را ثبت کنید. پیش‌نمایش قبل از تأیید فقط نمایشی است." />
       <TransactionForm
         accounts={rows.map((r) => ({ ...r, decimals: r.decimals ?? 2 }))}
+        balances={Object.fromEntries(balances.map((b) => [b.accountId, b.quantity]))}
+        assetNetworks={assetNetworks}
+        incomeCategories={incomeTree.map((p) => ({
+          id: p.id,
+          code: p.code,
+          name: p.name,
+          description: p.description,
+          children: p.children.map((c) => ({ id: c.id, code: c.code, name: c.name, nature: c.nature, description: c.description })),
+        }))}
+        incomeSuggestions={suggestedIncomeCodes(occupations)}
+        initialIncome={
+          incomePlan && incomePlanParent
+            ? {
+                planId: incomePlan.id,
+                categoryId: incomePlan.categoryId,
+                parentId: incomePlanParent.id,
+                accountId: incomePlan.accountId,
+                amount: D(incomePlan.amountNative).toString(),
+              }
+            : null
+        }
+        registryAssets={[
+          ...properties.map((p) => ({
+            kind: "property" as const,
+            id: p.id,
+            label: p.label,
+            detail: [p.propertyTypeNameFa ?? p.propertyType, p.neighborhoodNameFa ?? p.area, p.cityNameFa].filter(Boolean).join(" · "),
+            valueToman: p.currentValueToman,
+          })),
+          ...vehicles
+            .filter((v) => v.status !== "sold")
+            .map((v) => ({
+              kind: "vehicle" as const,
+              id: v.id,
+              label: v.label ?? "خودرو",
+              detail: `${v.brand} ${v.model} ${v.year}`,
+              valueToman: null,
+            })),
+        ]}
         categories={categoryTree.map((p) => ({
           id: p.id,
           code: p.code,

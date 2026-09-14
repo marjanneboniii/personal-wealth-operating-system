@@ -172,8 +172,9 @@ test("name and compact symbol are generated from the shared numeric RWA sequence
     purchasePriceToman: PURCHASE_TOMAN,
     currentValueToman: CURRENT_TOMAN,
   });
-  assert.equal(first.symbol, "001");
-  assert.equal(first.assetName, "001");
+  assert.equal(first.symbol, "001", "internal asset key stays compact and unique");
+  assert.equal(first.label, "ملک ۱");
+  assert.equal(first.assetName, "ملک ۱");
 
   // Same area + same type → sequential suffix and next symbol.
   const second = await createRealEstateAsset({
@@ -188,7 +189,8 @@ test("name and compact symbol are generated from the shared numeric RWA sequence
     currentValueToman: CURRENT_TOMAN,
   });
   assert.equal(second.symbol, "002");
-  assert.equal(second.assetName, "002");
+  assert.equal(second.label, "ملک ۲");
+  assert.equal(second.assetName, "ملک ۲");
 
   // Symbols are unique in the assets table (DB unique constraint).
   const symbols = await db
@@ -199,8 +201,54 @@ test("name and compact symbol are generated from the shared numeric RWA sequence
 
   // Preview returns the same generated values.
   const preview = await previewRealEstateIdentity(ids.cityId, ids.neighborhoodId, ids.propertyTypeId);
-  assert.equal(preview?.symbol, "003");
-  assert.equal(preview?.assetName, "003");
+  assert.equal(preview?.label, "ملک ۳");
+  assert.equal(preview?.assetName, "ملک ۳");
+});
+
+test("a property bought now is paid from a Toman bank account instead of opening equity", async () => {
+  await reset();
+  const ids = await pickAhvazKianparsEastApartment();
+  await setFxRate(ACQUISITION, "100000");
+  await setFxRate(VALUATION, "100000");
+  const { assetClasses, wallets } = await import("../src/db/schema");
+  const { postEntry } = await import("../src/features/ledger/service");
+
+  const [cls] = await db.insert(assetClasses).values({ code: `cash-${Date.now()}`, name: "نقد" } as any).returning();
+  await db.insert(assets).values({ symbol: "IRT", name: "تومان", classId: cls.id, decimals: 0 } as any).onConflictDoNothing();
+  const [irt] = await db.select().from(assets).where(eq(assets.symbol, "IRT"));
+  const [bankWallet] = await db.insert(wallets).values({ name: "بانک ملت", kind: "bank" } as any).returning();
+  const [cashWallet] = await db.insert(wallets).values({ name: "صندوق خانگی", kind: "cash" } as any).returning();
+  const [bank] = await db.insert(accounts).values({ code: `BANK-${Date.now()}`, name: "بانک ملت", type: "asset", assetId: irt.id, walletId: bankWallet.id } as any).returning();
+  const [cashBox] = await db.insert(accounts).values({ code: `CASH-${Date.now()}`, name: "صندوق خانگی", type: "asset", assetId: irt.id, walletId: cashWallet.id } as any).returning();
+  const [equity] = await db.insert(accounts).values({ code: `EQ-${Date.now()}`, name: "سرمایه", type: "equity", assetId: irt.id } as any).returning();
+  await postEntry({
+    entryDate: ACQUISITION,
+    type: "opening",
+    description: "موجودی بانک",
+    postings: [
+      { accountId: bank.id, assetId: irt.id, quantity: PURCHASE_TOMAN, baseValue: "45000" },
+      { accountId: equity.id, assetId: irt.id, quantity: `-${PURCHASE_TOMAN}`, baseValue: "-45000" },
+    ],
+  });
+
+  const input = {
+    cityId: ids.cityId,
+    neighborhoodId: ids.neighborhoodId,
+    propertyTypeId: ids.propertyTypeId,
+    acquisitionDate: ACQUISITION,
+    valuationDate: VALUATION,
+    purchasePriceToman: PURCHASE_TOMAN,
+    currentValueToman: CURRENT_TOMAN,
+  };
+  await assert.rejects(() => createRealEstateAsset({ ...input, paymentAccountId: cashBox.id }), /حساب بانکی تومانی/);
+
+  const bought = await createRealEstateAsset({ ...input, paymentAccountId: bank.id });
+  const [entry] = await db.select().from(journalEntries).where(eq(journalEntries.id, bought.ledgerEntryId));
+  assert.equal(entry.type, "buy");
+  const lines = await db.select().from(postings).where(eq(postings.entryId, entry.id));
+  const bankLeg = lines.find((l) => l.accountId === bank.id);
+  assert.ok(bankLeg, "the bank is credited — not opening equity");
+  assert.equal(D(bankLeg!.quantity).toFixed(0), `-${PURCHASE_TOMAN}`);
 });
 
 test("users cannot supply a name or symbol — the service ignores/derives them", async () => {
@@ -219,7 +267,8 @@ test("users cannot supply a name or symbol — the service ignores/derives them"
   });
   // Generated, not "MY-PROPERTY" or anything user-typed.
   assert.match(result.symbol, /^\d{3,}$/);
-  assert.equal(result.assetName, result.symbol);
+  assert.equal(result.assetName, result.label);
+  assert.match(result.label, /^ملک [۰-۹]+$/);
 });
 
 /* ─────────────────────── historical FX ─────────────────────── */
@@ -357,7 +406,7 @@ test("prior-period acquisition posts an OPENING entry dated at the acquisition d
   assert.equal(entry.entryDate, ACQUISITION, "entry must be dated at the REAL acquisition date");
   assert.equal(entry.type, "opening");
   assert.equal(entry.status, "posted");
-  assert.match(entry.description, new RegExp(result.symbol));
+  assert.match(entry.description, new RegExp(result.label));
 
   const lines = await db.select().from(postings).where(eq(postings.entryId, entryId!));
   assert.equal(lines.length, 2, "double-entry: exactly two postings");
@@ -421,7 +470,7 @@ test("recent activity shows the frozen purchase Toman for a historical acquisiti
   // (2) The Human Finance Layer surfaces the frozen Toman — NEVER the USD
   //     cost basis re-valued at today's 999,999 rate.
   const recent = await getRecent(6);
-  const rec = recent.find((r) => r.description.includes(result.symbol));
+  const rec = recent.find((r) => r.description.includes(result.label));
   assert.ok(rec, "the acquisition must appear in recent activity");
   const h = humanizeEntry(rec!);
   assert.equal(h.nativeIrt, PURCHASE_TOMAN, "nativeIrt must be the frozen purchase Toman, not a today's-rate rebuild");
@@ -456,7 +505,7 @@ test("a stale/incorrect entry_fx_snapshots row never overrides the real-estate p
     .where(eq(entryFxSnapshots.entryId, entryId!));
 
   const recent = await getRecent(6);
-  const rec = recent.find((r) => r.description.includes(result.symbol));
+  const rec = recent.find((r) => r.description.includes(result.label));
   const h = humanizeEntry(rec!);
   // The property record's purchase Toman is authoritative — it wins over the
   // stale snapshot, so the wrong value is never displayed.
@@ -721,7 +770,7 @@ test("deleting a property hides it from holdings, activity, metrics and reclaims
   assert.ok(!rwa || Number(rwa.value) === 0);
 
   const preview = await previewRealEstateIdentity(ids.cityId, ids.neighborhoodId, ids.propertyTypeId);
-  assert.equal(preview?.symbol, "001");
+  assert.equal(preview?.label, "ملک ۱", "deleting the only property frees its per-user number");
 
   const again = await createRealEstateAsset({
     cityId: ids.cityId,
@@ -817,9 +866,9 @@ test("repairOrphanedRealEstate soft-deletes leftover RWA assets after a property
 
   const previewBeforeRepair = await previewRealEstateIdentity(ids.cityId, ids.neighborhoodId, ids.propertyTypeId);
   assert.equal(
-    previewBeforeRepair?.symbol,
-    "002",
-    "orphaned-but-active asset keeps 001 occupied until explicit repair soft-deletes it",
+    previewBeforeRepair?.label,
+    "ملک ۱",
+    "the per-user number lives on the property row, so removing that row frees it even before repair",
   );
 
   const outcome = await repairOrphanedRealEstate();
@@ -830,7 +879,7 @@ test("repairOrphanedRealEstate soft-deletes leftover RWA assets after a property
   assert.ok(!rwa || Number(rwa.value) === 0);
 
   const preview = await previewRealEstateIdentity(ids.cityId, ids.neighborhoodId, ids.propertyTypeId);
-  assert.equal(preview?.symbol, "001");
+  assert.equal(preview?.label, "ملک ۱");
 });
 
 test("orphaned property does not distort wealth metrics via historical snapshots", async () => {

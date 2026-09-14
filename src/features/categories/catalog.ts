@@ -333,6 +333,101 @@ export const EXPENSE_CATEGORY_CATALOG: CatalogNode[] = [
   },
 ];
 
+/**
+ * Standard INCOME taxonomy — same parent → leaf rules as expenses.
+ *
+ *  • Amounts are what actually reached the account (net salary, after
+ *    insurance and tax) — deductions are not recorded.
+ *  • Profit from SELLING an asset (shares, coins, gold, property, a car) is
+ *    booked automatically by «فروش دارایی» as realized gain; it is never an
+ *    income source here, so it cannot be counted twice.
+ *  • Money moving between one's own accounts, a loan received, or a debt
+ *    collected is not income either — those have their own flows.
+ */
+export const INCOME_CATEGORY_CATALOG: CatalogNode[] = [
+  {
+    code: "INC-SAL",
+    name: "حقوق و دستمزد",
+    nameEn: "Salary & Wages",
+    description: "خالص مبلغی که به حساب واریز می‌شود (پس از کسر بیمه و مالیات).",
+    children: [
+      { code: "INC-SAL-NET", name: "حقوق ماهانه", nameEn: "Monthly Salary (Net)" },
+      { code: "INC-SAL-BONUS", name: "پاداش، عیدی و سنوات", nameEn: "Bonus / Eid / Severance" },
+      { code: "INC-SAL-OVERTIME", name: "اضافه‌کار و کارانه", nameEn: "Overtime" },
+      { code: "INC-SAL-ALLOW", name: "کمک‌هزینه و بن", nameEn: "Allowances", description: "حق مسکن، ایاب‌وذهاب، بن خواربار و مانند آن." },
+      { code: "INC-SAL-ARREARS", name: "معوقات و علی‌الحساب", nameEn: "Arrears" },
+      { code: "INC-SAL-OTHER", name: "سایر دریافتی‌های شغلی", nameEn: "Other Employment Income" },
+    ],
+  },
+  {
+    code: "INC-BIZ",
+    name: "کسب‌وکار و کار آزاد",
+    nameEn: "Business & Self-Employment",
+    children: [
+      { code: "INC-BIZ-FREELANCE", name: "پروژهٔ فریلنس", nameEn: "Freelance Project" },
+      { code: "INC-BIZ-SALES", name: "فروش کالا یا خدمات", nameEn: "Sales of Goods / Services" },
+      { code: "INC-BIZ-PROFIT", name: "سود کسب‌وکار یا شراکت", nameEn: "Business / Partnership Profit" },
+      { code: "INC-BIZ-COMMISSION", name: "حق‌الزحمه و کمیسیون", nameEn: "Fees & Commission" },
+      { code: "INC-BIZ-TEACH", name: "تدریس، مشاوره و تولید محتوا", nameEn: "Teaching / Consulting / Content" },
+      { code: "INC-BIZ-OTHER", name: "سایر درآمدهای کسب‌وکار", nameEn: "Other Business Income" },
+    ],
+  },
+  {
+    code: "INC-INV",
+    name: "درآمد سرمایه‌گذاری",
+    nameEn: "Investment Income",
+    description: "سود دوره‌ای واریزی. سود فروش دارایی هنگام «فروش دارایی» خودکار ثبت می‌شود و اینجا وارد نمی‌شود.",
+    children: [
+      { code: "INC-INV-INTEREST", name: "سود سپردهٔ بانکی", nameEn: "Bank Deposit Interest" },
+      { code: "INC-INV-DIVIDEND", name: "سود نقدی سهام", nameEn: "Stock Dividends" },
+      { code: "INC-INV-FUND", name: "سود صندوق درآمد ثابت", nameEn: "Fixed-Income Fund Payout" },
+      { code: "INC-INV-BOND", name: "سود اوراق", nameEn: "Bond Coupons" },
+      { code: "INC-INV-RENT", name: "اجارهٔ ملک", nameEn: "Rental Income" },
+      { code: "INC-INV-CRYPTO", name: "سود استیکینگ و سپردهٔ رمزارز", nameEn: "Staking / Crypto Earn" },
+      { code: "INC-INV-OTHER", name: "سایر درآمدهای سرمایه‌گذاری", nameEn: "Other Investment Income" },
+    ],
+  },
+  {
+    code: "INC-PEN",
+    name: "بازنشستگی و مستمری",
+    nameEn: "Pension",
+    children: [
+      { code: "INC-PEN-PENSION", name: "حقوق بازنشستگی", nameEn: "Retirement Pension" },
+      { code: "INC-PEN-SUPPLEMENT", name: "مستمری و بیمهٔ تکمیلی", nameEn: "Annuity / Supplementary Pension" },
+      { code: "INC-PEN-OTHER", name: "سایر دریافتی‌های بازنشستگی", nameEn: "Other Pension Income" },
+    ],
+  },
+  {
+    code: "INC-SUP",
+    name: "یارانه، کمک و حمایت",
+    nameEn: "Subsidies & Support",
+    children: [
+      { code: "INC-SUP-SUBSIDY", name: "یارانهٔ نقدی", nameEn: "Cash Subsidy" },
+      { code: "INC-SUP-FAMILY", name: "کمک خانواده", nameEn: "Family Support" },
+      { code: "INC-SUP-SCHOLAR", name: "بورسیه و کمک‌هزینهٔ تحصیلی", nameEn: "Scholarship / Stipend" },
+      { code: "INC-SUP-INSURANCE", name: "خسارت یا مستمری بیمه", nameEn: "Insurance Payout" },
+      { code: "INC-SUP-UNEMPLOYMENT", name: "بیمهٔ بیکاری", nameEn: "Unemployment Benefit" },
+      { code: "INC-SUP-OTHER", name: "سایر کمک‌ها", nameEn: "Other Support" },
+    ],
+  },
+  {
+    code: "INC-OTH",
+    name: "سایر درآمدها",
+    nameEn: "Other Income",
+    description: "فقط وقتی دستهٔ دیگری مناسب نیست. پول برگشتی یک خرید، هزینه را کم می‌کند و درآمد نیست.",
+    children: [
+      { code: "INC-OTH-GIFT", name: "هدیهٔ نقدی", nameEn: "Cash Gift" },
+      { code: "INC-OTH-PRIZE", name: "جایزه و قرعه‌کشی", nameEn: "Prize" },
+      { code: "INC-OTH-PERSONAL-SALE", name: "فروش وسایل شخصی", nameEn: "Sale of Personal Items" },
+      { code: "INC-OTH-MISC", name: "درآمد متفرقه", nameEn: "Miscellaneous Income" },
+    ],
+  },
+];
+
+/** Fallback leaf for an income recorded without a category (legacy callers). */
+export const INCOME_MISC_CATEGORY_CODE = "INC-OTH-MISC";
+export const INCOME_MISC_PARENT_CODE = "INC-OTH";
+
 /** Code of the fallback "miscellaneous" leaf used when no category is supplied. */
 export const MISC_CATEGORY_CODE = "MSC-MISC";
 export const MISC_PARENT_CODE = "MSC";

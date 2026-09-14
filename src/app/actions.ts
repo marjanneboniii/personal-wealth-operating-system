@@ -2,11 +2,12 @@
 
 import { normalizeNumericInput } from "@/lib/numericInput";
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
   accounts,
+  assetClasses,
   assets,
   budgets,
   debts,
@@ -17,10 +18,27 @@ import {
   installments,
   journalEntries,
   plannedTransactions,
+  postings,
   snapshotLines,
   snapshots,
+  vehicleAssets,
   wallets,
+  wallexAssetCatalog,
 } from "@/db/schema";
+import {
+  isTomanOnlyInstrument,
+  registrySaleError,
+  settlementUnitOf,
+  tradePairError,
+  tradeRouteFor,
+  type TradeSide,
+} from "@/features/trade/rules";
+import { sameWallet, venueTradeError, venueTransferError } from "@/features/trade/venues";
+import { getCryptoNetworksOf } from "@/features/trade/networkSync";
+import { canonicalWalletName, holdingAccountName, walletKindOf } from "@/features/setup/holdingWallets";
+import { sellRealEstateAsset } from "@/features/rwa/realEstate/service";
+import { sellVehicle } from "@/features/rwa/vehicle/service";
+import { buildRwaLabel } from "@/features/rwa/symbol";
 import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
 import { getLatestUsdIrtRateForUser, getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentUser } from "@/lib/auth";
@@ -32,7 +50,11 @@ import {
   ensureReceivableCollectionAccount,
   ensureRealizedPnlAccount,
   resolveExpenseCounterAccount,
+  resolveIncomeCounterAccount,
 } from "@/features/accounts/systemAccounts";
+import { closeIncomeOccurrence, scheduleNextIncome } from "@/features/income/service";
+import { jalaliDayOf } from "@/features/income/recurring";
+import { setUserOccupations } from "@/features/preferences/service";
 import {
   assertDebtOwnership,
   assertInstallmentOwnership,
@@ -67,6 +89,7 @@ import {
   ensureCategoryCatalog,
   ensureReserveAccount,
   getCategoryById,
+  getIncomeMiscCategory,
   getMiscCategory,
 } from "@/features/categories/service";
 import { executePlanned, payInstallment } from "@/features/planning/service";
@@ -405,6 +428,29 @@ const txSchema = z.object({
   debtId: z.string().optional(),
   installmentId: z.string().optional(),
   quantity: z.string().optional(),
+  /**
+   * Buy / sell: what leaves (buy) or reaches (sell) the settlement account, in
+   * that account's unit — Toman for a Toman account, Tether for a USDT wallet.
+   * The form computes it from quantity × unit price; the server books it
+   * exactly, so «۱۰۰ تتر» leaves the wallet as 100 USDT, not a rate-derived
+   * approximation.
+   */
+  settleQuantity: z.string().optional(),
+  /** unit price the user traded at (market or limit), in the settlement unit */
+  unitPrice: z.string().optional(),
+  priceMode: z.enum(["market", "limit"]).optional(),
+  /** A Toman buy: the Iranian exchange the asset is bought at (and held in). */
+  placeName: z.string().optional(),
+  /** «فروش دارایی» of a registry asset: which property or vehicle is sold */
+  registryKind: z.enum(["property", "vehicle"]).optional(),
+  registryId: z.string().optional(),
+  /** Income: the amount in the RECEIVING account's own unit (Toman, Tether, dollar). */
+  nativeAmount: z.string().optional(),
+  /** Income: repeat monthly — a reminder on `recurringDay` (Jalali), never an automatic posting. */
+  recurring: z.enum(["monthly"]).optional(),
+  recurringDay: z.string().optional(),
+  /** Income recorded from a reminder: closes that occurrence and schedules the next. */
+  planId: z.string().optional(),
   fee: z.string().optional(),
   /**
    * Unit of the `fee` field. `irt` (default, historical) reads it as Toman;
@@ -415,6 +461,43 @@ const txSchema = z.object({
    */
   feeMode: z.enum(["irt", "native"]).optional(),
 });
+
+/**
+ * The account a bought asset is held in AT THE PLACE it was bought — «اتریوم -
+ * بیت‌پین». The place's wallet row and the account are created on first use.
+ */
+async function placedHoldingAccount(
+  tx: any,
+  userId: string | null,
+  holding: { assetId: string; symbol: string | null; assetName: string | null },
+  placeName: string,
+): Promise<string> {
+  const walletName = canonicalWalletName(placeName);
+  const walletOwner = userId ? eq(wallets.userId, userId) : sql`${wallets.userId} is null`;
+  const owned = await tx.select().from(wallets).where(and(walletOwner, isNull(wallets.deletedAt)));
+  const wallet =
+    owned.find((w: { name: string }) => canonicalWalletName(w.name) === walletName) ??
+    (await tx.insert(wallets).values({ userId, name: walletName, kind: walletKindOf(walletName) }).returning())[0];
+  const accountOwner = userId ? eq(accounts.userId, userId) : sql`${accounts.userId} is null`;
+  const [existing] = await tx
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(accountOwner, eq(accounts.assetId, holding.assetId), eq(accounts.walletId, wallet.id), isNull(accounts.deletedAt)))
+    .limit(1);
+  if (existing) return existing.id;
+  const [created] = await tx
+    .insert(accounts)
+    .values({
+      userId,
+      code: `H-${(holding.symbol ?? "ASSET").toUpperCase()}-${String(wallet.id).slice(0, 8)}`,
+      name: holdingAccountName(holding.assetName || holding.symbol || "", walletName),
+      type: "asset",
+      assetId: holding.assetId,
+      walletId: wallet.id,
+    })
+    .returning();
+  return created.id;
+}
 
 function isUuid(v: string | undefined): v is string {
   return !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
@@ -439,6 +522,9 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     // Persian or Arabic digit that reaches here any other way must still mean
     // the same number — never a Decimal parse error, never a different value.
     for (const key of ["irtAmount", "amount", "quantity", "fee", "fxRate"]) {
+      if (typeof raw[key] === "string") raw[key] = normalizeNumericInput(raw[key], { decimal: true });
+    }
+    for (const key of ["settleQuantity", "unitPrice", "nativeAmount"]) {
       if (typeof raw[key] === "string") raw[key] = normalizeNumericInput(raw[key], { decimal: true });
     }
     const idempotencyKey = String(raw.idempotencyKey || fd.get("idempotencyKey") || "").trim() || undefined;
@@ -493,7 +579,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       throw new Error("مبلغ باید بزرگ‌تر از صفر باشد");
     }
     if (usdAmount.lte(0)) throw new Error("مبلغ باید بزرگ‌تر از صفر باشد");
-    const amount = usdAmount; // keep variable name for downstream logic
+    // A buy / sell re-derives both from the exact settlement quantity below.
+    let amount: Decimal = usdAmount;
     // Commission → USD for the ledger. `feeMode: "native"` reads the field in
     // the paying account's own denomination (Toman for a bank, USDT for a
     // stablecoin wallet, USD for a dollar account); the default `irt` keeps the
@@ -513,6 +600,91 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       feeUsd = unitUsd && unitUsd.gt(0) ? rawFee.mul(unitUsd).toString() : rawFee.div(serverRate).toString();
     }
     const fee = feeUsd;
+
+    // «فروش دارایی» of a property or vehicle: Toman only, into a bank account,
+    // through the registry's own sale services (they post the ledger entry and
+    // remove the asset from holdings atomically).
+    if (input.type === "sell" && input.registryKind) {
+      if (!isUuid(input.registryId)) throw new Error("دارایی انتخاب‌شده معتبر نیست");
+      if (!isUuid(input.counterAccountId)) throw new Error("حساب بانکی واریز را انتخاب کنید");
+      const [bank] = await db
+        .select({ symbol: assets.symbol, walletKind: wallets.kind, name: accounts.name })
+        .from(accounts)
+        .leftJoin(assets, eq(assets.id, accounts.assetId))
+        .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+        .where(eq(accounts.id, input.counterAccountId))
+        .limit(1);
+      const settleError = registrySaleError(bank ?? null);
+      if (settleError) throw new Error(settleError);
+
+      const salePriceToman = D(irtAmountStr).toFixed(0);
+      let ledgerEntryId: string | null;
+      let label: string;
+      if (input.registryKind === "property") {
+        const sold = await sellRealEstateAsset({
+          propertyId: input.registryId,
+          saleDate: input.entryDate,
+          salePriceToman,
+          saleAccountId: input.counterAccountId,
+          userId: authUser?.id ?? null,
+        });
+        ledgerEntryId = sold.ledgerEntryId;
+        label = sold.label;
+      } else {
+        const [vehicle] = await db
+          .select({ userSeq: vehicleAssets.userSeq, status: vehicleAssets.status })
+          .from(vehicleAssets)
+          .where(eq(vehicleAssets.id, input.registryId))
+          .limit(1);
+        if (!vehicle) throw new Error("خودرو یافت نشد.");
+        if (vehicle.status === "sold") throw new Error("این خودرو قبلاً فروخته شده است.");
+        const sold = await sellVehicle({
+          vehicleId: input.registryId,
+          saleDate: input.entryDate,
+          salePriceToman,
+          saleAccountId: input.counterAccountId,
+          userId: authUser?.id ?? null,
+        });
+        ledgerEntryId = sold.ledgerEntryId;
+        label = buildRwaLabel("vehicle", vehicle.userSeq);
+      }
+
+      if (ledgerEntryId) {
+        const [usdtQuote] = await db
+          .select({ priceTmn: wallexAssetCatalog.priceTmn })
+          .from(wallexAssetCatalog)
+          .where(eq(wallexAssetCatalog.symbol, "USDT"))
+          .limit(1);
+        const usdtToman = usdtQuote?.priceTmn && D(usdtQuote.priceTmn).gt(0) ? D(usdtQuote.priceTmn) : serverRate;
+        const saleFreeze = {
+          tradeSymbol: label,
+          tradeQuantity: "1",
+          settleSymbol: bank?.symbol ?? "IRT",
+          settleQuantity: salePriceToman,
+          unitPriceIrt: salePriceToman,
+          unitPriceUsdt: D(salePriceToman).div(usdtToman).toString(),
+          usdtRateIrt: usdtToman.toString(),
+          priceMode: "registry",
+        };
+        await db
+          .insert(entryFxSnapshots)
+          .values({
+            entryId: ledgerEntryId,
+            irtAmount: salePriceToman,
+            usdAmount: D(salePriceToman).div(serverRate).toString(),
+            fxRate: serverRate.toString(),
+            rateSource: fxSnap.source,
+            rateDate: fxSnap.effectiveDate,
+            ...saleFreeze,
+          })
+          .onConflictDoUpdate({ target: entryFxSnapshots.entryId, set: saleFreeze });
+        await db.insert(entryReviews).values({ entryId: ledgerEntryId }).onConflictDoNothing();
+      }
+
+      refreshAll();
+      return { ok: true, message: `${label} فروخته شد و ${formatMoney(salePriceToman, "IRT")} به حساب بانکی واریز شد.` };
+    }
+
     // Debt/Installment linkage — validate before ledger write (prevent duplicate, exceed outstanding, already paid)
     let linkedDebt: any = null;
     let linkedInst: any = null;
@@ -551,11 +723,23 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       await ensureCategoryCatalog();
       if (input.categoryId && isUuid(input.categoryId)) {
         const found = await getCategoryById(input.categoryId, authUser?.id);
-        if (!found) throw new Error("دسته هزینه انتخاب‌شده معتبر یا فعال نیست");
+        if (!found || found.kind !== "expense") throw new Error("دسته هزینه انتخاب‌شده معتبر یا فعال نیست");
         if (found.level !== 1) throw new Error("دسته هزینه باید یک زیردسته (برگ) باشد، نه دسته اصلی");
         category = found;
       } else {
         category = await getMiscCategory();
+      }
+    } else if (input.type === "income") {
+      // The SOURCE of an income is a category (salary, bank interest, rent…) —
+      // the user never picks a ledger account.
+      await ensureCategoryCatalog();
+      if (input.categoryId && isUuid(input.categoryId)) {
+        const found = await getCategoryById(input.categoryId, authUser?.id);
+        if (!found || found.kind !== "income") throw new Error("منبع درآمد انتخاب‌شده معتبر نیست");
+        if (found.level !== 1) throw new Error("منبع درآمد باید یک زیردسته باشد، نه گروه اصلی");
+        category = found;
+      } else if (!isUuid(input.counterAccountId)) {
+        category = await getIncomeMiscCategory();
       }
     }
 
@@ -573,12 +757,24 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       resolvedExpenseAccountId = expenseAccount.id;
     }
 
+    // A categorised income posts against this tenant's income account (4010).
+    // A legacy API caller that names an income account itself is still honoured.
+    let resolvedIncomeAccountId: string | null = null;
+    if (input.type === "income" && category) {
+      const incomeAccount = await resolveIncomeCounterAccount(authUser?.id ?? null);
+      if (!incomeAccount) throw new Error("حساب سیستمی درآمد در دسترس نیست");
+      resolvedIncomeAccountId = incomeAccount.id;
+    }
+
     // Wrap ledger write + FX snapshot + debt linkage in one atomic transaction
     const entryId = await db.transaction(async (tx) => {
       let entry: { id: string } | null = null;
+      // Buy / sell / swap: what was traded, frozen next to the FX snapshot.
+      let tradeFreeze: Partial<typeof entryFxSnapshots.$inferInsert> = {};
 
       if (input.type === "income" || input.type === "expense") {
-        const ledgerCategoryAccountId = input.type === "expense" ? resolvedExpenseAccountId : input.counterAccountId;
+        const ledgerCategoryAccountId =
+          input.type === "expense" ? resolvedExpenseAccountId : (resolvedIncomeAccountId ?? input.counterAccountId);
         if (!ledgerCategoryAccountId) throw new Error(input.type === "expense" ? "حساب سیستمی هزینه در دسترس نیست" : "حساب مقابل را انتخاب کنید");
         const categoryId = category?.id ?? null;
 
@@ -618,9 +814,44 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           );
         } else {
           if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
-          const cashAsset = await accountAsset(input.primaryAccountId);
-          const price = await latestPrice(cashAsset, authUser?.id ?? null);
-          const qty = amount.div(price).toString();
+          // Reads inside the write transaction go through `tx` — a single-connection driver deadlocks on `db`.
+          const [cashAccountRow] = await tx
+            .select({ assetId: accounts.assetId })
+            .from(accounts)
+            .where(eq(accounts.id, input.primaryAccountId))
+            .limit(1);
+          if (!cashAccountRow?.assetId) throw new Error("حساب انتخاب‌شده به هیچ دارایی متصل نیست");
+          const cashAsset = cashAccountRow.assetId;
+          let qty: string;
+          if (input.type === "income" && input.nativeAmount && D(input.nativeAmount).gt(0)) {
+            // Income is typed in the RECEIVING account's own unit — Toman into a
+            // bank, Tether into a USDT wallet, dollars into a dollar account —
+            // and booked exactly; the Toman value is frozen alongside.
+            const [cashUnit] = await tx.select({ symbol: assets.symbol }).from(assets).where(eq(assets.id, cashAsset)).limit(1);
+            const unit = (cashUnit?.symbol ?? "").toUpperCase();
+            const native = D(input.nativeAmount);
+            qty = native.toString();
+            if (unit === "IRT" || unit === "IRR") {
+              irtAmountStr = (unit === "IRR" ? native.div(10) : native).toFixed(0);
+              amount = D(irtAmountStr).div(serverRate);
+            } else {
+              amount = native.mul(D(await nativeUnitPriceUsd(cashAsset, authUser?.id ?? null, tx)));
+              let tomanPerUsd = serverRate;
+              if (unit === "USDT") {
+                const [usdtQuote] = await tx
+                  .select({ priceTmn: wallexAssetCatalog.priceTmn })
+                  .from(wallexAssetCatalog)
+                  .where(eq(wallexAssetCatalog.symbol, "USDT"))
+                  .limit(1);
+                if (usdtQuote?.priceTmn && D(usdtQuote.priceTmn).gt(0)) tomanPerUsd = D(usdtQuote.priceTmn);
+              }
+              irtAmountStr = amount.mul(tomanPerUsd).toFixed(0);
+            }
+            if (amount.lte(0)) throw new Error("مبلغ درآمد باید بزرگ‌تر از صفر باشد");
+          } else {
+            const price = await nativeUnitPriceUsd(cashAsset, authUser?.id ?? null, tx);
+            qty = amount.div(price).toString();
+          }
           const cmd = {
             entryDate: input.entryDate,
             description: input.description,
@@ -740,6 +971,20 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         const [toRow] = await tx.select({ id: accounts.id, type: accounts.type }).from(accounts).where(eq(accounts.id, input.counterAccountId)).limit(1);
         if (!fromRow || fromRow.type !== "asset") throw new Error("حساب مبدأ انتقال نامعتبر است (باید حساب دارایی باشد)");
         if (!toRow || toRow.type !== "asset") throw new Error("حساب مقصد انتقال نامعتبر است (باید حساب دارایی باشد)");
+        // A coin can only be sent to a place that supports its network (no Bitcoin to Rabby or MetaMask).
+        const [destination] = await tx
+          .select({ symbol: assets.symbol, walletName: wallets.name, walletKind: wallets.kind })
+          .from(accounts)
+          .leftJoin(assets, eq(assets.id, accounts.assetId))
+          .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+          .where(eq(accounts.id, input.counterAccountId))
+          .limit(1);
+        const transferError = venueTransferError(
+          destination?.symbol,
+          destination,
+          await getCryptoNetworksOf(destination?.symbol, tx),
+        );
+        if (transferError) throw new Error(transferError);
 
         const assetId = await accountAsset(input.primaryAccountId);
         const destAssetId = await accountAsset(input.counterAccountId);
@@ -795,47 +1040,193 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           );
         }
       } else {
-        if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
-        if (!isUuid(input.counterAccountId)) throw new Error("حساب مقابل را انتخاب کنید");
-        const [primaryRow] = await tx.select({ id: accounts.id, type: accounts.type }).from(accounts).where(eq(accounts.id, input.primaryAccountId)).limit(1);
-        const [counterRow] = await tx.select({ id: accounts.id, type: accounts.type }).from(accounts).where(eq(accounts.id, input.counterAccountId)).limit(1);
-        if (!primaryRow || primaryRow.type !== "asset") throw new Error("حساب دارایی نامعتبر است (باید حساب دارایی باشد)");
-        if (!counterRow || counterRow.type !== "asset") throw new Error("حساب واریز/پرداخت نقدی نامعتبر است (باید حساب نقد/بانک باشد)");
+        if (!isUuid(input.primaryAccountId)) throw new Error("دارایی را انتخاب کنید");
+        if (!isUuid(input.counterAccountId)) throw new Error("حساب پرداخت یا دریافت را انتخاب کنید");
+        const loadTradeAccount = async (id: string) =>
+          (
+            await tx
+              .select({
+                id: accounts.id,
+                type: accounts.type,
+                name: accounts.name,
+                assetId: accounts.assetId,
+                symbol: assets.symbol,
+                classCode: assetClasses.code,
+                className: assetClasses.name,
+                assetName: assets.name,
+                walletKind: wallets.kind,
+                walletName: wallets.name,
+              })
+              .from(accounts)
+              .leftJoin(assets, eq(assets.id, accounts.assetId))
+              .leftJoin(assetClasses, eq(assetClasses.id, assets.classId))
+              .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+              .where(eq(accounts.id, id))
+              .limit(1)
+          )[0];
+        let assetRow = await loadTradeAccount(input.primaryAccountId);
+        const cashRow = await loadTradeAccount(input.counterAccountId);
+        if (!assetRow || assetRow.type !== "asset" || !assetRow.assetId) throw new Error("حساب دارایی نامعتبر است (باید حساب دارایی باشد)");
+        if (!cashRow || cashRow.type !== "asset" || !cashRow.assetId) throw new Error("حساب واریز/پرداخت نقدی نامعتبر است (باید حساب نقد/بانک باشد)");
 
-        const assetId = await accountAsset(input.primaryAccountId);
-        const cashAssetId = await accountAsset(input.counterAccountId);
-        const cashPrice = await latestPrice(cashAssetId, authUser?.id ?? null);
-        const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : "0";
-        if (D(qty).lte(0)) throw new Error("مقدار دارایی را وارد کنید");
-        const cashQuantity = amount.div(cashPrice).toString();
+        // The trade rules are enforced HERE, not only in the form: Toman or a
+        // stablecoin settles every trade, and Iranian-market assets settle
+        // through a Toman bank account only.
+        const side = input.type as TradeSide;
+        const pairError = tradePairError(side, assetRow, cashRow);
+        if (pairError) throw new Error(pairError);
+
+        // WHERE the trade happens: an Iranian exchange (Toman from a bank, or
+        // Tether), a foreign exchange (USDT / USDC), or a self-custody wallet
+        // (stablecoin swap, only on networks it supports). Iranian-market assets
+        // are already bound to a bank account above.
+        if (!isTomanOnlyInstrument(assetRow)) {
+          const assetPlace = { walletName: assetRow.walletName, walletKind: assetRow.walletKind };
+          const tomanSettle = settlementUnitOf(cashRow.symbol) === "toman";
+          const targetPlace =
+            side === "sell"
+              ? assetPlace
+              : tomanSettle
+                ? input.placeName
+                  ? { walletName: input.placeName, walletKind: "exchange" }
+                  : assetPlace
+                : { walletName: cashRow.walletName, walletKind: cashRow.walletKind };
+          const assetNetworks = await getCryptoNetworksOf(assetRow.symbol, tx);
+          const venueError = venueTradeError(
+            side,
+            { ...assetRow, place: assetPlace, networks: assetNetworks },
+            { symbol: cashRow.symbol, walletKind: cashRow.walletKind, walletName: cashRow.walletName, name: cashRow.name },
+            targetPlace,
+          );
+          if (venueError) throw new Error(venueError);
+          // A coin bought at a place is held at that place.
+          if (side === "buy" && targetPlace.walletName && !sameWallet(targetPlace, assetPlace)) {
+            const placedId = await placedHoldingAccount(
+              tx,
+              authUser?.id ?? null,
+              { assetId: assetRow.assetId, symbol: assetRow.symbol, assetName: assetRow.assetName },
+              targetPlace.walletName,
+            );
+            const placed = await loadTradeAccount(placedId);
+            if (!placed?.assetId) throw new Error("حساب دارایی در محل خرید ایجاد نشد");
+            assetRow = placed;
+          }
+        }
+
+        const qty = input.quantity && D(input.quantity).gt(0) ? D(input.quantity) : null;
+        if (!qty) throw new Error("مقدار دارایی را وارد کنید");
+        const assetId = assetRow.assetId as string;
+        const cashAssetId = cashRow.assetId;
+        const cashSymbol = (cashRow.symbol ?? "").toUpperCase();
+        const settleUnit = settlementUnitOf(cashSymbol);
+
+        // Toman per Tether at this moment — the market quote when there is one,
+        // otherwise the user's own dollar rate. Frozen below, never re-derived.
+        const [usdtQuote] = await tx
+          .select({ priceTmn: wallexAssetCatalog.priceTmn })
+          .from(wallexAssetCatalog)
+          .where(eq(wallexAssetCatalog.symbol, "USDT"))
+          .limit(1);
+        const usdtToman = usdtQuote?.priceTmn && D(usdtQuote.priceTmn).gt(0) ? D(usdtQuote.priceTmn) : serverRate;
+
+        // What leaves (buy) or reaches (sell) the settlement account. A Toman
+        // settlement is typed in Toman; a Rial account carries ten times that.
+        const settleQty =
+          input.settleQuantity && D(input.settleQuantity).gt(0)
+            ? D(input.settleQuantity)
+            : settleUnit === "toman"
+              ? D(irtAmountStr)
+              : amount.div(D(await nativeUnitPriceUsd(cashAssetId, authUser?.id ?? null, tx)));
+        if (settleQty.lte(0)) throw new Error("مبلغ معامله باید بزرگ‌تر از صفر باشد");
+        const settleNative = cashSymbol === "IRR" ? settleQty.mul(10) : settleQty;
+        if (settleUnit === "toman") {
+          irtAmountStr = settleQty.toFixed(0);
+          amount = D(irtAmountStr).div(serverRate);
+        } else {
+          // Reads inside the write transaction use `tx` — a single-connection driver would deadlock on `db`.
+          amount = settleQty.mul(D(await nativeUnitPriceUsd(cashAssetId, authUser?.id ?? null, tx)));
+          irtAmountStr = settleQty.mul(usdtToman).toFixed(0);
+        }
+
+        // Selling more than is held would leave a negative position.
+        if (side === "sell") {
+          const [held] = await tx
+            .select({ quantity: sql<string>`coalesce(sum(${postings.quantity}), 0)::text` })
+            .from(postings)
+            .innerJoin(journalEntries, eq(journalEntries.id, postings.entryId))
+            .where(and(eq(postings.accountId, assetRow.id), eq(journalEntries.status, "posted")));
+          if (D(held?.quantity ?? "0").lt(qty)) {
+            throw new Error(`مقدار فروش از موجودی شما بیشتر است (موجودی: ${D(held?.quantity ?? "0").toString()}).`);
+          }
+        }
+
         // F-02/F-03: the commission counter is resolved for THIS tenant and
         // provisioned when the chart lacks it — a buy with a fee and no 5040
         // row used to produce an unbalanced entry («سند تراز نیست»).
         const feeAccountId = (await ensureFeeExpenseAccount(authUser?.id ?? null, tx))?.id ?? null;
-        const common = {
-          entryDate: input.entryDate,
-          description: input.description,
-          assetAccountId: input.primaryAccountId,
-          cashAccountId: input.counterAccountId,
-          assetId,
-          quantity: qty,
-          cashAssetId,
-          cashQuantity,
-          baseValue: amount.toString(),
-          feeBase: fee,
-          feeAccountId,
-          userId: authUser?.id ?? undefined,
-          idempotencyKey,
-        };
-        // A purchase must never push the paying wallet below zero: the guard is
-        // evaluated SERVER-SIDE inside the same transaction (the client can
-        // always edit the form), scoped to this tenant's own postings.
-        if (input.type === "buy") entry = await recordBuy({ ...common, preventOverdraft: true }, tx);
-        else {
-          const pnl = await ensureRealizedPnlAccount(authUser?.id ?? null, tx);
-          if (!pnl) throw new Error("حساب سود سرمایه‌ای (۴۱۰۰) تعریف نشده است");
-          entry = await recordSell({ ...common, pnlAccountId: pnl.id, preventOverdraft: false }, tx);
+
+        if (tradeRouteFor(assetRow) === "conversion") {
+          // سواپ: a stablecoin (or dollar) against Toman or another stablecoin.
+          // Money changes form — no FIFO lot is opened or consumed. Book value
+          // is the dollar face of the stablecoin leg.
+          amount = qty.mul(D(await nativeUnitPriceUsd(assetId, authUser?.id ?? null, tx)));
+          entry = await recordFx(
+            {
+              entryDate: input.entryDate,
+              description: input.description,
+              fromAccountId: side === "sell" ? assetRow.id : cashRow.id,
+              toAccountId: side === "sell" ? cashRow.id : assetRow.id,
+              fromAssetId: side === "sell" ? assetId : cashAssetId,
+              toAssetId: side === "sell" ? cashAssetId : assetId,
+              fromQuantity: (side === "sell" ? qty : settleNative).toString(),
+              toQuantity: (side === "sell" ? settleNative : qty).toString(),
+              bookValue: amount.toString(),
+              feeBase: fee,
+              feeAccountId,
+              userId: authUser?.id ?? undefined,
+              idempotencyKey,
+              preventOverdraft: true,
+            },
+            tx,
+          );
+        } else {
+          const common = {
+            entryDate: input.entryDate,
+            description: input.description,
+            assetAccountId: assetRow.id,
+            cashAccountId: cashRow.id,
+            assetId,
+            quantity: qty.toString(),
+            cashAssetId,
+            cashQuantity: settleNative.toString(),
+            baseValue: amount.toString(),
+            feeBase: fee,
+            feeAccountId,
+            userId: authUser?.id ?? undefined,
+            idempotencyKey,
+          };
+          // A purchase must never push the paying wallet below zero: the guard is
+          // evaluated SERVER-SIDE inside the same transaction (the client can
+          // always edit the form), scoped to this tenant's own postings.
+          if (side === "buy") entry = await recordBuy({ ...common, preventOverdraft: true }, tx);
+          else {
+            const pnl = await ensureRealizedPnlAccount(authUser?.id ?? null, tx);
+            if (!pnl) throw new Error("حساب سود سرمایه‌ای (۴۱۰۰) تعریف نشده است");
+            entry = await recordSell({ ...common, pnlAccountId: pnl.id, preventOverdraft: false }, tx);
+          }
         }
+
+        const unitPriceIrt = D(irtAmountStr).div(qty);
+        tradeFreeze = {
+          tradeSymbol: assetRow.symbol,
+          tradeQuantity: qty.toString(),
+          settleSymbol: cashRow.symbol,
+          settleQuantity: settleNative.toString(),
+          unitPriceIrt: unitPriceIrt.toString(),
+          unitPriceUsdt: (settleUnit === "toman" ? unitPriceIrt.div(usdtToman) : settleQty.div(qty)).toString(),
+          usdtRateIrt: usdtToman.toString(),
+          priceMode: input.priceMode ?? "market",
+        };
       }
 
       if (!entry?.id) throw new Error("خطا در ایجاد سند حسابداری");
@@ -848,10 +1239,44 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         fxRate: serverRate.toString(),
         rateSource: fxSnap.source,
         rateDate: fxSnap.effectiveDate,
+        ...tradeFreeze,
       });
 
       // Manual entries are reviewed by construction — a human just made them.
       await tx.insert(entryReviews).values({ entryId: entry.id }).onConflictDoNothing();
+
+      // Recurring income: close the reminder this entry came from, or schedule
+      // next month's reminder. A reminder is never posted without a tap.
+      if (input.type === "income" && authUser?.id && category && isUuid(input.primaryAccountId)) {
+        const nativeForPlan =
+          input.nativeAmount && D(input.nativeAmount).gt(0) ? D(input.nativeAmount).toString() : D(irtAmountStr).toString();
+        if (input.planId && isUuid(input.planId)) {
+          await closeIncomeOccurrence(
+            { planId: input.planId, userId: authUser.id, entryId: entry.id, amountNative: nativeForPlan, amountBase: amount.toString() },
+            tx,
+          );
+        } else if (input.recurring === "monthly") {
+          const [cashRow] = await tx
+            .select({ assetId: accounts.assetId })
+            .from(accounts)
+            .where(eq(accounts.id, input.primaryAccountId))
+            .limit(1);
+          await scheduleNextIncome(
+            {
+              userId: authUser.id,
+              title: input.description,
+              fromDate: input.entryDate,
+              dayOfMonth: Number(input.recurringDay) || jalaliDayOf(input.entryDate),
+              categoryId: category.id,
+              accountId: input.primaryAccountId,
+              assetId: cashRow?.assetId ?? null,
+              amountNative: nativeForPlan,
+              amountBase: amount.toString(),
+            },
+            tx,
+          );
+        }
+      }
 
       // Debt / Installment linkage — update status within same transaction (Transactional Integrity)
       if (linkedInst) {
@@ -1029,6 +1454,12 @@ export async function executePlanAction(id: string): Promise<ActionResult> {
       // accounting service runs.
       if (plan?.fromAccountId) await validateAccountOwnership(plan.fromAccountId, user.id);
       if (plan?.toAccountId) await validateAccountOwnership(plan.toAccountId, user.id);
+      // A recurring income is recorded through the income path (its category,
+      // its native amount, its next reminder) — never the generic plan posting.
+      if (plan?.categoryId && plan.direction === "inflow") {
+        const { recordPlannedIncomeAction } = await import("@/app/actions/income");
+        return recordPlannedIncomeAction(id);
+      }
     }
     await executePlanned(id);
     refreshAll();
@@ -1618,6 +2049,14 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
       { ...rest, instruments, cryptoHoldings, vehicles, properties },
       setupUser?.id,
     );
+    // Occupations are an optional profile field: a malformed value never fails the setup.
+    if (setupUser?.id && typeof raw.occupations === "string" && raw.occupations) {
+      try {
+        await setUserOccupations(setupUser.id, JSON.parse(raw.occupations));
+      } catch {
+        /* profile only */
+      }
+    }
     refreshAll();
     // The service's own message is passed through, not replaced: when a
     // خودرو/ملک row fails to register it names which one and says the accounts

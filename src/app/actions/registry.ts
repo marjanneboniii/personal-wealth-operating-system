@@ -215,6 +215,7 @@ export async function saveVehicleAction(_previous: RegistryResult | null, form: 
       plate: optional(form, "plate"),
       mileage: numeric(form, "mileage") ? Number(numeric(form, "mileage")) : undefined,
       notes: optional(form, "notes"),
+      paymentAccountId: optional(form, "paymentAccountId") ?? null,
       initialValuation: initialValue
         ? {
             valueToman: initialValue,
@@ -226,7 +227,7 @@ export async function saveVehicleAction(_previous: RegistryResult | null, form: 
     });
 
     refresh();
-    return { ok: true, message: `خودرو با شناسه ${toFaDigits(result.symbol)} ثبت شد. معادل دلاری قیمت خرید بر اساس نرخ همان تاریخ ذخیره شد.` };
+    return { ok: true, message: `«${result.label}» ${optional(form, "paymentAccountId") ? "خریداری شد و مبلغ خرید از حساب بانکی کسر شد" : "ثبت شد"}. معادل دلاری قیمت خرید بر اساس نرخ همان تاریخ ذخیره شد.` };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت خودرو ناموفق بود." };
   }

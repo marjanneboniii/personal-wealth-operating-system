@@ -187,6 +187,24 @@ export async function resolveExpenseCounterAccount(
   return (rowsFound[0] as SystemAccount) ?? null;
 }
 
+/** Ledger income account every categorised income posts against (never shown to the user). */
+export const INCOME_ACCOUNT_CODE = "4010";
+export const INCOME_ACCOUNT_NAME = "درآمدها";
+
+/**
+ * The income counterpart of THIS tenant: its own 4010, else the shared global
+ * 4010, else a freshly provisioned tenant row. The SOURCE of an income (salary,
+ * interest, rent…) is its category — the user never picks a ledger account, so
+ * the unit a legacy income account happened to be denominated in (دلار) can no
+ * longer leak into the form.
+ */
+export async function resolveIncomeCounterAccount(
+  userId: string | null | undefined,
+  client: any = db,
+): Promise<SystemAccount | null> {
+  return ensureSystemAccount({ code: INCOME_ACCOUNT_CODE, name: INCOME_ACCOUNT_NAME, type: "income", userId, client });
+}
+
 /** Base (USD, else IRT) asset id used to provision a missing system row. */
 async function findBaseAssetId(client: any): Promise<string | null> {
   for (const symbol of ["USD", "IRT"]) {

@@ -133,12 +133,13 @@ export async function saveRealEstateAction(_previous: RealEstateResult | null, f
       yearBuilt: optional(form, "yearBuilt") ? Number(numeric(form, "yearBuilt")) : null,
       deedNumber: optional(form, "deedNumber"),
       notes: optional(form, "notes"),
+      paymentAccountId: optional(form, "paymentAccountId") ?? null,
     });
 
     refresh();
     return {
       ok: true,
-      message: `ملک «${result.assetName}» با شناسه ${toFaDigits(result.symbol)} ثبت شد. معادل‌های دلاری با نرخ تاریخی همان روزها محاسبه و سند افتتاحیه دفترکل با تاریخ تملک واقعی ایجاد شد.`,
+      message: `«${result.label}» ${optional(form, "paymentAccountId") ? "خریداری شد و مبلغ خرید از حساب بانکی کسر شد" : "ثبت شد"}. معادل‌های دلاری با نرخ تاریخی همان روزها محاسبه و سند افتتاحیه دفترکل با تاریخ تملک واقعی ایجاد شد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت ملک ناموفق بود." };
@@ -150,12 +151,12 @@ export async function previewRealEstateIdentityAction(
   cityId: string,
   neighborhoodId: string,
   propertyTypeId: string,
-): Promise<{ ok: boolean; assetName?: string; symbol?: string; sequence?: number; message?: string }> {
+): Promise<{ ok: boolean; assetName?: string; label?: string; sequence?: number; message?: string }> {
   try {
     if (!cityId || !neighborhoodId || !propertyTypeId) return { ok: false };
-    const preview = await previewRealEstateIdentity(cityId, neighborhoodId, propertyTypeId);
+    const preview = await previewRealEstateIdentity(cityId, neighborhoodId, propertyTypeId, await currentUserId());
     if (!preview) return { ok: false, message: "داده پایه یافت نشد." };
-    return { ok: true, assetName: preview.assetName, symbol: preview.symbol, sequence: preview.sequence };
+    return { ok: true, assetName: preview.assetName, label: preview.label, sequence: preview.sequence };
   } catch {
     return { ok: false, message: "پیش‌نمایش نام/شناسه در دسترس نیست." };
   }
@@ -171,7 +172,7 @@ export async function deleteRealEstateAction(propertyId: string): Promise<RealEs
     refresh();
     return {
       ok: true,
-      message: `ملک ${toFaDigits(result.symbol)} حذف شد. تمام آثار آن از گزارش‌ها، سبد دارایی و شاخص‌های ثروت پاک‌سازی شد.`,
+      message: `${result.label} حذف شد. تمام آثار آن از گزارش‌ها، سبد دارایی و شاخص‌های ثروت پاک‌سازی شد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "حذف ملک ناموفق بود." };
@@ -215,7 +216,7 @@ export async function sellRealEstateAction(input: {
     refresh();
     return {
       ok: true,
-      message: `ملک ${toFaDigits(result.symbol)} فروخته شد؛ سود/زیان تحقق‌یافته ${formatMoney(result.realizedToman, "IRT")} (≈ ${formatMoney(result.realizedUsd, "USD")}) در دفترکل ثبت شد.`,
+      message: `${result.label} فروخته شد؛ سود/زیان تحقق‌یافته ${formatMoney(result.realizedToman, "IRT")} (≈ ${formatMoney(result.realizedUsd, "USD")}) در دفترکل ثبت شد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "فروش ملک ناموفق بود." };

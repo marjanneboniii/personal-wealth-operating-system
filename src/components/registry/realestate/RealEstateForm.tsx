@@ -39,10 +39,13 @@ export default function RealEstateForm({
   cities,
   neighborhoods,
   propertyTypes,
+  bankAccounts = [],
 }: {
   cities: City[];
   neighborhoods: Neighborhood[];
   propertyTypes: PropertyType[];
+  /** Toman bank accounts a property bought now may be paid from. */
+  bankAccounts?: { id: string; name: string }[];
 }) {
   const [state, action, pending] = useActionState(saveRealEstateAction, null);
 
@@ -72,7 +75,7 @@ export default function RealEstateForm({
   const [manualPurchaseRate, setManualPurchaseRate] = useState("");
   const [manualValuationRate, setManualValuationRate] = useState("");
 
-  const [identity, setIdentity] = useState<{ assetName?: string; symbol?: string; sequence?: number } | null>(null);
+  const [identity, setIdentity] = useState<{ assetName?: string; label?: string; sequence?: number } | null>(null);
   const [purchasePreview, setPurchasePreview] = useState<UsdPreview>(null);
   const [valuationPreview, setValuationPreview] = useState<UsdPreview>(null);
   const [loadingIdentity, setLoadingIdentity] = useState(false);
@@ -236,7 +239,7 @@ export default function RealEstateForm({
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="min-w-0">
             <div className="mt-0.5 text-[length:var(--fs-xs)] font-semibold" style={{ color: "var(--action)" }}>
-              شناسه منحصر به‌فرد ملک: <span className="num font-bold text-[length:var(--fs-sm)]">{loadingIdentity ? "…" : identityPreview?.symbol ? toFaDigits(identityPreview.symbol) : "—"}</span>
+              شناسه ملک: <span className="num font-bold text-[length:var(--fs-sm)]">{loadingIdentity ? "…" : identityPreview?.label ?? "—"}</span>
             </div>
           </div>
           {identityPreview?.sequence && identityPreview.sequence > 1 && (
@@ -258,6 +261,19 @@ export default function RealEstateForm({
           onChange={setAcquisitionIso}
           required
         />
+        <Labeled
+          label="پرداخت از حساب بانکی"
+          hint="اگر ملک را همین حالا می‌خرید، حساب بانکی را انتخاب کنید تا قیمت خرید از آن کسر شود. برای ملکی که از قبل دارید خالی بگذارید."
+        >
+          <select className="field" name="paymentAccountId" defaultValue="">
+            <option value="">بدون کسر از حساب (ملک فعلی)</option>
+            {bankAccounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </Labeled>
       </div>
       </section>
 
