@@ -275,94 +275,69 @@ function NavGroupBlock({
 
 function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClose: () => void; pathname: string; authUser: ShellUser | null }) {
   return (
-    <Sheet open={open} onClose={onClose} title="بیشتر">
-      <nav className="px-2 pb-5 pt-1" aria-label="همه بخش‌ها">
-        <div className="mb-3 rounded-[var(--r-md)] border p-2" style={{ borderColor: "var(--border)" }}>
+    <Sheet open={open} onClose={onClose} title="همه بخش‌ها">
+      {/* Sections are tile grids, three across: the whole app fits in about
+          one screen instead of a long list that had to be scrolled. */}
+      <nav className="more-sheet" aria-label="همه بخش‌ها">
+        <div className="more-profile">
           <AccountLink user={authUser} />
-          {!authUser && <p className="muted mt-1.5 px-1 text-[length:var(--fs-xs)]">ورود برای مدیریت نرخ ارز و مالکیت داده‌ها</p>}
+          {!authUser && <p className="muted min-w-0 flex-1 text-[length:var(--fs-xs)]">برای مدیریت داده‌ها وارد شوید</p>}
         </div>
-        <div className="nav-group-label">اقدامات سریع</div>
-        <div className="mb-1 grid grid-cols-3 gap-1.5 px-2">
+
+        <div className="more-quick">
           {QUICK_ACTIONS.slice(0, 3).map((a) => (
-            <Link
-              key={a.href}
-              href={a.href}
-              onClick={onClose}
-              className="soft flex flex-col items-center gap-1.5 rounded-[var(--r-md)] px-2 py-3 text-[length:var(--fs-xs)] font-medium"
-              style={{ color: "var(--text-2)", touchAction: "manipulation" }}
-            >
-              <span style={{ color: "var(--action)" }}>
-                <Icon name={a.icon} size={17} />
-              </span>
-              {a.label}
+            <Link key={a.href} href={a.href} onClick={onClose}>
+              <Icon name={a.icon} size={15} />
+              <span className="truncate">{a.label.replace("انتقال بین حساب‌ها", "انتقال")}</span>
             </Link>
           ))}
         </div>
-        {NAV_GROUPS.map((g) => (
-          <div key={g.id}>
-            <div className="nav-group-label">{g.label}</div>
-            <ul>
+
+        {/* «خانه» is already a bottom tab. */}
+        {NAV_GROUPS.filter((g) => g.id !== "home").map((g) => (
+          <section key={g.id} aria-label={g.label}>
+            <h3 className="more-group-title">{g.label}</h3>
+            <ul className="more-grid">
               {g.items.map((n) => {
                 const active = isNavActive(pathname, n.href);
-                const activeColor = "var(--action)";
-                const activeBg = "var(--action-soft)";
                 return (
                   <li key={n.href}>
                     <Link
                       href={n.href}
                       onClick={onClose}
-                      className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[length:var(--fs-sm)]"
-                      style={
-                        active
-                          ? { background: activeBg, color: activeColor, fontWeight: 600, touchAction: "manipulation" }
-                          : { color: "var(--text-2)", touchAction: "manipulation" }
-                      }
+                      aria-current={active ? "page" : undefined}
+                      className={`more-tile${active ? " is-active" : ""}`}
                     >
-                      <Icon name={n.icon} size={18} />
-                      <span className="flex-1">{n.label}</span>
-                      {active && <Icon name="check" size={15} />}
+                      <span className="more-tile-icon">
+                        <Icon name={n.icon} size={18} />
+                      </span>
+                      {n.label}
                     </Link>
                   </li>
                 );
               })}
             </ul>
-          </div>
+          </section>
         ))}
-        <div className="nav-group-label">سیستم</div>
-        <ul>
-          {SECONDARY_ITEMS.map((n) => (
-            <li key={n.href}>
-              <Link
-                href={n.href}
-                onClick={onClose}
-                className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[length:var(--fs-sm)]"
-                style={{ color: "var(--text-2)", touchAction: "manipulation" }}
-              >
-                <Icon name={n.icon} size={18} />
-                {n.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
 
-        {/* Accounting-grade views stay available but deliberately de-emphasised. */}
-        <div className="nav-group-label">پیشرفته</div>
-        <ul>
-          {ADVANCED_ITEMS.map((n) => (
-            <li key={n.href}>
-              <Link
-                href={n.href}
-                onClick={onClose}
-                className="flex min-h-11 items-center gap-3 rounded-[var(--r-md)] px-3 py-2.5 text-[length:var(--fs-sm)]"
-                style={{ color: "var(--text-2)", touchAction: "manipulation" }}
-              >
-                <Icon name={n.icon} size={18} />
-                <span className="flex-1">{n.label}</span>
-                {isNavActive(pathname, n.href) && <Icon name="check" size={15} />}
-              </Link>
-            </li>
-          ))}
-        </ul>
+        {/* System and accounting-grade views: one quiet list at the end. */}
+        <section aria-label="سیستم و پیشرفته">
+          <h3 className="more-group-title">سیستم و پیشرفته</h3>
+          <ul className="more-list">
+            {[...SECONDARY_ITEMS, ...ADVANCED_ITEMS].map((n) => {
+              const active = isNavActive(pathname, n.href);
+              return (
+                <li key={n.href}>
+                  <Link href={n.href} onClick={onClose} aria-current={active ? "page" : undefined}>
+                    <Icon name={n.icon} size={17} />
+                    <span className="flex-1">{n.label}</span>
+                    {active ? <Icon name="check" size={15} /> : <Icon name="chevronLeft" size={14} />}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       </nav>
     </Sheet>
   );

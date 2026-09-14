@@ -3,10 +3,11 @@
 /**
  * «رمزارز و طلا» — every coin the user holds, WHERE it is held, plus physical gold.
  *
- * A coin is a card; its places (exchanges / wallets) are PICKED from a logo
- * grid, never typed. One coin may sit in several places and one place may
- * hold several coins, so each picked place is its own line with its own
- * quantity and purchase price.
+ * A coin is a card; its places (exchanges / wallets) are PICKED inline, right
+ * inside that card — no dialog. One tap on a place adds it (a second tap
+ * removes it), so the user always sees what is selected. One coin may sit in
+ * several places and one place may hold several coins, so each picked place
+ * is its own line with its own quantity and purchase price.
  *
  * A coin is recorded in the currency it was BOUGHT with: Tether (the usual case
  * on Iranian exchanges) or Toman. Tether itself is priced in Toman — «a tether
@@ -18,11 +19,10 @@ import { useMemo, useState } from "react";
 import Icon from "@/components/ui/Icon";
 import AmountInput from "@/components/ui/AmountInput";
 import AssetLogo from "@/components/ui/AssetLogo";
-import Sheet from "@/components/ui/Sheet";
 import StepIntro, { CurrencySwitch } from "@/components/setup/StepIntro";
 import { SUPPORTED_CRYPTO_ASSETS } from "@/features/pricing/supportedAssets";
 import { isMemeSymbol } from "@/features/pricing/wallexKinds";
-import { faCount, formatMoney } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { lineValue, newRowKey, toToman } from "@/components/setup/setupMoney";
 import { KNOWN_WALLETS, knownWalletOf, OTHER_PLACE_LABEL, walletKeyOf } from "@/features/setup/holdingWallets";
 
@@ -71,9 +71,6 @@ const TAB_PLACES: Record<PlaceTab, typeof KNOWN_WALLETS> = {
   exchange: KNOWN_WALLETS.filter((w) => w.kind === "exchange"),
   wallet: KNOWN_WALLETS.filter((w) => w.kind !== "exchange"),
 };
-/** Selection keys in catalogue order; "" (سایر) last. */
-const PLACE_ORDER = [...KNOWN_WALLETS.map((w) => walletKeyOf(w.name)), ""];
-const NAME_BY_KEY = new Map(KNOWN_WALLETS.map((w) => [walletKeyOf(w.name), w.name]));
 
 const digitsOnly = (value: string) => value.replace(/[^\d.]/g, "");
 
@@ -82,7 +79,7 @@ function PlaceMark({ name, size }: { name: string; size: number }) {
   if (logo) return <AssetLogo userLogoUrl={logo} name={name} size={size} />;
   return (
     <span className="place-mark-other" style={{ width: size, height: size }} aria-hidden="true">
-      <Icon name="wallet" size={Math.round(size * 0.5)} />
+      <Icon name="wallet" size={Math.round(size * 0.55)} />
     </span>
   );
 }
@@ -106,10 +103,9 @@ export default function SetupHoldingsStep({
   rate: string;
 }) {
   const [query, setQuery] = useState("");
-  // Place picker: which coin it is open for, the tab, and the pending picks.
-  const [pickerFor, setPickerFor] = useState<string | null>(null);
-  const [tab, setTab] = useState<PlaceTab>("exchange");
-  const [selection, setSelection] = useState<Set<string>>(new Set());
+  // Coins whose inline place picker is open, and the tab each one shows.
+  const [openPickers, setOpenPickers] = useState<Set<string>>(new Set());
+  const [tabs, setTabs] = useState<Record<string, PlaceTab>>({});
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -131,66 +127,40 @@ export default function SetupHoldingsStep({
   const patchPlace = (row: CryptoDraftRow, placeKey: string, next: Partial<CryptoPlaceDraft>) =>
     patch(row.key, { places: row.places.map((p) => (p.key === placeKey ? { ...p, ...next } : p)) });
 
-  const openPicker = (rowKey: string, current: CryptoPlaceDraft[]) => {
-    setSelection(new Set(current.map((p) => walletKeyOf(p.walletName))));
-    const first = current[0] ? knownWalletOf(current[0].walletName) : null;
-    setTab(first && first.kind !== "exchange" ? "wallet" : "exchange");
-    setPickerFor(rowKey);
-  };
-  const closePicker = () => setPickerFor(null);
+  const setPickerOpen = (rowKey: string, open: boolean) =>
+    setOpenPickers((prev) => {
+      const next = new Set(prev);
+      if (open) next.add(rowKey);
+      else next.delete(rowKey);
+      return next;
+    });
 
   const add = (coin: (typeof SUPPORTED_CRYPTO_ASSETS)[number]) => {
     const isTether = coin.symbol === "USDT";
     const key = newRowKey();
     onChange([...rows, { key, symbol: coin.symbol, name: coin.displayName, priceCurrency: isTether ? "IRT" : "USDT", places: [] }]);
     setQuery("");
-    // Where it is held is the very next question.
-    openPicker(key, []);
+    // Where it is held is the very next question — asked right in the card.
+    setPickerOpen(key, true);
   };
 
-  const toggle = (key: string) =>
-    setSelection((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-
-  const confirmPicker = () => {
-    const row = rows.find((r) => r.key === pickerFor);
-    if (row) {
-      // Keep what was already typed for places that stay selected.
-      const kept = row.places.filter((p) => selection.has(walletKeyOf(p.walletName)));
-      const have = new Set(kept.map((p) => walletKeyOf(p.walletName)));
-      const added = PLACE_ORDER.filter((k) => selection.has(k) && !have.has(k)).map((k) => ({
-        key: newRowKey(),
-        walletName: NAME_BY_KEY.get(k) ?? "",
-        quantity: "",
-        // A tether's cost is its Toman price; today's rate is a sensible start.
-        unitPrice: row.symbol === "USDT" ? rate : "",
-      }));
-      patch(row.key, { places: [...kept, ...added] });
+  /** One tap adds the place; tapping it again removes it. */
+  const togglePlace = (row: CryptoDraftRow, placeKey: string, walletName: string) => {
+    const existing = row.places.find((p) => walletKeyOf(p.walletName) === placeKey);
+    if (existing) {
+      patch(row.key, { places: row.places.filter((p) => p.key !== existing.key) });
+      return;
     }
-    closePicker();
+    patch(row.key, {
+      places: [
+        ...row.places,
+        // A tether's cost is its Toman price; today's rate is a sensible start.
+        { key: newRowKey(), walletName, quantity: "", unitPrice: row.symbol === "USDT" ? rate : "" },
+      ],
+    });
   };
 
-  const pickerRow = rows.find((r) => r.key === pickerFor);
   const goldValue = lineValue(goldGrams, goldPrice);
-
-  const tile = (key: string, name: string, label: string) => {
-    const on = selection.has(key);
-    return (
-      <li key={key || "other"}>
-        <button type="button" className={`place-tile${on ? " is-on" : ""}`} aria-pressed={on} onClick={() => toggle(key)}>
-          <span className="place-tile-check" aria-hidden="true">
-            <Icon name="check" size={11} />
-          </span>
-          <PlaceMark name={name} size={34} />
-          <span className="place-tile-name">{label}</span>
-        </button>
-      </li>
-    );
-  };
 
   return (
     <section className="space-y-5">
@@ -216,9 +186,7 @@ export default function SetupHoldingsStep({
                 <button type="button" className="list-row w-full text-right hover:bg-[color:var(--hover)]" onClick={() => add(coin)}>
                   <AssetLogo symbol={coin.symbol} name={coin.displayName} size={28} />
                   <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)] font-medium">{coin.displayName}</span>
-                  <span className="muted num text-[length:var(--fs-xs)]" dir="ltr">
-                    {coin.symbol}
-                  </span>
+                  <Icon name="plus" size={15} />
                 </button>
               </li>
             ))}
@@ -228,9 +196,32 @@ export default function SetupHoldingsStep({
       </div>
 
       {rows.length > 0 && (
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {rows.map((row) => {
             const isTether = row.symbol === "USDT";
+            const pickerOpen = row.places.length === 0 || openPickers.has(row.key);
+            const tab = tabs[row.key] ?? "exchange";
+            const picked = new Set(row.places.map((p) => walletKeyOf(p.walletName)));
+            const chip = (placeKey: string, walletName: string, label: string) => {
+              const on = picked.has(placeKey);
+              return (
+                <li key={placeKey || "other"}>
+                  <button
+                    type="button"
+                    className={`place-chip${on ? " is-on" : ""}`}
+                    aria-pressed={on}
+                    onClick={() => togglePlace(row, placeKey, walletName)}
+                  >
+                    <PlaceMark name={walletName} size={24} />
+                    <span className="place-chip-name">{label}</span>
+                    <span className="place-chip-check" aria-hidden="true">
+                      <Icon name={on ? "check" : "plus"} size={12} />
+                    </span>
+                  </button>
+                </li>
+              );
+            };
+
             return (
               <li key={row.key} className="card setup-row space-y-3">
                 <div className="flex items-center gap-2.5">
@@ -254,6 +245,44 @@ export default function SetupHoldingsStep({
                   </button>
                 </div>
 
+                {pickerOpen ? (
+                  <div className="place-picker">
+                    <div className="place-picker-head">
+                      <p className="min-w-0 flex-1 text-[length:var(--fs-sm)] font-semibold">
+                        {row.name} کجا نگهداری می‌شود؟
+                      </p>
+                      <CurrencySwitch
+                        label="نوع محل نگهداری"
+                        value={tab}
+                        options={PLACE_TABS}
+                        onChange={(next) => setTabs((prev) => ({ ...prev, [row.key]: next }))}
+                      />
+                    </div>
+                    <p className="muted text-[length:var(--fs-xs)] leading-6">
+                      روی هر محل بزنید تا اضافه شود؛ چند محل هم‌زمان مجاز است.
+                    </p>
+                    <ul className="place-chips" role="list">
+                      {TAB_PLACES[tab].map((w) => chip(walletKeyOf(w.name), w.name, w.name))}
+                      {chip("", "", OTHER_PLACE_LABEL)}
+                    </ul>
+                    {row.places.length > 0 ? (
+                      <button type="button" className="btn btn-soft w-full" onClick={() => setPickerOpen(row.key, false)}>
+                        <Icon name="check" size={15} />
+                        انتخاب محل تمام شد
+                      </button>
+                    ) : (
+                      <p className="text-center text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }}>
+                        برای ادامه، دست‌کم یک محل نگهداری انتخاب کنید.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <button type="button" className="place-add" onClick={() => setPickerOpen(row.key, true)}>
+                    <Icon name="plus" size={15} />
+                    افزودن صرافی یا کیف پول دیگر
+                  </button>
+                )}
+
                 {row.places.length > 0 && (
                   <ul className="place-lines">
                     {row.places.map((place) => {
@@ -263,7 +292,7 @@ export default function SetupHoldingsStep({
                       return (
                         <li key={place.key} className="place-line">
                           <div className="flex items-center gap-2">
-                            <PlaceMark name={place.walletName} size={24} />
+                            <PlaceMark name={place.walletName} size={26} />
                             <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)] font-semibold">{label}</span>
                             {value.gt(0) && (
                               <span className="muted num money-nowrap text-[length:var(--fs-xs)]" dir="rtl">
@@ -320,43 +349,11 @@ export default function SetupHoldingsStep({
                     })}
                   </ul>
                 )}
-
-                <button type="button" className={`place-add${row.places.length === 0 ? " is-empty" : ""}`} onClick={() => openPicker(row.key, row.places)}>
-                  <Icon name={row.places.length === 0 ? "plus" : "wallet"} size={15} />
-                  {row.places.length === 0 ? "انتخاب صرافی یا کیف پول" : "افزودن یا تغییر محل نگهداری"}
-                </button>
-                {row.places.length === 0 && (
-                  <p className="text-center text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }}>
-                    برای ادامه، محل نگهداری {row.name} را انتخاب کنید.
-                  </p>
-                )}
               </li>
             );
           })}
         </ul>
       )}
-
-      <Sheet open={!!pickerRow} onClose={closePicker} title={pickerRow ? `${pickerRow.name} کجا نگهداری می‌شود؟` : undefined} wide>
-        <div className="space-y-3 p-4">
-          <p className="muted text-[length:var(--fs-xs)] leading-6">هر جایی که دارید را انتخاب کنید؛ چند انتخاب هم‌زمان مجاز است.</p>
-          <CurrencySwitch label="نوع محل نگهداری" value={tab} options={PLACE_TABS} onChange={setTab} />
-          <ul className="place-grid" role="list">
-            {TAB_PLACES[tab].map((w) => tile(walletKeyOf(w.name), w.name, w.name))}
-            {tile("", "", OTHER_PLACE_LABEL)}
-          </ul>
-        </div>
-        <div className="place-sheet-foot">
-          <span className="muted min-w-0 flex-1 text-[length:var(--fs-xs)]">
-            {selection.size > 0 ? `${faCount(selection.size)} محل انتخاب شده` : "هنوز محلی انتخاب نشده"}
-          </span>
-          <button type="button" className="btn btn-ghost" onClick={closePicker}>
-            انصراف
-          </button>
-          <button type="button" className="btn btn-primary" onClick={confirmPicker}>
-            تأیید
-          </button>
-        </div>
-      </Sheet>
 
       <div className="card setup-row space-y-3">
         <div className="flex items-center gap-2.5">

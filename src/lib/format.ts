@@ -5,6 +5,7 @@ import {
   jalaliToGregorian,
 } from "@doranjs/core";
 import { D } from "@/domain/decimal";
+import { SUPPORTED_CRYPTO_ASSETS } from "@/features/pricing/supportedAssets";
 
 export type DigitStyle = "fa" | "en";
 
@@ -89,10 +90,22 @@ export const CURRENCY_LABELS: Record<string, string> = {
   ETH: "اتریوم",
 };
 
+/**
+ * Every supported coin reads by its Persian name too («۱۲۰ اتنا یو‌اس‌دی‌ای»,
+ * never «۱۲۰ USDE»). The Latin ticker belongs to the market view only.
+ */
+const COIN_LABELS: Record<string, string> = Object.fromEntries(
+  SUPPORTED_CRYPTO_ASSETS.map((c) => [c.symbol.toUpperCase(), c.displayName]),
+);
+
+function persianLabelOf(code: string): string | undefined {
+  return CURRENCY_LABELS[code] ?? COIN_LABELS[code];
+}
+
 export function currencyLabel(currency: string | null | undefined): string {
   if (!currency) return "";
   const code = String(currency).trim().toUpperCase();
-  return CURRENCY_LABELS[code] ?? String(currency);
+  return persianLabelOf(code) ?? String(currency);
 }
 
 /**
@@ -101,7 +114,7 @@ export function currencyLabel(currency: string | null | undefined): string {
  */
 export function hasPersianCurrencyLabel(currency: string | null | undefined): boolean {
   if (!currency) return false;
-  return CURRENCY_LABELS[String(currency).trim().toUpperCase()] !== undefined;
+  return persianLabelOf(String(currency).trim().toUpperCase()) !== undefined;
 }
 
 

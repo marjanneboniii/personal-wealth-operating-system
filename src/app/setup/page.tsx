@@ -626,12 +626,16 @@ export default function SetupWizardPage() {
               قبلی
             </button>
           )}
+          {/* Distinct keys are load-bearing: without them React reuses the
+              «ادامه» <button> and flips its type to "submit" while its own
+              click is still being dispatched, so reaching the review step
+              submitted the wizard before the user ever saw it. */}
           {step < LAST_STEP ? (
-            <button type="button" onClick={next} disabled={!canContinue} className="btn btn-primary">
+            <button key="next" type="button" onClick={next} disabled={!canContinue} className="btn btn-primary">
               ادامه
             </button>
           ) : (
-            <button type="submit" disabled={pending || !rateReady} className="btn btn-primary">
+            <button key="confirm" type="submit" disabled={pending || !rateReady} className="btn btn-primary">
               {pending ? "در حال ثبت…" : "تأیید و شروع"}
             </button>
           )}

@@ -92,6 +92,11 @@ test("currencyLabel maps codes (case-insensitive) and passes unknown tickers thr
   const ethMoney = formatMoney("4", "ETH");
   assert.ok(/۴[\s\u00a0]اتریوم/.test(bare(ethMoney)), "number → space → unit, in Persian");
   assert.ok(!ethMoney.includes("ETH"), "the Latin ticker never reaches the screen");
+  // Supported coins read by their Persian name — the Latin ticker is for the market view only.
+  assert.equal(currencyLabel("USDE"), "اتنا یو‌اس‌دی‌ای");
+  assert.equal(currencyLabel("usdc"), "یو اس دی سی");
+  const usdeMoney = formatMoney("120.5", "USDE");
+  assert.ok(!/[A-Za-z0-9]/.test(bare(usdeMoney)), "no Latin ticker or Latin digit reaches the screen");
   assert.equal(currencyLabel("GOLD18"), "GOLD18", "an unmapped code still passes through");
   assert.equal(currencyLabel(null), "");
 });
