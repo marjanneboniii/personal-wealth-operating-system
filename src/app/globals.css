@@ -4321,3 +4321,97 @@ input {
 @media (min-width: 1024px) {
   .tx-submit-bar { bottom: 0; }
 }
+
+/* ─────────────── Real assets → املاک (list rows + detail) ───────────────
+   Presentation only. Figures come from the same read model as before. */
+.card.re-module { padding: 0; }
+.re-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+.re-title { font-size: var(--fs-md); font-weight: 700; line-height: 1.4; }
+.re-subtitle { font-size: var(--fs-xs); color: var(--text-3); margin-top: 0.1rem; }
+.re-body { display: flex; flex-direction: column; gap: 0.9rem; padding: 1rem 1.1rem 1.1rem; min-width: 0; }
+.re-owner { font-size: var(--fs-xs); }
+.metric-strip dt { font-size: var(--fs-xs); color: var(--text-3); font-weight: 500; }
+.metric-strip dd { margin: 0; min-width: 0; }
+.metric-strip dd:first-of-type { margin-top: 0.25rem; font-weight: 700; }
+.re-sub { font-size: var(--fs-xs); color: var(--text-3); margin-top: 0.15rem; white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
+.re-list { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+.re-row + .re-row { border-top: 1px solid var(--border); }
+.re-row-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 64px;
+  padding: 0.7rem 1rem;
+  text-align: right;
+  touch-action: manipulation;
+  transition: background 0.12s ease;
+}
+.re-row-head:hover { background: var(--hover); }
+.re-row-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.re-row-title { font-size: var(--fs-sm); font-weight: 600; }
+.re-row-meta { font-size: var(--fs-xs); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.re-row-value { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
+.re-row-delta { font-size: var(--fs-xs); }
+.re-chevron {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-inline-start: 1.5px solid var(--text-3);
+  border-bottom: 1.5px solid var(--text-3);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+.re-row.is-open .re-chevron { transform: rotate(135deg); }
+.re-row-body { padding: 0.25rem 1rem 1rem; background: var(--sunken); border-top: 1px solid var(--border); }
+.re-detail { display: flex; flex-direction: column; gap: 0.9rem; padding-top: 0.75rem; min-width: 0; }
+.re-panel { display: flex; flex-direction: column; gap: 0.8rem; min-width: 0; }
+.re-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.re-danger { color: var(--negative); }
+.re-note { font-size: var(--fs-xs); line-height: 1.7; }
+.re-section-title { font-size: var(--fs-sm); font-weight: 600; }
+.re-revalue { display: flex; flex-direction: column; gap: 0.75rem; padding: 0.9rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+.re-specs { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+.re-specs > summary { cursor: pointer; padding: 0.65rem 0.9rem; font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); }
+.re-specs[open] > summary { border-bottom: 1px solid var(--border); }
+.re-specs > :not(summary) { padding: 0.5rem 0.9rem 0.8rem; }
+.re-specs-grid { display: grid; gap: 0 1.5rem; }
+@media (min-width: 768px) { .re-specs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.re-periods td, .re-periods th { font-size: var(--fs-xs); }
+.re-empty { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 2rem 1rem; text-align: center; font-size: var(--fs-xs); }
+.re-empty-title { font-size: var(--fs-sm); font-weight: 600; }
+
+/* Property Market Intelligence panel */
+.market-panel { display: flex; flex-direction: column; gap: 0.85rem; min-width: 0; }
+.market-hero { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+.market-eyebrow { font-size: var(--fs-xs); color: var(--text-3); }
+.market-hero-value { font-size: var(--fs-xl); font-weight: 700; line-height: 1.35; }
+.market-hero-sub { font-size: var(--fs-xs); color: var(--text-3); }
+.market-badges { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.market-chip { font-size: var(--fs-micro); padding: 0.2rem 0.55rem; border-radius: var(--r-pill); background: var(--surface); border: 1px solid var(--border); color: var(--text-2); white-space: nowrap; }
+.market-chip.is-high { border-color: var(--positive); color: var(--positive); }
+.market-chip.is-low { border-color: var(--warning); color: var(--warning); }
+.market-metrics dd:first-of-type { font-size: var(--fs-sm); }
+.market-dd-sub { display: block; font-size: var(--fs-micro); font-weight: 400; color: var(--text-3); }
+.market-segment { font-size: var(--fs-xs); color: var(--text-2); line-height: 1.8; }
+.market-trend { margin: 0; }
+.market-trend svg { display: block; width: 100%; height: 64px; }
+.market-trend-axis { display: flex; justify-content: space-between; gap: 0.5rem; font-size: var(--fs-micro); color: var(--text-3); }
+.market-caption { caption-side: top; text-align: right; font-size: var(--fs-xs); font-weight: 600; padding-bottom: 0.4rem; }
+.market-own-row { background: var(--hover); }
+.market-note { font-size: var(--fs-micro); line-height: 1.7; }
+.market-footer { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+.market-empty { display: flex; flex-direction: column; gap: 0.3rem; padding: 1.25rem 0.25rem; font-size: var(--fs-xs); }
+.market-empty-title { font-size: var(--fs-sm); font-weight: 600; }
+.re-link { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; touch-action: manipulation; }
+.market-form-grid { display: grid; gap: 0.75rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 640px) { .market-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .market-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

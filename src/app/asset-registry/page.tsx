@@ -1,4 +1,4 @@
-import { ensureAuth } from "@/lib/authGuard";
+import { ensureAuth, isAdminOrOwner } from "@/lib/authGuard";
 import { ensureSchemaOnce } from "@/db/init-schema";
 import { loadAssetRegistryData } from "@/features/registry/loadAssetRegistryData";
 import { PageHeader } from "@/components/ui/Card";
@@ -59,6 +59,10 @@ export default async function AssetRegistryPage() {
         propertyTypes={data.propertyTypes}
         ownerName={(user as { name?: string } | null)?.name ?? "کاربر فعلی"}
         fxRate={data.fxRate}
+        realEstateMarket={data.realEstateMarket}
+        marketSegments={data.marketSegments}
+        marketReminders={data.marketReminders}
+        canManageMasterData={isAdminOrOwner(user as { role?: string | null } | null)}
       />
     </div>
   );

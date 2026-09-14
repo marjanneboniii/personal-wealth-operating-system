@@ -619,6 +619,31 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS real_estate_valuation_user_idx ON real_estate_valuation_snapshots(user_id);`,
   `CREATE UNIQUE INDEX IF NOT EXISTS real_estate_valuation_property_date_uq ON real_estate_valuation_snapshots(property_id, snapshot_date);`,
 
+  /* Property Market Intelligence — forward-only market price tracking,
+     mirrors drizzle/0030 + 0031. Tenant-scoped; no ledger link. */
+  `CREATE TABLE IF NOT EXISTS market_price_snapshots (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    city_id uuid NOT NULL REFERENCES cities(id) ON DELETE CASCADE,
+    neighborhood_id uuid NOT NULL REFERENCES neighborhoods(id) ON DELETE CASCADE,
+    property_type_id uuid NOT NULL REFERENCES property_types(id),
+    area_band text NOT NULL DEFAULT 'all',
+    observed_on date NOT NULL,
+    price_per_sqm_toman numeric(38,18) NOT NULL,
+    low_ppsqm_toman numeric(38,18),
+    high_ppsqm_toman numeric(38,18),
+    sample_count integer,
+    usd_rate numeric(38,18) NOT NULL,
+    usd_rate_source text,
+    usd_rate_date date,
+    price_per_sqm_usd numeric(38,18) NOT NULL,
+    note text
+  );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS market_price_user_segment_date_uq ON market_price_snapshots(user_id, neighborhood_id, property_type_id, area_band, observed_on);`,
+  `CREATE INDEX IF NOT EXISTS market_price_user_idx ON market_price_snapshots(user_id);`,
+  `CREATE INDEX IF NOT EXISTS market_price_city_type_idx ON market_price_snapshots(city_id, property_type_id);`,
+
   /* Vehicle module — Catalog (Brand -> Model), immutable valuation snapshots,
      and the user's own vehicle (kept in the pre-existing vehicle_assets table
      so existing asset ids, portfolio links and routes stay valid). */

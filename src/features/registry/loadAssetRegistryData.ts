@@ -30,6 +30,9 @@ import {
   getRealEstatePortfolioSummary,
 } from "@/features/rwa/realEstate/service";
 import { listCities, listNeighborhoods, listPropertyTypes } from "@/features/rwa/realEstate/masterData";
+import { getPropertyMarketViews, listMarketSegments } from "@/features/rwa/realEstate/market/service";
+import { marketReminders } from "@/features/rwa/realEstate/market/reminders";
+import { todayIso } from "@/lib/format";
 import {
   ensureVehicleModuleReady,
   getVehicleDashboard,
@@ -99,6 +102,16 @@ export async function loadAssetRegistryData(
     await demoSeedVehicles(userId ?? null);
   }
 
+  // Loaded once and shared: the market read model needs the same property rows.
+  const realEstateDashboard = getRealEstateDashboard(userId ?? null);
+  // Declared outside `allNamed` so its type is inferred from the service, not
+  // widened to the helper's `Promise<unknown>` constraint.
+  const realEstateMarket = realEstateDashboard.then((items) => getPropertyMarketViews(items, { userId: userId ?? null }));
+  const marketSegments = listMarketSegments(userId ?? null);
+  const marketReminderList = Promise.all([realEstateDashboard, marketSegments]).then(([items, segments]) =>
+    marketReminders(items, segments, todayIso()),
+  );
+
   return allNamed({
     // SECURITY: pass the tenant id so reads are scoped at the DB level.
     vehicles: listVehicleAssets(userId ?? undefined),
@@ -108,7 +121,12 @@ export async function loadAssetRegistryData(
     vehicleDashboard: getVehicleDashboard(userId ?? null),
     vehicleSummary: getVehiclePortfolioSummary(userId ?? null),
     /** LIST of properties — an ARRAY of `RealEstateDashboardItem`. */
-    realEstateDashboard: getRealEstateDashboard(userId ?? null),
+    realEstateDashboard,
+    /** Property Market Intelligence per property id — analytics only, fail-soft. */
+    realEstateMarket,
+    /** The user's own tracked market segments. */
+    marketSegments,
+    marketReminders: marketReminderList,
     /** Portfolio TOTALS for those properties — a single summary OBJECT. */
     realEstateSummary: getRealEstatePortfolioSummary(userId ?? null),
     cities: listCities(true), // include inactive so the admin tab can manage them

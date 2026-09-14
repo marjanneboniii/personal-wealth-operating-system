@@ -6,281 +6,232 @@ import { deleteRealEstateAction, recordRealEstateValuationAction } from "@/app/a
 import JalaliDateInput from "@/components/ui/JalaliDateInput";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import AmountInput from "@/components/ui/AmountInput";
-import { formatJalaliIso, toFaDigits, todayIso } from "@/lib/format";
+import { todayIso } from "@/lib/format";
 import { compareRealEstateDates } from "@/features/rwa/realEstate/analytics";
 import type { RealEstateDashboardItem } from "@/features/rwa/realEstate/service";
-import {
-  DeltaPct,
-  DeltaToman,
-  DeltaUsd,
-  DetailRow,
-  FxRateInfo,
-  Hint,
-  JDate,
-  Labeled,
-  Metric,
-  Result,
-  Toman,
-  Usd,
-  faNum,
-} from "./shared";
+import type { PropertyMarketView } from "@/features/rwa/realEstate/market/service";
+import { yearLabel } from "@/components/registry/vehicle/shared";
+import MarketPanel from "./MarketPanel";
+import { DeltaPct, DeltaToman, DeltaUsd, DetailRow, FxRateInfo, Hint, JDate, Labeled, Result, Toman, Usd, faNum } from "./shared";
 
-function Ltr({ children }: { children: React.ReactNode }) {
-  return (
-    <span dir="ltr" className="num ltr-isolate">
-      {children}
-    </span>
-  );
-}
+type Tab = "summary" | "market" | "history";
 
-type Tab = "performance" | "history" | "compare";
+const MARKET_NOTE = "برآورد بازار";
 
-export default function RealEstateCard({ item }: { item: RealEstateDashboardItem }) {
+export default function RealEstateCard({
+  item,
+  marketView,
+}: {
+  item: RealEstateDashboardItem;
+  marketView?: PropertyMarketView;
+}) {
   const [state, action, pending] = useActionState(recordRealEstateValuationAction, null);
+  const [tab, setTab] = useState<Tab>("summary");
   const [revalue, setRevalue] = useState(false);
-  const [tab, setTab] = useState<Tab>("performance");
+  const [prefill, setPrefill] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
   const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
   const a = item;
-  const p = item.performance;
-
   const ledgerLink = a.ledgerEntryId ? `/ledger?entry=${a.ledgerEntryId}` : null;
-  const divergence =
-    p.gainToman && p.gainUsd && Number(p.gainToman) > 0 && Number(p.gainUsd) < 0
-      ? "ارزش ملک به تومان افزایش یافته اما ارزش دلاری آن کاهش یافته است (اثر نرخ ارز)."
-      : p.gainToman && p.gainUsd && Number(p.gainToman) < 0 && Number(p.gainUsd) > 0
-        ? "ارزش ملک به تومان کاهش یافته اما ارزش دلاری آن افزایش یافته است (اثر نرخ ارز)."
-        : null;
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
-          <h5 className="mb-1 text-[length:var(--fs-xs)] font-bold">اطلاعات دارایی</h5>
-          <DetailRow label="شناسه دارایی">
-            <span className="num font-semibold">{a.label}</span>
-          </DetailRow>
-          <DetailRow label="نوع ملک">
-            {a.propertyTypeNameFa ?? a.propertyType ?? "—"}
-          </DetailRow>
-          <DetailRow label="شهر">{a.cityNameFa ?? a.cityNameEn ?? "—"}</DetailRow>
-          <DetailRow label="منطقه / محله">{a.neighborhoodNameFa ?? a.area ?? "—"}</DetailRow>
-          {a.address && <DetailRow label="نشانی">{a.address}</DetailRow>}
-          {a.sizeSqm && (
-            <DetailRow label="متراژ">
-              <Ltr>{faNum(a.sizeSqm, 2)}</Ltr> متر مربع
-            </DetailRow>
-          )}
-          {a.sizeSqm && a.currentValueToman && (
-            <DetailRow label="قیمت متری (از ارزش فعلی)">
-              <Toman value={(Number(a.currentValueToman) / Number(a.sizeSqm)).toFixed(0)} />
-            </DetailRow>
-          )}
-          {a.deedNumber && <DetailRow label="شماره سند">{a.deedNumber}</DetailRow>}
-          <DetailRow label="تاریخ ثبت در سیستم">
-            <JDate iso={a.systemEntryDate} fallback="—" />
-            {a.isHistorical && (
-              <span className="mr-2 rounded-full px-2 py-0.5 text-[length:var(--fs-xs)]" style={{ background: "var(--warning-soft)", color: "var(--warning)" }}>
-                تملک پیش از راه‌اندازی سیستم
-              </span>
-            )}
-          </DetailRow>
-        </div>
+    <div className="re-detail">
+      <div className="seg" role="group" aria-label={`بخش‌های ${a.label}`}>
+        {(
+          [
+            ["summary", "خلاصه"],
+            ["market", "بازار"],
+            ["history", "تاریخچه"],
+          ] as const
+        ).map(([key, label]) => (
+          <button key={key} type="button" onClick={() => setTab(key)} className={tab === key ? "seg-on" : ""} aria-pressed={tab === key}>
+            {label}
+          </button>
+        ))}
+      </div>
 
-        <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
-          <h5 className="mb-1 text-[length:var(--fs-xs)] font-bold">اطلاعات خرید (تغییرناپذیر)</h5>
-          <DetailRow label="تاریخ تملک (شمسی)">
-            <JDate iso={a.acquisitionDate} fallback="—" />
-          </DetailRow>
-          <DetailRow label="تاریخ تملک (میلادی)">
-            <Ltr>{a.acquisitionDate ?? "—"}</Ltr>
-          </DetailRow>
-          <DetailRow label="قیمت خرید (تومان)">
-            <Toman value={a.purchasePriceToman} />
-          </DetailRow>
-          <DetailRow label="نرخ دلار تاریخ خرید">
-            <FxRateInfo rate={a.purchaseFxRate} source={a.purchaseFxRateSource} effectiveDate={a.purchaseFxRateDate} />
-          </DetailRow>
-          <DetailRow label="قیمت خرید (دلار)">
-            <Usd value={a.purchaseValueUsd} />
-          </DetailRow>
-        </div>
+      {tab === "summary" && <SummaryPanel item={item} />}
+      {tab === "market" && (
+        <MarketPanel
+          view={marketView}
+          onUseEstimate={(value) => {
+            setPrefill(value);
+            setRevalue(true);
+          }}
+        />
+      )}
+      {tab === "history" && <HistoryPanel item={item} />}
 
-        <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
-          <h5 className="mb-1 text-[length:var(--fs-xs)] font-bold">اطلاعات ارزش‌گذاری</h5>
-          <DetailRow label="تاریخ ارزش‌گذاری (شمسی)">
-            <JDate iso={a.valuationDate} fallback="—" />
-          </DetailRow>
-          <DetailRow label="تاریخ ارزش‌گذاری (میلادی)">
-            <Ltr>{a.valuationDate ?? "—"}</Ltr>
-          </DetailRow>
-          <DetailRow label="ارزش فعلی (تومان)">
-            <Toman value={a.currentValueToman} />
-          </DetailRow>
-          <DetailRow label="نرخ دلار تاریخ ارزش‌گذاری">
-            <FxRateInfo rate={a.valuationFxRate} source={a.valuationFxRateSource} effectiveDate={a.valuationFxRateDate} />
-          </DetailRow>
-          <DetailRow label="ارزش فعلی (دلار)">
-            <Usd value={a.currentValueUsd} />
-          </DetailRow>
-          <DetailRow label="تعداد ارزش‌گذاری‌های ثبت‌شده">
-            <span className="num">{faNum(item.snapshots.length)}</span>
-            <span className="muted"> (تغییرناپذیر)</span>
-          </DetailRow>
-          <DetailRow label="تاریخ شمسی ذخیره‌شده (Audit)">
-            <Ltr>{a.valuationDatePersian ?? formatJalaliIso(a.valuationDate ?? "", "en")}</Ltr>
-          </DetailRow>
-        </div>
-
-        <div className="rounded-[var(--r-md)] p-3" style={{ background: "var(--sunken)" }}>
-          <h5 className="mb-1 text-[length:var(--fs-xs)] font-bold">عملکرد</h5>
-          <DetailRow label="سود / زیان تومانی">
-            <DeltaToman value={p.gainToman} />
-          </DetailRow>
-          <DetailRow label="درصد بازده تومانی">
-            <DeltaPct value={p.roiToman} />
-          </DetailRow>
-          <DetailRow label="سود / زیان دلاری">
-            <DeltaUsd value={p.gainUsd} />
-          </DetailRow>
-          <DetailRow label="درصد بازده دلاری">
-            <DeltaPct value={p.roiUsd} />
-          </DetailRow>
-          {(item.cagrToman || item.cagrUsd) && (
-            <DetailRow label="CAGR سالانه (تومان / دلار)">
-              <DeltaPct value={item.cagrToman} />
-              <span className="muted"> · </span>
-              <DeltaPct value={item.cagrUsd} />
-            </DetailRow>
+      {revalue && (
+        <form action={action} className="re-revalue">
+          <input type="hidden" name="propertyId" value={a.id} />
+          {prefill && <input type="hidden" name="note" value={MARKET_NOTE} />}
+          <p className="re-section-title">ثبت ارزش‌گذاری جدید</p>
+          {prefill && (
+            <Hint>
+              مبلغ از برآورد بازار پر شد. پیش از ثبت، عدد را بر اساس شناخت خودتان از ملک اصلاح کنید.
+            </Hint>
           )}
-          <div className="mt-2 flex flex-wrap gap-2">
-            {ledgerLink ? (
-              <Link href={ledgerLink} className="btn btn-soft text-[length:var(--fs-xs)]">
-                مشاهده سند دفترکل ←
-              </Link>
-            ) : (
-              <span className="muted text-[length:var(--fs-xs)]">سند دفترکل ثبت نشده</span>
-            )}
-            <button type="button" className="btn text-[length:var(--fs-xs)]" onClick={() => setRevalue((v) => !v)} aria-expanded={revalue}>
-              {revalue ? "بستن ارزش‌گذاری جدید" : "ثبت ارزش‌گذاری جدید"}
+          <div className="grid gap-3 md:grid-cols-3">
+            <JalaliDateInput name="valuationDate" label="تاریخ ارزش‌گذاری" required />
+            <Labeled label="ارزش فعلی (تومان)" required>
+              <AmountInput
+                key={prefill ?? "manual"}
+                className="field num"
+                name="currentValueToman"
+                inputMode="numeric"
+                dir="ltr"
+                defaultValue={prefill ?? undefined}
+                unit="toman"
+                required
+              />
+            </Labeled>
+            <Labeled label="نرخ دلار (اختیاری)" hint="خالی بماند: نرخ همان تاریخ.">
+              <AmountInput className="field num" name="valuationFxRate" inputMode="numeric" showWords={false} />
+            </Labeled>
+          </div>
+          <div className="re-actions">
+            <button className="btn btn-primary" disabled={pending}>
+              {pending ? "در حال ثبت…" : "ثبت ارزش‌گذاری"}
             </button>
             <button
               type="button"
-              className="btn text-[length:var(--fs-xs)]"
-              disabled={deleting}
+              className="btn btn-ghost"
               onClick={() => {
-                const ok = window.confirm(
-                  `${a.label} از گزارش‌ها، سبد و شاخص‌های ثروت حذف می‌شود. سند دفترکل دست‌نخورده می‌ماند. ادامه می‌دهید؟`,
-                );
-                if (!ok) return;
-                startDelete(async () => {
-                  const result = await deleteRealEstateAction(a.id);
-                  setDeleteMessage(result.message);
-                });
+                setRevalue(false);
+                setPrefill(null);
               }}
             >
-              {deleting ? "در حال حذف…" : "حذف ملک"}
+              انصراف
             </button>
           </div>
-          {deleteMessage && <p className="muted mt-2 text-[length:var(--fs-xs)]">{deleteMessage}</p>}
-        </div>
-      </div>
-
-      {divergence && <Hint tone="warn">{divergence}</Hint>}
-
-      {/* ── بازه‌های عملکرد / تاریخچه / مقایسه دو تاریخ ── */}
-      <div className="rounded-[var(--r-md)] border p-3" style={{ borderColor: "var(--border)" }}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h5 className="text-[length:var(--fs-xs)] font-bold">رشد / افت دلاری و تومانی در گذر زمان</h5>
-          <div className="seg" role="group" aria-label="بخش‌های تحلیل ملک">
-            <button type="button" onClick={() => setTab("performance")} className={tab === "performance" ? "seg-on" : ""} aria-pressed={tab === "performance"}>
-              بازه‌های عملکرد
-            </button>
-            <button type="button" onClick={() => setTab("history")} className={tab === "history" ? "seg-on" : ""} aria-pressed={tab === "history"}>
-              تاریخچه ارزش‌گذاری
-            </button>
-            <button type="button" onClick={() => setTab("compare")} className={tab === "compare" ? "seg-on" : ""} aria-pressed={tab === "compare"}>
-              مقایسه دو تاریخ
-            </button>
-          </div>
-        </div>
-
-        {tab === "performance" && <PerformancePanel item={item} />}
-        {tab === "history" && <HistoryPanel item={item} />}
-        {tab === "compare" && <ComparePanel item={item} />}
-      </div>
-
-      {revalue && (
-        <form action={action} className="rounded-[var(--r-md)] border p-3" style={{ borderColor: "var(--border)" }}>
-          <input type="hidden" name="propertyId" value={a.id} />
-          <h5 className="mb-2 text-[length:var(--fs-xs)] font-bold">ثبت ارزش‌گذاری جدید — ارزش فعلی فقط با این فرآیند تغییر می‌کند</h5>
-          <div className="grid gap-3 md:grid-cols-3">
-            <JalaliDateInput name="valuationDate" label="تاریخ ارزش‌گذاری (شمسی)" required />
-            <Labeled label="ارزش فعلی (تومان)" required>
-              <AmountInput className="field num" name="currentValueToman" inputMode="numeric" dir="ltr" placeholder="7500000000" unit="toman" required />
-            </Labeled>
-            <Labeled label="نرخ دلار (اختیاری)" hint="خالی بماند: نرخ همان تاریخ از موتور نرخ ارز خوانده می‌شود.">
-              <AmountInput className="field num" name="valuationFxRate" inputMode="numeric" placeholder="۱۹۰٬۰۰۰" showWords={false} />
-            </Labeled>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <button className="btn btn-primary" disabled={pending}>
-              {pending ? "در حال ثبت…" : "ثبت ارزش‌گذاری جدید"}
-            </button>
-            <span className="muted text-[length:var(--fs-xs)]">
-              هر ثبت یک رکورد تازه می‌سازد؛ ارزش‌گذاری قبلی بازنویسی نمی‌شود.</span>
-          </div>
-          <div className="mt-2">
-            <Result state={state} />
-          </div>
+          <Result state={state} />
         </form>
       )}
 
-      {a.notes && (
-        <p className="muted text-[length:var(--fs-xs)] leading-5">
-          <b>یادداشت:</b> {a.notes}
-        </p>
-      )}
+      <div className="re-actions">
+        {!revalue && (
+          <button type="button" className="btn btn-soft" onClick={() => setRevalue(true)}>
+            ثبت ارزش‌گذاری
+          </button>
+        )}
+        {ledgerLink && (
+          <Link href={ledgerLink} className="btn btn-ghost">
+            سند دفترکل
+          </Link>
+        )}
+        <button
+          type="button"
+          className="btn btn-ghost re-danger"
+          disabled={deleting}
+          onClick={() => {
+            const ok = window.confirm(`${a.label} از گزارش‌ها، سبد و شاخص‌های ثروت حذف می‌شود. سند دفترکل دست‌نخورده می‌ماند. ادامه می‌دهید؟`);
+            if (!ok) return;
+            startDelete(async () => {
+              const result = await deleteRealEstateAction(a.id);
+              setDeleteMessage(result.message);
+            });
+          }}
+        >
+          {deleting ? "در حال حذف…" : "حذف ملک"}
+        </button>
+      </div>
+      {deleteMessage && <p className="muted re-note">{deleteMessage}</p>}
     </div>
   );
 }
 
-/* ───────────────────────── period performance ───────────────────────── */
+/* ───────────────────────── summary ───────────────────────── */
 
-function PerformancePanel({ item }: { item: RealEstateDashboardItem }) {
+function SummaryPanel({ item }: { item: RealEstateDashboardItem }) {
+  const a = item;
+  const p = item.performance;
+  const divergence =
+    p.gainToman && p.gainUsd && Number(p.gainToman) > 0 && Number(p.gainUsd) < 0
+      ? "ارزش تومانی بالا رفته اما ارزش دلاری کم شده است؛ رشد قیمت ملک از رشد دلار عقب مانده."
+      : p.gainToman && p.gainUsd && Number(p.gainToman) < 0 && Number(p.gainUsd) > 0
+        ? "ارزش تومانی کم شده اما ارزش دلاری بالا رفته است (اثر نرخ ارز)."
+        : null;
+
   return (
-    <div>
+    <div className="re-panel">
+      <dl className="metric-strip re-facts">
+        <div>
+          <dt>ارزش فعلی</dt>
+          <dd>
+            <Toman value={a.currentValueToman} />
+          </dd>
+          <dd className="re-sub">
+            <Usd value={a.currentValueUsd} /> · <JDate iso={a.valuationDate} />
+          </dd>
+        </div>
+        <div>
+          <dt>قیمت خرید</dt>
+          <dd>
+            <Toman value={a.purchasePriceToman} />
+          </dd>
+          <dd className="re-sub">
+            <Usd value={a.purchaseValueUsd} /> · <JDate iso={a.acquisitionDate} />
+          </dd>
+        </div>
+        <div>
+          <dt>سود / زیان</dt>
+          <dd>
+            <DeltaToman value={p.gainToman} />
+          </dd>
+          <dd className="re-sub">
+            <DeltaUsd value={p.gainUsd} />
+          </dd>
+        </div>
+        <div>
+          <dt>بازده</dt>
+          <dd>
+            <DeltaPct value={p.roiToman} />
+          </dd>
+          <dd className="re-sub">
+            دلاری <DeltaPct value={p.roiUsd} />
+            {item.cagrToman && (
+              <>
+                {" "}
+                · سالانه <DeltaPct value={item.cagrToman} />
+              </>
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      {divergence && <Hint tone="warn">{divergence}</Hint>}
+
       <div className="overflow-x-auto">
-        <table className="table">
+        <table className="table re-periods">
           <thead>
             <tr>
               <th scope="col">بازه</th>
               <th scope="col" className="td-num">تغییر تومانی</th>
               <th scope="col" className="td-num">٪ تومانی</th>
-              <th scope="col" className="td-num">تغییر دلاری</th>
               <th scope="col" className="td-num">٪ دلاری</th>
-              <th scope="col" className="td-num hidden sm:table-cell">مبنا → مبین</th>
             </tr>
           </thead>
           <tbody>
-            {item.periods.map((p) => (
-              <tr key={p.key}>
-                <td className="whitespace-nowrap text-[length:var(--fs-xs)] font-medium">{p.label}</td>
-                {p.available ? (
+            {item.periods.map((row) => (
+              <tr key={row.key}>
+                <td>{row.label}</td>
+                {row.available ? (
                   <>
-                    <td className="td-num"><DeltaToman value={p.tomanChange} /></td>
-                    <td className="td-num"><DeltaPct value={p.tomanChangePct} /></td>
-                    <td className="td-num"><DeltaUsd value={p.usdChange} /></td>
-                    <td className="td-num"><DeltaPct value={p.usdChangePct} /></td>
-                    <td className="muted td-num hidden text-[length:var(--fs-xs)] sm:table-cell">
-                      <JDate iso={p.from.date} /> → <JDate iso={p.to.date} />
-                      {p.baselineIsPurchase && " (خرید)"}
+                    <td className="td-num">
+                      <DeltaToman value={row.tomanChange} />
+                    </td>
+                    <td className="td-num">
+                      <DeltaPct value={row.tomanChangePct} />
+                    </td>
+                    <td className="td-num">
+                      <DeltaPct value={row.usdChangePct} />
                     </td>
                   </>
                 ) : (
-                  <td colSpan={5} className="muted text-[length:var(--fs-xs)]">
-                    {p.reason}
+                  <td colSpan={3} className="muted">
+                    داده کافی نیست
                   </td>
                 )}
               </tr>
@@ -288,81 +239,104 @@ function PerformancePanel({ item }: { item: RealEstateDashboardItem }) {
           </tbody>
         </table>
       </div>
-      <p className="muted mt-2 text-[length:var(--fs-xs)] leading-5">
-        مبناهای تومانی و دلاری هر بازه از Snapshotهای واقعی همان تاریخ خوانده می‌شوند؛ نرخ دلار هر Snapshot همان نرخ ثبت‌شده در آن
-        روز است و هرگز با نرخ امروز بازمحاسبه نمی‌شود. اگر برای یک بازه داده تاریخی وجود نداشته باشد، مقدار فرضی ساخته نمی‌شود.
-      </p>
+
+      <details className="re-specs">
+        <summary>مشخصات و نرخ‌های ثبت‌شده</summary>
+        <div className="re-specs-grid">
+          <div>
+            <DetailRow label="نوع ملک">{a.propertyTypeNameFa ?? a.propertyType ?? "—"}</DetailRow>
+            <DetailRow label="شهر / محله">
+              {a.cityNameFa ?? a.cityNameEn ?? "—"} · {a.neighborhoodNameFa ?? a.area ?? "—"}
+            </DetailRow>
+            <DetailRow label="متراژ">{a.sizeSqm ? `${faNum(a.sizeSqm)} متر` : "—"}</DetailRow>
+            <DetailRow label="سال ساخت">{yearLabel(a.yearBuilt)}</DetailRow>
+            {a.floor !== null && <DetailRow label="طبقه">{faNum(a.floor)}</DetailRow>}
+            {a.address && <DetailRow label="نشانی">{a.address}</DetailRow>}
+            {a.deedNumber && <DetailRow label="شماره سند">{a.deedNumber}</DetailRow>}
+          </div>
+          <div>
+            <DetailRow label="نرخ دلار روز خرید">
+              <FxRateInfo rate={a.purchaseFxRate} source={a.purchaseFxRateSource} effectiveDate={a.purchaseFxRateDate} />
+            </DetailRow>
+            <DetailRow label="نرخ دلار روز ارزش‌گذاری">
+              <FxRateInfo rate={a.valuationFxRate} source={a.valuationFxRateSource} effectiveDate={a.valuationFxRateDate} />
+            </DetailRow>
+            <DetailRow label="ثبت در سیستم">
+              <JDate iso={a.systemEntryDate} />
+              {a.isHistorical && <span className="muted"> · تملک پیش از ثبت</span>}
+            </DetailRow>
+            <DetailRow label="شناسه">
+              <span className="num">{a.label}</span>
+            </DetailRow>
+          </div>
+        </div>
+        {a.notes && <p className="muted re-note">یادداشت: {a.notes}</p>}
+      </details>
     </div>
   );
 }
 
-/* ───────────────────────── valuation history ───────────────────────── */
+/* ───────────────────────── history + compare ───────────────────────── */
 
 function HistoryPanel({ item }: { item: RealEstateDashboardItem }) {
-  const points = item.snapshots.map((s) => ({
-    date: s.snapshotDate,
-    valueToman: s.currentValueToman,
-    usdRate: s.usdRate,
-    valueUsd: s.currentValueUsd,
-  }));
-
-  if (!item.history.length) {
-    return <p className="muted text-[length:var(--fs-xs)]">هنوز هیچ Snapshot ارزش‌گذاری برای این ملک ثبت نشده است.</p>;
+  if (!item.history.length && !item.purchasePoint) {
+    return <p className="muted re-note">هنوز ارزش‌گذاری‌ای ثبت نشده است.</p>;
   }
-
   return (
-    <div className="overflow-x-auto">
-      <table className="table">
-        <thead>
-          <tr>
-            <th scope="col">تاریخ</th>
-            <th scope="col" className="td-num">ارزش (تومان)</th>
-            <th scope="col" className="td-num">نرخ دلار</th>
-            <th scope="col" className="td-num">ارزش (دلار)</th>
-            <th scope="col" className="td-num">تغییر تومان</th>
-            <th scope="col" className="td-num">تغییر ٪</th>
-            <th scope="col" className="td-num">تغییر دلار</th>
-            <th scope="col" className="td-num">تغییر ٪ دلار</th>
-          </tr>
-        </thead>
-        <tbody>
-          {item.purchasePoint && (
-            <tr style={{ background: "var(--hover)" }}>
-              <td className="whitespace-nowrap text-[length:var(--fs-xs)]">
-                <JDate iso={item.purchasePoint.date} /> <span className="muted">· خرید</span>
-              </td>
-              <td className="td-num"><Toman value={item.purchasePoint.valueToman} /></td>
-              <td className="td-num"><Ltr>{faNum(item.purchasePoint.usdRate, 0)}</Ltr></td>
-              <td className="td-num"><Usd value={item.purchasePoint.valueUsd} /></td>
-              <td className="td-num muted">—</td>
-              <td className="td-num muted">—</td>
-              <td className="td-num muted">—</td>
-              <td className="td-num muted">—</td>
+    <div className="re-panel">
+      <div className="overflow-x-auto">
+        <table className="table">
+          <thead>
+            <tr>
+              <th scope="col">تاریخ</th>
+              <th scope="col" className="td-num">ارزش</th>
+              <th scope="col" className="td-num">تغییر</th>
+              <th scope="col" className="td-num">ارزش دلاری</th>
+              <th scope="col" className="td-num">تغییر دلاری</th>
             </tr>
-          )}
-          {item.history.map((row) => (
-            <tr key={row.date}>
-              <td className="whitespace-nowrap text-[length:var(--fs-xs)]"><JDate iso={row.date} /></td>
-              <td className="td-num"><Toman value={row.valueToman} /></td>
-              <td className="td-num"><Ltr>{faNum(row.usdRate, 0)}</Ltr></td>
-              <td className="td-num"><Usd value={row.valueUsd} /></td>
-              <td className="td-num">{row.tomanChange ? <DeltaToman value={row.tomanChange} /> : <span className="muted">—</span>}</td>
-              <td className="td-num">{row.tomanChangePct ? <DeltaPct value={row.tomanChangePct} /> : <span className="muted">—</span>}</td>
-              <td className="td-num">{row.usdChange ? <DeltaUsd value={row.usdChange} /> : <span className="muted">—</span>}</td>
-              <td className="td-num">{row.usdChangePct ? <DeltaPct value={row.usdChangePct} /> : <span className="muted">—</span>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="muted mt-2 text-[length:var(--fs-xs)]">
-        هر ردیف یک Snapshot تغییرناپذیر است ({faNum(points.length)} ارزش‌گذاری ثبت‌شده)؛ نرخ دلار ذخیره‌شده در همان ردیف مبنای ارزش
-        دلاری آن تاریخ است و ردیف‌ها هرگز حذف یا بازنویسی نمی‌شوند.
-      </p>
+          </thead>
+          <tbody>
+            {item.purchasePoint && (
+              <tr>
+                <td>
+                  <JDate iso={item.purchasePoint.date} /> <span className="muted">· خرید</span>
+                </td>
+                <td className="td-num">
+                  <Toman value={item.purchasePoint.valueToman} />
+                </td>
+                <td className="td-num muted">—</td>
+                <td className="td-num">
+                  <Usd value={item.purchasePoint.valueUsd} />
+                </td>
+                <td className="td-num muted">—</td>
+              </tr>
+            )}
+            {item.history.map((row) => (
+              <tr key={row.date}>
+                <td>
+                  <JDate iso={row.date} />
+                </td>
+                <td className="td-num">
+                  <Toman value={row.valueToman} />
+                </td>
+                <td className="td-num">{row.tomanChangePct ? <DeltaPct value={row.tomanChangePct} /> : <span className="muted">—</span>}</td>
+                <td className="td-num">
+                  <Usd value={row.valueUsd} />
+                </td>
+                <td className="td-num">{row.usdChangePct ? <DeltaPct value={row.usdChangePct} /> : <span className="muted">—</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted re-note">هر ردیف یک ارزش‌گذاری تغییرناپذیر است و دلار آن با نرخ همان روز محاسبه شده است.</p>
+      <details className="re-specs">
+        <summary>مقایسهٔ دو تاریخ</summary>
+        <ComparePanel item={item} />
+      </details>
     </div>
   );
 }
-
-/* ───────────────────────── compare two dates ───────────────────────── */
 
 function ComparePanel({ item }: { item: RealEstateDashboardItem }) {
   const points = item.snapshots.map((s) => ({
@@ -375,11 +349,10 @@ function ComparePanel({ item }: { item: RealEstateDashboardItem }) {
   const sorted = [...all].sort((x, y) => (x.date < y.date ? -1 : 1));
   const [from, setFrom] = useState(sorted[0]?.date ?? "");
   const [to, setTo] = useState(sorted.length ? sorted[sorted.length - 1].date : todayIso());
-
   const result = compareRealEstateDates(points, from, to, item.purchasePoint);
 
   return (
-    <div className="space-y-4">
+    <div className="re-panel">
       <div className="grid gap-3 sm:grid-cols-2">
         <Labeled label="از تاریخ">
           <JalaliDatePicker value={from} onChange={setFrom} ariaLabel="از تاریخ" showToday={false} />
@@ -388,26 +361,47 @@ function ComparePanel({ item }: { item: RealEstateDashboardItem }) {
           <JalaliDatePicker value={to} onChange={setTo} ariaLabel="تا تاریخ" />
         </Labeled>
       </div>
-
       {!result.available ? (
         <Hint tone="warn">{result.reason}</Hint>
       ) : (
-        <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Metric label="ارزش در تاریخ شروع" value={<Toman value={result.from.valueToman} />} sub={<>≈ <Usd value={result.from.valueUsd} /> · نرخ <Ltr>{faNum(result.from.usdRate, 0)}</Ltr> · <JDate iso={result.from.date} /></>} />
-            <Metric label="ارزش در تاریخ پایان" value={<Toman value={result.to.valueToman} />} sub={<>≈ <Usd value={result.to.valueUsd} /> · نرخ <Ltr>{faNum(result.to.usdRate, 0)}</Ltr> · <JDate iso={result.to.date} /></>} />
-            <Metric label="تغییر تومانی" value={<DeltaToman value={result.tomanChange} />} sub={<DeltaPct value={result.tomanChangePct} />} />
-            <Metric label="تغییر دلاری" value={<DeltaUsd value={result.usdChange} />} sub={<DeltaPct value={result.usdChangePct} />} />
+        <dl className="metric-strip re-facts">
+          <div>
+            <dt>ارزش شروع</dt>
+            <dd>
+              <Toman value={result.from.valueToman} />
+            </dd>
+            <dd className="re-sub">
+              <Usd value={result.from.valueUsd} />
+            </dd>
           </div>
-          {Number(result.tomanChange) > 0 && Number(result.usdChange) < 0 && (
-            <Hint tone="warn">
-              ارزش ملک به تومان افزایش یافته اما ارزش دلاری آن کاهش یافته است — رشد قیمت از رشد دلار عقب مانده است.
-            </Hint>
-          )}
-          {Number(result.tomanChange) < 0 && Number(result.usdChange) > 0 && (
-            <Hint tone="warn">ارزش ملک به تومان کاهش یافته اما ارزش دلاری آن افزایش یافته است (اثر نرخ ارز).</Hint>
-          )}
-        </>
+          <div>
+            <dt>ارزش پایان</dt>
+            <dd>
+              <Toman value={result.to.valueToman} />
+            </dd>
+            <dd className="re-sub">
+              <Usd value={result.to.valueUsd} />
+            </dd>
+          </div>
+          <div>
+            <dt>تغییر تومانی</dt>
+            <dd>
+              <DeltaToman value={result.tomanChange} />
+            </dd>
+            <dd className="re-sub">
+              <DeltaPct value={result.tomanChangePct} />
+            </dd>
+          </div>
+          <div>
+            <dt>تغییر دلاری</dt>
+            <dd>
+              <DeltaUsd value={result.usdChange} />
+            </dd>
+            <dd className="re-sub">
+              <DeltaPct value={result.usdChangePct} />
+            </dd>
+          </div>
+        </dl>
       )}
     </div>
   );

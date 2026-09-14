@@ -150,17 +150,36 @@ test("«املاک من» renders the property list as the DEFAULT tab, with its
   assert.ok(tabStrip.includes("املاک من"), "the real-estate tab strip must render");
   assert.match(tabStrip, /class="seg-on" aria-pressed="true">املاک من/, "«املاک من» must be the active tab when the user has a property");
 
-  // 2. The LIST table — this is what the positional mismatch used to hide.
-  assert.ok(html.includes("قیمت خرید تومان"), "the property list table header must render");
-  assert.ok(html.includes("ارزش فعلی دلار"), "the property list columns must render");
+  // 2. The property LIST — this is what the positional mismatch used to hide.
+  assert.ok(html.includes('aria-label="فهرست املاک"'), "the property list must render");
   assert.ok(html.includes(property.label), `the per-user property label (${property.label}) must be listed`);
   assert.ok(html.includes("ملک ۱"), "a user's first property is «ملک ۱», whatever other users registered");
 
   // 3. The portfolio totals strip — driven by realEstateSummary.count.
-  assert.ok(html.includes("مجموع ارزش املاک"), "the property totals must render (summary.count > 0)");
-  assert.ok(html.includes("تعداد ملک"), "the property count metric must render");
+  assert.ok(html.includes("ارزش روز املاک"), "the property totals must render (summary.count > 0)");
+  // Numbers carry invisible bidi isolates (see lib/format), so match around them.
+  assert.match(html, /۱[⁦-⁩]* ملک ثبت‌شده/, "the property count must render");
   assert.ok(html.includes("۹٬۰۰۰٬۰۰۰٬۰۰۰"), "the total current value must be the stored Toman value");
   assert.ok(html.includes("۵٬۰۰۰٬۰۰۰٬۰۰۰"), "the total purchase value must be the stored Toman value");
+
+  // 4. Redesign: no 1400px horizontal table, no emoji/English headings, and the
+  //    shared master data is visible to the owner only.
+  assert.ok(!html.includes("min-w-[1400px]"), "the property list must not force horizontal scrolling");
+  assert.ok(!html.includes("(Real Estate)"), "the heading is Persian only");
+  assert.ok(html.includes("داده پایه"), "an owner can manage master data");
+  assert.ok(html.includes("قیمت بازار"), "the market price tab is available");
+  assert.ok(html.includes("هنوز قیمت بازار ندارد"), "a property without a market price gets a reminder");
+});
+
+test("a regular user does not see the shared master-data tab", async () => {
+  await modulesReady;
+  const { renderToReadableStream: render } = await import("react-dom/server");
+  const stream = await render(
+    createElement(RealEstateModule, { dashboard: [], summary: null, cities: [], neighborhoods: [], propertyTypes: [], ownerName: "کاربر" }),
+  );
+  const html = await new Response(stream).text();
+  assert.ok(!html.includes("داده پایه"), "master data is owner/admin only");
+  assert.ok(html.includes("قیمت بازار"), "every user tracks the market prices of their own properties");
 });
 
 test("the real-estate module degrades gracefully instead of crashing on a wrong-shaped read model", async () => {
@@ -200,5 +219,5 @@ test("the real-estate module degrades gracefully instead of crashing on a wrong-
 
   assert.deepEqual(errors, [], "a wrong-shaped read model must never throw out of the module");
   assert.ok(html.includes("املاک من"), "the module must still render its shell");
-  assert.ok(!html.includes("قیمت خرید تومان"), "with no list there is simply no table — no crash, no error page");
+  assert.ok(!html.includes('aria-label="فهرست املاک"'), "with no list there is simply no list — no crash, no error page");
 });
