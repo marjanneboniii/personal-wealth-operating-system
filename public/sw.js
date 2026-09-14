@@ -11,7 +11,7 @@
      • On logout/login the client posts {type:"PURGE_CACHES"} → every cache is
        wiped so no residue of the previous tenant survives on the device. */
 
-const VERSION = "pwos-v4"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
+const VERSION = "pwos-v5"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
 const STATIC_CACHE = VERSION + "-static";
 
 // Brand assets (VEZAN) — immutable, cache-first.
@@ -83,7 +83,11 @@ self.addEventListener("fetch", (event) => {
         const cached = await cache.match(req);
         if (cached) return cached;
         const res = await fetch(req);
-        if (res.ok) cache.put(req, res.clone());
+        // Only content-hashed build files are immutable. A dev server serves
+        // /_next/static/css/app/layout.css under one fixed name, so caching it
+        // froze every later style change (the "unstyled" expense form).
+        const immutable = (res.headers.get("cache-control") || "").includes("immutable");
+        if (res.ok && (immutable || !url.pathname.startsWith("/_next/"))) cache.put(req, res.clone());
         return res;
       }),
     );

@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * ثبت هزینه — the everyday path, redesigned to take a few taps:
+ * ثبت هزینه — the everyday path, in three calm cards:
  *
- *   مبلغ     one large field, with quick amounts
- *   دسته     recent categories first, then a search and icon tiles per group
- *   جزئیات   the paying account (pre-selected), the date and an optional note
+ *   مبلغ        one large field and preset amounts (a tap sets the amount)
+ *   دسته‌بندی   search, recent picks, then a group grid that drills into its
+ *               subcategories (the grid and the list never stack on screen)
+ *   پرداخت      account cards with their balance, a segmented date, a note
  *
  * Only Toman bank and cash accounts are offered to pay: stablecoin wallets,
  * funds and exchanges are investment or savings places, not where daily
@@ -44,11 +45,14 @@ const GROUP_ICON: Record<string, IconName> = {
   MSC: "more",
 };
 
-const QUICK_AMOUNTS: Array<[string, number]> = [
-  ["۵۰ هزار", 50_000],
-  ["۱۰۰ هزار", 100_000],
+/** Preset amounts: a tap SETS the amount (it no longer adds to it). */
+const PRESET_AMOUNTS: Array<[string, number]> = [
   ["۵۰۰ هزار", 500_000],
   ["۱ میلیون", 1_000_000],
+  ["۲ میلیون", 2_000_000],
+  ["۵ میلیون", 5_000_000],
+  ["۱۰ میلیون", 10_000_000],
+  ["۱۰۰ میلیون", 100_000_000],
 ];
 
 /** Persian search: Arabic ي/ك, half-spaces and case never block a match. */
@@ -60,6 +64,8 @@ function shiftIso(iso: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
+
+const iconOf = (code: string): IconName => GROUP_ICON[code] ?? "layers";
 
 type Leaf = CategoryGroupOption["children"][number] & { group: CategoryGroupOption };
 
@@ -110,7 +116,7 @@ export default function ExpenseFields({
   const [openGroupId, setOpenGroupId] = useState(parentId);
   const [query, setQuery] = useState("");
   const [newName, setNewName] = useState("");
-  const [addingTo, setAddingTo] = useState("");
+  const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState("");
   const [pickingDate, setPickingDate] = useState(false);
 
@@ -130,13 +136,20 @@ export default function ExpenseFields({
     setOpenGroupId(leaf.group.id);
     setBrowsing(false);
     setQuery("");
-    setAddingTo("");
+    setAdding(false);
+  };
+
+  const openGroupPanel = (id: string) => {
+    setOpenGroupId(id);
+    setAdding(false);
+    setMessage("");
   };
 
   const createLeaf = async () => {
     const name = newName.trim();
-    if (!addingTo || !name) return;
-    const res = await createCategoryAction({ name, parentId: addingTo });
+    if (!openGroup || !name) return;
+    const groupId = openGroup.id;
+    const res = await createCategoryAction({ name, parentId: groupId });
     if (!res.ok || !res.id) {
       setMessage(res.message || "افزودن دسته انجام نشد");
       return;
@@ -146,11 +159,11 @@ export default function ExpenseFields({
     setNewName("");
     setGroups((current) =>
       current.map((g) =>
-        g.id === addingTo ? { ...g, children: [...g.children, { id, code: "", name, nature: "cash", description: null }] } : g,
+        g.id === groupId ? { ...g, children: [...g.children, { id, code: "", name, nature: "cash", description: null }] } : g,
       ),
     );
-    onPick(addingTo, id);
-    setAddingTo("");
+    onPick(groupId, id);
+    setAdding(false);
     setBrowsing(false);
   };
 
@@ -162,11 +175,11 @@ export default function ExpenseFields({
   const isNonCash = selected?.nature === "non_cash";
 
   return (
-    <div className="space-y-3">
+    <div className="expense-form">
       {/* ── Amount ── */}
-      <section className="card expense-amount space-y-3 p-4 sm:p-5">
-        <label htmlFor="expense-amount" className="muted block text-center text-[length:var(--fs-xs)]">
-          مبلغ هزینه به تومان
+      <section className="card expense-card expense-amount">
+        <label htmlFor="expense-amount" className="expense-eyebrow">
+          مبلغ هزینه <span aria-hidden="true">·</span> تومان
         </label>
         <AmountInput
           id="expense-amount"
@@ -177,62 +190,59 @@ export default function ExpenseFields({
           unit="toman"
           aria-label="مبلغ هزینه به تومان"
         />
-        <div className="flex flex-wrap justify-center gap-1.5">
-          {QUICK_AMOUNTS.map(([label, add]) => (
-            <button
-              key={add}
-              type="button"
-              className="chip"
-              onClick={() => setAmount(D(amount || "0").add(add).toFixed(0))}
-              aria-label={`افزودن ${label} تومان`}
-            >
-              + {label}
-            </button>
-          ))}
-        </div>
         {previewUsd && (
-          <p className="muted text-center text-[length:var(--fs-xs)]">
+          <p className="expense-eyebrow">
             ≈ <span className="num">{formatMoney(previewUsd, "USD")}</span>
           </p>
         )}
+        <div className="expense-presets" role="group" aria-label="مبلغ‌های آماده">
+          {PRESET_AMOUNTS.map(([label, value]) => {
+            const on = !!amountValue && amountValue.raw === D(value).raw;
+            return (
+              <button
+                key={value}
+                type="button"
+                className="expense-preset"
+                data-on={on || undefined}
+                aria-pressed={on}
+                onClick={() => setAmount(String(value))}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       {/* ── Category ── */}
-      <section className="card space-y-3 p-4" aria-labelledby="expense-category-title">
-        <div className="flex items-center justify-between gap-2">
-          <h2 id="expense-category-title" className="text-[length:var(--fs-sm)] font-bold">
-            برای چه؟
-          </h2>
+      <section className="card expense-card" aria-labelledby="expense-category-title">
+        <header className="expense-head">
+          <h2 id="expense-category-title">دسته‌بندی</h2>
           {selected && browsing && (
-            <button type="button" className="btn btn-ghost !min-h-9 !px-2 text-[length:var(--fs-xs)]" onClick={() => setBrowsing(false)}>
+            <button type="button" className="expense-link" onClick={() => setBrowsing(false)}>
               انصراف
             </button>
           )}
-        </div>
+        </header>
 
         {selected && !browsing ? (
-          <button
-            type="button"
-            onClick={() => setBrowsing(true)}
-            className="expense-selected flex w-full items-center gap-3 rounded-[var(--r-md)] p-2.5 text-right"
-          >
-            <span className="expense-icon" aria-hidden="true">
-              <Icon name={GROUP_ICON[selected.group.code] ?? "layers"} size={20} />
+          <button type="button" onClick={() => setBrowsing(true)} className="expense-picked">
+            <span className="expense-icon" data-on aria-hidden="true">
+              <Icon name={iconOf(selected.group.code)} size={20} />
             </span>
             <span className="min-w-0 flex-1">
-              <b className="block truncate text-[length:var(--fs-sm)]">{selected.name}</b>
-              <span className="muted block truncate text-[length:var(--fs-xs)]">{selected.group.name}</span>
+              <b className="block truncate">{selected.name}</b>
+              <span className="expense-sub block truncate">{selected.group.name}</span>
             </span>
-            <span className="muted shrink-0 text-[length:var(--fs-xs)]">تغییر</span>
+            <span className="expense-link">تغییر</span>
           </button>
         ) : (
           <>
-            <div className="relative">
-              <Icon name="search" size={16} className="muted pointer-events-none absolute top-1/2 -translate-y-1/2" style={{ insetInlineStart: "0.75rem" }} />
+            <div className="expense-search">
+              <Icon name="search" size={16} aria-hidden="true" />
               <input
                 type="search"
                 className="field"
-                style={{ paddingInlineStart: "2.25rem" }}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="جست‌وجو: قبض برق، تاکسی، دارو…"
@@ -246,31 +256,102 @@ export default function ExpenseFields({
                   {matches.map((l) => (
                     <li key={l.id}>
                       <button type="button" role="option" aria-selected={l.id === categoryId} onClick={() => pick(l)}>
-                        <Icon name={GROUP_ICON[l.group.code] ?? "layers"} size={16} className="muted shrink-0" />
+                        <Icon name={iconOf(l.group.code)} size={16} className="shrink-0" />
                         <span className="min-w-0 flex-1 truncate">{l.name}</span>
-                        <span className="muted shrink-0 truncate text-[length:var(--fs-xs)]">{l.group.name}</span>
+                        <span className="expense-sub shrink-0 truncate">{l.group.name}</span>
                       </button>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="muted py-2 text-center text-[length:var(--fs-xs)]">دسته‌ای با «{query}» پیدا نشد.</p>
+                <p className="expense-empty">دسته‌ای با «{query}» پیدا نشد.</p>
               )
+            ) : openGroup ? (
+              /* Drill-in: one group's subcategories replace the grid. */
+              <div className="expense-panel">
+                <div className="expense-panel-head">
+                  <button type="button" className="expense-back" onClick={() => openGroupPanel("")} aria-label="بازگشت به همه گروه‌ها">
+                    <Icon name="arrow-start" size={18} />
+                  </button>
+                  <span className="expense-icon" data-on aria-hidden="true">
+                    <Icon name={iconOf(openGroup.code)} size={20} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate">{openGroup.name}</b>
+                    {openGroup.description && <span className="expense-sub block">{openGroup.description}</span>}
+                  </span>
+                </div>
+                <div className="expense-options" role="radiogroup" aria-label={`زیردسته‌های ${openGroup.name}`}>
+                  {openGroup.children.map((c) => {
+                    const on = c.id === categoryId;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        className="expense-option"
+                        data-on={on || undefined}
+                        onClick={() => pick({ ...c, group: openGroup })}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                        {c.nature === "non_cash" && <span className="badge badge-neutral !py-0">غیرنقدی</span>}
+                        {on && <Icon name="check" size={16} className="shrink-0" />}
+                      </button>
+                    );
+                  })}
+                  {!adding && (
+                    <button type="button" className="expense-option expense-option-add" onClick={() => setAdding(true)}>
+                      <Icon name="plus" size={16} className="shrink-0" />
+                      <span>دسته جدید</span>
+                    </button>
+                  )}
+                </div>
+                {adding && (
+                  <div className="flex gap-2">
+                    <input
+                      className="field"
+                      value={newName}
+                      autoFocus
+                      onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void createLeaf();
+                        }
+                      }}
+                      placeholder={`نام دسته جدید در «${openGroup.name}»`}
+                    />
+                    <button type="button" onClick={createLeaf} disabled={!newName.trim()} className="btn btn-primary shrink-0 disabled:opacity-40">
+                      افزودن
+                    </button>
+                    <button type="button" onClick={() => setAdding(false)} className="btn btn-ghost shrink-0" aria-label="بستن">
+                      <Icon name="x" size={16} />
+                    </button>
+                  </div>
+                )}
+                {message && (
+                  <p className="text-[length:var(--fs-xs)]" style={{ color: "var(--negative)" }} role="alert">
+                    {message}
+                  </p>
+                )}
+              </div>
             ) : (
               <>
                 {recent.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="muted text-[length:var(--fs-xs)]">پرکاربرد شما</p>
-                    <div className="expense-scroll flex gap-2">
+                  <div className="expense-recent">
+                    <p className="expense-sub">پرکاربرد شما</p>
+                    <div className="expense-scroll">
                       {recent.map((l) => (
                         <button
                           key={l.id}
                           type="button"
-                          className={`chip shrink-0 ${l.id === categoryId ? "chip-on" : ""}`}
+                          className="expense-pill"
+                          data-on={l.id === categoryId || undefined}
                           aria-pressed={l.id === categoryId}
                           onClick={() => pick(l)}
                         >
-                          <Icon name={GROUP_ICON[l.group.code] ?? "layers"} size={14} />
+                          <Icon name={iconOf(l.group.code)} size={14} />
                           {l.name}
                         </button>
                       ))}
@@ -278,177 +359,121 @@ export default function ExpenseFields({
                   </div>
                 )}
 
-                <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-8" role="radiogroup" aria-label="گروه هزینه">
-                  {groups.map((g) => {
-                    const on = openGroupId === g.id;
-                    return (
-                      <button
-                        key={g.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={on}
-                        onClick={() => {
-                          setOpenGroupId(on ? "" : g.id);
-                          setAddingTo("");
-                        }}
-                        className="expense-tile"
-                        data-on={on || undefined}
-                      >
-                        <span className="expense-icon" aria-hidden="true">
-                          <Icon name={GROUP_ICON[g.code] ?? "layers"} size={20} />
-                        </span>
-                        <span className="line-clamp-2 text-center leading-4">{g.name}</span>
-                      </button>
-                    );
-                  })}
+                <div className="expense-grid" role="list" aria-label="گروه‌های هزینه">
+                  {groups.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      role="listitem"
+                      title={g.name}
+                      onClick={() => openGroupPanel(g.id)}
+                      className="expense-tile"
+                      data-on={g.id === selected?.group.id || undefined}
+                    >
+                      <span className="expense-icon" aria-hidden="true">
+                        <Icon name={iconOf(g.code)} size={20} />
+                      </span>
+                      <span className="expense-tile-label">{g.name}</span>
+                    </button>
+                  ))}
                 </div>
-
-                {openGroup && (
-                  <div className="soft space-y-2 rounded-[var(--r-md)] p-3">
-                    {openGroup.description && (
-                      <p className="muted text-[length:var(--fs-xs)] leading-5">{openGroup.description}</p>
-                    )}
-                    <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={`زیردسته‌های ${openGroup.name}`}>
-                      {openGroup.children.map((c) => {
-                        const on = c.id === categoryId;
-                        return (
-                          <button
-                            key={c.id}
-                            type="button"
-                            role="radio"
-                            aria-checked={on}
-                            className={`chip ${on ? "chip-on" : ""}`}
-                            onClick={() => pick({ ...c, group: openGroup })}
-                          >
-                            {c.name}
-                            {c.nature === "non_cash" && <span className="badge badge-neutral !py-0">غیرنقدی</span>}
-                          </button>
-                        );
-                      })}
-                      <button
-                        type="button"
-                        className="chip"
-                        style={{ borderStyle: "dashed" }}
-                        onClick={() => setAddingTo(addingTo ? "" : openGroup.id)}
-                      >
-                        {addingTo ? "بستن" : "+ دسته جدید"}
-                      </button>
-                    </div>
-                    {addingTo === openGroup.id && (
-                      <div className="flex gap-2">
-                        <input
-                          className="field"
-                          value={newName}
-                          onChange={(e) => setNewName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              void createLeaf();
-                            }
-                          }}
-                          placeholder={`نام دسته جدید در «${openGroup.name}»`}
-                        />
-                        <button type="button" onClick={createLeaf} disabled={!newName.trim()} className="btn btn-soft shrink-0 disabled:opacity-40">
-                          افزودن
-                        </button>
-                      </div>
-                    )}
-                    {message && (
-                      <p className="text-[length:var(--fs-xs)]" style={{ color: "var(--negative)" }} role="alert">
-                        {message}
-                      </p>
-                    )}
-                  </div>
-                )}
               </>
             )}
           </>
         )}
 
-        {selected?.description && !browsing && (
-          <p className="muted text-[length:var(--fs-xs)] leading-5">{selected.description}</p>
-        )}
+        {selected?.description && !browsing && <p className="expense-sub leading-5">{selected.description}</p>}
         {isNonCash && (
-          <p className="soft rounded-[var(--r-sm)] p-2 text-[length:var(--fs-xs)] leading-5" role="note">
+          <p className="expense-note" role="note">
             ثبت غیرنقدی (استهلاک یا ذخیره) است؛ از هیچ حسابی پول خارج نمی‌شود.
           </p>
         )}
       </section>
 
-      {/* ── Details: account, date, note ── */}
-      <section className="card expense-details">
-        {!isNonCash && (
-          <div className="expense-row">
-            <span className="expense-row-label">پرداخت از</span>
-            {accounts.length === 0 ? (
-              <p className="muted text-[length:var(--fs-xs)] leading-5">
-                حساب بانکی تومانی ندارید.{" "}
-                <a href="/accounts" style={{ color: "var(--action)" }}>
-                  افزودن حساب بانکی
-                </a>
-              </p>
-            ) : (
-              <div className="expense-scroll flex gap-2" role="radiogroup" aria-label="حساب پرداخت">
-                {accounts.map((a) => {
-                  const on = a.id === accountId;
-                  const bal = balances[a.id];
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={on}
-                      onClick={() => setAccountId(a.id)}
-                      className="expense-account"
-                      data-on={on || undefined}
-                    >
-                      <Icon name={a.walletKind === "cash" ? "wallet" : "accounts"} size={16} className="shrink-0" />
-                      <span className="min-w-0 text-right">
-                        <span className="block truncate text-[length:var(--fs-sm)] font-medium">{a.walletName || a.name}</span>
-                        {bal !== undefined && (
-                          <span className="muted num block truncate text-[length:var(--fs-micro)]">
-                            {formatMoney(D(bal).toFixed(0), "IRT")}
-                          </span>
-                        )}
+      {/* ── Paying account ── */}
+      {!isNonCash && (
+        <section className="card expense-card" aria-labelledby="expense-account-title">
+          <header className="expense-head">
+            <h2 id="expense-account-title">پرداخت از</h2>
+            {accounts.length > 0 && <span className="expense-sub">{accounts.length.toLocaleString("fa-IR")} حساب</span>}
+          </header>
+          {accounts.length === 0 ? (
+            <p className="expense-empty">
+              حساب بانکی تومانی ندارید.{" "}
+              <a href="/accounts" style={{ color: "var(--action)" }}>
+                افزودن حساب بانکی
+              </a>
+            </p>
+          ) : (
+            <div className="expense-accounts" role="radiogroup" aria-label="حساب پرداخت">
+              {accounts.map((a) => {
+                const on = a.id === accountId;
+                const bal = balances[a.id];
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setAccountId(a.id)}
+                    className="expense-account"
+                    data-on={on || undefined}
+                  >
+                    <span className="expense-account-top">
+                      <span className="expense-icon expense-icon-sm" aria-hidden="true">
+                        <Icon name={a.walletKind === "cash" ? "wallet" : "accounts"} size={16} />
                       </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            {overBalance && (
-              <p className="text-[length:var(--fs-xs)] leading-5" style={{ color: "var(--warning)" }} role="status">
-                مبلغ از موجودی ثبت‌شدهٔ این حساب بیشتر است.
-              </p>
-            )}
-          </div>
-        )}
+                      <span className="expense-radio" aria-hidden="true">
+                        {on && <Icon name="check" size={12} strokeWidth={2.6} />}
+                      </span>
+                    </span>
+                    <span className="expense-account-name">{a.walletName || a.name}</span>
+                    <span className="expense-account-balance num">
+                      {bal !== undefined ? formatMoney(D(bal).toFixed(0), "IRT") : "—"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {overBalance && (
+            <p className="expense-note expense-note-warn" role="status">
+              مبلغ از موجودی ثبت‌شدهٔ این حساب بیشتر است.
+            </p>
+          )}
+        </section>
+      )}
 
+      {/* ── Date & note ── */}
+      <section className="card expense-card expense-details">
         <div className="expense-row">
           <span className="expense-row-label">تاریخ</span>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="expense-seg" role="group" aria-label="تاریخ هزینه">
             {(
               [
                 ["today", "امروز", today],
                 ["yesterday", "دیروز", yesterday],
               ] as const
-            ).map(([key, label, iso]) => (
-              <button
-                key={key}
-                type="button"
-                className={`chip ${dateChoice === key && !pickingDate ? "chip-on" : ""}`}
-                aria-pressed={dateChoice === key}
-                onClick={() => {
-                  setEntryDate(iso);
-                  setPickingDate(false);
-                }}
-              >
-                {label}
-              </button>
-            ))}
+            ).map(([key, label, iso]) => {
+              const on = dateChoice === key && !pickingDate;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  data-on={on || undefined}
+                  aria-pressed={on}
+                  onClick={() => {
+                    setEntryDate(iso);
+                    setPickingDate(false);
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
             <button
               type="button"
-              className={`chip ${dateChoice === "other" || pickingDate ? "chip-on" : ""}`}
+              data-on={dateChoice === "other" || pickingDate || undefined}
               aria-expanded={pickingDate}
               onClick={() => setPickingDate((v) => !v)}
             >
