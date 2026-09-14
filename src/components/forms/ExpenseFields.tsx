@@ -25,28 +25,8 @@ import { formatMoney, formatNumber, getDualDate } from "@/lib/format";
 import { D } from "@/domain/decimal";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
-import Icon, { type IconName } from "@/components/ui/Icon";
+import Icon from "@/components/ui/Icon";
 import type { AccountOption, CategoryGroupOption } from "./TransactionForm";
-
-/** Icon per standard expense group; user-made groups fall back to «layers». */
-const GROUP_ICON: Record<string, IconName> = {
-  HSG: "home",
-  TRN: "car",
-  FOD: "food",
-  HLT: "heart",
-  HYG: "sparkle",
-  CLT: "shirt",
-  ENT: "ticket",
-  COM: "phone",
-  PUR: "bag",
-  FAM: "users",
-  INS: "shield",
-  EDU: "book",
-  WRK: "briefcase",
-  TAX: "receipt",
-  SOC: "gift",
-  MSC: "more",
-};
 
 /** Preset amounts: a tap SETS the amount (it does not add to it). */
 const PRESET_AMOUNTS: Array<[string, number]> = [
@@ -70,8 +50,6 @@ function shiftIso(iso: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
-
-const iconOf = (code: string): IconName => GROUP_ICON[code] ?? "layers";
 
 function Check() {
   return (
@@ -252,7 +230,6 @@ export default function ExpenseFields({
           <div className="expense-squares">
             <button type="button" className="expense-square" data-on onClick={() => setBrowsing(true)}>
               <Check />
-              <Icon name={iconOf(selected.group.code)} size={22} />
               <span className="expense-square-label">{selected.name}</span>
               <span className="expense-square-meta">{selected.group.name}</span>
             </button>
@@ -277,7 +254,6 @@ export default function ExpenseFields({
                   {matches.map((l) => (
                     <li key={l.id}>
                       <button type="button" role="option" aria-selected={l.id === categoryId} onClick={() => pick(l)}>
-                        <Icon name={iconOf(l.group.code)} size={16} className="shrink-0" />
                         <span className="min-w-0 flex-1 truncate">{l.name}</span>
                         <span className="expense-sub shrink-0 truncate">{l.group.name}</span>
                       </button>
@@ -324,8 +300,7 @@ export default function ExpenseFields({
                     aria-expanded={adding}
                     onClick={() => setAdding((v) => !v)}
                   >
-                    <Icon name={adding ? "x" : "plus"} size={20} />
-                    <span className="expense-square-label">{adding ? "بستن" : "دسته جدید"}</span>
+                    <span className="expense-square-label">{adding ? "بستن" : "+ دسته جدید"}</span>
                   </button>
                 </div>
                 {adding && (
@@ -373,7 +348,6 @@ export default function ExpenseFields({
                             onClick={() => pick(l)}
                           >
                             {on && <Check />}
-                            <Icon name={iconOf(l.group.code)} size={22} />
                             <span className="expense-square-label">{l.name}</span>
                           </button>
                         );
@@ -393,7 +367,6 @@ export default function ExpenseFields({
                       data-on={g.id === selected?.group.id || undefined}
                       onClick={() => openGroupPanel(g.id)}
                     >
-                      <Icon name={iconOf(g.code)} size={22} />
                       <span className="expense-square-label">{g.name}</span>
                     </button>
                   ))}
@@ -425,7 +398,7 @@ export default function ExpenseFields({
               </a>
             </p>
           ) : (
-            <div className="expense-squares expense-squares-3" role="radiogroup" aria-label="حساب پرداخت">
+            <div className="expense-accounts" role="radiogroup" aria-label="حساب پرداخت">
               {accounts.map((a) => {
                 const on = a.id === accountId;
                 const bal = balances[a.id];
@@ -436,15 +409,22 @@ export default function ExpenseFields({
                     role="radio"
                     aria-checked={on}
                     onClick={() => setAccountId(a.id)}
-                    className="expense-square"
+                    className="expense-acct"
                     data-on={on || undefined}
                   >
-                    {on && <Check />}
-                    <Icon name={a.walletKind === "cash" ? "wallet" : "accounts"} size={22} />
-                    <span className="expense-square-label">{a.walletName || a.name}</span>
-                    {bal !== undefined && (
-                      <span className="expense-square-meta num">{formatNumber(D(bal).toFixed(0), { decimals: 0 })}</span>
-                    )}
+                    <span className="expense-radio" aria-hidden="true" />
+                    <span className="expense-acct-text">
+                      <span className="expense-acct-name">{a.walletName || a.name}</span>
+                      <span className="expense-acct-bal">
+                        {bal !== undefined ? (
+                          <>
+                            <span className="num">{formatNumber(D(bal).toFixed(0), { decimals: 0 })}</span> تومان
+                          </>
+                        ) : (
+                          "موجودی ثبت نشده"
+                        )}
+                      </span>
+                    </span>
                   </button>
                 );
               })}
