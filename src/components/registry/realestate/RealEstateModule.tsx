@@ -1,24 +1,25 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import { formatDualDate, toFaDigits } from "@/lib/format";
+import { useState } from "react";
 import type { RealEstateDashboardItem, RealEstatePortfolioSummary } from "@/features/rwa/realEstate/service";
+import type { MarketSegmentSummary, PropertyMarketView } from "@/features/rwa/realEstate/market/service";
 import type { City, Neighborhood, PropertyType } from "@/features/rwa/realEstate/types";
 import { RealEstateLogo } from "@/components/ui/IranLogo";
+import type { MarketReminder } from "@/features/rwa/realEstate/market/reminders";
+import MarketPriceTracker from "./MarketPriceTracker";
 import MasterDataAdmin from "./MasterDataAdmin";
 import RealEstateCard from "./RealEstateCard";
 import RealEstateForm from "./RealEstateForm";
-import { DeltaPct, DeltaToman, DeltaUsd, Hint, Metric, Toman, Usd, faNum } from "./shared";
+import { DeltaPct, DeltaToman, Hint, Toman, Usd, faNum } from "./shared";
 
-type Tab = "list" | "add" | "master";
+type Tab = "list" | "add" | "market" | "master";
 
 /**
  * The module is a client component fed by a server read model. If a value ever
  * arrives with the wrong shape, the previous behaviour was to throw
  * (`dashboard.map is not a function`) and take the WHOLE page down behind the
- * global error boundary — the user lost «خودرو», «کالا» and everything else
- * with it. Never let a read-model shape problem become a page-wide failure:
- * coerce to a safe empty value and render the module in its empty state.
+ * global error boundary. Never let a read-model shape problem become a
+ * page-wide failure: coerce to a safe empty value and render the empty state.
  */
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -43,6 +44,17 @@ function asSummary(value: unknown): RealEstatePortfolioSummary {
   return typeof s.count === "number" ? (s as RealEstatePortfolioSummary) : EMPTY_SUMMARY;
 }
 
+function asRecord<T>(value: unknown): Record<string, T> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, T>) : {};
+}
+
+/**
+ * دارایی واقعی ← املاک
+ *
+ * One figure strip (value · cost · result), then one row per property. Every
+ * detail — performance periods, market evidence, history — lives inside the
+ * property it belongs to, so the page never scrolls sideways.
+ */
 export default function RealEstateModule({
   dashboard,
   summary,
@@ -50,8 +62,11 @@ export default function RealEstateModule({
   neighborhoods,
   propertyTypes,
   ownerName,
-  fxRate,
   bankAccounts = [],
+  marketViews,
+  marketSegments,
+  marketReminders,
+  canManageMasterData = false,
 }: {
   bankAccounts?: { id: string; name: string }[];
   dashboard?: RealEstateDashboardItem[] | null;
@@ -61,9 +76,19 @@ export default function RealEstateModule({
   propertyTypes?: PropertyType[] | null;
   ownerName?: string;
   fxRate?: string | null;
+  /** Market insight per property id (read model; may be empty). */
+  marketViews?: Record<string, PropertyMarketView> | null;
+  /** The user's tracked market segments — «قیمت بازار» tab. */
+  marketSegments?: MarketSegmentSummary[] | null;
+  /** Properties whose market has no price yet or a price older than a month. */
+  marketReminders?: MarketReminder[] | null;
+  /** Master data is reference data shared by every user — owner/admin only. */
+  canManageMasterData?: boolean;
 }) {
   const items = asArray<RealEstateDashboardItem>(dashboard);
   const totals = asSummary(summary);
+  const views = asRecord<PropertyMarketView>(marketViews);
+  const reminders = asArray<MarketReminder>(marketReminders);
   const cityList = asArray<City>(cities);
   const neighborhoodList = asArray<Neighborhood>(neighborhoods);
   const propertyTypeList = asArray<PropertyType>(propertyTypes);
@@ -72,10 +97,13 @@ export default function RealEstateModule({
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
-    <section className="card p-5">
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <section className="card re-module" aria-labelledby="re-module-title">
+      <header className="re-head">
         <div className="min-w-0">
-          <h2 className="text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)] font-bold tracking-tight">🏠 دارایی واقعی ← ملک (Real Estate)</h2>
+          <h2 id="re-module-title" className="re-title">
+            املاک
+          </h2>
+          {totals.count > 0 && <p className="re-subtitle">{`${faNum(totals.count)} ملک ثبت‌شده`}</p>}
         </div>
         <div className="seg" role="group" aria-label="بخش املاک">
           <button type="button" onClick={() => setTab("list")} className={tab === "list" ? "seg-on" : ""} aria-pressed={tab === "list"}>
@@ -84,152 +112,149 @@ export default function RealEstateModule({
           <button type="button" onClick={() => setTab("add")} className={tab === "add" ? "seg-on" : ""} aria-pressed={tab === "add"}>
             ثبت ملک
           </button>
-          <button type="button" onClick={() => setTab("master")} className={tab === "master" ? "seg-on" : ""} aria-pressed={tab === "master"}>
-            داده پایه (Master Data)
+          <button type="button" onClick={() => setTab("market")} className={tab === "market" ? "seg-on" : ""} aria-pressed={tab === "market"}>
+            قیمت بازار
           </button>
+          {canManageMasterData && (
+            <button type="button" onClick={() => setTab("master")} className={tab === "master" ? "seg-on" : ""} aria-pressed={tab === "master"}>
+              داده پایه
+            </button>
+          )}
         </div>
       </header>
 
-      {totals.count > 0 && (
-        <div className="mb-5 grid grid-cols-2 gap-4 border-y py-4 sm:grid-cols-3 lg:grid-cols-6" style={{ borderColor: "var(--border)" }}>
-          <Metric
-            label="مجموع ارزش املاک"
-            value={<Toman value={totals.totalCurrentToman} />}
-            sub={<>≈ <Usd value={totals.totalCurrentUsd} /></>}
-          />
-          <Metric label="مجموع قیمت خرید" value={<Toman value={totals.totalPurchaseToman} />} sub={<>≈ <Usd value={totals.totalPurchaseUsd} /></>} />
-          <Metric label="سود/زیان تومانی کل" value={<DeltaToman value={totals.totalGainToman} />} sub={<>بازده: <DeltaPct value={totals.roiToman} /></>} />
-          <Metric label="سود/زیان دلاری کل" value={<DeltaUsd value={totals.totalGainUsd} />} sub={<>بازده: <DeltaPct value={totals.roiUsd} /></>} />
-          <Metric label="تعداد ملک" value={<span className="num">{faNum(totals.count)}</span>} sub="ثبت‌شده در سیستم" />
-          <Metric
-            label="نرخ جاری سیستم"
-            value={<span className="num">{faNum(fxRate)}</span>}
-            sub="فقط برای تاریخ‌های بدون نرخ ثبت‌شده"
-          />
-        </div>
-      )}
-
       {tab === "list" && (
-        <div className="space-y-4">
+        <div className="re-body">
+          {totals.count > 0 && (
+            <dl className="metric-strip re-summary">
+              <div>
+                <dt>ارزش روز املاک</dt>
+                <dd>
+                  <Toman value={totals.totalCurrentToman} />
+                </dd>
+                <dd className="re-sub">
+                  <Usd value={totals.totalCurrentUsd} />
+                </dd>
+              </div>
+              <div>
+                <dt>قیمت خرید</dt>
+                <dd>
+                  <Toman value={totals.totalPurchaseToman} />
+                </dd>
+                <dd className="re-sub">
+                  <Usd value={totals.totalPurchaseUsd} />
+                </dd>
+              </div>
+              <div>
+                <dt>سود / زیان تحقق‌نیافته</dt>
+                <dd>
+                  <DeltaToman value={totals.totalGainToman} />
+                </dd>
+                <dd className="re-sub">
+                  تومانی <DeltaPct value={totals.roiToman} /> · دلاری <DeltaPct value={totals.roiUsd} />
+                </dd>
+              </div>
+            </dl>
+          )}
+
           {totals.unvaluedCount > 0 && (
+            <Hint tone="warn">{faNum(totals.unvaluedCount)} ملک هنوز ارزش‌گذاری ندارد و در ارزش روز محاسبه نمی‌شود.</Hint>
+          )}
+
+          {reminders.length > 0 && (
             <Hint tone="warn">
-              {faNum(totals.unvaluedCount)} ملک ارزش‌گذاری ثبت‌شده ندارد؛ تا ثبت ارزش‌گذاری، ارزش فعلی و سود/زیان از مبلغ
-              خرید محاسبه نمی‌شود.
+              {reminders
+                .map((r) =>
+                  r.status === "missing"
+                    ? `«${r.label}» هنوز قیمت بازار ندارد`
+                    : `قیمت بازار «${r.label}» ${faNum(r.daysSinceLatest)} روز است به‌روز نشده`,
+                )
+                .join("؛ ")}
+              .{" "}
+              <button type="button" className="re-link" onClick={() => setTab("market")}>
+                ثبت قیمت بازار
+              </button>
             </Hint>
           )}
+
           {items.length === 0 ? (
-            <div className="py-10 text-center">
-              <p className="text-[length:var(--fs-sm)] font-semibold">هنوز ملکی ثبت نشده است</p>
-              <p className="muted mx-auto mt-1 max-w-md text-[length:var(--fs-xs)] leading-6">
-                شهر و محله و نوع ملک را از فهرست انتخاب کنید؛ نام و شناسه کوتاه به‌صورت خودکار تولید می‌شوند و معادل‌های
-                دلاری با نرخ تاریخی همان روزها محاسبه می‌شوند.
-              </p>
-              <button className="btn btn-primary mt-3" onClick={() => setTab("add")}>
+            <div className="re-empty">
+              <p className="re-empty-title">هنوز ملکی ثبت نشده است</p>
+              <p className="muted">شهر، محله و نوع ملک را انتخاب کنید؛ شناسه و معادل دلاری خودکار ساخته می‌شوند.</p>
+              <button className="btn btn-primary" onClick={() => setTab("add")}>
                 ثبت ملک
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="table min-w-[1400px] text-[length:var(--fs-xs)]">
-                <thead>
-                  <tr>
-                    <th scope="col">شناسه دارایی</th>
-                    <th scope="col">نوع ملک</th>
-                    <th scope="col">شهر</th>
-                    <th scope="col">منطقه / محله</th>
-                    <th scope="col">تاریخ تملک</th>
-                    <th scope="col">تاریخ ارزش‌گذاری</th>
-                    <th scope="col" className="td-num">قیمت خرید تومان</th>
-                    <th scope="col" className="td-num">قیمت خرید دلار</th>
-                    <th scope="col" className="td-num">ارزش فعلی تومان</th>
-                    <th scope="col" className="td-num">ارزش فعلی دلار</th>
-                    <th scope="col" className="td-num">سود/زیان تومان</th>
-                    <th scope="col" className="td-num">سود/زیان دلار</th>
-                    <th scope="col" className="td-num">٪ تومان</th>
-                    <th scope="col" className="td-num">٪ دلار</th>
-                    <th scope="col"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => {
-                    const open = openId === item.id;
-                    const p = item.performance;
-                    return (
-                      <Fragment key={item.id}>
-                        <tr
-                          className="cursor-pointer"
-                          onClick={() => setOpenId(open ? null : item.id)}
-                          aria-expanded={open}
-                        >
-                          <td className="num text-[length:var(--fs-xs)] font-semibold">
-                            <span className="flex items-center gap-1.5">
-                              <RealEstateLogo size={22} />
-                              {item.label}
-                            </span>
-                          </td>
-                          <td>{item.propertyTypeNameFa ?? item.propertyType ?? "—"}</td>
-                          <td>{item.cityNameFa ?? item.cityNameEn ?? "—"}</td>
-                          <td>{item.neighborhoodNameFa ?? item.area ?? "—"}</td>
-                          <td className="num whitespace-nowrap">{item.acquisitionDate ? formatDualDate(item.acquisitionDate) : "—"}</td>
-                          <td className="num whitespace-nowrap">{item.valuationDate ? formatDualDate(item.valuationDate) : "—"}</td>
-                          <td className="td-num">
-                            <Toman value={item.purchasePriceToman} />
-                          </td>
-                          <td className="td-num">
-                            <Usd value={item.purchaseValueUsd} />
-                          </td>
-                          <td className="td-num">
-                            <Toman value={item.currentValueToman} />
-                          </td>
-                          <td className="td-num">
-                            <Usd value={item.currentValueUsd} />
-                          </td>
-                          <td className="td-num">
-                            <DeltaToman value={p.gainToman} />
-                          </td>
-                          <td className="td-num">
-                            <DeltaUsd value={p.gainUsd} />
-                          </td>
-                          <td className="td-num">
-                            <DeltaPct value={p.roiToman} />
-                          </td>
-                          <td className="td-num">
-                            <DeltaPct value={p.roiUsd} />
-                          </td>
-                          <td>
-                            <span className="muted text-[length:var(--fs-xs)]">{open ? "بستن ▲" : "جزئیات ▼"}</span>
-                          </td>
-                        </tr>
-                        {open && (
-                          <tr>
-                            <td colSpan={15} className="!bg-transparent p-0">
-                              <div className="border-t px-3 py-4" style={{ borderColor: "var(--border)", background: "var(--sunken)" }}>
-                                <RealEstateCard item={item} />
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <ul className="re-list" aria-label="فهرست املاک">
+              {items.map((item) => {
+                const open = openId === item.id;
+                const meta = [
+                  item.propertyTypeNameFa ?? item.propertyType,
+                  item.neighborhoodNameFa ?? item.area,
+                  item.cityNameFa ?? item.cityNameEn,
+                  item.sizeSqm ? `${faNum(item.sizeSqm)} متر` : null,
+                ].filter(Boolean);
+                return (
+                  <li key={item.id} className={open ? "re-row is-open" : "re-row"}>
+                    <button
+                      type="button"
+                      className="re-row-head"
+                      onClick={() => setOpenId(open ? null : item.id)}
+                      aria-expanded={open}
+                      aria-controls={`re-detail-${item.id}`}
+                    >
+                      <RealEstateLogo size={32} />
+                      <span className="re-row-main">
+                        <span className="re-row-title">{item.label}</span>
+                        <span className="re-row-meta">{meta.join(" · ")}</span>
+                      </span>
+                      <span className="re-row-value">
+                        <Toman value={item.currentValueToman} />
+                        <span className="re-row-delta">
+                          <DeltaPct value={item.performance.roiToman} />
+                        </span>
+                      </span>
+                      <span className="re-chevron" aria-hidden="true" />
+                    </button>
+                    {open && (
+                      <div id={`re-detail-${item.id}`} className="re-row-body">
+                        <RealEstateCard item={item} marketView={views[item.id]} />
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       )}
 
       {tab === "add" && (
-        <div className="space-y-3">
-          <div className="soft flex flex-wrap items-center gap-2 rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)]">
-            <span className="muted">مالک:</span>
-            <strong>{ownerName}</strong>
-          </div>
+        <div className="re-body">
+          <p className="muted re-owner">
+            مالک: <strong>{ownerName}</strong>
+          </p>
           <RealEstateForm cities={cityList} neighborhoods={neighborhoodList} propertyTypes={propertyTypeList} bankAccounts={bankAccounts} />
         </div>
       )}
 
-      {tab === "master" && <MasterDataAdmin cities={cityList} neighborhoods={neighborhoodList} propertyTypes={propertyTypeList} />}
+      {tab === "market" && (
+        <div className="re-body">
+          <MarketPriceTracker
+            cities={cityList}
+            neighborhoods={neighborhoodList}
+            propertyTypes={propertyTypeList}
+            segments={asArray<MarketSegmentSummary>(marketSegments)}
+          />
+        </div>
+      )}
+
+      {tab === "master" && canManageMasterData && (
+        <div className="re-body">
+          <MasterDataAdmin cities={cityList} neighborhoods={neighborhoodList} propertyTypes={propertyTypeList} />
+        </div>
+      )}
     </section>
   );
 }

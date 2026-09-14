@@ -953,6 +953,60 @@ export const realEstateValuationSnapshots = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/* Property Market Intelligence — FORWARD-ONLY market price tracking    */
+/* Each user tracks the reference price per m² of the markets of their  */
+/* own properties, from the day tracking starts onward. Tenant data,    */
+/* never accounting — nothing here is joined into the ledger, FIFO,     */
+/* prices or net worth. An estimate reaches a property only through a   */
+/* valuation the user records (recordRealEstateValuation).              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One market price observation per user + neighborhood + property type +
+ * size band + date. INSERT-only (a wrong entry is deleted, never edited).
+ * The USD rate of the observation date is frozen on the row, so the dollar
+ * growth of any horizon is never re-derived with a later rate.
+ */
+export const marketPriceSnapshots = pgTable(
+  "market_price_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** owner — every read and write is scoped to this tenant */
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    cityId: uuid("city_id")
+      .notNull()
+      .references(() => cities.id, { onDelete: "cascade" }),
+    neighborhoodId: uuid("neighborhood_id")
+      .notNull()
+      .references(() => neighborhoods.id, { onDelete: "cascade" }),
+    propertyTypeId: uuid("property_type_id")
+      .notNull()
+      .references(() => propertyTypes.id),
+    /** all | a0-80 | a80-150 | a150-up */
+    areaBand: text("area_band").notNull().default("all"),
+    /** the day the price was observed — never in the future, never back-filled */
+    observedOn: date("observed_on").notNull(),
+    pricePerSqmToman: money("price_per_sqm_toman").notNull(),
+    lowPpsqmToman: money("low_ppsqm_toman"),
+    highPpsqmToman: money("high_ppsqm_toman"),
+    /** how many listings the admin looked at (evidence size) */
+    sampleCount: integer("sample_count"),
+    /** USD rate of the OBSERVATION date, frozen at insert (IRT per 1 USD) */
+    usdRate: money("usd_rate").notNull(),
+    usdRateSource: text("usd_rate_source"),
+    usdRateDate: date("usd_rate_date"),
+    pricePerSqmUsd: money("price_per_sqm_usd").notNull(),
+    note: text("note"),
+  },
+  (t) => [
+    uniqueIndex("market_price_user_segment_date_uq").on(t.userId, t.neighborhoodId, t.propertyTypeId, t.areaBand, t.observedOn),
+    index("market_price_user_idx").on(t.userId),
+    index("market_price_city_type_idx").on(t.cityId, t.propertyTypeId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /* Vehicle Catalog — Brand -> Model (standard, selectable, extensible)  */
 /* Users NEVER type a brand/model freely for catalog brands; admins can */
 /* extend the catalog at runtime (dynamic, no schema change needed).    */

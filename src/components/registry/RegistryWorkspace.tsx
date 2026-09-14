@@ -5,6 +5,8 @@ import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import type { PayoutAccount } from "@/features/registry/loadAssetRegistryData";
 import type { RealEstateDashboardItem, RealEstatePortfolioSummary } from "@/features/rwa/realEstate/service";
 import type { City, Neighborhood, PropertyType } from "@/features/rwa/realEstate/types";
+import type { MarketSegmentSummary, PropertyMarketView } from "@/features/rwa/realEstate/market/service";
+import type { MarketReminder } from "@/features/rwa/realEstate/market/reminders";
 
 type RegistryWorkspaceProps = {
   /** legacy alias kept for older call-sites */
@@ -32,6 +34,11 @@ type RegistryWorkspaceProps = {
   propertyTypes?: PropertyType[];
   ownerName?: string;
   fxRate?: string;
+  /** Market insight per property id — analytics read model only. */
+  realEstateMarket?: Record<string, PropertyMarketView>;
+  marketSegments?: MarketSegmentSummary[];
+  marketReminders?: MarketReminder[];
+  canManageMasterData?: boolean;
 };
 
 export default function RegistryWorkspace({
@@ -51,6 +58,10 @@ export default function RegistryWorkspace({
   propertyTypes = [],
   ownerName = "کاربر فعلی",
   fxRate = "0",
+  realEstateMarket = {},
+  marketSegments = [],
+  marketReminders = [],
+  canManageMasterData = false,
 }: RegistryWorkspaceProps) {
   return (
     <>
@@ -67,6 +78,10 @@ export default function RegistryWorkspace({
             ownerName={ownerName}
             fxRate={fxRate}
             bankAccounts={bankAccounts}
+            marketViews={realEstateMarket}
+            marketSegments={marketSegments}
+            marketReminders={marketReminders}
+            canManageMasterData={canManageMasterData}
           />
         </ErrorBoundary>
       </div>
