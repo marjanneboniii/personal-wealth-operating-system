@@ -24,6 +24,13 @@ export default function Sheet({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
+  // Callers pass an inline onClose. Reading it through a ref keeps the effect
+  // below tied to `open` only — otherwise every parent render re-ran it, which
+  // yanked focus back to the first control and swallowed taps inside the sheet.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -35,7 +42,7 @@ export default function Sheet({
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       // Focus trap: Tab cycles inside the dialog and never escapes to the
@@ -84,7 +91,7 @@ export default function Sheet({
       // Return focus to the control that opened the sheet.
       restoreRef.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
