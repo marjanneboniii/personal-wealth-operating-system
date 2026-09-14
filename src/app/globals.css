@@ -1141,30 +1141,41 @@ select.field {
 /* Record action — the centre slot of the tab bar, not a floating button.
    The old 56px FAB covered content on every page and, because its unlayered
    `display` beat Tailwind's layered `lg:hidden`, also showed on desktop. */
+.tab-split { display: flex; align-items: stretch; }
+.tab-half {
+  display: grid;
+  flex: 1 1 0;
+  min-width: 0;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 2px;
+}
 .tab-record {
   display: flex;
+  flex: 0 0 3.5rem;
   align-items: center;
   justify-content: center;
-  min-width: 0;
   min-height: 52px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
+/* Minimal monochrome mark: black on the light theme, white on the dark one. */
 .tab-record-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: var(--r-lg);
-  background: var(--action);
-  color: var(--on-ink);
-  transition: transform var(--motion-micro) var(--ease), background var(--motion-micro) var(--ease);
+  border-radius: var(--r-pill);
+  background: #0a0a0a;
+  color: #ffffff;
+  transition: transform var(--motion-micro) var(--ease);
 }
-.tab-record:active .tab-record-mark { transform: scale(0.94); background: var(--action-hover); }
+.dark .tab-record-mark { background: #ffffff; color: #0a0a0a; }
+.tab-record:active .tab-record-mark { transform: scale(0.92); }
 .tab-record:focus-visible { outline: none; }
 .tab-record:focus-visible .tab-record-mark,
-.tab-record[data-active] .tab-record-mark { box-shadow: 0 0 0 3px var(--action-soft); }
+.tab-record[data-active] .tab-record-mark { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--text-3); }
 @media (prefers-reduced-motion: reduce) {
   .tab-record-mark { transition: none; }
 }
@@ -4097,87 +4108,59 @@ input {
 .table .td-num { font-family: var(--font-num); font-feature-settings: normal; }
 
 /* ─────────────────── Expense entry (/new?type=expense) ───────────────────
-   One spacing scale throughout: 0.5rem inside controls, 0.75rem between
-   controls, 1rem card padding (1.25rem from 640px), 0.75rem between cards. */
+   Nothing scrolls sideways: every choice is a square tile in a wrapping grid.
+   One spacing scale — 0.5rem between tiles, 1rem card padding (1.25rem from
+   640px), 0.75rem between cards. */
 .expense-form { display: grid; gap: 0.75rem; }
-.expense-card { display: grid; gap: 0.875rem; padding: 1rem; min-width: 0; }
+.expense-card { display: grid; gap: 0.75rem; padding: 1rem; min-width: 0; }
 @media (min-width: 640px) {
   .expense-form { gap: 1rem; }
   .expense-card { padding: 1.25rem; }
 }
 .expense-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-height: 1.75rem; }
 .expense-head h2 { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
-.expense-eyebrow { display: block; text-align: center; font-size: var(--fs-xs); color: var(--text-3); }
 .expense-sub { font-size: var(--fs-xs); line-height: 1.6; color: var(--text-3); }
 .expense-empty { padding-block: 0.5rem; text-align: center; font-size: var(--fs-xs); line-height: 1.7; color: var(--text-3); }
 .expense-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   flex-shrink: 0;
-  padding: 0.25rem 0.5rem;
+  min-height: 2rem;
+  padding-inline: 0.5rem;
   border-radius: var(--r-sm);
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--action);
+  color: var(--text-2);
   touch-action: manipulation;
 }
+.expense-link:hover { background: var(--hover); color: var(--text); }
 .expense-note { padding: 0.625rem 0.75rem; border-radius: var(--r-md); background: var(--sunken); font-size: var(--fs-xs); line-height: 1.7; color: var(--text-2); }
 .expense-note-warn { color: var(--warning); }
 
-/* Amount — the hero: a borderless figure with a quiet underline. */
-.expense-amount { gap: 0.625rem; }
-.expense-amount .expense-amount-input {
-  min-height: 3.75rem;
-  padding-inline: 0.5rem;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  text-align: center;
-  font-size: clamp(1.875rem, 8vw, 2.5rem) !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.01em;
-}
-.expense-amount .expense-amount-input:focus { border-bottom-color: var(--action); box-shadow: none; }
-.expense-amount .amount-words { margin-top: 0.375rem; text-align: center; }
-.expense-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; padding-top: 0.25rem; }
+/* Amount — a regular field; presets below as a 3×2 / 6×1 grid. */
+.expense-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
 @media (min-width: 640px) { .expense-presets { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 .expense-preset {
-  min-height: 2.75rem;
-  padding-inline: 0.5rem;
+  min-height: 2.5rem;
+  padding-inline: 0.25rem;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--surface);
   font-size: var(--fs-xs);
-  font-weight: 500;
   color: var(--text-2);
   white-space: nowrap;
   touch-action: manipulation;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .expense-preset:hover { background: var(--hover); }
-.expense-preset[data-on] { border-color: var(--action); background: var(--action-soft); color: var(--action); font-weight: 700; }
-
-/* Icon badge shared by tiles, the picked category and account cards. */
-.expense-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  flex-shrink: 0;
-  border-radius: var(--r-lg);
-  background: var(--sunken);
-  color: var(--text-2);
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.expense-icon-sm { width: 2rem; height: 2rem; border-radius: var(--r-md); }
-.expense-icon[data-on] { background: var(--action); color: var(--on-ink); }
+.expense-preset[data-on] { border-color: var(--text); color: var(--text); font-weight: 700; }
 
 /* Search */
 .expense-search { position: relative; }
 .expense-search > svg { position: absolute; top: 50%; inset-inline-start: 0.875rem; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
 .expense-search > .field { padding-inline-start: 2.5rem; }
-.expense-results { max-height: 18rem; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--r-md); }
+.expense-results { border: 1px solid var(--border); border-radius: var(--r-md); }
 .expense-results li + li { border-top: 1px solid var(--border); }
 .expense-results button {
   display: flex;
@@ -4194,169 +4177,76 @@ input {
 .expense-results button:hover,
 .expense-results button[aria-selected="true"] { background: var(--hover); }
 
-/* Recent picks — one scrolling row. */
-.expense-recent { display: grid; gap: 0.5rem; }
-.expense-scroll {
-  display: flex;
-  gap: 0.5rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin-inline: -0.25rem;
-  padding: 0.125rem 0.25rem;
-  scroll-snap-type: x proximity;
+/* Square selectable tiles — groups, subcategories and accounts share them. */
+.expense-squares { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
+.expense-squares-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 640px) {
+  .expense-squares { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .expense-squares-3 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
-.expense-scroll::-webkit-scrollbar { display: none; }
-.expense-scroll > * { scroll-snap-align: start; }
-.expense-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  flex-shrink: 0;
-  min-height: 2.5rem;
-  padding-inline: 0.875rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
-  background: var(--surface);
-  font-size: var(--fs-xs);
-  color: var(--text-2);
-  white-space: nowrap;
-  touch-action: manipulation;
+@media (min-width: 1024px) {
+  .expense-squares { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .expense-squares-3 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
-.expense-pill:hover { background: var(--hover); }
-.expense-pill[data-on] { border-color: var(--action); background: var(--action-soft); color: var(--action); font-weight: 600; }
-
-/* Group grid — fixed-size tiles, labels clamped to two even lines. */
-.expense-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr)); gap: 0.375rem; }
-@media (min-width: 640px) { .expense-grid { grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr)); gap: 0.5rem; } }
-.expense-tile {
+.expense-square {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.375rem;
+  aspect-ratio: 1 / 1;
   min-width: 0;
-  padding: 0.75rem 0.25rem 0.625rem;
-  border: 1px solid transparent;
+  padding: 0.5rem 0.375rem;
+  border: 1px solid var(--border);
   border-radius: var(--r-lg);
+  background: var(--surface);
   color: var(--text-2);
+  text-align: center;
   touch-action: manipulation;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
-.expense-tile:hover { background: var(--hover); }
-.expense-tile:hover .expense-icon { color: var(--text); }
-.expense-tile[data-on] { border-color: var(--border); background: var(--action-soft); color: var(--action); }
-.expense-tile[data-on] .expense-icon { background: var(--action); color: var(--on-ink); }
-.expense-tile-label {
+.expense-square:hover { background: var(--hover); color: var(--text); }
+.expense-square[data-on] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); color: var(--text); }
+.expense-square > svg { flex-shrink: 0; }
+.expense-square-label {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
   width: 100%;
-  min-height: calc(2 * 1.5em);
   font-size: var(--fs-xs);
-  line-height: 1.5;
-  text-align: center;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
-
-/* Drill-in panel for one group. */
-.expense-panel { display: grid; gap: 0.75rem; }
-.expense-panel-head { display: flex; align-items: center; gap: 0.625rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
-.expense-panel-head b { font-size: var(--fs-sm); }
-.expense-back {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  flex-shrink: 0;
-  border-radius: var(--r-md);
-  color: var(--text-2);
-  touch-action: manipulation;
-}
-.expense-back:hover { background: var(--hover); }
-.expense-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.5rem; }
-.expense-option {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  min-height: 2.75rem;
-  padding-inline: 0.875rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  font-size: var(--fs-sm);
-  color: var(--text);
-  text-align: start;
-  touch-action: manipulation;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-.expense-option:hover { background: var(--hover); }
-.expense-option[data-on] { border-color: var(--action); background: var(--action-soft); color: var(--action); font-weight: 600; }
-.expense-option-add { border-style: dashed; color: var(--text-3); justify-content: center; }
-
-/* The chosen category, collapsed. */
-.expense-picked {
-  display: flex;
+.expense-square[data-on] .expense-square-label { font-weight: 600; }
+.expense-square-meta {
+  display: block;
   width: 100%;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.625rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--sunken);
-  font-size: var(--fs-sm);
-  text-align: start;
-  touch-action: manipulation;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
 }
-.expense-picked:hover { border-color: var(--border-strong); }
-
-/* Paying account cards — scroll on phones, a tidy grid from 640px. */
-.expense-accounts {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(9.5rem, 44%);
-  gap: 0.5rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin-inline: -0.25rem;
-  padding: 0.125rem 0.25rem 0.25rem;
-  scroll-snap-type: x proximity;
-}
-.expense-accounts::-webkit-scrollbar { display: none; }
-@media (min-width: 640px) {
-  .expense-accounts { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); overflow: visible; }
-}
-.expense-account {
-  display: grid;
-  gap: 0.375rem;
-  min-width: 0;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  color: var(--text);
-  text-align: start;
-  scroll-snap-align: start;
-  touch-action: manipulation;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-.expense-account:hover { border-color: var(--border-strong); }
-.expense-account-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem; }
-.expense-account-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-weight: 600; }
-.expense-account-balance { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--text-3); }
-.expense-radio {
+.expense-square-add { border-style: dashed; color: var(--text-3); }
+.expense-check {
+  position: absolute;
+  top: 0.375rem;
+  inset-inline-end: 0.375rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 1.125rem;
   height: 1.125rem;
-  border: 1.5px solid var(--border-strong);
   border-radius: var(--r-pill);
+  background: var(--text);
+  color: var(--bg);
 }
-.expense-account[data-on] { border-color: var(--action); background: var(--action-soft); }
-.expense-account[data-on] .expense-icon { background: var(--action); color: var(--on-ink); }
-.expense-account[data-on] .expense-radio { border-color: var(--action); background: var(--action); color: var(--on-ink); }
+
+/* Drill-in header for one group. */
+.expense-crumb { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.expense-crumb b { font-size: var(--fs-sm); }
 
 /* Date & note rows. */
 .expense-details { gap: 0; padding: 0; }
@@ -4367,21 +4257,16 @@ input {
   .expense-row { grid-template-columns: 6rem minmax(0, 1fr); align-items: center; column-gap: 1rem; padding: 1rem 1.25rem; }
   .expense-row > :not(.expense-row-label) { grid-column: 2; }
 }
-.expense-seg {
-  display: inline-flex;
-  justify-self: start;
-  max-width: 100%;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: var(--r-md);
-  background: var(--sunken);
-}
+.expense-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.25rem; padding: 0.25rem; border-radius: var(--r-md); background: var(--sunken); }
+@media (min-width: 640px) { .expense-seg { justify-self: start; grid-template-columns: repeat(3, auto); } }
 .expense-seg > button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.375rem;
+  min-width: 0;
   min-height: 2.25rem;
-  padding-inline: 0.875rem;
+  padding-inline: 0.75rem;
   border-radius: calc(var(--r-md) - 2px);
   font-size: var(--fs-xs);
   color: var(--text-2);

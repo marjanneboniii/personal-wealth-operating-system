@@ -610,12 +610,11 @@ export default function Shell({
         {/* The record action lives INSIDE the bar: a floating button covered
             content on every page (and leaked onto desktop). */}
         <div
-          className="tab-row"
-          style={{
-            gridTemplateColumns: `repeat(${recordAt}, minmax(0, 1fr)) 3.25rem repeat(${MOBILE_TABS.length - recordAt + 1}, minmax(0, 1fr))`,
-          }}
+          className="tab-row tab-split"
         >
-          {MOBILE_TABS.slice(0, recordAt).map(tabLink)}
+          {/* Two flex halves of equal width keep «+» at the exact centre,
+              whatever the labels on either side measure. */}
+          <div className="tab-half">{MOBILE_TABS.slice(0, recordAt).map(tabLink)}</div>
           <button
             type="button"
             onClick={() => setQuickOpen(true)}
@@ -629,19 +628,21 @@ export default function Shell({
               <Icon name="plus" size={20} strokeWidth={2.2} />
             </span>
           </button>
-          {MOBILE_TABS.slice(recordAt).map(tabLink)}
-          <button
-            type="button"
-            onClick={() => setMoreOpen(true)}
-            aria-label="بیشتر"
-            aria-haspopup="dialog"
-            aria-expanded={moreOpen}
-            className={`tab-item ${moreActive ? "tab-active" : ""}`}
-            style={{ touchAction: "manipulation" }}
-          >
-            <Icon name="more" size={20} />
-            <span className="tab-label">بیشتر</span>
-          </button>
+          <div className="tab-half">
+            {MOBILE_TABS.slice(recordAt).map(tabLink)}
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              aria-label="بیشتر"
+              aria-haspopup="dialog"
+              aria-expanded={moreOpen}
+              className={`tab-item ${moreActive ? "tab-active" : ""}`}
+              style={{ touchAction: "manipulation" }}
+            >
+              <Icon name="more" size={20} />
+              <span className="tab-label">بیشتر</span>
+            </button>
+          </div>
         </div>
       </nav>
       )}
