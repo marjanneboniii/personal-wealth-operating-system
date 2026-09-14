@@ -1,12 +1,15 @@
 "use client";
 
 /**
- * ثبت هزینه — the everyday path, in three calm cards:
+ * ثبت هزینه — the everyday path, in four plain cards:
  *
- *   مبلغ        one large field and preset amounts (a tap sets the amount)
- *   دسته‌بندی   search, recent picks, then a group grid that drills into its
- *               subcategories (the grid and the list never stack on screen)
- *   پرداخت      account cards with their balance, a segmented date, a note
+ *   مبلغ        a regular amount field and preset amounts (a tap sets it)
+ *   دسته‌بندی   search, then square tiles: recent picks and groups; a group
+ *               tile opens its subcategories as square tiles
+ *   پرداخت از   the paying accounts as square tiles with their balance
+ *   تاریخ       today / yesterday / another date, and a note
+ *
+ * Nothing scrolls sideways: every choice wraps in a grid.
  *
  * Only Toman bank and cash accounts are offered to pay: stablecoin wallets,
  * funds and exchanges are investment or savings places, not where daily
@@ -18,7 +21,7 @@
  */
 import { useMemo, useState } from "react";
 import { createCategoryAction } from "@/app/actions";
-import { formatMoney, getDualDate } from "@/lib/format";
+import { formatMoney, formatNumber, getDualDate } from "@/lib/format";
 import { D } from "@/domain/decimal";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
@@ -45,7 +48,7 @@ const GROUP_ICON: Record<string, IconName> = {
   MSC: "more",
 };
 
-/** Preset amounts: a tap SETS the amount (it no longer adds to it). */
+/** Preset amounts: a tap SETS the amount (it does not add to it). */
 const PRESET_AMOUNTS: Array<[string, number]> = [
   ["۵۰۰ هزار", 500_000],
   ["۱ میلیون", 1_000_000],
@@ -54,6 +57,9 @@ const PRESET_AMOUNTS: Array<[string, number]> = [
   ["۱۰ میلیون", 10_000_000],
   ["۱۰۰ میلیون", 100_000_000],
 ];
+
+/** Recent picks fill at most one row of tiles on a phone. */
+const RECENT_LIMIT = 4;
 
 /** Persian search: Arabic ي/ك, half-spaces and case never block a match. */
 const norm = (s: string) =>
@@ -66,6 +72,14 @@ function shiftIso(iso: string, days: number): string {
 }
 
 const iconOf = (code: string): IconName => GROUP_ICON[code] ?? "layers";
+
+function Check() {
+  return (
+    <span className="expense-check" aria-hidden="true">
+      <Icon name="check" size={11} strokeWidth={3} />
+    </span>
+  );
+}
 
 type Leaf = CategoryGroupOption["children"][number] & { group: CategoryGroupOption };
 
@@ -123,7 +137,10 @@ export default function ExpenseFields({
   const leaves = useMemo<Leaf[]>(() => groups.flatMap((g) => g.children.map((c) => ({ ...c, group: g }))), [groups]);
   const leafById = useMemo(() => new Map(leaves.map((l) => [l.id, l])), [leaves]);
   const selected = leafById.get(categoryId) ?? null;
-  const recent = recentCategoryIds.map((id) => leafById.get(id)).filter((l): l is Leaf => !!l);
+  const recent = recentCategoryIds
+    .map((id) => leafById.get(id))
+    .filter((l): l is Leaf => !!l)
+    .slice(0, RECENT_LIMIT);
   const openGroup = groups.find((g) => g.id === openGroupId) ?? null;
 
   const q = norm(query);
@@ -177,21 +194,22 @@ export default function ExpenseFields({
   return (
     <div className="expense-form">
       {/* ── Amount ── */}
-      <section className="card expense-card expense-amount">
-        <label htmlFor="expense-amount" className="expense-eyebrow">
-          مبلغ هزینه <span aria-hidden="true">·</span> تومان
-        </label>
+      <section className="card expense-card" aria-labelledby="expense-amount-title">
+        <header className="expense-head">
+          <h2 id="expense-amount-title">مبلغ هزینه</h2>
+          <span className="expense-sub">تومان</span>
+        </header>
         <AmountInput
           id="expense-amount"
           value={amount}
           onValueChange={setAmount}
           placeholder="۰"
-          className="field num expense-amount-input"
+          className="field num"
           unit="toman"
-          aria-label="مبلغ هزینه به تومان"
+          aria-labelledby="expense-amount-title"
         />
         {previewUsd && (
-          <p className="expense-eyebrow">
+          <p className="expense-sub">
             ≈ <span className="num">{formatMoney(previewUsd, "USD")}</span>
           </p>
         )}
@@ -218,6 +236,11 @@ export default function ExpenseFields({
       <section className="card expense-card" aria-labelledby="expense-category-title">
         <header className="expense-head">
           <h2 id="expense-category-title">دسته‌بندی</h2>
+          {selected && !browsing && (
+            <button type="button" className="expense-link" onClick={() => setBrowsing(true)}>
+              تغییر
+            </button>
+          )}
           {selected && browsing && (
             <button type="button" className="expense-link" onClick={() => setBrowsing(false)}>
               انصراف
@@ -226,20 +249,18 @@ export default function ExpenseFields({
         </header>
 
         {selected && !browsing ? (
-          <button type="button" onClick={() => setBrowsing(true)} className="expense-picked">
-            <span className="expense-icon" data-on aria-hidden="true">
-              <Icon name={iconOf(selected.group.code)} size={20} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <b className="block truncate">{selected.name}</b>
-              <span className="expense-sub block truncate">{selected.group.name}</span>
-            </span>
-            <span className="expense-link">تغییر</span>
-          </button>
+          <div className="expense-squares">
+            <button type="button" className="expense-square" data-on onClick={() => setBrowsing(true)}>
+              <Check />
+              <Icon name={iconOf(selected.group.code)} size={22} />
+              <span className="expense-square-label">{selected.name}</span>
+              <span className="expense-square-meta">{selected.group.name}</span>
+            </button>
+          </div>
         ) : (
           <>
             <div className="expense-search">
-              <Icon name="search" size={16} aria-hidden="true" />
+              <Icon name="search" size={16} />
               <input
                 type="search"
                 className="field"
@@ -267,21 +288,18 @@ export default function ExpenseFields({
                 <p className="expense-empty">دسته‌ای با «{query}» پیدا نشد.</p>
               )
             ) : openGroup ? (
-              /* Drill-in: one group's subcategories replace the grid. */
-              <div className="expense-panel">
-                <div className="expense-panel-head">
-                  <button type="button" className="expense-back" onClick={() => openGroupPanel("")} aria-label="بازگشت به همه گروه‌ها">
-                    <Icon name="arrow-start" size={18} />
+              /* One group's subcategories replace the group tiles. */
+              <>
+                <div className="expense-crumb">
+                  <button type="button" className="expense-link" onClick={() => openGroupPanel("")}>
+                    <Icon name="arrow-start" size={16} />
+                    همه گروه‌ها
                   </button>
-                  <span className="expense-icon" data-on aria-hidden="true">
-                    <Icon name={iconOf(openGroup.code)} size={20} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <b className="block truncate">{openGroup.name}</b>
-                    {openGroup.description && <span className="expense-sub block">{openGroup.description}</span>}
-                  </span>
+                  <span className="expense-sub" aria-hidden="true">/</span>
+                  <b className="min-w-0 truncate">{openGroup.name}</b>
                 </div>
-                <div className="expense-options" role="radiogroup" aria-label={`زیردسته‌های ${openGroup.name}`}>
+                {openGroup.description && <p className="expense-sub">{openGroup.description}</p>}
+                <div className="expense-squares expense-squares-3" role="radiogroup" aria-label={`زیردسته‌های ${openGroup.name}`}>
                   {openGroup.children.map((c) => {
                     const on = c.id === categoryId;
                     return (
@@ -290,22 +308,25 @@ export default function ExpenseFields({
                         type="button"
                         role="radio"
                         aria-checked={on}
-                        className="expense-option"
+                        className="expense-square"
                         data-on={on || undefined}
                         onClick={() => pick({ ...c, group: openGroup })}
                       >
-                        <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                        {c.nature === "non_cash" && <span className="badge badge-neutral !py-0">غیرنقدی</span>}
-                        {on && <Icon name="check" size={16} className="shrink-0" />}
+                        {on && <Check />}
+                        <span className="expense-square-label">{c.name}</span>
+                        {c.nature === "non_cash" && <span className="expense-square-meta">غیرنقدی</span>}
                       </button>
                     );
                   })}
-                  {!adding && (
-                    <button type="button" className="expense-option expense-option-add" onClick={() => setAdding(true)}>
-                      <Icon name="plus" size={16} className="shrink-0" />
-                      <span>دسته جدید</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="expense-square expense-square-add"
+                    aria-expanded={adding}
+                    onClick={() => setAdding((v) => !v)}
+                  >
+                    <Icon name={adding ? "x" : "plus"} size={20} />
+                    <span className="expense-square-label">{adding ? "بستن" : "دسته جدید"}</span>
+                  </button>
                 </div>
                 {adding && (
                   <div className="flex gap-2">
@@ -325,9 +346,6 @@ export default function ExpenseFields({
                     <button type="button" onClick={createLeaf} disabled={!newName.trim()} className="btn btn-primary shrink-0 disabled:opacity-40">
                       افزودن
                     </button>
-                    <button type="button" onClick={() => setAdding(false)} className="btn btn-ghost shrink-0" aria-label="بستن">
-                      <Icon name="x" size={16} />
-                    </button>
                   </div>
                 )}
                 {message && (
@@ -335,45 +353,48 @@ export default function ExpenseFields({
                     {message}
                   </p>
                 )}
-              </div>
+              </>
             ) : (
               <>
                 {recent.length > 0 && (
-                  <div className="expense-recent">
+                  <>
                     <p className="expense-sub">پرکاربرد شما</p>
-                    <div className="expense-scroll">
-                      {recent.map((l) => (
-                        <button
-                          key={l.id}
-                          type="button"
-                          className="expense-pill"
-                          data-on={l.id === categoryId || undefined}
-                          aria-pressed={l.id === categoryId}
-                          onClick={() => pick(l)}
-                        >
-                          <Icon name={iconOf(l.group.code)} size={14} />
-                          {l.name}
-                        </button>
-                      ))}
+                    <div className="expense-squares" role="radiogroup" aria-label="دسته‌های پرکاربرد">
+                      {recent.map((l) => {
+                        const on = l.id === categoryId;
+                        return (
+                          <button
+                            key={l.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={on}
+                            className="expense-square"
+                            data-on={on || undefined}
+                            onClick={() => pick(l)}
+                          >
+                            {on && <Check />}
+                            <Icon name={iconOf(l.group.code)} size={22} />
+                            <span className="expense-square-label">{l.name}</span>
+                          </button>
+                        );
+                      })}
                     </div>
-                  </div>
+                    <p className="expense-sub">همه گروه‌ها</p>
+                  </>
                 )}
-
-                <div className="expense-grid" role="list" aria-label="گروه‌های هزینه">
+                <div className="expense-squares" role="list" aria-label="گروه‌های هزینه">
                   {groups.map((g) => (
                     <button
                       key={g.id}
                       type="button"
                       role="listitem"
                       title={g.name}
-                      onClick={() => openGroupPanel(g.id)}
-                      className="expense-tile"
+                      className="expense-square"
                       data-on={g.id === selected?.group.id || undefined}
+                      onClick={() => openGroupPanel(g.id)}
                     >
-                      <span className="expense-icon" aria-hidden="true">
-                        <Icon name={iconOf(g.code)} size={20} />
-                      </span>
-                      <span className="expense-tile-label">{g.name}</span>
+                      <Icon name={iconOf(g.code)} size={22} />
+                      <span className="expense-square-label">{g.name}</span>
                     </button>
                   ))}
                 </div>
@@ -382,7 +403,7 @@ export default function ExpenseFields({
           </>
         )}
 
-        {selected?.description && !browsing && <p className="expense-sub leading-5">{selected.description}</p>}
+        {selected?.description && !browsing && <p className="expense-sub">{selected.description}</p>}
         {isNonCash && (
           <p className="expense-note" role="note">
             ثبت غیرنقدی (استهلاک یا ذخیره) است؛ از هیچ حسابی پول خارج نمی‌شود.
@@ -395,7 +416,6 @@ export default function ExpenseFields({
         <section className="card expense-card" aria-labelledby="expense-account-title">
           <header className="expense-head">
             <h2 id="expense-account-title">پرداخت از</h2>
-            {accounts.length > 0 && <span className="expense-sub">{accounts.length.toLocaleString("fa-IR")} حساب</span>}
           </header>
           {accounts.length === 0 ? (
             <p className="expense-empty">
@@ -405,7 +425,7 @@ export default function ExpenseFields({
               </a>
             </p>
           ) : (
-            <div className="expense-accounts" role="radiogroup" aria-label="حساب پرداخت">
+            <div className="expense-squares expense-squares-3" role="radiogroup" aria-label="حساب پرداخت">
               {accounts.map((a) => {
                 const on = a.id === accountId;
                 const bal = balances[a.id];
@@ -416,21 +436,15 @@ export default function ExpenseFields({
                     role="radio"
                     aria-checked={on}
                     onClick={() => setAccountId(a.id)}
-                    className="expense-account"
+                    className="expense-square"
                     data-on={on || undefined}
                   >
-                    <span className="expense-account-top">
-                      <span className="expense-icon expense-icon-sm" aria-hidden="true">
-                        <Icon name={a.walletKind === "cash" ? "wallet" : "accounts"} size={16} />
-                      </span>
-                      <span className="expense-radio" aria-hidden="true">
-                        {on && <Icon name="check" size={12} strokeWidth={2.6} />}
-                      </span>
-                    </span>
-                    <span className="expense-account-name">{a.walletName || a.name}</span>
-                    <span className="expense-account-balance num">
-                      {bal !== undefined ? formatMoney(D(bal).toFixed(0), "IRT") : "—"}
-                    </span>
+                    {on && <Check />}
+                    <Icon name={a.walletKind === "cash" ? "wallet" : "accounts"} size={22} />
+                    <span className="expense-square-label">{a.walletName || a.name}</span>
+                    {bal !== undefined && (
+                      <span className="expense-square-meta num">{formatNumber(D(bal).toFixed(0), { decimals: 0 })}</span>
+                    )}
                   </button>
                 );
               })}
