@@ -1,23 +1,23 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createDebtAction, type ActionResult } from "@/app/actions";
 import { D } from "@/domain/decimal";
 import { faCount, formatJalaliIso, formatMoney, formatPct } from "@/lib/format";
-import {
-  MAX_INSTALLMENTS,
-  RECURRING_INTERVALS,
-  generateDueDates,
-  resolveScheduleAmounts,
-  type ObligationDirection,
-} from "@/features/planning/obligations";
+import type { ObligationDirection } from "@/features/planning/obligations";
 import DualDateInput from "@/components/ui/DualDateInput";
-import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
 import { PreviewCard, SmartAmountPreview } from "@/components/ui/SmartPreview";
 import { FormStatus } from "@/components/ui/FormStatus";
+import DebtScheduleFields, {
+  EMPTY_SCHEDULE,
+  INTERVAL_LABELS,
+  computeSchedule,
+  scheduleSubmission,
+  type ScheduleValue,
+} from "@/components/debts/DebtScheduleFields";
 
 type Props = {
   today: string;
@@ -28,24 +28,6 @@ type Props = {
   defaultDirection?: ObligationDirection;
 };
 
-/** How the due dates are produced. `none` carries no schedule at all. */
-type ScheduleMode = "none" | "recurring" | "custom";
-
-const INTERVAL_LABELS: Record<number, string> = {
-  1: "ماهانه",
-  2: "هر ۲ ماه",
-  3: "هر ۳ ماه",
-  4: "هر ۴ ماه",
-  5: "هر ۵ ماه",
-  6: "هر ۶ ماه",
-};
-
-const SCHEDULE_TILES: Array<[ScheduleMode, string, string]> = [
-  ["none", "یکجا", "بدون قسط"],
-  ["recurring", "فاصله ثابت", "ماهانه یا چندماهه"],
-  ["custom", "سفارشی", "تاریخ‌های دلخواه"],
-];
-
 function Check() {
   return (
     <span className="expense-check" aria-hidden="true">
@@ -55,12 +37,12 @@ function Check() {
 }
 
 /**
- * ثبت تعهد مالی — «بدهی من» یا «طلب من», in the same plain cards as the
+ * ثبت بدهی یا طلب — «بدهی من» یا «طلب من», in the same plain cards as the
  * transaction form:
  *
  *   این مورد چیست؟   بدهی من · طلب من
  *   مشخصات           title, the other party, amount, interest, start date
- *   برنامه           یکجا · فاصله ثابت · سفارشی — as tiles, then its fields
+ *   برنامه           یکجا · ماهانه · سفارشی (shared with the setup wizard)
  *
  * ONE FORM, TWO DIRECTIONS. A debt and a receivable are the same contract read
  * from two ends; the direction decides the sign of the cash leg when the
@@ -84,13 +66,7 @@ export default function DebtForm({
   const [principalIrt, setPrincipalIrt] = useState("");
   const [interestRate, setInterestRate] = useState("0");
   const [startDate, setStartDate] = useState(today);
-  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("none");
-  const [installmentCount, setInstallmentCount] = useState("0");
-  const [intervalMonths, setIntervalMonths] = useState("1");
-  const [installmentIrt, setInstallmentIrt] = useState("");
-  const [firstDueDate, setFirstDueDate] = useState("");
-  /** One independent Jalali-picked date per installment. No interval implied. */
-  const [customDates, setCustomDates] = useState<string[]>([""]);
+  const [schedule, setSchedule] = useState<ScheduleValue>(EMPTY_SCHEDULE);
   const [showPreview, setShowPreview] = useState(false);
 
   const receivable = direction === "receivable";
@@ -107,96 +83,44 @@ export default function DebtForm({
       setCreditor("");
       setPrincipalIrt("");
       setInterestRate("0");
-      setScheduleMode("none");
-      setInstallmentCount("0");
-      setIntervalMonths("1");
-      setInstallmentIrt("");
-      setFirstDueDate("");
-      setCustomDates([""]);
+      setSchedule(EMPTY_SCHEDULE);
       router.refresh();
     }, 0);
     return () => window.clearTimeout(timer);
   }, [state?.ok, router]);
 
-  const count = Math.max(0, Math.min(MAX_INSTALLMENTS, Number(installmentCount) || 0));
-  // Joined once so the memo below depends on a plain value, not an array identity.
-  const customDatesKey = customDates.filter((d) => d.length > 0).join(",");
-  const filledCustomDates = useMemo(() => (customDatesKey ? customDatesKey.split(",") : []), [customDatesKey]);
-
-  /** The due dates this schedule produces — the SAME pure generator the server writes with. */
-  const dueDates = useMemo(() => {
-    if (scheduleMode === "custom") {
-      return filledCustomDates.length > 0 ? generateDueDates({ kind: "custom", dueDates: filledCustomDates }) : [];
-    }
-    if (scheduleMode === "recurring" && count > 0 && firstDueDate) {
-      return generateDueDates({
-        kind: "recurring",
-        count,
-        intervalMonths: Number(intervalMonths) || 1,
-        firstDueDate,
-      });
-    }
-    return [];
-  }, [scheduleMode, filledCustomDates, count, intervalMonths, firstDueDate]);
-
-  /** Per-installment amounts — the SAME exact split the server performs. */
-  const amounts = useMemo(() => {
-    if (dueDates.length === 0 || !principalIrt || !D(principalIrt).gt(0)) return [];
-    try {
-      return resolveScheduleAmounts({
-        principalToman: D(principalIrt).toFixed(0),
-        count: dueDates.length,
-        installmentToman: installmentIrt,
-      });
-    } catch {
-      return [];
-    }
-  }, [dueDates.length, principalIrt, installmentIrt]);
-
-  const scheduleTotal = amounts.reduce((sum, a) => sum.add(D(a)), D("0"));
+  /** The due dates and amounts — the SAME pure generators the server writes with. */
+  const plan = computeSchedule(schedule, principalIrt, startDate);
+  const submitted = scheduleSubmission(schedule, principalIrt, startDate);
   const principalUsd =
     principalIrt && initialRate && D(initialRate).gt(0) ? D(principalIrt).div(initialRate).toFixed(2) : "";
 
-  // A due date before the start date blocks the preview.
-  const firstDueBeforeStart =
-    scheduleMode === "recurring" && Boolean(firstDueDate) && Boolean(startDate) && firstDueDate < startDate;
-  const customDueBeforeStart =
-    scheduleMode === "custom" && Boolean(startDate) && filledCustomDates.some((due) => due < startDate);
-
-  const scheduleReady =
-    scheduleMode === "none" ||
-    (scheduleMode === "recurring" && count > 0 && Boolean(firstDueDate) && !firstDueBeforeStart) ||
-    (scheduleMode === "custom" && filledCustomDates.length > 0 && !customDueBeforeStart);
-
   const canPreview = Boolean(
-    title.trim() && creditor.trim() && principalIrt && D(principalIrt).gt(0) && startDate && scheduleReady,
+    title.trim() && creditor.trim() && principalIrt && D(principalIrt).gt(0) && startDate && plan.ready,
   );
 
   const missing: string[] = [];
   if (!title.trim()) missing.push("عنوان");
   if (!creditor.trim()) missing.push(partyLabel);
   if (!principalIrt || !D(principalIrt).gt(0)) missing.push("مبلغ");
-  if (!scheduleReady) missing.push("برنامه اقساط");
-
-  const setCustomDate = (index: number, iso: string) =>
-    setCustomDates((cur) => cur.map((d, i) => (i === index ? iso : d)));
+  if (!plan.ready) missing.push(receivable ? "برنامه وصول" : "برنامه بازپرداخت");
 
   return (
     <form action={formAction} className="space-y-4" dir="rtl">
-      {/* Server values are submitted only after the final confirmation. */}
+      {/* Server values are submitted only after the final confirmation. A
+          custom schedule submits ONLY its dates; a recurring one only its
+          count/interval/first date, so the two can never be blended. */}
       <input type="hidden" name="direction" value={direction} />
       <input type="hidden" name="title" value={title} />
       <input type="hidden" name="creditor" value={creditor} />
       <input type="hidden" name="principalIrt" value={principalIrt} />
       <input type="hidden" name="interestRate" value={interestRate} />
       <input type="hidden" name="startDate" value={startDate} />
-      {/* A custom schedule submits ONLY its dates; a recurring one only its
-          count/interval/first date, so the two can never be blended. */}
-      <input type="hidden" name="installmentCount" value={scheduleMode === "recurring" ? String(count) : "0"} />
-      <input type="hidden" name="intervalMonths" value={scheduleMode === "recurring" ? intervalMonths : "1"} />
-      <input type="hidden" name="customDueDates" value={scheduleMode === "custom" ? filledCustomDates.join(",") : ""} />
-      <input type="hidden" name="installmentIrt" value={installmentIrt} />
-      <input type="hidden" name="firstDueDate" value={scheduleMode === "recurring" ? firstDueDate : ""} />
+      <input type="hidden" name="installmentCount" value={String(submitted.installmentCount)} />
+      <input type="hidden" name="intervalMonths" value={String(submitted.intervalMonths)} />
+      <input type="hidden" name="customDueDates" value={submitted.customDueDates.join(",")} />
+      <input type="hidden" name="installmentIrt" value={submitted.installmentIrt} />
+      <input type="hidden" name="firstDueDate" value={submitted.firstDueDate} />
 
       {!showPreview ? (
         <div className="expense-form">
@@ -310,154 +234,7 @@ export default function DebtForm({
             <header className="expense-head">
               <h2 id="debt-schedule-title">{receivable ? "برنامه وصول" : "برنامه بازپرداخت"}</h2>
             </header>
-            <div className="expense-squares" role="radiogroup" aria-label="نوع زمان‌بندی">
-              {SCHEDULE_TILES.map(([mode, label, meta]) => {
-                const on = scheduleMode === mode;
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    className="expense-square"
-                    data-on={on || undefined}
-                    onClick={() => setScheduleMode(mode)}
-                  >
-                    {on && <Check />}
-                    <span className="expense-square-label">{label}</span>
-                    <span className="expense-square-meta">{meta}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {scheduleMode === "recurring" && (
-              <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="label">تعداد اقساط</label>
-                    <AmountInput
-                      value={installmentCount}
-                      onChange={(event) => setInstallmentCount(event.target.value)}
-                      className="field num"
-                      inputMode="numeric"
-                      placeholder="۱۲"
-                      showWords={false}
-                      unit="none"
-                      grouping={false}
-                    />
-                  </div>
-                  <div>
-                    <DualDateInput
-                      name="firstDueDatePreview"
-                      value={firstDueDate}
-                      onChange={setFirstDueDate}
-                      label="اولین سررسید"
-                      required
-                      showGregorian={false}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <span className="label">فاصله اقساط</span>
-                  <div className="expense-squares" role="radiogroup" aria-label="فاصله اقساط">
-                    {RECURRING_INTERVALS.map((months) => {
-                      const on = intervalMonths === String(months);
-                      return (
-                        <button
-                          key={months}
-                          type="button"
-                          role="radio"
-                          aria-checked={on}
-                          className="expense-square"
-                          data-on={on || undefined}
-                          onClick={() => setIntervalMonths(String(months))}
-                        >
-                          {on && <Check />}
-                          <span className="expense-square-label">{INTERVAL_LABELS[months]}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                {firstDueBeforeStart && (
-                  <p className="expense-note expense-note-warn" role="alert">
-                    اولین سررسید باید در تاریخ شروع یا بعد از آن باشد.
-                  </p>
-                )}
-              </>
-            )}
-
-            {scheduleMode === "custom" && (
-              <>
-                <ul className="debt-dates">
-                  {customDates.map((iso, index) => (
-                    <li key={index} className="debt-date-row">
-                      <span className="debt-date-seq">قسط {faCount(index + 1)}</span>
-                      <div className="min-w-0 flex-1">
-                        <JalaliDatePicker
-                          value={iso || undefined}
-                          onChange={(next) => setCustomDate(index, next)}
-                          showGregorian={false}
-                          ariaLabel={`سررسید قسط ${index + 1}`}
-                        />
-                      </div>
-                      {customDates.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => setCustomDates((cur) => cur.filter((_, i) => i !== index))}
-                          className="icon-btn !min-h-9 !min-w-9"
-                          aria-label={`حذف قسط ${index + 1}`}
-                        >
-                          <Icon name="x" size={15} />
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  type="button"
-                  onClick={() => setCustomDates((cur) => [...cur, ""])}
-                  disabled={customDates.length >= MAX_INSTALLMENTS}
-                  className="expense-square expense-square-add debt-date-add disabled:opacity-40"
-                >
-                  <span className="expense-square-label">+ افزودن قسط</span>
-                </button>
-                {customDueBeforeStart && (
-                  <p className="expense-note expense-note-warn" role="alert">
-                    سررسید اقساط باید در تاریخ شروع یا بعد از آن باشد.
-                  </p>
-                )}
-              </>
-            )}
-
-            {scheduleMode !== "none" && (
-              <div>
-                <label className="label">مبلغ هر قسط به تومان (اختیاری)</label>
-                <AmountInput
-                  value={installmentIrt}
-                  onChange={(event) => setInstallmentIrt(event.target.value.replace(/[^0-9]/g, ""))}
-                  className="field num"
-                  inputMode="numeric"
-                  dir="ltr"
-                  unit="toman"
-                  placeholder={
-                    dueDates.length
-                      ? `محاسبه خودکار: ${formatMoney(D(principalIrt || "0").div(String(dueDates.length)).toFixed(0), "IRT")}`
-                      : "ابتدا زمان‌بندی را کامل کنید"
-                  }
-                  disabled={dueDates.length === 0}
-                />
-                {dueDates.length > 0 && amounts.length > 0 && (
-                  <p className="expense-sub mt-1">
-                    {faCount(dueDates.length)} قسط · مجموع{" "}
-                    <span className="num" dir="rtl">
-                      {formatMoney(scheduleTotal.toFixed(0), "IRT")}
-                    </span>
-                  </p>
-                )}
-              </div>
-            )}
+            <DebtScheduleFields value={schedule} onChange={setSchedule} principalIrt={principalIrt} startDate={startDate} idPrefix="debt" />
           </section>
 
           <div className="space-y-1.5">
@@ -515,25 +292,25 @@ export default function DebtForm({
               </div>
             </div>
 
-            {dueDates.length > 0 && (
+            {plan.dueDates.length > 0 && (
               <div className="soft rounded-[var(--r-md)] p-3">
                 <div className="font-semibold">
-                  برنامه اقساط · {scheduleMode === "custom" ? "زمان‌بندی سفارشی" : INTERVAL_LABELS[Number(intervalMonths) || 1]}
+                  برنامه اقساط · {schedule.mode === "custom" ? "زمان‌بندی سفارشی" : INTERVAL_LABELS[Number(schedule.intervalMonths) || 1]}
                 </div>
                 <div className="muted mt-1">
-                  {faCount(dueDates.length)} قسط · مجموع{" "}
+                  {faCount(plan.dueDates.length)} قسط · مجموع{" "}
                   <span className="num" dir="rtl">
-                    {formatMoney(scheduleTotal.toFixed(0), "IRT")}
+                    {formatMoney(plan.total.toFixed(0), "IRT")}
                   </span>
                 </div>
                 {/* EVERY date is listed: an irregular schedule cannot be verified from a sample. */}
                 <ul className="mt-2 grid gap-x-4 gap-y-1 text-[length:var(--fs-xs)] sm:grid-cols-2">
-                  {dueDates.map((due, index) => (
+                  {plan.dueDates.map((due, index) => (
                     <li key={`${due}-${index}`} className="flex justify-between gap-2">
                       <span>قسط {faCount(index + 1)}</span>
                       <span className="num" dir="rtl">
                         {formatJalaliIso(due)}
-                        {amounts[index] ? ` · ${formatMoney(amounts[index], "IRT")}` : ""}
+                        {plan.amounts[index] ? ` · ${formatMoney(plan.amounts[index], "IRT")}` : ""}
                       </span>
                     </li>
                   ))}

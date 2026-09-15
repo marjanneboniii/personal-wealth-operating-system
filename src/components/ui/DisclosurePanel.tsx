@@ -13,26 +13,46 @@ import Icon from "@/components/ui/Icon";
 export default function DisclosurePanel({
   anchor,
   label,
+  defaultOpen = false,
   children,
 }: {
   anchor: string;
   label: string;
+  /** Open on arrival — e.g. when the page has nothing else to show yet. */
+  defaultOpen?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const openFromHash = () => {
-      if (window.location.hash !== `#${anchor}`) return;
+    const reveal = () => {
       setOpen(true);
       requestAnimationFrame(() => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     };
+    const openFromHash = () => {
+      if (window.location.hash === `#${anchor}`) reveal();
+    };
+    // A Next `<Link href="#anchor">` moves the hash with pushState, which fires
+    // no `hashchange` — and a hash that is already `#anchor` fires nothing at
+    // all. So a click on any link to this panel opens it directly.
+    const openFromClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+      const link = (event.target as Element | null)?.closest?.("a[href]");
+      if (!(link instanceof HTMLAnchorElement)) return;
+      const url = new URL(link.href, window.location.href);
+      if (url.hash !== `#${anchor}` || url.pathname !== window.location.pathname) return;
+      event.preventDefault();
+      history.replaceState(history.state, "", `${url.pathname}${url.search}#${anchor}`);
+      reveal();
+    };
     const timer = window.setTimeout(openFromHash, 0);
     window.addEventListener("hashchange", openFromHash);
+    document.addEventListener("click", openFromClick, true);
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener("hashchange", openFromHash);
+      document.removeEventListener("click", openFromClick, true);
     };
   }, [anchor]);
 

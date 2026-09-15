@@ -147,7 +147,7 @@ export default function DebtRepaymentFields(p: Props) {
           <p className="expense-empty">
             هنوز بدهی یا قسطی ثبت نشده است.{" "}
             <a href="/debts#new" style={{ color: "var(--action)" }}>
-              ثبت بدهی
+              ثبت بدهی یا طلب
             </a>
           </p>
         ) : debt ? (

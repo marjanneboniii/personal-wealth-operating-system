@@ -37,6 +37,10 @@ export type SetupDebtDraft = {
   installmentIrt?: string;
   /** Due date of the next unpaid instalment. */
   firstDueDate?: string;
+  /** Months between instalments of a fixed-cadence plan (1 = monthly). */
+  intervalMonths?: number;
+  /** A custom plan: every remaining instalment's own due date. */
+  customDueDates?: string[];
 };
 
 export type SetupDebtsResult = {
@@ -61,6 +65,8 @@ function toDebtInputs(drafts: SetupDebtDraft[], userId: string): CreateDebtInput
     installmentCount: Number(draft.installmentCount ?? 0),
     installmentIrt: draft.installmentIrt ?? "",
     firstDueDate: draft.firstDueDate ?? "",
+    intervalMonths: draft.intervalMonths ?? 1,
+    customDueDates: Array.isArray(draft.customDueDates) ? draft.customDueDates : [],
   }));
 }
 

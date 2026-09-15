@@ -140,7 +140,8 @@ test("showGregorian echoes the auto-computed equivalent; the debt domain hides i
 });
 
 test("every date field in DebtForm is Jalali-only", () => {
-  const code = src("src/components/forms/DebtForm.tsx");
+  // The schedule editor is shared with the setup wizard; DebtForm renders it.
+  const code = src("src/components/forms/DebtForm.tsx") + src("src/components/debts/DebtScheduleFields.tsx");
   const widgets = code.match(/<(DualDateInput|JalaliDatePicker)\b/g) ?? [];
   const optOuts = code.match(/showGregorian=\{false\}/g) ?? [];
   assert.ok(widgets.length >= 3, "«تاریخ شروع»، «اولین سررسید» and the custom-schedule rows");

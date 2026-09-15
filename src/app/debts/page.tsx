@@ -49,7 +49,7 @@ export default async function DebtsPage() {
           action={
             <Link href="#new" className="btn btn-primary">
               <Icon name="plus" size={16} />
-              ثبت تعهد
+              ثبت بدهی یا طلب
             </Link>
           }
         />
@@ -82,15 +82,8 @@ export default async function DebtsPage() {
 
       {all.length === 0 ? (
         <div className="card">
-          <EmptyState
-            icon="debts"
-            title="تعهدی ثبت نشده است"
-            action={
-              <Link href="#new" className="btn btn-soft">
-                ثبت اولین تعهد
-              </Link>
-            }
-          />
+          {/* No second button: the form below is already open. */}
+          <EmptyState icon="debts" title="بدهی یا طلبی ثبت نشده است" body="وام، خرید قسطی یا پولی که از کسی طلب دارید را در فرم زیر ثبت کنید." />
         </div>
       ) : (
         <>
@@ -124,7 +117,7 @@ export default async function DebtsPage() {
         </>
       )}
 
-      <NewObligationPanel>
+      <NewObligationPanel defaultOpen={all.length === 0}>
         <DebtForm
           today={today}
           initialRate={fx.rate}
