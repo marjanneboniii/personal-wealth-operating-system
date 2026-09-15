@@ -13,6 +13,7 @@
     "test": "node --experimental-test-module-mocks --import tsx --test tests/**/*.test.ts",
     "test:security": "node --experimental-test-module-mocks --import tsx --test tests/security-accounting-invariant.test.ts tests/security-backup-restore.test.ts tests/security-fail-closed.test.ts tests/security-isolation-hardening.test.ts tests/security-supabase-auth.test.ts tests/audit-specific.test.ts",
     "seed": "tsx src/scripts/seed.ts",
+    "fx:history": "tsx src/scripts/build-historical-usd.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/scripts/migrate.ts",
     "db:check": "tsx src/scripts/check-db.ts",

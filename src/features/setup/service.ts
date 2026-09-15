@@ -168,7 +168,8 @@ export type SetupInput = {
     propertyTypeId: string;
     acquisitionDate: string;
     purchasePriceToman: string;
-    currentValueToman: string;
+    /** Blank → the purchase price, valued on the purchase day. */
+    currentValueToman?: string;
     sizeSqm?: string;
   }>;
 };
@@ -776,6 +777,9 @@ export async function completeSetup(
 
   for (const property of input.properties ?? []) {
     if (!property.cityId || !property.neighborhoodId || !property.propertyTypeId) continue;
+    // No current value given: the purchase price is a real valuation — of the
+    // purchase day, so it is dated that day (never presented as today's value).
+    const hasCurrentValue = Boolean(property.currentValueToman && D(property.currentValueToman).gt(0));
     try {
       await createRealEstateAsset({
         userId: setupResult.userId,
@@ -783,9 +787,9 @@ export async function completeSetup(
         neighborhoodId: property.neighborhoodId,
         propertyTypeId: property.propertyTypeId,
         acquisitionDate: property.acquisitionDate,
-        valuationDate: setupResult.today,
+        valuationDate: hasCurrentValue ? setupResult.today : property.acquisitionDate,
         purchasePriceToman: property.purchasePriceToman,
-        currentValueToman: property.currentValueToman,
+        currentValueToman: hasCurrentValue ? (property.currentValueToman as string) : property.purchasePriceToman,
         sizeSqm: property.sizeSqm || null,
       });
     } catch (error) {
