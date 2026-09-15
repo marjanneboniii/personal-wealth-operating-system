@@ -1,5 +1,8 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import ZeroBalanceToggle from "@/components/accounts/ZeroBalanceToggle";
+import { SHOW_ZERO_BALANCES_COOKIE } from "@/lib/zeroBalances";
 import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
 import { accounts, assets, institutions, networks, wallets } from "@/db/schema";
@@ -174,7 +177,11 @@ export default async function AccountsPage() {
     }
     moneyById.set(row.accountId, isIrt(row) && !isIrt(prev) ? row : prev);
   }
-  const moneyAccounts = [...moneyById.values()];
+  // An account emptied by a transfer keeps a zero balance; the viewer decides whether it is listed.
+  const showZeroBalances = (await cookies()).get(SHOW_ZERO_BALANCES_COOKIE)?.value !== "0";
+  const allMoneyAccounts = [...moneyById.values()];
+  const moneyAccounts = showZeroBalances ? allMoneyAccounts : allMoneyAccounts.filter((b) => !D(b.quantity).isZero());
+  const zeroBalanceCount = allMoneyAccounts.length - allMoneyAccounts.filter((b) => !D(b.quantity).isZero()).length;
   const liabilityAccounts = balances.filter((b) => b.type === "liability" && !D(b.baseValue).isZero());
   const controlSum = balances.reduce((s, b) => s.add(b.baseValue), Decimal.zero());
   const ledgerBalanced = controlSum.abs().lt("0.000001");
@@ -275,7 +282,10 @@ export default async function AccountsPage() {
         <Metric label="حساب‌ها" value={faCount(moneyAccounts.length)} hint={`${faCount(byWallet.size)} کیف و بانک`} />
       </section>
 
-      <Section title="کیف‌ها و بانک‌ها">
+      <Section
+        title="کیف‌ها و بانک‌ها"
+        action={zeroBalanceCount > 0 ? <ZeroBalanceToggle showing={showZeroBalances} hiddenCount={zeroBalanceCount} /> : undefined}
+      >
         {walletViews.length === 0 ? (
           <div className="card">
             <EmptyState

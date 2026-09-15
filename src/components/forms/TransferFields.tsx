@@ -15,10 +15,12 @@
  * PRESENTATION ONLY: every value is owned by TransactionForm, which posts the
  * same fields to `createTransactionAction` as before.
  */
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { currencyLabel, formatMoney, formatQty, getDualDate } from "@/lib/format";
 import { D } from "@/domain/decimal";
+import type { KnownWallet } from "@/features/setup/holdingWallets";
 import AmountInput from "@/components/ui/AmountInput";
+import AssetLogo from "@/components/ui/AssetLogo";
 import DualDateInput from "@/components/ui/DualDateInput";
 import Icon from "@/components/ui/Icon";
 import { balanceLabel } from "./TradeFields";
@@ -93,6 +95,10 @@ type Props = {
   setToId: (id: string) => void;
   /** Why the destination list is what it is — shown when it is empty. */
   targetHint: string;
+  /** Exchanges and wallets that may receive this money and hold no account for it yet. */
+  newPlaces: KnownWallet[];
+  /** Creates the source's asset at that place (zero balance) and selects it; returns an error or `null`. */
+  onAddDestination: (placeName: string) => Promise<string | null>;
   /* amount */
   isToman: boolean;
   amount: string;
@@ -120,7 +126,16 @@ type Props = {
 export default function TransferFields(p: Props) {
   const [browsingFrom, setBrowsingFrom] = useState(!p.fromId);
   const [pickingDate, setPickingDate] = useState(false);
+  const [addingTo, setAddingTo] = useState(false);
+  const [addError, setAddError] = useState("");
+  const [adding, startAdding] = useTransition();
   const from = p.sources.find((a) => a.id === p.fromId) ?? null;
+  const addDestination = (placeName: string) =>
+    startAdding(async () => {
+      const error = await p.onAddDestination(placeName);
+      setAddError(error ?? "");
+      if (!error) setAddingTo(false);
+    });
   const showSources = browsingFrom || !from;
   const tomanSources = p.sources.filter(isTomanUnit);
   const otherSources = p.sources.filter((a) => !isTomanUnit(a));
@@ -196,17 +211,58 @@ export default function TransferFields(p: Props) {
           <section className="card expense-card" aria-labelledby="transfer-to-title">
             <header className="expense-head">
               <h2 id="transfer-to-title">به حساب</h2>
-              <span className="expense-sub">{p.isToman ? "حساب بانکی، صرافی یا کارگزاری" : `${unit} در صرافی یا کیف پول`}</span>
+              {p.newPlaces.length > 0 ? (
+                <button
+                  type="button"
+                  className="expense-link"
+                  aria-expanded={addingTo}
+                  onClick={() => {
+                    setAddingTo((v) => !v);
+                    setAddError("");
+                  }}
+                >
+                  {addingTo ? "بستن" : "+ افزودن"}
+                </button>
+              ) : (
+                <span className="expense-sub">{p.isToman ? "حساب بانکی، صرافی یا کارگزاری" : `${unit} در صرافی یا کیف پول`}</span>
+              )}
             </header>
-            {p.targets.length === 0 ? (
+            {p.targets.length === 0 && !addingTo && (
               <p className="expense-empty">
                 {p.targetHint}{" "}
-                <a href="/accounts" style={{ color: "var(--action)" }}>
-                  افزودن حساب
-                </a>
+                {p.newPlaces.length > 0 ? (
+                  <button type="button" className="expense-link" onClick={() => setAddingTo(true)}>
+                    + افزودن {p.isToman ? "حساب تومانی" : `«${unit}» در صرافی یا کیف پول`}
+                  </button>
+                ) : (
+                  <a href="/accounts" style={{ color: "var(--action)" }}>
+                    افزودن حساب
+                  </a>
+                )}
               </p>
-            ) : (
+            )}
+            {p.targets.length > 0 && (
               <AccountTiles label="حساب مقصد" accounts={p.targets} balances={p.balances} selectedId={p.toId} onPick={p.setToId} />
+            )}
+            {addingTo && (
+              <>
+                <p className="expense-sub">
+                  {p.isToman ? "تومان در کدام صرافی یا کارگزاری؟" : `«${unit}» در کدام صرافی یا کیف پول؟`} حساب با موجودی صفر ساخته و انتخاب می‌شود.
+                </p>
+                <div className="expense-squares" role="group" aria-label="افزودن حساب مقصد" aria-busy={adding}>
+                  {p.newPlaces.map((w) => (
+                    <button key={w.name} type="button" className="expense-square" disabled={adding} onClick={() => addDestination(w.name)}>
+                      {w.logo && <AssetLogo userLogoUrl={w.logo} name={w.name} size={24} />}
+                      <span className="expense-square-label">{w.name}</span>
+                    </button>
+                  ))}
+                </div>
+                {addError && (
+                  <p className="expense-note expense-note-warn" role="alert">
+                    {addError}
+                  </p>
+                )}
+              </>
             )}
           </section>
 

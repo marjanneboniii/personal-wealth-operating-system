@@ -30,7 +30,8 @@
  * rule moved into the UI, and nothing is written before «تأیید و ثبت».
  */
 import { useActionState, useEffect, useRef, useState } from "react";
-import { createTransactionAction, createCategoryAction, type ActionResult } from "@/app/actions";
+import { createTransactionAction, createCategoryAction, createTransferDestinationAction, type ActionResult } from "@/app/actions";
+import { KNOWN_WALLETS } from "@/features/setup/holdingWallets";
 import { currencyLabel, faCount, formatMoney, formatQty, getDualDate } from "@/lib/format";
 import { useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
@@ -55,7 +56,7 @@ import {
   tradePairError,
   type PriceUnit,
 } from "@/features/trade/rules";
-import { transferDestinationError, venueTradeError } from "@/features/trade/venues";
+import { sameWallet, transferDestinationError, venueTradeError } from "@/features/trade/venues";
 import { networksForHolding } from "@/features/trade/networks";
 import { jalaliDayOf } from "@/features/income/recurring";
 
@@ -376,6 +377,27 @@ export default function TransactionForm({
           ),
       )
     : [];
+  // «+ افزودن»: catalogue places that may receive this money and hold no account for it yet.
+  const transferNewPlaces = transferFrom
+    ? KNOWN_WALLETS.filter(
+        (w) =>
+          !sameWallet(transferFrom, { walletName: w.name }) &&
+          !transferTargets.some((t) => sameWallet(t, { walletName: w.name })) &&
+          !transferDestinationError(
+            transferFrom,
+            { symbol: transferFrom.symbol, walletKind: w.kind, walletName: w.name },
+            networksForHolding(transferSymbol, transferFrom.classCode, assetNetworks[transferSymbol]),
+          ),
+      )
+    : [];
+  const addTransferDestination = async (placeName: string): Promise<string | null> => {
+    const result = await createTransferDestinationAction({ sourceAccountId: fromId, placeName });
+    if (!result.ok || !result.account) return result.message;
+    const created = result.account;
+    setAccountOptions((current) => (current.some((a) => a.id === created.id) ? current : [...current, created]));
+    setToAccountId(created.id);
+    return null;
+  };
   const transferIsToman = transferSymbol === "" || transferSymbol === "IRT" || transferSymbol === "IRR";
   const transferQtyDecimals = Math.min(Math.max(transferFrom?.decimals ?? 8, 0), 8);
   // The unit in Persian: «تتر», or the asset's own name («آمازون ایکس») — never a Latin ticker.
@@ -943,6 +965,8 @@ export default function TransactionForm({
           toId={toId}
           setToId={setToAccountId}
           targetHint={transferTargetHint}
+          newPlaces={transferNewPlaces}
+          onAddDestination={addTransferDestination}
           isToman={transferIsToman}
           amount={irtAmount}
           setAmount={setIrtAmount}

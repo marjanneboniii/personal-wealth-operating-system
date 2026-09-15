@@ -36,7 +36,7 @@ import {
 import { sameWallet, transferDestinationError, venueTradeError } from "@/features/trade/venues";
 import { networksForHolding } from "@/features/trade/networks";
 import { getCryptoNetworksOf } from "@/features/trade/networkSync";
-import { canonicalWalletName, holdingAccountName, walletKindOf } from "@/features/setup/holdingWallets";
+import { canonicalWalletName, holdingAccountName, knownWalletOf, walletKindOf } from "@/features/setup/holdingWallets";
 import { sellRealEstateAsset } from "@/features/rwa/realEstate/service";
 import { sellVehicle } from "@/features/rwa/vehicle/service";
 import { buildRwaLabel } from "@/features/rwa/symbol";
@@ -254,6 +254,121 @@ export async function createMoneyAccountAction(input: unknown): Promise<ActionRe
   }
 }
 
+/** A destination account created from the transfer form — the fields the form lists accounts by. */
+export type QuickTransferAccount = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  symbol: string | null;
+  decimals: number;
+  logoUrl: string | null;
+  coingeckoId: string | null;
+  classCode: string | null;
+  className: string | null;
+  walletKind: string | null;
+  walletName: string | null;
+};
+
+/**
+ * «+ افزودن» in «به حساب»: the SAME asset as the source, at another exchange or
+ * wallet from the catalogue, with a zero balance — «یو اس دی سی - متامسک» for
+ * USDC leaving Rabby. The place must pass the transfer rules (the coin's
+ * network, Toman only at an Iranian exchange or a brokerage) and an existing
+ * account there is returned instead of a second one.
+ */
+export async function createTransferDestinationAction(
+  input: unknown,
+): Promise<ActionResult & { account?: QuickTransferAccount }> {
+  let user: any = null;
+  try {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
+  }
+
+  try {
+    const v = z.object({ sourceAccountId: z.string(), placeName: z.string().min(1) }).parse(input);
+    if (!isUuid(v.sourceAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
+    if (user) await validateAccountOwnership(v.sourceAccountId, user.id);
+    const place = knownWalletOf(v.placeName);
+    if (!place) throw new Error("صرافی یا کیف پول را از فهرست انتخاب کنید.");
+
+    const row = await db.transaction(async (tx) => {
+      const [source] = await tx
+        .select({
+          type: accounts.type,
+          name: accounts.name,
+          assetId: accounts.assetId,
+          symbol: assets.symbol,
+          assetName: assets.name,
+          classCode: assetClasses.code,
+          walletName: wallets.name,
+          walletKind: wallets.kind,
+        })
+        .from(accounts)
+        .leftJoin(assets, eq(assets.id, accounts.assetId))
+        .leftJoin(assetClasses, eq(assetClasses.id, assets.classId))
+        .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+        .where(eq(accounts.id, v.sourceAccountId))
+        .limit(1);
+      if (!source || source.type !== "asset" || !source.assetId) throw new Error("حساب مبدأ انتقال نامعتبر است");
+      if (sameWallet(source, { walletName: place.name })) throw new Error("مقصد باید جایی غیر از حساب مبدأ باشد.");
+      const destination = { symbol: source.symbol, walletKind: place.kind, walletName: place.name };
+      const networks = networksForHolding(source.symbol, source.classCode, await getCryptoNetworksOf(source.symbol, tx));
+      const refusal = transferDestinationError(source, destination, networks);
+      if (refusal) throw new Error(refusal);
+
+      // «یو اس دی سی - ربی والت» → «یو اس دی سی»: the coin keeps the name the user already sees.
+      const coinName = source.walletName && source.name.includes(" - ") ? source.name.split(" - ")[0] : source.assetName || source.symbol || "";
+      const accountId = await placedHoldingAccount(
+        tx,
+        user?.id ?? null,
+        { assetId: source.assetId, symbol: source.symbol, assetName: coinName },
+        place.name,
+      );
+      const [created] = await tx
+        .select({
+          id: accounts.id,
+          code: accounts.code,
+          name: accounts.name,
+          type: accounts.type,
+          symbol: assets.symbol,
+          decimals: assets.decimals,
+          logoUrl: assets.logoUrl,
+          coingeckoId: assets.coingeckoId,
+          classCode: assetClasses.code,
+          className: assetClasses.name,
+          walletKind: wallets.kind,
+          walletName: wallets.name,
+        })
+        .from(accounts)
+        .leftJoin(assets, eq(assets.id, accounts.assetId))
+        .leftJoin(assetClasses, eq(assetClasses.id, assets.classId))
+        .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+        .where(eq(accounts.id, accountId))
+        .limit(1);
+      return created;
+    });
+    if (!row) throw new Error("ایجاد حساب ناموفق بود.");
+    refreshAll();
+    return {
+      ok: true,
+      message: `«${row.name}» اضافه شد.`,
+      account: { ...row, decimals: row.decimals ?? 2 },
+    };
+  } catch (e) {
+    const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطا";
+    return { ok: false, message: msg };
+  }
+}
+
 function refreshAll() {
   for (const p of [
     "/",
@@ -402,14 +517,17 @@ export async function createBudgetAction(_p: ActionResult | null, fd: FormData):
   }
 }
 
-async function latestPrice(assetId: string, userId?: string | null): Promise<string> {
+// Inside a ledger transaction pass `tx`: a read on the shared `db` would wait
+// for a second connection the open transaction may be holding (a pool of one,
+// or the embedded database) and the save would never finish.
+async function latestPrice(assetId: string, userId?: string | null, client: any = db): Promise<string> {
   // Single authoritative unit-price rule (per-user FX for IRT, market data
   // otherwise). prices.IRT is never an FX authority.
-  return nativeUnitPriceUsd(assetId, userId ?? null);
+  return nativeUnitPriceUsd(assetId, userId ?? null, client);
 }
 
-async function accountAsset(accountId: string): Promise<string> {
-  const row = await db.select({ a: accounts.assetId }).from(accounts).where(eq(accounts.id, accountId)).limit(1);
+async function accountAsset(accountId: string, client: any = db): Promise<string> {
+  const row = await client.select({ a: accounts.assetId }).from(accounts).where(eq(accounts.id, accountId)).limit(1);
   if (!row[0]?.a) throw new Error("حساب انتخاب‌شده به هیچ دارایی متصل نیست");
   return row[0].a;
 }
@@ -612,7 +730,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       if (!isUuid(input.registryId)) throw new Error("دارایی انتخاب‌شده معتبر نیست");
       if (!isUuid(input.counterAccountId)) throw new Error("حساب بانکی واریز را انتخاب کنید");
       const [bank] = await db
-        .select({ symbol: assets.symbol, walletKind: wallets.kind, name: accounts.name })
+        .select({ symbol: assets.symbol, walletKind: wallets.kind, name: accounts.name, code: accounts.code })
         .from(accounts)
         .leftJoin(assets, eq(assets.id, accounts.assetId))
         .leftJoin(wallets, eq(wallets.id, accounts.walletId))
@@ -797,7 +915,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           // (equity) account, so no wallet/account balance moves.
           const reserve = await ensureReserveAccount(authUser?.id ?? null, tx);
           if (!reserve.assetId) throw new Error("حساب ذخیره استهلاک به دارایی پایه متصل نیست");
-          const price = await latestPrice(reserve.assetId, authUser?.id ?? null);
+          const price = await latestPrice(reserve.assetId, authUser?.id ?? null, tx);
           const qty = amount.div(price).toString();
           entry = await postEntry(
             {
@@ -902,8 +1020,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         if (!isUuid(input.primaryAccountId)) throw new Error("حساب مبدأ را انتخاب کنید");
         const collecting = isReceivable(linkedDebt?.direction);
         const sign = settlementSign(linkedDebt?.direction);
-        const cashAsset = await accountAsset(input.primaryAccountId);
-        const price = await latestPrice(cashAsset, authUser?.id ?? null);
+        const cashAsset = await accountAsset(input.primaryAccountId, tx);
+        const price = await latestPrice(cashAsset, authUser?.id ?? null, tx);
         const qty = amount.div(price).toString();
         const lines = [
           {
@@ -914,8 +1032,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           },
         ];
         if (linkedDebt?.accountId) {
-          const debtAsset = await accountAsset(linkedDebt.accountId);
-          const debtPrice = await latestPrice(debtAsset, authUser?.id ?? null);
+          const debtAsset = await accountAsset(linkedDebt.accountId, tx);
+          const debtPrice = await latestPrice(debtAsset, authUser?.id ?? null, tx);
           lines.push({
             accountId: linkedDebt.accountId,
             assetId: debtAsset,
@@ -995,6 +1113,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
               walletName: wallets.name,
               walletKind: wallets.kind,
               name: accounts.name,
+              code: accounts.code,
             })
             .from(accounts)
             .leftJoin(assets, eq(assets.id, accounts.assetId))
@@ -1011,8 +1130,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         );
         if (transferError) throw new Error(transferError);
 
-        const assetId = await accountAsset(input.primaryAccountId);
-        const destAssetId = await accountAsset(input.counterAccountId);
+        const assetId = await accountAsset(input.primaryAccountId, tx);
+        const destAssetId = await accountAsset(input.counterAccountId, tx);
         if (assetId !== destAssetId) {
           const [fromAst] = await tx.select({ symbol: assets.symbol }).from(assets).where(eq(assets.id, assetId)).limit(1);
           const [toAst] = await tx.select({ symbol: assets.symbol }).from(assets).where(eq(assets.id, destAssetId)).limit(1);
@@ -1044,8 +1163,16 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
             tx,
           );
         } else {
-          const price = await latestPrice(assetId, authUser?.id ?? null);
-          const qty = input.quantity && D(input.quantity).gt(0) ? input.quantity : amount.div(price).toString();
+          const price = await latestPrice(assetId, authUser?.id ?? null, tx);
+          // Toman moves by exactly the Toman typed — never re-derived through dollars,
+          // which rounds and leaves «همه» a dust balance (or an overdraft) behind.
+          const sourceUnit = (source?.symbol ?? "").toUpperCase();
+          const qty =
+            sourceUnit === "IRT" || sourceUnit === "IRR"
+              ? sourceUnit === "IRR" ? D(irtAmountStr).mul(10).toString() : irtAmountStr
+              : input.quantity && D(input.quantity).gt(0)
+                ? input.quantity
+                : amount.div(price).toString();
           entry = await recordTransfer(
             {
               entryDate: input.entryDate,

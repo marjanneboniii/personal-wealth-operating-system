@@ -72,9 +72,11 @@ export type SettlementAccount = {
   /** `wallets.name` — the place the money is held (نوبیتکس، کارگزاری مفید…) */
   walletName?: string | null;
   name?: string | null;
+  /** `accounts.code` — «1020» is the setup wizard's cash box */
+  code?: string | null;
 };
 
-const sym = (s: string | null | undefined) => (s ?? "").trim().toUpperCase();
+const sym =(s: string | null | undefined) => (s ?? "").trim().toUpperCase();
 const asAccount = (settle: SettlementAccount | string | null | undefined): SettlementAccount =>
   typeof settle === "string" || settle == null ? { symbol: settle ?? null } : settle;
 
@@ -94,15 +96,20 @@ export function priceUnitFor(settleSymbol: string | null | undefined): PriceUnit
 }
 
 /**
- * A Toman account held at a bank. An account without a wallet (older charts)
- * counts as a bank only when its name says so — a «صندوق خانگی» cash box never does.
+ * A Toman account held at a bank. An account without a wallet — the setup
+ * wizard's bank account, named by the user («ملت», «حساب جاری») — is a bank
+ * unless it is the cash box: code 1020, or a name like «صندوق خانگی» or «نقد».
  */
 export function isTomanBankAccount(settle: SettlementAccount | string | null | undefined): boolean {
   const account = asAccount(settle);
   if (settlementUnitOf(account.symbol) !== "toman") return false;
   const kind = (account.walletKind ?? "").trim().toLowerCase();
   if (kind) return kind === "bank";
-  return /بانک|bank/i.test(account.name ?? "");
+  if (typeof settle === "string" || settle == null) return false;
+  const name = account.name ?? "";
+  if (/بانک|bank/i.test(name)) return true;
+  if (account.code === "1020" || /صندوق|نقد|cash/i.test(name)) return false;
+  return true;
 }
 
 /** Toman held at an Iranian exchange — the Toman that buys crypto and tokenised assets. */

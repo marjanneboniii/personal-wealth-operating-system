@@ -13,7 +13,7 @@ import { KNOWN_WALLETS } from "@/features/setup/holdingWallets";
 import StepIntro, { CurrencySwitch } from "@/components/setup/StepIntro";
 import SetupHoldingsStep, { flattenHoldings, type CryptoDraftRow } from "@/components/setup/SetupHoldingsStep";
 import SetupInstrumentsStep, { type InstrumentDraftRow } from "@/components/setup/SetupInstrumentsStep";
-import SetupDebtsStep, { type DebtDraftRow } from "@/components/setup/SetupDebtsStep";
+import SetupDebtsStep, { draftOf, type DebtDraftRow } from "@/components/setup/SetupDebtsStep";
 import {
   SetupPropertiesStep,
   SetupVehiclesStep,
@@ -133,7 +133,7 @@ export default function SetupWizardPage() {
   const rate = rateEditable ? rateInput : marketRate.rate;
   const rateReady = isValidRate(rate);
 
-  const debtDrafts = debtRows.map(({ key: _key, ...draft }) => draft);
+  const debtDrafts = debtRows.map(draftOf);
 
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(async (prev, fd) => {
     // Debts are validated BEFORE setup commits: once setup is complete the

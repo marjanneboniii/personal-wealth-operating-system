@@ -9,6 +9,10 @@
  * contract, which registered every already-paid instalment as still owed and
  * overstated the debt. Every debt is in Toman.
  *
+ * THE SAME PLAN AS «ثبت بدهی یا طلب». The remaining instalments are a lump sum,
+ * a fixed cadence (monthly or every few months) or a custom list of due dates,
+ * through the shared `DebtScheduleFields`.
+ *
  * PLANNING ONLY. A debt recorded here posts no journal entry.
  */
 import { useMemo, useState } from "react";
@@ -16,11 +20,21 @@ import Icon from "@/components/ui/Icon";
 import AmountInput from "@/components/ui/AmountInput";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import StepIntro from "@/components/setup/StepIntro";
+import DebtScheduleFields, {
+  EMPTY_SCHEDULE,
+  INTERVAL_LABELS,
+  computeSchedule,
+  scheduleSubmission,
+  type ScheduleValue,
+} from "@/components/debts/DebtScheduleFields";
 import { D } from "@/domain/decimal";
 import { faCount, formatMoney, todayIso } from "@/lib/format";
 import type { SetupDebtDraft } from "@/app/actions/setupDebts";
 
-export type DebtDraftRow = SetupDebtDraft & { key: string };
+export type DebtDraftRow = Pick<SetupDebtDraft, "title" | "creditor" | "principalIrt" | "interestRate" | "startDate"> & {
+  key: string;
+  schedule: ScheduleValue;
+};
 
 export function emptyDebtRow(): DebtDraftRow {
   return {
@@ -30,19 +44,24 @@ export function emptyDebtRow(): DebtDraftRow {
     principalIrt: "",
     interestRate: "0",
     startDate: todayIso(),
-    installmentCount: 0,
-    installmentIrt: "",
-    firstDueDate: "",
+    schedule: EMPTY_SCHEDULE,
   };
 }
 
-/** The per-instalment figure the user will actually be shown. */
-function previewInstallment(row: DebtDraftRow): string | null {
-  const count = Number(row.installmentCount ?? 0);
-  if (count <= 0) return null;
-  if (row.installmentIrt && D(row.installmentIrt).gt(0)) return D(row.installmentIrt).toString();
-  if (!row.principalIrt || !D(row.principalIrt).gt(0)) return null;
-  return D(row.principalIrt).div(String(count)).toFixed(0);
+/** What the server reads for one row. */
+export function draftOf(row: DebtDraftRow): SetupDebtDraft {
+  const { key: _key, schedule, ...details } = row;
+  return { ...details, ...scheduleSubmission(schedule, details.principalIrt, details.startDate) };
+}
+
+/** «۱۲ قسط ماهانه · ۲٬۰۰۰٬۰۰۰ تومان» — the plan in one line. */
+function planSummary(row: DebtDraftRow): string {
+  if (row.schedule.mode === "none") return "یکجا";
+  const plan = computeSchedule(row.schedule, row.principalIrt, row.startDate);
+  if (plan.dueDates.length === 0) return "برنامه اقساط کامل نشده";
+  const cadence = row.schedule.mode === "custom" ? "سفارشی" : INTERVAL_LABELS[Number(row.schedule.intervalMonths) || 1];
+  const first = plan.amounts[0];
+  return `${faCount(plan.dueDates.length)} قسط ${cadence}${first ? ` · ${formatMoney(first, "IRT")}` : ""}`;
 }
 
 export default function SetupDebtsStep({
@@ -80,8 +99,6 @@ export default function SetupDebtsStep({
         <ul className="space-y-2">
           {rows.map((row, index) => {
             const open = effectiveOpen === row.key;
-            const count = Number(row.installmentCount ?? 0);
-            const perInstallment = previewInstallment(row);
             const failed = failedIndex === index;
             return (
               <li key={row.key} className="card setup-row" style={failed ? { borderColor: "var(--negative)" } : undefined}>
@@ -93,7 +110,8 @@ export default function SetupDebtsStep({
                     <span className="block truncate text-[length:var(--fs-sm)] font-semibold">{row.title.trim() || `بدهی ${faCount(index + 1)}`}</span>
                     <span className="muted block truncate text-[length:var(--fs-xs)]" dir="rtl">
                       {row.principalIrt && D(row.principalIrt).gt(0) ? formatMoney(row.principalIrt, "IRT") : "مانده وارد نشده"}
-                      {count > 0 ? ` · ${faCount(count)} قسط` : ""}
+                      {" · "}
+                      {planSummary(row)}
                     </span>
                   </button>
                   <button
@@ -107,7 +125,7 @@ export default function SetupDebtsStep({
                 </div>
 
                 {open && (
-                  <div className="mt-3 space-y-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+                  <div className="mt-3 space-y-4 border-t pt-3" style={{ borderColor: "var(--border)" }}>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <label className="label">عنوان</label>
@@ -143,49 +161,23 @@ export default function SetupDebtsStep({
                         />
                       </div>
                       <div>
-                        <label className="label">اقساط باقی‌مانده</label>
-                        <AmountInput
-                          inputMode="numeric"
-                          value={String(row.installmentCount ?? 0)}
-                          onChange={(e) => patch(row.key, { installmentCount: Number(e.target.value.replace(/[^\d]/g, "") || 0) })}
-                          placeholder="۰ = بدون قسط"
-                          className="field num"
-                          showWords={false}
-                          unit="none"
-                          grouping={false}
-                        />
-                      </div>
-                      {count > 0 && (
-                        <div>
-                          <label className="label">مبلغ هر قسط (تومان)</label>
-                          <AmountInput
-                            type="text"
-                            inputMode="numeric"
-                            value={row.installmentIrt ?? ""}
-                            onChange={(e) => patch(row.key, { installmentIrt: e.target.value.replace(/[^\d]/g, "") })}
-                            placeholder="خالی = تقسیم مساوی"
-                            className="field num"
-                            dir="ltr"
-                            unit="toman"
-                          />
-                        </div>
-                      )}
-                      <div>
                         <label className="label">تاریخ شروع</label>
-                        <JalaliDatePicker value={row.startDate} onChange={(iso) => patch(row.key, { startDate: iso })} />
+                        <JalaliDatePicker value={row.startDate} onChange={(iso) => patch(row.key, { startDate: iso })} showGregorian={false} />
                       </div>
-                      {count > 0 && (
-                        <div>
-                          <label className="label">سررسید قسط بعدی</label>
-                          <JalaliDatePicker value={row.firstDueDate ?? ""} onChange={(iso) => patch(row.key, { firstDueDate: iso })} />
-                        </div>
-                      )}
                     </div>
-                    {perInstallment && (
-                      <p className="muted num text-[length:var(--fs-xs)]" dir="rtl">
-                        {faCount(count)} قسط × {formatMoney(perInstallment, "IRT")}
-                      </p>
-                    )}
+
+                    <div className="space-y-2">
+                      <span className="label">برنامه بازپرداخت اقساط باقی‌مانده</span>
+                      <DebtScheduleFields
+                        value={row.schedule}
+                        onChange={(schedule) => patch(row.key, { schedule })}
+                        principalIrt={row.principalIrt}
+                        startDate={row.startDate}
+                        idPrefix={`setup-debt-${row.key}`}
+                        countLabel="اقساط باقی‌مانده"
+                        firstDueLabel="سررسید قسط بعدی"
+                      />
+                    </div>
                   </div>
                 )}
               </li>

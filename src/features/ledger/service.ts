@@ -50,6 +50,8 @@ export type PostEntryInput = {
   preventOverdraft?: boolean;
 };
 
+const OVERDRAFT_ROUNDING_TOLERANCE = D("-0.000001");
+
 export function canonicalizePayload(input: PostEntryInput): string {
   const sortedPostings = [...input.postings]
     .map((p) => ({
@@ -230,7 +232,9 @@ export async function postEntry(
           `);
           const currentBal = D((balRes.rows[0] as { bal?: string })?.bal ?? "0");
           const newBal = currentBal.add(D(p.baseValue));
-          if (newBal.isNegative()) {
+          // Dollar values of Toman carry 1/rate rounding: moving a whole balance
+          // may land a fraction of a micro-dollar below zero. That is not an overdraft.
+          if (newBal.lt(OVERDRAFT_ROUNDING_TOLERANCE)) {
             const err: any = new Error("موجودی حساب کافی نیست (Overdraft prevented)");
             err.code = "INSUFFICIENT_BALANCE";
             err.status = 400;

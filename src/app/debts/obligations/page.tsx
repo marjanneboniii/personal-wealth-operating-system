@@ -97,7 +97,7 @@ export default async function ObligationsPage() {
           action={
             <Link href="/goals" className="btn btn-primary">
               <Icon name="plus" size={16} />
-              افزودن تعهد
+              افزودن رویداد آینده
             </Link>
           }
         />
@@ -121,11 +121,7 @@ export default async function ObligationsPage() {
             <EmptyState
               icon="calendar"
               title="تعهد آینده‌ای ثبت نشده است"
-              action={
-                <Link href="/goals" className="btn btn-soft">
-                  ثبت تعهد یا رویداد
-                </Link>
-              }
+              body="اقساط بدهی‌ها از «ثبت بدهی یا طلب» و رویدادهای آینده از دکمهٔ بالا اینجا می‌آیند."
             />
           </div>
         ) : (
