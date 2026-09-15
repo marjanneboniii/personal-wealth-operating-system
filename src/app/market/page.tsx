@@ -9,7 +9,7 @@ export const metadata = { title: "نمای بازار — توازن" };
 
 /**
  * نمای بازار — every listed symbol by what it is: رمزارز، میم‌کوین،
- * استیبل‌کوین، سهام آمریکا، شاخص، کامودیتی، اوراق قرضه، فلز توکنیزه.
+ * استیبل‌کوین، سهام توکنیزه، شاخص، کامودیتی، اوراق قرضه، فلز توکنیزه.
  *
  * Renders from the persisted catalogue and never waits on an exchange when
  * there is anything to show — a stale catalogue is served at once and
@@ -30,7 +30,7 @@ export default async function MarketPage() {
       <header className="space-y-1">
         <h1 className="text-[length:var(--fs-lg)] font-bold tracking-tight">نمای بازار</h1>
         <p className="muted text-[length:var(--fs-sm)] leading-7">
-          قیمت تومانی و تتری رمزارزها، میم‌کوین‌ها، سهام آمریکا، شاخص‌ها، کامودیتی و اوراق.
+          قیمت تومانی و تتری رمزارزها، میم‌کوین‌ها و سهام، شاخص‌ها، کامودیتی و اوراق توکنیزه.
         </p>
       </header>
       <MarketView

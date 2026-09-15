@@ -318,9 +318,12 @@ function PriceField({ value, onChange }: { value: string; onChange: (next: strin
 export function SetupVehiclesStep({
   rows,
   onChange,
+  showIntro = true,
 }: {
   rows: VehicleDraftRow[];
   onChange: (next: VehicleDraftRow[]) => void;
+  /** Off inside «دارایی‌های واقعی», where the module header already names the step. */
+  showIntro?: boolean;
 }) {
   const catalogs = useCatalogs();
 
@@ -359,7 +362,9 @@ export function SetupVehiclesStep({
 
   return (
     <section className="space-y-5">
-      <StepIntro title="خودرو" text="خودرو را جست‌وجو کنید و با + اضافه کنید؛ فقط تاریخ و قیمت خرید را وارد کنید." />
+      {showIntro && (
+        <StepIntro title="خودرو" text="خودرو را جست‌وجو کنید و با + اضافه کنید؛ فقط تاریخ و قیمت خرید را وارد کنید." />
+      )}
       <CatalogStatus catalogs={catalogs} />
 
       {catalogs?.ok && (
@@ -464,9 +469,12 @@ export function SetupVehiclesStep({
 export function SetupPropertiesStep({
   rows,
   onChange,
+  showIntro = true,
 }: {
   rows: PropertyDraftRow[];
   onChange: (next: PropertyDraftRow[]) => void;
+  /** Off inside «دارایی‌های واقعی», where the module header already names the step. */
+  showIntro?: boolean;
 }) {
   const catalogs = useCatalogs();
   const activeTypes = useMemo(() => (catalogs?.propertyTypes ?? []).filter((p) => p.isActive), [catalogs]);
@@ -514,7 +522,9 @@ export function SetupPropertiesStep({
 
   return (
     <section className="space-y-5">
-      <StepIntro title="ملک" text="محله را جست‌وجو کنید و با + اضافه کنید؛ فقط تاریخ و قیمت خرید را وارد کنید." />
+      {showIntro && (
+        <StepIntro title="ملک" text="محله را جست‌وجو کنید و با + اضافه کنید؛ فقط تاریخ و قیمت خرید را وارد کنید." />
+      )}
       <CatalogStatus catalogs={catalogs} />
 
       {catalogs?.ok && (

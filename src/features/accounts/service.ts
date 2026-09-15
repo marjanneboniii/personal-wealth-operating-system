@@ -33,8 +33,9 @@ import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { D } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
 import { requireSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
+import { canonicalWalletName, moneyPlaceError } from "@/features/setup/holdingWallets";
 
-export const WALLET_KINDS = ["bank", "cash", "exchange", "hot", "cold", "fund"] as const;
+export const WALLET_KINDS = ["bank", "cash", "exchange", "broker", "hot", "cold", "fund"] as const;
 export type WalletKind = (typeof WALLET_KINDS)[number];
 
 /**
@@ -56,6 +57,11 @@ export type RegisterMoneyAccountInput = {
   kind: WalletKind;
   /** Reference id of exactly one supported currency: IRT, USD or USDT. */
   assetId: string;
+  /**
+   * The exchange, brokerage or wallet the money is held at, from the place
+   * catalogue («بیت‌پین», «کارگزاری مفید»). One place is one wallet.
+   */
+  placeName?: string;
   /** Opening balance in the selected currency's own unit. */
   openingQty?: string;
   /** ISO date of the opening entry; defaults to today. */
@@ -327,6 +333,8 @@ export async function registerMoneyAccount(
     if (!asset || !MONEY_ACCOUNT_CURRENCY_SET.has(asset.symbol)) {
       throw new Error("ارز حساب فقط می‌تواند تومان (IRT)، دلار (USD) یا تتر (USDT) باشد.");
     }
+    const placeError = moneyPlaceError(input.kind, asset.symbol, input.placeName);
+    if (placeError) throw new Error(placeError);
 
     // 2. Historical USD value is deterministic and not client-editable:
     // Opening book value: USD/USDT = 1 USD; IRT uses the tenant FX rate.
@@ -345,18 +353,47 @@ export async function registerMoneyAccount(
     const baseValue = openingQty.mul(unitPriceUsd);
 
     // 4. Wallet (user-owned container; shared `institutions` is NOT touched).
-    const [wallet] = await tx
-      .insert(wallets)
-      .values({
-        userId: input.userId ?? null,
-        name,
-        kind: input.kind,
-        institutionId: null,
-        networkId: null,
-        address: null,
-        note: input.note?.trim() || null,
-      })
-      .returning();
+    // A picked place is stored under its catalogue name, so the trade rules
+    // recognise «تومان - بیت‌پین» as Toman at an Iranian exchange, and the same
+    // place is one wallet holding several currencies.
+    const placeName = input.placeName ? canonicalWalletName(input.placeName) : "";
+    let wallet: typeof wallets.$inferSelect | undefined;
+    if (placeName) {
+      [wallet] = await tx
+        .select()
+        .from(wallets)
+        .where(
+          and(
+            input.userId ? eq(wallets.userId, input.userId) : isNull(wallets.userId),
+            eq(wallets.name, placeName),
+            isNull(wallets.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (wallet) {
+        const [taken] = await tx
+          .select({ id: accounts.id })
+          .from(accounts)
+          .where(and(eq(accounts.walletId, wallet.id), eq(accounts.assetId, input.assetId), isNull(accounts.deletedAt)))
+          .limit(1);
+        if (taken) throw new Error(`حساب ${asset.name} در «${placeName}» از قبل ثبت شده است.`);
+      }
+    }
+    if (!wallet) {
+      [wallet] = await tx
+        .insert(wallets)
+        .values({
+          userId: input.userId ?? null,
+          name: placeName || name,
+          kind: input.kind,
+          institutionId: null,
+          networkId: null,
+          address: null,
+          note: input.note?.trim() || null,
+        })
+        .returning();
+    }
+    if (!wallet) throw new Error("ایجاد کیف پول ناموفق بود.");
 
     // 5. Ledger account (asset type) linked to the wallet. The insert is
     // conflict-tolerant so two simultaneous registrations for the same tenant

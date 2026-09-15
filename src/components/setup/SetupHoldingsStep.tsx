@@ -69,7 +69,8 @@ const PLACE_TABS: { value: PlaceTab; label: string }[] = [
 ];
 const TAB_PLACES: Record<PlaceTab, typeof KNOWN_WALLETS> = {
   exchange: KNOWN_WALLETS.filter((w) => w.kind === "exchange"),
-  wallet: KNOWN_WALLETS.filter((w) => w.kind !== "exchange"),
+  // Brokerages hold Toman only — never a coin.
+  wallet: KNOWN_WALLETS.filter((w) => w.kind === "hot" || w.kind === "cold"),
 };
 
 const digitsOnly = (value: string) => value.replace(/[^\d.]/g, "");

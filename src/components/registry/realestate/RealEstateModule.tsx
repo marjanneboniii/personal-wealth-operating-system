@@ -5,6 +5,7 @@ import type { RealEstateDashboardItem, RealEstatePortfolioSummary } from "@/feat
 import type { MarketSegmentSummary, PropertyMarketView } from "@/features/rwa/realEstate/market/service";
 import type { City, Neighborhood, PropertyType } from "@/features/rwa/realEstate/types";
 import { RealEstateLogo } from "@/components/ui/IranLogo";
+import RealAssetQuickAdd from "@/components/registry/RealAssetQuickAdd";
 import type { MarketReminder } from "@/features/rwa/realEstate/market/reminders";
 import MarketPriceTracker from "./MarketPriceTracker";
 import MasterDataAdmin from "./MasterDataAdmin";
@@ -61,7 +62,6 @@ export default function RealEstateModule({
   cities,
   neighborhoods,
   propertyTypes,
-  ownerName,
   bankAccounts = [],
   marketViews,
   marketSegments,
@@ -180,7 +180,7 @@ export default function RealEstateModule({
           {items.length === 0 ? (
             <div className="re-empty">
               <p className="re-empty-title">هنوز ملکی ثبت نشده است</p>
-              <p className="muted">شهر، محله و نوع ملک را انتخاب کنید؛ شناسه و معادل دلاری خودکار ساخته می‌شوند.</p>
+              <p className="muted">محله را جست‌وجو کنید و با + اضافه کنید؛ معادل دلاری خودکار محاسبه می‌شود.</p>
               <button className="btn btn-primary" onClick={() => setTab("add")}>
                 ثبت ملک
               </button>
@@ -232,10 +232,13 @@ export default function RealEstateModule({
 
       {tab === "add" && (
         <div className="re-body">
-          <p className="muted re-owner">
-            مالک: <strong>{ownerName}</strong>
-          </p>
-          <RealEstateForm cities={cityList} neighborhoods={neighborhoodList} propertyTypes={propertyTypeList} bankAccounts={bankAccounts} />
+          <RealAssetQuickAdd kind="property" bankAccounts={bankAccounts} />
+          <details className="re-specs">
+            <summary>ثبت با جزئیات کامل — نشانی، سند، طبقه، نرخ دستی</summary>
+            <div>
+              <RealEstateForm cities={cityList} neighborhoods={neighborhoodList} propertyTypes={propertyTypeList} bankAccounts={bankAccounts} />
+            </div>
+          </details>
         </div>
       )}
 

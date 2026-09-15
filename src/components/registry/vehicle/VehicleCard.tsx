@@ -8,29 +8,21 @@ import {
 } from "@/app/actions/registry";
 import { compareDates, type SnapshotPoint } from "@/features/rwa/vehicle/analytics";
 import type { VehicleDashboardItem } from "@/features/rwa/vehicle/dto";
-import { currencyLabel, formatMoney, toFaDigits, todayIso } from "@/lib/format";
+import { currencyLabel, formatMoney, todayIso } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
-import { AutomobileLogo } from "@/components/ui/IranLogo";
+import { DetailRow } from "@/components/registry/realestate/shared";
 import VehicleChart from "./VehicleChart";
-import {
-  DeltaPct,
-  DeltaToman,
-  DeltaUsd,
-  Hint,
-  JDate,
-  Labeled,
-  Metric,
-  Result,
-  StatusChip,
-  Toman,
-  Usd,
-  faNum,
-  yearLabel,
-} from "./shared";
+import { DeltaPct, DeltaToman, DeltaUsd, Hint, JDate, Labeled, Result, Toman, Usd, faNum, yearLabel } from "./shared";
 
-type Tab = "performance" | "history" | "compare" | "valuation" | "manage";
+type Tab = "summary" | "history";
+type Panel = "none" | "valuation" | "manage";
 
+/**
+ * The inside of one car's row: a result strip that states every figure once,
+ * performance periods, specs, history — and the two actions a car has
+ * (new valuation · edit / sell).
+ */
 export default function VehicleCard({
   item,
   payoutAccounts = [],
@@ -38,9 +30,9 @@ export default function VehicleCard({
   item: VehicleDashboardItem;
   payoutAccounts?: { id: string; name: string; symbol: string | null }[];
 }) {
-  const { vehicle, catalog, valuation, gains, purchasePoint, history, periods, holding } = item;
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<Tab>("performance");
+  const [tab, setTab] = useState<Tab>("summary");
+  const [panel, setPanel] = useState<Panel>("none");
+  const active = item.vehicle.status === "active";
 
   const points: SnapshotPoint[] = useMemo(
     () =>
@@ -53,270 +45,256 @@ export default function VehicleCard({
     [item.snapshots],
   );
 
-  const title = `${vehicle.brand} ${vehicle.model}`;
+  return (
+    <div className="re-detail">
+      <div className="seg" role="group" aria-label={`بخش‌های ${item.vehicle.brand} ${item.vehicle.model}`}>
+        {(
+          [
+            ["summary", "خلاصه"],
+            ["history", "تاریخچه"],
+          ] as const
+        ).map(([key, label]) => (
+          <button key={key} type="button" onClick={() => setTab(key)} className={tab === key ? "seg-on" : ""} aria-pressed={tab === key}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "summary" && <SummaryPanel item={item} />}
+      {tab === "history" && <HistoryPanel item={item} points={points} />}
+
+      {panel === "valuation" && (
+        <div className="re-revalue">
+          <p className="re-section-title">ثبت ارزش‌گذاری جدید</p>
+          <ValuationForm item={item} />
+        </div>
+      )}
+      {panel === "manage" && (
+        <div className="re-revalue">
+          <ManagePanel item={item} payoutAccounts={payoutAccounts} />
+        </div>
+      )}
+
+      <div className="re-actions">
+        {active && panel !== "valuation" && (
+          <button type="button" className="btn btn-soft" onClick={() => setPanel("valuation")}>
+            ثبت ارزش‌گذاری
+          </button>
+        )}
+        {panel !== "manage" && (
+          <button type="button" className="btn btn-ghost" onClick={() => setPanel("manage")}>
+            {active ? "ویرایش / فروش" : "ویرایش"}
+          </button>
+        )}
+        {panel !== "none" && (
+          <button type="button" className="btn btn-ghost" onClick={() => setPanel("none")}>
+            بستن
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────────────── summary ───────────────────────── */
+
+function SummaryPanel({ item }: { item: VehicleDashboardItem }) {
+  const { vehicle, catalog, valuation, gains, periods, holding } = item;
+  const sold = vehicle.status === "sold";
   const divergence =
     gains.gainToman && gains.gainUsd && Number(gains.gainToman) > 0 && Number(gains.gainUsd) < 0
-      ? "ارزش خودرو به تومان افزایش یافته اما ارزش دلاری آن کاهش یافته است."
+      ? "ارزش تومانی بالا رفته اما ارزش دلاری کم شده است؛ رشد قیمت خودرو از رشد دلار عقب مانده."
       : gains.gainToman && gains.gainUsd && Number(gains.gainToman) < 0 && Number(gains.gainUsd) > 0
-        ? "ارزش خودرو به تومان کاهش یافته اما ارزش دلاری آن افزایش یافته است."
+        ? "ارزش تومانی کم شده اما ارزش دلاری بالا رفته است (اثر نرخ ارز)."
         : null;
 
   return (
-    <article className="card p-4 sm:p-5">
-      {/* ── Header ── */}
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex items-start gap-2">
-          <AutomobileLogo name={vehicle.brand} size={36} />
-          <div className="min-w-0">
-            <h3 className="flex flex-wrap items-center gap-2 text-[length:var(--fs-sm)] sm:text-[length:var(--fs-sm)] font-bold tracking-tight">
-              {title}
-              {vehicle.label && <span className="badge badge-neutral num">{vehicle.label}</span>}
-              <StatusChip status={vehicle.status} />
-              {valuation.scope === "catalog" && (
-                <span className="muted text-[length:var(--fs-xs)]">ارزش‌گذاری در سطح مدل (بازار)</span>
-              )}
-            </h3>
-          <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">
-            سال ساخت: {yearLabel(vehicle.year)}
-            {catalog?.manufacturer ? ` · سازنده/مونتاژکننده: ${catalog.manufacturer}` : ""}
-            {vehicle.licensePlate ? ` · پلاک: ${vehicle.licensePlate}` : ""}
-            {vehicle.mileage != null ? ` · کارکرد: ${faNum(vehicle.mileage)} کیلومتر` : ""}
-          </p>
-          </div>
-        </div>
-        <button type="button" className="btn text-[length:var(--fs-xs)]" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-          {open ? "بستن جزئیات" : "تحلیل و تاریخچه"}
-        </button>
-      </header>
-
-      {/* ── KPI grid ── */}
-      <div className="mt-4 grid grid-cols-2 gap-4 border-t pt-4 sm:grid-cols-3 lg:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric label="تاریخ تملک" value={<JDate iso={vehicle.ownershipDate} />} sub={holding ? `مدت مالکیت: ${holding.label}` : undefined} />
-        <Metric
-          label="قیمت خرید"
-          value={<Toman value={vehicle.purchasePriceToman} />}
-          sub={
-            vehicle.purchaseValueUsd ? (
-              <>
-                ≈ <Usd value={vehicle.purchaseValueUsd} /> · نرخ خرید:{" "}
-                <span className="num">{vehicle.purchaseUsdRate ? formatMoney(vehicle.purchaseUsdRate, "IRT") : "—"}</span>
-              </>
-            ) : undefined
-          }
-        />
-        <Metric
-          label="ارزش فعلی"
-          value={valuation.currentValueToman ? <Toman value={valuation.currentValueToman} /> : <span className="muted text-[length:var(--fs-xs)]">ارزش‌گذاری ثبت نشده</span>}
-          sub={
-            valuation.currentValueUsd ? (
-              <>
-                ≈ <Usd value={valuation.currentValueUsd} /> · نرخ Snapshot:{" "}
-                <span className="num">{valuation.currentUsdRate ? formatMoney(valuation.currentUsdRate, "IRT") : "—"}</span>
-              </>
+    <div className="re-panel">
+      <dl className="metric-strip re-facts">
+        <div>
+          <dt>{sold ? "قیمت فروش" : "ارزش فعلی"}</dt>
+          <dd>
+            {sold ? (
+              <Toman value={vehicle.salePriceToman} />
+            ) : valuation.currentValueToman ? (
+              <Toman value={valuation.currentValueToman} />
             ) : (
-              "برای محاسبه سود/زیان یک ارزش‌گذاری ثبت کنید."
-            )
-          }
-        />
-        <Metric
-          label="آخرین ارزش‌گذاری"
-          value={<JDate iso={valuation.lastValuationDate} fallback="—" />}
-          sub={vehicle.status === "sold" ? <>تاریخ فروش: <JDate iso={vehicle.saleDate} /></> : "ارزش فعلی فقط با Snapshot جدید تغییر می‌کند"}
-        />
-        <Metric
-          label={gains.realised ? "سود/زیان نهایی (تومان)" : "سود/زیان تومانی"}
-          value={<DeltaToman value={gains.gainToman} />}
-          sub={<>بازدهی: <DeltaPct value={gains.roiToman} /></>}
-        />
-        <Metric
-          label={gains.realised ? "سود/زیان نهایی (دلار)" : "سود/زیان دلاری"}
-          value={<DeltaUsd value={gains.gainUsd} />}
-          sub={<>بازدهی: <DeltaPct value={gains.roiUsd} /></>}
-        />
-        {vehicle.status === "sold" && (
-          <Metric
-            label="قیمت واقعی فروش"
-            value={<Toman value={vehicle.salePriceToman} />}
-            sub={vehicle.saleValueUsd ? <>≈ <Usd value={vehicle.saleValueUsd} /></> : undefined}
-          />
-        )}
-        {(item.cagrToman || item.cagrUsd) && (
-          <Metric
-            label="CAGR (سالانه مرکب)"
-            value={<DeltaPct value={item.cagrToman} />}
-            sub={item.cagrUsd ? <>دلاری: <DeltaPct value={item.cagrUsd} /></> : "فقط با داده واقعی بیش از یک سال"}
-          />
-        )}
+              <span className="muted">ثبت نشده</span>
+            )}
+          </dd>
+          <dd className="re-sub">
+            <Usd value={sold ? vehicle.saleValueUsd : valuation.currentValueUsd} /> ·{" "}
+            <JDate iso={sold ? vehicle.saleDate : valuation.lastValuationDate} />
+          </dd>
+        </div>
+        <div>
+          <dt>قیمت خرید</dt>
+          <dd>
+            <Toman value={vehicle.purchasePriceToman} />
+          </dd>
+          <dd className="re-sub">
+            <Usd value={vehicle.purchaseValueUsd} /> · <JDate iso={vehicle.ownershipDate} />
+          </dd>
+        </div>
+        <div>
+          <dt>{gains.realised ? "سود / زیان نهایی" : "سود / زیان"}</dt>
+          <dd>
+            <DeltaToman value={gains.gainToman} />
+          </dd>
+          <dd className="re-sub">
+            تومانی <DeltaPct value={gains.roiToman} /> · دلاری <DeltaPct value={gains.roiUsd} />
+            {item.cagrToman && (
+              <>
+                {" "}
+                · سالانه <DeltaPct value={item.cagrToman} />
+              </>
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      {divergence && <Hint tone="warn">{divergence}</Hint>}
+
+      <div className="overflow-x-auto">
+        <table className="table re-periods">
+          <thead>
+            <tr>
+              <th scope="col">بازه</th>
+              <th scope="col" className="td-num">تغییر تومانی</th>
+              <th scope="col" className="td-num">٪ تومانی</th>
+              <th scope="col" className="td-num">٪ دلاری</th>
+            </tr>
+          </thead>
+          <tbody>
+            {periods.map((row) => (
+              <tr key={row.key}>
+                <td>{row.label}</td>
+                {row.available ? (
+                  <>
+                    <td className="td-num">
+                      <DeltaToman value={row.tomanChange} />
+                    </td>
+                    <td className="td-num">
+                      <DeltaPct value={row.tomanChangePct} />
+                    </td>
+                    <td className="td-num">
+                      <DeltaPct value={row.usdChangePct} />
+                    </td>
+                  </>
+                ) : (
+                  <td colSpan={3} className="muted">
+                    داده کافی نیست
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {divergence && (
-        <div className="mt-3">
-          <Hint tone="warn">{divergence}</Hint>
-        </div>
-      )}
-
-      {/* ── Details ── */}
-      {open && (
-        <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--border)" }}>
-          <div className="seg mb-4 flex-wrap" role="group" aria-label="بخش‌های تحلیل خودرو">
-            {(
-              [
-                ["performance", "بازه‌های عملکرد"],
-                ["history", "تاریخچه و نمودار"],
-                ["compare", "مقایسه دو تاریخ"],
-                ["valuation", "ثبت ارزش جدید"],
-                ["manage", "ویرایش / فروش"],
-              ] as [Tab, string][]
-            ).map(([key, label]) => (
-              <button key={key} type="button" onClick={() => setTab(key)} className={tab === key ? "seg-on" : ""} aria-pressed={tab === key}>
-                {label}
-              </button>
-            ))}
+      <details className="re-specs">
+        <summary>مشخصات و نرخ‌های ثبت‌شده</summary>
+        <div className="re-specs-grid">
+          <div>
+            <DetailRow label="سال ساخت">{yearLabel(vehicle.year)}</DetailRow>
+            {catalog?.manufacturer && <DetailRow label="سازنده">{catalog.manufacturer}</DetailRow>}
+            {vehicle.licensePlate && <DetailRow label="پلاک">{vehicle.licensePlate}</DetailRow>}
+            {vehicle.mileage != null && <DetailRow label="کارکرد">{`${faNum(vehicle.mileage)} کیلومتر`}</DetailRow>}
+            {holding && <DetailRow label="مدت مالکیت">{holding.label}</DetailRow>}
           </div>
-
-          {tab === "performance" && <PerformanceTable periods={periods} />}
-
-          {tab === "history" && (
-            <div className="space-y-5">
-              <VehicleChart points={points} purchasePoint={purchasePoint} />
-              <HistoryTable history={history} purchasePoint={purchasePoint} />
-            </div>
-          )}
-
-          {tab === "compare" && <ComparePanel points={points} purchasePoint={purchasePoint} />}
-
-          {tab === "valuation" && <ValuationForm item={item} />}
-
-          {tab === "manage" && <ManagePanel item={item} payoutAccounts={payoutAccounts} />}
+          <div>
+            <DetailRow label="نرخ دلار روز خرید">
+              <span className="num money-nowrap" dir="rtl">
+                {vehicle.purchaseUsdRate ? formatMoney(vehicle.purchaseUsdRate, "IRT") : "—"}
+              </span>
+            </DetailRow>
+            <DetailRow label="نرخ دلار آخرین ارزش‌گذاری">
+              <span className="num money-nowrap" dir="rtl">
+                {valuation.currentUsdRate ? formatMoney(valuation.currentUsdRate, "IRT") : "—"}
+              </span>
+            </DetailRow>
+            {valuation.scope === "catalog" && <DetailRow label="مبنای ارزش">ارزش بازار همین مدل</DetailRow>}
+          </div>
         </div>
-      )}
-    </article>
-  );
-}
-
-/* ───────────────────────── performance ───────────────────────── */
-
-function PerformanceTable({ periods }: { periods: VehicleDashboardItem["periods"] }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="table">
-        <thead>
-          <tr>
-            <th scope="col">بازه</th>
-            <th scope="col" className="td-num">تغییر تومانی</th>
-            <th scope="col" className="td-num">٪ تومانی</th>
-            <th scope="col" className="td-num">تغییر دلاری</th>
-            <th scope="col" className="td-num">٪ دلاری</th>
-            <th scope="col" className="td-num hidden sm:table-cell">مبنا</th>
-          </tr>
-        </thead>
-        <tbody>
-          {periods.map((p) => (
-            <tr key={p.key}>
-              <td className="whitespace-nowrap text-[length:var(--fs-xs)] font-medium">{p.label}</td>
-              {p.available ? (
-                <>
-                  <td className="td-num"><DeltaToman value={p.tomanChange} /></td>
-                  <td className="td-num"><DeltaPct value={p.tomanChangePct} /></td>
-                  <td className="td-num"><DeltaUsd value={p.usdChange} /></td>
-                  <td className="td-num"><DeltaPct value={p.usdChangePct} /></td>
-                  <td className="muted td-num hidden text-[length:var(--fs-xs)] sm:table-cell">
-                    <JDate iso={p.from.date} /> → <JDate iso={p.to.date} />
-                    {p.baselineIsPurchase && " (خرید)"}
-                  </td>
-                </>
-              ) : (
-                <td colSpan={5} className="muted text-[length:var(--fs-xs)]">
-                  {p.reason}
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="muted mt-2 text-[length:var(--fs-xs)] leading-5">
-        همه محاسبات فقط بر پایه Snapshotهای واقعی انجام می‌شوند. اگر برای یک بازه داده تاریخی وجود نداشته باشد، هیچ مقدار
-        فرضی ساخته نمی‌شود.
-      </p>
+        {vehicle.notes && <p className="muted re-note">یادداشت: {vehicle.notes}</p>}
+      </details>
     </div>
   );
 }
 
-/* ───────────────────────── history table ───────────────────────── */
+/* ───────────────────────── history + compare ───────────────────────── */
 
-function HistoryTable({
-  history,
-  purchasePoint,
-}: {
-  history: VehicleDashboardItem["history"];
-  purchasePoint: SnapshotPoint | null;
-}) {
-  if (!history.length) {
-    return <p className="muted text-[length:var(--fs-xs)]">هنوز هیچ Snapshot ارزش‌گذاری برای این خودرو ثبت نشده است.</p>;
+function HistoryPanel({ item, points }: { item: VehicleDashboardItem; points: SnapshotPoint[] }) {
+  const { history, purchasePoint } = item;
+  if (!history.length && !purchasePoint) {
+    return <p className="muted re-note">هنوز ارزش‌گذاری‌ای ثبت نشده است.</p>;
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="table">
-        <thead>
-          <tr>
-            <th scope="col">تاریخ</th>
-            <th scope="col" className="td-num">ارزش (تومان)</th>
-            <th scope="col" className="td-num">نرخ دلار</th>
-            <th scope="col" className="td-num">ارزش (دلار)</th>
-            <th scope="col" className="td-num">تغییر تومان</th>
-            <th scope="col" className="td-num">تغییر ٪</th>
-            <th scope="col" className="td-num">تغییر دلار</th>
-            <th scope="col" className="td-num">تغییر ٪ دلار</th>
-          </tr>
-        </thead>
-        <tbody>
-          {purchasePoint && (
-            <tr style={{ background: "var(--hover)" }}>
-              <td className="whitespace-nowrap text-[length:var(--fs-xs)]">
-                <JDate iso={purchasePoint.date} /> <span className="muted">· خرید</span>
-              </td>
-              <td className="td-num"><Toman value={purchasePoint.valueToman} /></td>
-              <td className="td-num num" dir="rtl">{formatMoney(purchasePoint.usdRate, "IRT")}</td>
-              <td className="td-num"><Usd value={purchasePoint.valueUsd} /></td>
-              <td className="td-num muted">—</td>
-              <td className="td-num muted">—</td>
-              <td className="td-num muted">—</td>
-              <td className="td-num muted">—</td>
+    <div className="re-panel">
+      <VehicleChart points={points} purchasePoint={purchasePoint} />
+      <div className="overflow-x-auto">
+        <table className="table">
+          <thead>
+            <tr>
+              <th scope="col">تاریخ</th>
+              <th scope="col" className="td-num">ارزش</th>
+              <th scope="col" className="td-num">تغییر</th>
+              <th scope="col" className="td-num">ارزش دلاری</th>
+              <th scope="col" className="td-num">تغییر دلاری</th>
             </tr>
-          )}
-          {history.map((row) => (
-            <tr key={row.date}>
-              <td className="whitespace-nowrap text-[length:var(--fs-xs)]"><JDate iso={row.date} /></td>
-              <td className="td-num"><Toman value={row.valueToman} /></td>
-              <td className="td-num num" dir="rtl">{formatMoney(row.usdRate, "IRT")}</td>
-              <td className="td-num"><Usd value={row.valueUsd} /></td>
-              <td className="td-num">{row.tomanChange ? <DeltaToman value={row.tomanChange} /> : <span className="muted">—</span>}</td>
-              <td className="td-num">{row.tomanChangePct ? <DeltaPct value={row.tomanChangePct} /> : <span className="muted">—</span>}</td>
-              <td className="td-num">{row.usdChange ? <DeltaUsd value={row.usdChange} /> : <span className="muted">—</span>}</td>
-              <td className="td-num">{row.usdChangePct ? <DeltaPct value={row.usdChangePct} /> : <span className="muted">—</span>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="muted mt-2 text-[length:var(--fs-xs)]">
-        هر ردیف یک Snapshot تغییرناپذیر است؛ نرخ دلار ذخیره‌شده در همان ردیف مبنای ارزش دلاری آن تاریخ است.
-      </p>
+          </thead>
+          <tbody>
+            {purchasePoint && (
+              <tr>
+                <td>
+                  <JDate iso={purchasePoint.date} /> <span className="muted">· خرید</span>
+                </td>
+                <td className="td-num">
+                  <Toman value={purchasePoint.valueToman} />
+                </td>
+                <td className="td-num muted">—</td>
+                <td className="td-num">
+                  <Usd value={purchasePoint.valueUsd} />
+                </td>
+                <td className="td-num muted">—</td>
+              </tr>
+            )}
+            {history.map((row) => (
+              <tr key={row.date}>
+                <td>
+                  <JDate iso={row.date} />
+                </td>
+                <td className="td-num">
+                  <Toman value={row.valueToman} />
+                </td>
+                <td className="td-num">{row.tomanChangePct ? <DeltaPct value={row.tomanChangePct} /> : <span className="muted">—</span>}</td>
+                <td className="td-num">
+                  <Usd value={row.valueUsd} />
+                </td>
+                <td className="td-num">{row.usdChangePct ? <DeltaPct value={row.usdChangePct} /> : <span className="muted">—</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted re-note">هر ردیف یک ارزش‌گذاری تغییرناپذیر است و دلار آن با نرخ همان روز محاسبه شده است.</p>
+      <details className="re-specs">
+        <summary>مقایسهٔ دو تاریخ</summary>
+        <ComparePanel points={points} purchasePoint={purchasePoint} />
+      </details>
     </div>
   );
 }
-
-/* ───────────────────────── compare two dates ───────────────────────── */
 
 function ComparePanel({ points, purchasePoint }: { points: SnapshotPoint[]; purchasePoint: SnapshotPoint | null }) {
   const all = purchasePoint ? [purchasePoint, ...points] : points;
   const sorted = [...all].sort((a, b) => (a.date < b.date ? -1 : 1));
   const [from, setFrom] = useState(sorted[0]?.date ?? "");
   const [to, setTo] = useState(sorted.length ? sorted[sorted.length - 1].date : todayIso());
-
   const result = compareDates(points, from, to, purchasePoint);
 
   return (
-    <div className="space-y-4">
+    <div className="re-panel">
       <div className="grid gap-3 sm:grid-cols-2">
         <Labeled label="از تاریخ">
           <JalaliDatePicker value={from} onChange={setFrom} ariaLabel="از تاریخ" showToday={false} />
@@ -325,24 +303,47 @@ function ComparePanel({ points, purchasePoint }: { points: SnapshotPoint[]; purc
           <JalaliDatePicker value={to} onChange={setTo} ariaLabel="تا تاریخ" />
         </Labeled>
       </div>
-
       {!result.available ? (
         <Hint tone="warn">{result.reason}</Hint>
       ) : (
-        <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Metric label="ارزش در تاریخ شروع" value={<Toman value={result.from.valueToman} />} sub={<>≈ <Usd value={result.from.valueUsd} /> · <JDate iso={result.from.date} /></>} />
-            <Metric label="ارزش در تاریخ پایان" value={<Toman value={result.to.valueToman} />} sub={<>≈ <Usd value={result.to.valueUsd} /> · <JDate iso={result.to.date} /></>} />
-            <Metric label="تغییر تومانی" value={<DeltaToman value={result.tomanChange} />} sub={<DeltaPct value={result.tomanChangePct} />} />
-            <Metric label="تغییر دلاری" value={<DeltaUsd value={result.usdChange} />} sub={<DeltaPct value={result.usdChangePct} />} />
+        <dl className="metric-strip re-facts">
+          <div>
+            <dt>ارزش شروع</dt>
+            <dd>
+              <Toman value={result.from.valueToman} />
+            </dd>
+            <dd className="re-sub">
+              <Usd value={result.from.valueUsd} />
+            </dd>
           </div>
-          {Number(result.tomanChange) > 0 && Number(result.usdChange) < 0 && (
-            <Hint tone="warn">ارزش خودرو به تومان افزایش یافته اما ارزش دلاری آن کاهش یافته است.</Hint>
-          )}
-          {Number(result.tomanChange) < 0 && Number(result.usdChange) > 0 && (
-            <Hint tone="warn">ارزش خودرو به تومان کاهش یافته اما ارزش دلاری آن افزایش یافته است.</Hint>
-          )}
-        </>
+          <div>
+            <dt>ارزش پایان</dt>
+            <dd>
+              <Toman value={result.to.valueToman} />
+            </dd>
+            <dd className="re-sub">
+              <Usd value={result.to.valueUsd} />
+            </dd>
+          </div>
+          <div>
+            <dt>تغییر تومانی</dt>
+            <dd>
+              <DeltaToman value={result.tomanChange} />
+            </dd>
+            <dd className="re-sub">
+              <DeltaPct value={result.tomanChangePct} />
+            </dd>
+          </div>
+          <div>
+            <dt>تغییر دلاری</dt>
+            <dd>
+              <DeltaUsd value={result.usdChange} />
+            </dd>
+            <dd className="re-sub">
+              <DeltaPct value={result.usdChangePct} />
+            </dd>
+          </div>
+        </dl>
       )}
     </div>
   );
@@ -359,7 +360,7 @@ function ValuationForm({ item }: { item: VehicleDashboardItem }) {
   }
 
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} className="re-panel">
       <input type="hidden" name="catalogId" value={item.vehicle.catalogId} />
       <input type="hidden" name="vehicleId" value={item.vehicle.id} />
       <input type="hidden" name="scope" value={scope} />
@@ -374,19 +375,14 @@ function ValuationForm({ item }: { item: VehicleDashboardItem }) {
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <Labeled label="ارزش فعلی (تومان)" required>
-          <AmountInput className="field num" name="currentValueToman" inputMode="numeric" dir="ltr" placeholder="5300000000" unit="toman" required />
-        </Labeled>
         <Labeled label="تاریخ ارزش‌گذاری" required>
-          <JalaliDatePicker
-            name="snapshotDate"
-            defaultValue={todayIso()}
-            required
-            ariaLabel="تاریخ ارزش‌گذاری"
-          />
+          <JalaliDatePicker name="snapshotDate" defaultValue={todayIso()} required ariaLabel="تاریخ ارزش‌گذاری" />
         </Labeled>
-        <Labeled label="نرخ دلار (اختیاری)" hint="خالی بماند: نرخ همان تاریخ از سیستم نرخ ارز خوانده می‌شود.">
-          <AmountInput className="field num" name="usdRate" inputMode="numeric" placeholder="۲۱۰٬۰۰۰" showWords={false} />
+        <Labeled label="ارزش فعلی (تومان)" required>
+          <AmountInput className="field num" name="currentValueToman" inputMode="numeric" dir="ltr" unit="toman" required />
+        </Labeled>
+        <Labeled label="نرخ دلار (اختیاری)" hint="خالی بماند: نرخ همان تاریخ.">
+          <AmountInput className="field num" name="usdRate" inputMode="numeric" showWords={false} />
         </Labeled>
       </div>
 
@@ -394,14 +390,11 @@ function ValuationForm({ item }: { item: VehicleDashboardItem }) {
         <input className="field" name="note" placeholder="منبع ارزش‌گذاری، وضعیت خودرو…" />
       </Labeled>
 
-      <Hint>
-        هر ثبت، یک Snapshot جدید و تغییرناپذیر می‌سازد؛ Snapshotهای قبلی هرگز به‌روزرسانی نمی‌شوند. چرخه پیشنهادی
-        ارزش‌گذاری: هر دو هفته یک‌بار.
-      </Hint>
-
-      <button className="btn btn-primary" disabled={pending}>
-        {pending ? "در حال ثبت…" : "ثبت ارزش‌گذاری جدید"}
-      </button>
+      <div className="re-actions">
+        <button className="btn btn-primary" disabled={pending}>
+          {pending ? "در حال ثبت…" : "ثبت ارزش‌گذاری"}
+        </button>
+      </div>
       <Result state={state} />
     </form>
   );
@@ -421,8 +414,8 @@ function ManagePanel({
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <form action={detailAction} className="space-y-3">
-        <h4 className="text-[length:var(--fs-sm)] font-semibold">ویرایش اطلاعات جاری</h4>
+      <form action={detailAction} className="re-panel">
+        <p className="re-section-title">ویرایش اطلاعات</p>
         <input type="hidden" name="vehicleId" value={item.vehicle.id} />
         <div className="grid gap-3 sm:grid-cols-2">
           <Labeled label="پلاک">
@@ -435,29 +428,30 @@ function ManagePanel({
         <Labeled label="یادداشت">
           <input className="field" name="notes" defaultValue={item.vehicle.notes ?? ""} />
         </Labeled>
-        <p className="muted text-[length:var(--fs-xs)]">قیمت خرید، نرخ دلار خرید و Snapshotها از این مسیر قابل تغییر نیستند.</p>
-        <button className="btn" disabled={detailPending}>
-          {detailPending ? "در حال ذخیره…" : "ذخیره تغییرات"}
-        </button>
+        <div className="re-actions">
+          <button className="btn" disabled={detailPending}>
+            {detailPending ? "در حال ذخیره…" : "ذخیره"}
+          </button>
+        </div>
         <Result state={detailState} />
       </form>
 
-      {item.vehicle.status === "active" ? (
-        <form action={saleAction} className="space-y-3">
-          <h4 className="text-[length:var(--fs-sm)] font-semibold">ثبت فروش خودرو</h4>
+      {item.vehicle.status === "active" && (
+        <form action={saleAction} className="re-panel">
+          <p className="re-section-title">ثبت فروش</p>
           <input type="hidden" name="vehicleId" value={item.vehicle.id} />
           <div className="grid gap-3 sm:grid-cols-2">
             <Labeled label="تاریخ فروش" required>
               <JalaliDatePicker name="saleDate" defaultValue={todayIso()} required ariaLabel="تاریخ فروش" />
             </Labeled>
-            <Labeled label="قیمت واقعی فروش (تومان)" required>
+            <Labeled label="قیمت فروش (تومان)" required>
               <AmountInput className="field num" name="salePriceToman" inputMode="numeric" dir="ltr" unit="toman" required />
             </Labeled>
           </div>
           <Labeled label="نرخ دلار فروش (اختیاری)">
             <AmountInput className="field num" name="saleUsdRate" inputMode="numeric" placeholder="نرخ تاریخ فروش" showWords={false} />
           </Labeled>
-          <Labeled label="واریز وجه فروش به حساب (اختیاری)">
+          <Labeled label="واریز به حساب (اختیاری)" hint="با انتخاب حساب، سند فروش در دفترکل ثبت می‌شود.">
             <select className="field" name="saleAccountId" defaultValue="">
               <option value="">بدون ثبت در دفترکل</option>
               {payoutAccounts.map((a) => (
@@ -468,24 +462,13 @@ function ManagePanel({
               ))}
             </select>
           </Labeled>
-          <Hint tone="warn">قیمت واقعی فروش هرگز با «ارزش فعلی» یکی فرض نمی‌شود و مبنای بازدهی نهایی است.</Hint>
-          <Hint>
-            با انتخاب حساب دریافت، سند فروش در همان لحظه از مسیر یکپارچه دفترکل ثبت می‌شود (واریز خالص، نرخ دلار
-            فریزشده آن تاریخ و مانده‌ی نقد شما). بدون انتخاب، فروش فقط در شناسنامه خودرو ثبت می‌ماند.
-          </Hint>
-          <button className="btn" disabled={salePending}>
-            {salePending ? "در حال ثبت…" : "ثبت فروش"}
-          </button>
+          <div className="re-actions">
+            <button className="btn" disabled={salePending}>
+              {salePending ? "در حال ثبت…" : "ثبت فروش"}
+            </button>
+          </div>
           <Result state={saleState} />
         </form>
-      ) : (
-        <div className="space-y-2">
-          <h4 className="text-[length:var(--fs-sm)] font-semibold">اطلاعات فروش</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <Metric label="تاریخ فروش" value={<JDate iso={item.vehicle.saleDate} />} />
-            <Metric label="قیمت فروش" value={<Toman value={item.vehicle.salePriceToman} />} sub={<>≈ <Usd value={item.vehicle.saleValueUsd} /></>} />
-          </div>
-        </div>
       )}
     </div>
   );

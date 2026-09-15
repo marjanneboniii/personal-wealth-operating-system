@@ -14,11 +14,12 @@ import {
   settlementUnitOf,
   tradePairError,
   tradeRouteFor,
+  MARKET_TOMAN_MESSAGE,
   TOMAN_ONLY_MESSAGE,
 } from "../src/features/trade/rules";
 
 const ETH = { symbol: "ETH", classCode: "crypto", className: "رمزارز" };
-const US_STOCK = { symbol: "AAPLX", classCode: "equity", className: "سهام آمریکا" };
+const US_STOCK = { symbol: "AAPLX", classCode: "equity", className: "سهام توکنیزه" };
 const GOLD_FUND = { symbol: "طلا", classCode: "fund", className: "صندوق سرمایه‌گذاری" };
 const TSE_STOCK = { symbol: "فولاد", classCode: "stock", className: "سهام" };
 const MELTED_GOLD = { symbol: "GOLD18", classCode: "gold", className: "طلا" };
@@ -29,6 +30,9 @@ const BANK = { symbol: "IRT", walletKind: "bank", name: "بانک ملت" };
 const CASH_BOX = { symbol: "IRT", walletKind: "cash", name: "صندوق خانگی" };
 const TOMAN_FUND_WALLET = { symbol: "IRT", walletKind: "fund", name: "صندوق نقد" };
 const USDT_WALLET = { symbol: "USDT", walletKind: "exchange", name: "کیف تتر" };
+const TOMAN_EXCHANGE = { symbol: "IRT", walletKind: "exchange", walletName: "نوبیتکس", name: "تومان - نوبیتکس" };
+const TOMAN_FOREIGN = { symbol: "IRT", walletKind: "exchange", walletName: "بای‌بیت", name: "تومان - بای‌بیت" };
+const BROKER = { symbol: "IRT", walletKind: "broker", walletName: "کارگزاری مفید", name: "تومان - کارگزاری مفید" };
 
 test("every trade settles in Toman or a stablecoin — never in another position", () => {
   assert.equal(settlementUnitOf("IRT"), "toman");
@@ -40,20 +44,23 @@ test("every trade settles in Toman or a stablecoin — never in another position
   }
 });
 
-test("crypto, US shares and tokenised gold may be bought with Toman or with Tether", () => {
+test("crypto and tokenised assets trade with Toman at an Iranian exchange or with Tether — never a bank", () => {
   for (const asset of [ETH, { ...ETH, symbol: "SOL" }, US_STOCK, TOKENISED_GOLD]) {
     assert.equal(tradePairError("buy", asset, USDT_WALLET), null);
-    assert.equal(tradePairError("buy", asset, BANK), null);
+    assert.equal(tradePairError("buy", asset, TOMAN_EXCHANGE), null);
     assert.equal(tradePairError("sell", asset, USDT_WALLET), null);
+    for (const settle of [BANK, CASH_BOX, TOMAN_FUND_WALLET, BROKER, TOMAN_FOREIGN]) {
+      assert.equal(tradePairError("buy", asset, settle), MARKET_TOMAN_MESSAGE, `${asset.symbol} with ${settle.name}`);
+    }
   }
 });
 
-test("Iranian-market assets settle through a Toman BANK account only", () => {
+test("Iranian-market assets settle through Toman at a brokerage only", () => {
   for (const asset of [GOLD_FUND, TSE_STOCK, MELTED_GOLD, { symbol: "X", kind: "ir_fund" }]) {
     assert.ok(isTomanOnlyInstrument(asset), asset.symbol);
-    assert.equal(tradePairError("buy", asset, BANK), null, `${asset.symbol} with a bank`);
-    assert.equal(tradePairError("sell", asset, BANK), null);
-    for (const settle of [USDT_WALLET, CASH_BOX, TOMAN_FUND_WALLET, { symbol: "USDC" }]) {
+    assert.equal(tradePairError("buy", asset, BROKER), null, `${asset.symbol} at a brokerage`);
+    assert.equal(tradePairError("sell", asset, BROKER), null);
+    for (const settle of [BANK, TOMAN_EXCHANGE, USDT_WALLET, CASH_BOX, TOMAN_FUND_WALLET, { symbol: "USDC" }]) {
       assert.equal(tradePairError("buy", asset, settle), TOMAN_ONLY_MESSAGE, `${asset.symbol} with ${settle.symbol}`);
     }
   }
@@ -84,7 +91,8 @@ test("property and vehicle sales are paid into a Toman bank account only", () =>
 test("a stablecoin is swapped, not traded through FIFO; Toman itself is not tradable", () => {
   assert.equal(tradeRouteFor(USDT), "conversion");
   assert.equal(tradeRouteFor(ETH), "trade");
-  assert.equal(tradePairError("sell", USDT, CASH_BOX), null, "USDT may be sold into any Toman account");
+  assert.equal(tradePairError("sell", USDT, TOMAN_EXCHANGE), null, "USDT is sold for the Toman held at an Iranian exchange");
+  assert.equal(tradePairError("sell", USDT, CASH_BOX), MARKET_TOMAN_MESSAGE, "never straight into a cash box or a bank");
   assert.ok(tradePairError("sell", USDT, "USDT"), "same unit on both sides");
   assert.ok(tradePairError("buy", { symbol: "IRT" }, "USDT"));
 });

@@ -37,6 +37,8 @@ const DEFAULT_BASE_URL = "https://api.wallex.ir/v1";
 const DEFAULT_TIMEOUT_MS = 8_000;
 
 /** Coins that are a claim on a fiat unit. Kept in step with setup/service.ts. */
+import { withIssuerTag } from "@/features/pricing/wallexKinds";
+
 const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG", "PYUSD", "DAI", "FDUSD"]);
 /** Tokenised metal, surfaced as gold rather than as a generic coin. */
 const METAL_SYMBOLS = new Set(["XAUT", "PAXG"]);
@@ -244,15 +246,17 @@ export class WallexProvider implements PriceProvider {
     for (const [market, row] of Object.entries(symbols)) {
       if (str(row.quoteAsset)?.toUpperCase() !== "TMN") continue;
       const symbol = str(row.baseAsset)?.toUpperCase();
-      const displayName = str(row.faBaseAsset);
-      if (!symbol || !displayName) continue;
-      if (!isListed(symbol, kindOf(symbol, str(row.enBaseAsset) ?? ""))) continue;
+      const persianName = str(row.faBaseAsset);
+      if (!symbol || !persianName) continue;
+      const latinName = str(row.enBaseAsset) ?? "";
+      const kind = kindOf(symbol, latinName);
+      if (!isListed(symbol, kind)) continue;
       out.push({
         ref: market,
         symbol,
-        displayName,
-        latinName: str(row.enBaseAsset) ?? symbol,
-        kind: kindOf(symbol, str(row.enBaseAsset) ?? ""),
+        displayName: withIssuerTag(persianName, symbol, kind, latinName),
+        latinName: latinName || symbol,
+        kind,
         logoUrl: str(row.baseAsset_svg_icon) ?? str(row.baseAsset_png_icon),
       });
     }
@@ -314,7 +318,8 @@ export class WallexProvider implements PriceProvider {
 
       out.push({
         symbol,
-        displayName,
+        // A tokenised asset carries its issuer: «انویدیا استاک ایکس».
+        displayName: withIssuerTag(displayName, symbol, kind, str(named?.enBaseAsset) ?? ""),
         latinName: str(named?.enBaseAsset) ?? symbol,
         kind,
         logoUrl: str(named?.baseAsset_svg_icon) ?? str(named?.baseAsset_png_icon),

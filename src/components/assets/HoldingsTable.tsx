@@ -1,5 +1,14 @@
 import { D } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, trendArrow, trendColor } from "@/lib/format";
+import {
+  currencyLabel,
+  formatMoney,
+  formatPct,
+  formatQty,
+  formatSignedMoney,
+  persianAssetName,
+  trendArrow,
+  trendColor,
+} from "@/lib/format";
 import AssetLogo from "@/components/ui/AssetLogo";
 import { vehicleDisplayLabel } from "@/features/rwa/vehicle/display";
 import type { AssetValuation } from "@/features/portfolio/types";
@@ -52,8 +61,9 @@ export default function HoldingsTable({
             // Toman value — never a frozen USD figure re-scaled by today's rate.
             // The unit is printed only when it adds something: «۴» under
             // «اتریوم» needs no second «اتریوم».
+            const displayName = persianAssetName(a.symbol, vehicleDisplayLabel(a.name));
             const unitLabel = currencyLabel(a.symbol) || null;
-            const showUnit = unitLabel != null && unitLabel !== a.name;
+            const showUnit = unitLabel != null && unitLabel !== displayName;
 
             const pnlToman = D(a.unrealizedPnlToman);
             const qtyD = D(a.quantity);
@@ -81,7 +91,7 @@ export default function HoldingsTable({
                       {/* The short vehicle label drops the year and the repeated
                           assembler prefix; `title` keeps the full stored name. */}
                       <div className="truncate text-[length:var(--fs-sm)] font-semibold leading-6" dir="rtl" title={a.name}>
-                        {vehicleDisplayLabel(a.name)}
+                        {displayName}
                       </div>
                       <div className="muted truncate text-[length:var(--fs-xs)] leading-5" dir="rtl">
                         <span className="num">{formatQty(a.quantity, a.decimals)}</span>

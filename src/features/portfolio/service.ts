@@ -11,6 +11,7 @@ import {
   rwaValuationEvents,
   vehicleAssets,
   vehicleValuationSnapshots,
+  wallexAssetCatalog,
 } from "@/db/schema";
 import {
   getAccountBalances,
@@ -19,7 +20,7 @@ import {
   hasMultipleUsers,
 } from "@/features/ledger/queries";
 import { D, Decimal } from "@/domain/decimal";
-import { todayIso } from "@/lib/format";
+import { persianAssetName, todayIso } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { calculateMarketValuation, valueCoinGeckoAssets } from "@/features/valuation/service";
 import { calculateRoi, calculateUnrealizedPnl } from "./valuation";
@@ -862,6 +863,26 @@ export async function getPortfolioValuation(
           name: valuation.name,
         });
       }
+    }
+  }
+
+  // Persian names: an asset stored under a Latin name («Bitcoin», «Solana»)
+  // reads by its Persian name — the supported-coin name, else the market
+  // catalogue's. Display only; symbols, accounts and postings are untouched.
+  const latinNamed = assetValuations.filter((valuation) => !/[؀-ۿ]/.test(valuation.name));
+  if (latinNamed.length) {
+    let catalogNames = new Map<string, string>();
+    try {
+      const rows = await db
+        .select({ symbol: wallexAssetCatalog.symbol, displayName: wallexAssetCatalog.displayName })
+        .from(wallexAssetCatalog)
+        .where(inArray(wallexAssetCatalog.symbol, [...new Set(latinNamed.map((v) => v.symbol.toUpperCase()))]));
+      catalogNames = new Map(rows.map((row) => [row.symbol, row.displayName]));
+    } catch {
+      // No catalogue yet: the supported-coin names still apply.
+    }
+    for (const valuation of latinNamed) {
+      valuation.name = persianAssetName(valuation.symbol, valuation.name, catalogNames.get(valuation.symbol.toUpperCase()));
     }
   }
 

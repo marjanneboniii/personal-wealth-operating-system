@@ -15,6 +15,7 @@ import {
 import DualDateInput from "@/components/ui/DualDateInput";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import AmountInput from "@/components/ui/AmountInput";
+import Icon from "@/components/ui/Icon";
 import { PreviewCard, SmartAmountPreview } from "@/components/ui/SmartPreview";
 import { FormStatus } from "@/components/ui/FormStatus";
 
@@ -27,7 +28,7 @@ type Props = {
   defaultDirection?: ObligationDirection;
 };
 
-/** How the due dates are produced. `once` carries no schedule at all. */
+/** How the due dates are produced. `none` carries no schedule at all. */
 type ScheduleMode = "none" | "recurring" | "custom";
 
 const INTERVAL_LABELS: Record<number, string> = {
@@ -39,18 +40,34 @@ const INTERVAL_LABELS: Record<number, string> = {
   6: "هر ۶ ماه",
 };
 
+const SCHEDULE_TILES: Array<[ScheduleMode, string, string]> = [
+  ["none", "یکجا", "بدون قسط"],
+  ["recurring", "فاصله ثابت", "ماهانه یا چندماهه"],
+  ["custom", "سفارشی", "تاریخ‌های دلخواه"],
+];
+
+function Check() {
+  return (
+    <span className="expense-check" aria-hidden="true">
+      <Icon name="check" size={11} strokeWidth={3} />
+    </span>
+  );
+}
+
 /**
- * ثبت تعهد مالی — «بدهی من» یا «طلب من».
+ * ثبت تعهد مالی — «بدهی من» یا «طلب من», in the same plain cards as the
+ * transaction form:
+ *
+ *   این مورد چیست؟   بدهی من · طلب من
+ *   مشخصات           title, the other party, amount, interest, start date
+ *   برنامه           یکجا · فاصله ثابت · سفارشی — as tiles, then its fields
  *
  * ONE FORM, TWO DIRECTIONS. A debt and a receivable are the same contract read
- * from two ends, so they share one form; the direction switch at the top is not
- * a caption but the field that decides the sign of the cash leg when the
- * obligation is later settled.
+ * from two ends; the direction decides the sign of the cash leg when the
+ * obligation is later settled, and every label follows it.
  *
- * The submit button stays hidden behind a preview so an obligation can never be
- * created by an accidental click — and the preview now shows the ACTUAL
- * generated due dates, because a custom schedule is impossible to verify from a
- * count and a first date.
+ * The submit button stays behind a preview that lists the ACTUAL generated due
+ * dates, so an obligation is never created by an accidental click.
  */
 export default function DebtForm({
   today,
@@ -77,11 +94,10 @@ export default function DebtForm({
   const [showPreview, setShowPreview] = useState(false);
 
   const receivable = direction === "receivable";
-  // Every user-facing noun follows the direction. The vocabulary is not
-  // decoration: a form that says «بستانکار» while recording money owed TO the
-  // user is simply wrong, and the user has no other signal to catch it.
+  // Every user-facing noun follows the direction: a form that says «بستانکار»
+  // while recording money owed TO the user is simply wrong.
   const noun = receivable ? "طلب" : "بدهی";
-  const partyLabel = receivable ? "بدهکار (چه کسی به شما بدهکار است؟)" : "بستانکار (به چه کسی بدهکارید؟)";
+  const partyLabel = receivable ? "بدهکار" : "بستانکار";
 
   useEffect(() => {
     if (!state?.ok) return;
@@ -103,25 +119,14 @@ export default function DebtForm({
   }, [state?.ok, router]);
 
   const count = Math.max(0, Math.min(MAX_INSTALLMENTS, Number(installmentCount) || 0));
-  // Joined once so the memo below can depend on a plain value: the array
-  // identity changes on every keystroke, and the lint rule (rightly) refuses a
-  // computed expression in a dependency list.
+  // Joined once so the memo below depends on a plain value, not an array identity.
   const customDatesKey = customDates.filter((d) => d.length > 0).join(",");
-  const filledCustomDates = useMemo(
-    () => (customDatesKey ? customDatesKey.split(",") : []),
-    [customDatesKey],
-  );
+  const filledCustomDates = useMemo(() => (customDatesKey ? customDatesKey.split(",") : []), [customDatesKey]);
 
-  /**
-   * The due dates this schedule actually produces — computed with the SAME
-   * pure generator the server writes with, so the preview is the contract and
-   * not a second approximation of it.
-   */
+  /** The due dates this schedule produces — the SAME pure generator the server writes with. */
   const dueDates = useMemo(() => {
     if (scheduleMode === "custom") {
-      return filledCustomDates.length > 0
-        ? generateDueDates({ kind: "custom", dueDates: filledCustomDates })
-        : [];
+      return filledCustomDates.length > 0 ? generateDueDates({ kind: "custom", dueDates: filledCustomDates }) : [];
     }
     if (scheduleMode === "recurring" && count > 0 && firstDueDate) {
       return generateDueDates({
@@ -134,11 +139,7 @@ export default function DebtForm({
     return [];
   }, [scheduleMode, filledCustomDates, count, intervalMonths, firstDueDate]);
 
-  /**
-   * Per-installment amounts — the SAME exact split the server performs, so the
-   * preview shows the real figures including the one-Toman remainder rows. A
-   * preview that rounds differently from the write is worse than no preview.
-   */
+  /** Per-installment amounts — the SAME exact split the server performs. */
   const amounts = useMemo(() => {
     if (dueDates.length === 0 || !principalIrt || !D(principalIrt).gt(0)) return [];
     try {
@@ -156,8 +157,7 @@ export default function DebtForm({
   const principalUsd =
     principalIrt && initialRate && D(initialRate).gt(0) ? D(principalIrt).div(initialRate).toFixed(2) : "";
 
-  // A due date before the start date blocks the preview. It used to be only
-  // flagged: the warning rendered while the preview button stayed enabled.
+  // A due date before the start date blocks the preview.
   const firstDueBeforeStart =
     scheduleMode === "recurring" && Boolean(firstDueDate) && Boolean(startDate) && firstDueDate < startDate;
   const customDueBeforeStart =
@@ -172,6 +172,12 @@ export default function DebtForm({
     title.trim() && creditor.trim() && principalIrt && D(principalIrt).gt(0) && startDate && scheduleReady,
   );
 
+  const missing: string[] = [];
+  if (!title.trim()) missing.push("عنوان");
+  if (!creditor.trim()) missing.push(partyLabel);
+  if (!principalIrt || !D(principalIrt).gt(0)) missing.push("مبلغ");
+  if (!scheduleReady) missing.push("برنامه اقساط");
+
   const setCustomDate = (index: number, iso: string) =>
     setCustomDates((cur) => cur.map((d, i) => (i === index ? iso : d)));
 
@@ -184,81 +190,85 @@ export default function DebtForm({
       <input type="hidden" name="principalIrt" value={principalIrt} />
       <input type="hidden" name="interestRate" value={interestRate} />
       <input type="hidden" name="startDate" value={startDate} />
-      {/* A custom schedule submits ONLY its dates; a recurring one submits only
-          its count/interval/first date. The server picks the shape from what
-          arrives, so the two can never be silently blended. */}
-      <input
-        type="hidden"
-        name="installmentCount"
-        value={scheduleMode === "recurring" ? String(count) : "0"}
-      />
+      {/* A custom schedule submits ONLY its dates; a recurring one only its
+          count/interval/first date, so the two can never be blended. */}
+      <input type="hidden" name="installmentCount" value={scheduleMode === "recurring" ? String(count) : "0"} />
       <input type="hidden" name="intervalMonths" value={scheduleMode === "recurring" ? intervalMonths : "1"} />
-      <input
-        type="hidden"
-        name="customDueDates"
-        value={scheduleMode === "custom" ? filledCustomDates.join(",") : ""}
-      />
+      <input type="hidden" name="customDueDates" value={scheduleMode === "custom" ? filledCustomDates.join(",") : ""} />
       <input type="hidden" name="installmentIrt" value={installmentIrt} />
       <input type="hidden" name="firstDueDate" value={scheduleMode === "recurring" ? firstDueDate : ""} />
 
       {!showPreview ? (
-        <>
-          {/* ── DIRECTION ────────────────────────────────────────────────
-              First question on the form, because every label under it
-              depends on the answer. */}
-          <div>
-            <label className="label">این مورد چیست؟</label>
-            <div className="seg" role="group" aria-label="جهت تعهد">
-              <button
-                type="button"
-                onClick={() => setDirection("payable")}
-                className={direction === "payable" ? "seg-on" : ""}
-                aria-pressed={direction === "payable"}
-              >
-                بدهی من
-              </button>
-              <button
-                type="button"
-                onClick={() => setDirection("receivable")}
-                className={direction === "receivable" ? "seg-on" : ""}
-                aria-pressed={direction === "receivable"}
-              >
-                طلب من
-              </button>
+        <div className="expense-form">
+          {/* ── Direction — first, because every label below depends on it ── */}
+          <section className="card expense-card" aria-labelledby="debt-direction-title">
+            <header className="expense-head">
+              <h2 id="debt-direction-title">این مورد چیست؟</h2>
+            </header>
+            <div className="expense-squares debt-direction" role="radiogroup" aria-label="جهت تعهد">
+              {(
+                [
+                  ["payable", "بدهی من", "به کسی بدهکارم"],
+                  ["receivable", "طلب من", "کسی به من بدهکار است"],
+                ] as const
+              ).map(([value, label, meta]) => {
+                const on = direction === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    className="expense-square"
+                    data-on={on || undefined}
+                    onClick={() => setDirection(value)}
+                  >
+                    {on && <Check />}
+                    <span className="expense-square-label">{label}</span>
+                    <span className="expense-square-meta">{meta}</span>
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          </section>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="label">عنوان {noun}</label>
-              <input
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className="field"
-                placeholder={receivable ? "مثلاً طلب از شرکت X" : "مثلاً وام مسکن"}
-                autoComplete="off"
-              />
+          {/* ── Details ── */}
+          <section className="card expense-card" aria-labelledby="debt-details-title">
+            <header className="expense-head">
+              <h2 id="debt-details-title">مشخصات {noun}</h2>
+            </header>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label">عنوان</label>
+                <input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  className="field"
+                  placeholder={receivable ? "مثلاً طلب از شرکت X" : "مثلاً وام مسکن"}
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <label className="label">{partyLabel}</label>
+                <input
+                  value={creditor}
+                  onChange={(event) => setCreditor(event.target.value)}
+                  className="field"
+                  placeholder="مثلاً بانک یا شخص"
+                  autoComplete="off"
+                />
+              </div>
             </div>
             <div>
-              <label className="label">{partyLabel}</label>
-              <input
-                value={creditor}
-                onChange={(event) => setCreditor(event.target.value)}
-                className="field"
-                placeholder="مثلاً بانک یا شخص"
-                autoComplete="off"
-              />
-            </div>
-            <div>
-              <label className="label">اصل مبلغ به تومان</label>
+              <label className="label">مبلغ به تومان</label>
               <AmountInput
                 value={principalIrt}
                 onChange={(event) => setPrincipalIrt(event.target.value.replace(/[^0-9]/g, ""))}
-                className="field num !text-lg !font-bold"
+                className="field num"
                 inputMode="numeric"
                 dir="ltr"
                 unit="toman"
-                placeholder="مثلاً ۵۰۰٬۰۰۰٬۰۰۰"
+                placeholder="۰"
               />
               <div className="mt-2">
                 <SmartAmountPreview
@@ -269,118 +279,121 @@ export default function DebtForm({
                 />
               </div>
             </div>
-            <div>
-              <label className="label">نرخ سود سالانه (درصد)</label>
-              <AmountInput
-                value={interestRate}
-                onChange={(event) => setInterestRate(event.target.value)}
-                className="field num"
-                inputMode="decimal"
-                placeholder="۱۸"
-                showWords={false}
-                unit="none"
-              />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <DualDateInput
+                  name="startDatePreview"
+                  value={startDate}
+                  onChange={setStartDate}
+                  label={`تاریخ شروع ${noun}`}
+                  required
+                  showGregorian={false}
+                />
+              </div>
+              <div>
+                <label className="label">سود سالانه (٪، اختیاری)</label>
+                <AmountInput
+                  value={interestRate}
+                  onChange={(event) => setInterestRate(event.target.value)}
+                  className="field num"
+                  inputMode="decimal"
+                  placeholder="۰"
+                  showWords={false}
+                  unit="none"
+                />
+              </div>
             </div>
-            <div className="sm:col-span-2">
-              <DualDateInput
-                name="startDatePreview"
-                value={startDate}
-                onChange={setStartDate}
-                label={`تاریخ شروع ${noun}`}
-                required
-                showGregorian={false}
-              />
-            </div>
-          </div>
+          </section>
 
-          {/* ── SCHEDULE ────────────────────────────────────────────────── */}
-          <div className="rounded-[var(--r-lg)] border p-4" style={{ borderColor: "var(--border)" }}>
-            <h3 className="mb-3 text-[length:var(--fs-sm)] font-semibold">
-              {receivable ? "برنامه وصول" : "برنامه بازپرداخت"}
-            </h3>
-
-            <div className="seg mb-3 flex-wrap" role="group" aria-label="نوع زمان‌بندی">
-              <button
-                type="button"
-                onClick={() => setScheduleMode("none")}
-                className={scheduleMode === "none" ? "seg-on" : ""}
-                aria-pressed={scheduleMode === "none"}
-              >
-                یکجا (بدون قسط)
-              </button>
-              <button
-                type="button"
-                onClick={() => setScheduleMode("recurring")}
-                className={scheduleMode === "recurring" ? "seg-on" : ""}
-                aria-pressed={scheduleMode === "recurring"}
-              >
-                فاصله ثابت
-              </button>
-              <button
-                type="button"
-                onClick={() => setScheduleMode("custom")}
-                className={scheduleMode === "custom" ? "seg-on" : ""}
-                aria-pressed={scheduleMode === "custom"}
-              >
-                زمان‌بندی سفارشی
-              </button>
+          {/* ── Schedule ── */}
+          <section className="card expense-card" aria-labelledby="debt-schedule-title">
+            <header className="expense-head">
+              <h2 id="debt-schedule-title">{receivable ? "برنامه وصول" : "برنامه بازپرداخت"}</h2>
+            </header>
+            <div className="expense-squares" role="radiogroup" aria-label="نوع زمان‌بندی">
+              {SCHEDULE_TILES.map(([mode, label, meta]) => {
+                const on = scheduleMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    className="expense-square"
+                    data-on={on || undefined}
+                    onClick={() => setScheduleMode(mode)}
+                  >
+                    {on && <Check />}
+                    <span className="expense-square-label">{label}</span>
+                    <span className="expense-square-meta">{meta}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {scheduleMode === "recurring" && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="label">تعداد اقساط</label>
-                  <AmountInput
-                    value={installmentCount}
-                    onChange={(event) => setInstallmentCount(event.target.value)}
-                    className="field num"
-                    inputMode="numeric"
-                    placeholder="۱۲"
-                    showWords={false}
-                    unit="none"
-                    grouping={false}
-                  />
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="label">تعداد اقساط</label>
+                    <AmountInput
+                      value={installmentCount}
+                      onChange={(event) => setInstallmentCount(event.target.value)}
+                      className="field num"
+                      inputMode="numeric"
+                      placeholder="۱۲"
+                      showWords={false}
+                      unit="none"
+                      grouping={false}
+                    />
+                  </div>
+                  <div>
+                    <DualDateInput
+                      name="firstDueDatePreview"
+                      value={firstDueDate}
+                      onChange={setFirstDueDate}
+                      label="اولین سررسید"
+                      required
+                      showGregorian={false}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="label">فاصله اقساط</label>
-                  <select
-                    value={intervalMonths}
-                    onChange={(event) => setIntervalMonths(event.target.value)}
-                    className="field"
-                  >
-                    {RECURRING_INTERVALS.map((months) => (
-                      <option key={months} value={String(months)}>
-                        {INTERVAL_LABELS[months]}
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-1.5">
+                  <span className="label">فاصله اقساط</span>
+                  <div className="expense-squares" role="radiogroup" aria-label="فاصله اقساط">
+                    {RECURRING_INTERVALS.map((months) => {
+                      const on = intervalMonths === String(months);
+                      return (
+                        <button
+                          key={months}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          className="expense-square"
+                          data-on={on || undefined}
+                          onClick={() => setIntervalMonths(String(months))}
+                        >
+                          {on && <Check />}
+                          <span className="expense-square-label">{INTERVAL_LABELS[months]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="sm:col-span-2">
-                  <DualDateInput
-                    name="firstDueDatePreview"
-                    value={firstDueDate}
-                    onChange={setFirstDueDate}
-                    label="اولین سررسید"
-                    required
-                    showGregorian={false}
-                  />
-                  {firstDueBeforeStart && (
-                    <p className="neg mt-1 text-[length:var(--fs-xs)]">
-                      اولین سررسید باید در تاریخ شروع یا بعد از آن باشد.
-                    </p>
-                  )}
-                </div>
-              </div>
+                {firstDueBeforeStart && (
+                  <p className="expense-note expense-note-warn" role="alert">
+                    اولین سررسید باید در تاریخ شروع یا بعد از آن باشد.
+                  </p>
+                )}
+              </>
             )}
 
             {scheduleMode === "custom" && (
-              <div className="space-y-3">
-                <ul className="space-y-2.5">
+              <>
+                <ul className="debt-dates">
                   {customDates.map((iso, index) => (
-                    <li key={index} className="flex flex-wrap items-end gap-2">
-                      <span className="mb-2 shrink-0 text-[length:var(--fs-xs)] font-semibold leading-6">
-                        قسط <span className="num" dir="ltr">#{index + 1}</span>
-                      </span>
+                    <li key={index} className="debt-date-row">
+                      <span className="debt-date-seq">قسط {faCount(index + 1)}</span>
                       <div className="min-w-0 flex-1">
                         <JalaliDatePicker
                           value={iso || undefined}
@@ -393,31 +406,33 @@ export default function DebtForm({
                         <button
                           type="button"
                           onClick={() => setCustomDates((cur) => cur.filter((_, i) => i !== index))}
-                          className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]"
+                          className="icon-btn !min-h-9 !min-w-9"
                           aria-label={`حذف قسط ${index + 1}`}
                         >
-                          حذف
+                          <Icon name="x" size={15} />
                         </button>
                       )}
                     </li>
                   ))}
                 </ul>
-                {customDueBeforeStart && (
-                  <p className="neg text-[length:var(--fs-xs)]">سررسید اقساط باید در تاریخ شروع یا بعد از آن باشد.</p>
-                )}
                 <button
                   type="button"
                   onClick={() => setCustomDates((cur) => [...cur, ""])}
                   disabled={customDates.length >= MAX_INSTALLMENTS}
-                  className="btn btn-ghost !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)] disabled:opacity-40"
+                  className="expense-square expense-square-add debt-date-add disabled:opacity-40"
                 >
-                  افزودن قسط
+                  <span className="expense-square-label">+ افزودن قسط</span>
                 </button>
-              </div>
+                {customDueBeforeStart && (
+                  <p className="expense-note expense-note-warn" role="alert">
+                    سررسید اقساط باید در تاریخ شروع یا بعد از آن باشد.
+                  </p>
+                )}
+              </>
             )}
 
             {scheduleMode !== "none" && (
-              <div className="mt-3">
+              <div>
                 <label className="label">مبلغ هر قسط به تومان (اختیاری)</label>
                 <AmountInput
                   value={installmentIrt}
@@ -428,72 +443,90 @@ export default function DebtForm({
                   unit="toman"
                   placeholder={
                     dueDates.length
-                      ? `محاسبه خودکار: ${formatMoney(
-                          D(principalIrt || "0").div(String(dueDates.length)).toFixed(0),
-                          "IRT",
-                        )}`
+                      ? `محاسبه خودکار: ${formatMoney(D(principalIrt || "0").div(String(dueDates.length)).toFixed(0), "IRT")}`
                       : "ابتدا زمان‌بندی را کامل کنید"
                   }
                   disabled={dueDates.length === 0}
                 />
+                {dueDates.length > 0 && amounts.length > 0 && (
+                  <p className="expense-sub mt-1">
+                    {faCount(dueDates.length)} قسط · مجموع{" "}
+                    <span className="num" dir="rtl">
+                      {formatMoney(scheduleTotal.toFixed(0), "IRT")}
+                    </span>
+                  </p>
+                )}
               </div>
             )}
-          </div>
+          </section>
 
-          <button
-            type="button"
-            disabled={!canPreview}
-            onClick={() => setShowPreview(true)}
-            className="btn btn-primary w-full disabled:opacity-40"
-          >
-            پیش‌نمایش
-          </button>
-        </>
+          <div className="space-y-1.5">
+            <button
+              type="button"
+              disabled={!canPreview}
+              onClick={() => setShowPreview(true)}
+              className="btn btn-primary w-full disabled:opacity-40"
+            >
+              پیش‌نمایش
+            </button>
+            {!canPreview && missing.length > 0 && (
+              <p className="muted text-center text-[length:var(--fs-xs)]" role="status">
+                باقی مانده: {missing.join("، ")}
+              </p>
+            )}
+          </div>
+        </div>
       ) : (
         <PreviewCard title={`پیش‌نمایش ${noun}`}>
           <div className="space-y-2 text-[length:var(--fs-xs)] leading-6">
             <div className="grid gap-2 sm:grid-cols-2">
               <div>
-                <span className="muted">نوع:</span>{" "}
-                <strong>{receivable ? "طلب من (دریافتنی)" : "بدهی من (پرداختنی)"}</strong>
+                <span className="muted">نوع:</span> <strong>{receivable ? "طلب من (دریافتنی)" : "بدهی من (پرداختنی)"}</strong>
               </div>
-              <div><span className="muted">عنوان:</span> <strong>{title}</strong></div>
               <div>
-                <span className="muted">{receivable ? "بدهکار" : "بستانکار"}:</span> <strong>{creditor}</strong>
+                <span className="muted">عنوان:</span> <strong>{title}</strong>
+              </div>
+              <div>
+                <span className="muted">{partyLabel}:</span> <strong>{creditor}</strong>
               </div>
               <div>
                 <span className="muted">اصل مبلغ:</span>{" "}
-                <strong className="num" dir="rtl">{formatMoney(principalIrt, "IRT")}</strong>
+                <strong className="num" dir="rtl">
+                  {formatMoney(principalIrt, "IRT")}
+                </strong>
               </div>
               <div>
                 <span className="muted">معادل تقریبی پایه:</span>{" "}
-                <strong className="num" dir="rtl">{principalUsd ? formatMoney(principalUsd, "USD") : "—"}</strong>
+                <strong className="num" dir="rtl">
+                  {principalUsd ? formatMoney(principalUsd, "USD") : "—"}
+                </strong>
               </div>
               <div>
                 <span className="muted">نرخ سود:</span>{" "}
-                <strong className="num" dir="rtl">{formatPct(interestRate || "0", 2)}</strong>
+                <strong className="num" dir="rtl">
+                  {formatPct(interestRate || "0", 2)}
+                </strong>
               </div>
               <div>
                 <span className="muted">شروع:</span>{" "}
-                <strong className="num" dir="rtl">{formatJalaliIso(startDate)}</strong>
+                <strong className="num" dir="rtl">
+                  {formatJalaliIso(startDate)}
+                </strong>
               </div>
             </div>
 
             {dueDates.length > 0 && (
               <div className="soft rounded-[var(--r-md)] p-3">
                 <div className="font-semibold">
-                  برنامه اقساط ·{" "}
-                  {scheduleMode === "custom"
-                    ? "زمان‌بندی سفارشی"
-                    : INTERVAL_LABELS[Number(intervalMonths) || 1]}
+                  برنامه اقساط · {scheduleMode === "custom" ? "زمان‌بندی سفارشی" : INTERVAL_LABELS[Number(intervalMonths) || 1]}
                 </div>
                 <div className="muted mt-1">
                   {faCount(dueDates.length)} قسط · مجموع{" "}
-                  <span className="num" dir="rtl">{formatMoney(scheduleTotal.toFixed(0), "IRT")}</span>
+                  <span className="num" dir="rtl">
+                    {formatMoney(scheduleTotal.toFixed(0), "IRT")}
+                  </span>
                 </div>
-                {/* EVERY date is listed, not a sample: a custom schedule cannot
-                    be verified from the first four rows, and the whole reason
-                    the user chose custom is that the dates are irregular. */}
+                {/* EVERY date is listed: an irregular schedule cannot be verified from a sample. */}
                 <ul className="mt-2 grid gap-x-4 gap-y-1 text-[length:var(--fs-xs)] sm:grid-cols-2">
                   {dueDates.map((due, index) => (
                     <li key={`${due}-${index}`} className="flex justify-between gap-2">

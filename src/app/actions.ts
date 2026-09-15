@@ -33,7 +33,8 @@ import {
   tradeRouteFor,
   type TradeSide,
 } from "@/features/trade/rules";
-import { sameWallet, venueTradeError, venueTransferError } from "@/features/trade/venues";
+import { sameWallet, transferDestinationError, venueTradeError } from "@/features/trade/venues";
+import { networksForHolding } from "@/features/trade/networks";
 import { getCryptoNetworksOf } from "@/features/trade/networkSync";
 import { canonicalWalletName, holdingAccountName, walletKindOf } from "@/features/setup/holdingWallets";
 import { sellRealEstateAsset } from "@/features/rwa/realEstate/service";
@@ -203,8 +204,10 @@ export async function createWalletAction(input: { name: string; kind: string; no
 
 const moneyAccountSchema = z.object({
   name: z.string().trim().min(2, "نام حساب را وارد کنید"),
-  kind: z.enum(["bank", "cash", "exchange", "hot", "cold", "fund"]),
+  kind: z.enum(["bank", "cash", "exchange", "broker", "hot", "cold", "fund"]),
   assetId: z.string().min(1, "ارز حساب را انتخاب کنید"),
+  /** The exchange, brokerage or wallet picked from the catalogue. */
+  placeName: z.string().trim().max(80).optional().default(""),
   openingQty: z.string().optional().default(""),
   openingDate: z.string().optional().default(""),
   note: z.string().optional().default(""),
@@ -236,6 +239,7 @@ export async function createMoneyAccountAction(input: unknown): Promise<ActionRe
       name: v.name,
       kind: v.kind,
       assetId: v.assetId,
+      placeName: v.placeName || undefined,
       openingQty: v.openingQty || undefined,
       openingDate: v.openingDate || undefined,
       note: v.note || undefined,
@@ -980,18 +984,30 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         const [toRow] = await tx.select({ id: accounts.id, type: accounts.type }).from(accounts).where(eq(accounts.id, input.counterAccountId)).limit(1);
         if (!fromRow || fromRow.type !== "asset") throw new Error("حساب مبدأ انتقال نامعتبر است (باید حساب دارایی باشد)");
         if (!toRow || toRow.type !== "asset") throw new Error("حساب مقصد انتقال نامعتبر است (باید حساب دارایی باشد)");
-        // A coin can only be sent to a place that supports its network (no Bitcoin to Rabby or MetaMask).
-        const [destination] = await tx
-          .select({ symbol: assets.symbol, walletName: wallets.name, walletKind: wallets.kind })
-          .from(accounts)
-          .leftJoin(assets, eq(assets.id, accounts.assetId))
-          .leftJoin(wallets, eq(wallets.id, accounts.walletId))
-          .where(eq(accounts.id, input.counterAccountId))
-          .limit(1);
-        const transferError = venueTransferError(
-          destination?.symbol,
-          destination,
-          await getCryptoNetworksOf(destination?.symbol, tx),
+        // Toman moves between banks, exchange Toman and brokerage Toman; a coin or
+        // a tokenised asset only to the same asset at an exchange or a wallet
+        // that supports its network (no Bitcoin to Rabby).
+        const loadPlace = (id: string) =>
+          tx
+            .select({
+              symbol: assets.symbol,
+              classCode: assetClasses.code,
+              walletName: wallets.name,
+              walletKind: wallets.kind,
+              name: accounts.name,
+            })
+            .from(accounts)
+            .leftJoin(assets, eq(assets.id, accounts.assetId))
+            .leftJoin(assetClasses, eq(assetClasses.id, assets.classId))
+            .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+            .where(eq(accounts.id, id))
+            .limit(1);
+        const [source] = await loadPlace(input.primaryAccountId);
+        const [destination] = await loadPlace(input.counterAccountId);
+        const transferError = transferDestinationError(
+          source ?? {},
+          destination ?? {},
+          networksForHolding(destination?.symbol, destination?.classCode, await getCryptoNetworksOf(destination?.symbol, tx)),
         );
         if (transferError) throw new Error(transferError);
 
@@ -1085,21 +1101,15 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
         const pairError = tradePairError(side, assetRow, cashRow);
         if (pairError) throw new Error(pairError);
 
-        // WHERE the trade happens: an Iranian exchange (Toman from a bank, or
-        // Tether), a foreign exchange (USDT / USDC), or a self-custody wallet
-        // (stablecoin swap, only on networks it supports). Iranian-market assets
-        // are already bound to a bank account above.
+        // WHERE the trade happens: an Iranian exchange (the Toman or Tether held
+        // there), a foreign exchange (USDT / USDC), or a self-custody wallet
+        // (stablecoin swap, only on networks it supports). Money pays only where
+        // it is held, so a buy is held at the paying account's place.
+        // Iranian-market assets are already bound to brokerage Toman above.
         if (!isTomanOnlyInstrument(assetRow)) {
           const assetPlace = { walletName: assetRow.walletName, walletKind: assetRow.walletKind };
-          const tomanSettle = settlementUnitOf(cashRow.symbol) === "toman";
           const targetPlace =
-            side === "sell"
-              ? assetPlace
-              : tomanSettle
-                ? input.placeName
-                  ? { walletName: input.placeName, walletKind: "exchange" }
-                  : assetPlace
-                : { walletName: cashRow.walletName, walletKind: cashRow.walletKind };
+            side === "sell" ? assetPlace : { walletName: cashRow.walletName, walletKind: cashRow.walletKind };
           const assetNetworks = await getCryptoNetworksOf(assetRow.symbol, tx);
           const venueError = venueTradeError(
             side,
@@ -1935,6 +1945,8 @@ const setupSchema = z.object({
   cashAssetSymbol: z.enum(["IRT", "USD", "USDT"]).optional(),
   bankOpeningBalance: z.string().optional(),
   cashOpeningBalance: z.string().optional(),
+  /** Toman held at Iranian exchanges and brokerages, as a JSON array. */
+  tomanPlaces: z.string().optional(),
   /** Symbol of the coin the user picked; validated against the registry in
    *  the service, where an unknown value simply means "no crypto wallet". */
   cryptoSymbol: z.string().optional(),
@@ -1981,6 +1993,12 @@ const setupCryptoSchema = z.object({
   priceCurrency: z.enum(["USD", "USDT", "IRT"]).optional(),
   /** Where the coin is held (exchange or wallet). Same name ⇒ same wallet. */
   walletName: z.string().trim().max(80).optional(),
+});
+
+/** Toman at one Iranian exchange or brokerage — «تومان - نوبیتکس». */
+const setupTomanPlaceSchema = z.object({
+  walletName: z.string().trim().min(1).max(80),
+  balance: z.string().optional(),
 });
 
 /**
@@ -2045,6 +2063,7 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
       vehicles: vehiclesJson,
       properties: propertiesJson,
       cryptoHoldings: cryptoJson,
+      tomanPlaces: tomanPlacesJson,
       ...rest
     } = setupSchema.parse(raw);
 
@@ -2054,9 +2073,10 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
     const cryptoHoldings = parseSetupList(cryptoJson, setupCryptoSchema, "فهرست رمزارزها");
     const vehicles = parseSetupList(vehiclesJson, setupVehicleSchema, "فهرست خودرو");
     const properties = parseSetupList(propertiesJson, setupPropertySchema, "فهرست ملک");
+    const tomanPlaces = parseSetupList(tomanPlacesJson, setupTomanPlaceSchema, "فهرست تومان صرافی و کارگزاری");
 
     const result = await completeSetup(
-      { ...rest, instruments, cryptoHoldings, vehicles, properties },
+      { ...rest, instruments, cryptoHoldings, tomanPlaces, vehicles, properties },
       setupUser?.id,
     );
     // Occupations are an optional profile field: a malformed value never fails the setup.

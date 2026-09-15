@@ -74,7 +74,7 @@ export default async function LoansPage() {
             />
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="obl-list">
             {sorted.map((d) => (
               <ObligationCard key={d.id} d={d} today={today} rate={fx.rate} />
             ))}

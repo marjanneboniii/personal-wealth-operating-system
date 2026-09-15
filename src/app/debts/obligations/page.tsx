@@ -4,6 +4,7 @@ import { seedIfEmpty } from "@/db/seed";
 import { listEvents, listObligations, upcomingInstallments } from "@/features/planning/service";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import Icon from "@/components/ui/Icon";
 import { formatDaysUntil, formatJalaliIso, todayIso, faCount, formatTomanPrimary, sumToman } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
@@ -91,7 +92,15 @@ export default async function ObligationsPage() {
   return (
     <div className="space-y-7">
       <div>
-        <PageHeader title="تعهدات آینده" />
+        <PageHeader
+          title="تعهدات آینده"
+          action={
+            <Link href="/goals" className="btn btn-primary">
+              <Icon name="plus" size={16} />
+              افزودن تعهد
+            </Link>
+          }
+        />
         <ModuleTabs tabs={DEBT_TABS} active="/debts/obligations" label="بخش‌های تعهدات" />
       </div>
 
@@ -120,49 +129,41 @@ export default async function ObligationsPage() {
             />
           </div>
         ) : (
-          <div className="card overflow-x-auto">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th scope="col">عنوان</th>
-                  <th scope="col">سررسید</th>
-                  <th scope="col" className="td-num">مبلغ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => {
-                  const d = daysUntil(r.date);
-                  const late = r.date < today;
-                  const soon = !late && d <= 14;
-                  const disp = formatTomanPrimary(r.amountToman, fx.rate);
-                  return (
-                    <tr key={r.id}>
-                      <td style={{ minWidth: "10rem" }}>
-                        <span className="block text-[length:var(--fs-sm)] font-medium">{r.title}</span>
-                        <span className="muted block text-[length:var(--fs-xs)]">
-                          {r.kind}
-                          {r.detail ? ` · ${r.detail}` : ""}
-                        </span>
-                      </td>
-                      <td style={{ whiteSpace: "nowrap" }}>
-                        <span className="num block text-[length:var(--fs-xs)]">{formatJalaliIso(r.date)}</span>
-                        <span
-                          className="num text-[length:var(--fs-xs)]"
-                          style={{ color: late ? "var(--negative)" : soon ? "var(--warning)" : "var(--text-3)" }}
-                        >
-                          {formatDaysUntil(d)}
-                        </span>
-                      </td>
-                      <td className="td-num" dir="rtl">
-                        <div className="font-semibold">{disp.primary}</div>
-                        {disp.usdHint && <div className="muted num text-[length:var(--fs-xs)]">≈ {disp.usdHint}</div>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ul className="obl-list" aria-label="زمان‌بندی تعهدات">
+            {rows.map((r) => {
+              const d = daysUntil(r.date);
+              const late = r.date < today;
+              const soon = !late && d <= 14;
+              const disp = formatTomanPrimary(r.amountToman, fx.rate);
+              return (
+                <li key={r.id} className="obl-row">
+                  <span className="obl-dot" data-tone={late ? "late" : soon ? "soon" : undefined} aria-hidden="true" />
+                  <div className="obl-main">
+                    <span className="obl-title">{r.title}</span>
+                    <span className="obl-meta">
+                      {r.kind}
+                      {r.detail ? ` · ${r.detail}` : ""}
+                    </span>
+                  </div>
+                  <div className="obl-side">
+                    <span className="num money-nowrap obl-amount" dir="rtl">
+                      {disp.primary}
+                    </span>
+                    <span className="obl-when">
+                      <span className="num">{formatJalaliIso(r.date)}</span>
+                      <span aria-hidden="true"> · </span>
+                      <span
+                        className="whitespace-nowrap"
+                        style={{ color: late ? "var(--negative)" : soon ? "var(--warning)" : "var(--text-3)" }}
+                      >
+                        {formatDaysUntil(d)}
+                      </span>
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </Section>
     </div>

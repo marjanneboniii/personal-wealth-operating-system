@@ -3,7 +3,7 @@
  *
  * WHY THIS LIVES HERE AND NOT ONLY IN THE SERVER ACTION
  * It used to be written inline in `registerWallexAssetAction`. The setup
- * wizard now registers Wallex assets too (سهام آمریکا، کامودیتی), and it must
+ * wizard now registers Wallex assets too (سهام و کامودیتی توکنیزه), and it must
  * do so INSIDE its own transaction — the one that also posts the opening
  * entry — so a wizard that fails half-way leaves no stray asset rows. On the
  * single-connection PGlite driver a write on the global `db` from inside that
@@ -37,7 +37,7 @@ const CLASS_BY_KIND: Record<string, ClassSeed> = {
   // presentation choice, not a different asset class.
   meme: { code: "crypto", name: "رمزارز", color: "#c9cafa", sortOrder: 3 },
   stablecoin: { code: "stable", name: "استیبل‌کوین", color: "#9aa3c7", sortOrder: 2 },
-  tokenized_stock: { code: "equity", name: "سهام آمریکا", color: "#5b8def", sortOrder: 7 },
+  tokenized_stock: { code: "equity", name: "سهام توکنیزه", color: "#5b8def", sortOrder: 7 },
   commodity: { code: "commodity", name: "کالا", color: "#b07a3a", sortOrder: 8 },
   index: { code: "etf", name: "شاخص", color: "#6a7fd9", sortOrder: 9 },
   bond: { code: "security", name: "اوراق قرضه", color: "#44506b", sortOrder: 10 },

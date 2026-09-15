@@ -8,6 +8,8 @@ import { registerSetupDebtsAction, validateSetupDebtsAction } from "@/app/action
 import { faCount, formatMoney, formatQty } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
+import AssetLogo from "@/components/ui/AssetLogo";
+import { KNOWN_WALLETS } from "@/features/setup/holdingWallets";
 import StepIntro, { CurrencySwitch } from "@/components/setup/StepIntro";
 import SetupHoldingsStep, { flattenHoldings, type CryptoDraftRow } from "@/components/setup/SetupHoldingsStep";
 import SetupInstrumentsStep, { type InstrumentDraftRow } from "@/components/setup/SetupInstrumentsStep";
@@ -36,6 +38,12 @@ import { OCCUPATIONS } from "@/features/income/occupations";
 
 const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک", "خودرو", "بدهی‌ها", "تأیید"] as const;
 const LAST_STEP = STEPS.length;
+
+/** Places that hold Toman: Iranian exchanges (crypto) and brokerages (Tehran market). */
+const TOMAN_PLACE_GROUPS: Array<[string, typeof KNOWN_WALLETS]> = [
+  ["صرافی داخلی", KNOWN_WALLETS.filter((w) => w.region === "ir")],
+  ["کارگزاری", KNOWN_WALLETS.filter((w) => w.kind === "broker")],
+];
 const PROPERTIES_STEP = 5;
 const VEHICLES_STEP = 6;
 const DEBTS_STEP = 7;
@@ -80,6 +88,12 @@ export default function SetupWizardPage() {
   const [cashName, setCashName] = useState("صندوق خانگی");
   const [cashCurrency, setCashCurrency] = useState<"IRT" | "USD">("IRT");
   const [cashBalance, setCashBalance] = useState("");
+  // Toman held at an Iranian exchange or a brokerage — «تومان - نوبیتکس».
+  const [tomanPlaces, setTomanPlaces] = useState<Array<{ walletName: string; balance: string }>>([]);
+  const toggleTomanPlace = (walletName: string) =>
+    setTomanPlaces((rows) =>
+      rows.some((r) => r.walletName === walletName) ? rows.filter((r) => r.walletName !== walletName) : [...rows, { walletName, balance: "" }],
+    );
 
   // Steps 3–6 — holdings and obligations, drafts until the final confirm.
   const [cryptoRows, setCryptoRows] = useState<CryptoDraftRow[]>([]);
@@ -170,6 +184,12 @@ export default function SetupWizardPage() {
       });
     }
 
+    for (const place of tomanPlaces) {
+      if (amountOf(place.balance).gt(0)) {
+        money.push({ key: `toman-${place.walletName}`, label: `تومان - ${place.walletName}`, toman: amountOf(place.balance) });
+      }
+    }
+
     const investments: ReviewItem[] = [];
     let usesRate = cashCurrency === "USD" && hasCash && amountOf(cashBalance).gt(0);
     for (const row of flattenHoldings(cryptoRows)) {
@@ -211,7 +231,7 @@ export default function SetupWizardPage() {
     const assetsTotal = sum(money).add(sum(investments)).add(sum(real));
     const debtsTotal = sum(debts);
     return { money, investments, real, debts, assetsTotal, debtsTotal, net: assetsTotal.sub(debtsTotal), usesRate };
-  }, [bankBalance, bankAccountName, hasCash, cashBalance, cashName, cashCurrency, rate, cryptoRows, goldGrams, goldPrice, instrumentRows, readyVehicles, readyProperties, debtRows]);
+  }, [bankBalance, bankAccountName, tomanPlaces, hasCash, cashBalance, cashName, cashCurrency, rate, cryptoRows, goldGrams, goldPrice, instrumentRows, readyVehicles, readyProperties, debtRows]);
 
   // Every coin needs at least one picked place before the wizard moves on.
   const holdingsPlaced = cryptoRows.every((r) => r.places.length > 0);
@@ -410,7 +430,7 @@ export default function SetupWizardPage() {
                 </li>
                 <li>
                   <span className="setup-unit">تتر یا تومان</span>
-                  <span className="muted text-[length:var(--fs-xs)] leading-6">رمزارز، سهام آمریکا، شاخص و کامودیتی</span>
+                  <span className="muted text-[length:var(--fs-xs)] leading-6">رمزارز، سهام، شاخص و کامودیتی توکنیزه</span>
                 </li>
                 <li>
                   <span className="setup-unit">دلار</span>
@@ -540,6 +560,61 @@ export default function SetupWizardPage() {
                 </div>
               )}
             </div>
+
+            <div className="card setup-row space-y-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flow-icon" aria-hidden="true">
+                  <Icon name="coins" size={15} />
+                </span>
+                <b className="min-w-0 flex-1 text-[length:var(--fs-sm)]">تومان در صرافی و کارگزاری</b>
+                <span className="badge badge-neutral">تومان</span>
+              </div>
+              <p className="muted text-[length:var(--fs-xs)] leading-6">
+                رمزارز و دارایی توکنیزه با تومانِ صرافی داخلی، و سهام بورسی، صندوق و طلای آنلاین با تومانِ کارگزاری معامله
+                می‌شوند. هر مورد را با یک لمس اضافه کنید.
+              </p>
+              {TOMAN_PLACE_GROUPS.map(([title, places]) => (
+                <div key={title} className="space-y-2">
+                  <p className="muted text-[length:var(--fs-xs)] font-semibold">{title}</p>
+                  <div className="expense-squares" role="group" aria-label={title}>
+                    {places.map((w) => {
+                      const on = tomanPlaces.some((p) => p.walletName === w.name);
+                      return (
+                        <button
+                          key={w.name}
+                          type="button"
+                          className="expense-square"
+                          data-on={on || undefined}
+                          aria-pressed={on}
+                          onClick={() => toggleTomanPlace(w.name)}
+                        >
+                          {w.logo && <AssetLogo userLogoUrl={w.logo} name={w.name} size={22} />}
+                          <span className="expense-square-label">{w.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {tomanPlaces.map((p) => (
+                <div key={p.walletName}>
+                  <label className="label">{`موجودی تومان - ${p.walletName}`}</label>
+                  <AmountInput
+                    inputMode="numeric"
+                    value={p.balance}
+                    onChange={(e) =>
+                      setTomanPlaces((rows) =>
+                        rows.map((r) => (r.walletName === p.walletName ? { ...r, balance: e.target.value.replace(/[^\d]/g, "") } : r)),
+                      )
+                    }
+                    placeholder="۰"
+                    className="field num"
+                    dir="ltr"
+                    unit="toman"
+                  />
+                </div>
+              ))}
+            </div>
           </section>
         )}
 
@@ -664,6 +739,7 @@ export default function SetupWizardPage() {
           </section>
         )}
 
+        <input type="hidden" name="tomanPlaces" value={JSON.stringify(tomanPlaces)} />
         <div className="setup-nav">
           {step > 1 && (
             <button type="button" onClick={back} disabled={pending} className="btn btn-ghost">

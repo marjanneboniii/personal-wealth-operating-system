@@ -90,7 +90,9 @@ export default function AssetValuationSummary({
    */
   extra?: { name: string; toman?: string | null; usd: string; signed?: boolean };
 }) {
-  const pnlTone = toneColor(trendTone(totals.pnlToman));
+  // Each currency is coloured by its OWN sign: a Toman gain beside a USD loss
+  // is green then red, never both green.
+  const toneOf = (value: string | number) => toneColor(trendTone(value));
   const groups: {
     name: string;
     lines: { label: string; value: string; tone?: string }[];
@@ -112,21 +114,21 @@ export default function AssetValuationSummary({
     {
       name: "سود / زیان تحقق‌نیافته",
       lines: [
-        { label: "سود/زیان تحقق‌نیافته تومانی", value: formatSignedMoney(totals.pnlToman, "IRT"), tone: pnlTone },
-        { label: "سود/زیان تحقق‌نیافته دلاری", value: formatSignedMoney(totals.pnlUsd, "USD"), tone: pnlTone },
+        { label: "سود/زیان تحقق‌نیافته تومانی", value: formatSignedMoney(totals.pnlToman, "IRT"), tone: toneOf(totals.pnlToman) },
+        { label: "سود/زیان تحقق‌نیافته دلاری", value: formatSignedMoney(totals.pnlUsd, "USD"), tone: toneOf(totals.pnlUsd) },
       ],
     },
   ];
 
   if (extra) {
-    const extraTone = toneColor(trendTone(extra.signed ? (extra.toman ?? extra.usd) : 0));
     const fmt = (value: string, currency: "IRT" | "USD") =>
       extra.signed ? formatSignedMoney(value, currency) : formatMoney(value, currency);
+    const lineTone = (value: string) => (extra.signed ? toneOf(value) : toneOf(0));
     groups.push({
       name: extra.name,
       lines: [
-        ...(extra.toman != null ? [{ label: `${extra.name} تومانی`, value: fmt(extra.toman, "IRT"), tone: extraTone }] : []),
-        { label: `${extra.name} دلاری`, value: fmt(extra.usd, "USD"), tone: extraTone },
+        ...(extra.toman != null ? [{ label: `${extra.name} تومانی`, value: fmt(extra.toman, "IRT"), tone: lineTone(extra.toman) }] : []),
+        { label: `${extra.name} دلاری`, value: fmt(extra.usd, "USD"), tone: lineTone(extra.usd) },
       ],
     });
   }

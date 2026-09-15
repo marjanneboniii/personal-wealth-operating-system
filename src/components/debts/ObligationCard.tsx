@@ -67,7 +67,7 @@ export default function ObligationCard({ d, today, rate }: { d: ObligationCardDa
   )}`;
 
   return (
-    <li className={`card obligation-card${settled ? " is-settled" : ""}`}>
+    <li className={`obl-card${settled ? " is-settled" : ""}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -130,7 +130,7 @@ export default function ObligationCard({ d, today, rate }: { d: ObligationCardDa
                   {d.nextDue.amountToman != null ? formatMoney(d.nextDue.amountToman, "IRT") : "—"}
                 </b>
                 <span aria-hidden="true"> · </span>
-                <span className="num">{dDays != null ? formatDaysUntil(dDays) : "—"}</span>
+                <span className="whitespace-nowrap">{dDays != null ? formatDaysUntil(dDays) : "—"}</span>
               </>
             ) : (
               "بدون زمان‌بندی"

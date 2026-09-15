@@ -36,11 +36,11 @@ import { useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon, { type IconName } from "@/components/ui/Icon";
-import AssetLogo from "@/components/ui/AssetLogo";
-import WallexAssetPicker from "@/components/assets/WallexAssetPicker";
 import { loadMarketCatalog } from "@/components/assets/marketCatalogClient";
-import DebtInstallmentExplorer, { type DebtOption } from "./DebtInstallmentExplorer";
+import DebtRepaymentFields, { type DebtOption } from "./DebtRepaymentFields";
 import ExpenseFields from "./ExpenseFields";
+import TradeFields from "./TradeFields";
+import TransferFields from "./TransferFields";
 import { D } from "@/domain/decimal";
 import { isLiquidAccount } from "@/features/accounts/classification";
 import type { MarketRow } from "@/features/pricing/marketSearch";
@@ -55,8 +55,8 @@ import {
   tradePairError,
   type PriceUnit,
 } from "@/features/trade/rules";
-import { DOMESTIC_EXCHANGE_NAMES, venueTradeError, venueTransferError } from "@/features/trade/venues";
-import { AutomobileLogo, RealEstateLogo } from "@/components/ui/IranLogo";
+import { transferDestinationError, venueTradeError } from "@/features/trade/venues";
+import { networksForHolding } from "@/features/trade/networks";
 import { jalaliDayOf } from "@/features/income/recurring";
 
 /** A property or vehicle the user owns, sellable from «فروش دارایی». */
@@ -131,8 +131,6 @@ type TxType = (typeof TYPES)[number]["key"];
 
 /** Units a money account holds that are never «an asset you trade». */
 const FIAT_SYMBOLS = new Set(["IRT", "IRR", "USD"]);
-/** Units the existing FX engine can anchor a cross-unit transfer on. */
-const SWAP_ANCHOR_ASSETS = new Set(["IRT", "USD", "USDT", "USDC", "USDG", "USDE", "USDS"]);
 
 /** An account by NAME and unit — never by its ledger code. */
 function accountLabel(a: AccountOption | undefined | null): string {
@@ -150,13 +148,6 @@ function accountLabel(a: AccountOption | undefined | null): string {
 function resolve(id: string, options: AccountOption[], autoSingle = true): string {
   if (id && options.some((o) => o.id === id)) return id;
   return autoSingle && options.length === 1 ? options[0].id : "";
-}
-
-/** Cut (never round up) to `decimals` places — «همه» must not exceed the holding. */
-function cutDecimals(value: string, decimals: number): string {
-  const [int, frac = ""] = value.split(".");
-  const cut = frac.slice(0, decimals).replace(/0+$/, "");
-  return cut ? `${int}.${cut}` : int;
 }
 
 /** A unit price or total in the price unit: Toman whole, Tether to 6 places. */
@@ -279,8 +270,6 @@ export default function TransactionForm({
   // Sell: a property or vehicle («property:<id>»), sold for a Toman price.
   const [registryKey, setRegistryKey] = useState("");
   const [salePrice, setSalePrice] = useState("");
-  // A Toman buy: the Iranian exchange it happens at.
-  const [placeName, setPlaceName] = useState("");
   const [fee, setFee] = useState("");
   const [entryDate, setEntryDate] = useState(initialEntryDate ?? today);
   const [description, setDescription] = useState(initialDescription ?? initialTitle ?? "");
@@ -372,9 +361,29 @@ export default function TransactionForm({
   const fromId = resolve(fromAccountId, assetAccounts, false);
   // A transfer can never land in the account it left.
   const toOptions = assetAccounts.filter((a) => a.id !== fromId);
-  // …nor in a wallet that does not support the coin's network.
-  const transferSymbol = (byId(fromId)?.symbol ?? "").toUpperCase();
-  const transferTargets = toOptions.filter((a) => !venueTransferError(transferSymbol, a, assetNetworks[transferSymbol]));
+  // …and only where this money may go: Toman between banks, exchange Toman and
+  // brokerage Toman; a coin or a tokenised asset to the same asset at an
+  // exchange or a wallet on a network it supports.
+  const transferFrom = byId(fromId);
+  const transferSymbol = (transferFrom?.symbol ?? "").toUpperCase();
+  const transferTargets = transferFrom
+    ? toOptions.filter(
+        (a) =>
+          !transferDestinationError(
+            transferFrom,
+            a,
+            networksForHolding(transferSymbol, transferFrom.classCode, assetNetworks[transferSymbol]),
+          ),
+      )
+    : [];
+  const transferIsToman = transferSymbol === "" || transferSymbol === "IRT" || transferSymbol === "IRR";
+  const transferQtyDecimals = Math.min(Math.max(transferFrom?.decimals ?? 8, 0), 8);
+  // The unit in Persian: «تتر», or the asset's own name («آمازون ایکس») — never a Latin ticker.
+  const transferUnitLabel = !transferFrom
+    ? ""
+    : currencyLabel(transferSymbol) !== transferSymbol
+      ? currencyLabel(transferSymbol)
+      : transferFrom.name.split(" - ")[0];
   const toId = resolve(toAccountId, transferTargets, false);
   const assetId = isRegistrySale ? "" : resolve(assetAccountId, type === "sell" ? chipOptions : tradeOptions, false);
   const assetAccount = byId(assetId);
@@ -384,20 +393,16 @@ export default function TransactionForm({
     className: assetAccount?.className,
   };
   // The money a trade may settle in — the same rule the server enforces:
-  // Toman or a stablecoin, and a Toman BANK account for Iranian-market assets,
-  // properties and vehicles. Accounts that do not qualify are simply not listed.
+  // Toman at an Iranian exchange or a stablecoin for crypto and tokenised
+  // assets, Toman at a brokerage for Iranian-market assets, and a Toman bank
+  // account for properties and vehicles. Accounts that do not qualify are not listed.
   const assetPlace = { walletName: assetAccount?.walletName, walletKind: assetAccount?.walletKind };
-  // WHERE it trades: a bank pays at an Iranian exchange; a stablecoin pays only
-  // where it is held, in the coins that place trades (see features/trade/venues).
+  // WHERE it trades: money pays only where it is held, in what that place
+  // trades (see features/trade/venues) — a buy is held at the paying place.
   const venueAllows = (a: AccountOption) => {
     if (!isTrade || isTomanOnlyInstrument(assetInstrument)) return true;
     const side = type === "sell" ? "sell" : "buy";
-    const target =
-      side === "sell"
-        ? assetPlace
-        : priceUnitFor(a.symbol) === "IRT"
-          ? { walletName: placeName || DOMESTIC_EXCHANGE_NAMES[0], walletKind: "exchange" }
-          : { walletName: a.walletName, walletKind: a.walletKind };
+    const target = side === "sell" ? assetPlace : { walletName: a.walletName, walletKind: a.walletKind };
     return !venueTradeError(
       side,
       { ...assetInstrument, place: assetPlace, networks: assetNetworks[(assetAccount?.symbol ?? "").toUpperCase()] },
@@ -410,6 +415,11 @@ export default function TransactionForm({
     : isTrade && assetAccount
       ? moneyOptions.filter((a) => !tradePairError(type, assetInstrument, a) && venueAllows(a))
       : moneyOptions;
+  const settleHint = isRegistrySale
+    ? "حساب بانکی تومانی ثبت نشده است."
+    : isTomanOnlyInstrument(assetInstrument)
+      ? "موجودی تومانی در کارگزاری ندارید؛ مثلاً «تومان - کارگزاری مفید» را در حساب‌ها اضافه کنید."
+      : "موجودی تومان در صرافی داخلی یا تتر در همان صرافی یا کیف پول ندارید؛ مثلاً «تومان - نوبیتکس» یا «تتر - بیت‌پین».";
   // Everyday spending leaves a Toman bank account or the cash box — never a
   // stablecoin wallet, a fund or an exchange. Banks first.
   const expenseOptions = moneyOptions
@@ -474,8 +484,8 @@ export default function TransactionForm({
 
   /* ── Market price for the chosen asset ────────────────────────────── */
   useEffect(() => {
-    // Trades need prices; an income into a Tether wallet needs the Tether rate.
-    if (!(isTrade || type === "income") || market.size > 0) return;
+    // Trades need prices; an income into a Tether wallet, or a coin moved, needs the market rate.
+    if (!(isTrade || type === "income" || type === "transfer") || market.size > 0) return;
     let alive = true;
     loadMarketCatalog().then((result) => {
       if (alive && result.ok) setMarket(new Map(result.rows.map((row) => [row.symbol, row])));
@@ -497,16 +507,13 @@ export default function TransactionForm({
   /* ── Trade price: in the settlement unit (Toman, or Tether for a stablecoin wallet) ── */
   const priceUnit = priceUnitFor(moneyAccount?.symbol);
   const priceUnitLabel = priceUnit === "IRT" ? "تومان" : "تتر";
-  // A coin bought with Toman is bought — and held — at an Iranian exchange.
-  const needsPlace =
-    type === "buy" &&
-    !isRegistrySale &&
-    !!assetAccount &&
-    !!moneyAccount &&
-    priceUnit === "IRT" &&
-    !isTomanOnlyInstrument(assetInstrument) &&
-    !isStablecoin(assetSymbol);
   const usdtToman = market.get("USDT")?.priceTmn ?? effectiveRate ?? null;
+  // A coin is moved by its quantity; its Toman value comes from the market price.
+  const transferUnitToman = transferIsToman
+    ? null
+    : (market.get(transferSymbol)?.priceTmn ?? (isStablecoin(transferSymbol) ? usdtToman : null));
+  const transferQuantityToman =
+    type === "transfer" && !transferIsToman && hasQuantity && transferUnitToman ? D(quantity).mul(transferUnitToman).toFixed(0) : "";
   const marketUnitPrice = !assetAccount
     ? null
     : priceUnit === "USDT" && isStablecoin(assetSymbol)
@@ -542,32 +549,35 @@ export default function TransactionForm({
         : ""
       : type === "income"
         ? incomeToman
-        : irtAmount;
+        : type === "transfer" && transferQuantityToman
+          ? transferQuantityToman
+          : irtAmount;
   const hasAmount = isRegistrySale
     ? !!salePriceValue && salePriceValue.gt(0)
     : isTrade
       ? !!quote
       : type === "income"
         ? !!incomeToman
-        : !!amountValue && amountValue.gt(0);
+        : type === "transfer" && transferQuantityToman
+          ? true
+          : !!amountValue && amountValue.gt(0);
   const settleTotalLabel = quote
     ? priceUnit === "IRT"
       ? formatMoney(D(quote.total).toFixed(0), "IRT")
       : `${formatQty(quote.total, 6)} ${currencyLabel(moneyAccount?.symbol)}`
     : "—";
-  const qtyWithUnit = hasQuantity ? `${formatQty(quantity, qtyDecimals)} ${currencyLabel(assetSymbol)}` : "—";
+  const qtyWithUnit = hasQuantity
+    ? `${formatQty(quantity, qtyDecimals)} ${currencyLabel(assetSymbol) !== assetSymbol ? currencyLabel(assetSymbol) : assetName}`
+    : "—";
 
   /* ── Fee: in the unit of the account that pays it ─────────────────── */
   const feePayAccount = type === "transfer" ? fromAccount : moneyAccount;
   const feeSymbol = (feePayAccount?.symbol ?? "IRT").toUpperCase();
   const feeInToman = !feePayAccount || feeSymbol === "IRT" || feeSymbol === "IRR";
 
-  /* ── Transfer across units ────────────────────────────────────────── */
-  const isCrossUnitTransfer =
-    type === "transfer" && !!fromAccount?.symbol && !!toAccount?.symbol && fromAccount.symbol !== toAccount.symbol;
-  const swapSupported =
-    isCrossUnitTransfer &&
-    (SWAP_ANCHOR_ASSETS.has(fromAccount?.symbol ?? "") || SWAP_ANCHOR_ASSETS.has(toAccount?.symbol ?? ""));
+  const transferTargetHint = transferIsToman
+    ? "حساب بانکی، تومانِ صرافی داخلی یا تومانِ کارگزاری دیگری ندارید."
+    : `«${transferUnitLabel}» در صرافی یا کیف پول دیگری ندارید.`;
 
   const previewUsd = hasAmount && effectiveRate ? D(postedIrt).div(effectiveRate).toFixed(2) : "";
 
@@ -600,6 +610,7 @@ export default function TransactionForm({
   if (type === "income" && !incomeCategoryId) missing.push("منبع درآمد");
   if (type === "transfer" && !fromId) missing.push("حساب مبدأ");
   if (type === "transfer" && !toId) missing.push("حساب مقصد");
+  if (type === "transfer" && fromId && !transferIsToman && !hasQuantity) missing.push("مقدار");
   if (type !== "transfer" && !isNonCash && !moneyId) {
     missing.push(isRegistrySale ? "حساب بانکی واریز" : type === "income" || type === "sell" ? "حساب واریز" : "حساب پرداخت");
   }
@@ -610,7 +621,6 @@ export default function TransactionForm({
     else if (!unitPrice) missing.push("قیمت هر واحد");
     else if (!quote) missing.push("نرخ تتر");
     if (overHeld) missing.push("مقدار کمتر یا برابر موجودی");
-    if (needsPlace && !placeName) missing.push("صرافی محل خرید");
   } else if (!hasAmount) missing.push("مبلغ");
   if (!entryDate) missing.push("تاریخ");
   const ready = missing.length === 0;
@@ -755,7 +765,7 @@ export default function TransactionForm({
     summary.push([
       "دارایی",
       <span key="a">
-        {assetName || "—"} {assetSymbol ? <span className="muted num" dir="ltr">{assetSymbol}</span> : null}
+        {assetName || "—"}
       </span>,
     ]);
     const outRow: [string, React.ReactNode] =
@@ -767,7 +777,6 @@ export default function TransactionForm({
         ? [`اضافه می‌شود به ${assetName || "دارایی"}`, <b key="i" className="num" style={{ color: "var(--positive)" }}>+ {qtyWithUnit}</b>]
         : [`واریز می‌شود به ${accountLabel(moneyAccount)}`, <b key="i" className="num" style={{ color: "var(--positive)" }}>+ {settleTotalLabel}</b>];
     summary.push(outRow, inRow);
-    if (needsPlace && placeName) summary.push(["محل خرید و نگهداری", placeName]);
     if (quote) {
       summary.push(
         [
@@ -790,7 +799,9 @@ export default function TransactionForm({
   }
   if (type === "transfer") {
     summary.push(["از", accountLabel(fromAccount)], ["به", accountLabel(toAccount)]);
-    if (hasQuantity) summary.push(["مقدار", <span key="tq" className="num">{formatQty(quantity, 8)}</span>]);
+    if (!transferIsToman && hasQuantity) {
+      summary.push(["مقدار", <span key="tq" className="num">{`${formatQty(quantity, transferQtyDecimals)} ${transferUnitLabel}`}</span>]);
+    }
   } else if (!isNonCash && !isTrade) {
     summary.push([type === "income" ? "واریز به" : "پرداخت از", accountLabel(moneyAccount)]);
   }
@@ -821,7 +832,7 @@ export default function TransactionForm({
       <input type="hidden" name="priceMode" value={isTrade && !isRegistrySale ? (usingMarket ? "market" : "limit") : ""} />
       <input type="hidden" name="registryKind" value={registryItem?.kind ?? ""} />
       <input type="hidden" name="registryId" value={registryItem?.id ?? ""} />
-      <input type="hidden" name="placeName" value={needsPlace ? placeName : ""} />
+      <input type="hidden" name="placeName" value="" />
       <input type="hidden" name="amount" value={previewUsd} />
       <input type="hidden" name="categoryId" value={type === "expense" ? categoryId : type === "income" ? incomeCategoryId : ""} />
       <input type="hidden" name="nativeAmount" value={type === "income" ? incomeAmount : ""} />
@@ -830,7 +841,7 @@ export default function TransactionForm({
       <input type="hidden" name="planId" value={type === "income" ? planId : ""} />
       <input type="hidden" name="primaryAccountId" value={primaryAccountId} />
       <input type="hidden" name="counterAccountId" value={counterAccountId} />
-      <input type="hidden" name="quantity" value={(isTrade && !isRegistrySale) || type === "transfer" ? quantity : ""} />
+      <input type="hidden" name="quantity" value={(isTrade && !isRegistrySale) || (type === "transfer" && !transferIsToman) ? quantity : ""} />
       <input type="hidden" name="fee" value={type === "expense" ? "" : fee} />
       <input type="hidden" name="feeMode" value={feeInToman ? "irt" : "native"} />
       <input type="hidden" name="description" value={finalDescription} />
@@ -882,6 +893,141 @@ export default function TransactionForm({
           balances={balances}
           accountId={moneyId}
           setAccountId={setMoneyAccountId}
+          entryDate={entryDate}
+          setEntryDate={setEntryDate}
+          today={today}
+          description={description}
+          setDescription={setDescription}
+          autoDescription={autoDescription}
+        />
+      ) : type === "debt_repayment" ? (
+        <DebtRepaymentFields
+          debts={debts}
+          selectedDebt={selectedDebt}
+          selectedInst={selectedInst}
+          onSelectDebt={handleSelectDebt}
+          onSelectInstallment={handleSelectInstallment}
+          onClear={() => {
+            setSelectedDebt(null);
+            setSelectedInst(null);
+          }}
+          amount={irtAmount}
+          setAmount={setIrtAmount}
+          previewUsd={previewUsd}
+          accounts={moneyOptions}
+          balances={balances}
+          accountId={moneyId}
+          setAccountId={setMoneyAccountId}
+          fee={fee}
+          setFee={setFee}
+          feeInToman={feeInToman}
+          feeSymbol={feeSymbol}
+          entryDate={entryDate}
+          setEntryDate={setEntryDate}
+          today={today}
+          description={description}
+          setDescription={setDescription}
+          autoDescription={autoDescription}
+        />
+      ) : type === "transfer" ? (
+        <TransferFields
+          sources={assetAccounts}
+          targets={transferTargets}
+          balances={balances}
+          fromId={fromId}
+          setFromId={(id) => {
+            setFromAccountId(id);
+            setToAccountId("");
+            setQuantity("");
+          }}
+          toId={toId}
+          setToId={setToAccountId}
+          targetHint={transferTargetHint}
+          isToman={transferIsToman}
+          amount={irtAmount}
+          setAmount={setIrtAmount}
+          previewUsd={previewUsd}
+          quantity={quantity}
+          setQuantity={setQuantity}
+          qtyDecimals={transferQtyDecimals}
+          heldQty={
+            fromId && balances[fromId] ? (transferSymbol === "IRR" ? D(balances[fromId]).div(10).toString() : balances[fromId]) : null
+          }
+          quantityToman={transferQuantityToman}
+          fee={fee}
+          setFee={setFee}
+          feeInToman={feeInToman}
+          feeSymbol={feeSymbol}
+          entryDate={entryDate}
+          setEntryDate={setEntryDate}
+          today={today}
+          description={description}
+          setDescription={setDescription}
+          autoDescription={autoDescription}
+        />
+      ) : isTrade ? (
+        <TradeFields
+          type={type}
+          asset={assetAccount ?? null}
+          assetName={assetName}
+          assetLogoUrl={marketRow?.logoUrl ?? assetAccount?.logoUrl ?? null}
+          heldQty={heldQty ? heldQty.toString() : null}
+          qtyDecimals={qtyDecimals}
+          marketRow={marketRow}
+          ownedAssets={chipOptions}
+          market={market}
+          balances={balances}
+          onPickAsset={(id) => {
+            setAssetAccountId(id);
+            setRegistryKey("");
+            setPickerOpen(false);
+          }}
+          registryAssets={registryAssets}
+          registryItem={registryItem}
+          onPickRegistry={(key) => {
+            setRegistryKey(key);
+            setAssetAccountId("");
+          }}
+          onClearAsset={() => {
+            setRegistryKey("");
+            setAssetAccountId("");
+            setQuantity("");
+            setSalePrice("");
+          }}
+          pickerOpen={pickerOpen}
+          setPickerOpen={setPickerOpen}
+          onRegistered={({ account, row }) => {
+            if (!account) return;
+            setAccountOptions((current) => (current.some((a) => a.id === account.id) ? current : [...current, account]));
+            setAssetAccountId(account.id);
+            setMarket((current) => (current.has(row.symbol) ? current : new Map(current).set(row.symbol, row)));
+            setPickerOpen(false);
+          }}
+          settleOptions={settleOptions}
+          moneyId={moneyId}
+          onMoneyChange={(id) => {
+            setMoneyAccountId(id);
+            // A limit price is typed in the settlement unit; a new unit needs a new price.
+            setLimitPrice("");
+          }}
+          settleHint={settleHint}
+          quantity={quantity}
+          setQuantity={setQuantity}
+          overHeld={overHeld}
+          usingMarket={usingMarket}
+          setPriceMode={setPriceMode}
+          marketUnitPrice={marketUnitPrice}
+          priceUnit={priceUnit}
+          limitPrice={limitPrice}
+          setLimitPrice={setLimitPrice}
+          quote={quote}
+          settleTotalLabel={settleTotalLabel}
+          salePrice={salePrice}
+          setSalePrice={setSalePrice}
+          fee={fee}
+          setFee={setFee}
+          feeInToman={feeInToman}
+          feeSymbol={feeSymbol}
           entryDate={entryDate}
           setEntryDate={setEntryDate}
           today={today}
@@ -1031,441 +1177,11 @@ export default function TransactionForm({
           </div>
         )}
 
-        {type === "transfer" && (
-          <div className="grid items-end gap-2 sm:grid-cols-[1fr_auto_1fr]">
-            <AccountSelect label="از حساب" value={fromId} options={assetAccounts} onChange={setFromAccountId} />
-            <button
-              type="button"
-              className="btn btn-ghost !min-h-11 justify-self-center"
-              aria-label="جابه‌جایی مبدأ و مقصد"
-              onClick={() => {
-                setFromAccountId(toId);
-                setToAccountId(fromId);
-              }}
-            >
-              <Icon name="swap" size={16} />
-            </button>
-            <AccountSelect label="به حساب" value={toId} options={transferTargets} onChange={setToAccountId} />
-            {isCrossUnitTransfer && (
-              <p
-                className="rounded-[var(--r-md)] p-2 text-[length:var(--fs-xs)] leading-5 sm:col-span-3"
-                style={
-                  swapSupported
-                    ? { background: "var(--action-soft)" }
-                    : { background: "var(--warning-soft)", border: "1px solid var(--warning)" }
-                }
-                role="note"
-              >
-                {swapSupported
-                  ? `تبدیل ${currencyLabel(fromAccount?.symbol)} به ${currencyLabel(toAccount?.symbol)} — نه هزینه است و نه درآمد؛ فقط ترکیب دارایی‌ها تغییر می‌کند.`
-                  : `تبدیل مستقیم ${currencyLabel(fromAccount?.symbol)} به ${currencyLabel(toAccount?.symbol)} پشتیبانی نمی‌شود؛ ابتدا به تومان، دلار یا تتر تبدیل کنید.`}
-              </p>
-            )}
-          </div>
-        )}
-
-        {isTrade && (
-          <div className="space-y-2">
-            {registryItem ? (
-              <div className="soft flex items-center gap-3 rounded-[var(--r-md)] p-3">
-                {registryItem.kind === "property" ? <RealEstateLogo size={36} /> : <AutomobileLogo name={registryItem.detail} size={36} />}
-                <div className="min-w-0 flex-1">
-                  <b className="block truncate text-[length:var(--fs-sm)]">{registryItem.label}</b>
-                  <span className="muted block truncate text-[length:var(--fs-xs)]">{registryItem.detail}</span>
-                </div>
-                <button type="button" className="btn btn-ghost !min-h-9 shrink-0" onClick={() => setRegistryKey("")}>
-                  تغییر
-                </button>
-              </div>
-            ) : assetAccount && !pickerOpen ? (
-              <div className="soft flex items-center gap-3 rounded-[var(--r-md)] p-3">
-                <AssetLogo
-                  symbol={assetAccount.symbol}
-                  name={assetName}
-                  logoUrl={marketRow?.logoUrl ?? assetAccount.logoUrl ?? null}
-                  coingeckoId={assetAccount.coingeckoId ?? null}
-                  assetClassName={assetAccount.className ?? null}
-                  size={36}
-                  radius={10}
-                />
-                <div className="min-w-0 flex-1">
-                  <b className="flex min-w-0 items-baseline gap-1.5 text-[length:var(--fs-sm)]">
-                    <span className="truncate">{assetName}</span>
-                    <span className="muted num shrink-0 text-[length:var(--fs-xs)] font-medium" dir="ltr">
-                      {assetSymbol}
-                    </span>
-                  </b>
-                  <span className="muted block text-[length:var(--fs-xs)]">
-                    موجودی شما: <span className="num">{heldQty ? formatQty(heldQty.toString(), qtyDecimals) : "۰"}</span>
-                  </span>
-                  {(marketRow?.priceTmn || marketRow?.priceUsdt) && (
-                    <span className="muted block text-[length:var(--fs-xs)]">
-                      قیمت بازار: <span className="num">{marketRow?.priceTmn ? formatInUnit(marketRow.priceTmn, "IRT") : "—"}</span>
-                      {marketRow?.priceUsdt ? <span className="num"> · {formatInUnit(marketRow.priceUsdt, "USDT")}</span> : null}
-                    </span>
-                  )}
-                </div>
-                <button type="button" className="btn btn-ghost !min-h-9 shrink-0" onClick={() => setPickerOpen(true)}>
-                  تغییر
-                </button>
-              </div>
-            ) : (
-              <>
-                {chipOptions.length > 0 && !pickerOpen && (
-                  <>
-                    <p className="muted text-[length:var(--fs-xs)]">دارایی‌های شما:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {chipOptions.slice(0, 24).map((a) => (
-                        <button
-                          key={a.id}
-                          type="button"
-                          className="chip !py-1.5"
-                          onClick={() => {
-                            setAssetAccountId(a.id);
-                            setRegistryKey("");
-                          }}
-                        >
-                          <AssetLogo
-                            symbol={a.symbol}
-                            name={a.name}
-                            logoUrl={a.logoUrl ?? null}
-                            coingeckoId={a.coingeckoId ?? null}
-                            assetClassName={a.className ?? null}
-                            size={18}
-                            radius={5}
-                          />
-                          {market.get((a.symbol ?? "").toUpperCase())?.displayName ?? a.name}
-                          <span className="muted num text-[length:var(--fs-xs)]" dir="ltr">
-                            {a.symbol}
-                          </span>
-                          {balanceOf(a.id)?.gt(0) && (
-                            <span className="num text-[length:var(--fs-xs)]">
-                              {formatQty(balanceOf(a.id)!.toString(), Math.min(Math.max(a.decimals, 0), 8))}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {type === "buy" && !pickerOpen && (
-                  <div className="flex flex-wrap gap-2">
-                    <a href="/asset-registry" className="chip !py-1.5">
-                      <RealEstateLogo size={18} />
-                      خرید ملک
-                    </a>
-                    <a href="/asset-registry" className="chip !py-1.5">
-                      <AutomobileLogo size={18} />
-                      خرید خودرو
-                    </a>
-                  </div>
-                )}
-                {type === "sell" && registryAssets.length > 0 && (
-                  <>
-                    <p className="muted text-[length:var(--fs-xs)]">ملک و خودرو:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {registryAssets.map((r) => (
-                        <button
-                          key={`${r.kind}:${r.id}`}
-                          type="button"
-                          className="chip !py-1.5"
-                          onClick={() => {
-                            setRegistryKey(`${r.kind}:${r.id}`);
-                            setAssetAccountId("");
-                          }}
-                        >
-                          {r.kind === "property" ? <RealEstateLogo size={18} /> : <AutomobileLogo name={r.detail} size={18} />}
-                          {r.label}
-                          <span className="muted text-[length:var(--fs-xs)]">{r.detail}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {type === "sell" ? (
-                  chipOptions.length === 0 && registryAssets.length === 0 ? (
-                    <p className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)] leading-5" role="note">
-                      هنوز دارایی‌ای برای فروش ثبت نشده است.
-                    </p>
-                  ) : null
-                ) : pickerOpen || chipOptions.length === 0 ? (
-                  <>
-                    <WallexAssetPicker
-                      actionLabel="انتخاب"
-                      hideFootnote
-                      onRegistered={({ account, row }) => {
-                        if (!account) return;
-                        setAccountOptions((current) =>
-                          current.some((a) => a.id === account.id) ? current : [...current, account],
-                        );
-                        setAssetAccountId(account.id);
-                        setMarket((current) => (current.has(row.symbol) ? current : new Map(current).set(row.symbol, row)));
-                        setPickerOpen(false);
-                      }}
-                    />
-                    {chipOptions.length > 0 && (
-                      <button type="button" className="btn btn-ghost w-full" onClick={() => setPickerOpen(false)}>
-                        بازگشت به دارایی‌های من
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <button type="button" className="btn btn-soft w-full" onClick={() => setPickerOpen(true)}>
-                    <Icon name="search" size={15} />
-                    دارایی دیگر — جست‌وجو در بازار
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {type === "debt_repayment" &&
-          (debts.length === 0 ? (
-            <p className="rounded-[var(--r-md)] px-3 py-2 text-[length:var(--fs-xs)]" style={{ background: "var(--negative-soft)", color: "var(--negative)" }}>
-              هنوز بدهی یا قسطی ثبت نشده است.{" "}
-              <a href="/debts" style={{ color: "inherit", textDecoration: "underline" }}>
-                افزودن بدهی
-              </a>
-            </p>
-          ) : selectedDebt ? (
-            <div className="soft flex flex-wrap items-center justify-between gap-2 rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)]">
-              <span>
-                <b>{selectedDebt.title}</b>
-                {selectedInst ? ` — قسط ${faCount(selectedInst.seq)}` : ""}
-                <span className="muted">
-                  {" "}
-                  · {selectedDebt.accountId ? "از مانده بدهی کم می‌شود" : "در «پرداخت اقساط» ثبت می‌شود، نه در هزینه‌ها"}
-                </span>
-              </span>
-              <button
-                type="button"
-                className="chip"
-                onClick={() => {
-                  setSelectedDebt(null);
-                  setSelectedInst(null);
-                }}
-              >
-                تغییر
-              </button>
-            </div>
-          ) : (
-            <DebtInstallmentExplorer
-              debts={debts}
-              onSelectDebt={handleSelectDebt}
-              onSelectInstallment={handleSelectInstallment}
-              rate={effectiveRate}
-            />
-          ))}
       </Step>
 
       {/* ── ۲. How much ── */}
-      <Step
-        n={2}
-        title={
-          isRegistrySale
-            ? "به چه مبلغ و به کدام حساب بانکی؟"
-            : isTrade
-              ? type === "buy"
-                ? "چه مقدار، با چه پولی و چه قیمتی؟"
-                : "چه مقدار، به کجا و با چه قیمتی؟"
-              : "چقدر؟"
-        }
-      >
-        {registryItem ? (
-          <div className="space-y-3">
-            <AccountSelect
-              label="واریز به حساب بانکی"
-              value={moneyId}
-              options={settleOptions}
-              onChange={setMoneyAccountId}
-              empty={
-                <p className="muted mt-1.5 text-[length:var(--fs-xs)] leading-5">
-                  حساب بانکی تومانی ثبت نشده است.{" "}
-                  <a href="/accounts" style={{ color: "var(--action)" }}>
-                    افزودن حساب بانکی
-                  </a>
-                </p>
-              }
-            />
-            <div>
-              <label className="label">مبلغ فروش به تومان</label>
-              <AmountInput
-                value={salePrice}
-                onValueChange={setSalePrice}
-                placeholder="مثلاً ۴٬۵۰۰٬۰۰۰٬۰۰۰"
-                className="field num !text-2xl !font-bold"
-                unit="toman"
-                aria-label="مبلغ فروش به تومان"
-              />
-              {registryItem.valueToman && D(registryItem.valueToman).gt(0) && (
-                <button
-                  type="button"
-                  className="chip mt-1.5"
-                  onClick={() => setSalePrice(D(registryItem.valueToman!).toFixed(0))}
-                >
-                  آخرین ارزش ثبت‌شده: <span className="num">{formatMoney(D(registryItem.valueToman).toFixed(0), "IRT")}</span>
-                </button>
-              )}
-            </div>
-          </div>
-        ) : isTrade ? (
-          <div className="space-y-3">
-            <AccountSelect
-              label={type === "buy" ? "پرداخت با" : "واریز وجه فروش به"}
-              value={moneyId}
-              options={settleOptions}
-              onChange={(id) => {
-                setMoneyAccountId(id);
-                // A limit price is typed in the settlement unit; a new unit needs a new price.
-                setLimitPrice("");
-              }}
-              empty={noMoneyAccounts}
-            />
-
-            {needsPlace && (
-              <div>
-                <label className="label">خرید در صرافی</label>
-                <select className="field" value={placeName} onChange={(e) => setPlaceName(e.target.value)}>
-                  <option value="" disabled>
-                    انتخاب صرافی…
-                  </option>
-                  {DOMESTIC_EXCHANGE_NAMES.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div>
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <label className="label">
-                  مقدار {assetName || "دارایی"}
-                  {assetSymbol ? ` (${assetSymbol})` : ""}
-                </label>
-                {assetAccount && (
-                  <span className="muted text-[length:var(--fs-xs)]">
-                    موجودی: <span className="num">{heldQty ? formatQty(heldQty.toString(), qtyDecimals) : "۰"}</span>
-                  </span>
-                )}
-              </div>
-              <AmountInput
-                inputMode="decimal"
-                maxDecimals={qtyDecimals}
-                value={quantity}
-                onValueChange={setQuantity}
-                placeholder="مثلاً ۰٫۵"
-                className="field num !text-2xl !font-bold"
-                showWords={false}
-                unit="none"
-                aria-label="مقدار دارایی"
-              />
-              {type === "sell" && heldQty?.gt(0) && (
-                <div className="mt-1.5 flex flex-wrap gap-2">
-                  {(
-                    [
-                      ["۲۵٪", "0.25"],
-                      ["۵۰٪", "0.5"],
-                      ["همه", "1"],
-                    ] as const
-                  ).map(([label, share]) => (
-                    <button
-                      key={share}
-                      type="button"
-                      className="chip"
-                      onClick={() => setQuantity(cutDecimals(heldQty.mul(share).toString(), qtyDecimals))}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {overHeld && (
-                <p className="mt-1 text-[length:var(--fs-xs)]" style={{ color: "var(--negative)" }} role="alert">
-                  مقدار واردشده از موجودی شما بیشتر است.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <span className="label">قیمت</span>
-              <div className="grid grid-cols-2 gap-2" role="group" aria-label="نوع قیمت">
-                {(
-                  [
-                    ["market", "قیمت بازار"],
-                    ["limit", "قیمت لیمیت"],
-                  ] as const
-                ).map(([key, label]) => {
-                  const on = key === "market" ? usingMarket : !usingMarket;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      aria-pressed={on}
-                      disabled={key === "market" && !marketUnitPrice}
-                      onClick={() => setPriceMode(key)}
-                      className="btn !min-h-10 disabled:opacity-40"
-                      style={{
-                        borderColor: on ? "var(--action)" : "var(--border)",
-                        background: on ? "var(--action-soft)" : "var(--surface)",
-                        color: on ? "var(--action)" : "inherit",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-              {usingMarket ? (
-                <p className="muted mt-1.5 text-[length:var(--fs-xs)]">
-                  قیمت بازار هر واحد: <span className="num">{formatInUnit(marketUnitPrice, priceUnit)}</span>
-                </p>
-              ) : (
-                <div className="mt-2">
-                  <label className="label">قیمت هر واحد به {priceUnitLabel}</label>
-                  <AmountInput
-                    inputMode="decimal"
-                    maxDecimals={priceUnit === "IRT" ? 0 : 6}
-                    value={limitPrice}
-                    onValueChange={setLimitPrice}
-                    placeholder={marketUnitPrice ? formatInUnit(marketUnitPrice, priceUnit) : priceUnit === "IRT" ? "مثلاً ۱۲۰٬۰۰۰" : "مثلاً ۳٬۲۰۰"}
-                    className="field num"
-                    unit={priceUnit === "IRT" ? "toman" : "USDT"}
-                    aria-label="قیمت لیمیت هر واحد"
-                  />
-                  {!marketUnitPrice && assetAccount && (
-                    <p className="muted mt-1 text-[length:var(--fs-xs)]">قیمت بازار این دارایی در دسترس نیست؛ قیمت هر واحد را وارد کنید.</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {quote && (
-              <dl className="soft space-y-1.5 rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)]" aria-live="polite">
-                <div className="flex items-baseline justify-between gap-3">
-                  <dt className="muted">{type === "buy" ? "از حساب کم می‌شود" : "به حساب واریز می‌شود"}</dt>
-                  <dd className="num text-[length:var(--fs-sm)] font-bold">{settleTotalLabel}</dd>
-                </div>
-                <div className="flex items-baseline justify-between gap-3">
-                  <dt className="muted">ارزش کل</dt>
-                  <dd className="num">
-                    {formatInUnit(quote.totalToman, "IRT")}
-                    {quote.totalUsdt ? ` · ${formatInUnit(quote.totalUsdt, "USDT")}` : ""}
-                  </dd>
-                </div>
-                <div className="flex items-baseline justify-between gap-3">
-                  <dt className="muted">قیمت هر واحد</dt>
-                  <dd className="num">
-                    {formatInUnit(quote.unitToman, "IRT")}
-                    {quote.unitUsdt ? ` · ${formatInUnit(quote.unitUsdt, "USDT")}` : ""}
-                  </dd>
-                </div>
-              </dl>
-            )}
-          </div>
-        ) : type === "income" ? (
+      <Step n={2} title="چقدر؟">
+        {type === "income" ? (
           <div className="space-y-3">
             <AccountSelect label="واریز به حساب" value={moneyId} options={moneyOptions} onChange={setMoneyAccountId} empty={noMoneyAccounts} />
             <div>
@@ -1517,59 +1233,7 @@ export default function TransactionForm({
               </div>
             )}
           </div>
-        ) : (
-        <div>
-          <label className="label">مبلغ به تومان</label>
-          <AmountInput
-            value={irtAmount}
-            onValueChange={setIrtAmount}
-            placeholder="مثلاً ۲۵٬۰۰۰٬۰۰۰"
-            className="field num !text-2xl !font-bold"
-            unit="toman"
-            aria-label="مبلغ به تومان"
-          />
-          {hasAmount && (
-            <p className="muted mt-1 text-[length:var(--fs-xs)]">
-              {previewUsd ? (
-                <>
-                  معادل تقریبی <span className="num">{formatMoney(previewUsd, "USD")}</span>
-                  {effectiveRate ? (
-                    <>
-                      {" "}
-                      · نرخ <span className="num">{formatMoney(effectiveRate, "IRT")}</span>
-                    </>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  نرخ دلار ثبت نشده است؛ پیش از ثبت، نرخ را در{" "}
-                  <a href="/settings" style={{ color: "var(--action)" }}>
-                    تنظیمات
-                  </a>{" "}
-                  وارد کنید.
-                </>
-              )}
-            </p>
-          )}
-        </div>
-        )}
-
-        {type === "transfer" && (
-          <div>
-            <label className="label">مقدار (اختیاری — اگر خالی بماند از مبلغ محاسبه می‌شود)</label>
-            <AmountInput
-              inputMode="decimal"
-              maxDecimals={8}
-              value={quantity}
-              onValueChange={setQuantity}
-              placeholder="مثلاً ۰٫۰۵"
-              className="field num"
-              showWords={false}
-              unit="none"
-              aria-label="مقدار دارایی"
-            />
-          </div>
-        )}
+        ) : null}
 
         {!isRegistrySale && (
         <details className="rounded-[var(--r-md)] border px-3 py-1" style={{ borderColor: "var(--border)" }}>
@@ -1593,16 +1257,7 @@ export default function TransactionForm({
       </Step>
 
       {/* ── ۳. From where, and when ── */}
-      <Step n={3} title={isTrade || type === "transfer" || type === "income" ? "کی؟" : "از کجا و کی؟"}>
-        {type !== "transfer" && !isNonCash && !isTrade && type !== "income" && (
-          <AccountSelect
-            label="پرداخت از حساب"
-            value={moneyId}
-            options={moneyOptions}
-            onChange={setMoneyAccountId}
-            empty={noMoneyAccounts}
-          />
-        )}
+      <Step n={3} title="کی؟">
         <DualDateInput name="entryDate" value={entryDate} onChange={setEntryDate} label="تاریخ" required />
         <div>
           <label className="label">شرح (اختیاری)</label>

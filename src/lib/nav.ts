@@ -137,7 +137,7 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/market",
         label: "نمای بازار",
         icon: "globe",
-        question: "قیمت رمزارز، سهام آمریکا، شاخص و کامودیتی الان چند است؟",
+        question: "قیمت رمزارز، سهام، شاخص و کامودیتی توکنیزه الان چند است؟",
         keywords: [
           "market",
           "prices",
@@ -147,7 +147,7 @@ export const NAV_GROUPS: NavGroup[] = [
           "meme",
           "بازار",
           "قیمت",
-          "سهام آمریکا",
+          "سهام توکنیزه",
           "شاخص",
           "کامودیتی",
           "میم",

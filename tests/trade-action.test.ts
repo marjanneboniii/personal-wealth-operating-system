@@ -39,7 +39,7 @@ mock.module("next/headers", {
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
 let db: any, createSchemaIfNotExists: any, createSession: any, createTransactionAction: any;
-let postEntry: any, getAccountBalances: any, getEntryFxSnapshots: any, TOMAN_ONLY_MESSAGE: string;
+let postEntry: any, getAccountBalances: any, getEntryFxSnapshots: any, TOMAN_ONLY_MESSAGE: string, MARKET_TOMAN_MESSAGE: string;
 
 const modulesReady = (async () => {
   ({ db } = await import("../src/db"));
@@ -49,7 +49,7 @@ const modulesReady = (async () => {
   ({ postEntry } = await import("../src/features/ledger/service"));
   ({ getAccountBalances } = await import("../src/features/ledger/queries"));
   ({ getEntryFxSnapshots } = await import("../src/features/ledger/fxSnapshots"));
-  ({ TOMAN_ONLY_MESSAGE } = await import("../src/features/trade/rules"));
+  ({ TOMAN_ONLY_MESSAGE, MARKET_TOMAN_MESSAGE } = await import("../src/features/trade/rules"));
 })();
 
 const TODAY = "2026-09-14";
@@ -94,16 +94,25 @@ async function fixture() {
   const goldFund = await asset("GOLDFUND", fund.id, 0);
   void equity;
 
-  const account = async (code: string, name: string, type: string, assetId: string) =>
-    (await db.insert(accounts).values({ code, name, type, assetId, userId: user.id } as any).returning())[0];
+  const { wallets } = await import("../src/db/schema");
+  const place = async (name: string, kind: string) =>
+    (await db.insert(wallets).values({ userId: user.id, name, kind } as any).returning())[0];
+  const nobitex = await place("نوبیتکس", "exchange");
+  const mofid = await place("کارگزاری مفید", "broker");
+
+  const account = async (code: string, name: string, type: string, assetId: string, walletId: string | null = null) =>
+    (await db.insert(accounts).values({ code, name, type, assetId, walletId, userId: user.id } as any).returning())[0];
   const bank = await account("1010", "بانک", "asset", irt.id);
   const cashBox = await account("1020", "صندوق خانگی", "asset", irt.id);
-  const usdtWallet = await account("1110", "کیف تتر", "asset", usdt.id);
-  const ethAccount = await account("1210", "اتریوم", "asset", eth.id);
+  // Toman held at an Iranian exchange buys crypto; Toman at a brokerage buys funds.
+  const exchangeToman = await account("1030", "تومان - نوبیتکس", "asset", irt.id, nobitex.id);
+  const brokerToman = await account("1040", "تومان - کارگزاری مفید", "asset", irt.id, mofid.id);
+  const usdtWallet = await account("1110", "تتر - نوبیتکس", "asset", usdt.id, nobitex.id);
+  const ethAccount = await account("1210", "اتریوم - نوبیتکس", "asset", eth.id, nobitex.id);
   const fundAccount = await account("1310", "صندوق طلا", "asset", goldFund.id);
   const openingEquity = await account("3010", "سرمایه افتتاحیه", "equity", irt.id);
 
-  // 200 000 000 Toman in the bank to start with.
+  // 200 000 000 Toman each in the bank, at the exchange and at the brokerage.
   await postEntry({
     entryDate: TODAY,
     type: "opening",
@@ -111,13 +120,15 @@ async function fixture() {
     userId: user.id,
     postings: [
       { accountId: bank.id, assetId: irt.id, quantity: "200000000", baseValue: "2000" },
-      { accountId: openingEquity.id, assetId: irt.id, quantity: "-200000000", baseValue: "-2000" },
+      { accountId: exchangeToman.id, assetId: irt.id, quantity: "200000000", baseValue: "2000" },
+      { accountId: brokerToman.id, assetId: irt.id, quantity: "200000000", baseValue: "2000" },
+      { accountId: openingEquity.id, assetId: irt.id, quantity: "-600000000", baseValue: "-6000" },
     ],
   });
 
   const { token } = await createSession(user.id);
   cookieJar.value = token;
-  return { user, bank, cashBox, usdtWallet, ethAccount, fundAccount };
+  return { user, bank, cashBox, exchangeToman, brokerToman, usdtWallet, ethAccount, fundAccount, irt };
 }
 
 const qtyOf = async (userId: string, accountId: string) =>
@@ -130,14 +141,31 @@ test("buy, swap and sell settle in the exact units typed, and freeze both prices
   await modulesReady;
   const f = await fixture();
 
-  // ۱. 1 000 USDT for 105 000 000 Toman — a conversion, not a FIFO trade.
-  const swap = await createTransactionAction(
+  // ۰. Crypto is never paid for from a bank account.
+  const tetherFromBank = await createTransactionAction(
     null,
     tradeForm({
       type: "buy",
       description: "خرید تتر",
       primaryAccountId: f.usdtWallet.id,
       counterAccountId: f.bank.id,
+      quantity: "10",
+      unitPrice: "105000",
+      settleQuantity: "1050000",
+      irtAmount: "1050000",
+    }),
+  );
+  assert.equal(tetherFromBank.ok, false);
+  assert.equal(tetherFromBank.message, MARKET_TOMAN_MESSAGE);
+
+  // ۱. 1 000 USDT for 105 000 000 Toman held at the exchange — a conversion, not a FIFO trade.
+  const swap = await createTransactionAction(
+    null,
+    tradeForm({
+      type: "buy",
+      description: "خرید تتر",
+      primaryAccountId: f.usdtWallet.id,
+      counterAccountId: f.exchangeToman.id,
       quantity: "1000",
       unitPrice: "105000",
       settleQuantity: "105000000",
@@ -149,7 +177,8 @@ test("buy, swap and sell settle in the exact units typed, and freeze both prices
   const swapEntry = await lastEntry();
   assert.equal(swapEntry.type, "fx", "a stablecoin purchase is booked as a swap");
   assert.equal((await qtyOf(f.user.id, f.usdtWallet.id)).toString(), "1000");
-  assert.equal((await qtyOf(f.user.id, f.bank.id)).toString(), "95000000");
+  assert.equal((await qtyOf(f.user.id, f.exchangeToman.id)).toString(), "95000000");
+  assert.equal((await qtyOf(f.user.id, f.bank.id)).toString(), "200000000", "the bank is untouched");
 
   // ۲. 0.2 ETH at a limit price of 3 000 USDT: exactly 600 USDT leaves the wallet.
   const buy = await createTransactionAction(
@@ -203,22 +232,24 @@ test("buy, swap and sell settle in the exact units typed, and freeze both prices
   assert.equal(fundWithUsdt.ok, false);
   assert.equal(fundWithUsdt.message, TOMAN_ONLY_MESSAGE);
 
-  // …and through a bank, not a Toman cash box.
-  const fundWithCashBox = await createTransactionAction(
-    null,
-    tradeForm({
-      type: "buy",
-      description: "خرید صندوق طلا",
-      primaryAccountId: f.fundAccount.id,
-      counterAccountId: f.cashBox.id,
-      quantity: "10",
-      unitPrice: "100000",
-      settleQuantity: "1000000",
-      irtAmount: "1000000",
-    }),
-  );
-  assert.equal(fundWithCashBox.ok, false);
-  assert.equal(fundWithCashBox.message, TOMAN_ONLY_MESSAGE);
+  // …and only through the Toman at a brokerage — never a bank, a cash box or exchange Toman.
+  for (const counter of [f.cashBox, f.bank, f.exchangeToman]) {
+    const refused = await createTransactionAction(
+      null,
+      tradeForm({
+        type: "buy",
+        description: "خرید صندوق طلا",
+        primaryAccountId: f.fundAccount.id,
+        counterAccountId: counter.id,
+        quantity: "10",
+        unitPrice: "100000",
+        settleQuantity: "1000000",
+        irtAmount: "1000000",
+      }),
+    );
+    assert.equal(refused.ok, false, counter.name);
+    assert.equal(refused.message, TOMAN_ONLY_MESSAGE);
+  }
 
   // ۴. A position never pays for another purchase.
   const payWithPosition = await createTransactionAction(
@@ -277,6 +308,24 @@ test("buy, swap and sell settle in the exact units typed, and freeze both prices
   const [sellSnap] = await db.select().from(entryFxSnapshots).where(eq(entryFxSnapshots.entryId, (await lastEntry()).id));
   assert.equal(D(sellSnap.unitPriceUsdt).toString(), "3200");
   assert.equal(sellSnap.priceMode, "market");
+
+  // ۷. A gold fund is bought with the Toman held at a brokerage.
+  const fundWithBroker = await createTransactionAction(
+    null,
+    tradeForm({
+      type: "buy",
+      description: "خرید صندوق طلا",
+      primaryAccountId: f.fundAccount.id,
+      counterAccountId: f.brokerToman.id,
+      quantity: "10",
+      unitPrice: "100000",
+      settleQuantity: "1000000",
+      irtAmount: "1000000",
+    }),
+  );
+  assert.equal(fundWithBroker.ok, true, fundWithBroker.message);
+  assert.equal((await qtyOf(f.user.id, f.fundAccount.id)).toString(), "10");
+  assert.equal((await qtyOf(f.user.id, f.brokerToman.id)).toString(), "199000000");
 });
 
 test("a coin bought at a place is held there, and each place trades only what it supports", async () => {
@@ -302,36 +351,40 @@ test("a coin bought at a place is held there, and each place trades only what it
   const usdeRabby = await account("H-USDE-R", "اتنا یو‌اس‌دی‌ای - ربی والت", usde.id, rabby.id);
   const usdcBitpin = await account("H-USDC-B", "یو‌اس‌دی‌سی - بیت‌پین", usdc.id, bitpin.id);
   const btcRabby = await account("H-BTC-R", "بیت‌کوین - ربی والت", btc.id, rabby.id);
+  const tomanBitpin = await account("H-IRT-B", "تومان - بیت‌پین", f.irt.id, bitpin.id);
 
-  // 500 USDe in Rabby, 300 USDC at Bitpin.
+  // 500 USDe in Rabby, 300 USDC and 200 000 000 Toman at Bitpin.
   const [equity] = await db.select().from(accountsTable).where(eq(accountsTable.code, "3010"));
   await postEntry({
     entryDate: TODAY,
     type: "opening",
-    description: "موجودی استیبل‌کوین",
+    description: "موجودی استیبل‌کوین و تومان صرافی",
     userId: f.user.id,
     postings: [
       { accountId: usdeRabby.id, assetId: usde.id, quantity: "500", baseValue: "500" },
       { accountId: usdcBitpin.id, assetId: usdc.id, quantity: "300", baseValue: "300" },
-      { accountId: equity.id, assetId: equity.assetId, quantity: "-80000000", baseValue: "-800" },
+      { accountId: tomanBitpin.id, assetId: f.irt.id, quantity: "200000000", baseValue: "2000" },
+      { accountId: equity.id, assetId: equity.assetId, quantity: "-280000000", baseValue: "-2800" },
     ],
   });
 
-  // Toman from the bank, bought at Bitpin → the coin is held in «بیت‌کوین - بیت‌پین».
-  const btcWithToman = await createTransactionAction(
-    null,
-    tradeForm({
-      type: "buy",
-      description: "خرید بیت‌کوین",
-      primaryAccountId: btcPicked.id,
-      counterAccountId: f.bank.id,
-      quantity: "0.01",
-      unitPrice: "10000000000",
-      settleQuantity: "100000000",
-      irtAmount: "100000000",
-      placeName: "بیت‌پین",
-    }),
-  );
+  const btcFields = {
+    type: "buy",
+    description: "خرید بیت‌کوین",
+    primaryAccountId: btcPicked.id,
+    quantity: "0.01",
+    unitPrice: "10000000000",
+    settleQuantity: "100000000",
+    irtAmount: "100000000",
+  };
+
+  // Never from a bank account.
+  const btcFromBank = await createTransactionAction(null, tradeForm({ ...btcFields, counterAccountId: f.bank.id }));
+  assert.equal(btcFromBank.ok, false);
+  assert.equal(btcFromBank.message, MARKET_TOMAN_MESSAGE);
+
+  // The Toman held at Bitpin → the coin is held in «بیت‌کوین - بیت‌پین».
+  const btcWithToman = await createTransactionAction(null, tradeForm({ ...btcFields, counterAccountId: tomanBitpin.id }));
   assert.equal(btcWithToman.ok, true, btcWithToman.message);
   const [btcAtBitpin] = await db
     .select()

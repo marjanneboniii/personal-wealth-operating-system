@@ -35,12 +35,14 @@ export function holdingKeyOf(symbol: string, walletName: string | null | undefin
   return `${symbol.trim().toUpperCase()}@${walletKeyOf(canonicalWalletName(walletName))}`;
 }
 
-export type WalletKind = "exchange" | "hot" | "cold";
+export type WalletKind = "exchange" | "hot" | "cold" | "broker";
 
 export type KnownWallet = {
   /** Persian display name — what is stored and shown. */
   name: string;
   kind: WalletKind;
+  /** «ir» = an Iranian exchange: the only kind of exchange that holds Toman. */
+  region?: "ir";
   /** Local logo, when one exists. */
   logo?: string;
   /** Other spellings (English, spaced, without ZWNJ). */
@@ -51,23 +53,27 @@ const L = "/icons/wallets";
 
 /** The pick list, in display order: Iranian exchanges, global exchanges, then wallets. */
 export const KNOWN_WALLETS: KnownWallet[] = [
-  { name: "نوبیتکس", kind: "exchange", logo: "/ir-icons/brands/nobitex.svg", aliases: ["nobitex"] },
-  { name: "بیت‌پین", kind: "exchange", logo: `${L}/bitpin.png`, aliases: ["bitpin", "بیت پین"] },
-  { name: "آبان‌تتر", kind: "exchange", logo: `${L}/abantether.png`, aliases: ["abantether", "aban tether", "آبان تتر"] },
-  { name: "والکس", kind: "exchange", logo: `${L}/wallex.png`, aliases: ["wallex"] },
-  { name: "رمزینکس", kind: "exchange", logo: `${L}/ramzinex.png`, aliases: ["ramzinex"] },
-  { name: "تبدیل", kind: "exchange", logo: `${L}/tabdeal.png`, aliases: ["tabdeal"] },
-  { name: "اکسکوینو", kind: "exchange", logo: `${L}/excoino.png`, aliases: ["excoino"] },
+  { name: "نوبیتکس", kind: "exchange", region: "ir", logo: "/ir-icons/brands/nobitex.svg", aliases: ["nobitex"] },
+  { name: "بیت‌پین", kind: "exchange", region: "ir", logo: `${L}/bitpin.png`, aliases: ["bitpin", "بیت پین"] },
+  { name: "آبان‌تتر", kind: "exchange", region: "ir", logo: `${L}/abantether.png`, aliases: ["abantether", "aban tether", "آبان تتر"] },
+  { name: "والکس", kind: "exchange", region: "ir", logo: `${L}/wallex.png`, aliases: ["wallex"] },
+  { name: "رمزینکس", kind: "exchange", region: "ir", logo: `${L}/ramzinex.png`, aliases: ["ramzinex"] },
+  { name: "تبدیل", kind: "exchange", region: "ir", logo: `${L}/tabdeal.png`, aliases: ["tabdeal"] },
   { name: "بایننس", kind: "exchange", logo: `${L}/binance.png`, aliases: ["binance"] },
   { name: "او‌کی‌ایکس", kind: "exchange", logo: `${L}/okx.png`, aliases: ["okx", "اوکی ایکس"] },
   { name: "بای‌بیت", kind: "exchange", logo: `${L}/bybit.png`, aliases: ["bybit", "بای بیت"] },
   { name: "کوکوین", kind: "exchange", logo: `${L}/kucoin.png`, aliases: ["kucoin"] },
   { name: "بیت‌گت", kind: "exchange", logo: `${L}/bitget.png`, aliases: ["bitget", "بیت گت"] },
-  { name: "گیت", kind: "exchange", logo: `${L}/gate.png`, aliases: ["gate", "gate.io"] },
-  { name: "کوینکس", kind: "exchange", logo: `${L}/coinex.png`, aliases: ["coinex"] },
   { name: "ال‌بانک", kind: "exchange", logo: `${L}/lbank.png`, aliases: ["lbank", "l bank", "ال بانک", "البانک"] },
   { name: "بیت‌یونیکس", kind: "exchange", logo: `${L}/bitunix.png`, aliases: ["bitunix", "بیت یونیکس", "بیتیونیکس"] },
   { name: "کوین‌بیس", kind: "exchange", logo: `${L}/coinbase.png`, aliases: ["coinbase", "کوین بیس"] },
+
+  // Brokerages — Toman only. Tehran-exchange shares, gold and fixed-income
+  // funds and online gold are bought and sold with the Toman held here.
+  { name: "کارگزاری مفید", kind: "broker", logo: "/icons/brokers/mofid.png", aliases: ["mofid", "emofid", "مفید", "کارگزاری مفيد"] },
+  { name: "کارگزاری آگاه", kind: "broker", logo: "/icons/brokers/agah.png", aliases: ["agah", "آگاه"] },
+  { name: "کارگزاری فارابی", kind: "broker", logo: "/icons/brokers/farabi.png", aliases: ["farabi", "farabixo", "فارابی"] },
+  { name: "کارگزاری کاریزما", kind: "broker", logo: "/icons/brokers/charisma.png", aliases: ["charisma", "کاریزما"] },
 
   { name: "لجر", kind: "cold", logo: `${L}/ledger.png`, aliases: ["ledger", "ledger nano", "ledger live"] },
   // Safe (app.safe.global) — a multisig smart-contract wallet.
@@ -96,6 +102,48 @@ export function knownWalletOf(name: string | null | undefined): KnownWallet | nu
 /** «metamask» → «متامسک»; an unknown place keeps its own spelling (tidied). */
 export function canonicalWalletName(name: string | null | undefined): string {
   return knownWalletOf(name)?.name ?? (name ?? "").replace(/\s+/g, " ").trim();
+}
+
+/** Iranian exchanges — the only exchanges with a Toman account. */
+export const IRANIAN_EXCHANGE_NAMES: readonly string[] = KNOWN_WALLETS.filter((w) => w.region === "ir").map((w) => w.name);
+export const BROKERAGE_NAMES: readonly string[] = KNOWN_WALLETS.filter((w) => w.kind === "broker").map((w) => w.name);
+
+export function isIranianExchange(name: string | null | undefined): boolean {
+  return knownWalletOf(name)?.region === "ir";
+}
+
+export function isBrokerage(name: string | null | undefined): boolean {
+  return knownWalletOf(name)?.kind === "broker";
+}
+
+/**
+ * Whether a money account of this kind and unit may sit at this place.
+ * Shared by the accounts form, the account service and the setup wizard.
+ *
+ *   • a brokerage holds Toman only;
+ *   • a crypto wallet holds no Toman;
+ *   • Toman at an exchange exists only at an Iranian exchange — Bybit, Binance
+ *     and the other foreign exchanges have no Toman account.
+ */
+export function moneyPlaceError(kind: string, symbol: string, placeName?: string | null): string | null {
+  const unit = symbol.trim().toUpperCase();
+  const toman = unit === "IRT" || unit === "IRR";
+  if (kind === "broker" && !toman) return "کارگزاری فقط موجودی تومانی دارد.";
+  if ((kind === "hot" || kind === "cold") && toman) return "کیف پول رمزارزی تومان نگهداری نمی‌کند.";
+  if (!placeName?.trim()) return null;
+  const known = knownWalletOf(placeName);
+  if (kind === "broker") return known?.kind === "broker" ? null : "کارگزاری را از فهرست انتخاب کنید.";
+  if (kind === "exchange") {
+    if (known && known.kind !== "exchange") return "صرافی را از فهرست انتخاب کنید.";
+    if (toman && !isIranianExchange(placeName)) {
+      return "صرافی‌های خارجی حساب تومانی ندارند؛ تومان فقط در صرافی داخلی نگهداری می‌شود.";
+    }
+    return null;
+  }
+  if (kind === "hot" || kind === "cold") {
+    return known && known.kind !== "hot" && known.kind !== "cold" ? "کیف پول را از فهرست انتخاب کنید." : null;
+  }
+  return null;
 }
 
 export function walletKindOf(name: string): WalletKind {

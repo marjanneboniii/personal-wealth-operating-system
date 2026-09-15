@@ -35,7 +35,7 @@ export type InstrumentDraftRow = {
   fundKind?: FundKind;
   /** والکس artwork, for the mark only. */
   logoUrl?: string | null;
-  /** Persian label of the والکس family («سهام آمریکا», «کامودیتی»…). */
+  /** Persian label of the والکس family («سهام توکنیزه», «کامودیتی»…). */
   kindLabel?: string;
   quantity: string;
   unitPrice: string;
@@ -107,7 +107,7 @@ export default function SetupInstrumentsStep({
 
   return (
     <section className="space-y-5">
-      <StepIntro title="صندوق، سهام و بازار جهانی" text="صندوق و سهام بورس تهران به تومان؛ سهام آمریکا، شاخص و کامودیتی به تتر یا تومان." />
+      <StepIntro title="صندوق، سهام و بازار جهانی" text="صندوق و سهام بورس تهران به تومان؛ سهام، شاخص و کامودیتی توکنیزه به تتر یا تومان." />
 
       <div className="space-y-2">
         <CurrencySwitch<Family>
@@ -120,7 +120,7 @@ export default function SetupInstrumentsStep({
           options={[
             { value: "fund", label: "صندوق" },
             { value: "stock", label: "سهام بورسی" },
-            { value: "wallex", label: "آمریکا، شاخص، کامودیتی" },
+            { value: "wallex", label: "سهام، شاخص و کامودیتی" },
           ]}
         />
 

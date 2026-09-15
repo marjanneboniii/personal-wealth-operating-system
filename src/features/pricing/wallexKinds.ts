@@ -9,7 +9,7 @@
 export const WALLEX_KIND_LABELS: Record<string, string> = {
   crypto: "رمزارز",
   stablecoin: "استیبل‌کوین",
-  tokenized_stock: "سهام آمریکا",
+  tokenized_stock: "سهام توکنیزه",
   index: "شاخص",
   commodity: "کامودیتی",
   bond: "اوراق قرضه",
@@ -39,6 +39,45 @@ export const WALLEX_RWA_KINDS = ["tokenized_stock", "index", "commodity", "bond"
 
 export function wallexKindLabel(kind: string): string {
   return WALLEX_KIND_LABELS[kind] ?? "رمزارز";
+}
+
+/**
+ * Who tokenised a stock, index, commodity or bond. One company is often
+ * tokenised by several issuers — AMZNON (Ondo) and AMZNX (xStocks) are both
+ * Amazon — so the issuer is shown as a short Persian tag after the name:
+ * «آمازون اندو», «آمازون ایکس», «اسپیس‌ایکس بی». It names the token family,
+ * never the exchange that quotes it.
+ */
+export type TokenIssuer = "ondo" | "xstock" | "bstock";
+
+export const TOKEN_ISSUER_LABELS: Record<TokenIssuer, string> = {
+  ondo: "اندو",
+  xstock: "ایکس",
+  bstock: "بی",
+};
+
+const TOKENIZED_KINDS: ReadonlySet<string> = new Set(WALLEX_RWA_KINDS);
+
+/** The issuer, from the source's Latin name when it says so, else from the ticker's suffix. */
+export function tokenIssuerOf(symbol: string, latinName = ""): TokenIssuer | null {
+  if (/\bondo\b/i.test(latinName)) return "ondo";
+  if (/xstocks?\b/i.test(latinName)) return "xstock";
+  if (/\bbstocks?\b/i.test(latinName)) return "bstock";
+  const s = symbol.trim().toUpperCase();
+  if (s.length > 3 && s.endsWith("ON")) return "ondo";
+  if (s.length > 2 && s.endsWith("X")) return "xstock";
+  if (s.length > 2 && s.endsWith("B")) return "bstock";
+  return null;
+}
+
+/** «آمازون» → «آمازون ایکس» for a tokenised asset; any other kind keeps its name. */
+export function withIssuerTag(name: string, symbol: string, kind: string, latinName = ""): string {
+  if (!TOKENIZED_KINDS.has(kind)) return name;
+  const issuer = tokenIssuerOf(symbol, latinName);
+  if (!issuer) return name;
+  const tag = TOKEN_ISSUER_LABELS[issuer];
+  const trimmed = name.trim();
+  return trimmed === tag || trimmed.endsWith(` ${tag}`) ? trimmed : `${trimmed} ${tag}`;
 }
 
 /**

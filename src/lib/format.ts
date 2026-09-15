@@ -88,6 +88,9 @@ export const CURRENCY_LABELS: Record<string, string> = {
   IRR: "تومان",
   EUR: "یورو",
   ETH: "اتریوم",
+  // Gold is held in grams: «۱۲۰ گرم طلای ۱۸ عیار», never «۱۲۰ GOLD18».
+  GOLD18: "گرم طلای ۱۸ عیار",
+  GOLD24: "گرم طلای ۲۴ عیار",
 };
 
 /**
@@ -105,7 +108,28 @@ function persianLabelOf(code: string): string | undefined {
 export function currencyLabel(currency: string | null | undefined): string {
   if (!currency) return "";
   const code = String(currency).trim().toUpperCase();
+  // A purely numeric code is the internal key of a real asset («002»). It is
+  // global across users, so it must never reach the screen as a unit — the
+  // asset is named «ملک ۱» / «خودرو ۱» instead.
+  if (/^\d+$/.test(code)) return "";
   return persianLabelOf(code) ?? String(currency);
+}
+
+const PERSIAN_LETTER = /[؀-ۿ]/;
+
+/**
+ * The Persian name an asset is shown by in lists: the supported coin's Persian
+ * name when the symbol has one, otherwise the stored name without a trailing
+ * Latin ticker («بیت‌کوین (BTC)» → «بیت‌کوین»). `fallback` is a Persian name
+ * from a market catalogue for assets stored under a Latin name.
+ */
+export function persianAssetName(symbol: string | null | undefined, name: string, fallback?: string | null): string {
+  const code = String(symbol ?? "").trim().toUpperCase();
+  const coin = code ? COIN_LABELS[code] ?? (code === "ETH" ? CURRENCY_LABELS.ETH : undefined) : undefined;
+  if (coin) return coin;
+  const stripped = name.replace(/\s*\([A-Za-z0-9.\-]+\)\s*$/, "").trim() || name;
+  if (PERSIAN_LETTER.test(stripped)) return stripped;
+  return fallback && PERSIAN_LETTER.test(fallback) ? fallback : stripped;
 }
 
 /**

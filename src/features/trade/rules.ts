@@ -6,10 +6,14 @@
  *   • A trade always settles in MONEY: Toman, or a USD stablecoin (USDT, USDC…).
  *     Crypto, gold, tokenised metal and shares are positions — never a payment
  *     account.
- *   • Iranian-market assets — «سهام بورسی», «صندوق بورسی» (gold funds included),
- *     online melted gold, and registry assets (property, vehicle) — settle in
- *     Toman through a BANK account only. Stablecoin wallets and cash boxes are
- *     simply not offered for them.
+ *   • Crypto and tokenised stocks, indices and commodities settle in Toman held
+ *     AT an Iranian exchange («تومان - نوبیتکس»), or in a stablecoin held where
+ *     they trade («تتر - بیت‌پین», «تتر - ربی والت»). A bank account, a cash box,
+ *     a Toman fund or online gold never pays for them.
+ *   • Iranian-market assets — «سهام بورسی», «صندوق بورسی» (gold and fixed-income
+ *     funds included) and online gold — settle ONLY in Toman held at a brokerage
+ *     («تومان - کارگزاری مفید»).
+ *   • Properties and vehicles are bought and sold through a Toman BANK account only.
  *   • A stablecoin (or USD) against Toman or another stablecoin is a CONVERSION
  *     (سواپ): the ledger books it as `fx`, without FIFO lots.
  *
@@ -17,6 +21,7 @@
  * action alike, so the two can never disagree about what is allowed.
  */
 import { D } from "@/domain/decimal";
+import { isBrokerage, isIranianExchange } from "@/features/setup/holdingWallets";
 
 export const STABLECOIN_SYMBOLS: ReadonlySet<string> = new Set([
   "USDT", "USDC", "USDG", "USDE", "USDS", "PYUSD", "BUSD", "DAI", "USDD", "FDUSD",
@@ -62,8 +67,10 @@ export type TradeInstrument = {
 /** The account a trade settles through. A bare symbol is accepted for convenience. */
 export type SettlementAccount = {
   symbol?: string | null;
-  /** `wallets.kind` — bank | cash | exchange | hot | cold | fund */
+  /** `wallets.kind` — bank | cash | exchange | broker | hot | cold | fund */
   walletKind?: string | null;
+  /** `wallets.name` — the place the money is held (نوبیتکس، کارگزاری مفید…) */
+  walletName?: string | null;
   name?: string | null;
 };
 
@@ -98,7 +105,21 @@ export function isTomanBankAccount(settle: SettlementAccount | string | null | u
   return /بانک|bank/i.test(account.name ?? "");
 }
 
-/** Iranian-market instruments that settle through a Toman bank account only. */
+/** Toman held at an Iranian exchange — the Toman that buys crypto and tokenised assets. */
+export function isTomanExchangeAccount(settle: SettlementAccount | string | null | undefined): boolean {
+  const account = asAccount(settle);
+  if (settlementUnitOf(account.symbol) !== "toman") return false;
+  return (account.walletKind ?? "").trim().toLowerCase() === "exchange" && isIranianExchange(account.walletName);
+}
+
+/** Toman held at a brokerage — the Toman that buys Tehran-market instruments. */
+export function isTomanBrokerAccount(settle: SettlementAccount | string | null | undefined): boolean {
+  const account = asAccount(settle);
+  if (settlementUnitOf(account.symbol) !== "toman") return false;
+  return (account.walletKind ?? "").trim().toLowerCase() === "broker" || isBrokerage(account.walletName);
+}
+
+/** Iranian-market instruments that settle through Toman at a brokerage only. */
 export function isTomanOnlyInstrument(asset: TradeInstrument): boolean {
   if (asset.kind && TOMAN_ONLY_KINDS.has(asset.kind)) return true;
   if (DOMESTIC_GOLD_SYMBOLS.has(sym(asset.symbol))) return true;
@@ -113,7 +134,10 @@ export function tradeRouteFor(asset: TradeInstrument): "conversion" | "trade" {
   return STABLECOIN_SYMBOLS.has(s) || s === "USD" ? "conversion" : "trade";
 }
 
-export const TOMAN_ONLY_MESSAGE = "این دارایی فقط از طریق حساب بانکی تومانی خرید و فروش می‌شود.";
+export const TOMAN_ONLY_MESSAGE = "سهام بورسی، صندوق‌ها و طلای آنلاین فقط با موجودی تومانی در کارگزاری خرید و فروش می‌شوند.";
+
+export const MARKET_TOMAN_MESSAGE =
+  "رمزارز و دارایی توکنیزه با تومان فقط از موجودی تومانی در صرافی داخلی خرید و فروش می‌شود؛ حساب بانکی، صندوق یا طلای آنلاین قابل استفاده نیست.";
 
 /** Why this pair cannot be traded, in Persian — or `null` when it can. */
 export function tradePairError(
@@ -132,7 +156,9 @@ export function tradePairError(
       : "وجه فروش فقط به حساب تومانی یا کیف پول استیبل‌کوین واریز می‌شود.";
   }
   if (sym(account.symbol) === assetSymbol) return "دارایی و حساب پرداخت/دریافت نمی‌توانند یکی باشند.";
-  if (isTomanOnlyInstrument(asset) && !isTomanBankAccount(account)) return TOMAN_ONLY_MESSAGE;
+  if (isTomanOnlyInstrument(asset)) return isTomanBrokerAccount(account) ? null : TOMAN_ONLY_MESSAGE;
+  if (unit === "toman" && !isTomanExchangeAccount(account)) return MARKET_TOMAN_MESSAGE;
+  if (unit === "usd" && !isStablecoin(assetSymbol)) return "رمزارز و دارایی توکنیزه با تومانِ صرافی یا استیبل‌کوین خرید و فروش می‌شود.";
   return null;
 }
 

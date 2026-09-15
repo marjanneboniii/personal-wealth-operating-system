@@ -37,6 +37,7 @@
  */
 import { D } from "@/domain/decimal";
 import { kindOf, type WallexMarketEntry } from "./wallex";
+import { withIssuerTag } from "@/features/pricing/wallexKinds";
 import type { PriceFailureCode, PriceProvider, PriceQuote, ProviderResult, QuoteKind } from "./types";
 
 const DEFAULT_URL = "https://api.abantether.com/manager/coins/data";
@@ -137,10 +138,9 @@ export class AbanTetherProvider implements PriceProvider {
 
       out.push({
         symbol,
-        // The asset's own Persian name, never tagged with an issuer or
-        // tokenisation family: the symbol shown beside it (TSLAX vs TSLAON)
-        // is what tells two tokens of one company apart.
-        displayName: stablecoinName ?? persian,
+        // The asset's Persian name plus its tokenisation family, in Persian:
+        // TSLAX and TSLAON are both Tesla, so they read «تسلا ایکس» and «تسلا اندو».
+        displayName: stablecoinName ?? withIssuerTag(persian, symbol, kind === "crypto" ? "tokenized_stock" : kind, latinName),
         latinName,
         kind: kind === "crypto" ? "tokenized_stock" : kind,
         logoUrl: stablecoinName ? null : markFor(kind, latinName),

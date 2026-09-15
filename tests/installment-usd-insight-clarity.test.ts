@@ -346,17 +346,13 @@ test("a paid card states the payment date once and keeps the due date as a note"
 
 test("the settle action stays offered for outstanding rows only", async () => {
   const { visible } = await render();
-  // The page ships BOTH layouts (mobile cards + desktop table) and switches
-  // between them with CSS, so one outstanding row = two copies of the action.
-  //
-  // The caption moved from «پرداخت سریع» to «پرداخت قسط» when the one-click
-  // RowAction became the settlement sheet — which still settles the whole
-  // remaining balance by default, and additionally allows a partial payment.
-  // What this test pins is unchanged: the action appears once per layout for a
-  // row that is still owed, and never for a settled one.
+  // One list serves the web and the PWA, so one outstanding row = one copy of
+  // the action. The settlement sheet («پرداخت قسط») settles the whole remaining
+  // balance by default and additionally allows a partial payment; a settled row
+  // never offers it.
   assert.equal(
     visible.split("پرداخت قسط").length - 1,
-    2,
-    "the outstanding installment gets the settle action in each layout, and the settled one never does",
+    1,
+    "the outstanding installment gets the settle action once, and the settled one never does",
   );
 });

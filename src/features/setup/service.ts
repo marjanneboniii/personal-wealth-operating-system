@@ -17,6 +17,8 @@ import {
   canonicalWalletName,
   holdingAccountName,
   holdingKeyOf,
+  isBrokerage,
+  isIranianExchange,
   walletKeyOf,
   walletKindOf,
 } from "@/features/setup/holdingWallets";
@@ -113,6 +115,11 @@ export type SetupInput = {
   bankOpeningBalance?: string;
   /** Native quantity in the cash account's own unit — never book USD. */
   cashOpeningBalance?: string;
+  /**
+   * Toman held at an Iranian exchange or a brokerage, one account per place —
+   * «تومان - نوبیتکس», «تومان - کارگزاری مفید». Foreign exchanges hold no Toman.
+   */
+  tomanPlaces?: Array<{ walletName: string; balance?: string }>;
   /**
    * Every coin the user holds, per place. Each line is its own account named
    * after the coin; lines naming the same `walletName` share one wallet. With
@@ -491,6 +498,23 @@ export async function completeSetup(
       });
     }
 
+    // Toman at an Iranian exchange (for crypto) or a brokerage (for the Tehran
+    // market). Any other place holds no Toman and is refused, not dropped.
+    const tomanPlacePicks: Array<{ code: string; walletName: string; balance?: string }> = [];
+    const tomanSeen = new Set<string>();
+    for (const place of input.tomanPlaces ?? []) {
+      const walletName = canonicalWalletName(place.walletName);
+      if (!walletName) continue;
+      if (!isIranianExchange(walletName) && !isBrokerage(walletName)) {
+        throw new Error(`«${walletName}» حساب تومانی ندارد؛ تومان فقط در صرافی داخلی یا کارگزاری نگهداری می‌شود.`);
+      }
+      const key = walletKeyOf(walletName);
+      if (tomanSeen.has(key)) continue;
+      tomanSeen.add(key);
+      if (tomanPlacePicks.length >= 50) break;
+      tomanPlacePicks.push({ code: String(1500 + tomanPlacePicks.length), walletName, balance: place.balance });
+    }
+
     // One wallet per distinct place (first spelling wins); an existing wallet
     // of this user with the same name is reused, never duplicated.
     const walletIdByKey = new Map<string, string>();
@@ -501,7 +525,7 @@ export async function completeSetup(
     for (const w of ownedWallets) {
       if (!walletIdByKey.has(walletKeyOf(w.name))) walletIdByKey.set(walletKeyOf(w.name), w.id);
     }
-    for (const pick of cryptoPicks) {
+    for (const pick of [...cryptoPicks, ...tomanPlacePicks]) {
       const key = walletKeyOf(pick.walletName);
       if (!key || walletIdByKey.has(key)) continue;
       const [created] = await tx
@@ -525,6 +549,13 @@ export async function completeSetup(
         name: holdingAccountName(chosenCrypto.displayName, walletName),
         type: "asset" as const,
         assetId: assetMap[chosenCrypto.symbol],
+        walletId: walletIdByKey.get(walletKeyOf(walletName)) ?? null,
+      })),
+      ...tomanPlacePicks.map(({ code, walletName }) => ({
+        code,
+        name: holdingAccountName("تومان", walletName),
+        type: "asset" as const,
+        assetId: assetMap.IRT,
         walletId: walletIdByKey.get(walletKeyOf(walletName)) ?? null,
       })),
       { code: "1300", name: "طلای ۱۸ عیار", type: "asset", assetId: assetMap.GOLD18 },
@@ -626,6 +657,20 @@ export async function completeSetup(
       const cash = await bookUsdFromAccountNative(tx, acctMap["1020"], input.cashOpeningBalance!, setupRate);
       draftPostings.push({ accountId: acctMap["1020"], assetId: cash.assetId, quantity: cash.quantity, baseValue: cash.baseValue, memo: "موجودی اولیه نقد" });
       totalOpeningEquityBase = totalOpeningEquityBase.add(cash.baseValue);
+    }
+
+    for (const pick of tomanPlacePicks) {
+      const accountId = acctMap[pick.code];
+      if (!accountId || !amountOf(pick.balance).gt(0)) continue;
+      const toman = await bookUsdFromAccountNative(tx, accountId, pick.balance!, setupRate);
+      draftPostings.push({
+        accountId,
+        assetId: toman.assetId,
+        quantity: toman.quantity,
+        baseValue: toman.baseValue,
+        memo: `موجودی اولیه ${holdingAccountName("تومان", pick.walletName)}`,
+      });
+      totalOpeningEquityBase = totalOpeningEquityBase.add(toman.baseValue);
     }
 
     for (const pick of cryptoPicks) {

@@ -1,5 +1,9 @@
 /**
- * Installment schedule table — mobile layout regression (reported from a real
+ * Installment schedule — layout regression. The page now renders ONE list for
+ * the web and the PWA (below). The table-cell CSS contract is kept because the
+ * other tables in the app still rely on it.
+ *
+ * Original report — installment schedule table, mobile layout regression (reported from a real
  * iPhone PWA screenshot: the «باز کردن در فرم» / «پرداخت سریع» action buttons
  * were crushed into vertical letter-by-letter strips in the squeezed column).
  *
@@ -53,73 +57,29 @@ test("single-token-cell rule covers the .row-actions wrapper (two-button action 
   );
 });
 
-test("installments page marks the action wrapper with the row-actions class", () => {
+test("installments render ONE list for the web and the PWA — no table, no second copy", () => {
   const src = page();
-  assert.ok(
-    src.includes("row-actions"),
-    "the action wrapper must carry the semantic `row-actions` class so the " +
-      "single-token-cell CSS rule applies to it",
-  );
-  // The class must be on the span that wraps BOTH action controls.
-  const wrapper = src.match(/<span className="([^"]*row-actions[^"]*)">([\s\S]*?)<\/span>/);
-  assert.ok(wrapper, "the row-actions wrapper is a <span> with the class in its className");
-  assert.ok(
-    /flex/.test(wrapper![1]),
-    "the row-actions wrapper keeps its flex row layout",
-  );
-  assert.ok(
-    wrapper![2].includes("SettleObligationSheet"),
-    // The one-click RowAction was replaced by the settlement sheet (which
-    // still defaults to settling the whole remaining balance, and additionally
-    // allows a partial payment). The LAYOUT contract this test protects is
-    // unchanged: the settle control shares the row-actions wrapper with the
-    // «باز کردن در فرم» link so the single-token-cell CSS rule applies.
-    "the settle control lives inside the row-actions wrapper",
-  );
-  assert.ok(
-    /<Link[^>]*className="[^"]*btn[^"]*"/.test(wrapper![2]),
-    "the «باز کردن در فرم» link-button lives inside the row-actions wrapper",
-  );
+  assert.ok(!/<table\b/.test(src), "no schedule table: the same rows serve every screen width");
+  assert.ok(!/sm:hidden|hidden sm:block/.test(src), "no layout switched by breakpoint — one markup, one copy of each row");
+  assert.match(src, /className="inst-list"/, "the rows live in the installment list");
 });
 
-test("the action <td> holds ONLY the row-actions span when pending (only-child requirement)", () => {
+test("a pending row's actions sit on the row's foot, both inside one inst-actions wrapper", () => {
   const src = page();
-  const td = src.match(/<td className="text-left">([\s\S]*?)<\/td>/);
-  assert.ok(td, "the action <td className=\"text-left\"> exists in the schedule table");
-  const inner = td![1];
-  assert.ok(
-    !/<span(?! className="[^"]*row-actions)/.test(inner),
-    "no other <span> child may exist in the action <td> — the CSS rule requires " +
-      ".row-actions to be the ONLY child of the cell",
-  );
-  assert.ok(
-    /!\{r\.fx\.isPaid &&/.test(inner) || /isPaid/.test(inner),
-    "the wrapper is rendered only for pending rows (paid rows keep an empty action cell)",
-  );
+  const wrapper = src.match(/<div className="inst-actions">([\s\S]*?)<\/div>/);
+  assert.ok(wrapper, "the actions wrapper exists");
+  assert.ok(/<Link[^>]*className="[^"]*btn[^"]*"/.test(wrapper![1]), "«باز کردن در فرم» is inside the wrapper");
+  assert.ok(wrapper![1].includes("SettleObligationSheet"), "the settle control is inside the wrapper");
+  assert.ok(/!r\.fx\.isPaid && \(\s*<div className="inst-actions">/.test(src), "only pending rows get actions");
 });
 
-test("scroll contract: the schedule table can reach max-content inside its card wrapper", () => {
+test("action labels never wrap letter by letter; on a phone they split the row evenly", () => {
   const cssCode = css();
-  // The wrapper must let the table grow past the card (otherwise every column
-  // is squeezed to fit the viewport and the text cells start wrapping).
-  const m = cssCode.match(/\.card\.overflow-x-auto > \.table\s*\{([^}]*)\}/);
-  assert.ok(m, ".card.overflow-x-auto > .table rule exists (the schedule table wrapper)");
-  assert.ok(m[1].includes("width: max-content"), "the table may grow to its max-content width");
-  assert.ok(
-    /max-width:\s*none/.test(m[1]),
-    "max-width:none beats `.table { max-width: 100% }` which squeezes columns",
-  );
-
-  const src = page();
-  // The wrapper may carry more utilities than these two (the responsive card
-  // layout hides the table below `sm:`), so match the classes, not one exact
-  // string — the contract is "a .card that is also overflow-x-auto".
-  assert.match(
-    src,
-    /className="[^"]*\bcard\b[^"]*\boverflow-x-auto\b[^"]*"/,
-    "the schedule table must live in a `card overflow-x-auto` wrapper for the " +
-      "max-content rule to apply",
-  );
+  assert.match(cssCode, /\.inst-actions \.btn\s*\{[^}]*white-space: nowrap/, "action buttons keep their label on one line");
+  const mobile = cssCode.match(/@media \(max-width: 479px\)\s*\{\s*\.inst-actions\s*\{([^}]*)\}/);
+  assert.ok(mobile, "a phone-width rule for the actions exists");
+  assert.ok(/grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/.test(mobile![1]), "two equal columns on a phone");
+  assert.match(cssCode, /\.inst-title\s*\{[^}]*overflow-wrap: break-word/, "titles wrap by word, never anywhere");
 });
 
 test("table text cells wrap with break-word, never anywhere (letter-shredding regression)", () => {
