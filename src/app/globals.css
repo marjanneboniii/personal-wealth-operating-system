@@ -621,18 +621,240 @@ select.field {
 }
 
 /*
- * Jalali date picker — three <select>s share one row (سال / ماه / روز), so each
- * gets a tighter box than a normal field. The chevron drawn by `select.field`
- * sits on the physical LEFT (the RTL "end"), so the left padding is the larger
- * one. `font-size` is NOT reduced below the 16px iOS-zoom floor (see the
- * mobile media query below).
+ * Jalali calendar — a field that opens a month grid: bottom sheet on phones and
+ * in the PWA, centred dialog from 640px. Portalled to <body>, above Sheet (z 80).
  */
-.jalali-date-picker select.jalali-picker-select {
-  min-height: 42px;
-  padding: 0.4rem 0.5rem 0.4rem 1.5rem;
-  background-position: calc(0% + 12px) 50%, calc(0% + 7px) 50%;
-  text-align: right;
-  text-overflow: ellipsis;
+.jdp-anchor {
+  position: relative;
+}
+.jdp-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 44px;
+  text-align: start;
+  cursor: pointer;
+  color: var(--text);
+  touch-action: manipulation;
+}
+.jdp-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.jdp-trigger > svg {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+.jdp-trigger-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  gap: 0.45rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.jdp-trigger-text b {
+  font-weight: 600;
+}
+.jdp-trigger-sub,
+.jdp-placeholder {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.jdp-placeholder {
+  font-size: inherit;
+}
+.jdp-validity {
+  position: absolute;
+  bottom: 0;
+  inset-inline-start: 1rem;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.jdp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: var(--safe-top) var(--safe-right) 0 var(--safe-left);
+}
+.jdp-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay);
+  animation: fade-in 0.2s ease both;
+}
+.jdp-panel {
+  position: relative;
+  width: 100%;
+  max-height: calc(100% - 1rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: var(--surface-elev);
+  box-shadow: var(--shadow-lg);
+  outline: none;
+}
+.jdp-grabber {
+  width: 2.25rem;
+  height: 4px;
+  margin: 0 auto 0.6rem;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+@media (min-width: 640px) {
+  .jdp-overlay {
+    align-items: center;
+    justify-content: center;
+    padding-bottom: var(--safe-bottom);
+  }
+  .jdp-panel {
+    width: 22.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--r-lg);
+  }
+  .jdp-grabber {
+    display: none;
+  }
+}
+.jdp-caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.5rem;
+  font-size: var(--fs-xs);
+}
+.jdp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-block: 0.25rem 0.5rem;
+}
+.jdp-titles,
+.jdp-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.jdp-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 44px;
+  padding: 0 0.6rem;
+  border-radius: var(--r-md);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text);
+}
+.jdp-title svg {
+  color: var(--text-3);
+}
+.jdp-navbtn {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  color: var(--text-2);
+}
+button.jdp-title:hover,
+.jdp-navbtn:hover:not(:disabled),
+.jdp-day:hover {
+  background: var(--hover);
+}
+.jdp-navbtn:disabled {
+  opacity: 0.3;
+}
+.jdp-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+.jdp-wd {
+  padding-block: 0.35rem;
+  text-align: center;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-3);
+}
+.jdp-day {
+  display: flex;
+  aspect-ratio: 1;
+  max-width: 100%;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.jdp-wd.is-holiday,
+.jdp-day.is-holiday {
+  color: var(--negative);
+}
+.jdp-day.is-today {
+  box-shadow: inset 0 0 0 1.5px var(--action);
+  font-weight: 700;
+}
+.jdp-day[aria-pressed="true"],
+.jdp-cell[aria-pressed="true"] {
+  background: var(--action);
+  border-color: var(--action);
+  box-shadow: none;
+  color: var(--on-ink);
+  font-weight: 700;
+}
+.jdp-cells {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.jdp-cell {
+  min-height: 52px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  touch-action: manipulation;
+}
+.jdp-cell:hover {
+  border-color: var(--border-strong);
+}
+.jdp-cell.is-current {
+  border-color: var(--action);
+  color: var(--action);
+}
+.jdp-day:focus-visible,
+.jdp-cell:focus-visible,
+.jdp-title:focus-visible,
+.jdp-navbtn:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 1px;
+}
+.jdp-foot {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.jdp-foot .btn {
+  flex: 1;
 }
 
 .kbd {

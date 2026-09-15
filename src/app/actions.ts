@@ -618,6 +618,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       if (settleError) throw new Error(settleError);
 
       const salePriceToman = D(irtAmountStr).toFixed(0);
+      const saleRateOverride = { saleFxRate: serverRate.toString(), saleUsdRate: serverRate.toString() };
       let ledgerEntryId: string | null;
       let label: string;
       if (input.registryKind === "property") {
@@ -627,6 +628,10 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           salePriceToman,
           saleAccountId: input.counterAccountId,
           userId: authUser?.id ?? null,
+          // Toman in, Toman out: the proceeds reach the bank through USD, so
+          // they must go both ways at the ledger's own rate — never at a
+          // historical close of the sale day.
+          ...saleRateOverride,
         });
         ledgerEntryId = sold.ledgerEntryId;
         label = sold.label;
@@ -644,6 +649,10 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           salePriceToman,
           saleAccountId: input.counterAccountId,
           userId: authUser?.id ?? null,
+          // Toman in, Toman out: the proceeds reach the bank through USD, so
+          // they must go both ways at the ledger's own rate — never at a
+          // historical close of the sale day.
+          ...saleRateOverride,
         });
         ledgerEntryId = sold.ledgerEntryId;
         label = buildRwaLabel("vehicle", vehicle.userSeq);
@@ -1994,7 +2003,8 @@ const setupPropertySchema = z.object({
   propertyTypeId: z.string().uuid(),
   acquisitionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاریخ خرید ملک نامعتبر است"),
   purchasePriceToman: z.string().trim().min(1),
-  currentValueToman: z.string().trim().min(1),
+  /** Blank → the purchase price, as the valuation of the purchase day. */
+  currentValueToman: z.string().optional(),
   sizeSqm: z.string().optional(),
 });
 

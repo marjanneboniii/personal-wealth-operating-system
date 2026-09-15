@@ -8,8 +8,11 @@
  *
  * Resolution order for a given date:
  *   1. exact rate recorded for that date (exchange_rates USD→IRT)
- *   2. the most recent rate recorded ON OR BEFORE that date
- *   3. the user's current rate (user_fx_settings / settings / default)
+ *   2. the bundled free-market history (features/fx/historicalUsdIrt) — the
+ *      close of that day or of the last trading day before it — unless the
+ *      table holds a rate closer to the date
+ *   3. the most recent rate recorded ON OR BEFORE that date
+ *   4. the user's current rate (user_fx_settings / settings / default)
  *
  * Reads only. No ledger writes, no snapshot rewrites.
  */
@@ -18,6 +21,8 @@ import { db } from "@/db";
 import { exchangeRates } from "@/db/schema";
 import { D } from "@/domain/decimal";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
+import { todayIso } from "@/lib/format";
+import { historicalUsdIrtOnOrBefore } from "@/features/fx/historicalUsdIrt";
 import type { UsdRateResolution } from "./types";
 
 export async function resolveUsdRateForDate(
@@ -27,6 +32,7 @@ export async function resolveUsdRateForDate(
   const date = (dateIso || "").slice(0, 10);
 
   if (date) {
+    let before: { rate: string; effectiveDate: string } | null = null;
     try {
       const [exact] = await db
         .select()
@@ -43,7 +49,7 @@ export async function resolveUsdRateForDate(
         return { rate: exact.rate.toString(), effectiveDate: exact.effectiveDate, source: "exact", isExact: true };
       }
 
-      const [before] = await db
+      const [row] = await db
         .select()
         .from(exchangeRates)
         .where(
@@ -55,16 +61,25 @@ export async function resolveUsdRateForDate(
         )
         .orderBy(desc(exchangeRates.effectiveDate))
         .limit(1);
-      if (before?.rate && D(before.rate).gt(0)) {
-        return {
-          rate: before.rate.toString(),
-          effectiveDate: before.effectiveDate,
-          source: "nearest",
-          isExact: false,
-        };
-      }
+      if (row?.rate && D(row.rate).gt(0)) before = { rate: row.rate.toString(), effectiveDate: row.effectiveDate };
     } catch {
-      // fall through to the current user rate
+      // table unavailable — the bundled history can still answer
+    }
+
+    // History is for PAST days only. Today (and later) belongs to the rate the
+    // user confirmed: a sale booked today is converted to USD and back by the
+    // ledger at that rate, and a second «today» rate would split the two.
+    const history = date < todayIso() ? historicalUsdIrtOnOrBefore(date) : null;
+    if (history && (!before || history.effectiveDate >= before.effectiveDate)) {
+      return {
+        rate: history.rate,
+        effectiveDate: history.effectiveDate,
+        source: "historical",
+        isExact: history.effectiveDate === date,
+      };
+    }
+    if (before) {
+      return { rate: before.rate, effectiveDate: before.effectiveDate, source: "nearest", isExact: false };
     }
   }
 

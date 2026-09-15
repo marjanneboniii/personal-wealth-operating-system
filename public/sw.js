@@ -11,7 +11,7 @@
      • On logout/login the client posts {type:"PURGE_CACHES"} → every cache is
        wiped so no residue of the previous tenant survives on the device. */
 
-const VERSION = "pwos-v5"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
+const VERSION = "pwos-v6"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
 const STATIC_CACHE = VERSION + "-static";
 
 // Brand assets (VEZAN) — immutable, cache-first.

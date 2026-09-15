@@ -16,6 +16,7 @@ type UsdPreview = { usd: string; rate: string; effectiveDate: string; source: st
 
 const RATE_SOURCE_LABEL: Record<string, string> = {
   exact: "نرخ ثبت‌شده همان تاریخ",
+  historical: "نرخ بازار آزاد دلار در همان روز (تاریخچه)",
   nearest: "نزدیک‌ترین نرخ ثبت‌شده قبل از تاریخ",
   current: "نرخ جاری کاربر (برای آن تاریخ نرخی ثبت نشده است)",
   fallback: "نرخ پیش‌فرض سیستم",

@@ -253,7 +253,7 @@ test("PWA — manifest RTL standalone icons shortcuts; SW never caches API or pr
 
   const sw = read("public/sw.js");
   assert.match(sw, /VERSION/);
-  assert.match(sw, /pwos-v4/);
+  assert.match(sw, /pwos-v6/);
   assert.match(sw, /PURGE_CACHES/);
   assert.match(sw, /req\.method !== \"GET\"/);
   assert.match(sw, /No API mutations are ever cached/);

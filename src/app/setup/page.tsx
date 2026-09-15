@@ -12,9 +12,12 @@ import StepIntro, { CurrencySwitch } from "@/components/setup/StepIntro";
 import SetupHoldingsStep, { flattenHoldings, type CryptoDraftRow } from "@/components/setup/SetupHoldingsStep";
 import SetupInstrumentsStep, { type InstrumentDraftRow } from "@/components/setup/SetupInstrumentsStep";
 import SetupDebtsStep, { type DebtDraftRow } from "@/components/setup/SetupDebtsStep";
-import SetupRealAssetsStep, {
+import {
+  SetupPropertiesStep,
+  SetupVehiclesStep,
   propertyRowReady,
   vehicleRowReady,
+  vehicleYearOf,
   type PropertyDraftRow,
   type VehicleDraftRow,
 } from "@/components/setup/SetupRealAssetsStep";
@@ -31,9 +34,11 @@ import { OCCUPATIONS } from "@/features/income/occupations";
  * confirmed USD→IRT rate converts them. The book currency (USD) is internal.
  */
 
-const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک و خودرو", "بدهی‌ها", "تأیید"] as const;
+const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک", "خودرو", "بدهی‌ها", "تأیید"] as const;
 const LAST_STEP = STEPS.length;
-const DEBTS_STEP = 6;
+const PROPERTIES_STEP = 5;
+const VEHICLES_STEP = 6;
+const DEBTS_STEP = 7;
 // The calendar is not a preference: dates are always picked in Jalali. The
 // value is still submitted so the stored `date_calendar` config stays explicit.
 const dateCalendar = "jalali" as const;
@@ -195,7 +200,7 @@ export default function SetupWizardPage() {
 
     const real: ReviewItem[] = [
       ...readyVehicles.map((r) => ({ key: r.key, label: r.label, detail: "خودرو", toman: amountOf(r.currentValueToman || r.purchasePriceToman) })),
-      ...readyProperties.map((r) => ({ key: r.key, label: r.label || "ملک", detail: "ملک", toman: amountOf(r.currentValueToman) })),
+      ...readyProperties.map((r) => ({ key: r.key, label: r.label || "ملک", detail: "ملک", toman: amountOf(r.currentValueToman || r.purchasePriceToman) })),
     ];
 
     const debts: ReviewItem[] = debtRows
@@ -336,7 +341,7 @@ export default function SetupWizardPage() {
           value={JSON.stringify(
             readyVehicles.map((r) => ({
               catalogId: r.catalogId,
-              manufacturingYear: r.manufacturingYear,
+              manufacturingYear: vehicleYearOf(r),
               ownershipDate: r.ownershipDate,
               purchasePriceToman: r.purchasePriceToman,
               currentValueToman: r.currentValueToman,
@@ -552,16 +557,11 @@ export default function SetupWizardPage() {
 
         {step === 4 && <SetupInstrumentsStep rows={instrumentRows} onChange={setInstrumentRows} rate={rate} />}
 
-        {step === 5 && (
-          <SetupRealAssetsStep
-            vehicles={vehicleRows}
-            properties={propertyRows}
-            onVehiclesChange={setVehicleRows}
-            onPropertiesChange={setPropertyRows}
-          />
-        )}
+        {step === PROPERTIES_STEP && <SetupPropertiesStep rows={propertyRows} onChange={setPropertyRows} />}
 
-        {step === 6 && (
+        {step === VEHICLES_STEP && <SetupVehiclesStep rows={vehicleRows} onChange={setVehicleRows} />}
+
+        {step === DEBTS_STEP && (
           <div className="space-y-3">
             {debtError && (
               <p className="text-[length:var(--fs-xs)]" role="alert" style={{ color: "var(--negative)" }}>
@@ -579,7 +579,7 @@ export default function SetupWizardPage() {
           </div>
         )}
 
-        {step === 7 && (
+        {step === LAST_STEP && (
           <section className="space-y-5">
             <StepIntro title="مرور و تأیید" text="همه‌چیز را یک بار ببینید؛ بعد از تأیید ثبت می‌شود." />
 

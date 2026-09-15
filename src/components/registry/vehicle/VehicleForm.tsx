@@ -13,6 +13,7 @@ type RateInfo = { usd: string; rate: string; effectiveDate: string; source: stri
 
 const RATE_SOURCE_LABEL: Record<string, string> = {
   exact: "نرخ ثبت‌شده همان تاریخ",
+  historical: "نرخ بازار آزاد دلار در همان روز (تاریخچه)",
   nearest: "نزدیک‌ترین نرخ ثبت‌شده قبل از تاریخ خرید",
   current: "نرخ جاری کاربر (برای تاریخ خرید نرخی ثبت نشده است)",
   fallback: "نرخ پیش‌فرض سیستم",
