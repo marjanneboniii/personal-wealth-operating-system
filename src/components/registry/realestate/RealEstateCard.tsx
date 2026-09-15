@@ -265,9 +265,6 @@ function SummaryPanel({ item }: { item: RealEstateDashboardItem }) {
               <JDate iso={a.systemEntryDate} />
               {a.isHistorical && <span className="muted"> · تملک پیش از ثبت</span>}
             </DetailRow>
-            <DetailRow label="شناسه">
-              <span className="num">{a.label}</span>
-            </DetailRow>
           </div>
         </div>
         {a.notes && <p className="muted re-note">یادداشت: {a.notes}</p>}

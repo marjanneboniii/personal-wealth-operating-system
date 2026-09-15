@@ -13,6 +13,8 @@
  * PURE: shared by the client form, the server action and the sync.
  */
 
+import { tokenIssuerOf, type TokenIssuer } from "@/features/pricing/wallexKinds";
+
 /** CoinGecko platform ids of EVM chains — what Rabby / MetaMask / Safe can use. */
 export const EVM_PLATFORM_IDS: ReadonlySet<string> = new Set([
   "ethereum", "binance-smart-chain", "arbitrum-one", "arbitrum-nova", "base", "polygon-pos",
@@ -79,6 +81,33 @@ export function walletNetworks(venue: string, canonicalName: string): readonly s
   if (venue === "evm_wallet") return ["evm"];
   if (canonicalName === "فانتوم") return ["bitcoin", "evm", "solana", "sui"];
   return null;
+}
+
+/** Asset-class codes of tokenised stocks, indices, commodities and bonds. */
+export const TOKENIZED_CLASS_CODES: ReadonlySet<string> = new Set(["equity", "etf", "commodity", "security"]);
+
+/** Chains each tokenisation family issues on: Ondo and bStocks on EVM chains, xStocks on Solana and EVM chains. */
+const ISSUER_NETWORKS: Record<TokenIssuer, readonly string[]> = {
+  ondo: ["evm"],
+  xstock: ["evm", "solana"],
+  bstock: ["evm"],
+};
+
+/**
+ * The networks a holding can move on: what the sync knows, else — for a
+ * tokenised asset, which CoinGecko rarely lists — the chains of its issuer.
+ */
+export function networksForHolding(
+  symbol: string | null | undefined,
+  classCode: string | null | undefined,
+  known: readonly string[] | null | undefined,
+): readonly string[] | null {
+  if (known && known.length > 0) return known;
+  if (symbol && TOKENIZED_CLASS_CODES.has((classCode ?? "").trim().toLowerCase())) {
+    const issuer = tokenIssuerOf(symbol);
+    if (issuer) return ISSUER_NETWORKS[issuer];
+  }
+  return known ?? null;
 }
 
 /** Whether a coin on `assetNetworks` can sit in a wallet that supports `walletFamilies`. */

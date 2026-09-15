@@ -205,9 +205,16 @@ export default async function OverviewDashboard() {
   // «کل بدهی‌ها» is `totalDebt*` — ledger liabilities AND planning debts, the
   // same figure «تعهدات مالی» shows. «کل مطالبات» is never netted against it
   // and is not part of net worth.
-  const tiles: { label: string; toman: string; usd: string; tone?: "up" }[] = [
+  // Debts carry the negative colour so they never read like an asset figure;
+  // a zero debt stays neutral.
+  const tiles: { label: string; toman: string; usd: string; tone?: "up" | "down" }[] = [
     { label: "کل دارایی‌ها", toman: nw.totalAssetsToman, usd: nw.totalAssets },
-    { label: "کل بدهی‌ها", toman: nw.totalDebtToman, usd: nw.totalDebtUsd },
+    {
+      label: "کل بدهی‌ها",
+      toman: nw.totalDebtToman,
+      usd: nw.totalDebtUsd,
+      tone: D(nw.totalDebtToman ?? "0").isZero() ? undefined : "down",
+    },
     ...(hasReceivables
       ? [{ label: "کل مطالبات", toman: receivableToman, usd: nw.totalReceivableUsd ?? "0", tone: "up" as const }]
       : []),

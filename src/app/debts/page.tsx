@@ -101,7 +101,7 @@ export default async function DebtsPage() {
             {debts.length === 0 ? (
               <p className="card muted text-center text-[length:var(--fs-sm)]">بدهی‌ای ندارید</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="obl-list">
                 {debts.map((d) => (
                   <ObligationCard key={d.id} d={d} today={today} rate={fx.rate} />
                 ))}
@@ -114,7 +114,7 @@ export default async function DebtsPage() {
               title="مطالبات من"
               action={<span className="muted num text-[length:var(--fs-xs)]">{faCount(receivables.length)}</span>}
             >
-              <ul className="space-y-2">
+              <ul className="obl-list">
                 {receivables.map((d) => (
                   <ObligationCard key={d.id} d={d} today={today} rate={fx.rate} />
                 ))}

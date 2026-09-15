@@ -97,7 +97,8 @@ test("currencyLabel maps codes (case-insensitive) and passes unknown tickers thr
   assert.equal(currencyLabel("usdc"), "یو اس دی سی");
   const usdeMoney = formatMoney("120.5", "USDE");
   assert.ok(!/[A-Za-z0-9]/.test(bare(usdeMoney)), "no Latin ticker or Latin digit reaches the screen");
-  assert.equal(currencyLabel("GOLD18"), "GOLD18", "an unmapped code still passes through");
+  assert.equal(currencyLabel("GOLD18"), "گرم طلای ۱۸ عیار", "gold reads in grams, in Persian");
+  assert.equal(currencyLabel("XYZ"), "XYZ", "an unmapped code still passes through");
   assert.equal(currencyLabel(null), "");
 });
 

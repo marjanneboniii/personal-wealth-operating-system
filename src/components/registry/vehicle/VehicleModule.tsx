@@ -3,19 +3,24 @@
 import { useState } from "react";
 import type { VehicleDashboardItem, VehiclePortfolioSummary } from "@/features/rwa/vehicle/dto";
 import type { VehicleBrand, VehicleCatalogModel } from "@/features/rwa/vehicle/types";
+import { AutomobileLogo } from "@/components/ui/IranLogo";
+import RealAssetQuickAdd from "@/components/registry/RealAssetQuickAdd";
 import CatalogAdmin from "./CatalogAdmin";
 import VehicleCard from "./VehicleCard";
 import VehicleForm from "./VehicleForm";
-import { DeltaPct, DeltaToman, DeltaUsd, Hint, Metric, Toman, Usd, faNum } from "./shared";
+import { DeltaPct, DeltaToman, Hint, Toman, Usd, faNum, yearLabel } from "./shared";
 
 type Tab = "vehicles" | "add" | "catalog";
 
 /**
- * دارایی واقعی → خودرو (همان بخش موجود، اصلاح و تکمیل‌شده).
+ * دارایی واقعی ← خودرو
  *
- * اصل کلیدی: نرخ دلار یک شاخص تبدیل تاریخی است، نه موتور تغییر ارزش خودرو.
- *      تغییر نرخ دلار ≠ تغییر ارزش خودرو
- *      ثبت ارزش جدید  = Snapshot جدید = تغییر Current Value
+ * Same shape as «املاک»: one figure strip (value · cost · result), then one
+ * row per car. Everything about a car — its result, history and actions —
+ * lives inside that car's row, so every figure is stated exactly once.
+ *
+ * Rule: the dollar rate converts, it never re-values. A car's value changes
+ * only with a new valuation snapshot.
  */
 export default function VehicleModule({
   brands,
@@ -36,13 +41,25 @@ export default function VehicleModule({
   /** Liquid accounts the sale proceeds may be credited to (unified ledger write). */
   payoutAccounts?: { id: string; name: string; symbol: string | null }[];
 }) {
-  const [tab, setTab] = useState<Tab>(dashboard.length ? "vehicles" : "add");
+  const items = Array.isArray(dashboard) ? dashboard : [];
+  const [tab, setTab] = useState<Tab>(items.length ? "vehicles" : "add");
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const subtitle =
+    summary.count > 0
+      ? summary.soldCount > 0
+        ? `${faNum(summary.activeCount)} خودرو · ${faNum(summary.soldCount)} فروخته‌شده`
+        : `${faNum(summary.activeCount)} خودرو`
+      : null;
 
   return (
-    <section className="card p-5">
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <section className="card re-module" aria-labelledby="vehicle-module-title">
+      <header className="re-head">
         <div className="min-w-0">
-          <h2 className="re-title">خودرو</h2>
+          <h2 id="vehicle-module-title" className="re-title">
+            خودرو
+          </h2>
+          {subtitle && <p className="re-subtitle">{subtitle}</p>}
         </div>
         <div className="seg" role="group" aria-label="بخش خودرو">
           <button type="button" onClick={() => setTab("vehicles")} className={tab === "vehicles" ? "seg-on" : ""} aria-pressed={tab === "vehicles"}>
@@ -52,77 +69,125 @@ export default function VehicleModule({
             افزودن خودرو
           </button>
           <button type="button" onClick={() => setTab("catalog")} className={tab === "catalog" ? "seg-on" : ""} aria-pressed={tab === "catalog"}>
-            کاتالوگ خودرو
+            کاتالوگ
           </button>
         </div>
       </header>
 
-      {/* ── Vehicles portfolio strip ── */}
-      {summary.count > 0 && (
-        <div className="mb-5 grid grid-cols-2 gap-4 border-y py-4 sm:grid-cols-3 lg:grid-cols-5" style={{ borderColor: "var(--border)" }}>
-          <Metric
-            label="ارزش خودروهای در اختیار"
-            value={<Toman value={summary.totalCurrentToman} />}
-            sub={<>≈ <Usd value={summary.totalCurrentUsd} /></>}
-          />
-          <Metric
-            label="مجموع قیمت خرید"
-            value={<Toman value={summary.totalPurchaseToman} />}
-            sub={<>≈ <Usd value={summary.totalPurchaseUsd} /></>}
-          />
-          <Metric label="سود/زیان تومانی" value={<DeltaToman value={summary.totalGainToman} />} sub={<>بازده: <DeltaPct value={summary.roiToman} /></>} />
-          <Metric label="سود/زیان دلاری" value={<DeltaUsd value={summary.totalGainUsd} />} sub={<>بازده: <DeltaPct value={summary.roiUsd} /></>} />
-          <Metric
-            label="تعداد خودرو"
-            value={<span className="num">{faNum(summary.count)}</span>}
-            sub={`${faNum(summary.activeCount)} فعال · ${faNum(summary.soldCount)} فروخته‌شده`}
-          />
-        </div>
-      )}
-
-      {summary.soldCount > 0 && (
-        <p className="muted -mt-2 mb-4 text-[length:var(--fs-xs)] leading-5">
-          مجموع‌های بالا فقط خودروهای در اختیار را در بر می‌گیرد. {faNum(summary.soldCount)} خودروی فروخته‌شده با مبلغ
-          فروش <Toman value={summary.soldProceedsToman} /> و سود/زیان تحقق‌یافته{" "}
-          <DeltaToman value={summary.realisedGainToman} /> (<DeltaUsd value={summary.realisedGainUsd} />) جداگانه در کارت
-          هر خودرو گزارش می‌شود.
-        </p>
-      )}
-
       {tab === "vehicles" && (
-        <div className="space-y-4">
-          {summary.unvaluedCount > 0 && (
-            <Hint tone="warn">
-              {faNum(summary.unvaluedCount)} خودرو هنوز هیچ ارزش‌گذاری ثبت‌شده ندارد؛ تا زمانی که Snapshot ثبت نشود، ارزش
-              فعلی و سود/زیان محاسبه نمی‌شود (هیچ مقدار فرضی ساخته نمی‌شود).
-            </Hint>
+        <div className="re-body">
+          {summary.activeCount > 0 && (
+            <dl className="metric-strip re-summary">
+              <div>
+                <dt>ارزش روز خودروها</dt>
+                <dd>
+                  <Toman value={summary.totalCurrentToman} />
+                </dd>
+                <dd className="re-sub">
+                  <Usd value={summary.totalCurrentUsd} />
+                </dd>
+              </div>
+              <div>
+                <dt>قیمت خرید</dt>
+                <dd>
+                  <Toman value={summary.totalPurchaseToman} />
+                </dd>
+                <dd className="re-sub">
+                  <Usd value={summary.totalPurchaseUsd} />
+                </dd>
+              </div>
+              <div>
+                <dt>سود / زیان تحقق‌نیافته</dt>
+                <dd>
+                  <DeltaToman value={summary.totalGainToman} />
+                </dd>
+                <dd className="re-sub">
+                  تومانی <DeltaPct value={summary.roiToman} /> · دلاری <DeltaPct value={summary.roiUsd} />
+                </dd>
+              </div>
+            </dl>
           )}
-          {dashboard.length === 0 ? (
-            <div className="py-10 text-center">
-              <p className="text-[length:var(--fs-sm)] font-semibold">هنوز خودرویی ثبت نشده است</p>
-              <p className="muted mx-auto mt-1 max-w-md text-[length:var(--fs-xs)] leading-6">
-                برند و مدل را از کاتالوگ انتخاب کنید، سال ساخت، تاریخ تملک و قیمت خرید را وارد کنید؛ معادل دلاری با نرخ
-                همان تاریخ ذخیره می‌شود.
-              </p>
-              <button className="btn btn-primary mt-3" onClick={() => setTab("add")}>
+
+          {summary.soldCount > 0 && (
+            <p className="muted re-note">
+              سود / زیان تحقق‌یافتهٔ خودروهای فروخته‌شده: <DeltaToman value={summary.realisedGainToman} />
+            </p>
+          )}
+
+          {summary.unvaluedCount > 0 && (
+            <Hint tone="warn">{faNum(summary.unvaluedCount)} خودرو هنوز ارزش‌گذاری ندارد و در ارزش روز محاسبه نمی‌شود.</Hint>
+          )}
+
+          {items.length === 0 ? (
+            <div className="re-empty">
+              <p className="re-empty-title">هنوز خودرویی ثبت نشده است</p>
+              <p className="muted">خودرو را جست‌وجو کنید و با + اضافه کنید؛ معادل دلاری خودکار محاسبه می‌شود.</p>
+              <button type="button" className="btn btn-primary" onClick={() => setTab("add")}>
                 افزودن خودرو
               </button>
             </div>
           ) : (
-            dashboard.map((item) => (
-              <VehicleCard key={item.vehicle.id} item={item} payoutAccounts={payoutAccounts} />
-            ))
+            <ul className="re-list" aria-label="فهرست خودروها">
+              {items.map((item) => {
+                const { vehicle, valuation, gains } = item;
+                const open = openId === vehicle.id;
+                const sold = vehicle.status === "sold";
+                const value = sold ? vehicle.salePriceToman : valuation.currentValueToman;
+                const meta = [yearLabel(vehicle.year), item.holding?.label, sold ? "فروخته‌شده" : null].filter(Boolean);
+                return (
+                  <li key={vehicle.id} className={open ? "re-row is-open" : "re-row"}>
+                    <button
+                      type="button"
+                      className="re-row-head"
+                      onClick={() => setOpenId(open ? null : vehicle.id)}
+                      aria-expanded={open}
+                      aria-controls={`vehicle-detail-${vehicle.id}`}
+                    >
+                      <AutomobileLogo name={vehicle.brand} size={32} />
+                      <span className="re-row-main">
+                        <span className="re-row-title">{`${vehicle.brand} ${vehicle.model}`}</span>
+                        <span className="re-row-meta">{meta.join(" · ")}</span>
+                      </span>
+                      <span className="re-row-value">
+                        {value ? <Toman value={value} /> : <span className="muted re-row-delta">بدون ارزش‌گذاری</span>}
+                        {gains.roiToman && (
+                          <span className="re-row-delta">
+                            <DeltaPct value={gains.roiToman} />
+                          </span>
+                        )}
+                      </span>
+                      <span className="re-chevron" aria-hidden="true" />
+                    </button>
+                    {open && (
+                      <div id={`vehicle-detail-${vehicle.id}`} className="re-row-body">
+                        <VehicleCard item={item} payoutAccounts={payoutAccounts} />
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       )}
 
       {tab === "add" && (
-        <div className="space-y-3">
-          <VehicleForm brands={brands} models={models} ownerName={ownerName} bankAccounts={bankAccounts} />
+        <div className="re-body">
+          <RealAssetQuickAdd kind="vehicle" bankAccounts={bankAccounts} />
+          <details className="re-specs">
+            <summary>ثبت با جزئیات کامل — مدل خارج از فهرست، پلاک، نرخ دستی</summary>
+            <div>
+              <VehicleForm brands={brands} models={models} ownerName={ownerName} bankAccounts={bankAccounts} />
+            </div>
+          </details>
         </div>
       )}
 
-      {tab === "catalog" && <CatalogAdmin brands={brands} models={models} />}
+      {tab === "catalog" && (
+        <div className="re-body">
+          <CatalogAdmin brands={brands} models={models} />
+        </div>
+      )}
     </section>
   );
 }

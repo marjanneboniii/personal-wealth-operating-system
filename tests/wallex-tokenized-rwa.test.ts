@@ -1,5 +1,5 @@
 /**
- * سهام آمریکا و کامودیتی از والکس — classification, registration, setup, marks.
+ * سهام توکنیزه و کامودیتی از والکس — classification, registration, setup, marks.
  *
  * Runs against rows captured from the LIVE https://api.wallex.ir/v1/markets on
  * 2026-09-13 (tests/fixtures/wallex-markets-rwa.json), not an invented shape.
@@ -107,7 +107,7 @@ test("the live feed's US stocks and commodities classify by what they hold", asy
   // Both markets, read independently, exactly like every other Wallex row.
   const nvda = entries.find((e: any) => e.symbol === "NVDAX");
   assert.ok(nvda.priceTmn, "NVIDIA carries its Toman price");
-  assert.equal(nvda.displayName, "انویدیا استاک", "the Persian name comes from the source");
+  assert.equal(nvda.displayName, "انویدیا استاک ایکس", "the Persian name comes from the source, with its issuer");
 });
 
 test("a future listing of the same families is classified by its name alone", async () => {
@@ -130,7 +130,7 @@ test("the real-world family filter returns stocks and commodities, not coins", a
   assert.deepEqual(symbols, ["COPXON", "NVDAX", "PPLTON", "SLVON", "UNGON", "USOON"]);
 
   assert.equal((await getWallexAsset("USOON")).kindLabel, "کامودیتی");
-  assert.equal((await getWallexAsset("NVDAX")).kindLabel, "سهام آمریکا");
+  assert.equal((await getWallexAsset("NVDAX")).kindLabel, "سهام توکنیزه");
   assert.equal((await searchWallexCatalog("نفت"))[0]?.symbol, "USOON", "«نفت» finds the oil token");
 });
 

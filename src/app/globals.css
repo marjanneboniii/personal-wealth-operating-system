@@ -3105,6 +3105,88 @@ body {
   border-top: 1px solid var(--border);
 }
 
+/* Obligations — one bordered list, a row per obligation; the same layout on
+   the web and in the installed PWA (no table to scroll sideways on a phone). */
+.obl-list {
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.obl-list > li + li { border-top: 1px solid var(--border); }
+.obl-card { padding: 0.95rem 1.05rem; min-width: 0; }
+.obl-card.is-settled { background: var(--sunken); }
+.obl-card .obligation-card-foot { border-top-style: dashed; }
+.obl-row { display: flex; align-items: center; gap: 0.75rem; min-height: 3.75rem; padding: 0.75rem 1rem; min-width: 0; }
+.obl-dot { width: 0.5rem; height: 0.5rem; flex-shrink: 0; border-radius: 999px; background: var(--border-strong); }
+.obl-dot[data-tone="late"] { background: var(--negative); }
+.obl-dot[data-tone="soon"] { background: var(--warning); }
+.obl-main { display: grid; flex: 1; gap: 0.125rem; min-width: 0; }
+.obl-title,
+.obl-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.obl-title { font-size: var(--fs-sm); font-weight: 600; }
+.obl-meta { font-size: var(--fs-xs); color: var(--text-3); }
+.obl-side { display: grid; flex-shrink: 0; justify-items: end; gap: 0.125rem; text-align: end; }
+.obl-amount { font-size: var(--fs-sm); font-weight: 700; }
+.obl-when { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
+
+/* ثبت تعهد — direction tiles side by side, custom due-date rows. */
+.debt-direction { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.debt-dates { display: grid; gap: 0.5rem; list-style: none; }
+.debt-date-row { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.debt-date-seq { flex-shrink: 0; min-width: 3.25rem; font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); }
+.debt-date-add { width: 100%; min-height: 2.75rem; aspect-ratio: auto; }
+
+/* اقساط — one list for the web and the PWA: a row per installment, its
+   actions on the row's foot (never squeezed into a table column). */
+.inst-group-title { display: flex; align-items: center; gap: 0.4rem; font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); }
+.inst-list { list-style: none; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+.inst-list > li + li { border-top: 1px solid var(--border); }
+.inst-row { display: grid; gap: 0.65rem; padding: 0.85rem 1rem; min-width: 0; border-inline-start: 3px solid transparent; }
+.inst-row[data-tone="late"] { border-inline-start-color: var(--negative); }
+.inst-row[data-tone="soon"] { border-inline-start-color: var(--warning); }
+.inst-row.is-paid { background: var(--sunken); }
+.inst-head { display: flex; align-items: flex-start; gap: 0.75rem; min-width: 0; }
+.inst-seq {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--sunken);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-2);
+}
+.inst-row.is-paid .inst-seq { background: var(--positive-soft); color: var(--positive); }
+.inst-main { display: grid; flex: 1; gap: 0.125rem; min-width: 0; }
+.inst-title { font-size: var(--fs-sm); font-weight: 600; line-height: 1.6; overflow-wrap: break-word; }
+.inst-meta { font-size: var(--fs-xs); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inst-side { display: grid; flex-shrink: 0; justify-items: end; gap: 0.125rem; text-align: end; }
+.inst-amount { font-size: var(--fs-sm); font-weight: 700; }
+.inst-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border);
+}
+.inst-when { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.45rem; font-size: var(--fs-xs); color: var(--text-3); }
+.inst-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.inst-actions .btn { white-space: nowrap; }
+@media (max-width: 479px) {
+  .inst-actions { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inst-actions .btn,
+  .inst-settle { width: 100%; }
+}
+.inst-paid > summary { cursor: pointer; list-style: none; padding-block: 0.25rem 0.5rem; }
+.inst-paid > summary::-webkit-details-marker { display: none; }
+
 /* Disclosure panel — a form folded away until asked for */
 .card.disclosure {
   padding: 0;
@@ -3318,20 +3400,17 @@ body {
   align-items: center;
   gap: 0.5rem;
 }
+/* Every place is visible at every width — the installed PWA included; the
+   list wraps instead of hiding exchanges behind an inner scroll. */
 .place-chips {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.4rem;
-  max-height: 16.5rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 0.1rem;
 }
 @media (min-width: 480px) {
   .place-chips {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    max-height: none;
-    overflow: visible;
   }
 }
 .place-chip {
@@ -4531,6 +4610,32 @@ input {
 }
 .expense-seg > button:hover { color: var(--text); }
 .expense-seg > button[data-on] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--shadow-sm); }
+.expense-seg > button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── خرید و فروش دارایی — the expense cards, plus what a trade needs. ── */
+.expense-card > .expense-row { padding: 0; }
+.expense-seg:has(> button:nth-child(2):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 640px) { .expense-seg:has(> button:nth-child(2):last-child) { grid-template-columns: repeat(2, auto); } }
+a.expense-square { text-decoration: none; color: var(--text-2); }
+.trade-asset {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.trade-asset[data-on] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.trade-asset-text { display: grid; flex: 1; gap: 0.125rem; min-width: 0; }
+.trade-asset-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trade-asset-text > b { font-size: var(--fs-sm); }
+.trade-asset > .expense-check { position: static; flex-shrink: 0; }
+.expense-presets > .trade-preset-wide { grid-column: 1 / -1; }
+.trade-quote { display: grid; gap: 0.375rem; padding: 0.75rem; border-radius: var(--r-md); background: var(--sunken); font-size: var(--fs-xs); }
+.trade-quote > div { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; min-width: 0; }
+.trade-quote dt { color: var(--text-3); }
+.trade-quote-total { font-size: var(--fs-sm); font-weight: 700; }
 
 /* The primary action stays reachable while scrolling a long form (PWA + web). */
 .tx-submit-bar {
@@ -4634,6 +4739,16 @@ input {
 .market-empty { display: flex; flex-direction: column; gap: 0.3rem; padding: 1.25rem 0.25rem; font-size: var(--fs-xs); }
 .market-empty-title { font-size: var(--fs-sm); font-weight: 600; }
 .re-link { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; touch-action: manipulation; }
+/* «افزودن ملک / خودرو» — the setup flow reused inside the module. */
+.re-quick { display: flex; flex-direction: column; gap: 0.9rem; min-width: 0; }
+.re-quick-foot {
+  display: grid;
+  gap: 0.75rem;
+  align-items: end;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+@media (min-width: 640px) { .re-quick-foot { grid-template-columns: minmax(0, 1fr) auto; } }
 .market-form-grid { display: grid; gap: 0.75rem; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 640px) { .market-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1024px) { .market-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

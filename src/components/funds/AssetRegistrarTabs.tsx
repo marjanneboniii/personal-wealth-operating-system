@@ -44,7 +44,7 @@ export default function AssetRegistrarTabs() {
           className={source === "market" ? "seg-on" : ""}
           onClick={() => setSource("market")}
         >
-          رمزارز، سهام آمریکا، شاخص و کامودیتی
+          رمزارز، سهام، شاخص و کامودیتی توکنیزه
         </button>
       </div>
 
@@ -53,7 +53,7 @@ export default function AssetRegistrarTabs() {
       ) : (
         <div className="card space-y-3 p-4 sm:p-5">
           <div>
-            <h2 className="text-[length:var(--fs-sm)] font-bold">رمزارز، میم‌کوین، سهام آمریکا، شاخص، کامودیتی و اوراق</h2>
+            <h2 className="text-[length:var(--fs-sm)] font-bold">رمزارز، میم‌کوین، سهام، شاخص، کامودیتی و اوراق توکنیزه</h2>
             <p className="muted mt-1 text-[length:var(--fs-xs)] leading-6">
               هر نماد با نام فارسی و دو قیمت مستقل نمایش داده می‌شود: <strong>قیمت تومانی</strong> و{" "}
               <strong>قیمت تتری</strong>. هیچ‌کدام از روی دیگری محاسبه نمی‌شود.

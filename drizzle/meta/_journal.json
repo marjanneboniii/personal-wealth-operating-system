@@ -225,6 +225,20 @@
       "when": 1789200000000,
       "tag": "0031_market_price_per_user",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789300000000,
+      "tag": "0032_tokenized_equity_class_label",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789400000000,
+      "tag": "0033_tokenized_issuer_names",
+      "breakpoints": true
     }
   ]
 }

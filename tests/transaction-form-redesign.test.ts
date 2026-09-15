@@ -83,8 +83,12 @@ test("nothing is written before the final confirm", () => {
 test("every number in the form goes through the shared numeric field", () => {
   assert.doesNotMatch(CODE, /replace\(\/\[\^0-9/, "no hand-rolled digit stripping");
   assert.doesNotMatch(CODE, /inputMode="decimal"\s*\n\s*className="field num"\s*\n\s*dir="ltr"\s*\n\s*placeholder="0\.00000000"/);
-  assert.match(CODE, /<AmountInput[\s\S]*?onValueChange=\{setIrtAmount\}/);
-  assert.match(CODE, /<AmountInput[\s\S]*?onValueChange=\{setQuantity\}/);
+  // Toman amounts are typed in the repayment and transfer cards, through the same field.
+  assert.match(read("src/components/forms/DebtRepaymentFields.tsx"), /<AmountInput[\s\S]*?onValueChange=\{p\.setAmount\}/);
+  assert.match(read("src/components/forms/TransferFields.tsx"), /<AmountInput[\s\S]*?onValueChange=\{p\.setAmount\}/);
+  // Quantities are typed in the trade and transfer cards, through the same field.
+  assert.match(read("src/components/forms/TradeFields.tsx"), /<AmountInput[\s\S]*?onValueChange=\{p\.setQuantity\}/);
+  assert.match(read("src/components/forms/TransferFields.tsx"), /<AmountInput[\s\S]*?onValueChange=\{p\.setQuantity\}/);
 });
 
 test("no plain numeric <input> is left anywhere in the app", () => {

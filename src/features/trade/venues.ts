@@ -4,9 +4,10 @@
  * bought there, with which money, and which coins can be sent to it.
  *
  * PRODUCT RULES
- *   • Iranian exchange (نوبیتکس، بیت‌پین، والکس…): crypto, US shares, indices and
- *     commodities are bought with Toman from a BANK account, or with TETHER held
- *     at that exchange. USDC, USDe and other stablecoins do not trade there.
+ *   • Iranian exchange (نوبیتکس، بیت‌پین، والکس…): crypto and tokenised stocks,
+ *     indices and commodities are bought with the TOMAN or the TETHER held at
+ *     that exchange — never from a bank account. USDC, USDe and other
+ *     stablecoins do not trade there.
  *   • Foreign exchange (بایننس، او‌کی‌ایکس…): the same assets, with USDT or USDC
  *     held at that exchange. Other stablecoins are converted to USDT/USDC there
  *     first. Toman never trades there.
@@ -20,19 +21,25 @@
  *
  * PURE: shared by the client form and the server action.
  */
-import { canonicalWalletName } from "@/features/setup/holdingWallets";
+import { canonicalWalletName, isBrokerage, IRANIAN_EXCHANGE_NAMES } from "@/features/setup/holdingWallets";
 import { BOOTSTRAP_NETWORKS, networksCompatible, walletNetworks } from "./networks";
-import { isTomanBankAccount, STABLECOIN_SYMBOLS } from "./rules";
+import {
+  isTomanBankAccount,
+  isTomanBrokerAccount,
+  isTomanExchangeAccount,
+  MARKET_TOMAN_MESSAGE,
+  STABLECOIN_SYMBOLS,
+} from "./rules";
 
 export type VenueType = "bank" | "cash" | "domestic_exchange" | "foreign_exchange" | "evm_wallet" | "multichain_wallet" | "unknown";
 
-const DOMESTIC_EXCHANGES = new Set(["نوبیتکس", "بیت‌پین", "آبان‌تتر", "والکس", "رمزینکس", "تبدیل", "اکسکوینو"]);
-const FOREIGN_EXCHANGES = new Set(["بایننس", "او‌کی‌ایکس", "بای‌بیت", "کوکوین", "بیت‌گت", "گیت", "کوینکس", "ال‌بانک", "بیت‌یونیکس", "کوین‌بیس"]);
+const DOMESTIC_EXCHANGES = new Set(IRANIAN_EXCHANGE_NAMES);
+const FOREIGN_EXCHANGES = new Set(["بایننس", "او‌کی‌ایکس", "بای‌بیت", "کوکوین", "بیت‌گت", "ال‌بانک", "بیت‌یونیکس", "کوین‌بیس"]);
 const EVM_WALLETS = new Set(["متامسک", "ربی والت", "سیف", "کوین‌بیس والت"]);
 const MULTICHAIN_WALLETS = new Set(["لجر", "تراست والت", "او‌کی‌ایکس والت", "فانتوم"]);
 
-/** The Iranian exchanges, in catalogue order — offered when buying with Toman. */
-export const DOMESTIC_EXCHANGE_NAMES: readonly string[] = ["نوبیتکس", "بیت‌پین", "آبان‌تتر", "والکس", "رمزینکس", "تبدیل", "اکسکوینو"];
+/** The Iranian exchanges, in catalogue order — the only places that hold Toman for crypto. */
+export const DOMESTIC_EXCHANGE_NAMES: readonly string[] = IRANIAN_EXCHANGE_NAMES;
 
 export type Place = {
   /** `wallets.name` */
@@ -44,7 +51,9 @@ export type Place = {
 export function venueTypeOf(place: Place | null | undefined): VenueType {
   const kind = (place?.walletKind ?? "").trim().toLowerCase();
   if (kind === "bank") return "bank";
-  if (kind === "cash" || kind === "fund") return "cash";
+  // A brokerage is a Toman container, like a cash box: nothing coin-like trades there.
+  if (kind === "cash" || kind === "fund" || kind === "broker") return "cash";
+  if (isBrokerage(place?.walletName)) return "cash";
   const name = canonicalWalletName(place?.walletName);
   if (DOMESTIC_EXCHANGES.has(name)) return "domestic_exchange";
   if (FOREIGN_EXCHANGES.has(name)) return "foreign_exchange";
@@ -124,15 +133,13 @@ export function venueTradeError(
   const venue = venueTypeOf(place);
   const assetIsStable = STABLECOIN_SYMBOLS.has(assetSymbol);
 
-  // Toman: from a bank account, trading at an Iranian exchange (or a place the app does not know).
+  // Toman: only the Toman held at an Iranian exchange, and only at that exchange.
   if (symbol === "IRT" || symbol === "IRR") {
-    if (!isTomanBankAccount({ symbol, walletKind: settle.walletKind, name: settle.name ?? settle.walletName })) {
-      return "معامله با تومان فقط از حساب بانکی انجام می‌شود.";
+    if (!isTomanExchangeAccount(settle)) return MARKET_TOMAN_MESSAGE;
+    if (place?.walletName && !sameWallet(place, settle)) {
+      return "تومان فقط برای معامله در همان صرافی‌ای که در آن نگهداری می‌شود استفاده می‌شود.";
     }
-    if (venue !== "domestic_exchange" && venue !== "unknown" && venue !== "bank" && venue !== "cash") {
-      return "خرید و فروش با تومان فقط در صرافی داخلی انجام می‌شود.";
-    }
-    if (side === "buy" && venue === "unknown" && !assetIsStable) return "صرافی داخلی محل خرید را انتخاب کنید.";
+    if (venue !== "domestic_exchange" && venue !== "unknown") return "خرید و فروش با تومان فقط در صرافی داخلی انجام می‌شود.";
     return null;
   }
 
@@ -155,10 +162,56 @@ export function venueTradeError(
     if (!quotes.has(symbol)) {
       return where === "domestic_exchange"
         ? "در صرافی داخلی فقط با تومان یا تتر معامله می‌شود."
-        : "در صرافی خارجی فقط با تتر یا USDC معامله می‌شود.";
+        : "در صرافی خارجی فقط با تتر یا یو اس دی سی معامله می‌شود.";
     }
   }
   return null;
+}
+
+export type TransferAccount = {
+  symbol?: string | null;
+  walletKind?: string | null;
+  walletName?: string | null;
+  name?: string | null;
+};
+
+const TOMAN_UNITS: ReadonlySet<string> = new Set(["IRT", "IRR"]);
+const FIAT_UNITS: ReadonlySet<string> = new Set(["IRT", "IRR", "USD", "EUR", "AED", "TRY", "GBP"]);
+
+/**
+ * Where money may be moved — «انتقال».
+ *
+ *   • Toman moves between Toman bank accounts, the Toman held at an Iranian
+ *     exchange and the Toman held at a brokerage, in every direction — never
+ *     to a crypto wallet, a foreign exchange or a cash box.
+ *   • A coin or a tokenised asset (Tether included) goes to the SAME asset
+ *     held at an exchange or a wallet — never into Toman, a bank or a
+ *     brokerage — and only on a network that place supports.
+ *
+ * Returns a Persian reason, or `null` when the move is allowed.
+ */
+export function transferDestinationError(
+  from: TransferAccount,
+  to: TransferAccount,
+  networks?: readonly string[] | null,
+): string | null {
+  const fromSymbol = (from.symbol ?? "").trim().toUpperCase();
+  const toSymbol = (to.symbol ?? "").trim().toUpperCase();
+
+  if (TOMAN_UNITS.has(fromSymbol)) {
+    if (!TOMAN_UNITS.has(toSymbol)) return "تومان فقط به حساب تومانی منتقل می‌شود.";
+    if (isTomanBankAccount(to) || isTomanExchangeAccount(to) || isTomanBrokerAccount(to)) return null;
+    return "تومان فقط بین حساب بانکی، تومانِ صرافی داخلی و تومانِ کارگزاری منتقل می‌شود.";
+  }
+
+  if (!fromSymbol || FIAT_UNITS.has(fromSymbol)) return venueTransferError(toSymbol, to, networks);
+
+  if (toSymbol !== fromSymbol) return "رمزارز و دارایی توکنیزه فقط به همان دارایی در صرافی یا کیف پول دیگر منتقل می‌شود.";
+  const kind = (to.walletKind ?? "").trim().toLowerCase();
+  if (["bank", "cash", "fund", "broker"].includes(kind) || isBrokerage(to.walletName)) {
+    return "رمزارز به حساب بانکی یا کارگزاری منتقل نمی‌شود.";
+  }
+  return venueTransferError(toSymbol, to, networks);
 }
 
 /** Can this coin be sent to that place? (a transfer between two holdings) */
