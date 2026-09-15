@@ -116,6 +116,40 @@ test("Toman moves bank → brokerage, brokerage → bank and brokerage → excha
   assert.equal(toExchange.ok, true, toExchange.message);
 });
 
+test("the whole brokerage balance moves to the bank after the dollar rate has changed, at its book cost", async () => {
+  await modulesReady;
+  const f = await fixture();
+  // Opened at 100 000 Toman per dollar (30 000 000 = $300); today's rate is lower,
+  // so the same Toman is worth $333 — more dollars than the account ever booked.
+  await db.execute(sql`update user_fx_settings set current_rate = '90000' where user_id = ${f.user.id}`);
+
+  const all = await createTransactionAction(
+    null,
+    transferForm({ description: "انتقال", primaryAccountId: f.broker.id, counterAccountId: f.bank.id, irtAmount: "30000000" }),
+  );
+  assert.equal(all.ok, true, all.message);
+  const balances = await getAccountBalances(f.user.id);
+  const broker = balances.find((b: any) => b.accountId === f.broker.id);
+  const bank = balances.find((b: any) => b.accountId === f.bank.id);
+  assert.equal(D(broker.quantity).toString(), "0");
+  assert.ok(D(broker.baseValue).abs().lt("0.000001"), "the book value leaves with the money");
+  assert.equal(D(bank.quantity).toString(), "80000000");
+  assert.ok(D(bank.baseValue).sub("800").abs().lt("0.000001"), "a transfer never revalues money");
+
+  const tooMuch = await createTransactionAction(
+    null,
+    transferForm({ description: "انتقال", primaryAccountId: f.broker.id, counterAccountId: f.bank.id, irtAmount: "1" }),
+  );
+  assert.equal(tooMuch.ok, false, "an empty account cannot send");
+  assert.match(tooMuch.message, /موجودی/);
+
+  const withFee = await createTransactionAction(
+    null,
+    transferForm({ description: "انتقال", primaryAccountId: f.bank.id, counterAccountId: f.broker.id, irtAmount: "80000000", fee: "1000" }),
+  );
+  assert.equal(withFee.ok, false, "the whole balance plus a fee is more than the account holds");
+});
+
 test("«همه» moves the whole balance when it was opened at the same non-round rate", async () => {
   await modulesReady;
   const f = await fixture();
