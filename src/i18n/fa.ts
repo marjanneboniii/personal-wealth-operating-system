@@ -42,7 +42,7 @@ export const fa = {
 
     submitBtn: "تکمیل راه‌اندازی و ورود به سیستم",
     submitting: "در حال ثبت موجودی اولیه…",
-    completedMessage: "راه‌اندازی سیستم‌عامل ثروت شخصی با موفقیت انجام شد.",
+    completedMessage: "راه‌اندازی توازن با موفقیت انجام شد.",
     alreadyCompleted: "راه‌اندازی اولیه قبلاً انجام شده است.",
   },
   common: {

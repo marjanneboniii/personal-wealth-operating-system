@@ -1501,7 +1501,18 @@ button.jdp-title:hover,
   }
 }
 
-/* Public pages inherit the same semantic tokens as the application. */
+/* ══════════════════════════════════════════════════════════════════════
+   Public pages (landing, about, privacy, terms).
+
+   They inherit the SAME semantic tokens as the application — there is no
+   separate marketing palette, so a visitor who registers lands on a product
+   that looks like the page that sold it to them.
+
+   Structure: a dark hero band (`.landing-ink` pins the dark token set there
+   regardless of the visitor's theme) over alternating light/tinted bands. The
+   whole page is hairlines and flat surfaces: no drop shadows, no gradients on
+   content, no colour that is not already a product token.
+   ══════════════════════════════════════════════════════════════════════ */
 
 .landing {
   min-height: 100dvh;
@@ -1511,9 +1522,11 @@ button.jdp-title:hover,
   color: var(--text);
   padding-bottom: 0;
 }
-/* The existing hero/header/footer are dark surfaces in either theme. */
+
+/* The hero/header/footer are dark surfaces in either theme. */
 .landing-ink {
-  background: var(--bg); color: var(--text);
+  background: var(--bg);
+  color: var(--text);
 }
 
 /* Theme transition — colors only, so nothing can shift the layout. */
@@ -1591,6 +1604,72 @@ button.jdp-title:hover,
   border-radius: var(--r-md);
 }
 
+
+/* ── Landing category palette ──
+   Colour here is a LABEL, not decoration: each asset kind and each module tile
+   keeps one hue wherever it appears, so a reader learns «طلا is amber» once.
+   Each entry is a pair — a soft wash for the plate, and an ink for the glyph
+   and text that stays legible on it. The dark set is re-mixed, not re-used:
+   the light washes go muddy on a dark surface and the light inks go neon. */
+:root {
+  --lc-bank-soft: #e0f2f1; --lc-bank-ink: #0f766e;
+  --lc-cash-soft: #dcfce7; --lc-cash-ink: #15803d;
+  --lc-property-soft: #ffedd5; --lc-property-ink: #9a3412;
+  --lc-gold-soft: #fef3c7; --lc-gold-ink: #92400e;
+  --lc-stock-soft: #dbeafe; --lc-stock-ink: #1d4ed8;
+  --lc-crypto-soft: #ede9fe; --lc-crypto-ink: #6d28d9;
+  --lc-vehicle-soft: #e2e8f0; --lc-vehicle-ink: #334155;
+  --lc-debt-soft: #ffe4e6; --lc-debt-ink: #be123c;
+  --lc-flow-soft: #cffafe; --lc-flow-ink: #0e7490;
+  --lc-budget-soft: #fef3c7; --lc-budget-ink: #92400e;
+  --lc-goal-soft: #dcfce7; --lc-goal-ink: #15803d;
+  --lc-invest-soft: #dbeafe; --lc-invest-ink: #1d4ed8;
+  --lc-inflation-soft: #ffedd5; --lc-inflation-ink: #9a3412;
+  --lc-wealth-soft: #ede9fe; --lc-wealth-ink: #6d28d9;
+  --lc-report-soft: #e2e8f0; --lc-report-ink: #334155;
+}
+.dark, .landing-ink {
+  --lc-bank-soft: rgba(45,212,191,.19); --lc-bank-ink: #99f6e4;
+  --lc-cash-soft: rgba(52,211,153,.19); --lc-cash-ink: #a7f3d0;
+  --lc-property-soft: rgba(251,146,60,.20); --lc-property-ink: #fed7aa;
+  --lc-gold-soft: rgba(251,191,36,.20); --lc-gold-ink: #fde68a;
+  --lc-stock-soft: rgba(96,165,250,.19); --lc-stock-ink: #bfdbfe;
+  --lc-crypto-soft: rgba(167,139,250,.21); --lc-crypto-ink: #ddd6fe;
+  --lc-vehicle-soft: rgba(148,163,184,.22); --lc-vehicle-ink: #e2e8f0;
+  --lc-debt-soft: rgba(251,113,133,.19); --lc-debt-ink: #fecdd3;
+  --lc-flow-soft: rgba(34,211,238,.14); --lc-flow-ink: #67e8f9;
+  --lc-budget-soft: rgba(251,191,36,.15); --lc-budget-ink: #fcd34d;
+  --lc-goal-soft: rgba(52,211,153,.14); --lc-goal-ink: #6ee7b7;
+  --lc-invest-soft: rgba(96,165,250,.14); --lc-invest-ink: #93c5fd;
+  --lc-inflation-soft: rgba(251,146,60,.14); --lc-inflation-ink: #fdba74;
+  --lc-wealth-soft: rgba(167,139,250,.16); --lc-wealth-ink: #c4b5fd;
+  --lc-report-soft: rgba(148,163,184,.16); --lc-report-ink: #cbd5e1;
+}
+
+/* One rule per surface instead of fifteen: the tone name selects the pair. */
+.landing-tile[data-tone],
+.landing-diff[data-tone],
+.landing-icon[data-tone],
+.cf-chip[data-tone] {
+  --tone-soft: var(--lc-report-soft);
+  --tone-ink: var(--lc-report-ink);
+}
+.landing-tile[data-tone="bank"], .landing-diff[data-tone="bank"], .landing-icon[data-tone="bank"], .cf-chip[data-tone="bank"] { --tone-soft: var(--lc-bank-soft); --tone-ink: var(--lc-bank-ink); }
+.landing-tile[data-tone="cash"], .landing-diff[data-tone="cash"], .landing-icon[data-tone="cash"], .cf-chip[data-tone="cash"] { --tone-soft: var(--lc-cash-soft); --tone-ink: var(--lc-cash-ink); }
+.landing-tile[data-tone="property"], .landing-diff[data-tone="property"], .landing-icon[data-tone="property"], .cf-chip[data-tone="property"] { --tone-soft: var(--lc-property-soft); --tone-ink: var(--lc-property-ink); }
+.landing-tile[data-tone="gold"], .landing-diff[data-tone="gold"], .landing-icon[data-tone="gold"], .cf-chip[data-tone="gold"] { --tone-soft: var(--lc-gold-soft); --tone-ink: var(--lc-gold-ink); }
+.landing-tile[data-tone="stock"], .landing-diff[data-tone="stock"], .landing-icon[data-tone="stock"], .cf-chip[data-tone="stock"] { --tone-soft: var(--lc-stock-soft); --tone-ink: var(--lc-stock-ink); }
+.landing-tile[data-tone="crypto"], .landing-diff[data-tone="crypto"], .landing-icon[data-tone="crypto"], .cf-chip[data-tone="crypto"] { --tone-soft: var(--lc-crypto-soft); --tone-ink: var(--lc-crypto-ink); }
+.landing-tile[data-tone="vehicle"], .landing-diff[data-tone="vehicle"], .landing-icon[data-tone="vehicle"], .cf-chip[data-tone="vehicle"] { --tone-soft: var(--lc-vehicle-soft); --tone-ink: var(--lc-vehicle-ink); }
+.landing-tile[data-tone="debt"], .landing-diff[data-tone="debt"], .landing-icon[data-tone="debt"], .cf-chip[data-tone="debt"] { --tone-soft: var(--lc-debt-soft); --tone-ink: var(--lc-debt-ink); }
+.landing-tile[data-tone="flow"], .landing-diff[data-tone="flow"], .landing-icon[data-tone="flow"], .cf-chip[data-tone="flow"] { --tone-soft: var(--lc-flow-soft); --tone-ink: var(--lc-flow-ink); }
+.landing-tile[data-tone="budget"], .landing-diff[data-tone="budget"], .landing-icon[data-tone="budget"], .cf-chip[data-tone="budget"] { --tone-soft: var(--lc-budget-soft); --tone-ink: var(--lc-budget-ink); }
+.landing-tile[data-tone="goal"], .landing-diff[data-tone="goal"], .landing-icon[data-tone="goal"], .cf-chip[data-tone="goal"] { --tone-soft: var(--lc-goal-soft); --tone-ink: var(--lc-goal-ink); }
+.landing-tile[data-tone="invest"], .landing-diff[data-tone="invest"], .landing-icon[data-tone="invest"], .cf-chip[data-tone="invest"] { --tone-soft: var(--lc-invest-soft); --tone-ink: var(--lc-invest-ink); }
+.landing-tile[data-tone="inflation"], .landing-diff[data-tone="inflation"], .landing-icon[data-tone="inflation"], .cf-chip[data-tone="inflation"] { --tone-soft: var(--lc-inflation-soft); --tone-ink: var(--lc-inflation-ink); }
+.landing-tile[data-tone="wealth"], .landing-diff[data-tone="wealth"], .landing-icon[data-tone="wealth"], .cf-chip[data-tone="wealth"] { --tone-soft: var(--lc-wealth-soft); --tone-ink: var(--lc-wealth-ink); }
+.landing-tile[data-tone="report"], .landing-diff[data-tone="report"], .landing-icon[data-tone="report"], .cf-chip[data-tone="report"] { --tone-soft: var(--lc-report-soft); --tone-ink: var(--lc-report-ink); }
+
 /* ─────────────────────────── Header ─────────────────────────── */
 
 .landing-header {
@@ -1601,7 +1680,10 @@ button.jdp-title:hover,
   border-bottom: 1px solid var(--border);
   padding-top: env(safe-area-inset-top);
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
-  background: color-mix(in oklab, var(--ink-900) 88%, transparent);
+  /* Opaque, not translucent: the header is sticky over BOTH the dark hero and
+     the light bands below it, and a half-transparent dark bar picks up whatever
+     is behind it as a muddy tint at exactly the moment it crosses the seam. */
+  background: var(--bg);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -1632,6 +1714,47 @@ button.jdp-title:hover,
   flex-shrink: 0;
 }
 
+/* At 320px the four controls add up to more than the bar, and `flex-shrink: 0`
+   means the last one — «ایجاد حساب», the conversion action — is the one that
+   gets clipped off the edge. The install button yields instead: on an
+   installable device the landing already offers installing through its own
+   prompt card near the foot of the page, so nothing becomes unreachable. */
+@media (max-width: 379px) {
+  .landing-header-nav .landing-install-btn {
+    display: none;
+  }
+}
+
+/* In-page section links. Hidden below the width where they would compete with
+   the two auth buttons for the same row. */
+.landing-header-links {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .landing-header-links {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-inline: auto;
+  }
+}
+
+.landing-header-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding-inline: 0.7rem;
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.landing-header-links a:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
 .landing-on-primary-muted {
   color: var(--text-3);
 }
@@ -1644,19 +1767,51 @@ button.jdp-title:hover,
   overflow: hidden;
 }
 
-.landing-ambience, .landing-ambience::after { display: none; }
+/* A hairline dot grid — graph paper, the oldest surface a number was ever
+   written on. It fades out before the fold so it never competes with the
+   sections below, and it is drawn as a background-image on a pseudo-element,
+   so it costs one paint and never a layout. */
+.landing-hero-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, rgba(230, 236, 242, 0.06) 1px, transparent 0);
+  background-size: 26px 26px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 100%);
+}
+
+/* Pointer-tracked ambient light. `--mx/--my` are written once per animation
+   frame by LandingAmbience, and only on a fine pointer with motion allowed —
+   on a phone the gradient simply sits at its default position. */
+.landing-ambience {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  transition: none;
+  background: radial-gradient(
+    560px circle at var(--mx, 72%) var(--my, 14%),
+    color-mix(in oklab, var(--signal-mint) 12%, transparent),
+    transparent 60%
+  );
+}
 
 .landing-hero {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 1.75rem;
-  padding: clamp(1.5rem, 4vw, 2.25rem) 0 clamp(2rem, 6vw, 3rem);
+  padding: clamp(1.5rem, 4vw, 2.5rem) 0 clamp(2rem, 6vw, 3rem);
 }
 
 @media (min-width: 960px) {
   .landing-hero {
     grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
     align-items: center;
-    padding: 3.5rem 0 4.25rem;
+    padding: 4rem 0 4.5rem;
     gap: clamp(2.5rem, 4vw, 4rem);
   }
 }
@@ -1665,11 +1820,15 @@ button.jdp-title:hover,
   min-width: 0;
 }
 
+.landing-hero-visual {
+  min-width: 0;
+}
+
 .landing-kicker {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.28rem 0.7rem;
+  gap: 0.45rem;
+  padding: 0.28rem 0.75rem;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--action-soft);
@@ -1680,37 +1839,66 @@ button.jdp-title:hover,
   line-height: 1.6;
 }
 
+/* A slow pulse — the only moving thing above the fold, and it is 6px wide. */
+.landing-kicker-dot {
+  inline-size: 6px;
+  block-size: 6px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--positive);
+  animation: landing-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes landing-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.82); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-kicker-dot {
+    animation: none;
+  }
+}
+
 .landing-display {
-  margin-top: 0.9rem;
-  font-size: clamp(1.65rem, 5.6vw, 3.1rem);
+  margin-top: 1rem;
+  font-size: clamp(1.75rem, 5.8vw, 3.35rem);
   font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.32;
+  letter-spacing: -0.02em;
+  line-height: 1.28;
   text-wrap: balance;
   color: var(--text);
 }
 
 .landing-lede {
-  margin-top: 0.9rem;
+  margin-top: 1rem;
   max-width: 36rem;
-  font-size: clamp(0.9rem, 1.6vw, 1rem);
-  line-height: 1.85;
+  font-size: clamp(0.92rem, 1.6vw, 1.03rem);
+  line-height: 1.9;
   color: var(--text-2);
   text-wrap: pretty;
 }
 
+/* A row even on the narrowest phone. Stacked, the two buttons cost ~70px of
+   the first screen and pushed the dashboard preview — the thing that actually
+   sells the product — below the fold. Two buttons fit side by side at 320px:
+   the primary takes the room that is left, «ورود» only its own label. */
 .landing-cta-cluster {
-  margin-top: 1.5rem;
+  margin-top: 1.6rem;
   display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.landing-cta-cluster > .btn-primary {
+  flex: 1 1 auto;
 }
 
 @media (min-width: 480px) {
-  .landing-cta-cluster {
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
+  .landing-cta-cluster > .btn-primary {
+    flex: 0 0 auto;
   }
 }
 
@@ -1718,101 +1906,149 @@ button.jdp-title:hover,
   justify-content: center;
 }
 
-.landing-hero-note {
-  margin-top: 1rem;
+/* Three checkable claims under the CTA, replacing a single slogan line. */
+.landing-hero-proof {
   display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.78rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin: 1.15rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-xs);
   line-height: 1.7;
   color: var(--text-3);
 }
 
-.landing-hero-note::before {
-  content: "";
-  inline-size: 6px;
-  block-size: 6px;
-  border-radius: 999px;
-  background: var(--positive);
+.landing-hero-proof li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.landing-hero-proof svg {
+  color: var(--positive);
   flex: none;
 }
 
-/* ── Ambient category chips ──
-   The asset kinds the product covers, sitting just outside the dashboard
-   preview with a slow, staggered drift. A true rotating ring was tried first
-   and rejected: on a non-square card the orbit traces an ELLIPSE, so chips
-   swung across the numbers at the mid angles. Authored positions cannot
-   collide with the card.
+/* ── Coverage band ──
+   The asset kinds, as chips that drift for ever and spring when tapped. See
+   CoverageField.tsx for why the motion is split between CSS and JS: the drift
+   below is the CSS half, and it is the only half that runs continuously.
 
-   Purely decorative — aria-hidden, pointer-events:none, and it never moves
-   the preview. It is motion bound to nothing, which is fine for decoration
-   and exactly why the NUMBERS inside the preview are not treated this way. */
+   Placement is the whole safety argument — this band sits BELOW the hero copy,
+   so nothing here can ever move underneath a sentence. */
 
-.landing-orbit {
+.landing-coverage {
   position: relative;
-  min-width: 0;
-  /* room for the chips that sit above and below the card */
-  margin-block: 34px;
+  z-index: 1;
+  border-top: 1px solid var(--border);
+  padding-block: 1.1rem 1.35rem;
 }
 
-.landing-orbit-ring {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-}
-
-.landing-orbit-slot {
-  position: absolute;
-  animation: chip-drift 9s ease-in-out infinite;
-  animation-delay: calc(var(--i) * -1.6s);
-}
-
-/* Placed clockwise from the top-start corner, all clear of the card body. */
-.landing-orbit-slot:nth-child(1) { inset-block-start: -30px; inset-inline-start: 14%; }
-.landing-orbit-slot:nth-child(2) { inset-block-start: 14%; inset-inline-start: -17%; }
-.landing-orbit-slot:nth-child(3) { inset-block-end: 22%; inset-inline-start: -15%; }
-.landing-orbit-slot:nth-child(4) { inset-block-end: -30px; inset-inline-start: 20%; }
-.landing-orbit-slot:nth-child(5) { inset-block-end: 12%; inset-inline-end: -16%; }
-.landing-orbit-slot:nth-child(6) { inset-block-start: 10%; inset-inline-end: -14%; }
-
-.landing-orbit-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.32rem 0.72rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: color-mix(in oklab, var(--ink-900) 78%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  color: var(--text-2);
+.landing-coverage-caption {
+  margin-bottom: 0.7rem;
   font-size: var(--fs-xs);
   font-weight: 500;
-  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.cf-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* OUTER: the perpetual drift, compositor-only. Each chip gets its own phase
+   from `--i`, so the row breathes instead of pulsing in unison. Amplitude is
+   deliberately tiny (≤7px) — this has to read as "alive", not as "animated". */
+.cf-chip {
+  display: inline-flex;
+  animation: cf-drift calc(15s + var(--i) * 1.3s) ease-in-out infinite;
+  animation-delay: calc(var(--i) * -2.1s);
+  will-change: transform;
+}
+
+@keyframes cf-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  25% { transform: translate3d(3px, -6px, 0); }
+  50% { transform: translate3d(-2px, 2px, 0); }
+  75% { transform: translate3d(-4px, -4px, 0); }
+}
+
+/* INNER: what the pointer spring writes to. It carries the chip's look, so the
+   two transforms never fight over the same element. */
+.cf-chip-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.8rem;
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  background: var(--tone-soft);
+  color: var(--tone-ink);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.6;
   white-space: nowrap;
-  box-shadow: none;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  /* No `will-change` here on purpose. This element is idle except for the
+     second or so after a tap, and a permanently promoted layer for something
+     that almost never moves is exactly what the property is not for. Its
+     parent animates continuously and is promoted, so the spring's transforms
+     already run inside a composited subtree. */
 }
 
-@keyframes chip-drift {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
+.cf-chip-inner svg {
+  flex: none;
+  opacity: 0.85;
 }
 
-/* The chips need margin the phone layout does not have, and ambient motion is
-   the first thing to drop on a small screen. */
-@media (max-width: 1100px) {
-  .landing-orbit-ring {
-    display: none;
+@media (hover: hover) {
+  .cf-chip-inner:hover {
+    border-color: color-mix(in oklab, var(--tone-ink) 35%, transparent);
   }
 }
 
+/* Motion is opt-out at the OS level: both halves stop, and the chips settle
+   into an ordinary, perfectly readable row of labels. */
 @media (prefers-reduced-motion: reduce) {
-  .landing-orbit-slot {
+  .cf-chip {
     animation: none;
+  }
+  .cf-chip-inner {
+    cursor: default;
   }
 }
 
 /* ── Preview rows that mirror the real dashboard ── */
+
+.landing-preview-hero {
+  position: relative;
+  min-width: 0;
+}
+
+/* Decorative only — a fixed point list, never derived from the demo figures.
+   It sits in its OWN strip under the figure, never behind it: a stroke drawn
+   across a money value is the one place a decorative line must not go. */
+.landing-preview-spark {
+  display: block;
+  margin-top: 0.85rem;
+  block-size: 3.25rem;
+  inline-size: 100%;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.landing-preview-hero-text {
+  min-width: 0;
+}
 
 .landing-preview-delta {
   display: flex;
@@ -1836,7 +2072,7 @@ button.jdp-title:hover,
   margin-top: 1rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: var(--surface-elev);
   color: var(--text-2);
   font-size: var(--fs-xs);
@@ -1854,7 +2090,7 @@ button.jdp-title:hover,
 /* ───────────────────────── Product preview ───────────────────────── */
 
 .landing-preview {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--r-lg);
   background: var(--surface);
   backdrop-filter: none;
@@ -1896,8 +2132,13 @@ button.jdp-title:hover,
 }
 
 .landing-preview-body {
-  padding: 1.15rem 1.15rem 1.25rem;
+  padding: 1.25rem 1.15rem 1.35rem;
   min-width: 0;
+}
+
+.landing-preview-caption {
+  display: block;
+  margin-bottom: 1rem;
 }
 
 .landing-preview-label {
@@ -1909,10 +2150,10 @@ button.jdp-title:hover,
 
 .landing-preview-hero-amount {
   margin-top: 0.3rem;
-  font-size: clamp(1.25rem, 4.4vw, 1.9rem);
+  font-size: clamp(1.3rem, 4.4vw, 2rem);
   font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.5;
+  letter-spacing: -0.015em;
+  line-height: 1.45;
   white-space: nowrap;
   word-break: keep-all;
   overflow-wrap: normal;
@@ -1925,8 +2166,8 @@ button.jdp-title:hover,
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem 1.25rem;
-  margin-top: 1.15rem;
-  padding-top: 1rem;
+  margin-top: 1.35rem;
+  padding-top: 1.1rem;
   border-top: 1px solid var(--border);
   min-width: 0;
 }
@@ -1966,8 +2207,35 @@ button.jdp-title:hover,
   max-width: 100%;
 }
 
-.landing-preview .comp-bar {
-  margin-top: 1.15rem;
+.landing-preview-mix {
+  margin-top: 1.25rem;
+}
+
+/* Four anonymous stripes say nothing — the legend names them. Both come from
+   the same array, so a width can never drift away from its label. */
+.landing-preview-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-micro);
+  line-height: 1.7;
+  color: var(--text-3);
+}
+
+.landing-preview-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.landing-preview-swatch {
+  inline-size: 8px;
+  block-size: 8px;
+  flex: none;
+  border-radius: 2px;
 }
 
 /* Count-up ticker — the ghost copy reserves the final width so an animating
@@ -2007,20 +2275,47 @@ button.jdp-title:hover,
 }
 
 .landing-section {
-  padding: clamp(2rem, 5vw, 2.5rem) 0;
+  padding: clamp(2.25rem, 5vw, 3rem) 0;
+}
+
+/* The header is sticky, so an anchored section must stop BELOW it — otherwise
+   jumping to «امکانات» lands with the heading hidden under the bar. */
+.landing [id] {
+  scroll-margin-block-start: calc(4rem + env(safe-area-inset-top, 0px));
 }
 
 @media (min-width: 960px) {
   .landing-section {
-    padding: 3.25rem 0;
+    padding: 4rem 0;
   }
 }
 
+/* A one-line label above each section heading. It is what lets a reader
+   skim-navigate a long page: the h2 is the promise, this is the address. */
+.landing-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+
+.landing-eyebrow::before {
+  content: "";
+  inline-size: 1.25rem;
+  block-size: 1px;
+  flex: none;
+  background: var(--border-strong);
+}
+
 .landing-h2 {
-  font-size: clamp(1.15rem, 2.6vw, 1.7rem);
+  font-size: clamp(1.25rem, 2.8vw, 1.95rem);
   font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.5;
+  letter-spacing: -0.015em;
+  line-height: 1.45;
   text-wrap: balance;
   color: var(--text);
 }
@@ -2054,10 +2349,10 @@ button.jdp-title:hover,
   text-underline-offset: 3px;
 }
 
-/* ─────────────────── Outcome / step cards ─────────────────── */
+/* ─────────────────── Outcome cards ─────────────────── */
 
 .landing-outcomes {
-  margin-top: 1.5rem;
+  margin-top: 1.75rem;
   display: grid;
   gap: 0.75rem;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
@@ -2079,7 +2374,7 @@ button.jdp-title:hover,
   border-radius: var(--r-lg);
   background: var(--surface);
   box-shadow: none;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, border-color 0.18s ease;
 }
 
 .dark .landing-benefit {
@@ -2091,7 +2386,6 @@ button.jdp-title:hover,
   .landing-benefit:hover {
     transform: translateY(-2px);
     border-color: var(--border-strong);
-    box-shadow: none;
   }
 }
 
@@ -2103,10 +2397,11 @@ button.jdp-title:hover,
   font-size: 0.95rem;
   font-weight: 600;
   line-height: 1.6;
+  color: var(--text);
 }
 
 .landing-benefit-body {
-  margin-top: 0.2rem;
+  margin-top: 0.25rem;
   font-size: var(--fs-sm);
   line-height: 1.85;
   color: var(--text-2);
@@ -2120,32 +2415,163 @@ button.jdp-title:hover,
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--action-soft);
-  color: var(--action);
+  border: 1px solid transparent;
+  background: var(--tone-soft, var(--action-soft));
+  color: var(--tone-ink, var(--action));
 }
 
-.landing-icon-wealth {
-  background: var(--action-soft);
-  color: var(--action);
+/* ─────────────────── Module bento grid ───────────────────
+   What is actually inside the product. It is a bento and not another 4-up row
+   of identical cards because the sections it lists are genuinely unequal: the
+   cash-flow tile frames all the others, so it is given the width to say so. */
+
+.landing-bento {
+  margin-top: 1.75rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
 }
-.landing-icon-commitments {
-  background: var(--negative-soft);
-  color: var(--negative);
+
+@media (min-width: 640px) {
+  .landing-bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
-.landing-icon-liquidity {
-  background: var(--positive-soft);
-  color: var(--positive);
+
+@media (min-width: 1024px) {
+  .landing-bento {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .landing-tile-wide {
+    grid-column: span 2;
+  }
 }
-/* Investment icon uses the shared neutral family. */
-.landing-icon-invest {
-  background: var(--sunken);
+
+.landing-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 1.15rem 1.15rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+@media (hover: hover) {
+  .landing-tile:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-elev);
+  }
+}
+
+/* The tile's own colour, carried by its icon plate and by a hairline along its
+   top edge. The card body stays neutral on purpose: a fully tinted card turns a
+   grid of eight into a paint chart, and the reader loses the words. */
+.landing-tile-icon {
+  display: flex;
+  height: 2.1rem;
+  width: 2.1rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--tone-soft, var(--action-soft));
+  color: var(--tone-ink, var(--action));
+}
+
+.landing-tile[data-tone] {
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-tile[data-tone]::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  block-size: 2px;
+  background: var(--tone-ink);
+  opacity: 0.55;
+}
+
+@media (hover: hover) {
+  .landing-tile[data-tone]:hover {
+    border-color: color-mix(in oklab, var(--tone-ink) 30%, var(--border));
+  }
+  .landing-tile[data-tone]:hover::before {
+    opacity: 1;
+  }
+}
+
+.landing-tile-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.landing-tile-body {
+  font-size: var(--fs-sm);
+  line-height: 1.85;
   color: var(--text-2);
+  text-wrap: pretty;
+}
+
+.landing-tile-wide .landing-tile-title {
+  font-size: 1.05rem;
+}
+
+/* ─────────────────── Steps ───────────────────
+   A real <ol>. The numerals are decorative plates; the connecting hairline is
+   what makes it read as a sequence rather than three unrelated cards. */
+
+.landing-steps {
+  position: relative;
+  margin: 1.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 900px) {
+  .landing-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+  /* The hairline sits behind the numeral plates, which are opaque, so it
+     reads as a line THROUGH the sequence and not across the cards. */
+  .landing-steps::before {
+    content: "";
+    position: absolute;
+    inset-inline: 12%;
+    inset-block-start: 1.2rem;
+    block-size: 1px;
+    background: var(--border-strong);
+  }
+}
+
+.landing-step {
+  position: relative;
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .landing-step {
+    flex-direction: column;
+    gap: 0.9rem;
+  }
 }
 
 /* Holds a Persian numeral, not an icon — see STEPS in LandingPage.tsx. The
    round plate and the tabular numeral are what separate this section visually
-   from the outcome cards directly above it. */
+   from the outcome cards above it. */
 .landing-step-index {
   display: flex;
   height: 2.4rem;
@@ -2154,8 +2580,8 @@ button.jdp-title:hover,
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface-elev);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
   color: var(--action);
   font-size: var(--fs-md);
   font-weight: 700;
@@ -2163,32 +2589,90 @@ button.jdp-title:hover,
   line-height: 1;
 }
 
-/* ── Asset vocabulary on phones — the orbit ring's content, without its
-      layout cost. Plain wrapped text chips: no absolute positioning, no
-      animation, and it disappears the moment the real ring can be shown. ── */
-.landing-kinds {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.45rem;
-  margin: 0 0 1rem;
-  padding: 0;
-  list-style: none;
+/* ─────────────────── Differentiators ─────────────────── */
+
+.landing-diffs {
+  margin-top: 1.75rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.landing-kinds li {
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.28rem 0.68rem;
-  background: color-mix(in oklab, var(--ink-900) 55%, transparent);
-  color: var(--text-2);
-  font-size: var(--fs-xs);
-  line-height: 1.5;
-}
-
-@media (min-width: 1101px) {
-  .landing-kinds {
-    display: none;
+@media (min-width: 768px) {
+  .landing-diffs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.landing-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.landing-diff-icon {
+  display: flex;
+  height: 2.4rem;
+  width: 2.4rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--tone-soft, var(--sunken));
+  color: var(--tone-ink, var(--text));
+}
+
+.landing-diff-title {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* ─────────────────── Trust cards ─────────────────── */
+
+.landing-trust-grid {
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 900px) {
+  .landing-trust-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.landing-trust-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.landing-trust-icon {
+  display: flex;
+  height: 2.1rem;
+  width: 2.1rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--positive-soft);
+  color: var(--positive);
 }
 
 /* ── Reveal on scroll ──
@@ -2231,7 +2715,7 @@ button.jdp-title:hover,
 /* ───────────────────────────── FAQ ───────────────────────────── */
 
 .landing-faq {
-  margin-top: 1.5rem;
+  margin-top: 1.75rem;
   display: flex;
   width: 100%;
   max-width: 46rem;
@@ -2258,7 +2742,7 @@ button.jdp-title:hover,
   justify-content: space-between;
   gap: 0.75rem;
   min-height: 48px;
-  padding: 0.9rem 1.05rem;
+  padding: 0.95rem 1.1rem;
   list-style: none;
   font-size: var(--fs-sm);
   font-weight: 600;
@@ -2293,7 +2777,7 @@ button.jdp-title:hover,
 
 .landing-faq-answer {
   border-top: 1px solid var(--border);
-  padding: 0.95rem 1.05rem 1.1rem;
+  padding: 0.95rem 1.1rem 1.15rem;
   font-size: 0.85rem;
   line-height: 1.95;
   color: var(--text-2);
@@ -2325,16 +2809,32 @@ button.jdp-title:hover,
   }
 }
 
-/* ─────────────────────── Trust + final CTA ─────────────────────── */
+/* ─────────────────────── Final CTA ─────────────────────── */
 
+/* Carries `.landing-ink`, so it is the dark panel that answers the dark hero
+   — the page opens and closes on the same surface. */
 .landing-cta-final {
   position: relative;
   overflow: hidden;
+  isolation: isolate;
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: clamp(1.75rem, 5vw, 2.75rem) clamp(1.1rem, 4vw, 2.5rem);
+  padding: clamp(2rem, 5.5vw, 3.25rem) clamp(1.1rem, 4vw, 2.5rem);
   text-align: center;
-  background: var(--surface);
+  background: var(--bg);
+}
+
+/* The same graph-paper grid as the hero, so the bookend is literal. */
+.landing-cta-final::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, rgba(230, 236, 242, 0.06) 1px, transparent 0);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(120% 90% at 50% 0%, #000 0%, transparent 75%);
+  mask-image: radial-gradient(120% 90% at 50% 0%, #000 0%, transparent 75%);
 }
 
 .landing-cta-final .landing-support {
@@ -2345,11 +2845,50 @@ button.jdp-title:hover,
   justify-content: center;
 }
 
+/* ─────────────── Phone action dock ───────────────
+   The hero CTA scrolls away after the fold and the page is long on a phone.
+   This keeps the single primary action in thumb reach. Hidden from 768px up,
+   where the sticky header's own buttons are always visible. */
+
+.landing-dock {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 35;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.landing-dock-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: min(1180px, calc(100% - 2rem));
+  margin-inline: auto;
+  padding-block: 0.6rem;
+}
+
+@media (min-width: 768px) {
+  .landing-dock {
+    display: none;
+  }
+}
+
 /* ─────────────────────────── Footer ─────────────────────────── */
 
 .landing-footer {
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Clearance for the fixed phone dock. It lives on the footer so the dark
+   footer surface runs BEHIND the dock — putting it on `.landing` instead left
+   a strip of light page background below the footer that read as a bug. */
+@media (max-width: 767px) {
+  .landing-footer {
+    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .landing-footer .sub {
@@ -2374,6 +2913,7 @@ button.jdp-title:hover,
 .landing-footer .border-t {
   border-color: var(--border) !important;
 }
+
 
 /* ─────────────────── Legal / marketing article ─────────────────── */
 
@@ -2402,6 +2942,15 @@ button.jdp-title:hover,
 }
 
 .install-promo-public { bottom: max(1rem, env(safe-area-inset-bottom)); border-radius: var(--r-lg); }
+
+/* On a phone the landing also shows a fixed action dock at that same edge, and
+   the promo was resting under it — its dismiss button could not be tapped.
+   Stack the promo above the dock for exactly the widths where the dock exists. */
+@media (max-width: 767px) {
+  .install-promo-public {
+    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+  }
+}
 
 .install-promo-public .btn {
   border-radius: 999px;
@@ -3147,7 +3696,20 @@ body {
 .inst-row[data-tone="late"] { border-inline-start-color: var(--negative); }
 .inst-row[data-tone="soon"] { border-inline-start-color: var(--warning); }
 .inst-row.is-paid { background: var(--sunken); }
-.inst-head { display: flex; align-items: flex-start; gap: 0.75rem; min-width: 0; }
+/* Grid, not flex. As a flex row, `.inst-side` was `flex-shrink: 0` holding
+   `white-space: nowrap` money, so its intrinsic width won every fight: on a
+   phone it took ~290px of a ~358px row and `.inst-main` was left with enough
+   space for one word per line, with the amount clipped by `.inst-list`'s
+   `overflow: hidden`. Explicit tracks make the title's column the flexible one
+   (`minmax(0, 1fr)`) and the amount's column exactly as wide as the money. */
+.inst-head {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.25rem 0.75rem;
+  min-width: 0;
+}
+
 .inst-seq {
   display: inline-flex;
   flex-shrink: 0;
@@ -3162,10 +3724,26 @@ body {
   color: var(--text-2);
 }
 .inst-row.is-paid .inst-seq { background: var(--positive-soft); color: var(--positive); }
-.inst-main { display: grid; flex: 1; gap: 0.125rem; min-width: 0; }
+.inst-main { display: grid; gap: 0.125rem; min-width: 0; }
 .inst-title { font-size: var(--fs-sm); font-weight: 600; line-height: 1.6; overflow-wrap: break-word; }
 .inst-meta { font-size: var(--fs-xs); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.inst-side { display: grid; flex-shrink: 0; justify-items: end; gap: 0.125rem; text-align: end; }
+.inst-side { display: grid; justify-items: end; gap: 0.125rem; text-align: end; min-width: 0; }
+/* The label may wrap away from the figure; the figure itself never breaks. */
+.inst-usd { line-height: 1.7; }
+
+/* Below this width there is no honest way to fit a wrapped title AND a money
+   column side by side, so the amount takes its own line under the title
+   instead of stealing the title's — aligned to the same edge as the title, so
+   the row reads as one block and not as two columns that missed each other. */
+@media (max-width: 559px) {
+  .inst-head { grid-template-columns: 2rem minmax(0, 1fr); }
+  .inst-side {
+    grid-column: 2;
+    justify-items: start;
+    text-align: start;
+    margin-top: 0.2rem;
+  }
+}
 .inst-amount { font-size: var(--fs-sm); font-weight: 700; }
 .inst-foot {
   display: flex;

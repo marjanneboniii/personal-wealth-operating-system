@@ -42,11 +42,10 @@ test("Landing — Persian RTL conversion page with primary CTA شروع رایگ
 
   assert.match(layout, /lang=\"fa\"/);
   assert.match(layout, /dir=\"rtl\"/);
-  assert.match(landing, /تمام ثروت شما، یک تصویر روشن/);
-  assert.match(landing, /سیستم‌عامل ثروت شخصی/);
+  assert.match(landing, /همهٔ پول و دارایی‌تان، در یک صفحه/);
   assert.match(
     landing,
-    /دیگر لازم نیست بین اکسل، اپلیکیشن بانک و یادداشت‌های پراکنده سرگردان باشید/,
+    /دیگر لازم نیست بین فایل اکسل، اپ بانک و یادداشت‌های پراکنده بگردید/,
   );
   assert.match(landing, /شروع رایگان/);
   // «ورود» stays visually secondary (ghost) next to the single primary CTA.
@@ -60,7 +59,6 @@ test("Landing — Persian RTL conversion page with primary CTA شروع رایگ
   assert.match(chrome, /ایجاد حساب/);
   assert.match(chrome, /ورود/);
   assert.match(chrome, /DownloadIosButton/);
-  assert.match(chrome, /سیستم‌عامل ثروت شخصی/);
 
   assert.doesNotMatch(landing, /قابلیت‌هایی که همین حالا در محصول هست/);
   assert.doesNotMatch(landing, /حریم خصوصی، مالکیت و کنترل/);
@@ -70,28 +68,45 @@ test("Landing — Persian RTL conversion page with primary CTA شروع رایگ
   assert.doesNotMatch(chrome, /Download iOS/);
   assert.doesNotMatch(landing, /ورود به سیستم/);
   assert.doesNotMatch(chrome, /ورود به سیستم/);
+
+  // The «سیستم‌عامل ثروت شخصی» tagline was retired: it named a category the
+  // reader has to decode before it says anything, on a page whose job is to be
+  // understood in one pass. It is gone from the public chrome AND from inside
+  // the app, so this checks every surface it used to live on.
+  for (const [name, src] of [
+    ["landing", landing],
+    ["chrome", chrome],
+    ["layout", layout],
+    ["shell", read("src/components/layout/Shell.tsx")],
+    ["manifest", read("public/manifest.webmanifest")],
+  ] as const) {
+    assert.doesNotMatch(src, /سیستم‌عامل ثروت شخصی/, `${name} still carries the retired tagline`);
+  }
 });
 
 test("Landing — four primary outcomes, how-it-works, FAQ, and final CTA copy", () => {
   const landing = read("src/components/landing/LandingPage.tsx");
 
-  assert.match(landing, /هر عدد، یک تصمیم بهتر/);
-  assert.match(landing, /ارزش خالص/);
-  assert.match(landing, /بدانید امسال واقعاً ثروتمندتر شده‌اید یا نه/);
-  assert.match(landing, /دارایی‌ها/);
-  assert.match(landing, /از حساب بانکی تا ملک و طلا، همه‌جا یک‌جا/);
-  assert.match(landing, /بدهی‌ها/);
+  // The four outcomes are phrased as the QUESTIONS a reader already has, in
+  // everyday words. «نقدینگی» and «ارزش خالص» were the last two finance terms
+  // left in this section and both are gone: nobody should need a glossary to
+  // understand what a money app shows them.
+  assert.match(landing, /چهار چیزی که همیشه باید بدانید/);
+  assert.match(landing, /در مجموع چقدر دارید/);
+  assert.match(landing, /بعد از کم‌کردن بدهی‌ها، ته حساب چقدر می‌ماند/);
+  assert.match(landing, /چه چیزهایی دارید/);
+  assert.match(landing, /از حساب بانکی تا ملک و طلا، همه در یک فهرست/);
+  assert.match(landing, /چقدر بدهکارید/);
   assert.match(landing, /هیچ قسط یا بدهی‌ای از چشمتان دور نمی‌ماند/);
-  assert.match(landing, /نقدینگی/);
-  assert.match(landing, /همین امروز بدانید چقدر پول واقعی در دست دارید/);
+  assert.match(landing, /چقدر پول در دسترس دارید/);
   assert.match(landing, /خصوصی، شفاف، تحت کنترل شما/);
   assert.match(landing, /همین امروز تصویر مالی‌تان را روشن کنید/);
   assert.match(landing, /ثبت‌نام ساده است و نیازی به کارت بانکی ندارد/);
 
-  // New sections: how-it-works (3 steps) and FAQ accordion (4 questions).
+  // how-it-works (3 steps) and the FAQ accordion.
   assert.match(landing, /شروع، ساده‌تر از یک فایل اکسل/);
-  assert.match(landing, /دارایی‌ها و بدهی‌هایتان را اضافه کنید/);
-  assert.match(landing, /توازن خودش حساب می‌کند/);
+  assert.match(landing, /آنچه دارید و بدهکارید را وارد کنید/);
+  assert.match(landing, /بقیه‌اش با خودِ برنامه است/);
   assert.match(landing, /با یک نگاه تصمیم بگیرید/);
   assert.match(landing, /سؤالات متداول/);
   assert.match(landing, /آیا استفاده از توازن رایگان است؟/);
@@ -101,8 +116,14 @@ test("Landing — four primary outcomes, how-it-works, FAQ, and final CTA copy",
   assert.match(landing, /<details/);
   assert.match(landing, /<summary/);
 
-  // Hero trust note and demo caption.
-  assert.match(landing, /بدون نیاز به اتصال حساب بانکی/);
+  // The hero's «بدون نیاز به اتصال حساب بانکی» note is GONE by request: not
+  // connecting to a bank is a fact about how the product works, not a headline
+  // benefit, and as the last line of the hero it sold the absence of a feature.
+  // The FAQ still answers the question itself — see «آیا باید حساب بانکی‌ام را
+  // وصل کنم؟» above — so nothing a visitor wondered about went unanswered.
+  assert.doesNotMatch(landing, /بدون نیاز به اتصال حساب بانکی/);
+
+  // Demo caption.
   // The preview card is labelled «نمونه نمایشی»; calling it «واقعی» as well
   // contradicted that badge, so the caption is now neutral.
   assert.match(landing, /نمایی از داشبورد توازن/);

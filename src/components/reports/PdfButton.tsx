@@ -35,7 +35,7 @@ export default function PdfButton({ targetId = "monthly-report" }: { targetId?: 
         </head>
         <body>
           <div class="header">
-            <h1>گزارش ماهانه — سیستم‌عامل ثروت شخصی (PWOS)</h1>
+            <h1>گزارش ماهانه — توازن</h1>
             <div class="muted">تولید شده از روی تراکنش‌های ثبت‌شده موجود — هیچ جدول Summary موازی استفاده نشده</div>
             <div class="muted">تاریخ چاپ: ${new Date().toLocaleDateString("fa-IR")} / ${new Date().toISOString().slice(0,10)}</div>
           </div>

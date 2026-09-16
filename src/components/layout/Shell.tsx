@@ -468,10 +468,7 @@ export default function Shell({
           >
             <BrandMark size={36} framed />
             {!collapsed && (
-              <span className="leading-tight">
-                <BrandWordmark className="block text-[length:var(--fs-md)]" />
-                <span className="muted block text-[length:var(--fs-xs)]">سیستم‌عامل ثروت شخصی</span>
-              </span>
+              <BrandWordmark className="block text-[length:var(--fs-md)] leading-tight" />
             )}
           </Link>
           <button
