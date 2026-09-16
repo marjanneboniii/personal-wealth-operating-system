@@ -395,6 +395,13 @@ export default function Shell({
     if (!("serviceWorker" in navigator)) return;
     if (process.env.NODE_ENV !== "production") {
       void navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => void r.unregister()));
+      // Unregistering stops the worker but LEAVES its Cache Storage behind, and
+      // a dev chunk filename gets reused — so the next worker to install could
+      // find a stylesheet from an older build sitting under today's URL and
+      // serve the app unstyled. Deleting the caches is what actually clears it,
+      // and on an installed app it is the difference between "reload" and
+      // "delete the app and add it again".
+      void caches?.keys().then((keys) => keys.forEach((k) => void caches.delete(k)));
       return;
     }
     navigator.serviceWorker.register("/sw.js").catch(() => {});

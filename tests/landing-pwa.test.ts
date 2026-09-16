@@ -274,8 +274,30 @@ test("PWA — manifest RTL standalone icons shortcuts; SW never caches API or pr
 
   const sw = read("public/sw.js");
   assert.match(sw, /VERSION/);
-  assert.match(sw, /pwos-v6/);
+  // The version is MEANT to be bumped — bumping it is how a device holding a
+  // poisoned cache recovers on its own. Pinning the literal number made the
+  // suite fail for doing the right thing, so this checks the shape instead.
+  assert.match(sw, /const VERSION = "pwos-v\d+"/);
   assert.match(sw, /PURGE_CACHES/);
+
+  // A cached /_next/ asset is served ONLY if the stored response called itself
+  // immutable. The write path always refused to store a non-immutable one, but
+  // the read path used to hand back whatever was already there — so an entry
+  // left by an older worker outlived the rule that banned it, and because a dev
+  // server reuses one chunk filename, an installed app kept rendering with the
+  // stylesheet from before a redesign. Unstyled, for ever, with no way out but
+  // deleting the app.
+  assert.match(sw, /isImmutable/, "the read path classifies what it found");
+  assert.match(
+    sw,
+    /if \(!isNext \|\| isImmutable\(cached\)\) return cached;/,
+    "a cached hit is returned only when it is safe to reuse this URL",
+  );
+  assert.match(sw, /await cache\.delete\(req\)/, "…otherwise the stale entry is evicted");
+  assert.ok(
+    !/if \(cached\) return cached;/.test(sw),
+    "the unconditional `if (cached) return cached` is what caused the bug",
+  );
   assert.match(sw, /req\.method !== \"GET\"/);
   assert.match(sw, /No API mutations are ever cached/);
   assert.match(sw, /\/api\//);
