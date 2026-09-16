@@ -11,9 +11,9 @@ import {
   projectCashflow,
   upcomingInstallments,
 } from "@/features/planning/service";
-import { Alert, EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
+import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import { BarsChart } from "@/components/charts/Charts";
-import { EventForm, GoalForm, PlannedForm } from "@/components/forms/QuickForms";
+import { AddPlanButton } from "@/components/planning/AddPlanningSheet";
 import RowAction from "@/components/RowAction";
 import Icon from "@/components/ui/Icon";
 import {
@@ -25,10 +25,13 @@ import {
   outflowTone,
   formatTomanPrimary,
   sumToman,
+  todayIso,
 } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = { title: "پیش‌بینی مالی" };
 
 const FA_MONTHS = ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
 
@@ -36,6 +39,13 @@ function daysUntil(iso: string) {
   return Math.ceil((new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
 }
 
+/**
+ * پیش‌بینی مالی — «چه چیزی در راه است؟» as one queue plus the 12-month view.
+ *
+ * Presentation only: the projection, the queue sources and every planning
+ * action are untouched; the capture forms moved from stacked `<details>`
+ * panels into the header's «+ برنامه جدید» sheet.
+ */
 export default async function PlanningPage() {
   await ensureAuth();
   await seedIfEmpty();
@@ -109,9 +119,21 @@ export default async function PlanningPage() {
 
   const kindIcon = { installment: "installments" as const, plan: "goals" as const, event: "calendar" as const };
 
+  const addProps = {
+    accounts: accountRows,
+    today: todayIso(),
+    rate: fx.rate,
+    rateDate: fx.effectiveDate,
+    rateSource: fx.source,
+  };
+
   return (
-    <div className="space-y-8">
-      <PageHeader title="پیش‌بینی مالی" subtitle="مبالغ برنامه‌ریزی به تومان ثابت‌اند؛ معادل دلاری فقط نمایشی است." />
+    <div className="space-y-5">
+      <PageHeader
+        title="پیش‌بینی مالی"
+        subtitle="چه چیزی در راه است و نقدینگی کجا کم می‌آورد. مبالغ برنامه‌ریزی به تومان ثابت‌اند."
+        action={<AddPlanButton {...addProps} />}
+      />
 
       {deficit && (
         <Alert tone="neg" icon="alert" title={`کسری نقدینگی در ${formatShortDate(deficit.month)}`}>
@@ -119,28 +141,23 @@ export default async function PlanningPage() {
         </Alert>
       )}
 
-      <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
-        <Metric
-          label="نقدینگی فعلی"
-          value={liqDisp.primary}
-          hint={liqDisp.usdHint ? `معادل: ${liqDisp.usdHint}` : undefined}
-        />
+      <section className="metric-strip">
+        <Metric label="نقدینگی فعلی" value={liqDisp.primary} hint={liqDisp.usdHint ? `معادل ${liqDisp.usdHint}` : undefined} />
         <Metric
           label="خروجی برنامه‌ریزی‌شده"
           value={outDisp.primary}
           tone={outflowTone(totalPlannedOutToman)}
-          hint={outDisp.usdHint ? `معادل: ${outDisp.usdHint}` : `${faCount(pending.length)} برنامه در انتظار`}
+          hint={`${faCount(pending.length)} برنامه در انتظار`}
         />
         <Metric
           label="نقدینگی پایان ۱۲ ماه"
           value={endDisp.primary}
           tone={deficit ? "down" : "neutral"}
-          hint={endDisp.usdHint ? `معادل: ${endDisp.usdHint}` : undefined}
+          hint={endDisp.usdHint ? `معادل ${endDisp.usdHint}` : undefined}
         />
         <Metric label="هشدار کسری" value={deficit ? formatShortDate(deficit.month) : "ندارد"} tone={deficit ? "down" : "neutral"} />
       </section>
 
-      {/* The queue */}
       <Section title="قدم‌های بعدی شما" hint="مرتب‌شده بر اساس نزدیک‌ترین سررسید">
         {queue.length === 0 ? (
           <div className="card">
@@ -148,38 +165,36 @@ export default async function PlanningPage() {
               icon="check-circle"
               title="همه‌چیز مرتب است"
               body="هیچ قسط، برنامه یا رویداد نزدیکی وجود ندارد. برنامه جدید بسازید تا آینده شکل بگیرد."
+              action={<AddPlanButton {...addProps} label="ساخت اولین برنامه" variant="soft" />}
             />
           </div>
         ) : (
-          <ul className="divide-y border-t border-b" style={{ borderColor: "var(--border)" }}>
+          <ul className="card plan-list">
             {queue.map((q) => {
               const d = daysUntil(q.date);
               const dual = getDualDate(q.date);
               const disp = formatTomanPrimary(q.amountToman, fx.rate);
               return (
-                <li key={q.kind + q.id} className="flex items-center gap-3 py-3">
-                  <span
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-                    style={{ background: "var(--action-soft)", color: "var(--action)" }}
-                  >
+                <li key={q.kind + q.id} className="plan-queue-row">
+                  <span className="plan-icon" aria-hidden="true">
                     <Icon name={kindIcon[q.kind]} size={16} />
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[length:var(--fs-sm)] font-medium">{q.title}</p>
-                    <p className="muted mt-0.5 text-[length:var(--fs-xs)]">
-                      {q.extra} · {dual.jalali} ·{" "}
-                      <span style={{ color: d < 0 ? "var(--negative)" : undefined }} className="num">
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-[length:var(--fs-sm)]">{q.title}</b>
+                    <span className="expense-sub block truncate">
+                      {q.extra} · <span className="num">{dual.jalali}</span> ·{" "}
+                      <span className="num" style={{ color: d < 0 ? "var(--negative)" : undefined }}>
                         {formatDaysUntil(d)}
                       </span>
-                    </p>
-                  </div>
-                  <span className="flex shrink-0 flex-col items-end">
-                    <span className="num text-[length:var(--fs-sm)] font-bold" dir="rtl">
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-left">
+                    <span className="num plan-amount block money-nowrap" dir="rtl">
                       {disp.primary}
                     </span>
                     {disp.usdHint && (
-                      <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
-                        معادل: {disp.usdHint}
+                      <span className="muted num block text-[length:var(--fs-xs)]" dir="rtl">
+                        معادل {disp.usdHint}
                       </span>
                     )}
                   </span>
@@ -199,9 +214,8 @@ export default async function PlanningPage() {
         )}
       </Section>
 
-      {/* Forecast — Toman axis */}
       <Section title="جریان نقدی ۱۲ ماه آینده" hint="برنامه‌ها + اقساط + تعهدات + رویدادها — مبالغ به تومان">
-        <div className="card p-4 sm:p-5">
+        <div className="card p-3 sm:p-4">
           <BarsChart
             height={150}
             data={projection.points.map((p) => ({
@@ -213,49 +227,22 @@ export default async function PlanningPage() {
         </div>
       </Section>
 
-      {/* Doorways to the planning family */}
       <Section title="ابزارهای برنامه‌ریزی">
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <div className="plan-tools">
           {[
             { href: "/budgets", label: "بودجه‌ها", q: "آیا در چارچوب هستم؟", icon: "budgets" as const },
             { href: "/goals", label: "اهداف و صندوق‌ها", q: "چقدر نزدیکم؟", icon: "goals" as const },
-            { href: "/debts", label: "بدهی‌ها", q: `مانده: ${debtsDisp.primary}`, icon: "debts" as const },
+            { href: "/debts", label: "بدهی‌ها", q: `مانده ${debtsDisp.primary}`, icon: "debts" as const },
             { href: "/installments", label: "اقساط", q: "چه زمانی سر می‌رسد؟", icon: "installments" as const },
           ].map((l) => (
-            <Link key={l.href} href={l.href} className="card group p-4 transition-transform hover:-translate-y-0.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "var(--action-soft)", color: "var(--action)" }}>
-                <Icon name={l.icon} size={17} />
+            <Link key={l.href} href={l.href} className="plan-tool">
+              <span className="plan-icon" aria-hidden="true">
+                <Icon name={l.icon} size={16} />
               </span>
-              <p className="mt-2.5 text-[length:var(--fs-sm)] font-semibold">{l.label}</p>
-              <p className="muted mt-0.5 truncate text-[length:var(--fs-xs)]">{l.q}</p>
+              <b className="text-[length:var(--fs-sm)]">{l.label}</b>
+              <span className="expense-sub truncate">{l.q}</span>
             </Link>
           ))}
-        </div>
-      </Section>
-
-      {/* Capture — collapsed until needed */}
-      <Section title="افزودن برنامه جدید" hint="تا قبل از «اجرا» هیچ سندی در دفترکل ایجاد نمی‌شود — مبالغ به تومان">
-        <div className="space-y-2.5">
-          {[
-            { id: "planned", label: "تراکنش برنامه‌ریزی‌شده", body: <PlannedForm accounts={accountRows} initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} /> },
-            { id: "goal", label: "هدف مالی", body: <GoalForm accounts={accountRows} initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} /> },
-            { id: "event", label: "رویداد آینده", body: <EventForm initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} /> },
-          ].map((f) => (
-            <details key={f.id} className="card group overflow-hidden">
-              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-                <span className="text-[length:var(--fs-sm)] font-semibold">{f.label}</span>
-                <span className="muted transition-transform group-open:rotate-180">
-                  <Icon name="chevronDown" size={15} />
-                </span>
-              </summary>
-              <div className="border-t p-4" style={{ borderColor: "var(--border)" }}>
-                {f.body}
-              </div>
-            </details>
-          ))}
-        </div>
-        <div className="mt-4">
-          <SectionLink href="/goals" label="مدیریت اهداف، صندوق‌ها و تعهدات" />
         </div>
       </Section>
     </div>

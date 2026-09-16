@@ -6,17 +6,20 @@ import { seedIfEmpty } from "@/db/seed";
 import { listEvents, listFunds, listGoals, listObligations } from "@/features/planning/service";
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import { EventForm, GoalForm } from "@/components/forms/QuickForms";
+import { AddGoalButton } from "@/components/planning/AddPlanningSheet";
 import {
   formatJalaliIso,
   formatPct,
   faCount,
   formatTomanPrimary,
   sumToman,
+  todayIso,
 } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = { title: "اهداف و صندوق‌ها" };
 
 const FUND_KIND: Record<string, string> = {
   emergency: "اضطراری",
@@ -32,6 +35,12 @@ const EVENT_CATEGORY: Record<string, string> = {
   other: "سایر",
 };
 
+/**
+ * اهداف و صندوق‌ها — «چقدر نزدیکم؟» in three plain lists.
+ *
+ * Presentation only: the read model and `createGoalAction` /
+ * `createEventAction` are untouched, so every Toman figure stays contractual.
+ */
 export default async function GoalsPage() {
   await ensureAuth();
   await seedIfEmpty();
@@ -57,81 +66,117 @@ export default async function GoalsPage() {
   const savedDisp = formatTomanPrimary(totalSavedToman, fx.rate);
   const targetDisp = formatTomanPrimary(totalTargetToman, fx.rate);
 
+  const upcoming = [
+    ...events.map((e) => ({
+      id: e.id,
+      title: e.name,
+      date: e.eventDate,
+      amountToman: e.budgetToman ?? e.budgetBase,
+      badge: EVENT_CATEGORY[e.category] ?? "رویداد",
+      recurrence: null as string | null,
+    })),
+    ...obligations.map((o) => ({
+      id: o.id,
+      title: o.title,
+      date: o.dueDate,
+      amountToman: o.amountToman ?? o.amountBase,
+      badge: "تعهد",
+      recurrence: o.recurrence,
+    })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+
+  const addProps = {
+    accounts: accountRows,
+    today: todayIso(),
+    rate: fx.rate,
+    rateDate: fx.effectiveDate,
+    rateSource: fx.source,
+  };
+
   return (
-    <div className="space-y-8">
-      <PageHeader title="اهداف و صندوق‌ها" subtitle="مبلغ تومان هدف و صندوق ثابت است؛ معادل دلاری فقط نمایشی است و با نرخ روز تغییر می‌کند." />
+    <div className="space-y-5">
+      <PageHeader
+        title="اهداف و صندوق‌ها"
+        subtitle="مبلغ تومان هدف و صندوق ثابت است؛ معادل دلاری فقط نمایشی است و با نرخ روز تغییر می‌کند."
+        action={<AddGoalButton {...addProps} />}
+      />
 
       {activeGoals.length > 0 && (
-        <section className="rise border-b pb-6" style={{ borderColor: "var(--border)" }}>
-          <div className="mb-2 flex items-baseline justify-between">
-            <p className="muted text-[length:var(--fs-xs)] font-medium">پیشرفت مجموع اهداف فعال</p>
-            <p className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
-              {savedDisp.primary} <span className="muted font-normal">از</span> {targetDisp.primary}
-            </p>
-          </div>
-          {(savedDisp.usdHint || targetDisp.usdHint) && (
-            <p className="muted num mb-2 text-[length:var(--fs-xs)]" dir="rtl">
-              معادل: {savedDisp.usdHint ?? "—"} از {targetDisp.usdHint ?? "—"}
-            </p>
-          )}
-          <Progress value={overall} />
-          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <>
+          <section className="metric-strip">
             <Metric label="اهداف فعال" value={faCount(activeGoals.length)} />
-            <Metric label="رسیده" value={faCount(goals.filter((g) => g.status === "reached").length)} />
+            <Metric label="رسیده" value={faCount(goals.filter((g) => g.status === "reached").length)} tone="up" />
             <Metric label="صندوق‌های اختصاصی" value={faCount(funds.length)} />
             <Metric label="رویدادهای پیش‌رو" value={faCount(events.filter((e) => e.status === "planned").length)} />
-          </div>
-        </section>
+          </section>
+
+          <section className="card expense-card">
+            <header className="expense-head">
+              <h2>پیشرفت مجموع اهداف فعال</h2>
+              <span className="num text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
+                {savedDisp.primary} <span className="muted font-normal">از {targetDisp.primary}</span>
+              </span>
+            </header>
+            <Progress value={overall} aria-label="پیشرفت مجموع اهداف فعال" />
+            {(savedDisp.usdHint || targetDisp.usdHint) && (
+              <p className="expense-sub num" dir="rtl">
+                معادل {savedDisp.usdHint ?? "—"} از {targetDisp.usdHint ?? "—"}
+              </p>
+            )}
+          </section>
+        </>
       )}
 
-      {/* Goals */}
       <Section title="اهداف مالی">
         {goals.length === 0 ? (
           <div className="card">
-            <EmptyState icon="goals" title="هنوز هدفی تعریف نشده است" />
+            <EmptyState
+              icon="goals"
+              title="هنوز هدفی تعریف نشده است"
+              body="یک هدف یعنی مبلغی مشخص تا تاریخی مشخص — پیشرفت آن از حساب پس‌اندازش خوانده می‌شود."
+              action={<AddGoalButton {...addProps} label="تعریف اولین هدف" variant="soft" />}
+            />
           </div>
         ) : (
-          <ul className="space-y-2.5">
+          <ul className="card plan-list">
             {goals.map((g) => {
               const done = g.status === "reached";
               const savedD = formatTomanPrimary(g.savedToman ?? g.savedBase, fx.rate);
               const targetD = formatTomanPrimary(g.targetToman ?? g.targetBase, fx.rate);
               const remD = formatTomanPrimary(g.remainingToman ?? g.remainingBase, fx.rate);
               return (
-                <li key={g.id} className="card p-4">
-                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="flex items-center gap-2 text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-semibold">
+                <li key={g.id} className="plan-row">
+                  <div className="plan-row-head">
+                    <span className="plan-row-title">
                       {done && (
-                        <span style={{ color: "var(--positive)" }}>
-                          <Icon name="check-circle" size={16} />
+                        <span style={{ color: "var(--positive)" }} aria-hidden="true">
+                          <Icon name="check-circle" size={15} />
                         </span>
                       )}
-                      {g.name}
+                      <b className="truncate">{g.name}</b>
                       <span className="badge badge-neutral">
                         اولویت {g.priority === 1 ? "بالا" : g.priority === 2 ? "متوسط" : "پایین"}
                       </span>
-                      {g.targetDate && <span className="muted num text-[length:var(--fs-xs)]">تا {formatJalaliIso(g.targetDate)}</span>}
-                    </p>
-                    <span className="flex flex-col items-end">
-                      <span className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] money-nowrap" dir="rtl">
-                        <b className="text-[length:var(--fs-md)]">{savedD.primary}</b>{" "}
-                        <span className="muted">از {targetD.primary}</span>
+                    </span>
+                    <span className="shrink-0 text-left">
+                      <span className="num block money-nowrap" dir="rtl">
+                        <b className="plan-amount">{savedD.primary}</b>{" "}
+                        <span className="muted text-[length:var(--fs-xs)]">از {targetD.primary}</span>
                       </span>
-                      {(savedD.usdHint || targetD.usdHint) && (
-                        <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
-                          معادل: {savedD.usdHint ?? "—"} از {targetD.usdHint ?? "—"}
+                      {savedD.usdHint && (
+                        <span className="muted num block text-[length:var(--fs-xs)]" dir="rtl">
+                          معادل {savedD.usdHint}
                         </span>
                       )}
                     </span>
                   </div>
-                  <Progress value={g.progress} color={done ? "var(--positive)" : "var(--action)"} />
-                  <div className="muted mt-2 flex justify-between text-[length:var(--fs-xs)]">
+                  <Progress value={g.progress} color={done ? "var(--positive)" : "var(--action)"} aria-label={`پیشرفت ${g.name}`} />
+                  <div className="plan-row-foot">
                     <span className="num" dir="rtl">
                       {formatPct(g.progress, 0)}
+                      {g.targetDate ? ` · تا ${formatJalaliIso(g.targetDate)}` : ""}
                     </span>
-                    <span>
-                      {done ? "تبریک — به این هدف رسیدید" : `${remD.primary} مانده`}
-                    </span>
+                    <span>{done ? "تبریک — به این هدف رسیدید" : `${remD.primary} مانده`}</span>
                   </div>
                 </li>
               );
@@ -140,30 +185,29 @@ export default async function GoalsPage() {
         )}
       </Section>
 
-      <div className="grid gap-10 lg:grid-cols-2">
-        {/* Funds */}
-        <Section title="صندوق‌های اختصاصی" hint="پول‌های کنارگذاشته‌شده برای منظور مشخص — مبلغ تومان هدف ثابت است">
+      <div className="grid items-start gap-5 lg:grid-cols-2">
+        <Section title="صندوق‌های اختصاصی" hint="پول‌های کنارگذاشته‌شده برای منظور مشخص">
           {funds.length === 0 ? (
-            <p className="muted py-4 text-xs">صندوقی تعریف نشده است.</p>
+            <p className="card expense-empty">صندوقی تعریف نشده است.</p>
           ) : (
-            <ul className="space-y-4">
+            <ul className="card plan-list">
               {funds.map((f) => {
                 const savedD = formatTomanPrimary(f.savedToman ?? f.savedBase, fx.rate);
                 const targetD = formatTomanPrimary(f.targetToman ?? f.targetBase, fx.rate);
                 return (
-                  <li key={f.id}>
-                    <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[length:var(--fs-sm)]">
-                      <span className="font-medium">
-                        {f.name}
-                        <span className="badge badge-neutral mr-2">{FUND_KIND[f.kind] ?? f.kind}</span>
+                  <li key={f.id} className="plan-row">
+                    <div className="plan-row-head">
+                      <span className="plan-row-title">
+                        <b className="truncate">{f.name}</b>
+                        <span className="badge badge-neutral">{FUND_KIND[f.kind] ?? f.kind}</span>
                       </span>
-                      <span className="num" dir="rtl">
-                        <b>{savedD.primary}</b>{" "}
+                      <span className="num shrink-0 money-nowrap" dir="rtl">
+                        <b className="plan-amount">{savedD.primary}</b>{" "}
                         <span className="muted text-[length:var(--fs-xs)]">از {targetD.primary}</span>
                       </span>
                     </div>
-                    <Progress value={f.progress} color="var(--info)" />
-                    {f.note && <p className="muted mt-1.5 text-[length:var(--fs-xs)]">{f.note}</p>}
+                    <Progress value={f.progress} color="var(--info)" aria-label={`پیشرفت ${f.name}`} />
+                    {f.note && <p className="plan-row-foot">{f.note}</p>}
                   </li>
                 );
               })}
@@ -171,90 +215,42 @@ export default async function GoalsPage() {
           )}
         </Section>
 
-        {/* Events & obligations */}
         <Section title="رویدادها و تعهدات" hint="هزینه‌های از پیش‌دانسته آینده — مبلغ تومان ثابت">
-          {events.length === 0 && obligations.length === 0 ? (
-            <p className="muted py-4 text-xs">رویداد یا تعهدی ثبت نشده است.</p>
+          {upcoming.length === 0 ? (
+            <p className="card expense-empty">رویداد یا تعهدی ثبت نشده است.</p>
           ) : (
-            <ul className="divide-y border-t border-b" style={{ borderColor: "var(--border)" }}>
-              {[
-                ...events.map((e) => ({
-                  id: e.id,
-                  title: e.name,
-                  date: e.eventDate,
-                  amountToman: e.budgetToman ?? e.budgetBase,
-                  badge: EVENT_CATEGORY[e.category] ?? "رویداد",
-                  recurrence: null as string | null,
-                })),
-                ...obligations.map((o) => ({
-                  id: o.id,
-                  title: o.title,
-                  date: o.dueDate,
-                  amountToman: o.amountToman ?? o.amountBase,
-                  badge: "تعهد",
-                  recurrence: o.recurrence,
-                })),
-              ]
-                .sort((a, b) => a.date.localeCompare(b.date))
-                .map((x) => {
-                  const disp = formatTomanPrimary(x.amountToman, fx.rate);
-                  return (
-                    <li key={x.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <div className="min-w-0">
-                        <p className="flex items-center gap-2 truncate text-[length:var(--fs-sm)] font-medium">
-                          {x.title}
-                          <span className="badge badge-neutral">{x.badge}</span>
-                          {x.recurrence && x.recurrence !== "none" && (
-                            <span className="badge badge-info">{x.recurrence === "monthly" ? "ماهانه" : "سالانه"}</span>
-                          )}
-                        </p>
-                        <p className="muted num mt-0.5 text-[length:var(--fs-xs)]">{formatJalaliIso(x.date)}</p>
-                      </div>
-                      <span className="flex shrink-0 flex-col items-end">
-                        <span className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
+            <ul className="card plan-list">
+              {upcoming.map((x) => {
+                const disp = formatTomanPrimary(x.amountToman, fx.rate);
+                return (
+                  <li key={x.id} className="plan-row">
+                    <div className="plan-row-head">
+                      <span className="plan-row-title">
+                        <b className="truncate">{x.title}</b>
+                        <span className="badge badge-neutral">{x.badge}</span>
+                        {x.recurrence && x.recurrence !== "none" && (
+                          <span className="badge badge-info">{x.recurrence === "monthly" ? "ماهانه" : "سالانه"}</span>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-left">
+                        <span className="num plan-amount block money-nowrap" dir="rtl">
                           {disp.primary}
                         </span>
                         {disp.usdHint && (
-                          <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
-                            معادل: {disp.usdHint}
+                          <span className="muted num block text-[length:var(--fs-xs)]" dir="rtl">
+                            معادل {disp.usdHint}
                           </span>
                         )}
                       </span>
-                    </li>
-                  );
-                })}
+                    </div>
+                    <p className="plan-row-foot num">{formatJalaliIso(x.date)}</p>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Section>
       </div>
-
-      {/* Capture forms */}
-      <Section title="افزودن">
-        <div className="grid gap-2.5 lg:grid-cols-2">
-          <details className="card group overflow-hidden">
-            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-              <span className="text-[length:var(--fs-sm)] font-semibold">هدف جدید</span>
-              <span className="muted transition-transform group-open:rotate-180">
-                <Icon name="chevronDown" size={15} />
-              </span>
-            </summary>
-            <div className="border-t p-4" style={{ borderColor: "var(--border)" }}>
-              <GoalForm accounts={accountRows} initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} />
-            </div>
-          </details>
-          <details className="card group overflow-hidden">
-            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
-              <span className="text-[length:var(--fs-sm)] font-semibold">رویداد جدید</span>
-              <span className="muted transition-transform group-open:rotate-180">
-                <Icon name="chevronDown" size={15} />
-              </span>
-            </summary>
-            <div className="border-t p-4" style={{ borderColor: "var(--border)" }}>
-              <EventForm initialRate={fx.rate} initialRateDate={fx.effectiveDate} initialRateSource={fx.source} />
-            </div>
-          </details>
-        </div>
-      </Section>
     </div>
   );
 }
