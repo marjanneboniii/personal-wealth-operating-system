@@ -1,6 +1,6 @@
 import { ensureAuth } from "@/lib/authGuard";
 import { ensureSchemaOnce } from "@/db/init-schema";
-import { PageHeader } from "@/components/ui/Card";
+import { todayIso } from "@/lib/format";
 import {
   ensureInflationModuleReady,
   getInflationDashboard,
@@ -77,13 +77,7 @@ export default async function InflationPage() {
   // ثبت نشده» state instead of the route throwing.
   const safeDashboard = dashboard ?? EMPTY_INFLATION_DASHBOARD;
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="ردیاب تورم شخصی"
-        subtitle="تورم سبد خودتان را بسنجید. این کالاها دارایی نیستند و در ارزش خالص اثری ندارند."
-      />
-      <InflationTracker items={items} histories={histories} dashboard={safeDashboard} categories={categories} />
-    </div>
-  );
+  // The header (with its «+ ثبت قیمت جدید» button) lives in the tracker, which
+  // owns the add-price sheet.
+  return <InflationTracker items={items} histories={histories} dashboard={safeDashboard} categories={categories} today={todayIso()} />;
 }
