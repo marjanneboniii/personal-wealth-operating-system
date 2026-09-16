@@ -17,10 +17,13 @@ import AuthAccessCard from "@/components/auth/AuthAccessCard";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "تنظیمات" };
+
 /**
- * تنظیمات — only what a person manages: their account, the exchange rate,
- * a one-tap check and backups. Accounting-grade views (raw configuration,
- * ledger counts, audit trail) are deliberately not shown here.
+ * تنظیمات — only what a person manages: their account, the exchange rate, a
+ * one-tap check and backups. Accounting-grade views (raw configuration, ledger
+ * counts, audit trail) are deliberately not shown here, and neither is the
+ * pro-mode switch: by owner decision the app never offers it.
  */
 export default async function SettingsPage() {
   await ensureAuth();
@@ -32,55 +35,61 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <div className="space-y-8">
-      <PageHeader title="تنظیمات" />
+    <div className="space-y-5">
+      <PageHeader title="تنظیمات" subtitle="حساب کاربری، زبان نمایش، نرخ مرجع و نسخهٔ پشتیبان." />
 
       {user && (
         <Section title="حساب کاربری">
           <UserPanel user={sanitizeUser(user) as any} />
-          {(user.role === "owner" || user.role === "admin") && <Link href="/admin" className="btn btn-ghost mt-3">مدیریت کاربران</Link>}
+          {(user.role === "owner" || user.role === "admin") && (
+            <Link href="/admin" className="btn btn-ghost mt-2.5 !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]">
+              <Icon name="users" size={14} />
+              مدیریت کاربران
+            </Link>
+          )}
         </Section>
       )}
 
-      <Section title="نرخ ارز — ارزش‌گذاری جاری">
+      <Section title="نرخ مرجع" hint="همهٔ ارقام تومانی با این نرخ محاسبه می‌شوند">
         {user ? (
           <FxSettings currentRate={fx.rate} lastUpdatedAt={fx.lastUpdatedAt} source={fx.source} />
         ) : (
-          <AuthAccessCard
-            title="ورود و Auth کاربر در دسترس است"
-            body="برای دیدن نرخ مرجع وارد شوید."
-          />
+          <AuthAccessCard title="ورود و Auth کاربر در دسترس است" body="برای دیدن نرخ مرجع وارد شوید." />
         )}
       </Section>
 
       <Section title="بررسی اطلاعات">
-        <div className="card space-y-3 p-4 sm:p-5">
-          <p className="text-[length:var(--fs-sm)] leading-7">
-            توازن حساب‌وکتاب را خودکار انجام می‌دهد. اگر عددی به نظرتان درست نیست، با یک لمس بررسی کنید.
-          </p>
-          <RowAction kind="integrity" label="بررسی درستی اعداد" primary />
+        <div className="card expense-card">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="min-w-0">
+              <b className="block text-[length:var(--fs-sm)]">توازن حساب‌وکتاب</b>
+              <span className="expense-sub block">اگر عددی به نظرتان درست نیست، با یک لمس بررسی کنید.</span>
+            </span>
+            <RowAction kind="integrity" label="بررسی درستی اعداد" primary />
+          </div>
         </div>
       </Section>
 
       <Section title="پشتیبان‌گیری و بازیابی">
-        <div className="card p-4 sm:p-5">
-          <p className="muted mb-3 text-[length:var(--fs-xs)] leading-6">
-            یک نسخه از همهٔ اطلاعاتتان را دانلود و نگه دارید تا هر وقت لازم شد آن را بازگردانید.
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <a className="btn btn-primary" href="/api/backup" download>
-              <Icon name="download" size={16} />
-              دانلود نسخهٔ پشتیبان
+        <div className="card expense-card">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="min-w-0">
+              <b className="block text-[length:var(--fs-sm)]">نسخهٔ پشتیبان</b>
+              <span className="expense-sub block">یک نسخه از همهٔ اطلاعاتتان را دانلود و نگه دارید.</span>
+            </span>
+            <a className="btn btn-primary !min-h-9 shrink-0 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]" href="/api/backup" download>
+              <Icon name="download" size={14} />
+              دانلود
             </a>
           </div>
-          <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--border)" }}>
-            <RestorePanel />
-          </div>
+
+          <RestorePanel />
+
           {backups.length > 0 && (
-            <ul className="muted mt-4 space-y-1 text-[length:var(--fs-xs)]">
+            <ul className="expense-sub space-y-1">
               {backups.map((b) => (
-                <li key={b.id} className="flex gap-2">
-                  <Icon name="check" size={12} className="mt-0.5 shrink-0" />
+                <li key={b.id} className="flex items-center gap-1.5">
+                  <Icon name="check" size={12} className="shrink-0" />
                   پشتیبان {formatDate(b.createdAt.toISOString().slice(0, 10))}
                 </li>
               ))}
@@ -89,9 +98,9 @@ export default async function SettingsPage() {
         </div>
       </Section>
 
-      <p className="muted flex items-center gap-1.5 text-[length:var(--fs-xs)]">
+      <p className="expense-sub flex items-center gap-1.5">
         <Icon name="info" size={13} />
-        پوسته روشن/تاریک از نوار بالا (موبایل) یا پایین سایدبار (دسکتاپ) تغییر می‌کند و در همین دستگاه ذخیره می‌شود.
+        پوستهٔ روشن و تاریک از نوار بالا (موبایل) یا پایین سایدبار (دسکتاپ) عوض می‌شود و روی همین دستگاه ذخیره می‌ماند.
       </p>
     </div>
   );

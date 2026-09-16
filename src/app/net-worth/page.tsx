@@ -14,10 +14,12 @@ import { Alert, Delta, EmptyState, Metric, PageHeader, Section } from "@/compone
 import NetWorthChart from "@/components/charts/NetWorthChart";
 import RowAction from "@/components/RowAction";
 import { D } from "@/domain/decimal";
-import { formatMoney, formatPct, formatPercent, formatSignedMoneyFromUsd, todayIso, toIrtMoney, trendColor, trendTone } from "@/lib/format";
+import { formatJalaliIso, formatMoney, formatPct, formatPercent, formatSignedMoneyFromUsd, todayIso, toIrtMoney, trendColor, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = { title: "ارزش خالص" };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -74,6 +76,13 @@ function bucketize(byClass: { className: string; color: string; value: string; s
     }));
 }
 
+/**
+ * ارزش خالص — one hero figure, then the three questions about it:
+ * چرا تغییر کرد؟ · از چه تشکیل شده؟ · چقدر سالم است؟
+ *
+ * Presentation only: every figure comes from the same read model as before
+ * (snapshots, portfolio valuation, analytics) and nothing here writes.
+ */
 export default async function NetWorthPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await ensureAuth();
   await seedIfEmpty();
@@ -128,37 +137,50 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
   const maxMag = Math.max(...attrRows.map((r) => Math.abs(Number(r.value))), Math.abs(Number(deltaAbs.toString())), 1);
 
   return (
-    <div className="space-y-9">
-      <PageHeader title="ارزش خالص" action={<RowAction kind="snapshot" label="ثبت اسنپ‌شات امروز" />} />
+    <div className="space-y-5">
+      <PageHeader
+        title="ارزش خالص"
+        subtitle="هرچه دارید منهای هرچه بدهکارید — و اینکه چرا این عدد تغییر کرده است."
+        action={<RowAction kind="snapshot" label="ثبت اسنپ‌شات امروز" />}
+      />
 
-      <section>
-        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-x-8 sm:gap-y-4">
-          <div className="min-w-0 flex-1">
-            <p className="muted text-[length:var(--fs-xs)] font-medium sm:text-[length:var(--fs-xs)]">ارزش خالص فعلی</p>
-            <div className="mt-1.5 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 sm:gap-y-2">
-              <span className="money-hero text-[24px] sm:text-[28px] lg:text-[32px] font-bold leading-[1.15] tracking-tight money-nowrap" dir="rtl">
+      {/* ── Hero: the figure, its change, the range and the curve ── */}
+      <section className="card expense-card">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="expense-sub">ارزش خالص فعلی</p>
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+              <span className="money-hero text-[26px] font-bold leading-[1.15] tracking-tight money-nowrap sm:text-[30px]" dir="rtl">
                 {fx.rate ? formatMoney(nw.netWorthToman, "IRT") : formatMoney(nw.netWorth)}
               </span>
               {baseline ? (
-                <Delta value={deltaAbs.toString()} pct={deltaPct} className="text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)]" />
+                <Delta value={deltaAbs.toString()} pct={deltaPct} />
               ) : (
-                <span className="muted text-[length:var(--fs-xs)] sm:text-[length:var(--fs-xs)]">تاریخچه‌ای برای این بازه هنوز ساخته نشده است</span>
+                <span className="expense-sub">تاریخچه‌ای برای این بازه ساخته نشده است</span>
               )}
             </div>
-            <p className="muted mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-xs)] sm:mt-2 sm:text-[length:var(--fs-xs)]">
+            <p className="expense-sub mt-1.5 flex flex-wrap items-center gap-x-2">
               {fx.rate && (
                 <span className="money-nowrap">
                   ≈ <span className="num">{formatMoney(nw.netWorth)}</span>
-                  <span className="mx-1.5 opacity-50">·</span>
+                  <span className="mx-1 opacity-50">·</span>
                 </span>
               )}
-              <span className="money-nowrap">دارایی {formatMoney(nw.totalAssets)} <span className="opacity-50">−</span> بدهی {formatMoney(D(nw.totalLiabilities).neg().toString())}</span>
+              <span className="money-nowrap">
+                دارایی {formatMoney(nw.totalAssets)} <span className="opacity-50">−</span> بدهی{" "}
+                {formatMoney(D(nw.totalLiabilities).neg().toString())}
+              </span>
             </p>
           </div>
 
-          <div className="seg shrink-0 self-start sm:self-auto" role="group" aria-label="بازه زمانی">
+          <div className="seg shrink-0 self-start" role="group" aria-label="بازه زمانی">
             {RANGES.map((r) => (
-              <Link key={r.key} href={`/net-worth?range=${r.key}`} className={range === r.key ? "seg-on" : ""} aria-current={range === r.key ? "true" : undefined}>
+              <Link
+                key={r.key}
+                href={`/net-worth?range=${r.key}`}
+                className={range === r.key ? "seg-on" : ""}
+                aria-current={range === r.key ? "true" : undefined}
+              >
                 {r.label}
               </Link>
             ))}
@@ -170,66 +192,70 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
             ? `ارزش خالص در این بازه ${deltaPct} درصد ${deltaAbs.gte(0) ? "افزایش" : "کاهش"} یافته است.`
             : "تاریخچه کافی برای توصیف روند ارزش خالص وجود ندارد."}
         </p>
-        <div className="card mt-5 p-3 sm:p-5">
-          <NetWorthChart data={series} height={210} />
-        </div>
+
+        <NetWorthChart data={series} height={200} />
       </section>
 
+      {/* ── Why it changed ── */}
       <Section
         id="wealth-growth"
         title="چرا ارزش خالص شما تغییر کرد؟"
-        hint={baseline ? `از ${baseline.asOf} تا امروز — برآیند اجزاء با تغییر واقعی برابر است` : "برای تحلیل تغییر، به حداقل دو اسنپ‌شات نیاز است"}
+        hint={
+          baseline
+            ? `از ${formatJalaliIso(baseline.asOf)} تا امروز — برآیند اجزاء با تغییر واقعی برابر است`
+            : "برای تحلیل تغییر، به حداقل دو اسنپ‌شات نیاز است"
+        }
       >
         {baseline ? (
-          <ul className="divide-y border-t border-b" style={{ borderColor: "var(--border)" }}>
+          <ul className="card plan-list">
             {attrRows.map((r) => {
               const n = Number(r.value);
               const pos = n > 0;
               const neg = n < 0;
               return (
-                <li key={r.name} className="flex flex-col gap-2 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-[length:var(--fs-sm)] font-medium">{r.name}</p>
-                    <p className="muted text-[length:var(--fs-xs)]">{r.desc}</p>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 sm:justify-end">
-                    <div className="attr-meter" aria-hidden="true">
-                      <i
-                        style={{
-                          width: `${Math.min(100, (Math.abs(n) / maxMag) * 100)}%`,
-                          background: pos ? "var(--positive)" : neg ? "var(--negative)" : "var(--text-3)",
-                        }}
-                      />
-                    </div>
-                    <div
-                      className="flex w-[6.5rem] shrink-0 flex-col items-end text-left sm:w-[7.5rem]"
+                <li key={r.name} className="plan-row">
+                  <div className="plan-row-head">
+                    <span className="min-w-0">
+                      <b className="block text-[length:var(--fs-sm)]">{r.name}</b>
+                      <span className="expense-sub block">{r.desc}</span>
+                    </span>
+                    <span
+                      className="shrink-0 text-left"
                       dir="rtl"
                       style={{ color: pos ? "var(--positive)" : neg ? "var(--negative)" : "var(--text-2)" }}
                     >
-                      <span className="num text-[length:var(--fs-xs)] font-bold money-nowrap sm:text-[length:var(--fs-sm)]">
-                        {formatSignedMoneyFromUsd(r.value, fx.rate)}
-                      </span>
+                      <span className="num plan-amount block money-nowrap">{formatSignedMoneyFromUsd(r.value, fx.rate)}</span>
                       {fx.rate && (
-                        <span className="muted num text-[length:var(--fs-xs)] money-nowrap">
+                        <span className="muted num block text-[length:var(--fs-xs)] money-nowrap">
                           ≈ {formatMoney(D(r.value).abs().toString())}
                         </span>
                       )}
-                    </div>
+                    </span>
+                  </div>
+                  <div className="attr-meter" aria-hidden="true">
+                    <i
+                      style={{
+                        width: `${Math.min(100, (Math.abs(n) / maxMag) * 100)}%`,
+                        background: pos ? "var(--positive)" : neg ? "var(--negative)" : "var(--text-3)",
+                      }}
+                    />
                   </div>
                 </li>
               );
             })}
-            <li className="flex items-center justify-between gap-3 py-3 sm:gap-4 sm:py-3.5">
-              <p className="text-[length:var(--fs-xs)] font-bold sm:text-[length:var(--fs-sm)]">مجموع</p>
-              <div className="flex flex-col items-end min-w-0">
-                <span className="num text-[length:var(--fs-xs)] font-bold money-nowrap sm:text-[length:var(--fs-sm)]" dir="rtl" style={{ color: trendColor(deltaAbs.toString()) }}>
-                  {formatSignedMoneyFromUsd(deltaAbs.toString(), fx.rate)}
-                </span>
-                {fx.rate && (
-                  <span className="muted num text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
-                    ≈ {formatMoney(deltaAbs.abs().toString())}
+            <li className="plan-row">
+              <div className="plan-row-head">
+                <b className="text-[length:var(--fs-sm)]">مجموع تغییر</b>
+                <span className="shrink-0 text-left" dir="rtl" style={{ color: trendColor(deltaAbs.toString()) }}>
+                  <span className="num plan-amount block money-nowrap">
+                    {formatSignedMoneyFromUsd(deltaAbs.toString(), fx.rate)}
                   </span>
-                )}
+                  {fx.rate && (
+                    <span className="muted num block text-[length:var(--fs-xs)] money-nowrap">
+                      ≈ {formatMoney(deltaAbs.abs().toString())}
+                    </span>
+                  )}
+                </span>
               </div>
             </li>
           </ul>
@@ -245,27 +271,32 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
         )}
       </Section>
 
+      {/* ── What it is made of ── */}
       <Section id="wealth-composition" title="ثروت شما از چه تشکیل شده است؟">
         {buckets.length === 0 ? (
-          <EmptyState icon="portfolio" title="دارایی‌ای ثبت نشده است" body="با افزودن دارایی، ترکیب ثروت شما اینجا نمایش داده می‌شود." />
+          <div className="card">
+            <EmptyState icon="portfolio" title="دارایی‌ای ثبت نشده است" body="با افزودن دارایی، ترکیب ثروت شما اینجا نمایش داده می‌شود." />
+          </div>
         ) : (
-          <div>
-            <div className="comp-bar mb-4" role="img" aria-label="ترکیب ثروت">
+          <div className="card expense-card">
+            <div className="comp-bar" role="img" aria-label="ترکیب ثروت">
               {buckets.map((b) => (
                 <span key={b.name} style={{ width: `${(b.value / totalAssets) * 100}%`, background: b.color }} />
               ))}
             </div>
-            <ul className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+            <ul className="grid gap-x-6 sm:grid-cols-2">
               {buckets.map((b) => (
-                <li key={b.name} className="flex items-center justify-between gap-3 border-b py-2.5 last:border-0 sm:border-0" style={{ borderColor: "var(--border)" }}>
+                <li key={b.name} className="flex items-center justify-between gap-3 border-b py-2.5 last:border-0" style={{ borderColor: "var(--border)" }}>
                   <span className="flex min-w-0 items-center gap-2.5 text-[length:var(--fs-sm)]">
                     <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: b.color }} />
-                    <span className="truncate">{b.name}</span>
-                    <span className="muted text-[length:var(--fs-xs)]">{b.members.map((m) => m.name).join("، ")}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate">{b.name}</span>
+                      <span className="expense-sub block truncate">{b.members.map((m) => m.name).join("، ")}</span>
+                    </span>
                   </span>
                   <span className="flex shrink-0 items-baseline gap-2">
                     <span className="flex flex-col items-end">
-                      <span className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
+                      <span className="num text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
                         {toIrt(b.value) ?? formatMoney(b.value)}
                       </span>
                       {fx.rate && (
@@ -285,13 +316,14 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
         )}
       </Section>
 
+      {/* ── How healthy it is ── */}
       <Section id="wealth-performance" title="شاخص‌های سلامت ثروت">
         {growth.calculationStatus === "missing_data" && growth.missingDataWarning ? (
           <Alert tone="warn" title="داده تاریخی محدود است">
             {growth.missingDataWarning}
           </Alert>
         ) : (
-          <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+          <section className="metric-strip">
             <Metric
               label="بازده تعدیل‌شده"
               value={formatPercent(growth.adjustedWealthReturnPercentage)}
@@ -301,14 +333,22 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
               label="بازده سرمایه‌گذاری خالص"
               value={toIrt(growth.netInvestmentReturn) ?? formatMoney(growth.netInvestmentReturn)}
               tone={trendTone(growth.netInvestmentReturn)}
-              hint={fx.rate ? `≈ ${formatMoney(growth.netInvestmentReturn)} · بدون احتساب واریز/برداشت‌ها` : "بدون احتساب واریز/برداشت‌ها"}
+              hint={fx.rate ? `≈ ${formatMoney(growth.netInvestmentReturn)} · بدون واریز و برداشت` : "بدون واریز و برداشت"}
             />
-            <Metric label="بیشترین افت از سقف" value={formatPercent(D(risk.maxDrawdownPercentage).abs().neg().toString())} tone={Number(risk.maxDrawdownPercentage) > 15 ? "down" : "neutral"} />
-            <Metric label="ریسک رمزارز" value={formatPct(risk.cryptoExposurePercentage, 2)} hint={`بزرگ‌ترین دارایی: ${risk.largestAssetSymbol}`} />
-          </div>
+            <Metric
+              label="بیشترین افت از سقف"
+              value={formatPercent(D(risk.maxDrawdownPercentage).abs().neg().toString())}
+              tone={Number(risk.maxDrawdownPercentage) > 15 ? "down" : "neutral"}
+            />
+            <Metric
+              label="ریسک رمزارز"
+              value={formatPct(risk.cryptoExposurePercentage, 2)}
+              hint={`بزرگ‌ترین دارایی: ${risk.largestAssetSymbol}`}
+            />
+          </section>
         )}
         {risk.concentrationWarning && (
-          <div className="mt-4">
+          <div className="mt-3">
             <Alert tone={risk.riskScore === "critical" ? "neg" : "warn"} title="هشدار تمرکز">
               {risk.concentrationWarning}
             </Alert>
