@@ -11,7 +11,7 @@
      • On logout/login the client posts {type:"PURGE_CACHES"} → every cache is
        wiped so no residue of the previous tenant survives on the device. */
 
-const VERSION = "pwos-v6"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
+const VERSION = "pwos-v7"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
 const STATIC_CACHE = VERSION + "-static";
 
 // Brand assets (VEZAN) — immutable, cache-first.
@@ -80,14 +80,22 @@ self.addEventListener("fetch", (event) => {
   ) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
+        const isNext = url.pathname.startsWith("/_next/");
+        const isImmutable = (res) => (res.headers.get("cache-control") || "").includes("immutable");
+
         const cached = await cache.match(req);
-        if (cached) return cached;
+        if (cached) {
+          // A cached /_next/ asset is only trustworthy if the response that was
+          // stored declared itself immutable — i.e. it is content-hashed, so
+          // this URL can never mean anything else. Anything else under /_next/
+          // is a dev-server file whose NAME is reused while its CONTENT changes;
+          // serving that from cache freezes the app at an old stylesheet.
+          if (!isNext || isImmutable(cached)) return cached;
+          await cache.delete(req);
+        }
+
         const res = await fetch(req);
-        // Only content-hashed build files are immutable. A dev server serves
-        // /_next/static/css/app/layout.css under one fixed name, so caching it
-        // froze every later style change (the "unstyled" expense form).
-        const immutable = (res.headers.get("cache-control") || "").includes("immutable");
-        if (res.ok && (immutable || !url.pathname.startsWith("/_next/"))) cache.put(req, res.clone());
+        if (res.ok && (isImmutable(res) || !isNext)) cache.put(req, res.clone());
         return res;
       }),
     );
