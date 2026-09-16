@@ -602,19 +602,6 @@ export default function LandingPage() {
 
       <LandingFooter />
 
-      {/* Phone-only action bar. The hero CTA scrolls away after the fold and on
-          a phone the page is long — this keeps the one primary action within
-          thumb reach without ever covering the footer's own links. */}
-      <div className="landing-dock" aria-hidden="false">
-        <div className="landing-dock-inner">
-          <Link href="/register" className="btn btn-primary !min-h-12 flex-1">
-            شروع رایگان
-          </Link>
-          <Link href="/login" className="btn btn-ghost !min-h-12 px-4">
-            ورود
-          </Link>
-        </div>
-      </div>
     </div>
   );
 }
