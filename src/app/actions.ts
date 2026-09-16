@@ -1173,6 +1173,24 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
               : input.quantity && D(input.quantity).gt(0)
                 ? input.quantity
                 : amount.div(price).toString();
+          // A transfer moves money at its BOOK cost; it never revalues it. Valuing
+          // it at today's rate made a brokerage balance opened when the dollar was
+          // dearer worth more dollars than it ever booked, and «همه» was refused
+          // as an overdraft. So: enough QUANTITY is required, and the dollar
+          // value leaving is the source's average book cost per unit.
+          const feeQty = D(fee).gt(0) ? D(fee).div(price) : D("0");
+          const tenantScope = authUser?.id ? sql`and (je.user_id = ${authUser.id} or je.user_id is null)` : sql``;
+          const balanceRes = await tx.execute(sql`
+            select coalesce(sum(p.quantity), 0)::text as q, coalesce(sum(p.base_value), 0)::text as b
+            from postings p join journal_entries je on je.id = p.entry_id
+            where p.account_id = ${input.primaryAccountId} and je.status = 'posted' ${tenantScope}
+          `);
+          const held = D((balanceRes.rows[0] as { q?: string })?.q ?? "0");
+          const heldBase = D((balanceRes.rows[0] as { b?: string })?.b ?? "0");
+          if (D(qty).add(feeQty).gt(held)) {
+            throw new Error(feeQty.gt(0) ? "موجودی حساب مبدأ برای این مبلغ و کارمزد کافی نیست." : "موجودی حساب مبدأ کافی نیست.");
+          }
+          const bookUnit = held.gt(0) && heldBase.gt(0) ? heldBase.div(held).toString() : price;
           entry = await recordTransfer(
             {
               entryDate: input.entryDate,
@@ -1181,8 +1199,8 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
               toAccountId: input.counterAccountId,
               assetId,
               quantity: qty,
-              unitPrice: price,
-              feeBase: fee,
+              unitPrice: bookUnit,
+              feeBase: feeQty.mul(bookUnit).toString(),
               feeAccountId: (await ensureFeeExpenseAccount(authUser?.id ?? null, tx))?.id,
               userId: authUser?.id ?? undefined,
               idempotencyKey,

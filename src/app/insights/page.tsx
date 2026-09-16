@@ -208,41 +208,43 @@ export default async function InsightsPage() {
   }
 
   return (
-    <div className="space-y-9">
+    <div className="space-y-5">
       <PageHeader
         title="بینش‌ها"
-        subtitle="مشاهدات سیستم از داده‌های شما. این صفحه فقط می‌خواند و تحلیل می‌کند — هیچ سند، مانده یا وضعیت مالی‌ای را تغییر نمی‌دهد."
+        subtitle="مشاهدات سیستم از داده‌های شما. این صفحه فقط می‌خواند و تحلیل می‌کند — هیچ سند یا مانده‌ای را تغییر نمی‌دهد."
       />
 
       {/* ── سلامت مالی ── */}
-      <Section id="insights-health" title="سلامت مالی" hint="چهار شاخص کلیدی، مشتق از داده‌های موجود">
-        <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
-          <Metric
-            label="نسبت بدهی به دارایی"
-            value={`${formatPct(debtRatio.toFixed(1), 1)}`}
-            tone={debtRatio.gt("50") ? "down" : debtRatio.gt("30") ? "neutral" : "up"}
-            hint={toIrt(totalLiabilities.toString()) ?? formatMoney(totalLiabilities.toString())}
-          />
-          <Metric
-            label="نرخ پس‌انداز"
-            value={`${formatPct(savingsRate.toFixed(1), 1)}`}
-            tone={savingsRate.gte("15") ? "up" : savingsRate.gte("0") ? "neutral" : "down"}
-            hint="بازه ۶ ماه اخیر"
-          />
-          <Metric
-            label="دوام نقدینگی"
-            value={runwayMonths ? `${formatNumber(runwayMonths.toFixed(1), { decimals: 1 })} ماه` : "—"}
-            tone={runwayMonths ? (runwayMonths.gte("6") ? "up" : runwayMonths.gte("3") ? "neutral" : "down") : "neutral"}
-            hint={avgOutflow.isZero() ? "هزینه ثبت‌شده‌ای نیست" : `میانگین هزینه ${avgOutflowToman ? formatMoney(avgOutflowToman, "IRT") : toIrt(avgOutflow.toString()) ?? formatMoney(avgOutflow.toString())}`}
-          />
-          <Metric
-            label="سهم دارایی نقدشونده"
-            value={`${formatPct(liquidShare.toFixed(1), 1)}`}
-            tone={liquidShare.gte("15") ? "up" : "neutral"}
-            hint={toIrt(liquid.toString()) ?? formatMoney(liquid.toString())}
-          />
-        </div>
-      </Section>
+      <section className="metric-strip" id="insights-health">
+        <Metric
+          label="نسبت بدهی به دارایی"
+          value={formatPct(debtRatio.toFixed(1), 1)}
+          tone={debtRatio.gt("50") ? "down" : debtRatio.gt("30") ? "neutral" : "up"}
+          hint={toIrt(totalLiabilities.toString()) ?? formatMoney(totalLiabilities.toString())}
+        />
+        <Metric
+          label="نرخ پس‌انداز"
+          value={formatPct(savingsRate.toFixed(1), 1)}
+          tone={savingsRate.gte("15") ? "up" : savingsRate.gte("0") ? "neutral" : "down"}
+          hint="بازه ۶ ماه اخیر"
+        />
+        <Metric
+          label="دوام نقدینگی"
+          value={runwayMonths ? `${formatNumber(runwayMonths.toFixed(1), { decimals: 1 })} ماه` : "—"}
+          tone={runwayMonths ? (runwayMonths.gte("6") ? "up" : runwayMonths.gte("3") ? "neutral" : "down") : "neutral"}
+          hint={
+            avgOutflow.isZero()
+              ? "هزینه ثبت‌شده‌ای نیست"
+              : `میانگین هزینه ${avgOutflowToman ? formatMoney(avgOutflowToman, "IRT") : toIrt(avgOutflow.toString()) ?? formatMoney(avgOutflow.toString())}`
+          }
+        />
+        <Metric
+          label="سهم دارایی نقدشونده"
+          value={formatPct(liquidShare.toFixed(1), 1)}
+          tone={liquidShare.gte("15") ? "up" : "neutral"}
+          hint={toIrt(liquid.toString()) ?? formatMoney(liquid.toString())}
+        />
+      </section>
 
       {/* ── هشدارها ── */}
       <Section id="insights-alerts" title="هشدارها" hint="فقط مواردی که واقعاً به تصمیم شما نیاز دارند">
@@ -251,20 +253,20 @@ export default async function InsightsPage() {
             بر اساس داده‌های فعلی، هیچ ریسک نقدینگی، تمرکز دارایی یا قسط معوقی شناسایی نشد.
           </Alert>
         ) : (
-          <ul className="space-y-2">
+          <ul className="card plan-list">
             {insights.map((n, i) => {
               const t = TONE_COLOR[n.tone];
               return (
-                <li key={i} className="card flex flex-wrap items-start gap-3 p-4">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: t.bg, color: t.c }}>
+                <li key={i} className="plan-queue-row">
+                  <span className="plan-icon" style={{ background: t.bg, color: t.c }} aria-hidden="true">
                     <Icon name={n.icon} size={16} />
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[length:var(--fs-sm)] font-semibold">{n.title}</p>
-                    <p className="muted mt-0.5 text-[length:var(--fs-xs)] leading-5">{n.body}</p>
-                  </div>
+                  <span className="min-w-0 flex-1">
+                    <b className="block text-[length:var(--fs-sm)]">{n.title}</b>
+                    <span className="expense-sub block">{n.body}</span>
+                  </span>
                   {n.href && (
-                    <Link href={n.href} className="btn btn-ghost !min-h-8 !px-3 !py-1 text-[length:var(--fs-xs)]">
+                    <Link href={n.href} className="btn btn-ghost !min-h-9 shrink-0 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
                       {n.action}
                     </Link>
                   )}
@@ -282,7 +284,7 @@ export default async function InsightsPage() {
             <EmptyState icon="cashflow" title="هزینه‌ای در این بازه ثبت نشده است" body="با ثبت تراکنش‌های هزینه، تحلیل دسته‌بندی اینجا ساخته می‌شود." />
           </div>
         ) : (
-          <ul className="space-y-3">
+          <ul className="card plan-list">
             {topCategories.map((c) => {
               const shareNum = spendTotal.isZero() ? 0 : D(c.total).div(spendTotal).mul(100).toNumber();
               // FROZEN Toman (commit-time snapshot) when every entry of this
@@ -290,18 +292,18 @@ export default async function InsightsPage() {
               // current rate; dynamic «≈» only for legacy rows without a freeze.
               const frozen = c.entries > 0 && c.entries === c.entriesWithSnap && D(c.totalToman).gt(0);
               return (
-                <li key={c.categoryId}>
-                  <div className="mb-1 flex items-baseline justify-between gap-2 text-[length:var(--fs-xs)]">
-                    <span className="min-w-0 truncate font-medium">
-                      {c.name}
-                      {c.parentName && <span className="muted mr-1.5 text-[length:var(--fs-xs)]">· {c.parentName}</span>}
+                <li key={c.categoryId} className="plan-row">
+                  <div className="plan-row-head">
+                    <span className="plan-row-title">
+                      <b className="truncate">{c.name}</b>
+                      {c.parentName && <span className="expense-sub shrink-0">· {c.parentName}</span>}
                     </span>
                     <span className="flex shrink-0 items-baseline gap-2">
                       <span className="num muted text-[length:var(--fs-xs)]" dir="rtl">
                         {formatPct(shareNum, 1)}
                       </span>
                       <span className="flex flex-col items-end">
-                        <span className="num font-bold" dir="rtl">
+                        <span className="num plan-amount money-nowrap" dir="rtl">
                           {frozen ? formatMoney(c.totalToman, "IRT") : toIrt(c.total) ?? formatMoney(c.total)}
                         </span>
                         {(frozen || fx.rate) && (
@@ -327,16 +329,14 @@ export default async function InsightsPage() {
             <EmptyState icon="portfolio" title="دارایی‌ای برای تحلیل نیست" body="با ثبت دارایی، تحلیل تمرکز و ترکیب اینجا ساخته می‌شود." />
           </div>
         ) : (
-          <ul className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+          <ul className="card plan-list">
             {byClass.map((c) => (
-              <li key={c.className} className="flex items-center justify-between gap-3 border-b py-2.5 last:border-0" style={{ borderColor: "var(--border)" }}>
-                <span className="flex min-w-0 items-center gap-2.5 text-[length:var(--fs-sm)]">
-                  <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: c.color }} />
-                  <span className="truncate">{c.className}</span>
-                </span>
+              <li key={c.className} className="plan-queue-row">
+                <i className="h-2.5 w-2.5 shrink-0 rounded-[4px]" style={{ background: c.color }} aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)]">{c.className}</span>
                 <span className="flex shrink-0 items-baseline gap-2">
                   <span className="flex flex-col items-end">
-                    <span className="num text-[length:var(--fs-xs)] sm:text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl">
+                    <span className="num plan-amount money-nowrap" dir="rtl">
                       {toIrt(c.value) ?? formatMoney(c.value)}
                     </span>
                     {fx.rate && (
@@ -355,10 +355,9 @@ export default async function InsightsPage() {
         )}
       </Section>
 
-      <p className="muted flex items-center gap-1.5 text-[length:var(--fs-xs)]">
+      <p className="expense-sub flex items-center gap-1.5">
         <Icon name="info" size={13} />
-        بینش‌ها مشتق از سوابق مالی موجودند و هرگز آن را تغییر نمی‌دهند. برای دیدن اثر حسابداری هر رویداد، به «سوابق مالی»
-        مراجعه کنید.
+        بینش‌ها مشتق از سوابق مالی موجودند و هرگز آن را تغییر نمی‌دهند.
       </p>
     </div>
   );

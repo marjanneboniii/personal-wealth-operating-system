@@ -4649,6 +4649,143 @@ a.expense-square { text-decoration: none; color: var(--text-2); }
   .tx-submit-bar { bottom: 0; }
 }
 
+/* ─────────────── ردیاب تورم شخصی (/inflation) ───────────────
+   The expense cards, plus an expandable item list and the add-price sheet. */
+.infl-views { justify-self: start; }
+@media (min-width: 640px) { .infl-views { display: inline-grid; } }
+.infl-picked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--text);
+  box-shadow: inset 0 0 0 1px var(--text);
+  border-radius: var(--r-lg);
+}
+.infl-units { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+@media (min-width: 640px) { .infl-units { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+/* The primary action of a sheet form stays reachable while the form scrolls. */
+.sheet-submit {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding-block: 0.5rem 0.25rem;
+  background: linear-gradient(to top, var(--surface-elev) 75%, transparent);
+}
+
+/* ── Planning family (بودجه‌ها · اهداف و صندوق‌ها · پیش‌بینی مالی) ──
+   One list idiom: a card holding rows, each row a head line, an optional
+   meter and a quiet footer. */
+.plan-list { padding: 0; overflow: hidden; }
+.plan-row + .plan-row,
+.plan-queue-row + .plan-queue-row,
+.plan-row + .plan-queue-row,
+.plan-queue-row + .plan-row { border-top: 1px solid var(--border); }
+.plan-row { display: grid; gap: 0.6rem; padding: 0.875rem 1rem; min-width: 0; }
+.plan-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; min-width: 0; }
+.plan-row-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.plan-row-title > b { min-width: 0; }
+.plan-row-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.plan-amount { font-size: var(--fs-sm); font-weight: 700; }
+.plan-queue-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; min-width: 0; }
+.plan-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--r-pill);
+  background: var(--action-soft);
+  color: var(--action);
+}
+.plan-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+@media (min-width: 640px) { .plan-tools { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.plan-tool {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.plan-tool:hover { background: var(--hover); border-color: var(--border-strong); }
+.infl-inline-edit { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.5rem; min-width: 0; }
+.infl-inline-edit > .field,
+.infl-inline-edit > div { flex: 1 1 8rem; min-width: 0; }
+.infl-list { padding: 0; overflow: hidden; }
+.infl-row + .infl-row { border-top: 1px solid var(--border); }
+.infl-row-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 4rem;
+  padding: 0.75rem 1rem;
+  text-align: start;
+  touch-action: manipulation;
+  transition: background 0.12s ease;
+}
+.infl-row-head:hover { background: var(--hover); }
+.infl-chevron {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-inline-start: 1.5px solid var(--text-3);
+  border-bottom: 1.5px solid var(--text-3);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+.infl-row.is-open .infl-chevron { transform: rotate(135deg); }
+.infl-row-body { display: grid; gap: 0.75rem; padding: 0 1rem 1rem; min-width: 0; }
+.infl-windows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+@media (min-width: 640px) { .infl-windows { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.infl-windows > div { padding: 0.5rem 0.75rem; background: var(--sunken); }
+.infl-windows dt { font-size: var(--fs-xs); color: var(--text-3); }
+.infl-windows dd { margin: 0.125rem 0 0; font-size: var(--fs-sm); }
+.infl-history { display: grid; }
+.infl-history > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  padding-block: 0.625rem;
+}
+.infl-history > li + li { border-top: 1px solid var(--border); }
+
 /* ─────────────── Real assets → املاک (list rows + detail) ───────────────
    Presentation only. Figures come from the same read model as before. */
 .card.re-module { padding: 0; }

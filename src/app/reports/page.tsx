@@ -12,12 +12,15 @@ import { Metric, PageHeader, Progress, Section, SectionLink } from "@/components
 import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
+import Icon from "@/components/ui/Icon";
 import { D, Decimal } from "@/domain/decimal";
 import { currencyLabel, faCount, formatJalaliIso, formatMoney, formatPct, formatPercent, formatSignedMoney, formatSignedMoneyFromUsd, inflowTone, jalaliMonthKey, jalaliMonthLabel, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = { title: "گزارش‌های مالی" };
 
 export default async function ReportsPage() {
   await ensureAuth();
@@ -98,9 +101,14 @@ export default async function ReportsPage() {
   }));
 
   return (
-    <div className="space-y-9">
+    <div className="space-y-5">
+      {/* The subtitle must not repeat a section heading verbatim: the forward
+          liquidity regression slices the markup from «نقدینگی پیش‌رو» to the
+          next </table>, so an earlier copy of that phrase would point the
+          assertions at the monthly table instead. */}
       <PageHeader
         title="گزارش‌های مالی"
+        subtitle="تصویر ماه‌به‌ماه درآمد، هزینه، سود سرمایه‌گذاری و آنچه در راه است."
         action={
           <>
             <RowAction kind="snapshot" label="ثبت اسنپ‌شات" />
@@ -109,24 +117,44 @@ export default async function ReportsPage() {
         }
       />
 
-      {/* KPI strip */}
-      <section className="grid grid-cols-2 gap-y-5 border-b pb-6 sm:grid-cols-4" style={{ borderColor: "var(--border)" }}>
+      {/* KPI strip — one <section>: «کل هزینه ثبت‌شده» and «نرخ پس‌انداز» are
+          read together by the repayment-exclusion regression test. */}
+      <section className="metric-strip">
         <Metric label="ارزش خالص" value={formatMoney(nw.netWorthToman, "IRT")} hint={formatMoney(nw.netWorth)} />
-        <Metric label="کل درآمد ثبت‌شده" value={toIrt(totalIncome.toString()) ?? formatMoney(totalIncome.toString())} tone={inflowTone(totalIncome.toString())} hint={rate ? formatMoney(totalIncome.toString()) : undefined} />
-        <Metric label="کل هزینه ثبت‌شده" value={rate ? formatMoney(expenseToman, "IRT") : formatMoney(totalExpense.toString())} tone={outflowTone(totalExpense.toString())} hint={rate ? formatMoney(totalExpense.toString()) : undefined} />
-        <Metric label="نرخ پس‌انداز" value={`${formatPct(savingsRate, 1)}`} tone={trendTone(savingsRate)} />
+        <Metric
+          label="کل درآمد ثبت‌شده"
+          value={toIrt(totalIncome.toString()) ?? formatMoney(totalIncome.toString())}
+          tone={inflowTone(totalIncome.toString())}
+          hint={rate ? formatMoney(totalIncome.toString()) : undefined}
+        />
+        <Metric
+          label="کل هزینه ثبت‌شده"
+          value={rate ? formatMoney(expenseToman, "IRT") : formatMoney(totalExpense.toString())}
+          tone={outflowTone(totalExpense.toString())}
+          hint={rate ? formatMoney(totalExpense.toString()) : undefined}
+        />
+        <Metric label="نرخ پس‌انداز" value={formatPct(savingsRate, 1)} tone={trendTone(savingsRate)} />
       </section>
 
-      {/* Monthly report — printable */}
-      <Section title="گزارش ماهانه">
-        <div id="monthly-report">
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Monthly report — printable (PdfButton reads #monthly-report). */}
+      <Section title="گزارش ماهانه" hint="۱۲ ماه اخیر — شمسی">
+        <div id="monthly-report" className="space-y-3">
+          <section className="metric-strip">
             <Metric label="دارایی" value={formatMoney(nw.totalAssetsToman, "IRT")} hint={formatMoney(nw.totalAssets)} />
             <Metric label="بدهی" value={formatMoney(nw.totalLiabilitiesToman, "IRT")} hint={formatMoney(nw.totalLiabilities)} />
             <Metric label="نقدشونده" value={formatMoney(nw.liquidToman, "IRT")} hint={formatMoney(nw.liquid)} />
-            <Metric label="میانگین هزینه ماهانه" value={rate ? formatMoney(monthly.length ? D(expenseToman).div(monthly.length).toString() : "0", "IRT") : formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0")} hint={rate ? formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0") : undefined} />
-          </div>
-          <div className="card mb-4 p-4 sm:p-5">
+            <Metric
+              label="میانگین هزینه ماهانه"
+              value={
+                rate
+                  ? formatMoney(monthly.length ? D(expenseToman).div(monthly.length).toString() : "0", "IRT")
+                  : formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0")
+              }
+              hint={rate ? formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0") : undefined}
+            />
+          </section>
+
+          <div className="card p-3 sm:p-4">
             <BarsChart
               height={140}
               data={monthly.map((m) => ({
@@ -136,6 +164,7 @@ export default async function ReportsPage() {
               }))}
             />
           </div>
+
           <div className="card overflow-x-auto">
             <table className="table">
               <thead>
@@ -199,38 +228,40 @@ export default async function ReportsPage() {
         </div>
       </Section>
 
-      <div className="grid gap-10 lg:grid-cols-2">
+      <div className="grid items-start gap-5 lg:grid-cols-2">
         {/* Investment P&L */}
-        <Section title="سود و زیان سرمایه‌گذاری">
-          <div className="grid grid-cols-2 gap-6 border-b pb-5" style={{ borderColor: "var(--border)" }}>
-            <Metric
-              label="تحقق‌یافته"
-              value={formatSignedMoneyFromUsd(pnl.total, rate)}
-              tone={trendTone(pnl.total)}
-              hint={rate ? formatSignedMoney(pnl.total, "USD") : undefined}
-            />
-            <Metric
-              label="تحقق‌نیافته"
-              value={unrealizedToman ? formatSignedMoney(unrealizedToman, "IRT") : formatSignedMoneyFromUsd(unrealized.toString(), rate)}
-              tone={trendTone(unrealized.toString())}
-              hint={rate ? formatSignedMoney(unrealized.toString(), "USD") : undefined}
-            />
-          </div>
-          <ul className="mt-3 divide-y" style={{ borderColor: "var(--border)" }}>
-            {pnl.bySymbol.map((s) => (
-              <li key={s.symbol} className="flex items-center justify-between py-2 text-[length:var(--fs-xs)]">
-                <span className="font-bold" dir="rtl">
-                  {currencyLabel(s.symbol)}
-                </span>
-                <span className="num" dir="rtl" style={{ color: D(s.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
-                  {formatSignedMoney(s.pnl, s.symbol)}
-                </span>
-              </li>
-            ))}
-            {!pnl.bySymbol.length && <li className="muted py-4 text-center text-xs">فروشی ثبت نشده است</li>}
-          </ul>
-          <div className="mt-2">
-            <SectionLink href="/portfolio" label="جزئیات سبد" />
+        <Section title="سود و زیان سرمایه‌گذاری" action={<SectionLink href="/portfolio" label="جزئیات سبد" />}>
+          <div className="space-y-3">
+            <section className="metric-strip">
+              <Metric
+                label="تحقق‌یافته"
+                value={formatSignedMoneyFromUsd(pnl.total, rate)}
+                tone={trendTone(pnl.total)}
+                hint={rate ? formatSignedMoney(pnl.total, "USD") : undefined}
+              />
+              <Metric
+                label="تحقق‌نیافته"
+                value={unrealizedToman ? formatSignedMoney(unrealizedToman, "IRT") : formatSignedMoneyFromUsd(unrealized.toString(), rate)}
+                tone={trendTone(unrealized.toString())}
+                hint={rate ? formatSignedMoney(unrealized.toString(), "USD") : undefined}
+              />
+            </section>
+            {pnl.bySymbol.length > 0 ? (
+              <ul className="card plan-list">
+                {pnl.bySymbol.map((s) => (
+                  <li key={s.symbol} className="plan-queue-row">
+                    <span className="min-w-0 flex-1 text-[length:var(--fs-sm)] font-bold" dir="rtl">
+                      {currencyLabel(s.symbol)}
+                    </span>
+                    <span className="num shrink-0" dir="rtl" style={{ color: D(s.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
+                      {formatSignedMoney(s.pnl, s.symbol)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="card expense-empty">فروشی ثبت نشده است</p>
+            )}
           </div>
         </Section>
 
@@ -242,28 +273,41 @@ export default async function ReportsPage() {
             field exists to prevent. Receivables have their own section on
             «تعهدات مالی». */}
         <Section title="بدهی و بازپرداخت" action={<SectionLink href="/debts" label="مدیریت بدهی‌ها" />}>
-          <ul className="space-y-4">
-            {payableDebts.map((d) => (
-              <li key={d.id}>
-                <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[length:var(--fs-sm)]">
-                  <span className="font-medium">{d.title}</span>
-                  <span className="num font-bold" dir="rtl" style={{ color: d.status === "settled" ? "var(--positive)" : "var(--negative)" }}>
-                    {d.outstandingToman != null
-                      ? formatMoney(d.status === "settled" ? 0 : d.outstandingToman, "IRT")
-                      : toIrt(d.status === "settled" ? 0 : d.outstandingBase) ?? formatMoney(d.status === "settled" ? 0 : d.outstandingBase)}
-                  </span>
-                </div>
-                <Progress value={d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0} color={d.status === "settled" ? "var(--positive)" : "var(--warning)"} />
-                <p className="muted num mt-1.5 text-[length:var(--fs-xs)]" dir="rtl">
-                  {faCount(d.paidCount)} / {faCount(d.totalCount)} قسط
-                  {d.nextDue && <span dir="rtl"> · قسط بعدی {formatJalaliIso(d.nextDue.dueDate)}</span>}
-                </p>
-              </li>
-            ))}
-            {!payableDebts.length && <li className="muted py-4 text-center text-xs">بدهی‌ای ثبت نشده است</li>}
-          </ul>
+          {payableDebts.length > 0 ? (
+            <ul className="card plan-list">
+              {payableDebts.map((d) => (
+                <li key={d.id} className="plan-row">
+                  <div className="plan-row-head">
+                    <span className="plan-row-title">
+                      <b className="truncate">{d.title}</b>
+                    </span>
+                    <span
+                      className="num plan-amount shrink-0 money-nowrap"
+                      dir="rtl"
+                      style={{ color: d.status === "settled" ? "var(--positive)" : "var(--negative)" }}
+                    >
+                      {d.outstandingToman != null
+                        ? formatMoney(d.status === "settled" ? 0 : d.outstandingToman, "IRT")
+                        : toIrt(d.status === "settled" ? 0 : d.outstandingBase) ?? formatMoney(d.status === "settled" ? 0 : d.outstandingBase)}
+                    </span>
+                  </div>
+                  <Progress
+                    value={d.totalCount ? (d.paidCount / d.totalCount) * 100 : 0}
+                    color={d.status === "settled" ? "var(--positive)" : "var(--warning)"}
+                    aria-label={`پیشرفت ${d.title}`}
+                  />
+                  <p className="plan-row-foot num" dir="rtl">
+                    {faCount(d.paidCount)} / {faCount(d.totalCount)} قسط
+                    {d.nextDue && <span dir="rtl"> · قسط بعدی {formatJalaliIso(d.nextDue.dueDate)}</span>}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="card expense-empty">بدهی‌ای ثبت نشده است</p>
+          )}
           {repaymentsExcluded && (
-            <p className="muted num mt-3 text-[length:var(--fs-xs)] leading-5" dir="rtl">
+            <p className="expense-sub num mt-3 leading-6" dir="rtl">
               {repaymentsTomanValue
                 ? `${formatMoney(repaymentsTomanValue, "IRT")} از پرداخت اقساط، از «کل هزینه ثبت‌شده» خارج شد`
                 : `${formatMoney(totals.repayments)} از پرداخت اقساط (ارز پایهٔ دفتر، بدون تبدیل به نرخ امروز)، از «کل هزینه ثبت‌شده» خارج شد`}{" "}
@@ -310,14 +354,20 @@ export default async function ReportsPage() {
 
       {/* Recovery & exports */}
       <section className="card flex flex-wrap items-center justify-between gap-3 p-4">
-        <div className="flex gap-2">
+        <span className="min-w-0">
+          <b className="block text-[length:var(--fs-sm)]">پشتیبان و درون‌ریزی</b>
+          <span className="expense-sub block">یک نسخه از داده‌ها بگیرید، یا سوابق بیرونی را وارد کنید.</span>
+        </span>
+        <span className="flex shrink-0 gap-2">
           <a href="/api/backup" className="btn btn-soft !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]">
+            <Icon name="download" size={14} />
             دانلود پشتیبان
           </a>
           <Link href="/import" className="btn btn-ghost !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]">
+            <Icon name="import" size={14} />
             درون‌ریزی
           </Link>
-        </div>
+        </span>
       </section>
     </div>
   );
