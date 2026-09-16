@@ -7,7 +7,7 @@ import { ensureAuth } from "@/lib/authGuard";
 export const dynamic = "force-dynamic";
 
 export default async function UpdatePasswordPage() {
-  await ensureAuth();
+  await ensureAuth({ allowIncompleteSetup: true });
   return <div className="mx-auto max-w-md py-12">
     <div className="card space-y-4 p-6">
       <h1 className="type-page-title">تنظیم رمز عبور جدید</h1>

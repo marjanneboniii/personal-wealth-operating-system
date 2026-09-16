@@ -526,7 +526,7 @@ async function latestPrice(assetId: string, userId?: string | null, client: any 
   return nativeUnitPriceUsd(assetId, userId ?? null, client);
 }
 
-async function accountAsset(accountId: string, client: any = db): Promise<string> {
+async function accountAsset(accountId: string, client: Pick<typeof db, "select"> = db): Promise<string> {
   const row = await client.select({ a: accounts.assetId }).from(accounts).where(eq(accounts.id, accountId)).limit(1);
   if (!row[0]?.a) throw new Error("حساب انتخاب‌شده به هیچ دارایی متصل نیست");
   return row[0].a;
@@ -640,6 +640,10 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
 
   try {
     const raw = Object.fromEntries(fd) as Record<string, string>;
+    if (raw.bankImport === "confirmed") {
+      const bankUser = await getCurrentUser();
+      if (!bankUser || !(await getSetupState(bankUser.id)).completed) return { ok: false, message: "ابتدا راه‌اندازی اولیه توازن را کامل کنید." };
+    }
     // Safety net: every amount field is posted canonical by AmountInput, but a
     // Persian or Arabic digit that reaches here any other way must still mean
     // the same number — never a Decimal parse error, never a different value.
@@ -652,6 +656,9 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     const idempotencyKey = String(raw.idempotencyKey || fd.get("idempotencyKey") || "").trim() || undefined;
     // Support both legacy 'amount' (USD) and new 'irtAmount' (IRT) — IRT is reference, USD is computed via server rate (freeze)
     const input = txSchema.parse(raw);
+    const importProvenance = raw.bankImport === "confirmed" && idempotencyKey?.match(/^bank-import:[0-9a-f]{64}$/)
+      ? { source: "import" as const, reference: idempotencyKey }
+      : {};
     // Auth check for ledger writes — FAIL-CLOSED
     let authUser: any = null;
     try {
@@ -687,6 +694,9 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     const fxSnap = authUser ? await getLatestUsdIrtRateForUser(authUser.id) : await getLatestUsdIrtRate();
     const serverRate = D(fxSnap.rate);
     if (serverRate.lte(0)) throw new Error("نرخ دلار ثبت نشده است. ابتدا نرخ را در تنظیمات ثبت کنید.");
+    if (importProvenance.source && (!raw.expectedBankRate || serverRate.cmp(D(raw.expectedBankRate)) !== 0)) {
+      throw new Error("نرخ ارز از زمان بازبینی تغییر کرده است؛ صفحه را تازه کنید و نرخ جدید را بررسی کنید.");
+    }
 
     let usdAmount: any;
     let irtAmountStr: string;
@@ -984,6 +994,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
             qty = amount.div(price).toString();
           }
           const cmd = {
+            ...importProvenance,
             entryDate: input.entryDate,
             description: input.description,
             cashAccountId: input.primaryAccountId,
@@ -1193,6 +1204,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           const bookUnit = held.gt(0) && heldBase.gt(0) ? heldBase.div(held).toString() : price;
           entry = await recordTransfer(
             {
+              ...importProvenance,
               entryDate: input.entryDate,
               description: input.description,
               fromAccountId: input.primaryAccountId,

@@ -104,6 +104,7 @@ test("§0 a signed-out visitor is redirected from every app page — even on a f
     .values({ name: "Alice", username: "alice-gate", role: "user" })
     .returning();
   cookieJar.value = (await createSession(alice.id)).token;
+  assert.equal((await ensureAuth({ allowIncompleteSetup: true })).id, alice.id);
   // Initial setup is mandatory: a new user is sent to /setup first.
   assert.equal(await redirectsTo("/setup", () => ensureAuth()), true, "a new user must finish setup first");
   await db.insert(userSetupState).values({ userId: alice.id, completed: true, currentStep: 7 });

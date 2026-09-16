@@ -74,5 +74,5 @@ test("legacy custom Google endpoint is retired", () => {
 test("password update page is never prerendered without a Supabase session", () => {
   const page = read("src/app/update-password/page.tsx");
   assert.match(page, /export const dynamic = ["']force-dynamic["']/);
-  assert.match(page, /await ensureAuth\(\)/);
+  assert.match(page, /await ensureAuth\(\{ allowIncompleteSetup: true \}\)/);
 });

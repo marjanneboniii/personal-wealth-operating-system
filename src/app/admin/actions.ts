@@ -9,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAuditEvent } from "@/lib/audit";
 
 export async function manageUserAction(formData: FormData) {
-  const actor = await ensureAuth();
+  const actor = await ensureAuth({ allowIncompleteSetup: true });
   if (!isAdminOrOwner(actor)) throw new Error("Forbidden");
   const targetId = String(formData.get("userId") || "");
   const action = String(formData.get("action") || "");

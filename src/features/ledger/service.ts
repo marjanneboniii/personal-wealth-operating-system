@@ -579,6 +579,8 @@ export async function unitsFor(
 /* ------------------------------------------------------------------ */
 
 export type TransferCmd = {
+  source?: "manual" | "plan" | "import";
+  reference?: string | null;
   entryDate: string;
   description: string;
   fromAccountId: string;
@@ -1231,6 +1233,8 @@ export async function recordRegistryDisposal(cmd: RegistryDisposalCmd, txClient?
 }
 
 export type FlowCmd = {
+  source?: "manual" | "plan" | "import";
+  reference?: string | null;
   entryDate: string;
   description: string;
   cashAccountId: string;

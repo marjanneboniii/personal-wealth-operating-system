@@ -20,7 +20,7 @@ const ROLE_LABELS: Record<string, string> = { owner: "مالک سیستم", admi
  * detail of a user.
  */
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
-  const actor = await ensureAuth();
+  const actor = await ensureAuth({ allowIncompleteSetup: true });
   if (!isAdminOrOwner(actor)) return <div className="card p-6">دسترسی به مدیریت کاربران مجاز نیست.</div>;
   const page = Math.min(10_000, Math.max(1, Number((await searchParams).page) || 1));
   const admin = createAdminClient();
