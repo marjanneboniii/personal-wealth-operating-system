@@ -7,20 +7,26 @@ export function LandingHeader() {
   return (
     <header className="landing-header landing-ink">
       <div className="landing-wrap landing-header-inner">
-        <Link href="/" className="landing-brand" aria-label="توازن — سیستم‌عامل ثروت شخصی">
+        <Link href="/" className="landing-brand" aria-label="توازن — صفحه اصلی">
           <BrandMark size={28} style={{ color: "var(--action)" }} />
-          <span className="min-w-0 leading-tight">
-            <BrandWordmark className="block text-[length:var(--fs-md)] text-[color:var(--text)]" />
-            <span className="landing-on-primary-muted hidden text-[length:var(--fs-xs)] sm:block">سیستم‌عامل ثروت شخصی</span>
-          </span>
+          <BrandWordmark className="min-w-0 text-[length:var(--fs-md)] leading-tight text-[color:var(--text)]" />
         </Link>
+        {/* In-page section links — a long page needs a way back to its own
+            parts. Hidden below 1024px, where they would fight the two auth
+            buttons for the same row. */}
+        <nav className="landing-header-links" aria-label="بخش‌های صفحه">
+          <Link href="/#modules">امکانات</Link>
+          <Link href="/#how">چطور کار می‌کند</Link>
+          <Link href="/#security">حریم خصوصی</Link>
+          <Link href="/#faq">سؤالات</Link>
+        </nav>
         <nav className="landing-header-nav" aria-label="ورود به محصول">
           <ThemeToggleButton />
           {/* NOT hidden on small screens. It used to be `hidden sm:inline-flex`,
               which hid the install button on phones — the one device where
               installing a PWA is the whole point. The button now hides itself
               when the device cannot install, so it needs no breakpoint. */}
-          <DownloadIosButton className="!min-h-12 !px-3 text-[length:var(--fs-sm)] sm:!px-4" variant="ghost" />
+          <DownloadIosButton className="landing-install-btn !min-h-12 !px-3 text-[length:var(--fs-sm)] sm:!px-4" variant="ghost" />
           <Link href="/login" className="btn btn-ghost !min-h-12 !px-2.5 text-[length:var(--fs-sm)] sm:!px-4">
             ورود
           </Link>
@@ -42,7 +48,7 @@ export function LandingFooter() {
             <BrandMark size={22} />
             <BrandWordmark className="text-[length:var(--fs-md)] text-[color:var(--text)]" />
           </div>
-          <p className="sub mt-2.5 max-w-xs text-[length:var(--fs-sm)] leading-7">سیستم‌عامل ثروت شخصی — آرام، خصوصی، دقیق.</p>
+          <p className="sub mt-2.5 max-w-xs text-[length:var(--fs-sm)] leading-7">پول و دارایی‌های شما، یک‌جا و ساده.</p>
         </div>
         <nav className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[length:var(--fs-sm)]" aria-label="پاورقی">
           <Link href="/about" className="sub hover:underline">
@@ -60,7 +66,7 @@ export function LandingFooter() {
         </nav>
       </div>
       <div className="landing-wrap border-t py-4 text-[length:var(--fs-xs)]">
-        <p className="muted">© {new Date().getFullYear()} توازن — سیستم‌عامل ثروت شخصی</p>
+        <p className="muted">© {new Date().getFullYear()} توازن</p>
       </div>
     </footer>
   );

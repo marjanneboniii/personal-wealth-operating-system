@@ -33,33 +33,25 @@ function daysUntil(iso: string) {
 }
 
 /**
- * Per-installment dollar line. Toman is frozen, so the only thing that can
- * move on a PENDING row is its dollar equivalent — and the user reads that
- * per row («چقدر نسبت به زمان ثبت تغییر کرد؟»), not as one anonymous number in
- * a summary band. Paid rows have no such line: their dollar value is history.
+ * Per-installment dollar line: the equivalent, and nothing else.
+ *
+ * It used to carry the change too («۳.۵٪ کمتر از $۱٬۵۰۶»), repeated on EVERY
+ * row. Two problems with that. It is the same comparison every time — the rial
+ * moved, not the installment — so thirty rows said one fact thirty times; and
+ * as an unbreakable `money-nowrap` string it set the minimum width of
+ * `.inst-side`, which is `flex-shrink: 0`, so on a phone the amount column
+ * claimed the row and squeezed the title to one word per line. The aggregate
+ * still states that change once, with its arithmetic, in the card above.
+ *
+ * The label is split from the figure so only the FIGURE is unbreakable: the
+ * line may wrap between them, but a dollar amount is never cut in half.
  */
 function InstallmentUsdLine({ fx }: { fx: InstallmentFxView }) {
   if (fx.displayUsd == null) return null;
-  const label = fx.isPaid ? "معادل هنگام پرداخت: " : "معادل فعلی: ";
-  const change = fx.usdChange;
+  const label = fx.isPaid ? "معادل هنگام پرداخت:" : "معادل فعلی:";
   return (
-    <div className="muted num text-[length:var(--fs-xs)] money-nowrap" dir="rtl">
-      {label}
-      {formatMoney(fx.displayUsd, "USD")}
-      {change && change.direction !== "unchanged" ? (
-        <>
-          {" · "}
-          <span style={{ color: change.direction === "decrease" ? "var(--positive)" : "var(--negative)" }}>
-            {formatPctIsolated(change.percent, 1)} {change.direction === "decrease" ? "کمتر" : "بیشتر"}
-          </span>
-          {fx.originalUsdEquivalent ? (
-            <>
-              {" از "}
-              {formatMoney(fx.originalUsdEquivalent, "USD")}
-            </>
-          ) : null}
-        </>
-      ) : null}
+    <div className="muted num inst-usd text-[length:var(--fs-xs)]" dir="rtl">
+      <span>{label}</span> <span className="money-nowrap">{formatMoney(fx.displayUsd, "USD")}</span>
     </div>
   );
 }

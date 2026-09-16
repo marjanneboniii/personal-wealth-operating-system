@@ -8,9 +8,14 @@
  *     balance and no rates next to it, which is not readable money. The rule
  *     now: the aggregate is spelled out as an arithmetic statement — the frozen
  *     Toman balance, the rate it was booked at, the live rate, and the two
- *     dollar figures each one produces — AND the same delta is written on every
- *     installment row it belongs to, because per-installment is what the user
- *     asked to read.
+ *     dollar figures each one produces.
+ *
+ *     That delta is stated ONCE, there. It used to be repeated on every
+ *     installment row as well; that was withdrawn, because it is the same
+ *     comparison every time (the rial moved, not the installment) and because
+ *     the unbreakable string it produced set the minimum width of the row's
+ *     money column and crushed the title on a phone. A row now carries its
+ *     dollar EQUIVALENT only.
  *
  *  2. «17 روز دیگر» rendered with the number shuffled AFTER the word «روز».
  *     The countdown phrase sat inside the card's `dir="ltr"` date row, so the
@@ -275,22 +280,27 @@ test("a falling dollar obligation is not painted as a loss", async () => {
   );
 });
 
-test("each installment writes its own dollar delta; a paid row stays frozen", async () => {
+test("an installment row shows its dollar equivalent and no delta", async () => {
   const { html, visible } = await render();
   assert.ok(visible.includes("معادل فعلی:"), "pending row shows its live equivalent");
   assert.ok(visible.includes("معادل هنگام پرداخت:"), "paid row shows its payment snapshot");
-  // The very same percent the aggregate reports, attached to the row that made it.
-  assert.ok(
-    visible.includes(`از ${fa(bookingUsd)} دلار`),
-    "the row names the USD figure it is being compared with",
-  );
-  assert.ok(/کمتر|بیشتر/.test(html.slice(html.indexOf("معادل فعلی:"), html.indexOf("سررسید"))), "row delta");
 
+  // The delta belongs to the aggregate card ALONE. Repeated per row it said one
+  // fact many times, and its nowrap width is what broke the row on a phone.
+  const pendingIdx = html.indexOf("معادل فعلی:");
   const paidIdx = html.indexOf("معادل هنگام پرداخت:");
-  assert.ok(paidIdx > 0);
-  assert.ok(
-    !/کمتر|بیشتر/.test(html.slice(paidIdx, paidIdx + 260)),
-    "a paid row's dollar figure is history: no delta, no live rate on that line",
+  assert.ok(pendingIdx > 0 && paidIdx > 0);
+  for (const [label, idx] of [["pending", pendingIdx], ["paid", paidIdx]] as const) {
+    const line = html.slice(idx, idx + 260);
+    assert.ok(!/کمتر|بیشتر/.test(line), `the ${label} row carries no delta wording`);
+    assert.ok(!line.includes(`از ${fa(bookingUsd)} دلار`), `the ${label} row names no comparison figure`);
+  }
+
+  // …and it is still said once, in the card above.
+  assert.equal(
+    visible.split("کمتر از زمان ثبت").length - 1,
+    1,
+    "the aggregate states the change exactly once for the whole schedule",
   );
 });
 
