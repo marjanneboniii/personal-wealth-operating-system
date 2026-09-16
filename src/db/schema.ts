@@ -1677,3 +1677,14 @@ export const bankSmsInbox = pgTable("bank_sms_inbox", {
   processingAt: timestamp("processing_at", { withTimezone: true }),
   entryId: uuid("entry_id").references(() => journalEntries.id),
 }, (t) => [uniqueIndex("bank_sms_inbox_replay_idx").on(t.userId, t.fingerprint), index("bank_sms_inbox_user_status_idx").on(t.userId, t.status), index("bank_sms_inbox_connection_idx").on(t.connectionId)]);
+
+/** Private bank/card suffix mappings; no complete card numbers or browser Data API access. */
+export const bankSmsIdentifiers = pgTable("bank_sms_identifiers", {
+ id: uuid("id").primaryKey().defaultRandom(),
+ userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ accountId: uuid("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+ bankName: text("bank_name").notNull(),
+ kind: text("kind").notNull(),
+ suffix: text("suffix").notNull(),
+ createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("bank_sms_identifiers_unique_idx").on(t.userId, t.accountId, t.bankName, t.kind, t.suffix), index("bank_sms_identifiers_user_idx").on(t.userId)]);

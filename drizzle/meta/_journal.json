@@ -246,6 +246,13 @@
       "when": 1789600000000,
       "tag": "0034_iphone_sms_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1789600000001,
+      "tag": "0035_bank_sms_identifiers",
+      "breakpoints": true
     }
   ]
 }

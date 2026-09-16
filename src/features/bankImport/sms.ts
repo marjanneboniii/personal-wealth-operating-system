@@ -1,3 +1,5 @@
+import { listBankIdentifiers } from "./identifiers";
+import { matchBankAccount } from "./matching";
 import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -83,11 +85,13 @@ export async function getSmsInboxItem(userId: string, id: string) {
 }
 
 export async function listSmsDrafts(userId: string) {
+  const identifiers = await listBankIdentifiers(userId);
   const rows = await db.select().from(bankSmsInbox).where(and(eq(bankSmsInbox.userId, userId), sql`${bankSmsInbox.status} in ('pending','processing')`)).orderBy(desc(bankSmsInbox.receivedAt)).limit(100);
   return rows.map((row) => {
     const payload = smsPayloadSchema.parse(JSON.parse(decryptSensitive(row.encryptedPayload, context(userId)) || "{}"));
     const draft = parseBankMessage(payload.message);
     draft.warnings.push("این تراکنش باید پس از زمان مبنای موجودی افتتاحیهٔ حساب باشد؛ از ثبت دوبارهٔ مبالغ منظورشده در افتتاحیه خودداری کنید.");
-    return { ...draft, inboxId: row.id, sender: payload.sender, receivedAt: row.receivedAt.toISOString() };
+    const match = matchBankAccount(payload.message, identifiers);
+    return { ...draft, suggestedAccountId: match.accountId, accountMatchMessage: match.message, inboxId: row.id, sender: payload.sender, receivedAt: row.receivedAt.toISOString() };
   });
 }

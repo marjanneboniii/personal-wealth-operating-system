@@ -28,7 +28,7 @@ type Props = {
 function ReviewRow({ draft, props, onPendingChange }: { draft: BankDraft; props: Props; onPendingChange: (pending: boolean) => void }) {
   const router = useRouter();
   const [type, setType] = useState("");
-  const [accountId, setAccountId] = useState("");
+  const [accountId, setAccountId] = useState(draft.suggestedAccountId ?? "");
   const [destinationId, setDestinationId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [amount, setAmount] = useState(draft.amountToman);
@@ -43,6 +43,7 @@ function ReviewRow({ draft, props, onPendingChange }: { draft: BankDraft; props:
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<BankImportResult | null>(null);
   const posting = useRef(false);
+  const transferLink = useRef<string | null>(null);
   const groups = type === "income" ? props.incomeCategories : props.expenseCategories;
   const suggestedId = suggestBankCategory(description, type, props.history);
   const suggestion = groups.flatMap((g) => g.children).find((c) => c.id === suggestedId);
@@ -64,6 +65,8 @@ function ReviewRow({ draft, props, onPendingChange }: { draft: BankDraft; props:
     try {
       const fd = new FormData();
       Object.entries({ source: draft.source, type, accountId, destinationId, categoryId, amountToman: amount, date, description, confirmed: "yes", rateConfirmed: "yes", expectedRate: props.rate, ...(draft.inboxId ? { inboxId: draft.inboxId, openingConfirmed: openingConfirmed ? "yes" : "no" } : {}), allowSimilar: allowSimilar ? "yes" : "no" }).forEach(([k, v]) => fd.set(k, v));
+      if (transferLink.current) fd.set("existingTransferId", transferLink.current);
+      transferLink.current = null;
       const response = await confirmBankImportAction(fd);
       setResult(response);
       if (response.ok) router.refresh();
@@ -79,6 +82,7 @@ function ReviewRow({ draft, props, onPendingChange }: { draft: BankDraft; props:
       {draft.sender && <p className="mb-2 text-sm">فرستنده اعلام‌شده: {draft.sender}</p>}
       <details className="mb-3"><summary className="cursor-pointer text-sm">متن ورودی</summary><p className="mt-2 whitespace-pre-wrap break-words text-sm" dir="auto">{draft.source}</p></details>
       {draft.warnings.length > 0 && <ul className="mb-4 space-y-1 text-sm" style={{ color: "var(--warning)" }}>{draft.warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
+      {draft.accountMatchMessage && <p className="mb-3 text-sm">{draft.accountMatchMessage}</p>}
       <form onSubmit={submit} className="space-y-4">
         <fieldset disabled={pending} className="space-y-4">
           <label className="block"><span className="label">این جابه‌جایی چه نوعی است؟</span><select className="field" value={type} onChange={(e) => { setType(e.target.value); setCategoryId(""); changed(); }} required>
@@ -94,12 +98,14 @@ function ReviewRow({ draft, props, onPendingChange }: { draft: BankDraft; props:
             {amount.includes(".") && <p className="text-sm">مبلغ ریالی به تومان اعشاری تبدیل شده است؛ برای ثبت در این فرم مبلغ صحیح تومان را بررسی کنید.</p>}
             <label className="block"><span className="label">شرح کوتاه تراکنش</span><input className="field" value={description} maxLength={200} minLength={2} required onChange={(e) => { setDescription(e.target.value); changed(); }} placeholder="مثلاً خرید مواد غذایی؛ اطلاعات کارت و رمز را ننویسید" /></label>
             {suggestion && type !== "transfer" && <button type="button" className="btn btn-ghost" onClick={() => { setCategoryId(suggestion.id); changed(); }}>پیشنهاد بر اساس شرح مشابه قبلی: {suggestion.name}</button>}
-            <p className="text-sm">{type === "transfer" ? "این مورد یک انتقال ثبت می‌کند و هزینه یا درآمد نیست." : type === "income" ? "مبلغ به حساب دریافت اضافه و به منبع درآمد انتخاب‌شده نسبت داده می‌شود." : "مبلغ از حساب پرداخت کم و در دستهٔ هزینهٔ انتخاب‌شده ثبت می‌شود."}</p>
+            <p className="text-sm">{type === "transfer" ? "این مورد یک انتقال ثبت می‌کند و هزینه یا درآمد نیست. حساب مبدأ همیشه حساب برداشت و مقصد حساب واریز است؛ اگر پیام دوم همین انتقال رسید، پس از بررسی سند آن را رد کنید. دو پیام را جداگانه ثبت نکنید." : type === "income" ? "مبلغ به حساب دریافت اضافه و به منبع درآمد انتخاب‌شده نسبت داده می‌شود." : "مبلغ از حساب پرداخت کم و در دستهٔ هزینهٔ انتخاب‌شده ثبت می‌شود."}</p>
             <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={rateConfirmed && acknowledgedRate === props.rate} onChange={(e) => { setRateConfirmed(e.target.checked); setAcknowledgedRate(props.rate); }} /> <span>معادل دلاری با نرخ فعلی من هنگام ثبت فریز می‌شود: {formatMoney(props.rate, "IRT")} برای هر دلار (تاریخ نرخ: {formatJalaliIso(props.rateDate)}). این نرخ لزوماً نرخ روز پیام نیست؛ این موضوع را بررسی کردم.</span></label>
             {draft.inboxId && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={openingConfirmed} onChange={(e) => setOpeningConfirmed(e.target.checked)} /><span>این تراکنش پس از زمان مبنای موجودی افتتاحیه حساب رخ داده و مبلغ آن در افتتاحیه منظور نشده است.</span></label>}
             <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} /> <span>نوع، حساب، مبلغ، تاریخ و دسته را بررسی کردم؛ این جابه‌جایی قبلاً ثبت نشده و نوع انتخاب‌شده با واقعیت آن مطابقت دارد.</span></label>
             {result?.duplicate && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={allowSimilar} onChange={(e) => setAllowSimilar(e.target.checked)} /><span>تراکنش مشابه را بررسی کردم؛ این یک جابه‌جایی مستقل و واقعی است.</span></label>}
             {result && <div role="alert" className="text-sm" style={{ color: "var(--warning)" }}><p>{result.message} {result.duplicate && <Link className="underline" href={`/transactions?${new URLSearchParams({ account: accountId, range: "all" })}`}>بررسی سوابق حساب</Link>}</p>{result.message.includes("نرخ") && <button type="button" className="btn btn-ghost mt-2" onClick={() => router.refresh()}>تازه‌سازی نرخ و سوابق، با حفظ صف</button>}</div>}
+            {result?.transferEntryId && <Link className="btn btn-ghost" href={`/financial-records?entry=${result.transferEntryId}`}>بررسی سند انتقال قبلی</Link>}
+            {result?.transferEntryId && <button type="button" className="btn btn-ghost" disabled={!ready || pending} onClick={(event) => { transferLink.current = result.transferEntryId!; event.currentTarget.form?.requestSubmit(); }}>تأیید می‌کنم این پیام مربوط به همین انتقال است؛ اتصال به سند قبلی</button>}
             <button type="submit" className="btn btn-primary" disabled={!ready || pending}>{pending ? "در حال ثبت…" : "تأیید نهایی و ثبت"}</button>
           </>}
           <button type="button" className="btn btn-ghost ms-2" onClick={reject}>رد این مورد</button>

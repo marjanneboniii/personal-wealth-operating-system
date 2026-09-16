@@ -3,6 +3,8 @@ import { formatJalaliIso, jalaliToIso, toLatinDigits } from "@/lib/format";
 
 export type BankDraft = {
   inboxId?: string;
+  suggestedAccountId?: string;
+  accountMatchMessage?: string;
   sender?: string;
   receivedAt?: string;
   source: string;

@@ -18,10 +18,12 @@ export type BankImportResult = {
   message: string;
   entryId?: string;
   duplicate?: boolean;
+  transferEntryId?: string;
 };
 
 const schema = z.object({
   inboxId: z.uuid().optional(),
+  existingTransferId: z.uuid().optional(),
   openingConfirmed: z.string().optional(),
   source: z.string().trim().min(1).max(8000),
   type: z.enum(["expense", "income", "transfer"]),
@@ -72,6 +74,35 @@ export async function confirmBankImportAction(fd: FormData): Promise<BankImportR
       if (!category || !category.isActive || category.kind !== v.type || category.level !== 1 || category.nature === "non_cash") return { ok: false, message: "یک زیردستهٔ نقدی و فعال متناسب با نوع تراکنش انتخاب کنید." };
     }
 
+    // Linking a second SMS is explicit and does not create or modify ledger postings.
+    const matchingTransfer = async (entryId?: string) => (await db.execute(sql`
+      select je.id from journal_entries je
+      where je.user_id = ${user.id}::uuid and je.type = 'transfer' and je.status = 'posted'
+        and je.entry_date = ${v.date}::date
+        ${entryId ? sql`and je.id = ${entryId}::uuid` : sql``}
+        and exists (select 1 from postings p where p.entry_id = je.id and p.account_id = ${v.accountId}::uuid and abs(p.quantity + ${v.amountToman}::numeric) <= 0.000001)
+        and exists (select 1 from postings p where p.entry_id = je.id and p.account_id = ${v.destinationId || v.accountId}::uuid and abs(p.quantity - ${v.amountToman}::numeric) <= 0.000001)
+      order by je.created_at desc limit 1
+    `)).rows[0];
+    if (v.existingTransferId) {
+      if (!inbox || v.type !== "transfer") return { ok: false, message: "اتصال به سند قبلی فقط برای پیامک انتقال بین حساب‌های خودتان ممکن است." };
+      const linked = await db.transaction(async (tx) => {
+        const [current] = await tx.select().from(bankSmsInbox).where(and(eq(bankSmsInbox.id, inbox.id), eq(bankSmsInbox.userId, user.id))).for("update");
+        const [entry] = await tx.select({ id: journalEntries.id }).from(journalEntries).where(and(eq(journalEntries.id, v.existingTransferId!), eq(journalEntries.userId, user.id), eq(journalEntries.type, "transfer"), eq(journalEntries.status, "posted"))).for("update");
+        if (!entry || !current) return false;
+        if (current.status === "confirmed") return current.entryId === entry.id;
+        if (current.status !== "pending") return false;
+        const postingsMatch = await tx.execute(sql`select 1 from journal_entries je where je.id = ${entry.id}::uuid and je.entry_date = ${v.date}::date
+          and exists (select 1 from postings p where p.entry_id = je.id and p.account_id = ${v.accountId}::uuid and abs(p.quantity + ${v.amountToman}::numeric) <= 0.000001)
+          and exists (select 1 from postings p where p.entry_id = je.id and p.account_id = ${v.destinationId!}::uuid and abs(p.quantity - ${v.amountToman}::numeric) <= 0.000001)`);
+        if (!postingsMatch.rows.length) return false;
+        await tx.update(bankSmsInbox).set({ status: "confirmed", entryId: entry.id, encryptedPayload: null, processingAt: null }).where(eq(bankSmsInbox.id, current.id));
+        return true;
+      });
+      if (!linked) return { ok: false, message: "پیام یا سند قابل اتصال نیست؛ مبلغ، تاریخ، حساب‌ها و وضعیت را بررسی کنید." };
+      return { ok: true, message: "پیام به سند انتقال قبلی وصل شد؛ موجودی دوباره تغییر نکرد.", entryId: v.existingTransferId };
+    }
+
     const fingerprint = inbox?.fingerprint ?? createHash("sha256").update(normalizeBankText(v.source)).digest("hex");
     const key = `bank-import:${fingerprint}`;
     const existing = async () => (await db.select({ id: journalEntries.id }).from(journalEntries)
@@ -90,7 +121,10 @@ export async function confirmBankImportAction(fd: FormData): Promise<BankImportR
         and abs(abs(p.quantity) - ${v.amountToman}::numeric) <= 0.000001
       limit 1
     `);
-    if (similar.rows.length && v.allowSimilar !== "yes") return { ok: false, duplicate: true, message: "در این تاریخ، جابه‌جایی با همین مبلغ در حساب انتخاب‌شده وجود دارد. احتمال ثبت تکراری را بررسی کنید." };
+    if (similar.rows.length && v.allowSimilar !== "yes") {
+      const transfer = inbox && v.type === "transfer" ? await matchingTransfer() : undefined;
+      return { ok: false, duplicate: true, transferEntryId: transfer ? String(transfer.id) : undefined, message: "در این تاریخ، جابه‌جایی با همین مبلغ در حساب انتخاب‌شده وجود دارد. احتمال ثبت تکراری را بررسی کنید." };
+    }
 
     if (inbox) {
       const at = new Date();

@@ -1,3 +1,5 @@
+import { listBankIdentifiers } from "@/features/bankImport/identifiers";
+import BankIdentifiers from "@/components/transactions/BankIdentifiers";
 import Link from "next/link";
 import { listSmsConnections, listSmsDrafts } from "@/features/bankImport/sms";
 import IphoneSmsConnection from "@/components/transactions/IphoneSmsConnection";
@@ -18,7 +20,7 @@ export const metadata = { title: "ورود و بازبینی پیام بانکی
 
 export default async function BankImportPage() {
   const user = await ensureAuth();
-  const [moneyAccounts, expenseTree, incomeTree, history, rate, connections, smsDrafts] = await Promise.all([
+  const [moneyAccounts, expenseTree, incomeTree, history, rate, connections, smsDrafts, identifiers] = await Promise.all([
     db.select({ id: accounts.id, name: accounts.name }).from(accounts)
       .innerJoin(assets, eq(accounts.assetId, assets.id))
       .where(and(eq(accounts.userId, user.id), eq(accounts.type, "asset"), eq(accounts.isActive, true), eq(assets.symbol, "IRT"), isNull(accounts.deletedAt), isNull(assets.deletedAt)))
@@ -29,6 +31,7 @@ export default async function BankImportPage() {
     getLatestUsdIrtRateForUser(user.id),
     listSmsConnections(user.id),
     listSmsDrafts(user.id),
+    listBankIdentifiers(user.id),
   ]);
   const today = todayIso();
   const [year, month] = formatJalaliIso(today, "en").split("/").map(Number);
@@ -40,6 +43,7 @@ export default async function BankImportPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <PageHeader title="ورود و بازبینی پیام بانکی" subtitle="پیام‌های دریافتی را بررسی کنید، دسته را انتخاب کنید و سپس ثبت را تأیید کنید." action={<Link href="/transactions" className="btn btn-ghost">تراکنش‌ها</Link>} />
+      <BankIdentifiers accounts={moneyAccounts} identifiers={identifiers} />
       <IphoneSmsConnection endpoint={endpoint} connections={connections.map((c) => ({ ...c, createdAt: c.createdAt.toISOString(), lastReceivedAt: c.lastReceivedAt?.toISOString() ?? null }))} />
       <BankImportWorkspace smsDrafts={smsDrafts} accounts={moneyAccounts} expenseCategories={categories(expenseTree)} incomeCategories={categories(incomeTree)} history={history.map((r) => ({ entryDate: r.entryDate, type: r.type, status: r.status, reviewed: r.reviewed, description: r.description, categoryId: r.categoryId, categoryNonCash: r.categoryNonCash, fxIrtAmount: r.fxIrtAmount }))} habits={habits} historyLimited={history.length >= 500} rate={String(rate.rate)} rateDate={rate.effectiveDate} />
     </div>
