@@ -160,9 +160,15 @@ export default function CoverageField({ kinds }: { kinds: CoverageKind[] }) {
   return (
     <ul ref={rootRef} className="cf-list" aria-label="دارایی‌ها و بدهی‌هایی که می‌توانید اینجا نگه دارید">
       {kinds.map((kind, i) => (
-        /* Outer = the perpetual CSS drift. Inner = the pointer spring. `--i`
-           staggers the drift so the row never pulses in unison. */
-        <li key={kind.label} className="cf-chip" data-tone={kind.tone} style={{ ["--i" as string]: i }}>
+        /* Outer = the perpetual CSS drift. Inner = the pointer spring. Each
+           chip gets its own period and phase so the row never pulses in
+           unison — as literal seconds, never calc() (see .cf-chip). */
+        <li
+          key={kind.label}
+          className="cf-chip"
+          data-tone={kind.tone}
+          style={{ animationDuration: `${(5.2 + i * 0.55).toFixed(2)}s`, animationDelay: `${(-1.35 * i).toFixed(2)}s` }}
+        >
           <span className="cf-chip-inner">
             <Icon name={kind.icon} size={15} />
             <span>{kind.label}</span>
