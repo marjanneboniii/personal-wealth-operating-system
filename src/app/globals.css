@@ -1966,16 +1966,23 @@ button.jdp-title:hover,
 }
 
 /* OUTER: the perpetual float, compositor-only. Each chip gets its own period
-   and phase from `--i`, so the band moves like a loose group instead of
+   and phase, so the band moves like a loose group instead of
    pulsing in unison.
    It used to be ≤7px over 15–25s — about half a pixel per second, which on a
    phone (and in the installed app, where most visitors see it) is below what
    the eye registers: the chips looked coloured but frozen. This is a visible
-   bob of ~8px over 5–9s, still slow enough to read as "alive", not "busy". */
+   bob of ~8px over 5–9s, still slow enough to read as "alive", not "busy".
+   Duration and delay are set per chip as PLAIN seconds in an inline style
+   (see CoverageField). They used to be `calc(… var(--i) …)` here, and iOS
+   Safari — the installed app on an iPhone — can drop a time value built that
+   way; one invalid part voids the whole `animation` shorthand, so the chips
+   kept their colour and never moved. Longhands, and no calc() in a <time>. */
 .cf-chip {
   display: inline-flex;
-  animation: cf-drift calc(5.2s + var(--i) * 0.55s) ease-in-out infinite;
-  animation-delay: calc(var(--i) * -1.35s);
+  animation-name: cf-drift;
+  animation-duration: 6s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
   will-change: transform;
 }
 
@@ -2852,50 +2859,11 @@ button.jdp-title:hover,
   justify-content: center;
 }
 
-/* ─────────────── Phone action dock ───────────────
-   The hero CTA scrolls away after the fold and the page is long on a phone.
-   This keeps the single primary action in thumb reach. Hidden from 768px up,
-   where the sticky header's own buttons are always visible. */
-
-.landing-dock {
-  position: fixed;
-  inset-inline: 0;
-  inset-block-end: 0;
-  z-index: 35;
-  border-top: 1px solid var(--border);
-  background: var(--surface);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.landing-dock-inner {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: min(1180px, calc(100% - 2rem));
-  margin-inline: auto;
-  padding-block: 0.6rem;
-}
-
-@media (min-width: 768px) {
-  .landing-dock {
-    display: none;
-  }
-}
-
 /* ─────────────────────────── Footer ─────────────────────────── */
 
 .landing-footer {
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* Clearance for the fixed phone dock. It lives on the footer so the dark
-   footer surface runs BEHIND the dock — putting it on `.landing` instead left
-   a strip of light page background below the footer that read as a bug. */
-@media (max-width: 767px) {
-  .landing-footer {
-    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
-  }
 }
 
 .landing-footer .sub {
@@ -2949,15 +2917,6 @@ button.jdp-title:hover,
 }
 
 .install-promo-public { bottom: max(1rem, env(safe-area-inset-bottom)); border-radius: var(--r-lg); }
-
-/* On a phone the landing also shows a fixed action dock at that same edge, and
-   the promo was resting under it — its dismiss button could not be tapped.
-   Stack the promo above the dock for exactly the widths where the dock exists. */
-@media (max-width: 767px) {
-  .install-promo-public {
-    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
-  }
-}
 
 .install-promo-public .btn {
   border-radius: 999px;
