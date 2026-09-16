@@ -72,13 +72,10 @@ function InsightRow({ label, value }: { label: string; value: string }) {
  * بدهی → اقساط
  *
  * ONE LIST for the web and the installed PWA — no table to scroll sideways on
- * a phone, and no second copy of every row. Each installment is a row:
- *
- *   ● seq   title · creditor                     amount (+ remainder, $ line)
- *   ─────────────────────────────────────────────────────────────────────────
- *   سررسید <date> · <countdown>          [باز کردن در فرم] [پرداخت قسط]
- *
- * Rows are grouped: «معوق», «پیش‌رو», and the settled ones folded away under
+ * a phone, and no second copy of every row. Each installment is a compact row
+ * in the style of «تعهدات آینده» (see `renderRow`), grouped as «معوق»,
+ * «سررسیدهای نزدیک» (the next 30 days), «اقساط بعدی», and the settled ones
+ * folded away under
  * «پرداخت‌شده‌ها». Backend is the source of truth for the money rules: the
  * schedule arrives with the frozen Toman amount and the correct USD figure per
  * state (pending → current rate, paid → payment snapshot). This page only formats.
@@ -108,8 +105,8 @@ export default async function InstallmentsPage() {
   const pending = rows.filter((r) => !r.fx.isPaid);
   const paid = rows.filter((r) => r.fx.isPaid);
   const overdueList = pending.filter((r) => r.dueDate < today);
-  const upcomingList = pending.filter((r) => r.dueDate >= today);
   const next30 = pending.filter((r) => r.dueDate >= today && daysUntil(r.dueDate) <= 30);
+  const laterList = pending.filter((r) => r.dueDate >= today && daysUntil(r.dueDate) > 30);
 
   // Outstanding totals only — a settled installment's Toman is history, not a
   // balance. `dueToman` (resolved in the backend) is what is STILL owed.
@@ -135,14 +132,32 @@ export default async function InstallmentsPage() {
         ? "var(--negative)"
         : undefined;
 
+  // How many installments each debt has, so a row can say «قسط ۳ از ۱۲».
+  const totalByDebt = new Map<string, number>();
+  for (const r of rows) totalByDebt.set(r.debtId, (totalByDebt.get(r.debtId) ?? 0) + 1);
+
+  /**
+   * One installment = one disclosure row, laid out like «تعهدات آینده»:
+   *
+   *   (۳)  title                                   amount
+   *        date · creditor                   [countdown chip] ⌄
+   *
+   * The number badge carries the state in colour (late / within a week / within
+   * a month / later / paid), so the list reads at a glance without a second
+   * column of figures. The details — dollar equivalent, remainder of a partial
+   * payment, who it is owed to, and the pay actions — open under the row.
+   * Near-due rows start open so their pay button is one tap away.
+   */
   const renderRow = (r: (typeof rows)[number]) => {
-    const late = !r.fx.isPaid && r.dueDate < today;
-    const soon = !late && !r.fx.isPaid && daysUntil(r.dueDate) <= 14;
     const d = daysUntil(r.dueDate);
+    const late = !r.fx.isPaid && r.dueDate < today;
+    const tone = r.fx.isPaid ? "paid" : late ? "late" : d <= 7 ? "soon" : d <= 30 ? "near" : "later";
+    const openByDefault = tone === "late" || tone === "soon" || tone === "near";
     // Toman is always the frozen obligation.
     const primary = r.fx.displayToman != null ? formatMoney(r.fx.displayToman, "IRT") : "—";
     const receivable = isReceivable(r.direction);
     const partial = r.status === INSTALLMENT_PARTIAL;
+    const total = totalByDebt.get(r.debtId) ?? r.seq;
     // A paid installment shows WHEN IT WAS PAID (its due date is a note); a
     // pending one shows the countdown. The countdown phrase is an RTL isolate.
     const paidAt = r.fx.isPaid ? r.fx.paidAt : null;
@@ -150,86 +165,96 @@ export default async function InstallmentsPage() {
     const formHref = `/new?type=debt_repayment&installmentId=${r.id}&entryDate=${r.dueDate}&title=${encodeURIComponent(`قسط ${r.seq} — ${r.title}`)}`;
 
     return (
-      <li
-        key={r.id}
-        className={`inst-row${r.fx.isPaid ? " is-paid" : ""}`}
-        data-tone={late ? "late" : soon ? "soon" : undefined}
-      >
-        <div className="inst-head">
-          <span className="inst-seq num" aria-label={`قسط ${faCount(r.seq)}`}>
-            {r.fx.isPaid ? <Icon name="check" size={14} /> : faCount(r.seq)}
-          </span>
-          <div className="inst-main">
-            <span className="inst-title" title={r.title}>
-              {r.title}
+      <li key={r.id} className="inst-item" data-tone={tone}>
+        <details className="inst-row" open={openByDefault}>
+          <summary className="inst-line">
+            <span className="inst-seq num" aria-label={`قسط ${faCount(r.seq)} از ${faCount(total)}`}>
+              {r.fx.isPaid ? <Icon name="check" size={14} /> : faCount(r.seq)}
             </span>
-            <span className="inst-meta" title={r.creditor}>
-              {r.creditor}
-              {partial && (
-                <>
-                  {" · "}
-                  <span style={{ color: "var(--warning)" }}>بخشی پرداخت شده</span>
-                </>
+            <span className="inst-main">
+              <span className="inst-title" title={r.title}>
+                {r.title}
+              </span>
+              <span className="inst-meta">
+                <span className="num">{formatJalaliIso(paidAt ?? r.dueDate)}</span>
+                {r.creditor ? ` · ${r.creditor}` : ""}
+              </span>
+            </span>
+            <span className="inst-side">
+              <span className="num inst-amount money-nowrap" dir="rtl">
+                {primary}
+              </span>
+              {r.fx.isPaid ? (
+                <span className="inst-chip">{receivable ? "دریافت شد" : "پرداخت شد"}</span>
+              ) : (
+                <span className="inst-chip">{partial ? "بخشی پرداخت شده" : formatDaysUntil(d)}</span>
               )}
             </span>
-          </div>
-          <div className="inst-side">
-            <span className="num inst-amount money-nowrap" dir="rtl">
-              {primary}
-            </span>
-            {/* A part-settled row states what is LEFT: the contractual figure
-                above is no longer what the user owes. */}
-            {partial && (
-              <span className="num text-[length:var(--fs-xs)] money-nowrap" dir="rtl" style={{ color: "var(--warning)" }}>
-                باقی‌مانده: {formatMoney(r.dueToman, "IRT")}
-              </span>
-            )}
+            <Icon name="chevronDown" size={16} className="inst-caret" />
+          </summary>
+
+          <div className="inst-more">
+            <dl className="inst-facts">
+              <div>
+                <dt>شماره</dt>
+                <dd className="num">
+                  قسط {faCount(r.seq)} از {faCount(total)}
+                </dd>
+              </div>
+              {paidAt ? (
+                <div>
+                  <dt>{receivable ? "دریافت" : "پرداخت"}</dt>
+                  <dd>
+                    <span className="num">{formatJalaliIso(paidAt)}</span> ·{" "}
+                    <span className="num">{paidOnTime ? "در سررسید" : `سررسید ${formatJalaliIso(r.dueDate)}`}</span>
+                  </dd>
+                </div>
+              ) : (
+                <div>
+                  <dt>سررسید</dt>
+                  <dd>
+                    <span className="num">{formatJalaliIso(r.dueDate)}</span> · <span className="whitespace-nowrap">{formatDaysUntil(d)}</span>
+                  </dd>
+                </div>
+              )}
+              {r.creditor && (
+                <div>
+                  <dt>{receivable ? "بدهکار" : "طلبکار"}</dt>
+                  <dd>{r.creditor}</dd>
+                </div>
+              )}
+              {/* A part-settled row states what is LEFT: the contractual figure
+                  above is no longer what the user owes. */}
+              {partial && (
+                <div>
+                  <dt>باقی‌مانده</dt>
+                  <dd className="num money-nowrap" dir="rtl" style={{ color: "var(--warning)" }}>
+                    {formatMoney(r.dueToman, "IRT")}
+                  </dd>
+                </div>
+              )}
+            </dl>
             <InstallmentUsdLine fx={r.fx} />
+
+            {!r.fx.isPaid && (
+              <div className="inst-actions">
+                <Link href={formHref} className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
+                  باز کردن در فرم
+                </Link>
+                <SettleObligationSheet
+                  installmentId={r.id}
+                  dueToman={r.dueToman}
+                  paidSoFarToman={r.paidSoFarToman}
+                  cashAccountId={cashAccount[0]?.id}
+                  direction={r.direction}
+                  label={`قسط ${r.seq} — ${r.title}`}
+                  className="inst-settle"
+                  buttonClassName="w-full"
+                />
+              </div>
+            )}
           </div>
-        </div>
-
-        <div className="inst-foot">
-          {paidAt ? (
-            <span className="inst-when">
-              <span>
-                {receivable ? "دریافت" : "پرداخت"} <span className="num font-medium">{formatJalaliIso(paidAt)}</span>
-              </span>
-              <span aria-hidden="true">·</span>
-              <span className="num">{paidOnTime ? "در سررسید پرداخت شد" : `سررسید ${formatJalaliIso(r.dueDate)}`}</span>
-            </span>
-          ) : (
-            <span className="inst-when">
-              <span>
-                سررسید <span className="num font-medium">{formatJalaliIso(r.dueDate)}</span>
-              </span>
-              <span aria-hidden="true">·</span>
-              <span
-                className="font-medium whitespace-nowrap"
-                style={late ? { color: "var(--negative)" } : soon ? { color: "var(--warning)" } : undefined}
-              >
-                {formatDaysUntil(d)}
-              </span>
-            </span>
-          )}
-
-          {!r.fx.isPaid && (
-            <div className="inst-actions">
-              <Link href={formHref} className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
-                باز کردن در فرم
-              </Link>
-              <SettleObligationSheet
-                installmentId={r.id}
-                dueToman={r.dueToman}
-                paidSoFarToman={r.paidSoFarToman}
-                cashAccountId={cashAccount[0]?.id}
-                direction={r.direction}
-                label={`قسط ${r.seq} — ${r.title}`}
-                className="inst-settle"
-                buttonClassName="w-full"
-              />
-            </div>
-          )}
-        </div>
+        </details>
       </li>
     );
   };
@@ -324,26 +349,40 @@ export default async function InstallmentsPage() {
           <div className="space-y-4">
             {overdueList.length > 0 && (
               <div className="space-y-2">
-                <h3 className="inst-group-title" style={{ color: "var(--negative)" }}>
-                  معوق <span className="num">{faCount(overdueList.length)}</span>
+                <h3 className="inst-group-title" data-tone="late">
+                  <span className="inst-group-dot" aria-hidden="true" />
+                  معوق <span className="inst-group-count num">{faCount(overdueList.length)}</span>
                 </h3>
                 <ul className="inst-list">{overdueList.map(renderRow)}</ul>
               </div>
             )}
 
-            {upcomingList.length > 0 && (
+            {next30.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="inst-group-title" data-tone="soon">
+                  <span className="inst-group-dot" aria-hidden="true" />
+                  سررسیدهای نزدیک <span className="inst-group-count num">{faCount(next30.length)}</span>
+                </h3>
+                <ul className="inst-list">{next30.map(renderRow)}</ul>
+              </div>
+            )}
+
+            {laterList.length > 0 && (
               <div className="space-y-2">
                 <h3 className="inst-group-title">
-                  پیش‌رو <span className="num">{faCount(upcomingList.length)}</span>
+                  <span className="inst-group-dot" aria-hidden="true" />
+                  اقساط بعدی <span className="inst-group-count num">{faCount(laterList.length)}</span>
                 </h3>
-                <ul className="inst-list">{upcomingList.map(renderRow)}</ul>
+                <ul className="inst-list">{laterList.map(renderRow)}</ul>
               </div>
             )}
 
             {paid.length > 0 && (
               <details className="inst-paid" open={pending.length === 0}>
-                <summary className="inst-group-title">
-                  پرداخت‌شده‌ها <span className="num">{faCount(paid.length)}</span>
+                <summary className="inst-group-title" data-tone="paid">
+                  <span className="inst-group-dot" aria-hidden="true" />
+                  پرداخت‌شده‌ها <span className="inst-group-count num">{faCount(paid.length)}</span>
+                  <Icon name="chevronDown" size={14} className="inst-caret" />
                 </summary>
                 <ul className="inst-list">{paid.map(renderRow)}</ul>
               </details>
