@@ -1244,6 +1244,8 @@ const OPTIONAL_STATEMENTS = [
      FOR EACH ROW EXECUTE FUNCTION vehicle_valuation_snapshots_immutable();`,
 ];
 
+const BANK_ACCOUNT_NAME_STATEMENTS = ["ALTER TABLE public.accounts ADD COLUMN IF NOT EXISTS bank_name text"];
+
 const BANK_IDENTIFIER_STATEMENTS = ["CREATE TABLE IF NOT EXISTS public.bank_sms_identifiers (\n id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,\n account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,\n bank_name text NOT NULL,\n kind text NOT NULL CHECK (kind IN ('card','account','iban')),\n suffix text NOT NULL CHECK (suffix ~ '^[0-9]{4,8}$'),\n created_at timestamptz NOT NULL DEFAULT now()\n);\n", "\nCREATE UNIQUE INDEX IF NOT EXISTS bank_sms_identifiers_unique_idx ON public.bank_sms_identifiers(user_id,account_id,bank_name,kind,suffix);\n", "\nCREATE INDEX IF NOT EXISTS bank_sms_identifiers_user_idx ON public.bank_sms_identifiers(user_id);\n", "\nALTER TABLE public.bank_sms_identifiers ENABLE ROW LEVEL SECURITY;\n", "\nREVOKE ALL ON public.bank_sms_identifiers FROM PUBLIC;\n", "\nDO $$ DECLARE role_name text; BEGIN\n FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN\n   EXECUTE format('REVOKE ALL ON public.bank_sms_identifiers FROM %I', role_name);\n  END IF;\n END LOOP;\nEND $$;\n"];
 
 const BANK_SMS_STATEMENTS = [
@@ -1261,7 +1263,7 @@ const BANK_SMS_STATEMENTS = [
 ];
 
 export async function createSchemaIfNotExists() {
-  for (const stmt of [...STATEMENTS, ...BANK_SMS_STATEMENTS, ...BANK_IDENTIFIER_STATEMENTS]) {
+  for (const stmt of [...STATEMENTS, ...BANK_SMS_STATEMENTS, ...BANK_IDENTIFIER_STATEMENTS, ...BANK_ACCOUNT_NAME_STATEMENTS]) {
     for (let attempt = 1; ; attempt++) {
       try {
         await db.execute(sql.raw(stmt));

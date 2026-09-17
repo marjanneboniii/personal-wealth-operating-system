@@ -183,6 +183,7 @@ export const accounts = pgTable(
     userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     code: text("code").notNull(),
     name: text("name").notNull(),
+    bankName: text("bank_name"),
     type: text("type").notNull(), // asset | liability | equity | income | expense
     parentId: uuid("parent_id"),
     // Header/parent CoA rows (1000/2000/3000/4000/5000) are grouping

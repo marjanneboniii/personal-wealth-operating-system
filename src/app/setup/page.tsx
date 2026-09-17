@@ -1,5 +1,9 @@
 "use client";
 
+import { validateSetupBankAccounts } from "@/features/setup/bankAccounts";
+import SetupBankConnectionStep from "@/components/setup/SetupBankConnectionStep";
+import { validateSetupBankIdentifiers, type SetupBankIdentifier } from "@/features/setup/bankConnection";
+
 import { useActionState, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -36,8 +40,8 @@ import { OCCUPATIONS } from "@/features/income/occupations";
  * confirmed USD→IRT rate converts them. The book currency (USD) is internal.
  */
 
-const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک", "خودرو", "بدهی‌ها", "تأیید", "اتصال پیامک"] as const;
-const LAST_STEP = STEPS.length - 1; // Financial confirmation; SMS setup follows after the commit.
+const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک", "خودرو", "بدهی‌ها", "اتصال بانک‌ها", "بررسی و تأیید"] as const;
+const LAST_STEP = STEPS.length;
 
 /** Places that hold Toman: Iranian exchanges (crypto) and brokerages (Tehran market). */
 const TOMAN_PLACE_GROUPS: Array<[string, typeof KNOWN_WALLETS]> = [
@@ -83,6 +87,10 @@ export default function SetupWizardPage() {
 
   // Step 2 — cash. A bank account in Iran holds Toman; a cash box may be dollars.
   const [bankAccountName, setBankAccountName] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [extraBanks, setExtraBanks] = useState<{ id: string; name: string; bankName: string; balance: string }[]>([]);
+  const [extraConnections, setExtraConnections] = useState<{ bankId: string; connection: SetupBankIdentifier }[]>([]);
+  const [bankConnection, setBankConnection] = useState<SetupBankIdentifier | null>(null);
   const [bankBalance, setBankBalance] = useState("");
   const [hasCash, setHasCash] = useState(false);
   const [cashName, setCashName] = useState("صندوق خانگی");
@@ -161,7 +169,7 @@ export default function SetupWizardPage() {
 
     setCompletionNote(notes.length ? notes.join(" ") : null);
     setStatus("completed");
-    if (notes.length === 0) router.push("/setup/messages");
+    // Final confirmation remains the last wizard step; device activation is offered on the receipt.
     return res;
   }, null);
 
@@ -172,8 +180,9 @@ export default function SetupWizardPage() {
   /** Everything the user entered, in Toman, grouped the way the app shows it. */
   const review = useMemo(() => {
     const money: ReviewItem[] = [];
-    if (amountOf(bankBalance).gt(0)) {
-      money.push({ key: "bank", label: bankAccountName.trim() || "حساب بانکی اصلی", toman: amountOf(bankBalance) });
+    for (const bank of extraBanks) money.push({ key: bank.id, label: bank.name || "حساب بانکی اضافه", detail: bank.bankName, toman: amountOf(bank.balance) });
+    {
+      money.push({ key: "bank", label: bankAccountName.trim() || "حساب بانکی اصلی", detail: bankName, toman: amountOf(bankBalance) });
     }
     if (hasCash && amountOf(cashBalance).gt(0)) {
       money.push({
@@ -231,11 +240,17 @@ export default function SetupWizardPage() {
     const assetsTotal = sum(money).add(sum(investments)).add(sum(real));
     const debtsTotal = sum(debts);
     return { money, investments, real, debts, assetsTotal, debtsTotal, net: assetsTotal.sub(debtsTotal), usesRate };
-  }, [bankBalance, bankAccountName, tomanPlaces, hasCash, cashBalance, cashName, cashCurrency, rate, cryptoRows, goldGrams, goldPrice, instrumentRows, readyVehicles, readyProperties, debtRows]);
+  }, [extraBanks, bankName, bankBalance, bankAccountName, tomanPlaces, hasCash, cashBalance, cashName, cashCurrency, rate, cryptoRows, goldGrams, goldPrice, instrumentRows, readyVehicles, readyProperties, debtRows]);
 
   // Every coin needs at least one picked place before the wizard moves on.
   const holdingsPlaced = cryptoRows.every((r) => r.places.length > 0);
-  const canContinue = step === 1 ? rateReady : step === 2 ? bankAccountName.trim().length > 0 : step === 3 ? holdingsPlaced : true;
+  const allConnections = [...(bankConnection ? [bankConnection] : []), ...extraConnections.map((row) => row.connection)];
+  const bankRows = [{ name: bankAccountName, bankName, balance: bankBalance || "0" }, ...extraBanks.map(({ name, bankName, balance }) => ({ name, bankName, balance: balance || "0" }))];
+  let banksReady = true;
+  try { validateSetupBankAccounts(bankRows); } catch { banksReady = false; }
+  let connectionReady = true;
+  try { validateSetupBankIdentifiers(allConnections, bankAccountName, bankName, "IRT", extraBanks); } catch { connectionReady = false; }
+  const canContinue = step === 8 ? connectionReady : step === 1 ? rateReady : step === 2 ? banksReady : step === 3 ? holdingsPlaced : true;
 
   if (status === "loading") {
     return (
@@ -254,15 +269,15 @@ export default function SetupWizardPage() {
           <span className="flow-icon is-in mx-auto" aria-hidden="true">
             <Icon name="check" size={17} />
           </span>
-          <h1 className="text-[length:var(--fs-lg)] font-bold">راه‌اندازی مالی ثبت شد</h1>
+          <h1 className="text-[length:var(--fs-lg)] font-bold">راه‌اندازی کامل شد</h1>
           {completionNote && (
             <p className="text-right text-[length:var(--fs-xs)] leading-6" role="alert" style={{ color: "var(--warning)" }}>
               {completionNote}
             </p>
           )}
-          <p className="text-sm">مرحلهٔ بعد: معرفی کارت‌ها و تنظیم دریافت پیامک بانکی. برای این کار موجودی اولیه را دوباره ثبت نکنید.</p>
+          <p className="text-sm">اطلاعات مالی ثبت شدند. برای دریافت پیامک روی آیفون، تنظیم Shortcuts را جداگانه تکمیل کنید؛ موجودی اولیه را دوباره ثبت نکنید.</p>
           <div className="flex flex-wrap justify-center gap-2">
-            <Link href="/setup/messages" className="btn btn-primary">ادامه: مرحلهٔ ۹ — اتصال پیامک</Link>
+            <Link href="/setup/messages" className="btn btn-primary">تنظیم اتصال پیامک آیفون</Link>
             <Link href="/" className="btn btn-primary">
               نمای کلی
             </Link>
@@ -319,6 +334,9 @@ export default function SetupWizardPage() {
         <input type="hidden" name="dateCalendar" value={dateCalendar} />
         <input type="hidden" name="digitStyle" value="fa" />
         <input type="hidden" name="fxRate" value={rateReady ? rate : ""} />
+        <input type="hidden" name="bankAccounts" value={JSON.stringify(bankRows)} />
+        <input type="hidden" name="bankName" value={bankName} />
+        <input type="hidden" name="bankIdentifiers" value={JSON.stringify(allConnections)} />
         <input type="hidden" name="bankAccountName" value={bankAccountName} />
         <input type="hidden" name="bankAssetSymbol" value="IRT" />
         <input type="hidden" name="bankOpeningBalance" value={bankBalance} />
@@ -506,6 +524,8 @@ export default function SetupWizardPage() {
                     نام حساب
                   </label>
                   <input id="setup-bank-name" type="text" value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} placeholder="مثلاً ملت جاری" className="field" autoComplete="off" />
+                  <label className="label mt-3" htmlFor="setup-bank-identity">نام بانک برای اتصال پیامک</label>
+                  <input id="setup-bank-identity" className="field" value={bankName} onChange={(event) => setBankName(event.target.value)} placeholder="مثلاً ملت؛ برای اتصال پیامک لازم است" maxLength={60} />
                 </div>
                 <div>
                   <label className="label">موجودی (تومان)</label>
@@ -521,6 +541,10 @@ export default function SetupWizardPage() {
                 </div>
               </div>
             </div>
+
+            {extraBanks.map((bank, index) => <div key={bank.id} className="card setup-row space-y-3"><div className="flex items-center justify-between"><b className="text-sm">حساب بانکی {index + 2}</b><button type="button" className="btn btn-ghost" onClick={() => { setExtraBanks((rows) => rows.filter((row) => row.id !== bank.id)); setExtraConnections((rows) => rows.filter((row) => row.bankId !== bank.id)); }}>حذف حساب</button></div><div className="grid gap-3 sm:grid-cols-2">{[{ key: "name" as const, label: "نام حساب", placeholder: "مثلاً ملی پس‌انداز" }, { key: "bankName" as const, label: "نام بانک", placeholder: "مثلاً ملی ایران" }].map((field) => <label key={field.key}><span className="label">{field.label}</span><input className="field" value={bank[field.key]} maxLength={field.key === "name" ? 200 : 60} placeholder={field.placeholder} onChange={(event) => setExtraBanks((rows) => rows.map((row) => row.id === bank.id ? { ...row, [field.key]: event.target.value } : row))} /></label>)}<label><span className="label">موجودی این حساب (تومان)</span><AmountInput className="field num" value={bank.balance} unit="toman" onValueChange={(balance) => setExtraBanks((rows) => rows.map((row) => row.id === bank.id ? { ...row, balance } : row))} /></label></div></div>)}
+            <button type="button" className="btn btn-ghost w-full" disabled={extraBanks.length >= 9} onClick={() => setExtraBanks((rows) => [...rows, { id: crypto.randomUUID(), name: "", bankName: "", balance: "" }])}>+ افزودن حساب بانکی دیگر</button>
+            {!banksReady && <p className="expense-note expense-note-warn">نام بانک و نام متفاوت برای هر حساب وارد کنید؛ موجودی به تومان صحیح و صفر یا مثبت باشد. حداکثر ۱۰ حساب.</p>}
 
             <div className="card list-card">
               <label className="setup-toggle">
@@ -656,9 +680,12 @@ export default function SetupWizardPage() {
           </div>
         )}
 
+        {step === 8 && <div className="space-y-5"><SetupBankConnectionStep accountName={bankAccountName} bankName={bankName} draft={bankConnection} onChange={setBankConnection} onEditAccount={() => setStep(2)} />{extraBanks.map((bank) => <SetupBankConnectionStep key={bank.id} accountName={bank.name} bankName={bank.bankName} draft={extraConnections.find((row) => row.bankId === bank.id)?.connection ?? null} onChange={(draft) => setExtraConnections((rows) => [...rows.filter((row) => row.bankId !== bank.id), ...(draft ? [{ bankId: bank.id, connection: draft }] : [])])} onEditAccount={() => setStep(2)} />)}{!connectionReady && <p className="expense-note expense-note-warn">اتصال ناقص یا متعلق به حساب تغییرکرده است؛ آن را دوباره بررسی کنید.</p>}</div>}
+
         {step === LAST_STEP && (
           <section className="space-y-5">
-            <StepIntro title="مرور و تأیید" text="همه‌چیز را یک بار ببینید؛ بعد از تأیید ثبت می‌شود." />
+            <StepIntro title="بررسی و تأیید نهایی" text="حساب‌ها، موجودی و اتصال بانک را بررسی کنید؛ همه پس از تأیید نهایی ثبت می‌شوند." />
+            <div className="card setup-row space-y-2"><h3 className="font-semibold text-sm">اتصال پیامک</h3>{allConnections.length ? <><ul className="space-y-2">{allConnections.map((connection, index) => <li key={index} className="text-sm">بانک {connection.bankName} · شناسهٔ …{connection.suffix} ← {connection.accountName}</li>)}</ul><p className="expense-note">{connectionReady ? "اتصال‌ها با حساب‌های معرفی‌شده مطابقت دارند و تأیید شما دریافت شد." : "اتصال با حساب مطابقت ندارد یا تأیید و شناسه ناقص است؛ مرحلهٔ ۸ را اصلاح کنید."}</p></> : <p className="muted text-sm">فعلاً بدون اتصال؛ بعداً می‌توانید تنظیم کنید.</p>}<button type="button" className="btn btn-ghost" onClick={() => setStep(8)}>بررسی اتصال بانک</button></div>
 
             {[
               { title: "حساب‌ها", items: review.money },
@@ -757,8 +784,8 @@ export default function SetupWizardPage() {
               ادامه
             </button>
           ) : (
-            <button key="confirm" type="submit" disabled={pending || !rateReady} className="btn btn-primary">
-              {pending ? "در حال ثبت…" : "تأیید حساب‌ها و ادامه به اتصال پیامک"}
+            <button key="confirm" type="submit" disabled={pending || !rateReady || !banksReady || !connectionReady} className="btn btn-primary">
+              {pending ? "در حال ثبت…" : "تأیید نهایی و ثبت"}
             </button>
           )}
         </div>

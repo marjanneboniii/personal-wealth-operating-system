@@ -1,7 +1,11 @@
+import { normalizeBankText } from "@/features/bankImport/parser";
+import { validateSetupBankAccounts, type SetupBankAccount } from "./bankAccounts";
+import { validateSetupBankIdentifiers, type SetupBankIdentifier } from "./bankConnection";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   accounts,
+  bankSmsIdentifiers,
   assetClasses,
   assets,
   auditLog,
@@ -106,6 +110,9 @@ export type SetupInput = {
   /** USD→IRT rate the user confirmed. Out of range or absent → the user's latest rate. */
   fxRate?: string;
   bankAccountName?: string;
+  bankName?: string;
+  bankAccounts?: SetupBankAccount[];
+  bankIdentifiers?: SetupBankIdentifier[];
   cashWalletName?: string;
   /** Native denomination of the bank account (IRT | USD | USDT). */
   bankAssetSymbol?: string;
@@ -300,6 +307,16 @@ export async function completeSetup(
   /** When supplied, setup is isolated to this existing authenticated tenant. */
   userId?: string,
 ): Promise<{ ok: boolean; message: string }> {
+  const listedBanks = input.bankAccounts === undefined ? undefined : validateSetupBankAccounts(input.bankAccounts);
+  if (listedBanks) {
+    const primary = listedBanks[0];
+    if (input.bankAccountName !== undefined && normalizeBankText(input.bankAccountName) !== primary.name) throw new Error("حساب اصلی با فهرست حساب‌ها یکسان نیست.");
+    if (input.bankAssetSymbol && input.bankAssetSymbol !== "IRT") throw new Error("حساب‌های بانکی این فهرست باید تومانی باشند.");
+    input = { ...input, bankAccountName: primary.name, bankName: primary.bankName, bankOpeningBalance: primary.balance, bankAssetSymbol: "IRT" };
+  }
+  const additionalBanks = listedBanks?.slice(1) ?? [];
+  const bankIdentifiers = validateSetupBankIdentifiers(input.bankIdentifiers, input.bankAccountName?.trim() || "حساب بانکی اصلی", input.bankName || "", input.bankAssetSymbol || "IRT", additionalBanks);
+  if (bankIdentifiers.length && !userId) throw new Error("اتصال بانک نیازمند کاربر واردشده است.");
   const existingState = await getSetupState(userId);
   if (existingState.completed) {
     throw new Error("راه‌اندازی اولیه قبلاً انجام شده است.");
@@ -537,7 +554,8 @@ export async function completeSetup(
 
     const acctRows = [
       { code: "1000", name: "دارایی‌ها", type: "asset" },
-      { code: "1010", name: input.bankAccountName?.trim() || "حساب بانکی اصلی", type: "asset", assetId: bankAssetId },
+      { code: "1010", name: input.bankAccountName?.trim() || "حساب بانکی اصلی", type: "asset", assetId: bankAssetId, bankName: input.bankName?.trim() || null },
+      ...additionalBanks.map((bank, index) => ({ code: String(1011 + index), name: bank.name, type: "asset", assetId: bankAssetId, bankName: bank.bankName })),
       ...(wantsCashWallet
         ? [{ code: "1020", name: input.cashWalletName?.trim() || "صندوق نقد", type: "asset", assetId: cashAssetId }]
         : []),
@@ -624,6 +642,11 @@ export async function completeSetup(
         rethrowChartInsertError(err);
       }
     }
+    if (listedBanks) for (const [index, declared] of listedBanks.entries()) {
+      const code = index === 0 ? "1010" : String(1010 + index);
+      const account = insertedAccounts.find((row) => row.code === code);
+      if (!account || account.userId !== (userId ?? null) || account.name !== declared.name || account.bankName !== declared.bankName || account.assetId !== bankAssetId) throw new Error("حساب بانکی ثبت‌شده با فهرست معرفی‌شده مطابقت ندارد.");
+    }
     const acctMap = Object.fromEntries(insertedAccounts.map((a) => [a.code, a.id]));
     if (!acctMap["3010"] || !acctMap["1010"]) {
       throw new Error("ایجاد نمودار حساب‌های اولیه کامل نشد.");
@@ -649,6 +672,15 @@ export async function completeSetup(
     if (amountOf(input.bankOpeningBalance).gt(0)) {
       const bank = await bookUsdFromAccountNative(tx, acctMap["1010"], input.bankOpeningBalance!, setupRate);
       draftPostings.push({ accountId: acctMap["1010"], assetId: bank.assetId, quantity: bank.quantity, baseValue: bank.baseValue, memo: "موجودی اولیه بانک" });
+      totalOpeningEquityBase = totalOpeningEquityBase.add(bank.baseValue);
+    }
+
+    for (const [index, extra] of additionalBanks.entries()) {
+      if (!amountOf(extra.balance).gt(0)) continue;
+      const accountId = acctMap[String(1011 + index)];
+      if (!accountId) throw new Error("حساب بانکی اضافه ایجاد نشد.");
+      const bank = await bookUsdFromAccountNative(tx, accountId, extra.balance, setupRate);
+      draftPostings.push({ accountId, assetId: bank.assetId, quantity: bank.quantity, baseValue: bank.baseValue, memo: `موجودی اولیه ${extra.name}` });
       totalOpeningEquityBase = totalOpeningEquityBase.add(bank.baseValue);
     }
 
@@ -767,6 +799,16 @@ export async function completeSetup(
       }
     }
 
+    if (bankIdentifiers.length) {
+      const declared = [{ name: input.bankAccountName?.trim() || "حساب بانکی اصلی", bankName: input.bankName || "", code: "1010" }, ...additionalBanks.map((bank, index) => ({ ...bank, code: String(1011 + index) }))];
+      const values = bankIdentifiers.map((identifier) => {
+        const target = declared.find((bank) => bank.name === identifier.accountName);
+        const bankAccount = insertedAccounts.find((account) => account.code === target?.code);
+        if (!bankAccount || bankAccount.userId !== user.id || bankAccount.name !== identifier.accountName || bankAccount.assetId !== bankAssetId) throw new Error("حساب ثبت‌شده با حساب اتصال یکسان نیست.");
+        return { userId: user.id, accountId: bankAccount.id, bankName: identifier.bankName, kind: identifier.kind, suffix: identifier.suffix };
+      });
+      await tx.insert(bankSmsIdentifiers).values(values).onConflictDoNothing();
+    }
     await tx.insert(userSetupState).values({ userId: user.id, completed: true, currentStep: 7 });
 
     await tx.insert(auditLog).values({
