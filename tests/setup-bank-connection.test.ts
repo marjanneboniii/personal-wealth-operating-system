@@ -1,0 +1,38 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { eq } from "drizzle-orm";
+import { db } from "../src/db";
+import { createSchemaIfNotExists } from "../src/db/init-schema";
+import { accounts, bankSmsIdentifiers, journalEntries, users } from "../src/db/schema";
+import { completeSetup } from "../src/features/setup/service";
+import { validateSetupBankIdentifiers } from "../src/features/setup/bankConnection";
+const identifier = { accountName: "ملت جاری", bankName: "ملت", kind: "card" as const, suffix: "۱۲۳۴", ownershipConfirmed: true };
+test("bank connection rejects changed account, bank, non-Toman account and absent ownership confirmation", () => {
+ assert.equal(validateSetupBankIdentifiers([identifier], "ملت جاری", "بانک ملت", "IRT")[0].suffix, "1234");
+ assert.throws(() => validateSetupBankIdentifiers([identifier], "حساب دیگر", "ملت", "IRT"));
+ assert.throws(() => validateSetupBankIdentifiers([identifier], "ملت جاری", "ملی", "IRT"));
+ assert.throws(() => validateSetupBankIdentifiers([identifier], "ملت جاری", "ملت", "USD"));
+ assert.throws(() => validateSetupBankIdentifiers([{ ...identifier, ownershipConfirmed: false }], "ملت جاری", "ملت", "IRT"));
+ assert.throws(() => validateSetupBankIdentifiers([{ ...identifier, suffix: "6037991234561234" }], "ملت جاری", "ملت", "IRT"));
+ assert.deepEqual(validateSetupBankIdentifiers([], "حساب", "", "IRT"), []);
+});
+test("final setup registers bank mapping with the exact newly-created owned account and rejects mismatch before writes", async () => {
+ await createSchemaIfNotExists();
+ const [user] = await db.insert(users).values({ name: "Setup bank", username: "setup-bank-match", role: "user" }).returning();
+ const input = { userName: "Setup bank", baseCurrency: "USD", displayCurrency: "IRT", dateCalendar: "jalali" as const, digitStyle: "fa" as const, fxRate: "100000", bankAccountName: "ملت جاری", bankName: "ملت", bankAssetSymbol: "IRT", bankOpeningBalance: "100000", bankIdentifiers: [identifier] };
+ await assert.rejects(() => completeSetup({ ...input, bankAccountName: "حساب دیگر" }, user.id));
+ assert.equal((await db.select().from(accounts).where(eq(accounts.userId, user.id))).length, 0);
+ assert.equal((await db.select().from(journalEntries).where(eq(journalEntries.userId, user.id))).length, 0);
+ await completeSetup(input, user.id);
+ const [mapping] = await db.select().from(bankSmsIdentifiers).where(eq(bankSmsIdentifiers.userId, user.id));
+ const [account] = await db.select().from(accounts).where(eq(accounts.id, mapping.accountId));
+ assert.equal(account.code, "1010");
+ assert.equal(account.name, input.bankAccountName);
+ assert.equal(account.userId, user.id);
+ assert.equal(mapping.bankName, "ملت");
+ assert.equal(mapping.suffix, "1234");
+ const before = await db.select().from(journalEntries).where(eq(journalEntries.userId, user.id));
+ await assert.rejects(() => completeSetup(input, user.id), /قبلاً/);
+ assert.deepEqual(await db.select().from(journalEntries).where(eq(journalEntries.userId, user.id)), before);
+ assert.equal((await db.select().from(bankSmsIdentifiers).where(eq(bankSmsIdentifiers.userId, user.id))).length, 1);
+});

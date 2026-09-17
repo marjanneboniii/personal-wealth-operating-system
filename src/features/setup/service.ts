@@ -1,7 +1,9 @@
+import { validateSetupBankIdentifiers, type SetupBankIdentifier } from "./bankConnection";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   accounts,
+  bankSmsIdentifiers,
   assetClasses,
   assets,
   auditLog,
@@ -106,6 +108,8 @@ export type SetupInput = {
   /** USD→IRT rate the user confirmed. Out of range or absent → the user's latest rate. */
   fxRate?: string;
   bankAccountName?: string;
+  bankName?: string;
+  bankIdentifiers?: SetupBankIdentifier[];
   cashWalletName?: string;
   /** Native denomination of the bank account (IRT | USD | USDT). */
   bankAssetSymbol?: string;
@@ -300,6 +304,8 @@ export async function completeSetup(
   /** When supplied, setup is isolated to this existing authenticated tenant. */
   userId?: string,
 ): Promise<{ ok: boolean; message: string }> {
+  const bankIdentifiers = validateSetupBankIdentifiers(input.bankIdentifiers, input.bankAccountName?.trim() || "حساب بانکی اصلی", input.bankName || "", input.bankAssetSymbol || "IRT");
+  if (bankIdentifiers.length && !userId) throw new Error("اتصال بانک نیازمند کاربر واردشده است.");
   const existingState = await getSetupState(userId);
   if (existingState.completed) {
     throw new Error("راه‌اندازی اولیه قبلاً انجام شده است.");
@@ -767,6 +773,11 @@ export async function completeSetup(
       }
     }
 
+    if (bankIdentifiers.length) {
+      const bankAccount = insertedAccounts.find((account) => account.code === "1010");
+      if (!bankAccount || bankAccount.userId !== user.id || bankAccount.name !== (input.bankAccountName?.trim() || "حساب بانکی اصلی") || bankAccount.assetId !== bankAssetId) throw new Error("حساب ثبت‌شده با حساب اتصال یکسان نیست.");
+      await tx.insert(bankSmsIdentifiers).values(bankIdentifiers.map((identifier) => ({ userId: user.id, accountId: bankAccount.id, bankName: identifier.bankName, kind: identifier.kind, suffix: identifier.suffix }))).onConflictDoNothing();
+    }
     await tx.insert(userSetupState).values({ userId: user.id, completed: true, currentStep: 7 });
 
     await tx.insert(auditLog).values({

@@ -1,5 +1,8 @@
 "use client";
 
+import SetupBankConnectionStep from "@/components/setup/SetupBankConnectionStep";
+import { validateSetupBankIdentifiers, type SetupBankIdentifier } from "@/features/setup/bankConnection";
+
 import { useActionState, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -36,8 +39,8 @@ import { OCCUPATIONS } from "@/features/income/occupations";
  * confirmed USD→IRT rate converts them. The book currency (USD) is internal.
  */
 
-const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک", "خودرو", "بدهی‌ها", "تأیید", "اتصال پیامک"] as const;
-const LAST_STEP = STEPS.length - 1; // Financial confirmation; SMS setup follows after the commit.
+const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک", "خودرو", "بدهی‌ها", "اتصال بانک‌ها", "بررسی و تأیید"] as const;
+const LAST_STEP = STEPS.length;
 
 /** Places that hold Toman: Iranian exchanges (crypto) and brokerages (Tehran market). */
 const TOMAN_PLACE_GROUPS: Array<[string, typeof KNOWN_WALLETS]> = [
@@ -83,6 +86,8 @@ export default function SetupWizardPage() {
 
   // Step 2 — cash. A bank account in Iran holds Toman; a cash box may be dollars.
   const [bankAccountName, setBankAccountName] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [bankConnection, setBankConnection] = useState<SetupBankIdentifier | null>(null);
   const [bankBalance, setBankBalance] = useState("");
   const [hasCash, setHasCash] = useState(false);
   const [cashName, setCashName] = useState("صندوق خانگی");
@@ -161,7 +166,7 @@ export default function SetupWizardPage() {
 
     setCompletionNote(notes.length ? notes.join(" ") : null);
     setStatus("completed");
-    if (notes.length === 0) router.push("/setup/messages");
+    // Final confirmation remains the last wizard step; device activation is offered on the receipt.
     return res;
   }, null);
 
@@ -235,7 +240,9 @@ export default function SetupWizardPage() {
 
   // Every coin needs at least one picked place before the wizard moves on.
   const holdingsPlaced = cryptoRows.every((r) => r.places.length > 0);
-  const canContinue = step === 1 ? rateReady : step === 2 ? bankAccountName.trim().length > 0 : step === 3 ? holdingsPlaced : true;
+  let connectionReady = true;
+  try { validateSetupBankIdentifiers(bankConnection ? [bankConnection] : [], bankAccountName, bankName, "IRT"); } catch { connectionReady = false; }
+  const canContinue = step === 8 ? connectionReady : step === 1 ? rateReady : step === 2 ? bankAccountName.trim().length > 0 : step === 3 ? holdingsPlaced : true;
 
   if (status === "loading") {
     return (
@@ -254,15 +261,15 @@ export default function SetupWizardPage() {
           <span className="flow-icon is-in mx-auto" aria-hidden="true">
             <Icon name="check" size={17} />
           </span>
-          <h1 className="text-[length:var(--fs-lg)] font-bold">راه‌اندازی مالی ثبت شد</h1>
+          <h1 className="text-[length:var(--fs-lg)] font-bold">راه‌اندازی کامل شد</h1>
           {completionNote && (
             <p className="text-right text-[length:var(--fs-xs)] leading-6" role="alert" style={{ color: "var(--warning)" }}>
               {completionNote}
             </p>
           )}
-          <p className="text-sm">مرحلهٔ بعد: معرفی کارت‌ها و تنظیم دریافت پیامک بانکی. برای این کار موجودی اولیه را دوباره ثبت نکنید.</p>
+          <p className="text-sm">اطلاعات مالی ثبت شدند. برای دریافت پیامک روی آیفون، تنظیم Shortcuts را جداگانه تکمیل کنید؛ موجودی اولیه را دوباره ثبت نکنید.</p>
           <div className="flex flex-wrap justify-center gap-2">
-            <Link href="/setup/messages" className="btn btn-primary">ادامه: مرحلهٔ ۹ — اتصال پیامک</Link>
+            <Link href="/setup/messages" className="btn btn-primary">تنظیم اتصال پیامک آیفون</Link>
             <Link href="/" className="btn btn-primary">
               نمای کلی
             </Link>
@@ -319,6 +326,8 @@ export default function SetupWizardPage() {
         <input type="hidden" name="dateCalendar" value={dateCalendar} />
         <input type="hidden" name="digitStyle" value="fa" />
         <input type="hidden" name="fxRate" value={rateReady ? rate : ""} />
+        <input type="hidden" name="bankName" value={bankName} />
+        <input type="hidden" name="bankIdentifiers" value={JSON.stringify(bankConnection ? [bankConnection] : [])} />
         <input type="hidden" name="bankAccountName" value={bankAccountName} />
         <input type="hidden" name="bankAssetSymbol" value="IRT" />
         <input type="hidden" name="bankOpeningBalance" value={bankBalance} />
@@ -506,6 +515,8 @@ export default function SetupWizardPage() {
                     نام حساب
                   </label>
                   <input id="setup-bank-name" type="text" value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} placeholder="مثلاً ملت جاری" className="field" autoComplete="off" />
+                  <label className="label mt-3" htmlFor="setup-bank-identity">نام بانک برای اتصال پیامک</label>
+                  <input id="setup-bank-identity" className="field" value={bankName} onChange={(event) => setBankName(event.target.value)} placeholder="مثلاً ملت؛ برای اتصال پیامک لازم است" maxLength={60} />
                 </div>
                 <div>
                   <label className="label">موجودی (تومان)</label>
@@ -656,9 +667,12 @@ export default function SetupWizardPage() {
           </div>
         )}
 
+        {step === 8 && <SetupBankConnectionStep accountName={bankAccountName} bankName={bankName} draft={bankConnection} onChange={setBankConnection} onEditAccount={() => setStep(2)} />}
+
         {step === LAST_STEP && (
           <section className="space-y-5">
-            <StepIntro title="مرور و تأیید" text="همه‌چیز را یک بار ببینید؛ بعد از تأیید ثبت می‌شود." />
+            <StepIntro title="بررسی و تأیید نهایی" text="حساب‌ها، موجودی و اتصال بانک را بررسی کنید؛ همه پس از تأیید نهایی ثبت می‌شوند." />
+            <div className="card setup-row space-y-2"><h3 className="font-semibold text-sm">اتصال پیامک</h3>{bankConnection ? <><p className="text-sm">بانک {bankConnection.bankName} · شناسهٔ …{bankConnection.suffix} ← {bankConnection.accountName}</p><p className="expense-note">{connectionReady ? "اتصال با حساب معرفی‌شده مطابقت دارد و تأیید شما دریافت شد." : "اتصال با حساب مطابقت ندارد یا تأیید و شناسه ناقص است؛ مرحلهٔ ۸ را اصلاح کنید."}</p></> : <p className="muted text-sm">فعلاً بدون اتصال؛ بعداً می‌توانید تنظیم کنید.</p>}<button type="button" className="btn btn-ghost" onClick={() => setStep(8)}>بررسی اتصال بانک</button></div>
 
             {[
               { title: "حساب‌ها", items: review.money },
@@ -757,8 +771,8 @@ export default function SetupWizardPage() {
               ادامه
             </button>
           ) : (
-            <button key="confirm" type="submit" disabled={pending || !rateReady} className="btn btn-primary">
-              {pending ? "در حال ثبت…" : "تأیید حساب‌ها و ادامه به اتصال پیامک"}
+            <button key="confirm" type="submit" disabled={pending || !rateReady || !connectionReady} className="btn btn-primary">
+              {pending ? "در حال ثبت…" : "تأیید نهایی و ثبت"}
             </button>
           )}
         </div>
