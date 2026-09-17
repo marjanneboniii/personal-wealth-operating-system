@@ -1,5 +1,6 @@
 "use server";
 
+import { setupBankAccountSchema } from "@/features/setup/bankAccounts";
 import { setupBankIdentifierSchema } from "@/features/setup/bankConnection";
 
 import { normalizeNumericInput } from "@/lib/numericInput";
@@ -2101,6 +2102,7 @@ const setupSchema = z.object({
   bankAccountName: z.string().optional(),
   bankName: z.string().optional(),
   bankIdentifiers: z.string().max(16000).optional(),
+  bankAccounts: z.string().max(16000).optional(),
   cashWalletName: z.string().optional(),
   bankAssetSymbol: z.enum(["IRT", "USD", "USDT"]).optional(),
   cashAssetSymbol: z.enum(["IRT", "USD", "USDT"]).optional(),
@@ -2220,6 +2222,7 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
   try {
     const raw = Object.fromEntries(fd) as Record<string, string>;
     const {
+      bankAccounts: bankAccountsJson,
       bankIdentifiers: bankIdentifiersJson,
       instruments: instrumentsJson,
       vehicles: vehiclesJson,
@@ -2231,6 +2234,7 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
 
     // Malformed JSON must fail the wizard loudly rather than silently dropping
     // what a user just spent time entering.
+    const bankAccounts = bankAccountsJson === undefined ? undefined : parseSetupList(bankAccountsJson, setupBankAccountSchema, "حساب‌های بانکی");
     const bankIdentifiers = parseSetupList(bankIdentifiersJson, setupBankIdentifierSchema, "اتصال بانک‌ها");
     const instruments = parseSetupList(instrumentsJson, setupInstrumentSchema, "فهرست صندوق و سهام");
     const cryptoHoldings = parseSetupList(cryptoJson, setupCryptoSchema, "فهرست رمزارزها");
@@ -2239,7 +2243,7 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
     const tomanPlaces = parseSetupList(tomanPlacesJson, setupTomanPlaceSchema, "فهرست تومان صرافی و کارگزاری");
 
     const result = await completeSetup(
-      { ...rest, bankIdentifiers, instruments, cryptoHoldings, tomanPlaces, vehicles, properties },
+      { ...rest, bankAccounts, bankIdentifiers, instruments, cryptoHoldings, tomanPlaces, vehicles, properties },
       setupUser?.id,
     );
     // Occupations are an optional profile field: a malformed value never fails the setup.
