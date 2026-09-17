@@ -43,6 +43,7 @@ import {
   summarizePendingUsdChange,
 } from "../src/features/planning/installmentFx";
 import {
+  todayIso,
   formatDaysUntil,
   formatDaysWindow,
   formatJalaliIso,
@@ -365,4 +366,13 @@ test("the settle action stays offered for outstanding rows only", async () => {
     1,
     "the outstanding installment gets the settle action once, and the settled one never does",
   );
+});
+
+
+test("opening a pending payment form uses the payment day rather than a future due date", async () => {
+  const { html } = await render();
+  const link = [...html.matchAll(/href="([^"]+)"/g)].map((match) => match[1].replace(/&amp;/g, "&")).find((href) => href.includes("type=debt_repayment") && href.includes("installmentId="));
+  assert.ok(link, "pending installment has a payment-form link");
+  assert.equal(new URL(link, "https://example.test").searchParams.get("entryDate"), todayIso());
+  assert.ok(!/<details class="inst-row"[^>]*\sopen(?:[=>\s])/.test(html), "near-due rows do not all expand at page load");
 });

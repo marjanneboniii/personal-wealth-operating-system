@@ -29,7 +29,7 @@ import type { InstallmentFxView } from "@/features/planning/installmentFx";
 export const dynamic = "force-dynamic";
 
 function daysUntil(iso: string) {
-  return Math.ceil((new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
+  return Math.ceil((new Date(iso + "T00:00:00Z").getTime() - new Date(todayIso() + "T00:00:00Z").getTime()) / 86_400_000);
 }
 
 /**
@@ -146,13 +146,13 @@ export default async function InstallmentsPage() {
    * a month / later / paid), so the list reads at a glance without a second
    * column of figures. The details — dollar equivalent, remainder of a partial
    * payment, who it is owed to, and the pay actions — open under the row.
-   * Near-due rows start open so their pay button is one tap away.
+   * Rows start collapsed so the schedule remains scannable; actions open on demand.
    */
   const renderRow = (r: (typeof rows)[number]) => {
     const d = daysUntil(r.dueDate);
     const late = !r.fx.isPaid && r.dueDate < today;
     const tone = r.fx.isPaid ? "paid" : late ? "late" : d <= 7 ? "soon" : d <= 30 ? "near" : "later";
-    const openByDefault = tone === "late" || tone === "soon" || tone === "near";
+    const openByDefault = false;
     // Toman is always the frozen obligation.
     const primary = r.fx.displayToman != null ? formatMoney(r.fx.displayToman, "IRT") : "—";
     const receivable = isReceivable(r.direction);
@@ -162,7 +162,7 @@ export default async function InstallmentsPage() {
     // pending one shows the countdown. The countdown phrase is an RTL isolate.
     const paidAt = r.fx.isPaid ? r.fx.paidAt : null;
     const paidOnTime = paidAt != null && paidAt === r.dueDate;
-    const formHref = `/new?type=debt_repayment&installmentId=${r.id}&entryDate=${r.dueDate}&title=${encodeURIComponent(`قسط ${r.seq} — ${r.title}`)}`;
+    const formHref = `/new?type=debt_repayment&installmentId=${r.id}&entryDate=${today}&title=${encodeURIComponent(`قسط ${r.seq} — ${r.title}`)}`;
 
     return (
       <li key={r.id} className="inst-item" data-tone={tone}>
@@ -176,7 +176,7 @@ export default async function InstallmentsPage() {
                 {r.title}
               </span>
               <span className="inst-meta">
-                <span className="num">{formatJalaliIso(paidAt ?? r.dueDate)}</span>
+                <bdi className="num" dir="ltr">{formatJalaliIso(paidAt ?? r.dueDate)}</bdi>
                 {r.creditor ? ` · ${r.creditor}` : ""}
               </span>
             </span>
@@ -213,7 +213,7 @@ export default async function InstallmentsPage() {
                 <div>
                   <dt>سررسید</dt>
                   <dd>
-                    <span className="num">{formatJalaliIso(r.dueDate)}</span> · <span className="whitespace-nowrap">{formatDaysUntil(d)}</span>
+                    <bdi className="num" dir="ltr">{formatJalaliIso(r.dueDate)}</bdi>
                   </dd>
                 </div>
               )}
@@ -234,25 +234,27 @@ export default async function InstallmentsPage() {
                 </div>
               )}
             </dl>
-            <InstallmentUsdLine fx={r.fx} />
+            <div className="inst-footer">
+              <InstallmentUsdLine fx={r.fx} />
 
-            {!r.fx.isPaid && (
-              <div className="inst-actions">
-                <Link href={formHref} className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
-                  باز کردن در فرم
-                </Link>
-                <SettleObligationSheet
-                  installmentId={r.id}
-                  dueToman={r.dueToman}
-                  paidSoFarToman={r.paidSoFarToman}
-                  cashAccountId={cashAccount[0]?.id}
-                  direction={r.direction}
-                  label={`قسط ${r.seq} — ${r.title}`}
-                  className="inst-settle"
-                  buttonClassName="w-full"
-                />
-              </div>
-            )}
+              {!r.fx.isPaid && (
+                <div className="inst-actions">
+                  <Link href={formHref} className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
+                    باز کردن در فرم
+                  </Link>
+                  <SettleObligationSheet
+                    installmentId={r.id}
+                    dueToman={r.dueToman}
+                    paidSoFarToman={r.paidSoFarToman}
+                    cashAccountId={cashAccount[0]?.id}
+                    direction={r.direction}
+                    label={`قسط ${r.seq} — ${r.title}`}
+                    className="inst-settle"
+                    buttonClassName="w-full"
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </details>
       </li>
@@ -260,7 +262,7 @@ export default async function InstallmentsPage() {
   };
 
   return (
-    <div className="space-y-7">
+    <div className="mx-auto w-full max-w-5xl min-w-0 space-y-7">
       <div>
         <PageHeader
           title="اقساط"
