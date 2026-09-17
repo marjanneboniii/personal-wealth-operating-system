@@ -1244,8 +1244,24 @@ const OPTIONAL_STATEMENTS = [
      FOR EACH ROW EXECUTE FUNCTION vehicle_valuation_snapshots_immutable();`,
 ];
 
+const BANK_IDENTIFIER_STATEMENTS = ["CREATE TABLE IF NOT EXISTS public.bank_sms_identifiers (\n id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,\n account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,\n bank_name text NOT NULL,\n kind text NOT NULL CHECK (kind IN ('card','account','iban')),\n suffix text NOT NULL CHECK (suffix ~ '^[0-9]{4,8}$'),\n created_at timestamptz NOT NULL DEFAULT now()\n);\n", "\nCREATE UNIQUE INDEX IF NOT EXISTS bank_sms_identifiers_unique_idx ON public.bank_sms_identifiers(user_id,account_id,bank_name,kind,suffix);\n", "\nCREATE INDEX IF NOT EXISTS bank_sms_identifiers_user_idx ON public.bank_sms_identifiers(user_id);\n", "\nALTER TABLE public.bank_sms_identifiers ENABLE ROW LEVEL SECURITY;\n", "\nREVOKE ALL ON public.bank_sms_identifiers FROM PUBLIC;\n", "\nDO $$ DECLARE role_name text; BEGIN\n FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN\n   EXECUTE format('REVOKE ALL ON public.bank_sms_identifiers FROM %I', role_name);\n  END IF;\n END LOOP;\nEND $$;\n"];
+
+const BANK_SMS_STATEMENTS = [
+  "CREATE TABLE IF NOT EXISTS public.bank_sms_connections (\n  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,\n  name text NOT NULL,\n  token_hash text NOT NULL,\n  created_at timestamptz NOT NULL DEFAULT now(),\n  revoked_at timestamptz,\n  last_received_at timestamptz\n);\n",
+  "\nCREATE UNIQUE INDEX IF NOT EXISTS bank_sms_connections_token_idx ON public.bank_sms_connections(token_hash);\n",
+  "\nCREATE INDEX IF NOT EXISTS bank_sms_connections_user_idx ON public.bank_sms_connections(user_id);\n",
+  "\nCREATE TABLE IF NOT EXISTS public.bank_sms_inbox (\n  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,\n  connection_id uuid NOT NULL REFERENCES public.bank_sms_connections(id),\n  encrypted_payload text,\n  fingerprint text NOT NULL,\n  sent_at timestamptz NOT NULL,\n  received_at timestamptz NOT NULL DEFAULT now(),\n  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','processing','confirmed','rejected')),\n  processing_at timestamptz,\n  entry_id uuid REFERENCES public.journal_entries(id)\n);\n",
+  "\nCREATE UNIQUE INDEX IF NOT EXISTS bank_sms_inbox_replay_idx ON public.bank_sms_inbox(user_id,fingerprint);\n",
+  "\nCREATE INDEX IF NOT EXISTS bank_sms_inbox_user_status_idx ON public.bank_sms_inbox(user_id,status);\n",
+  "\nCREATE INDEX IF NOT EXISTS bank_sms_inbox_connection_idx ON public.bank_sms_inbox(connection_id);\n",
+  "\n-- Only trusted application server connections may access credentials or SMS.\nALTER TABLE public.bank_sms_connections ENABLE ROW LEVEL SECURITY;\n",
+  "\nALTER TABLE public.bank_sms_inbox ENABLE ROW LEVEL SECURITY;\n",
+  "\nREVOKE ALL ON public.bank_sms_connections, public.bank_sms_inbox FROM PUBLIC;\n",
+  "\nDO $$ DECLARE role_name text; BEGIN\n  FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP\n    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN\n      EXECUTE format('REVOKE ALL ON public.bank_sms_connections, public.bank_sms_inbox FROM %I', role_name);\n    END IF;\n  END LOOP;\nEND $$;\n"
+];
+
 export async function createSchemaIfNotExists() {
-  for (const stmt of STATEMENTS) {
+  for (const stmt of [...STATEMENTS, ...BANK_SMS_STATEMENTS, ...BANK_IDENTIFIER_STATEMENTS]) {
     for (let attempt = 1; ; attempt++) {
       try {
         await db.execute(sql.raw(stmt));

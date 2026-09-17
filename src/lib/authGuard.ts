@@ -19,10 +19,10 @@ export function isAdminOrOwner(user: { role?: string | null } | null | undefined
  * to /setup before any app page renders.
  * Fail-Closed: DB/session errors throw instead of allowing access.
  */
-export async function ensureAuth() {
+export async function ensureAuth(options: { allowIncompleteSetup?: boolean } = {}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (await isSetupRequired(user.id)) redirect("/setup");
+  if (!options.allowIncompleteSetup && await isSetupRequired(user.id)) redirect("/setup");
   return user;
 }
 

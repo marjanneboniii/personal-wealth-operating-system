@@ -26,7 +26,7 @@ export const metadata = { title: "تنظیمات" };
  * pro-mode switch: by owner decision the app never offers it.
  */
 export default async function SettingsPage() {
-  await ensureAuth();
+  await ensureAuth({ allowIncompleteSetup: true });
   await seedIfEmpty();
   const user = await getCurrentUser();
   const [backups, fx] = await Promise.all([

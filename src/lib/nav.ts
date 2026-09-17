@@ -77,6 +77,15 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "transactions",
         question: "چه چیزی ثبت شده است؟",
         keywords: ["transactions", "activity", "تراکنش", "فعالیت"],
+        children: [
+          {
+            href: "/transactions/import",
+            label: "ورود و بازبینی پیام بانکی",
+            icon: "transactions",
+            question: "پیام یا صورت‌حساب بانکی را چگونه به تراکنش تبدیل کنم؟",
+            keywords: ["import", "csv", "sms", "پیامک", "صورت‌حساب", "بازبینی"],
+          },
+        ],
       },
       {
         href: "/accounts",

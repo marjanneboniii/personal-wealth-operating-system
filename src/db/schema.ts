@@ -1653,3 +1653,38 @@ export const userPreferences = pgTable(
   },
   (t) => [index("user_preferences_user_idx").on(t.userId)],
 );
+
+/** iPhone Shortcuts credentials are write-only and never exposed through the Data API. */
+export const bankSmsConnections = pgTable("bank_sms_connections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  lastReceivedAt: timestamp("last_received_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("bank_sms_connections_token_idx").on(t.tokenHash), index("bank_sms_connections_user_idx").on(t.userId)]);
+
+export const bankSmsInbox = pgTable("bank_sms_inbox", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  connectionId: uuid("connection_id").notNull().references(() => bankSmsConnections.id),
+  encryptedPayload: text("encrypted_payload"),
+  fingerprint: text("fingerprint").notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  status: text("status").notNull().default("pending"),
+  processingAt: timestamp("processing_at", { withTimezone: true }),
+  entryId: uuid("entry_id").references(() => journalEntries.id),
+}, (t) => [uniqueIndex("bank_sms_inbox_replay_idx").on(t.userId, t.fingerprint), index("bank_sms_inbox_user_status_idx").on(t.userId, t.status), index("bank_sms_inbox_connection_idx").on(t.connectionId)]);
+
+/** Private bank/card suffix mappings; no complete card numbers or browser Data API access. */
+export const bankSmsIdentifiers = pgTable("bank_sms_identifiers", {
+ id: uuid("id").primaryKey().defaultRandom(),
+ userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ accountId: uuid("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+ bankName: text("bank_name").notNull(),
+ kind: text("kind").notNull(),
+ suffix: text("suffix").notNull(),
+ createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("bank_sms_identifiers_unique_idx").on(t.userId, t.accountId, t.bankName, t.kind, t.suffix), index("bank_sms_identifiers_user_idx").on(t.userId)]);

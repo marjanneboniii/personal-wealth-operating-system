@@ -113,10 +113,13 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         <PageHeader
           title="تراکنش‌ها"
           action={
-            <Link href="/new" className="btn btn-primary">
-              <Icon name="plus" size={16} />
-              ثبت تراکنش
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/transactions/import" className="btn btn-ghost">ورود پیام / صورت‌حساب</Link>
+              <Link href="/new" className="btn btn-primary">
+                <Icon name="plus" size={16} />
+                ثبت تراکنش
+              </Link>
+            </div>
           }
         />
         <ModuleTabs tabs={MONEY_TABS} active="/transactions" label="بخش‌های پول" />
