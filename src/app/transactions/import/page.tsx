@@ -43,7 +43,7 @@ export default async function BankImportPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <PageHeader title="اتصال پیامک" subtitle="بانک و کارت را معرفی کنید، آیفون را وصل کنید و پیام‌های جدید را با تأیید خودتان ثبت کنید." action={<Link href="/transactions" className="btn btn-ghost">تراکنش‌ها</Link>} />
-      <div className="sms-flow" aria-label="مراحل اتصال"><span>۱ · بانک و کارت</span><span>۲ · اتصال آیفون</span><span>۳ · بررسی پیام‌ها</span></div>
+      <div className="sms-flow" aria-label="مراحل اتصال"><span>۱ · بانک و کارت</span><span>۲ · ساخت کلید</span><span>۳ · تنظیم آیفون</span><span>۴ · تأیید پیام‌ها</span></div>
       <BankIdentifiers accounts={moneyAccounts} identifiers={identifiers} />
       <IphoneSmsConnection endpoint={endpoint} connections={connections.map((c) => ({ ...c, createdAt: c.createdAt.toISOString(), lastReceivedAt: c.lastReceivedAt?.toISOString() ?? null }))} />
       <BankImportWorkspace smsDrafts={smsDrafts} accounts={moneyAccounts} expenseCategories={categories(expenseTree)} incomeCategories={categories(incomeTree)} history={history.map((r) => ({ entryDate: r.entryDate, type: r.type, status: r.status, reviewed: r.reviewed, description: r.description, categoryId: r.categoryId, categoryNonCash: r.categoryNonCash, fxIrtAmount: r.fxIrtAmount }))} habits={habits} historyLimited={history.length >= 500} rate={String(rate.rate)} rateDate={rate.effectiveDate} />

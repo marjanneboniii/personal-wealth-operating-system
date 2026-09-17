@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { D, Decimal } from "@/domain/decimal";
 import { formatMoney, formatSignedMoney, trendTone, toneColor } from "@/lib/format";
 import type { AssetValuation } from "@/features/portfolio/types";
@@ -63,7 +64,7 @@ function Measure({
   return (
     <div className={primary ? "valuation-measure is-primary" : "valuation-measure"}>
       <span className="sr-only">{label}</span>
-      <span className="num valuation-measure-value money-nowrap" dir="rtl" style={tone ? { color: tone } : undefined}>
+      <span className="num valuation-measure-value money-nowrap" dir="rtl" style={{ ...(tone ? { color: tone } : {}), "--valuation-chars": Math.max(1, value.replace(/[\u2066-\u2069]/g, "").length) } as CSSProperties}>
         {value}
       </span>
     </div>
