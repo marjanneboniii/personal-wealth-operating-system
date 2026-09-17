@@ -5508,3 +5508,15 @@ a.expense-square { text-decoration: none; color: var(--text-2); }
 .market-form-grid { display: grid; gap: 0.75rem; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 640px) { .market-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1024px) { .market-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* SMS setup follows the expense form's compact cards and wrapping choices. */
+.sms-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.sms-flow > span { padding: .625rem .25rem; border-radius: var(--r-md); background: var(--sunken); text-align: center; font-size: var(--fs-xs); color: var(--text-2); }
+.sms-guide { padding: .875rem; border: 1px solid var(--border); border-radius: var(--r-lg); }
+.sms-guide > summary { cursor: pointer; font-size: var(--fs-sm); font-weight: 600; min-height: 1.5rem; }
+.sms-guide-steps { list-style: decimal; padding-inline-start: 1.5rem; display: grid; gap: .75rem; margin-top: .875rem; }
+.sms-guide-steps > li { padding: .75rem; background: var(--sunken); border-radius: var(--r-md); line-height: 1.8; }
+.sms-connected-list { display: grid; gap: .5rem; }
+.sms-connected-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; padding: .75rem; border: 1px solid var(--border); border-radius: var(--r-md); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.sms-review-card > header h2 { font-size: var(--fs-md); }
+.sms-review-card details summary { min-height: 2rem; }

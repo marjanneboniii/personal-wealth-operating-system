@@ -92,8 +92,20 @@ test("iPhone SMS: setup, write-only credentials, encrypted tenant inbox, retries
   assert.equal(rejected.encryptedPayload, null);
   const { addBankIdentifierAction, removeBankIdentifierAction } = await import("../src/app/actions/bankIdentifiers");
   const { listBankIdentifiers } = await import("../src/features/bankImport/identifiers");
+  const { default: SetupMessagesPage } = await import("../src/app/setup/messages/page");
   assert.equal((await addBankIdentifierAction({ accountId: bank.id, bankName: "بانک ملت", kind: "card", suffix: "۱۲۳۴" })).ok, true);
   assert.equal((await addBankIdentifierAction({ accountId: bank.id, bankName: "ملت", kind: "card", suffix: "6037991234561234" })).ok, false);
+  const beforeSetupPage = await db.select().from(journalEntries);
+  const setupPage = await SetupMessagesPage();
+  const setupChildren = setupPage.props.children as { type?: { name?: string }; props?: { identifiers?: { accountId: string }[]; accounts?: { id: string }[]; connections?: { id: string; token?: string; tokenHash?: string }[] } }[];
+  const mappingPanel = setupChildren.find((child) => child.type?.name === "BankIdentifiers")!;
+  assert.ok(mappingPanel.props!.accounts!.every((account) => account.id === bank.id));
+  assert.ok(mappingPanel.props!.identifiers!.every((identifier) => identifier.accountId === bank.id));
+  const connectionPanel = setupChildren.find((child) => child.type?.name === "IphoneSmsConnection")!;
+  assert.equal(connectionPanel.props!.connections![0].id, connection.id);
+  assert.equal(connectionPanel.props!.connections![0].token, undefined);
+  assert.equal(connectionPanel.props!.connections![0].tokenHash, undefined);
+  assert.deepEqual(await db.select().from(journalEntries), beforeSetupPage, "reopening SMS setup never repeats opening entries");
   const [identifier] = await listBankIdentifiers(owner.id);
   assert.equal(identifier.suffix, "1234");
   assert.equal((await listBankIdentifiers(other.id)).length, 0);
@@ -134,6 +146,7 @@ test("iPhone SMS: setup, write-only credentials, encrypted tenant inbox, retries
   assert.equal((await removeBankIdentifierAction(identifier.id)).ok, true);
   await db.update(userSetupState).set({ completed: false }).where(eq(userSetupState.userId, owner.id));
   assert.equal((await post({ ...input, message: "واریز 1000 تومان" })).status, 403);
+  await assert.rejects(() => SetupMessagesPage(), /NEXT_REDIRECT/, "SMS onboarding requires completed financial setup even for existing accounts");
   await db.update(userSetupState).set({ completed: true }).where(eq(userSetupState.userId, owner.id));
   assert.equal((await revokeIphoneConnectionAction(connection.id)).ok, true);
   assert.equal((await post(input)).status, 401);

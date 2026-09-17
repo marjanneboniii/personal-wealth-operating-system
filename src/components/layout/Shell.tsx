@@ -437,7 +437,7 @@ export default function Shell({
   const isLanding = pathname === "/" && publicHome;
   const isPublicChrome = isAuthRoute || isMarketing || isLanding;
   // Initial setup is mandatory and focused: no app navigation while on it.
-  const hideAppNav = isPublicChrome || pathname === "/setup";
+  const hideAppNav = isPublicChrome || pathname === "/setup" || pathname.startsWith("/setup/");
 
   return (
     <div

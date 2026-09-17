@@ -36,8 +36,8 @@ import { OCCUPATIONS } from "@/features/income/occupations";
  * confirmed USD→IRT rate converts them. The book currency (USD) is internal.
  */
 
-const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک", "خودرو", "بدهی‌ها", "تأیید"] as const;
-const LAST_STEP = STEPS.length;
+const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک", "خودرو", "بدهی‌ها", "تأیید", "اتصال پیامک"] as const;
+const LAST_STEP = STEPS.length - 1; // Financial confirmation; SMS setup follows after the commit.
 
 /** Places that hold Toman: Iranian exchanges (crypto) and brokerages (Tehran market). */
 const TOMAN_PLACE_GROUPS: Array<[string, typeof KNOWN_WALLETS]> = [
@@ -161,7 +161,7 @@ export default function SetupWizardPage() {
 
     setCompletionNote(notes.length ? notes.join(" ") : null);
     setStatus("completed");
-    if (notes.length === 0) setTimeout(() => router.push("/"), 1200);
+    if (notes.length === 0) router.push("/setup/messages");
     return res;
   }, null);
 
@@ -254,13 +254,15 @@ export default function SetupWizardPage() {
           <span className="flow-icon is-in mx-auto" aria-hidden="true">
             <Icon name="check" size={17} />
           </span>
-          <h1 className="text-[length:var(--fs-lg)] font-bold">راه‌اندازی کامل شد</h1>
+          <h1 className="text-[length:var(--fs-lg)] font-bold">راه‌اندازی مالی ثبت شد</h1>
           {completionNote && (
             <p className="text-right text-[length:var(--fs-xs)] leading-6" role="alert" style={{ color: "var(--warning)" }}>
               {completionNote}
             </p>
           )}
+          <p className="text-sm">مرحلهٔ بعد: معرفی کارت‌ها و تنظیم دریافت پیامک بانکی. برای این کار موجودی اولیه را دوباره ثبت نکنید.</p>
           <div className="flex flex-wrap justify-center gap-2">
+            <Link href="/setup/messages" className="btn btn-primary">ادامه: مرحلهٔ ۹ — اتصال پیامک</Link>
             <Link href="/" className="btn btn-primary">
               نمای کلی
             </Link>
@@ -283,7 +285,7 @@ export default function SetupWizardPage() {
           <h1 className="text-[length:var(--fs-xl)] font-bold tracking-tight">راه‌اندازی توازن</h1>
           <span className="flex items-center gap-2">
             <span className="muted num text-[length:var(--fs-xs)]">
-              {faCount(step)} از {faCount(LAST_STEP)}
+              {faCount(step)} از {faCount(STEPS.length)}
             </span>
             <button type="button" onClick={logout} className="btn btn-ghost !min-h-8 !px-2.5 text-[length:var(--fs-xs)]">
               خروج
@@ -756,7 +758,7 @@ export default function SetupWizardPage() {
             </button>
           ) : (
             <button key="confirm" type="submit" disabled={pending || !rateReady} className="btn btn-primary">
-              {pending ? "در حال ثبت…" : "تأیید و شروع"}
+              {pending ? "در حال ثبت…" : "تأیید حساب‌ها و ادامه به اتصال پیامک"}
             </button>
           )}
         </div>

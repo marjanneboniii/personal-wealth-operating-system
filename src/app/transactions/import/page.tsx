@@ -16,7 +16,7 @@ import { PageHeader } from "@/components/ui/Card";
 import BankImportWorkspace from "@/components/transactions/BankImportWorkspace";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "ورود و بازبینی پیام بانکی" };
+export const metadata = { title: "اتصال پیامک" };
 
 export default async function BankImportPage() {
   const user = await ensureAuth();
@@ -41,8 +41,9 @@ export default async function BankImportPage() {
   let endpoint: string | null = null;
   try { const url = new URL(process.env.NEXT_PUBLIC_SITE_URL || ""); if (url.protocol === "https:") endpoint = new URL("/api/bank-messages", url.origin).href; } catch {}
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <PageHeader title="ورود و بازبینی پیام بانکی" subtitle="پیام‌های دریافتی را بررسی کنید، دسته را انتخاب کنید و سپس ثبت را تأیید کنید." action={<Link href="/transactions" className="btn btn-ghost">تراکنش‌ها</Link>} />
+    <div className="mx-auto max-w-2xl space-y-5">
+      <PageHeader title="اتصال پیامک" subtitle="بانک و کارت را معرفی کنید، آیفون را وصل کنید و پیام‌های جدید را با تأیید خودتان ثبت کنید." action={<Link href="/transactions" className="btn btn-ghost">تراکنش‌ها</Link>} />
+      <div className="sms-flow" aria-label="مراحل اتصال"><span>۱ · بانک و کارت</span><span>۲ · اتصال آیفون</span><span>۳ · بررسی پیام‌ها</span></div>
       <BankIdentifiers accounts={moneyAccounts} identifiers={identifiers} />
       <IphoneSmsConnection endpoint={endpoint} connections={connections.map((c) => ({ ...c, createdAt: c.createdAt.toISOString(), lastReceivedAt: c.lastReceivedAt?.toISOString() ?? null }))} />
       <BankImportWorkspace smsDrafts={smsDrafts} accounts={moneyAccounts} expenseCategories={categories(expenseTree)} incomeCategories={categories(incomeTree)} history={history.map((r) => ({ entryDate: r.entryDate, type: r.type, status: r.status, reviewed: r.reviewed, description: r.description, categoryId: r.categoryId, categoryNonCash: r.categoryNonCash, fxIrtAmount: r.fxIrtAmount }))} habits={habits} historyLimited={history.length >= 500} rate={String(rate.rate)} rateDate={rate.effectiveDate} />

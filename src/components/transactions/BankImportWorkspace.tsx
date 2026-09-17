@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import SmsChoices from "./SmsChoices";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { rejectBankSmsAction } from "@/app/actions/bankSms";
@@ -78,20 +79,18 @@ function ReviewRow({ draft, props, onPendingChange }: { draft: BankDraft; props:
   if (rejected) return <Card><p>این مورد رد شد؛ اثری بر حساب‌ها ندارد.</p><button type="button" className="btn btn-ghost mt-3" onClick={() => setRejected(false)}>برگرداندن به بازبینی</button></Card>;
 
   return (
-    <Card title={draft.direction === "withdrawal" ? "برداشت بانکی — نیاز به تعیین نوع" : draft.direction === "deposit" ? "واریز بانکی — نیاز به تعیین نوع" : "پیام بانکی — نیاز به بررسی"}>
+    <Card className="sms-review-card" title={draft.direction === "withdrawal" ? "برداشت بانکی — نیاز به تعیین نوع" : draft.direction === "deposit" ? "واریز بانکی — نیاز به تعیین نوع" : "پیام بانکی — نیاز به بررسی"}>
       {draft.sender && <p className="mb-2 text-sm">فرستنده اعلام‌شده: {draft.sender}</p>}
       <details className="mb-3"><summary className="cursor-pointer text-sm">متن ورودی</summary><p className="mt-2 whitespace-pre-wrap break-words text-sm" dir="auto">{draft.source}</p></details>
       {draft.warnings.length > 0 && <ul className="mb-4 space-y-1 text-sm" style={{ color: "var(--warning)" }}>{draft.warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
       {draft.accountMatchMessage && <p className="mb-3 text-sm">{draft.accountMatchMessage}</p>}
       <form onSubmit={submit} className="space-y-4">
         <fieldset disabled={pending} className="space-y-4">
-          <label className="block"><span className="label">این جابه‌جایی چه نوعی است؟</span><select className="field" value={type} onChange={(e) => { setType(e.target.value); setCategoryId(""); changed(); }} required>
-            <option value="">خودم انتخاب می‌کنم</option><option value="expense">هزینهٔ مصرفی</option><option value="income">درآمد</option><option value="transfer">انتقال بین حساب‌های خودم</option><option value="debt_repayment">پرداخت بدهی یا قسط</option><option value="buy">خرید دارایی</option><option value="sell">فروش دارایی</option><option value="debt">دریافت وام یا وصول طلب</option>
-          </select></label>
+          <SmsChoices label="این جابه‌جایی چه نوعی است؟" value={type} options={[{ id: "expense", name: "هزینه" }, { id: "income", name: "درآمد" }, { id: "transfer", name: "انتقال خودم" }, { id: "debt_repayment", name: "قسط / بدهی" }, { id: "buy", name: "خرید دارایی" }, { id: "sell", name: "فروش دارایی" }, { id: "debt", name: "وام / طلب" }]} onChange={(id) => { setType(id); setCategoryId(""); changed(); }} />
           {["buy", "sell", "debt_repayment", "debt"].includes(type) ? <p className="text-sm">این مورد باید به دارایی یا تعهد موجود متصل شود. <Link className="underline" href={type === "debt" ? "/debts" : `/new?${new URLSearchParams({ type, irtAmount: amount, entryDate: date, title: description })}`}>ادامه در بخش مربوط</Link>؛ پس از ثبت، این مورد را از صف رد کنید.</p> : <>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block"><span className="label">{type === "income" ? "حساب دریافت" : "حساب پرداخت / مبدأ"}</span><select className="field" required value={accountId} onChange={(e) => { setAccountId(e.target.value); changed(); }}><option value="">حساب تومانی را انتخاب کنید</option>{props.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-              {type === "transfer" ? <label className="block"><span className="label">حساب مقصد</span><select className="field" value={destinationId} required onChange={(e) => { setDestinationId(e.target.value); changed(); }}><option value="">حساب متفاوت را انتخاب کنید</option>{props.accounts.filter((a) => a.id !== accountId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label> : <label className="block"><span className="label">{type === "income" ? "منبع درآمد" : "دستهٔ هزینه"}</span><select className="field" required value={categoryId} onChange={(e) => { setCategoryId(e.target.value); changed(); }}><option value="">انتخاب و بررسی دسته</option>{groups.map((g) => <optgroup key={g.id} label={g.name}>{g.children.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>)}</select></label>}
+              <div className="sm:col-span-2"><SmsChoices label={type === "income" ? "واریز به کدام حساب؟" : "پرداخت از کدام حساب؟"} value={accountId} options={props.accounts} onChange={(id) => { setAccountId(id); changed(); }} /></div>
+              {type === "transfer" ? <div className="sm:col-span-2"><SmsChoices label="حساب مقصد" value={destinationId} options={props.accounts.filter((a) => a.id !== accountId)} onChange={(id) => { setDestinationId(id); changed(); }} /></div> : <div className="sm:col-span-2 space-y-2"><p className="label">{type === "income" ? "منبع درآمد" : "دستهٔ هزینه"}</p>{categoryId && <p className="expense-note">انتخاب شما: {groups.flatMap((g) => g.children).find((c) => c.id === categoryId)?.name}</p>}{groups.map((g) => <details key={g.id} className="sms-guide"><summary>{g.name}</summary><div className="pt-3"><SmsChoices label={`انتخاب از ${g.name}`} value={categoryId} options={g.children} onChange={(id) => { setCategoryId(id); changed(); }} /></div></details>)}</div>}
               <label className="block"><span className="label">مبلغ تراکنش به تومان</span><AmountInput className="field" value={amount} inputMode="decimal" maxDecimals={1} onValueChange={(v) => { setAmount(v); changed(); }} unit="toman" required /></label>
               <DualDateInput name="date" value={date} onChange={(v) => { setDate(v); changed(); }} required />
             </div>
@@ -142,7 +141,8 @@ export default function BankImportWorkspace(props: Props) {
     <div className="space-y-5">
       <Card title="صندوق پیامک‌های دریافتی"><p className="text-sm">{props.smsDrafts.length ? `${props.smsDrafts.length.toLocaleString("fa-IR")} پیام منتظر بازبینی است. فقط پس از تأیید ثبت مالی می‌شود.` : "پیام جدیدی برای بازبینی نیست؛ پس از اتصال Shortcuts، پیام‌های تراکنش در این بخش ظاهر می‌شوند."}</p></Card>
       {props.smsDrafts.map((d) => <ReviewRow key={d.inboxId} draft={d} props={props} onPendingChange={(pending) => setBusyRows((n) => n + (pending ? 1 : -1))} />)}
-      <Card title="پیام یا صورت‌حساب را وارد کنید">
+      <details className="sms-guide"><summary>روش جایگزین: پیام یا صورت‌حساب دستی</summary>
+      <Card className="mt-3" title="ورود دستی">
         <p className="mb-3 text-sm">متن در همین صفحه پردازش می‌شود. صف موقت است و با خروج یا بارگذاری مجدد صفحه از بین می‌رود؛ فقط موارد تأییدشده ذخیره می‌شوند. پیام‌های اتصال Shortcuts در صندوق بالا به‌صورت دائمی نگهداری می‌شوند؛ این بخش فقط روش ورود دستی جایگزین است.</p>
         {!props.accounts.length && <p className="mb-3 text-sm"><Link className="underline" href="/accounts">ابتدا یک حساب پول تومانی ثبت کنید.</Link></p>}
         <label className="block"><span className="label">متن یک پیام بانکی</span><textarea className="field min-h-28" value={text} maxLength={8000} onChange={(e) => setText(e.target.value)} placeholder="بانک ملت — برداشت: ۲٬۵۰۰٬۰۰۰ ریال — ۱۴۰۵/۰۶/۲۶" /></label>
@@ -153,6 +153,7 @@ export default function BankImportWorkspace(props: Props) {
         {error && <p role="alert" className="mt-3 text-sm">{error}</p>}
         {filePending && <p role="status">در حال خواندن فایل…</p>}
       </Card>
+      </details>
       {drafts.length > 0 && <>
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">صف بازبینی — {drafts.length.toLocaleString("fa-IR")} مورد</h2><button type="button" className="btn btn-ghost" disabled={busyRows > 0 || filePending} onClick={() => { if (window.confirm("صف موقت پاک شود؟ تراکنش‌های ثبت‌شده باقی می‌مانند.")) { setDrafts([]); setBatch(batch + 1); } }}>پاک‌کردن صف موقت</button></div>
         {drafts.map((d, i) => <ReviewRow key={`${batch}-${i}`} draft={d} props={props} onPendingChange={(pending) => setBusyRows((n) => n + (pending ? 1 : -1))} />)}
