@@ -80,9 +80,9 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           {
             href: "/transactions/import",
-            label: "ورود و بازبینی پیام بانکی",
+            label: "اتصال پیامک",
             icon: "transactions",
-            question: "پیام یا صورت‌حساب بانکی را چگونه به تراکنش تبدیل کنم؟",
+            question: "چطور پیامک‌های بانکی را به توازن وصل کنم؟",
             keywords: ["import", "csv", "sms", "پیامک", "صورت‌حساب", "بازبینی"],
           },
         ],
