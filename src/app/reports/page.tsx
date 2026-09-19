@@ -49,21 +49,9 @@ export default async function ReportsPage() {
      expense balances turned every installment paid into household consumption
      and deflated «نرخ پس‌انداز». `getExpenseIncomeTotals` applies the same
      `debt_repayment` exclusion the cash-flow page already uses, so the two
-     reports finally share ONE definition of "expense"; what it excludes is
-     disclosed under «بدهی و بازپرداخت» instead of disappearing. */
+     reports finally share ONE definition of "expense". */
   const totalIncome = D(totals.income);
   const totalExpense = D(totals.expense);
-  /* WHAT THE EXCLUSION WAS WORTH, disclosed under «بدهی و بازپرداخت» so a
-     filtered-out number never just vanishes. Prefer the CONTRACTUAL Toman
-     frozen at payment time (`installments.paid_toman`, read by
-     getExpenseIncomeTotals) — it cannot drift with the dollar. When the excluded
-     entries are not all backed by such a row (e.g. a hand-written repayment),
-     the ledger's own USD base value is shown INSTEAD, unconverted: multiplying
-     it by today's rate would invent a Toman figure that no one ever agreed to. */
-  const repaymentsExcluded = totals.repaymentEntries > 0 && !D(totals.repayments).isZero();
-  const repaymentsFullyFrozen =
-    totals.repaymentsTomanEntries > 0 && totals.repaymentsTomanEntries === totals.repaymentEntries;
-  const repaymentsTomanValue = repaymentsFullyFrozen ? totals.repaymentsToman : null;
   // SSOT: portfolio valuation already excludes orphaned/deleted RWA assets
   // and never treats a missing price as zero (which would fake a full write-off).
   const unrealized = D(nw.valuation.totalUnrealizedPnl);
@@ -305,22 +293,6 @@ export default async function ReportsPage() {
             </ul>
           ) : (
             <p className="card expense-empty">بدهی‌ای ثبت نشده است</p>
-          )}
-          {repaymentsExcluded && (
-            // Prose, not a figure: `.num` would force `nowrap` on the whole
-            // paragraph and push it past the card's edge. Only the amount
-            // itself is kept on one line.
-            <p className="expense-sub mt-3 leading-6" dir="rtl">
-              <span className="num" dir="rtl">
-                {repaymentsTomanValue ? formatMoney(repaymentsTomanValue, "IRT") : formatMoney(totals.repayments)}
-              </span>{" "}
-              {repaymentsTomanValue
-                ? "از پرداخت اقساط، از «کل هزینه ثبت‌شده» خارج شد"
-                : "از پرداخت اقساط (ارز پایهٔ دفتر، بدون تبدیل به نرخ امروز)، از «کل هزینه ثبت‌شده» خارج شد"}{" "}
-              — چون بازپرداخت بدهی، مصرف نیست. این مبلغ در سرفصل «پرداخت اقساط»
-              بایگانی می‌شود و در سقف بودجه‌های خرج ماه هم شمرده نمی‌شود؛ تنها
-              بودجه‌ای آن را می‌سنجد که عمداً به همین سرفصل بسته شده باشد.
-            </p>
           )}
         </Section>
       </div>
