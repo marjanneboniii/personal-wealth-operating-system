@@ -84,6 +84,7 @@ const BASE = {
   displayCurrency: "IRT" as const,
   dateCalendar: "jalali" as const,
   digitStyle: "fa" as const,
+  fxRate: "190000", // the rate the wizard makes the user confirm
   bankAccountName: "بانک اصلی",
   cashWalletName: "صندوق خانگی",
   bankOpeningBalance: "",

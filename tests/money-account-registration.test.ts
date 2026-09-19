@@ -349,6 +349,8 @@ test("Money account: missing opening-equity metadata is provisioned without bypa
     .returning();
   await db.insert(prices).values([{ assetId: irtAsset.id, asOf: "2026-01-01", priceBase: "0.00001", source: "manual" }]);
   const [userA] = await db.insert(users).values({ name: "User A", role: "owner" } as any).returning();
+  // A Toman opening balance freezes this rate, so the user must have one.
+  await db.insert(userFxSettings).values({ userId: userA.id, currentRate: "100000" } as any);
 
   const result = await registerMoneyAccount({
     name: "بانک بدون راه‌اندازی قبلی",

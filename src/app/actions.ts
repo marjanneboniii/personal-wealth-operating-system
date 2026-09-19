@@ -44,7 +44,7 @@ import { sellRealEstateAsset } from "@/features/rwa/realEstate/service";
 import { sellVehicle } from "@/features/rwa/vehicle/service";
 import { buildRwaLabel } from "@/features/rwa/symbol";
 import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
-import { getLatestUsdIrtRateForUser, getLatestUsdIrtRate } from "@/lib/fx";
+import { assertRealUsdIrtRate, getLatestUsdIrtRateForUser, getLatestUsdIrtRate, getWritableUsdIrtRateForUser } from "@/lib/fx";
 import { getCurrentUser } from "@/lib/auth";
 import { authUsersExistCached } from "@/lib/tenantState";
 import { validateAccountOwnership } from "@/lib/validation";
@@ -238,6 +238,10 @@ export async function createMoneyAccountAction(input: unknown): Promise<ActionRe
 
   try {
     const v = moneyAccountSchema.parse(input);
+    // A Toman opening balance freezes a rate inside the registration
+    // transaction; fetch a real one first. Soft: a dollar or tether account
+    // needs no rate, so the check inside the transaction decides.
+    if (user?.id && v.openingQty) await getWritableUsdIrtRateForUser(user.id).catch(() => null);
     await registerMoneyAccount({
       name: v.name,
       kind: v.kind,
@@ -699,7 +703,10 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       }
     }
     // Fetch server-side frozen rate — per-user if logged in, single source of truth, not trusting client
-    const fxSnap = authUser ? await getLatestUsdIrtRateForUser(authUser.id) : await getLatestUsdIrtRate();
+    // A placeholder rate is refused: the entry freezes this rate forever.
+    const fxSnap = authUser
+      ? await getWritableUsdIrtRateForUser(authUser.id)
+      : assertRealUsdIrtRate(await getLatestUsdIrtRate());
     const serverRate = D(fxSnap.rate);
     if (serverRate.lte(0)) throw new Error("نرخ دلار ثبت نشده است. ابتدا نرخ را در تنظیمات ثبت کنید.");
     if (importProvenance.source && (!raw.expectedBankRate || serverRate.cmp(D(raw.expectedBankRate)) !== 0)) {
@@ -1698,6 +1705,9 @@ export async function payInstallmentAction(
     }
     // SECURITY (M-03): tenant id flows into the service so ownership is also
     // verified at the DB query level inside the atomic payment transaction.
+    // The payment freezes a rate inside its transaction, where no market call
+    // can be made — fetch a real one first if the user has none yet.
+    if (user?.id) await getWritableUsdIrtRateForUser(user.id);
     const paid = (await payInstallment(id, cashAccountId, user?.id ?? undefined, payToman)) as {
       id?: string;
       alreadyPaid?: boolean;
@@ -1830,7 +1840,8 @@ export async function createDebtAction(_prev: ActionResult | null, fd: FormData)
     const invalid = validateDebtInput(input);
     if (invalid) throw new Error(invalid);
 
-    const fx = user ? await getLatestUsdIrtRateForUser(user.id) : await getLatestUsdIrtRate();
+    // The debt freezes its creation-time USD: never at a placeholder rate.
+    const fx = user ? await getWritableUsdIrtRateForUser(user.id) : assertRealUsdIrtRate(await getLatestUsdIrtRate());
 
     const schedule = resolveScheduleInput(input);
     const count = schedule ? generateDueDates(schedule).length : 0;

@@ -1621,7 +1621,8 @@ export const userFxSettings = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" })
       .unique(),
-    currentRate: money("current_rate").notNull().default("190000"),
+    // No default: a row exists only when a real rate was fetched or chosen.
+    currentRate: money("current_rate").notNull(),
     lastUpdatedAt: timestamp("last_updated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }),

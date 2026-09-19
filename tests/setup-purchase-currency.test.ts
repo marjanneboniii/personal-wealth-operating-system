@@ -54,6 +54,7 @@ const baseInput = {
   displayCurrency: "IRT",
   dateCalendar: "jalali" as const,
   digitStyle: "fa" as const,
+  fxRate: "190000", // the rate the wizard makes the user confirm
 };
 
 test("Toman- and Tether-priced holdings are booked at the confirmed rate and keep their Toman cost", async () => {

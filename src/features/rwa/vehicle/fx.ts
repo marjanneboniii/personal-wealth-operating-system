@@ -92,6 +92,23 @@ export async function resolveUsdRateForDate(
   };
 }
 
+export const MISSING_DATED_RATE_MESSAGE =
+  "نرخ دلارِ این تاریخ در دسترس نیست و نرخ بازار هم هنوز دریافت نشده است؛ نرخ دلار همان تاریخ را در فرم وارد کنید.";
+
+/**
+ * resolveUsdRateForDate for a WRITE: the value it returns is frozen forever,
+ * so the display-only placeholder (`source: "fallback"`) is refused. Previews
+ * keep calling resolveUsdRateForDate and may show the placeholder.
+ */
+export async function resolveUsdRateForDateToFreeze(
+  dateIso: string,
+  userId?: string | null,
+): Promise<UsdRateResolution> {
+  const resolved = await resolveUsdRateForDate(dateIso, userId);
+  if (resolved.source === "fallback") throw new Error(MISSING_DATED_RATE_MESSAGE);
+  return resolved;
+}
+
 /** value_usd = value_toman ÷ usd_rate — the ONLY allowed conversion formula. */
 export function tomanToUsd(valueToman: string, usdRate: string): string {
   const rate = D(usdRate);

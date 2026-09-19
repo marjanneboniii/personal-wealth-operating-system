@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { users, userFxSettings } from "@/db/schema";
+import { users } from "@/db/schema";
 import { eq, or } from "drizzle-orm";
 import { clearSessionCookie, getCurrentUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
@@ -117,10 +117,8 @@ export async function registerAction(prev: AuthResult | null, formData: FormData
   // otherwise widen the legacy global-view window for up to the cache TTL.
   invalidateTenantStateCache();
 
-  // Ensure user has fx settings with default 190000
-  try {
-    await db.insert(userFxSettings).values({ userId, currentRate: "190000" }).onConflictDoNothing();
-  } catch {}
+  // No FX row is created here: the first market refresh writes the user's real
+  // rate. A placeholder row would later pass for a rate someone chose.
 
   await recordAuditEvent({
     action: "REGISTER",

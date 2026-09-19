@@ -107,6 +107,10 @@ export async function runSeed(): Promise<void> {
   const today = todayIso();
   const m = (n: number) => addMonthsIso(today, n);
 
+  // The demo's own USD rate, written FIRST: every entry the seed books below
+  // freezes a rate, and a write refuses the display-only placeholder.
+  await db.insert(settings).values({ key: "irt_rate", value: "190000" });
+
   /* Reference data ------------------------------------------------- */
   const cur = await db
     .insert(currencies)
@@ -541,6 +545,5 @@ export async function runSeed(): Promise<void> {
     { key: "base_currency", value: "USD" },
     { key: "digit_style", value: "fa" },
     { key: "theme", value: "system" },
-    { key: "irt_rate", value: "190000" },
   ]);
 }

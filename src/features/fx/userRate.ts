@@ -4,8 +4,10 @@ import { eq } from "drizzle-orm";
 import { fetchLiveUsdtRate } from "@/features/fx/liveRate";
 import { D } from "@/domain/decimal";
 import { recordAuditEvent } from "@/lib/audit";
+import { FALLBACK_DISPLAY_RATE } from "@/lib/fx";
 
-const DEFAULT_RATE = "190000";
+// Display placeholder only — see FALLBACK_DISPLAY_RATE in lib/fx.
+const DEFAULT_RATE = FALLBACK_DISPLAY_RATE;
 const RATE_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export type UserFxSnapshot = {
@@ -68,10 +70,8 @@ export async function getUserFxRate(userId: string | null | undefined): Promise<
     }
   } catch {}
 
-  // No user setting yet -> create with default
-  try {
-    await db.insert(userFxSettings).values({ userId, currentRate: DEFAULT_RATE }).onConflictDoNothing();
-  } catch {}
+  // No real rate yet. Nothing is written: a stored placeholder would later be
+  // indistinguishable from a real rate. The market refresh creates the row.
   const fallbackSnapshot: UserFxSnapshot = {
     rate: DEFAULT_RATE,
     effectiveDate: todayIso,

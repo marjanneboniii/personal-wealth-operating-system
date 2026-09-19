@@ -37,6 +37,7 @@ const input = {
   displayCurrency: "IRT",
   dateCalendar: "jalali" as const,
   digitStyle: "fa" as const,
+  fxRate: "190000", // the rate the wizard makes the user confirm
   bankAccountName: "Bank",
   bankAssetSymbol: "IRT",
   bankOpeningBalance: "1000",

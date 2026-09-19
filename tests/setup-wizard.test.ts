@@ -48,6 +48,7 @@ test("Phase 2.1 Requirement — Fresh user can complete setup wizard successfull
     displayCurrency: "IRT",
     dateCalendar: "jalali",
     digitStyle: "fa",
+    fxRate: "190000", // the rate the wizard makes the user confirm
     bankAccountName: "بانک سامان — جاری",
     cashWalletName: "کیف نقد خانه",
     bankOpeningBalance: "5000",
@@ -138,6 +139,7 @@ test("Phase 2.1 Requirement — Duplicate setup initialization is prevented", as
     displayCurrency: "IRT",
     dateCalendar: "jalali",
     digitStyle: "fa",
+    fxRate: "190000", // the rate the wizard makes the user confirm
   });
 
   // Attempt duplicate completion
@@ -149,6 +151,7 @@ test("Phase 2.1 Requirement — Duplicate setup initialization is prevented", as
         displayCurrency: "USD",
         dateCalendar: "gregorian",
         digitStyle: "en",
+        fxRate: "190000", // the rate the wizard makes the user confirm
       });
     },
     (err: Error) => err.message.includes("قبلاً انجام شده است"),
@@ -171,6 +174,7 @@ test("Authenticated tenants complete setup independently with isolated 3010 acco
     displayCurrency: "IRT",
     dateCalendar: "jalali" as const,
     digitStyle: "fa" as const,
+    fxRate: "190000", // the rate the wizard makes the user confirm
   };
   await completeSetup(input, userA.id);
 
@@ -198,6 +202,7 @@ test("Phase 2.1 Requirement — Setup never creates fake or demo transactions", 
     displayCurrency: "IRT",
     dateCalendar: "jalali",
     digitStyle: "fa",
+    fxRate: "190000", // the rate the wizard makes the user confirm
   });
 
   const entries = await db.select().from(journalEntries);
@@ -262,6 +267,7 @@ test("Header CoA accounts stay asset-less; money accounts keep their denominatio
     displayCurrency: "IRT",
     dateCalendar: "jalali",
     digitStyle: "fa",
+    fxRate: "190000", // the rate the wizard makes the user confirm
     bankAccountName: "بانک IRT",
     bankAssetSymbol: "IRT",
     cashWalletName: "صندوق USD",
@@ -309,6 +315,7 @@ test("Legacy NOT NULL on accounts.asset_id is repaired and setup then succeeds",
           displayCurrency: "IRT",
           dateCalendar: "jalali",
           digitStyle: "fa",
+          fxRate: "190000", // the rate the wizard makes the user confirm
         },
         driftedUser.id,
       ),
@@ -326,6 +333,7 @@ test("Legacy NOT NULL on accounts.asset_id is repaired and setup then succeeds",
       displayCurrency: "IRT",
       dateCalendar: "jalali",
       digitStyle: "fa",
+      fxRate: "190000", // the rate the wizard makes the user confirm
       bankAccountName: "Main",
       bankAssetSymbol: "USD",
       bankOpeningBalance: "10",
@@ -358,6 +366,7 @@ test("Authenticated setup does not require ON CONFLICT (user_id, code)", async (
       displayCurrency: "IRT",
       dateCalendar: "jalali",
       digitStyle: "fa",
+      fxRate: "190000", // the rate the wizard makes the user confirm
     },
     user.id,
   );
@@ -377,6 +386,7 @@ test("Opening USD bank balance stays 1:1 in book USD", async () => {
     displayCurrency: "IRT",
     dateCalendar: "jalali",
     digitStyle: "fa",
+    fxRate: "190000", // the rate the wizard makes the user confirm
     bankAccountName: "USD Cash",
     bankAssetSymbol: "USD",
     bankOpeningBalance: "35000",
@@ -448,6 +458,7 @@ test("Only the bank account is mandatory — cash box is created only when reque
     displayCurrency: "IRT",
     dateCalendar: "jalali",
     digitStyle: "fa",
+    fxRate: "190000", // the rate the wizard makes the user confirm
     bankAccountName: "بانک ملت — جاری",
     bankOpeningBalance: "5000",
   });
@@ -470,6 +481,7 @@ test("Only the bank account is mandatory — cash box is created only when reque
     displayCurrency: "IRT",
     dateCalendar: "jalali",
     digitStyle: "fa",
+    fxRate: "190000", // the rate the wizard makes the user confirm
     bankAccountName: "بانک ملت — جاری",
     cashOpeningBalance: "2500",
   });
