@@ -53,9 +53,10 @@ test('Audit remediations in disposable memory database', async (t) => {
     const [owner] = await db.insert(s.users).values({name:'Audit Owner',username:'audit_owner',role:'owner'}).returning();
     cookie = (await auth.createSession(owner.id)).token;
     const {POST} = await import('../src/app/api/restore/route');
+    const {RESTORE_TABLES} = await import('../src/features/backup/tables');
     const response = await POST(new Request('http://localhost/api/restore',{
       method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({app:'PWOS',schemaVersion:'1.0',confirmToken:'RESTORE_DATABASE_OVERWRITE',data:{users:[{id:owner.id,name:owner.name,username:owner.username,role:owner.role}]}}),
+      body:JSON.stringify({app:'PWOS',schemaVersion:'2.0',confirmToken:'RESTORE_DATABASE_OVERWRITE',data:{...Object.fromEntries(RESTORE_TABLES.map((t) => [t, []])),users:[{id:owner.id,name:owner.name,username:owner.username,role:owner.role}]}}),
     }));
     const body = await response.json();
     assert.equal(response.status,200,JSON.stringify(body));

@@ -44,6 +44,7 @@ import {
   validateCurrency,
 } from "../src/lib/validation";
 import { GET as backupGet } from "../src/app/api/backup/route";
+import { RESTORE_TABLES } from "../src/features/backup/tables";
 import { POST as restorePost } from "../src/app/api/restore/route";
 
 async function setupStage4Scenario() {
@@ -426,9 +427,10 @@ test("STAGE 4 (#16, #17) — Restore & Backup Audit: RESTORE and BACKUP events l
     headers: { "content-type": "application/json", cookie: `pwos_session=${token}` },
     body: JSON.stringify({
       app: "PWOS",
-      schemaVersion: "1.0",
+      schemaVersion: "2.0",
       confirmToken: "RESTORE_DATABASE_OVERWRITE",
       data: {
+        ...Object.fromEntries(RESTORE_TABLES.map((t) => [t, []])),
         currencies: [{ code: "USD", name: "US Dollar", symbol: "$", decimals: 2, is_fiat: true }],
       },
     }),
