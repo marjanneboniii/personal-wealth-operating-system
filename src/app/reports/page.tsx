@@ -307,10 +307,16 @@ export default async function ReportsPage() {
             <p className="card expense-empty">بدهی‌ای ثبت نشده است</p>
           )}
           {repaymentsExcluded && (
-            <p className="expense-sub num mt-3 leading-6" dir="rtl">
+            // Prose, not a figure: `.num` would force `nowrap` on the whole
+            // paragraph and push it past the card's edge. Only the amount
+            // itself is kept on one line.
+            <p className="expense-sub mt-3 leading-6" dir="rtl">
+              <span className="num" dir="rtl">
+                {repaymentsTomanValue ? formatMoney(repaymentsTomanValue, "IRT") : formatMoney(totals.repayments)}
+              </span>{" "}
               {repaymentsTomanValue
-                ? `${formatMoney(repaymentsTomanValue, "IRT")} از پرداخت اقساط، از «کل هزینه ثبت‌شده» خارج شد`
-                : `${formatMoney(totals.repayments)} از پرداخت اقساط (ارز پایهٔ دفتر، بدون تبدیل به نرخ امروز)، از «کل هزینه ثبت‌شده» خارج شد`}{" "}
+                ? "از پرداخت اقساط، از «کل هزینه ثبت‌شده» خارج شد"
+                : "از پرداخت اقساط (ارز پایهٔ دفتر، بدون تبدیل به نرخ امروز)، از «کل هزینه ثبت‌شده» خارج شد"}{" "}
               — چون بازپرداخت بدهی، مصرف نیست. این مبلغ در سرفصل «پرداخت اقساط»
               بایگانی می‌شود و در سقف بودجه‌های خرج ماه هم شمرده نمی‌شود؛ تنها
               بودجه‌ای آن را می‌سنجد که عمداً به همین سرفصل بسته شده باشد.

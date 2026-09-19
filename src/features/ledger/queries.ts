@@ -603,7 +603,8 @@ export async function getCashflow(months = 6, userId?: string) {
                                 and je.type not in ('debt_repayment')
                                 and coalesce(ec.nature, 'cash') = 'cash'
                                then p.base_value else 0 end), 0) as outflow_usd,
-             s.irt_amount::numeric as irt_amount
+             s.irt_amount::numeric as irt_amount,
+             s.usd_amount::numeric as snap_usd
       from journal_entries je
         join postings p on p.entry_id = je.id
         join accounts a on a.id = p.account_id
@@ -612,23 +613,35 @@ export async function getCashflow(months = 6, userId?: string) {
       where je.status = 'posted'
         ${u ? sql`and je.user_id = ${u}` : sql``}
         and je.entry_date >= (current_date - (${months} || ' months')::interval)
-      group by je.id, je.entry_date, s.irt_amount, je.type
+      group by je.id, je.entry_date, s.irt_amount, s.usd_amount, je.type
+    ),
+    -- The snapshot freezes the Toman of the WHOLE entry (e.g. a 25M-Toman crypto
+    -- buy), but only its expense/income legs are cash flow (e.g. the buy's
+    -- commission). Attribute the frozen Toman pro rata to those legs at the
+    -- entry's own commit-time ratio (irt / usd); a pure expense or income entry
+    -- keeps its exact frozen Toman (ratio = 1). A snapshot without a USD value
+    -- cannot be attributed and counts as uncovered.
+    attributed as (
+      select month_trunc, inflow_usd, outflow_usd,
+             case when snap_usd > 0 then irt_amount * inflow_usd / snap_usd end as inflow_irt,
+             case when snap_usd > 0 then irt_amount * outflow_usd / snap_usd end as outflow_irt
+      from per_entry
     )
     select to_char(month_trunc, 'YYYY-MM-01') as month,
            coalesce(sum(inflow_usd), 0)::text as inflow,
            coalesce(sum(outflow_usd), 0)::text as outflow,
            -- Toman is canonical from snapshot, only when that entry contributed to inflow/outflow
-           coalesce(sum(case when inflow_usd > 0 then irt_amount else 0 end), 0)::text as \"inflowToman\",
-           coalesce(sum(case when outflow_usd > 0 then irt_amount else 0 end), 0)::text as \"outflowToman\",
+           coalesce(sum(case when inflow_usd > 0 then round(inflow_irt) else 0 end), 0)::text as \"inflowToman\",
+           coalesce(sum(case when outflow_usd > 0 then round(outflow_irt) else 0 end), 0)::text as \"outflowToman\",
            -- Snapshot coverage: the caller may render the Toman aggregates as
            -- FROZEN only when every cash-flow entry of the month is covered
            -- (entries == entries_snap); a partial cover would understate the
            -- total, so the UI falls back to the dynamic current-rate view.
            count(*) filter (where inflow_usd > 0)::int as \"inflowEntries\",
            count(*) filter (where outflow_usd > 0)::int as \"outflowEntries\",
-           count(*) filter (where inflow_usd > 0 and irt_amount is not null)::int as \"inflowEntriesSnap\",
-           count(*) filter (where outflow_usd > 0 and irt_amount is not null)::int as \"outflowEntriesSnap\"
-    from per_entry
+           count(*) filter (where inflow_usd > 0 and inflow_irt is not null)::int as \"inflowEntriesSnap\",
+           count(*) filter (where outflow_usd > 0 and outflow_irt is not null)::int as \"outflowEntriesSnap\"
+    from attributed
     group by month_trunc
     order by month_trunc
   `);

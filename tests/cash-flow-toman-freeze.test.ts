@@ -421,3 +421,42 @@ test("SINGLE-USER LEGACY MODE — unresolved identity keeps the global view (no 
   assert.equal(cats[0].code, "HSG-EQUIP");
   assert.equal(D(cats[0].totalToman).toString(), "21000000");
 });
+
+test("TRADE COMMISSION — only the fee's share of a frozen trade counts as monthly outflow Toman", async () => {
+  const { userA, usd, accA } = await fixture();
+  const before = (await getCashflow(6, userA.id)).at(-1)!;
+
+  // A 25,000,000-Toman buy whose only expense leg is its 128,100-Toman
+  // commission. The snapshot freezes the WHOLE trade's Toman; the report used
+  // to count all of it as the month's expense (≈ $0.61 shown against 25M).
+  const [holding] = await db
+    .insert(accounts)
+    .values({ userId: userA.id, code: "1300_a", name: "رمزارز", type: "asset", assetId: usd.id })
+    .returning();
+  const trade = usdOf("25000000");
+  const fee = usdOf("128100");
+  const buy = await postEntry({
+    entryDate: todayIso(),
+    type: "buy",
+    description: "خرید رمزارز",
+    userId: userA.id,
+    postings: [
+      { accountId: accA.bank.id, assetId: usd.id, quantity: D(trade).add(fee).neg().toString(), baseValue: D(trade).add(fee).neg().toString() },
+      { accountId: holding.id, assetId: usd.id, quantity: trade, baseValue: trade },
+      { accountId: accA.expAcct.id, assetId: usd.id, quantity: fee, baseValue: fee },
+    ],
+  });
+  await db.insert(entryFxSnapshots).values({
+    entryId: buy.id,
+    irtAmount: "25000000",
+    usdAmount: trade,
+    fxRate: OLD_RATE,
+    rateSource: "settings",
+    rateDate: todayIso(),
+  });
+
+  const after = (await getCashflow(6, userA.id)).at(-1)!;
+  assert.equal(D(after.outflowToman!).sub(D(before.outflowToman!)).toString(), "128100", "only the commission is outflow");
+  assert.equal(D(after.outflow).sub(D(before.outflow)).toFixed(6), D(fee).toFixed(6));
+  assert.equal(after.outflowEntries, after.outflowEntriesSnap, "the trade's fee is fully covered by its snapshot");
+});
