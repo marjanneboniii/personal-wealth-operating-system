@@ -785,7 +785,7 @@ export default function TransactionForm({
       <input type="hidden" name="irtAmount" value={postedIrt} />
       <input type="hidden" name="settleQuantity" value={isRegistrySale ? salePrice : isTrade && quote ? quote.total : ""} />
       <input type="hidden" name="unitPrice" value={isTrade && !isRegistrySale ? unitPrice : ""} />
-      <input type="hidden" name="priceMode" value={isTrade && !isRegistrySale ? (usingMarket ? "market" : "limit") : ""} />
+      {isTrade && !isRegistrySale && <input type="hidden" name="priceMode" value={usingMarket ? "market" : "limit"} />}
       <input type="hidden" name="registryKind" value={registryItem?.kind ?? ""} />
       <input type="hidden" name="registryId" value={registryItem?.id ?? ""} />
       <input type="hidden" name="placeName" value={needsPlace ? placeName : ""} />
