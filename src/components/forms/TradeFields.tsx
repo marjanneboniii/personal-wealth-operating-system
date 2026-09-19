@@ -122,7 +122,10 @@ type Props = {
   limitPrice: string;
   setLimitPrice: (value: string) => void;
   quote: Quote | null;
+  /** Net of the fee: a sale deposits proceeds − fee, a buy withdraws value + fee. */
   settleTotalLabel: string;
+  feeApplied: boolean;
+  feeExceedsProceeds: boolean;
   /* registry sale */
   salePrice: string;
   setSalePrice: (value: string) => void;
@@ -514,6 +517,14 @@ export default function TradeFields(p: Props) {
               unit={p.feeInToman ? "toman" : p.feeSymbol}
               placeholder="۰"
             />
+            {p.feeApplied && (
+              <p className="expense-sub">
+                {buy ? "کل مبلغ پرداختی با کارمزد: " : "خالص دریافتی پس از کسر کارمزد: "}
+                <b className="num" style={{ color: p.feeExceedsProceeds ? "var(--negative)" : undefined }}>
+                  {p.settleTotalLabel}
+                </b>
+              </p>
+            )}
           </div>
         )}
 
