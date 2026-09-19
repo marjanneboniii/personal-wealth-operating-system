@@ -656,6 +656,11 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     for (const key of ["settleQuantity", "unitPrice", "nativeAmount"]) {
       if (typeof raw[key] === "string") raw[key] = normalizeNumericInput(raw[key], { decimal: true });
     }
+    // An empty hidden field (e.g. priceMode on a non-trade form) means "not
+    // set" — never an invalid enum value that blocks every expense/transfer.
+    for (const key of ["priceMode", "registryKind", "recurring", "feeMode"]) {
+      if (raw[key] === "") delete raw[key];
+    }
     const idempotencyKey = String(raw.idempotencyKey || fd.get("idempotencyKey") || "").trim() || undefined;
     // Support both legacy 'amount' (USD) and new 'irtAmount' (IRT) — IRT is reference, USD is computed via server rate (freeze)
     const input = txSchema.parse(raw);
