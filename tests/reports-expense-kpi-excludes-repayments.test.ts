@@ -169,25 +169,21 @@ test("installment payments leave «کل هزینه ثبت‌شده» and the sav
   assert.ok(!section(html, "میانگین هزینه ماهانه").includes("۳۱٬۸۱۸٬۱۷۰"), "monthly average stays clean");
 });
 
-test("what was excluded is disclosed under «بدهی و بازپرداخت», in frozen Toman", async () => {
+test("the excluded repayments are not narrated under «بدهی و بازپرداخت»", async () => {
+  // The owner removed the explanatory note: the section lists the debts only.
   const { default: ReportsPage } = await import("../src/app/reports/page");
   const html = stripBidi(renderToStaticMarkup(await (ReportsPage as any)()));
   const debts_ = section(html, "بدهی و بازپرداخت");
 
-  // The contractual amount the user actually paid — 13 × 909,090 — never a
-  // ÷rate reconstruction that would move when the dollar moves.
-  assert.ok(
-    debts_.includes(`۱۱٬۸۱۸٬۱۷۰${NBSP}تومان`),
-    "the excluded repayments must be disclosed in frozen Toman",
-  );
-  assert.ok(debts_.includes("پرداخت اقساط"), "the note must name the bucket that archived them");
-  assert.ok(debts_.includes("مصرف نیست"), "and say why they are not an expense");
+  assert.ok(!debts_.includes("خارج شد"), "no exclusion note under the debt section");
+  assert.ok(!debts_.includes("مصرف نیست"), "no explanation paragraph either");
+  assert.ok(!debts_.includes(`۱۱٬۸۱۸٬۱۷۰${NBSP}تومان`), "the excluded total is not printed there");
 });
 
-test("partial frozen coverage falls back to the ledger amount, unconverted", async () => {
+test("partial frozen coverage never leaks a partial Toman sum", async () => {
   // Two excluded entries, only ONE backed by a paid-installment row (e.g. a
   // hand-written repayment). A partial Toman sum must never be presented as the
-  // whole story — so the note shows the ledger's own base currency instead.
+  // whole story, anywhere on the page.
   TOTALS = {
     expense: EXPENSE_USD,
     income: INCOME_USD,
@@ -200,10 +196,6 @@ test("partial frozen coverage falls back to the ledger amount, unconverted", asy
   const html = stripBidi(renderToStaticMarkup(await (ReportsPage as any)()));
   const debts_ = section(html, "بدهی و بازپرداخت");
 
-  assert.ok(
-    debts_.includes(`۵۹.۰۹${NBSP}دلار`),
-    "the disclosure falls back to the USD base value of the excluded legs",
-  );
-  assert.ok(!debts_.includes("۹۰۹٬۰۹۰"), "a PARTIAL frozen Toman must not be shown as the total");
+  assert.ok(!debts_.includes("۹۰۹٬۰۹۰"), "a PARTIAL frozen Toman is never shown as the total");
   assert.ok(!html.includes("۳۱٬۸۱۸٬۱۷۰"), "and the expense KPI stays clean either way");
 });
