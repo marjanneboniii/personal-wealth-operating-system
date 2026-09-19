@@ -583,11 +583,6 @@ export default function TransactionForm({
         : type === "transfer" && transferQuantityToman
           ? true
           : !!amountValue && amountValue.gt(0);
-  const settleTotalLabel = quote
-    ? priceUnit === "IRT"
-      ? formatMoney(D(quote.total).toFixed(0), "IRT")
-      : `${formatQty(quote.total, 6)} ${currencyLabel(moneyAccount?.symbol)}`
-    : "—";
   const qtyWithUnit = hasQuantity
     ? `${formatQty(quantity, qtyDecimals)} ${currencyLabel(assetSymbol) !== assetSymbol ? currencyLabel(assetSymbol) : assetName}`
     : "—";
@@ -596,6 +591,31 @@ export default function TransactionForm({
   const feePayAccount = type === "transfer" ? fromAccount : moneyAccount;
   const feeSymbol = (feePayAccount?.symbol ?? "IRT").toUpperCase();
   const feeInToman = !feePayAccount || feeSymbol === "IRT" || feeSymbol === "IRR";
+  const feeValue = fee && D(fee).gt(0) ? D(fee) : null;
+
+  /* ── What actually moves in the settlement account ────────────────── */
+  // The trade fee is typed in the settlement account's unit (Toman, or Tether for
+  // a stablecoin wallet) — the same unit as `quote.total` — and the ledger books
+  // it exactly this way: a sale deposits proceeds − fee, a buy withdraws value + fee.
+  const settleNet = quote
+    ? feeValue
+      ? type === "sell"
+        ? D(quote.total).sub(feeValue)
+        : D(quote.total).add(feeValue)
+      : D(quote.total)
+    : null;
+  const settleTotalLabel = settleNet
+    ? priceUnit === "IRT"
+      ? formatMoney(settleNet.toFixed(0), "IRT")
+      : `${formatQty(settleNet.toString(), 6)} ${currencyLabel(moneyAccount?.symbol)}`
+    : "—";
+  const registryNet = isRegistrySale && salePrice && D(salePrice).gt(0)
+    ? feeValue
+      ? D(salePrice).sub(feeValue)
+      : D(salePrice)
+    : null;
+  const feeExceedsProceeds =
+    (type === "sell" && !!settleNet && settleNet.lte(0)) || (!!registryNet && registryNet.lte(0));
 
   const transferTargetHint = transferIsToman
     ? "حساب بانکی، تومانِ صرافی داخلی یا تومانِ کارگزاری دیگری ندارید."
@@ -644,6 +664,7 @@ export default function TransactionForm({
     else if (!quote) missing.push("نرخ تتر");
     if (overHeld) missing.push("مقدار کمتر یا برابر موجودی");
   } else if (!hasAmount) missing.push("مبلغ");
+  if (feeExceedsProceeds) missing.push("کارمزد کمتر از مبلغ فروش");
   if (!entryDate) missing.push("تاریخ");
   const ready = missing.length === 0;
 
@@ -779,7 +800,7 @@ export default function TransactionForm({
       [
         `واریز می‌شود به ${accountLabel(moneyAccount)}`,
         <b key="ri" className="num" style={{ color: "var(--positive)" }}>
-          + {hasAmount ? formatMoney(salePrice, "IRT") : "—"}
+          + {registryNet ? formatMoney(registryNet.toFixed(0), "IRT") : "—"}
         </b>,
       ],
     );
@@ -1046,6 +1067,8 @@ export default function TransactionForm({
           setLimitPrice={setLimitPrice}
           quote={quote}
           settleTotalLabel={settleTotalLabel}
+          feeApplied={!!feeValue && !!settleNet}
+          feeExceedsProceeds={feeExceedsProceeds}
           salePrice={salePrice}
           setSalePrice={setSalePrice}
           fee={fee}
