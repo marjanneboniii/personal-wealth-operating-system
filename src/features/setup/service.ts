@@ -30,7 +30,7 @@ import { postEntry } from "@/features/ledger/service";
 import { ensureCategoryCatalog } from "@/features/categories/service";
 import { D, Decimal } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
-import { getLatestUsdIrtRateForUser } from "@/lib/fx";
+import { getLatestUsdIrtRateForUser, isPlaceholderRate, MISSING_RATE_MESSAGE } from "@/lib/fx";
 import { invalidateTenantStateCache } from "@/lib/tenantState";
 import { rootCauseOf } from "@/db/init-schema";
 import { registerInstrument } from "@/features/funds/service";
@@ -446,6 +446,9 @@ export async function completeSetup(
     // ONE rate for the whole setup: the user's confirmed rate, else their latest.
     const latestFx = await getLatestUsdIrtRateForUser(user.id, tx);
     const confirmedRate = confirmedRateOf(input.fxRate);
+    // The wizard asks for a rate whenever only the placeholder exists; a caller
+    // that skipped that step must not have the placeholder frozen instead.
+    if (!confirmedRate && isPlaceholderRate(latestFx)) throw new Error(MISSING_RATE_MESSAGE);
     const setupRate = confirmedRate ?? (confirmedRateOf(latestFx.rate) ?? Decimal.zero());
     const rateSource = confirmedRate ? "setup_confirmed" : latestFx.source;
 
@@ -854,7 +857,14 @@ export async function completeSetup(
         purchasePriceToman: vehicle.purchasePriceToman,
         initialValuation:
           vehicle.currentValueToman && D(vehicle.currentValueToman).gt(0)
-            ? { valueToman: vehicle.currentValueToman, snapshotDate: setupResult.today, note: "ثبت اولیه در راه‌اندازی" }
+            ? {
+                valueToman: vehicle.currentValueToman,
+                snapshotDate: setupResult.today,
+                // Today has no historical rate yet: value it at the rate the
+                // wizard confirmed, not at a placeholder.
+                usdRate: input.fxRate,
+                note: "ثبت اولیه در راه‌اندازی",
+              }
             : undefined,
       });
     } catch (error) {
@@ -877,6 +887,8 @@ export async function completeSetup(
         valuationDate: hasCurrentValue ? setupResult.today : property.acquisitionDate,
         purchasePriceToman: property.purchasePriceToman,
         currentValueToman: hasCurrentValue ? (property.currentValueToman as string) : property.purchasePriceToman,
+        // A value dated today has no historical rate: use the confirmed one.
+        valuationFxRate: hasCurrentValue ? input.fxRate : undefined,
         sizeSqm: property.sizeSqm || null,
       });
     } catch (error) {

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { hasSupabaseConfig } from "@/lib/supabase/config";
 
 /**
  * Tenant/user-presence state cache.
@@ -38,7 +39,7 @@ export type TenantState = {
   userCount: 0 | 1 | 2;
   /** Id of the user row when exactly one exists (legacy claim helper). */
   singleUserId: string | null;
-  /** True when at least one user has a non-null username (auth enabled). */
+  /** True when at least one user can sign in — a username OR an email (auth enabled). */
   authUsersExist: boolean;
   expiresAt: number;
 };
@@ -75,7 +76,10 @@ async function loadTenantState(): Promise<TenantState> {
   const count = Math.min(rows.length, 2) as 0 | 1 | 2;
   const singleUserId = count === 1 ? (rows[0]?.id ?? null) : null;
 
-  const authRes = await db.execute(sql`select id from users where username is not null limit 1`);
+  // A Google / email sign-up has an email but no username; it is a sign-in
+  // identity all the same. Counting usernames only let a Google-only install
+  // look like the legacy anonymous single-tenant mode.
+  const authRes = await db.execute(sql`select id from users where username is not null or email is not null limit 1`);
   const authUsersExist = authRes.rows.length > 0;
 
   return {
@@ -131,6 +135,9 @@ export async function isMultiTenantCached(): Promise<boolean> {
 
 /** Cached "at least one username-bearing user exists (auth is on)". Throws on DB errors. */
 export async function authUsersExistCached(): Promise<boolean> {
+  // With Supabase Auth configured, sign-in is ALWAYS required. The legacy
+  // anonymous single-tenant mode exists only for the embedded dev/test auth.
+  if (hasSupabaseConfig()) return true;
   const state = await readTenantState();
   return state.authUsersExist;
 }

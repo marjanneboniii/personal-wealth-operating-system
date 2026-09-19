@@ -15,7 +15,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { vehicleAssets, vehicleValuationSnapshots } from "@/db/schema";
 import { D } from "@/domain/decimal";
-import { resolveUsdRateForDate, tomanToUsd } from "./fx";
+import { resolveUsdRateForDateToFreeze, tomanToUsd } from "./fx";
 import { rateStr, tomanStr, usdStr } from "./num";
 import type { RecordVehicleValuationInput, VehicleValuationSnapshot } from "./types";
 import type { SnapshotPoint } from "./analytics";
@@ -61,7 +61,7 @@ export async function recordVehicleValuationSnapshot(
   // FX rate: explicit override, otherwise the rate of the SNAPSHOT DATE.
   let usdRate = input.usdRate?.trim();
   if (!usdRate) {
-    const resolved = await resolveUsdRateForDate(snapshotDate, input.createdByUserId ?? null);
+    const resolved = await resolveUsdRateForDateToFreeze(snapshotDate, input.createdByUserId ?? null);
     usdRate = resolved.rate;
   }
   if (D(usdRate).lte(0)) throw new Error("نرخ دلار معتبر نیست.");

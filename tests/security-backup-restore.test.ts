@@ -7,6 +7,13 @@ import { createSchemaIfNotExists } from "../src/db/init-schema";
 import { users, sessions } from "../src/db/schema";
 import { eq } from "drizzle-orm";
 import { createSession, getSessionUser, hashPassword } from "../src/lib/auth";
+import { RESTORE_TABLES } from "../src/features/backup/tables";
+
+/** A complete backup `data` object: every restorable table, empty unless given. */
+const fullData = (tables: Record<string, unknown[]> = {}) => ({
+  ...Object.fromEntries(RESTORE_TABLES.map((t) => [t, []])),
+  ...tables,
+});
 
 async function cleanAuth() {
   await createSchemaIfNotExists();
@@ -39,7 +46,7 @@ test("Section 21 — Backup API: Authenticated User GET /api/backup -> Success a
   assert.equal(res.status, 200);
   const json = await res.json();
   assert.equal(json.app, "PWOS");
-  assert.equal(json.schemaVersion, "1.0");
+  assert.equal(json.schemaVersion, "2.0");
   // Security guarantee: sessions table must never be exported
   assert.equal(json.data.sessions, undefined);
 });
@@ -49,7 +56,7 @@ test("Section 22 — Restore API: Anonymous POST /api/restore -> 401", async () 
   const req = new Request("http://localhost/api/restore", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ app: "PWOS", schemaVersion: "1.0", confirmToken: "RESTORE_DATABASE_OVERWRITE", data: {} }),
+    body: JSON.stringify({ app: "PWOS", schemaVersion: "2.0", confirmToken: "RESTORE_DATABASE_OVERWRITE", data: {} }),
   });
   const res = await restoreApi(req);
   assert.equal(res.status, 401);
@@ -66,7 +73,7 @@ test("Section 22 — Restore API: User without Permission POST /api/restore -> 4
   const req = new Request("http://localhost/api/restore", {
     method: "POST",
     headers: { "content-type": "application/json", cookie: `pwos_session=${token}` },
-    body: JSON.stringify({ app: "PWOS", schemaVersion: "1.0", confirmToken: "RESTORE_DATABASE_OVERWRITE", data: {} }),
+    body: JSON.stringify({ app: "PWOS", schemaVersion: "2.0", confirmToken: "RESTORE_DATABASE_OVERWRITE", data: {} }),
   });
   const res = await restoreApi(req);
   assert.equal(res.status, 403);
@@ -85,13 +92,13 @@ test("Section 22 — Restore API: Authorized Owner/Admin POST /api/restore -> Su
     headers: { "content-type": "application/json", cookie: `pwos_session=${token}` },
     body: JSON.stringify({
       app: "PWOS",
-      schemaVersion: "1.0",
+      schemaVersion: "2.0",
       confirmToken: "RESTORE_DATABASE_OVERWRITE",
-      data: {
+      data: fullData({
         currencies: [
           { code: "USD", name: "US Dollar", symbol: "$", decimals: 2, is_fiat: true },
         ],
-      },
+      }),
     }),
   });
   const res = await restoreApi(req);
@@ -122,9 +129,9 @@ test("Section 23 — Restore API: Session Invalidation (all existing sessions in
     headers: { "content-type": "application/json", cookie: `pwos_session=${tokenA}` },
     body: JSON.stringify({
       app: "PWOS",
-      schemaVersion: "1.0",
+      schemaVersion: "2.0",
       confirmToken: "RESTORE_DATABASE_OVERWRITE",
-      data: {},
+      data: fullData(),
     }),
   });
   const res = await restoreApi(req);
@@ -153,7 +160,7 @@ test("Security Hardening — Restore API requires confirmToken", async () => {
     headers: { "content-type": "application/json", cookie: `pwos_session=${token}` },
     body: JSON.stringify({
       app: "PWOS",
-      schemaVersion: "1.0",
+      schemaVersion: "2.0",
       data: {},
     }),
   });
@@ -176,9 +183,9 @@ test("Security Hardening — SQL Injection neutralized in restore payload", asyn
 
   const maliciousPayload = {
     app: "PWOS",
-    schemaVersion: "1.0",
+    schemaVersion: "2.0",
     confirmToken: "RESTORE_DATABASE_OVERWRITE",
-    data: {
+    data: fullData({
       currencies: [
         {
           "code'; DROP TABLE users; --": "USD",
@@ -188,7 +195,7 @@ test("Security Hardening — SQL Injection neutralized in restore payload", asyn
           is_fiat: true,
         },
       ],
-    },
+    }),
   };
 
   const req = new Request("http://localhost/api/restore", {
@@ -198,10 +205,9 @@ test("Security Hardening — SQL Injection neutralized in restore payload", asyn
   });
 
   const res = await restoreApi(req);
-  assert.ok(res.status === 200 || res.status === 500);
-
-  if (res.status === 200) {
-    const json = await res.json();
-    assert.equal(json.ok, true);
-  }
+  // An unknown (injected) column name is rejected before anything is deleted.
+  assert.equal(res.status, 400);
+  const json = await res.json();
+  assert.equal(json.ok, false);
+  assert.ok((await db.select().from(users)).some((row) => row.id === u.id), "users table untouched");
 });

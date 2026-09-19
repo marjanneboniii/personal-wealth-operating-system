@@ -260,6 +260,13 @@
       "when": 1789600000002,
       "tag": "0036_bank_account_names",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1789600100002,
+      "tag": "0037_drop_placeholder_fx_rate",
+      "breakpoints": true
     }
   ]
 }

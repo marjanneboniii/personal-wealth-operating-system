@@ -18,7 +18,7 @@ import { cities, marketPriceSnapshots, neighborhoods, propertyTypes } from "@/db
 import { D } from "@/domain/decimal";
 import { recordAuditEvent } from "@/lib/audit";
 import { todayIso } from "@/lib/format";
-import { resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
+import { resolveUsdRateForDateToFreeze, tomanToUsd } from "@/features/rwa/vehicle/fx";
 import {
   MAX_BACKDATE_DAYS,
   areaBandLabel,
@@ -105,7 +105,7 @@ export async function recordMarketPrice(
     .limit(1);
   if (duplicate) throw new Error("برای این محله، نوع ملک و متراژ در این تاریخ قبلاً قیمت ثبت کرده‌اید.");
 
-  const fx = await resolveUsdRateForDate(observedOn, userId);
+  const fx = await resolveUsdRateForDateToFreeze(observedOn, userId);
   if (D(fx.rate).lte(0)) throw new Error("نرخ دلار این تاریخ در دسترس نیست.");
   const pricePerSqmUsd = tomanToUsd(price.toFixed(0), fx.rate);
 

@@ -17,7 +17,7 @@
  */
 import { db } from "@/db";
 import { getCurrentUser } from "@/lib/auth";
-import { getLatestUsdIrtRate, getLatestUsdIrtRateForUser } from "@/lib/fx";
+import { assertRealUsdIrtRate, getLatestUsdIrtRate, getWritableUsdIrtRateForUser } from "@/lib/fx";
 import {
   createDebtRecord,
   validateDebtInput,
@@ -106,7 +106,8 @@ export async function registerSetupDebtsAction(
   const invalid = firstInvalid(inputs);
   if (invalid) return invalid;
 
-  const fx = user ? await getLatestUsdIrtRateForUser(user.id) : await getLatestUsdIrtRate();
+  // Each debt freezes its creation-time USD: never at a placeholder rate.
+  const fx = user ? await getWritableUsdIrtRateForUser(user.id) : assertRealUsdIrtRate(await getLatestUsdIrtRate());
 
   try {
     const ids = await db.transaction(async (tx) => {

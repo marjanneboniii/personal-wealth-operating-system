@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { users, userFxSettings } from "@/db/schema";
+import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 
@@ -36,6 +36,5 @@ export async function GET(request: Request) {
   if (role === "owner") {
     await db.update(users).set({ role: "owner", updatedAt: new Date() } as any).where(eq(users.id, data.user.id));
   }
-  await db.insert(userFxSettings).values({ userId: data.user.id, currentRate: "190000" }).onConflictDoNothing();
   return NextResponse.redirect(new URL(destination, url.origin));
 }

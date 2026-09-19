@@ -29,7 +29,7 @@ import { db } from "@/db";
 import { accounts, assetClasses, assets, currencies, wallets } from "@/db/schema";
 import { postEntry } from "@/features/ledger/service";
 import { recordAuditEvent } from "@/lib/audit";
-import { getLatestUsdIrtRateForUser } from "@/lib/fx";
+import { assertRealUsdIrtRate, getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { D } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
 import { requireSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
@@ -340,8 +340,11 @@ export async function registerMoneyAccount(
     // Opening book value: USD/USDT = 1 USD; IRT uses the tenant FX rate.
     // This accounting input does not replace USDT's live CoinGecko valuation.
     let unitPriceUsd = D("1");
-    if (asset.symbol === "IRT") {
-      const fx = await getLatestUsdIrtRateForUser(input.userId, tx);
+    const hasOpening = !!input.openingQty && !D(input.openingQty).isZero();
+    if (asset.symbol === "IRT" && hasOpening) {
+      // The opening balance freezes this rate: never the placeholder. An
+      // account opened at zero freezes nothing and needs no rate.
+      const fx = assertRealUsdIrtRate(await getLatestUsdIrtRateForUser(input.userId, tx));
       const usdIrtRate = D(fx.rate);
       if (usdIrtRate.lte(0)) throw new Error("نرخ تبدیل دلار به تومان معتبر نیست.");
       unitPriceUsd = D("1").div(usdIrtRate);

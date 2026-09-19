@@ -512,6 +512,11 @@ test("SEC/M-02 Accounts — DELETE: used account archived (never deleted), unuse
 
 test("SEC/M-03 — payInstallment: atomic success, idempotent replay, planning-only contra, tenant-scoped", async () => {
   const { userA, userB, cashAccA, cashAccB, liabAccA } = await setupScenario();
+  // A payment freezes the payment-time rate, so the tenant must have one.
+  await db
+    .insert(userFxSettings)
+    .values({ userId: userA.id, currentRate: "200000" } as any)
+    .onConflictDoNothing();
 
   const [debt] = await db
     .insert(debts)
@@ -560,10 +565,6 @@ test("SEC/M-03 — payInstallment: atomic success, idempotent replay, planning-o
   // 'debt_repayment' — the same legs the Payment Form produces (full contract:
   // tests/installment-quick-pay-planning-only.test.ts). The atomicity this test
   // is about still holds: exactly ONE entry, exactly TWO legs, nothing else.
-  await db
-    .insert(userFxSettings)
-    .values({ userId: userA.id, currentRate: "200000" } as any)
-    .onConflictDoNothing();
   const [debt2] = await db
     .insert(debts)
     .values({ userId: userA.id, title: "وام دستی", creditor: "X", principalBase: "10", startDate: "2026-01-01" } as any)

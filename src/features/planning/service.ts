@@ -23,7 +23,7 @@ import {
 import { getAccountBalances, hasMultipleUsers } from "@/features/ledger/queries";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { readTenantState } from "@/lib/tenantState";
-import { getLatestUsdIrtRateForUser } from "@/lib/fx";
+import { assertRealUsdIrtRate, getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { addMonthsIso, jalaliToIso, toJalali, todayIso } from "@/lib/format";
 import {
   buildInstallmentFxView,
@@ -730,7 +730,7 @@ export async function payInstallment(
     // 3b) Capture the FX rate valid AT THIS MOMENT, from the project's existing
     //     per-user FX source of truth and INSIDE this transaction, so the
     //     payment snapshot below can never be rebuilt from a later rate.
-    const paymentFx = await getLatestUsdIrtRateForUser(u ?? null, tx);
+    const paymentFx = assertRealUsdIrtRate(await getLatestUsdIrtRateForUser(u ?? null, tx));
     const paymentRate = D(paymentFx.rate);
     // The obligation on this row: contractual Toman (Phase 3+) or, for a
     // legacy USD-only row, its book amount converted once at the payment rate.

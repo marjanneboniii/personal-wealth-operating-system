@@ -200,10 +200,10 @@ export async function POST(req: Request) {
     } else if (type === "transfer") {
       const destAssetId = await accountAsset(counterAccountId);
       if (destAssetId !== assetId) {
-        const { getLatestUsdIrtRateForUser } = await import("@/lib/fx");
+        const { getLatestUsdIrtRateForUser, isPlaceholderRate, MISSING_RATE_MESSAGE } = await import("@/lib/fx");
         const snap = await getLatestUsdIrtRateForUser(auth.user.id);
-        if (!snap.rate || Number(snap.rate) <= 0) {
-          return NextResponse.json({ ok: false, error: "نرخ تبدیل نامعتبر است." }, { status: 400 });
+        if (isPlaceholderRate(snap)) {
+          return NextResponse.json({ ok: false, error: MISSING_RATE_MESSAGE }, { status: 400 });
         }
         const [fromAst] = await db.select({ symbol: assets.symbol }).from(assets).where(eq(assets.id, assetId)).limit(1);
         const [toAst] = await db.select({ symbol: assets.symbol }).from(assets).where(eq(assets.id, destAssetId)).limit(1);

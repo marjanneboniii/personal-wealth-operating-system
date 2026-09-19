@@ -41,7 +41,7 @@ import {
   createCatalogModel,
   listVehicleBrands,
 } from "./catalog";
-import { resolveUsdRateForDate, tomanToUsd } from "./fx";
+import { resolveUsdRateForDate, resolveUsdRateForDateToFreeze, tomanToUsd } from "./fx";
 import { rateStr, tomanStr, usdStr } from "./num";
 import {
   getEffectiveSnapshots,
@@ -229,7 +229,7 @@ export async function createUserVehicle(
   // Historical FX: the rate of the OWNERSHIP DATE, stored forever.
   let purchaseUsdRate = input.purchaseUsdRate?.trim();
   if (!purchaseUsdRate) {
-    const resolved = await resolveUsdRateForDate(ownershipDate, input.userId ?? null);
+    const resolved = await resolveUsdRateForDateToFreeze(ownershipDate, input.userId ?? null);
     purchaseUsdRate = resolved.rate;
   }
   if (D(purchaseUsdRate).lte(0)) throw new Error("نرخ دلار تاریخ خرید معتبر نیست.");
@@ -413,7 +413,7 @@ export async function sellVehicle(
 
   let saleUsdRate = input.saleUsdRate?.trim();
   if (!saleUsdRate) {
-    const resolved = await resolveUsdRateForDate(saleDate, input.userId ?? null);
+    const resolved = await resolveUsdRateForDateToFreeze(saleDate, input.userId ?? null);
     saleUsdRate = resolved.rate;
   }
   const saleValueUsd = tomanToUsd(salePrice.toFixed(0), saleUsdRate);
@@ -760,11 +760,15 @@ export async function migrateLegacyVehicleRows(): Promise<{ linked: number; purc
         const price = row.purchasePriceToman ?? ownership.acquisitionPriceIRR;
         if (ownershipDate && price && D(price.toString()).gt(0)) {
           const resolved = await resolveUsdRateForDate(ownershipDate, row.userId);
-          patch.ownershipDate = ownershipDate;
-          patch.purchasePriceToman = D(price.toString()).toFixed(0);
-          patch.purchaseUsdRate = resolved.rate;
-          patch.purchaseValueUsd = tomanToUsd(D(price.toString()).toFixed(0), resolved.rate);
-          purchaseFilled++;
+          // Backfill: without a real rate the purchase fields keep their gap
+          // for a later run rather than freezing the display placeholder.
+          if (resolved.source !== "fallback") {
+            patch.ownershipDate = ownershipDate;
+            patch.purchasePriceToman = D(price.toString()).toFixed(0);
+            patch.purchaseUsdRate = resolved.rate;
+            patch.purchaseValueUsd = tomanToUsd(D(price.toString()).toFixed(0), resolved.rate);
+            purchaseFilled++;
+          }
         }
       }
     }

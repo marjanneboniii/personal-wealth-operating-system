@@ -39,7 +39,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { postEntry } from "@/features/ledger/service";
 import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
 import { ensureRealizedPnlAccount } from "@/features/accounts/systemAccounts";
-import { resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
+import { resolveUsdRateForDateToFreeze, tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { formatMoney } from "@/lib/format";
 import { buildRwaLabel, buildRwaSymbol, nextRwaSymbol, nextUserRwaSeq } from "@/features/rwa/symbol";
 import { requireTomanBankAccount, tomanToNative, type TomanBankAccount } from "@/features/trade/bankAccount";
@@ -566,7 +566,7 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
   if (input.purchaseFxRate && D(input.purchaseFxRate).gt(0)) {
     purchaseFx = { rate: D(input.purchaseFxRate).toString(), effectiveDate: acquisitionDate, source: "manual", isExact: true };
   } else {
-    purchaseFx = await resolveUsdRateForDate(acquisitionDate, input.userId ?? null);
+    purchaseFx = await resolveUsdRateForDateToFreeze(acquisitionDate, input.userId ?? null);
   }
   if (D(purchaseFx.rate).lte(0)) throw new Error("نرخ دلار تاریخ تملک در دسترس نیست.");
   const purchaseValueUsd = tomanToUsd(purchase.toFixed(0), purchaseFx.rate);
@@ -576,7 +576,7 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
   if (input.valuationFxRate && D(input.valuationFxRate).gt(0)) {
     valuationFx = { rate: D(input.valuationFxRate).toString(), effectiveDate: valuationDate, source: "manual", isExact: true };
   } else {
-    valuationFx = await resolveUsdRateForDate(valuationDate, input.userId ?? null);
+    valuationFx = await resolveUsdRateForDateToFreeze(valuationDate, input.userId ?? null);
   }
   if (D(valuationFx.rate).lte(0)) throw new Error("نرخ دلار تاریخ ارزش‌گذاری در دسترس نیست.");
   const currentValueUsd = tomanToUsd(current.toFixed(0), valuationFx.rate);
@@ -925,7 +925,7 @@ export async function recordRealEstateValuation(input: RecordRealEstateValuation
   if (input.valuationFxRate && D(input.valuationFxRate).gt(0)) {
     valuationFx = { rate: D(input.valuationFxRate).toString(), effectiveDate: valuationDate, source: "manual", isExact: true };
   } else {
-    valuationFx = await resolveUsdRateForDate(valuationDate, input.userId ?? null);
+    valuationFx = await resolveUsdRateForDateToFreeze(valuationDate, input.userId ?? null);
   }
   if (D(valuationFx.rate).lte(0)) throw new Error("نرخ دلار تاریخ ارزش‌گذاری در دسترس نیست.");
   const currentValueUsd = tomanToUsd(current.toFixed(0), valuationFx.rate);
@@ -1090,7 +1090,7 @@ export async function sellRealEstateAsset(input: {
   if (input.saleFxRate && D(input.saleFxRate).gt(0)) {
     saleFx = { rate: D(input.saleFxRate).toString(), effectiveDate: saleDate, source: "manual", isExact: true };
   } else {
-    saleFx = await resolveUsdRateForDate(saleDate, input.userId ?? null);
+    saleFx = await resolveUsdRateForDateToFreeze(saleDate, input.userId ?? null);
   }
   if (D(saleFx.rate).lte(0)) throw new Error("نرخ دلار تاریخ فروش در دسترس نیست.");
   const saleValueUsd = tomanToUsd(salePrice.toFixed(0), saleFx.rate);

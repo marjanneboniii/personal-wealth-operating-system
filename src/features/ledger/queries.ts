@@ -10,6 +10,7 @@ import {
   isOrphanedRwaAssetWithClass,
 } from "@/features/rwa/orphanFilter";
 import { isMultiTenantCached, readTenantState } from "@/lib/tenantState";
+import { hasSupabaseConfig } from "@/lib/supabase/config";
 
 async function rows<T>(query: ReturnType<typeof sql>): Promise<T[]> {
   const res = await db.execute(query);
@@ -74,6 +75,9 @@ export async function resolveQueryUserId(explicitUserId?: string): Promise<strin
  * read window.
  */
 export async function hasMultipleUsers(): Promise<boolean> {
+  // Under Supabase Auth an unresolved identity is never the legacy owner:
+  // every caller of this guard must fail closed.
+  if (hasSupabaseConfig()) return true;
   try {
     return await isMultiTenantCached();
   } catch {

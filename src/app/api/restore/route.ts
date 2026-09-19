@@ -8,66 +8,51 @@ import { clearSessionCookie, invalidateAllSessions } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { invalidateTenantStateCache } from "@/lib/tenantState";
 import { isTrustedMutation } from "@/lib/requestSecurity";
+import { BACKUP_SCHEMA_VERSION, BACKUP_TABLES, RESTORE_TABLES, restorableColumns } from "@/features/backup/tables";
 
 export const dynamic = "force-dynamic";
 const MAX_RESTORE_BYTES = 5 * 1024 * 1024;
 
-const ORDER = [
-  "currencies",
-  "asset_classes",
-  "networks",
-  "institutions",
-  "assets",
-  "cities",
-  "neighborhoods",
-  "property_types",
-  "wallets",
-  "accounts",
-  "expense_categories",
-  "journal_entries",
-  "real_estate_properties",
-  "entry_reviews",
-  "postings",
-  "lots",
-  "lot_consumptions",
-  "prices",
-  "coingecko_asset_catalog",
-  "portfolio_valuations",
-  "portfolio_snapshots",
-  "asset_performance",
-  "wealth_performance_snapshots",
-  "asset_performance_analysis",
-  "portfolio_risk_metrics",
-  "benchmark_definitions",
-  "benchmark_snapshots",
-  "benchmark_results",
-  "analytics_runs",
-  "snapshots",
-  "snapshot_lines",
-  "goals",
-  "goal_contributions",
-  "events",
-  "event_items",
-  "budgets",
-  "planned_transactions",
-  "debts",
-  "installments",
-  "obligations",
-  "funds",
-  "user_setup_state",
-  "settings",
-  "notifications",
-  "audit_log",
-];
-
-const ALLOWED_TABLES = new Set(ORDER);
-
 const backupPayloadSchema = z.object({
   app: z.literal("PWOS"),
-  schemaVersion: z.literal("1.0"),
+  schemaVersion: z.string(),
   confirmToken: z.literal("RESTORE_DATABASE_OVERWRITE"),
   data: z.record(z.string(), z.array(z.record(z.string(), z.unknown()))),
 });
+
+const SAFE_IDENTIFIER = /^[a-z0-9_]+$/i;
+
+/**
+ * Checks a parsed backup against the CURRENT schema before anything is
+ * deleted. Returns a user-facing error, or null when the file is complete:
+ * every restorable table present (an empty array is fine), no unknown table,
+ * no unknown column. A file that fails here never reaches the transaction.
+ */
+function validateBackupData(data: Record<string, Record<string, unknown>[]>): string | null {
+  const missing = RESTORE_TABLES.filter((t) => !Array.isArray(data[t]));
+  if (missing.length) {
+    return `فایل پشتیبان کامل نیست؛ این جدول‌ها در آن نیستند: ${missing.join("، ")}`;
+  }
+  const known = new Set(BACKUP_TABLES);
+  const unknown = Object.keys(data).filter((t) => !known.has(t));
+  if (unknown.length) return `فایل پشتیبان جدول ناشناخته دارد: ${unknown.join("، ")}`;
+  for (const t of RESTORE_TABLES) {
+    const columns = restorableColumns(t);
+    for (const row of data[t]) {
+      const bad = Object.keys(row).find((c) => !SAFE_IDENTIFIER.test(c) || !columns.has(c));
+      if (bad) return `ستون «${bad}» در جدول «${t}» شناخته‌شده نیست.`;
+    }
+  }
+  return null;
+}
+
+/** A JSON value is sent as JSON text, never as a Postgres array/record literal. */
+function restoreValue(sqlType: string | undefined, value: unknown): unknown {
+  if (value !== null && value !== undefined && (sqlType === "json" || sqlType === "jsonb")) {
+    return JSON.stringify(value);
+  }
+  return value;
+}
 
 /**
  * Security-Hardened Transactional Restore Endpoint.
@@ -122,7 +107,19 @@ export async function POST(request: Request) {
       );
     }
 
+    if (parseResult.data.schemaVersion !== BACKUP_SCHEMA_VERSION) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `این فایل پشتیبان با نسخهٔ ${parseResult.data.schemaVersion} ساخته شده و با نسخهٔ فعلی (${BACKUP_SCHEMA_VERSION}) سازگار نیست. یک پشتیبان تازه بگیرید.`,
+        },
+        { status: 400 },
+      );
+    }
     const { data } = parseResult.data;
+    const invalid = validateBackupData(data);
+    if (invalid) return NextResponse.json({ ok: false, error: invalid }, { status: 400 });
+    const expectedRows = RESTORE_TABLES.reduce((sum, t) => sum + data[t].length, 0);
     let inserted = 0;
 
     // Pre-restore safety snapshot: record what is about to be overwritten.
@@ -141,35 +138,36 @@ export async function POST(request: Request) {
       await db.insert(backupRuns).values({
         kind: "pre_restore_snapshot",
         rowCount: preRestoreRowCount,
-        schemaVersion: "1.0",
+        schemaVersion: BACKUP_SCHEMA_VERSION,
         note: "row counts captured immediately before restore overwrite",
       });
     } catch {}
 
     await db.transaction(async (tx) => {
-      // Clear existing tables in reverse dependency order using parameterized identifiers
-      for (const t of [...ORDER].reverse()) {
+      // Clear existing tables children-first, then insert parents-first; the
+      // order is the schema's foreign-key order (see features/backup/tables).
+      for (const t of [...RESTORE_TABLES].reverse()) {
         await tx.execute(sql`delete from ${sql.identifier(t)}`);
       }
 
-      // Re-insert rows in direct dependency order using fully parameterized queries
-      for (const t of ORDER) {
-        if (!ALLOWED_TABLES.has(t)) continue;
-        const rows = data[t] ?? [];
-        for (const row of rows) {
-          const rawCols = Object.keys(row);
-          // Strictly validate column names to allow only safe alphanumeric identifiers
-          const cols = rawCols.filter((c) => /^[a_z0_9_]+$/i.test(c));
+      for (const t of RESTORE_TABLES) {
+        const columns = restorableColumns(t);
+        for (const row of data[t]) {
+          // Column names were checked against the schema by validateBackupData.
+          const cols = Object.keys(row);
           if (!cols.length) continue;
-
           const colSql = cols.map((c) => sql.identifier(c));
-          const valSql = cols.map((c) => sql`${row[c]}`);
-
+          const valSql = cols.map((c) => sql`${restoreValue(columns.get(c), row[c])}`);
           await tx.execute(
             sql`insert into ${sql.identifier(t)} (${sql.join(colSql, sql`, `)}) values (${sql.join(valSql, sql`, `)})`,
           );
           inserted++;
         }
+      }
+      // Everything in the file must be back, or nothing is: a partial restore
+      // is worse than none, so a short count rolls the whole transaction back.
+      if (inserted !== expectedRows) {
+        throw new Error(`بازیابی ناقص بود (${inserted} از ${expectedRows} ردیف)؛ هیچ تغییری اعمال نشد.`);
       }
 
       let auditUserId: string | null = null;
