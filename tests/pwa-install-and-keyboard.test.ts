@@ -21,24 +21,57 @@ import path from "node:path";
 const root = process.cwd();
 const read = (rel: string) => fs.readFileSync(path.join(root, rel), "utf-8");
 
+/**
+ * Reads a custom property out of one CSS block, following a single level of
+ * `var()` indirection (`--bg: var(--paper-100)` → `#edf0f2`).
+ *
+ * The install-colour test used to hard-code the palette's hex values. That
+ * made a CORRECT palette migration — every surface moved together from
+ * #f5f7fa to #edf0f2 — look like a regression, while saying nothing about the
+ * property the test exists to protect: that the manifest, the theme-color
+ * meta and the stylesheet all name the SAME colour. Deriving the expected
+ * value from the stylesheet asserts that agreement at any palette.
+ */
+function cssToken(css: string, selector: RegExp, name: string): string {
+  const block = css.match(selector)?.[0] ?? "";
+  const read1 = (prop: string) =>
+    block.match(new RegExp(`--${prop}:\\s*([^;]+)`))?.[1]?.trim() ?? "";
+  const raw = read1(name);
+  const indirect = raw.match(/^var\(--([\w-]+)\)$/)?.[1];
+  return (indirect ? read1(indirect) : raw).toLowerCase();
+}
+
 test("install colours match the palette the app actually renders", () => {
   const manifest = JSON.parse(read("public/manifest.webmanifest"));
   const css = read("src/app/globals.css");
   const layout = read("src/app/layout.tsx");
 
-  // --bg-page (light) is the surface the splash hands over to.
-  assert.match(css, /--bg-page:\s*#f5f7fa/i);
-  assert.equal(manifest.background_color.toLowerCase(), "#f5f7fa");
-  assert.equal(manifest.theme_color.toLowerCase(), "#f5f7fa");
+  // The page background the app actually paints, light and dark.
+  const lightBg = cssToken(css, /:root\s*\{[\s\S]*?\n\}/, "bg");
+  const darkBg = cssToken(css, /\.dark[^{]*\{[\s\S]*?\n\}/, "bg");
+  assert.match(lightBg, /^#[0-9a-f]{6}$/, `light --bg must resolve to a hex colour, got ${lightBg}`);
+  assert.match(darkBg, /^#[0-9a-f]{6}$/, `dark --bg must resolve to a hex colour, got ${darkBg}`);
+  assert.notEqual(lightBg, darkBg, "light and dark backgrounds must differ");
+
+  // background_color paints Android's splash, theme_color the standalone title
+  // bar. Both hand over to the light page background, so they must equal it.
+  assert.equal(manifest.background_color.toLowerCase(), lightBg);
+  assert.equal(manifest.theme_color.toLowerCase(), lightBg);
 
   // Both retired values must be gone from every install surface.
   assert.doesNotMatch(JSON.stringify(manifest), /f7f7fb/i);
   assert.doesNotMatch(layout, /#F7F7FB/i);
   assert.doesNotMatch(layout, /#12131C/i);
 
-  // The dark status bar has to match the dark page background.
-  assert.match(css, /\.dark\s*\{[\s\S]*?--bg:\s*#080b11/);
-  assert.match(layout, /prefers-color-scheme: dark\).*#080b11/);
+  // The status bar has to match the page background it sits above, per scheme.
+  assert.ok(
+    layout.includes(lightBg) || layout.includes(lightBg.toUpperCase()),
+    `layout must declare the light theme-color ${lightBg}`,
+  );
+  assert.ok(
+    layout.includes(darkBg) || layout.includes(darkBg.toUpperCase()),
+    `layout must declare the dark theme-color ${darkBg}`,
+  );
 });
 
 test("manifest keeps the fields installability depends on", () => {
@@ -60,9 +93,17 @@ test("fixed bottom chrome yields to the software keyboard", () => {
 
   const rule = css
     .split("\n")
-    .find((l) => l.includes(":has(") && l.includes("record-fab") && l.includes("app-bottom-nav"));
+    .find((l) => l.includes(":has(") && l.includes("app-bottom-nav") && l.includes("display: none"));
   assert.ok(rule, "the keyboard rule must exist");
   assert.match(rule!, /display:\s*none/);
+
+  // The 56px record button used to be a separate floating FAB that the rule
+  // had to name alongside the tab bar. It is now the centre slot OF the tab
+  // bar, so hiding .app-bottom-nav hides it too — one element to hide instead
+  // of two. Pin that, or a future FAB could float back over the keyboard
+  // without this test noticing.
+  assert.doesNotMatch(css, /\.record-fab\b/, "the floating record FAB must not come back");
+  assert.match(css, /\.tab-record\b/, "the record action lives inside the tab bar");
 
   // Text entry only: a checkbox or a button must never hide the navigation.
   assert.match(rule!, /input:not\(\[type="checkbox"\]\)/);

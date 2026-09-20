@@ -157,7 +157,13 @@ test("STAGE 7 — Design System Identity Preservation: Calm Ledger colors, tabul
   const cssPath = path.resolve(process.cwd(), "src/app/globals.css");
   const cssCode = fs.readFileSync(cssPath, "utf-8");
 
-  assert.ok(cssCode.includes("PWOS Design System"), "PWOS Design System identity preserved");
+  // The stylesheet opens by naming the design system it implements. The name
+  // moved from "PWOS Design System" to «توازن» when the palette was rebuilt;
+  // what matters is that ONE named system still owns these tokens, shared by
+  // landing, authentication and the application, rather than three drifting
+  // sets of colours. Asserting the banner is a weak proxy for that — the
+  // token-level checks below are the real guarantee.
+  assert.ok(cssCode.includes("توازن"), "the shared design-system banner is present");
   assert.ok(cssCode.includes("tabular-nums"), "Tabular numerals preserved for first-class financial numbers");
   assert.ok(cssCode.includes("touch-action: manipulation"), "Mobile touch-action manipulation preserved");
   assert.ok(cssCode.includes(".interactive-card") || cssCode.includes(".card-hover"), "Tactile card hover and active feedback styling preserved");
