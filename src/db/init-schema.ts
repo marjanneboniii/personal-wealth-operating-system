@@ -1227,6 +1227,89 @@ const MAX_ATTEMPTS = 5;
  * and, where the engine allows it, by a database trigger as a second line of
  * defence: a stored snapshot can never be rewritten by an FX-rate change.
  */
+/*
+ * Lookup and foreign-key indexes that the migrations create and this file did
+ * not.
+ *
+ * `schema.ts` is the source of truth; `drizzle/*.sql` is generated from it and
+ * is what production runs. This file is a hand-maintained second
+ * implementation of the same schema, used to stand a database up quickly for
+ * tests — and hand-maintained mirrors drift. A comparison of the two, index by
+ * index and column by column, found 57 that production has and tests did not,
+ * on exactly the tables the ledger reads hardest: postings(entry_id),
+ * postings(account_id, entry_id), journal_entries(entry_date),
+ * journal_entries(type), lots(asset_id, opened_at), installments(due_date,
+ * status).
+ *
+ * That gap matters most where it is least visible. The suite contains query
+ * -shape tests — N+1 elimination, page-size capping — that were passing
+ * against a schema missing the very indexes those queries are written for, so
+ * they could not have observed a plan regression in production.
+ *
+ * Names match the generated migrations exactly, so a database built either way
+ * is the same database. tests/schema-drift.test.ts now fails if the two ever
+ * separate again.
+ */
+const PARITY_INDEX_STATEMENTS = [
+  `CREATE INDEX IF NOT EXISTS accounts_asset_idx ON public.accounts USING btree (asset_id);`,
+  `CREATE INDEX IF NOT EXISTS accounts_type_idx ON public.accounts USING btree (type);`,
+  `CREATE INDEX IF NOT EXISTS accounts_wallet_id_fk_idx ON public.accounts USING btree (wallet_id);`,
+  `CREATE INDEX IF NOT EXISTS analytics_runs_user_id_fk_idx ON public.analytics_runs USING btree (user_id);`,
+  `CREATE INDEX IF NOT EXISTS asset_performance_analysis_asset_id_fk_idx ON public.asset_performance_analysis USING btree (asset_id);`,
+  `CREATE INDEX IF NOT EXISTS asset_performance_analysis_user_id_fk_idx ON public.asset_performance_analysis USING btree (user_id);`,
+  `CREATE INDEX IF NOT EXISTS asset_performance_asset_id_fk_idx ON public.asset_performance USING btree (asset_id);`,
+  `CREATE INDEX IF NOT EXISTS assets_class_idx ON public.assets USING btree (class_id);`,
+  `CREATE INDEX IF NOT EXISTS assets_currency_id_fk_idx ON public.assets USING btree (currency_id);`,
+  `CREATE INDEX IF NOT EXISTS assets_network_id_fk_idx ON public.assets USING btree (network_id);`,
+  `CREATE INDEX IF NOT EXISTS benchmark_results_user_id_fk_idx ON public.benchmark_results USING btree (user_id);`,
+  `CREATE INDEX IF NOT EXISTS benchmark_snapshots_currency_id_fk_idx ON public.benchmark_snapshots USING btree (currency_id);`,
+  `CREATE INDEX IF NOT EXISTS budgets_account_id_fk_idx ON public.budgets USING btree (account_id);`,
+  `CREATE INDEX IF NOT EXISTS debts_account_id_fk_idx ON public.debts USING btree (account_id);`,
+  `CREATE INDEX IF NOT EXISTS entries_date_idx ON public.journal_entries USING btree (entry_date);`,
+  `CREATE INDEX IF NOT EXISTS entries_type_idx ON public.journal_entries USING btree (type);`,
+  `CREATE INDEX IF NOT EXISTS event_items_event_id_fk_idx ON public.event_items USING btree (event_id);`,
+  `CREATE INDEX IF NOT EXISTS funds_account_id_fk_idx ON public.funds USING btree (account_id);`,
+  `CREATE INDEX IF NOT EXISTS goal_contributions_entry_id_fk_idx ON public.goal_contributions USING btree (entry_id);`,
+  `CREATE INDEX IF NOT EXISTS goal_contributions_goal_id_fk_idx ON public.goal_contributions USING btree (goal_id);`,
+  `CREATE INDEX IF NOT EXISTS goals_fund_account_id_fk_idx ON public.goals USING btree (fund_account_id);`,
+  `CREATE INDEX IF NOT EXISTS installments_debt_id_fk_idx ON public.installments USING btree (debt_id);`,
+  `CREATE INDEX IF NOT EXISTS installments_due_idx ON public.installments USING btree (due_date, status);`,
+  `CREATE INDEX IF NOT EXISTS installments_paid_entry_id_fk_idx ON public.installments USING btree (paid_entry_id);`,
+  `CREATE INDEX IF NOT EXISTS lot_consumptions_entry_id_fk_idx ON public.lot_consumptions USING btree (entry_id);`,
+  `CREATE INDEX IF NOT EXISTS lot_consumptions_lot_id_fk_idx ON public.lot_consumptions USING btree (lot_id);`,
+  `CREATE INDEX IF NOT EXISTS lots_account_id_fk_idx ON public.lots USING btree (account_id);`,
+  `CREATE INDEX IF NOT EXISTS lots_lookup_idx ON public.lots USING btree (asset_id, opened_at);`,
+  `CREATE INDEX IF NOT EXISTS lots_open_entry_id_fk_idx ON public.lots USING btree (open_entry_id);`,
+  `CREATE INDEX IF NOT EXISTS planned_date_idx ON public.planned_transactions USING btree (planned_date, status);`,
+  `CREATE INDEX IF NOT EXISTS planned_transactions_asset_id_fk_idx ON public.planned_transactions USING btree (asset_id);`,
+  `CREATE INDEX IF NOT EXISTS planned_transactions_event_id_fk_idx ON public.planned_transactions USING btree (event_id);`,
+  `CREATE INDEX IF NOT EXISTS planned_transactions_executed_entry_id_fk_idx ON public.planned_transactions USING btree (executed_entry_id);`,
+  `CREATE INDEX IF NOT EXISTS planned_transactions_from_account_id_fk_idx ON public.planned_transactions USING btree (from_account_id);`,
+  `CREATE INDEX IF NOT EXISTS planned_transactions_goal_id_fk_idx ON public.planned_transactions USING btree (goal_id);`,
+  `CREATE INDEX IF NOT EXISTS planned_transactions_to_account_id_fk_idx ON public.planned_transactions USING btree (to_account_id);`,
+  `CREATE INDEX IF NOT EXISTS portfolio_risk_metrics_user_id_fk_idx ON public.portfolio_risk_metrics USING btree (user_id);`,
+  `CREATE INDEX IF NOT EXISTS portfolio_snapshots_base_currency_id_fk_idx ON public.portfolio_snapshots USING btree (base_currency_id);`,
+  `CREATE INDEX IF NOT EXISTS portfolio_valuations_asset_id_fk_idx ON public.portfolio_valuations USING btree (asset_id);`,
+  `CREATE INDEX IF NOT EXISTS portfolio_valuations_date_idx ON public.portfolio_valuations USING btree (valuation_date);`,
+  `CREATE INDEX IF NOT EXISTS portfolio_valuations_market_currency_id_fk_idx ON public.portfolio_valuations USING btree (market_currency_id);`,
+  `CREATE INDEX IF NOT EXISTS postings_account_idx ON public.postings USING btree (account_id, entry_id);`,
+  `CREATE INDEX IF NOT EXISTS postings_asset_idx ON public.postings USING btree (asset_id);`,
+  `CREATE INDEX IF NOT EXISTS postings_entry_id_fk_idx ON public.postings USING btree (entry_id);`,
+  `CREATE INDEX IF NOT EXISTS real_estate_valuation_snapshots_asset_id_fk_idx ON public.real_estate_valuation_snapshots USING btree (asset_id);`,
+  `CREATE INDEX IF NOT EXISTS rwa_ownership_records_acquisition_currency_id_fk_idx ON public.rwa_ownership_records USING btree (acquisition_currency_id);`,
+  `CREATE INDEX IF NOT EXISTS rwa_ownership_records_debt_id_fk_idx ON public.rwa_ownership_records USING btree (debt_id);`,
+  `CREATE INDEX IF NOT EXISTS rwa_valuation_events_currency_id_fk_idx ON public.rwa_valuation_events USING btree (currency_id);`,
+  `CREATE INDEX IF NOT EXISTS snapshot_lines_asset_id_fk_idx ON public.snapshot_lines USING btree (asset_id);`,
+  `CREATE INDEX IF NOT EXISTS snapshot_lines_snapshot_id_fk_idx ON public.snapshot_lines USING btree (snapshot_id);`,
+  `CREATE INDEX IF NOT EXISTS user_setup_state_user_id_fk_idx ON public.user_setup_state USING btree (user_id);`,
+  `CREATE INDEX IF NOT EXISTS vehicle_catalog_created_by_user_id_fk_idx ON public.vehicle_catalog USING btree (created_by_user_id);`,
+  `CREATE INDEX IF NOT EXISTS vehicle_valuation_snapshots_created_by_user_id_fk_idx ON public.vehicle_valuation_snapshots USING btree (created_by_user_id);`,
+  `CREATE INDEX IF NOT EXISTS wallets_institution_id_fk_idx ON public.wallets USING btree (institution_id);`,
+  `CREATE INDEX IF NOT EXISTS wallets_network_id_fk_idx ON public.wallets USING btree (network_id);`,
+  `CREATE INDEX IF NOT EXISTS wealth_performance_snapshots_currency_id_fk_idx ON public.wealth_performance_snapshots USING btree (currency_id);`,
+  `CREATE INDEX IF NOT EXISTS wealth_performance_snapshots_user_id_fk_idx ON public.wealth_performance_snapshots USING btree (user_id);`,
+];
+
 const OPTIONAL_STATEMENTS = [
   /* One live system category per code — mirrors drizzle/0028. Optional: an
      embedded database that already holds copies keeps working (the tree
@@ -1263,7 +1346,15 @@ const BANK_SMS_STATEMENTS = [
 ];
 
 export async function createSchemaIfNotExists() {
-  for (const stmt of [...STATEMENTS, ...BANK_SMS_STATEMENTS, ...BANK_IDENTIFIER_STATEMENTS, ...BANK_ACCOUNT_NAME_STATEMENTS]) {
+  for (const stmt of [
+    ...STATEMENTS,
+    ...BANK_SMS_STATEMENTS,
+    ...BANK_IDENTIFIER_STATEMENTS,
+    ...BANK_ACCOUNT_NAME_STATEMENTS,
+    // Required, not optional: these close a measured 57-index gap against the
+    // migrations, and tests/schema-drift.test.ts fails if any is missing.
+    ...PARITY_INDEX_STATEMENTS,
+  ]) {
     for (let attempt = 1; ; attempt++) {
       try {
         await db.execute(sql.raw(stmt));
