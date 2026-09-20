@@ -83,9 +83,21 @@ test("HoldingsTable names Ethereum in Persian and carries no Latin freshness bad
     assert.ok(!html.includes(banned), `«${banned}» must not reach the UI`);
   }
 
-  // A CURRENT price is the normal case: no badge at all next to the basis chip.
-  assert.ok(html.includes("مبنای دلار"), "the valuation basis chip is still explained");
-  assert.ok(!/مبنای دلار<\/span>\s*<span[^>]*>/.test(html.replace(/<!--.*?-->/g, "")), "nothing follows the basis chip when the price is current");
+  /*
+   * The «مبنای دلار» / «مبنای تومان» valuation-basis chip was deliberately
+   * removed — first by «drop internal metadata chips» (#119) and then by the
+   * assets redesign (#151). It labelled an internal accounting concept on a
+   * row the reader scans for a number, and the freshness badge glued to it is
+   * what produced the «مبنای دلارFresh» defect this suite exists to prevent.
+   *
+   * The guarantee it was standing in for is unchanged and is asserted
+   * directly instead: a CURRENT price is the silent, normal case — the row
+   * carries no status badge at all.
+   */
+  assert.ok(!html.includes("مبنای"), "the internal valuation-basis chip stays out of the row");
+  for (const badge of ["قیمت قدیمی", "قیمت در دسترس نیست"]) {
+    assert.ok(!html.includes(badge), `a current price must not be annotated with «${badge}»`);
+  }
 
   // An outdated price IS announced, in Persian.
   const stale = await render(
@@ -95,7 +107,7 @@ test("HoldingsTable names Ethereum in Persian and carries no Latin freshness bad
     }),
   );
   assert.ok(stale.includes("قیمت قدیمی"), "a stale price says so in Persian");
-  assert.ok(stale.includes("مبنای تومان"), "Toman-anchored rows keep their basis chip");
+  assert.ok(!stale.includes("مبنای"), "…without reintroducing the internal basis chip");
   assert.ok(!stale.includes("Fresh"), "and still no Fresh badge");
 });
 
