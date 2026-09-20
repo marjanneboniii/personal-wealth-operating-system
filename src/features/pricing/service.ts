@@ -197,10 +197,29 @@ async function runLiveRefresh(
  * callers and tests pass `spotQuotes: null` to run CoinGecko-only; honouring
  * that exact contract is what lets this chain be widened without touching them.
  */
-function resolveFallbacks(options: {
+/**
+ * Every option that steers a current-price read, including which live sources
+ * it may touch.
+ *
+ * This is ONE exported type rather than an inline shape per function on
+ * purpose. When it was inlined, `listPricedCoinGeckoCatalog` declared only
+ * `{ client, now }` and silently dropped the fallback seam: a caller that
+ * injected a fake CoinGecko client still reached Wallex and the public spot
+ * quotes over the real network. Sharing the type makes that impossible —
+ * a function that forwards its options cannot narrow them by accident.
+ */
+export type CurrentUsdPriceOptions = {
+  client?: CoinGeckoClient;
+  now?: number;
+  /**
+   * Secondary live quotes, tried in order after CoinGecko. Pass `null` to
+   * disable every fallback (tests), or an explicit array to choose them.
+   */
   spotQuotes?: LiveQuoteClient | null;
   fallbacks?: readonly LiveQuoteClient[] | null;
-}): readonly LiveQuoteClient[] {
+};
+
+function resolveFallbacks(options: Pick<CurrentUsdPriceOptions, "spotQuotes" | "fallbacks">): readonly LiveQuoteClient[] {
   if (options.fallbacks !== undefined) return options.fallbacks ?? [];
   if (options.spotQuotes === null) return [];
   if (options.spotQuotes) return [options.spotQuotes];
@@ -209,16 +228,7 @@ function resolveFallbacks(options: {
 
 export async function getCurrentUsdPrices(
   assets: MarketAssetIdentity[],
-  options: {
-    client?: CoinGeckoClient;
-    now?: number;
-    /**
-     * Secondary live quotes, tried in order after CoinGecko. Pass `null` to
-     * disable every fallback (tests), or an explicit array to choose them.
-     */
-    spotQuotes?: LiveQuoteClient | null;
-    fallbacks?: readonly LiveQuoteClient[] | null;
-  } = {},
+  options: CurrentUsdPriceOptions = {},
 ): Promise<Map<string, CoinGeckoPricePoint>> {
   const now = options.now ?? Date.now();
   const client = options.client ?? new CoinGeckoClient();
