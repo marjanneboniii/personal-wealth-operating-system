@@ -2,7 +2,7 @@ import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { coingeckoAssetCatalog } from "@/db/schema";
 import { CoinGeckoClient } from "./coingecko";
-import { getCurrentUsdPrices } from "./service";
+import { getCurrentUsdPrices, type CurrentUsdPriceOptions } from "./service";
 import {
   getSupportedCryptoByCoinGeckoId,
   isSupportedCoinGeckoId,
@@ -245,11 +245,15 @@ export type PricedCoinGeckoCatalogEntry = typeof coingeckoAssetCatalog.$inferSel
 /**
  * Returns picker identities with one batched, failure-safe current-price read.
  * A CoinGecko outage is represented in each row; it never rejects the picker.
+ *
+ * `options` is forwarded verbatim to getCurrentUsdPrices, so a caller can
+ * choose the live sources this read may touch — `fallbacks: null` confines it
+ * to the injected CoinGecko client alone.
  */
 export async function listPricedCoinGeckoCatalog(
   query = "",
   limit = 200,
-  options: { client?: CoinGeckoClient; now?: number } = {},
+  options: CurrentUsdPriceOptions = {},
 ): Promise<PricedCoinGeckoCatalogEntry[]> {
   const rows = await listCoinGeckoCatalog(query, limit);
   const quotes = await getCurrentUsdPrices(rows.map((row) => ({

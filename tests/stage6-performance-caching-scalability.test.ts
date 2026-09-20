@@ -273,7 +273,22 @@ test("STAGE 6 (#11-#14, PART 4, 18, 41) — N+1 Query Elimination: listBudgets a
 
   const budgetList = await listBudgets(userA.id);
   assert.equal(budgetList.length, 3);
-  assert.equal(parseFloat(budgetList[0].spentBase), 100); // 100 USD spent from recordExpense above
+
+  /*
+   * Budget figures are Toman, not the ledger's USD base.
+   *
+   * A ceiling is a contractual Toman amount the user typed, so the spend it is
+   * compared against has to be Toman too — otherwise the comparison silently
+   * moves with the exchange rate. listBudgets therefore converts the USD book
+   * spend at the live rate and exposes it as `spentToman`; `spentBase` is kept
+   * as a legacy alias that now carries the SAME Toman figure, which is what
+   * src/app/budgets/page.tsx reads via `b.spentToman ?? b.spentBase`.
+   *
+   * The expense above is 19,000,000 IRT booked at 100 USD, and the scenario
+   * rate is 190,000 → 100 × 190,000 = 19,000,000 Toman round-trips exactly.
+   */
+  assert.equal(parseFloat(budgetList[0].spentToman), 19_000_000);
+  assert.equal(budgetList[0].spentBase, budgetList[0].spentToman, "the legacy alias must not drift");
 });
 
 test("STAGE 6 (#15-#17, PART 16, 40) — Maximum Page Size & Projection Capping: limit=1,000,000 capped safely at 500", async () => {

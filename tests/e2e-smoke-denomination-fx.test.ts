@@ -90,7 +90,10 @@ test("E2E smoke scenarios 1–10: denomination, preview, transfer, FX, FIFO, tam
   /* 3 — existing IRT → USD preview path (not duplicated) */
   const preview = formatDualMoneyFromIrt("100000000", "20000");
   assert.equal(irtToUsd("100000000", "20000"), "5000.00");
-  assert.match(preview.usd, /۵٬۰۰۰ دلار/);
+  // Money strings carry invisible bidi controls and join the amount to its
+  // currency word with a non-breaking space; match the rendered text instead
+  // of the exact control placement, which is format.ts's business.
+  assert.match(preview.usd.replace(/[⁦-⁩]/g, "").replace(/ /g, " "), /۵٬۰۰۰ دلار/);
 
   /* 4 — same-currency IRT transfer */
   const bank2 = await registerMoneyAccount({

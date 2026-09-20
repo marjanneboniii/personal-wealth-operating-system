@@ -26,6 +26,26 @@ mock.module("next/cache", {
 const RLI = "\u2067";
 const PDI = "\u2069";
 
+/*
+ * Money and number strings carry invisible Unicode bidi controls so a Persian
+ * amount always reads \u00abnumber \u2192 currency word\u00bb and a sign always leads its
+ * digits, whichever direction the surrounding container has.
+ *
+ * The exact NESTING of those controls is an implementation detail of
+ * src/lib/format.ts, and it has legitimately changed: a LEFT-TO-RIGHT ISOLATE
+ * was added around the numeric run so that "\u2212" binds to the digits instead of
+ * drifting to the far side of them in an RTL paragraph. Assertions written
+ * against the raw string pinned the old nesting and failed on that correct
+ * change, while saying nothing about what a reader sees.
+ *
+ * `visible()` drops the controls, and folds the non-breaking space that joins
+ * an amount to its currency word into a plain space, so each assertion states
+ * the rendered text a reader sees. Where the isolate structure or the
+ * non-breaking space is itself the subject, the test asserts on it explicitly
+ * rather than by matching a whole literal.
+ */
+const visible = (value: string) => value.replace(/[\u2066-\u2069]/g, "").replace(/\u00a0/g, " ");
+
 let format: typeof import("../src/lib/format");
 let decimal: typeof import("../src/domain/decimal");
 let tx: typeof import("../src/lib/tx");
@@ -55,7 +75,11 @@ test("§4 the canonical ۹۰۹٬۰۹۰ Toman case survives the USD round-trip ex
   // … and back through the SINGLE shared conversion (never float, never a
   // 2-dp pre-rounded USD value).
   assert.equal(format.usdToIrt(usd.toString(), "190000"), "909090");
-  assert.equal(format.toIrtMoney(usd.toString(), "190000"), `${RLI}۹۰۹٬۰۹۰ تومان${PDI}`);
+  // toIrtMoney returns null for a missing/non-positive rate; 190,000 is valid,
+  // so a string is part of the contract being asserted here.
+  const irtMoney = format.toIrtMoney(usd.toString(), "190000");
+  assert.ok(irtMoney !== null, "a positive rate must produce a Toman string");
+  assert.equal(visible(irtMoney), "۹۰۹٬۰۹۰ تومان");
   // The old buggy derivation (2-dp USD → float multiply) reproduces the exact
   // reported bug: ۴.۷۸ × ۱۹۰٬۰۰۰ = ۹۰۸٬۲۰۰ «به جای ۹۰۹٬۰۹۰».
   assert.equal(Math.round(Number(usd.toFixed(2)) * Number("190000")), 908200);
@@ -107,11 +131,11 @@ test("§1 the stored Toman figure is invariant to the USD rate; only the side US
   const a = format.formatDualMoneyFromIrt("1000000", "190000");
   const b = format.formatDualMoneyFromIrt("1000000", "250000");
   // ۱٬۰۰۰٬۰۰۰ تومان stays ۱٬۰۰۰٬۰۰۰ تومان under any rate…
-  assert.equal(a.irt, `${RLI}۱٬۰۰۰٬۰۰۰ تومان${PDI}`);
+  assert.equal(visible(a.irt), "۱٬۰۰۰٬۰۰۰ تومان");
   assert.equal(a.irt, b.irt);
   // …while the dynamic dollar equivalent follows the rate one-way:
-  assert.equal(a.usd, `${RLI}۵.۲۶ دلار${PDI}`);
-  assert.equal(b.usd, `${RLI}۴ دلار${PDI}`);
+  assert.equal(visible(a.usd), "۵.۲۶ دلار");
+  assert.equal(visible(b.usd), "۴ دلار");
 });
 
 test("§1 humanized ledger entries expose the FULL-PRECISION amount for any conversion", async () => {
@@ -143,11 +167,11 @@ test("§1 humanized ledger entries expose the FULL-PRECISION amount for any conv
 
 test("§3 Persian digits, «.» decimal, «٬» thousands — no Latin digit, no slash decimal", async () => {
   await modulesReady;
-  assert.equal(format.formatNumber("32731.12", { decimals: 2 }), "۳۲٬۷۳۱.۱۲");
-  assert.equal(format.formatNumber("58.3", { decimals: 1 }), "۵۸.۳");
-  assert.equal(format.formatMoney("4670288949", "IRT"), `${RLI}۴٬۶۷۰٬۲۸۸٬۹۴۹ تومان${PDI}`);
-  assert.equal(format.faCount("12"), "۱۲");
-  assert.equal(format.formatPct("58.3", 1), "۵۸.۳٪");
+  assert.equal(visible(format.formatNumber("32731.12", { decimals: 2 })), "۳۲٬۷۳۱.۱۲");
+  assert.equal(visible(format.formatNumber("58.3", { decimals: 1 })), "۵۸.۳");
+  assert.equal(visible(format.formatMoney("4670288949", "IRT")), "۴٬۶۷۰٬۲۸۸٬۹۴۹ تومان");
+  assert.equal(visible(format.faCount("12")), "۱۲");
+  assert.equal(visible(format.formatPct("58.3", 1)), "۵۸.۳٪");
   for (const out of [
     format.formatMoney("4670288949", "IRT"),
     format.formatNumber("32731.12"),
@@ -173,11 +197,18 @@ test("§3 formatSignedMoney keeps the sign inside one isolate — never «توم
 
 test("§3 the minus sign LEADS the number in RTL — it is never left dangling at the end", async () => {
   await modulesReady;
-  const out = format.formatNumber("-908200", { decimals: 0 });
+  const raw = format.formatNumber("-908200", { decimals: 0 });
+  const out = visible(raw);
   assert.ok(out.startsWith("−"), `minus must lead: ${out}`);
   assert.ok(!out.endsWith("-"), `minus must not trail: ${out}`);
   assert.equal(out, "−۹۰۸٬۲۰۰");
   assert.ok(!out.includes("٫"), `Persian slash-decimal must not appear: ${out}`);
+  // The mechanism, not just the result: Persian digits are bidi class AN, so
+  // the neutral "−" only binds to their LEFT inside a LEFT-TO-RIGHT ISOLATE.
+  // Without the isolate the sign resolves to the paragraph direction and is
+  // pushed to the far side of the digits — the original «۹۰۸٬۲۰۰−» bug.
+  assert.ok(raw.startsWith("⁦"), `numeric run must open a LRI: ${JSON.stringify(raw)}`);
+  assert.ok(raw.endsWith("⁩"), `numeric run must close with a PDI: ${JSON.stringify(raw)}`);
 });
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -269,23 +300,27 @@ test("§3 a zero expense/income KPI is NEVER red/green — directional tones", a
    §4 — Signed dynamic Toman KPIs share ONE formatter (no manual "+/−" glue)
    ══════════════════════════════════════════════════════════════════════════ */
 
-test("§4 formatSignedMoneyFromUsd keeps the sign inside the single isolate", async () => {
+test("§4 formatSignedMoneyFromUsd keeps the sign with its digits, currency word once", async () => {
   await modulesReady;
   // Exact-precision conversion: 4.784684… USD × 190,000 = ۹۰۹٬۰۹۰ — the
   // manual page-level «+/−» glue previously re-rounded this to ۹۰۸٬۲۰۰.
   const pos = format.formatSignedMoneyFromUsd("4.784684210526315789", "190000");
-  assert.equal(pos, `${RLI}+۹۰۹٬۰۹۰ تومان${PDI}`);
+  assert.equal(visible(pos), "+۹۰۹٬۰۹۰ تومان");
   const neg = format.formatSignedMoneyFromUsd("-4.784684210526315789", "190000");
-  assert.equal(neg, `${RLI}−۹۰۹٬۰۹۰ تومان${PDI}`);
+  assert.equal(visible(neg), "−۹۰۹٬۰۹۰ تومان");
   // «تومان» appears exactly once — never «تومان+ … تومان»:
   assert.equal((neg.match(/تومان/g) ?? []).length, 1);
+  // The whole amount is ONE right-to-left isolate, so the currency word can
+  // never be reordered away from the digits it belongs to.
+  assert.ok(neg.startsWith(RLI) && neg.endsWith(PDI), JSON.stringify(neg));
+  assert.equal((neg.match(/⁧/g) ?? []).length, 1);
   // Zero is unsigned regardless of rate:
   const zero = format.formatSignedMoneyFromUsd(0, "190000");
-  assert.equal(zero, `${RLI}۰ تومان${PDI}`);
+  assert.equal(visible(zero), "۰ تومان");
   assert.ok(!zero.includes("+") && !zero.includes("−"), zero);
-  // Missing/invalid rate → signed USD fallback, still one isolate:
-  assert.equal(format.formatSignedMoneyFromUsd("-3.5", null), `${RLI}−۳.۵ دلار${PDI}`);
-  assert.equal(format.formatSignedMoneyFromUsd("-3.5", "0"), `${RLI}−۳.۵ دلار${PDI}`);
+  // Missing/invalid rate → signed USD fallback, same guarantees:
+  assert.equal(visible(format.formatSignedMoneyFromUsd("-3.5", null)), "−۳.۵ دلار");
+  assert.equal(visible(format.formatSignedMoneyFromUsd("-3.5", "0")), "−۳.۵ دلار");
 });
 
 /* ══════════════════════════════════════════════════════════════════════════

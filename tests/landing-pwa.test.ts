@@ -212,7 +212,16 @@ test("Landing — the install dialog is PORTALLED out of the header", () => {
   // Portalling to <body> is what fixes all three at once.
   assert.match(guide, /createPortal/, "the dialog escapes its DOM parent");
   assert.match(guide, /createPortal\(dialog, document\.body\)/, "…specifically to <body>");
-  assert.match(css, /backdrop-filter: blur\(var\(--l-blur\)\)/, "the header really does create one");
+  // The header no longer carries a backdrop-filter — it was made deliberately
+  // opaque, because a translucent bar picked up a muddy tint while crossing
+  // the seam between the dark hero and the light bands. That removed the
+  // containing block, but NOT the reason to portal: `position: sticky` with a
+  // z-index still opens a stacking context the dialog would be trapped in,
+  // and `.landing-ink` still remaps tokens for everything inside the header.
+  const header = css.match(/\.landing-header\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.ok(header, "the .landing-header rule must exist");
+  assert.match(header, /position:\s*sticky/, "the header is sticky…");
+  assert.match(header, /z-index:\s*\d+/, "…with a z-index, so it opens a stacking context");
 
   // A portalled node is rendered client-side only; the guard must exist or the
   // server pass would dereference `document`.
@@ -367,33 +376,58 @@ test("Tavazon brand tokens — one palette shared by landing and app", () => {
   const mark = read("src/components/layout/BrandMark.tsx");
   const chrome = read("src/components/landing/LandingChrome.tsx");
 
-  // Palette primitives are declared exactly once and referenced everywhere.
-  assert.match(css, /--sky-400:\s*#38bdf8/i);
-  assert.match(css, /--sky-700:\s*#0369a1/i);
-  assert.match(css, /--emerald-400:\s*#34d399/i);
-  assert.match(css, /--amber-400:\s*#fbbf24/i);
-  assert.match(css, /--lavender-300:\s*#c4b5fd/i);
+  /*
+   * These assertions describe the STRUCTURE of the palette, not its colours.
+   *
+   * The previous version named a specific generation of tokens
+   * (--sky-400 / --emerald-400 / --lavender-300 → --color-accent,
+   * --color-positive, --color-danger). When the palette was rebuilt around
+   * ink / paper / signal / money, not one of those names survived, so all
+   * fifteen assertions failed at once — while the property they existed to
+   * protect, that landing and app share ONE coherent token system, was never
+   * broken. Pinning colour names made the test a record of a palette rather
+   * than a guard on the architecture.
+   *
+   * What follows survives a re-colour and still fails on the things that
+   * actually go wrong: a primitive defined twice, a semantic token wired to a
+   * raw hex, or a retired identity creeping back in.
+   */
 
-  // Sky/cyan is the interaction accent: cyan-700 on light (AA), sky-400 on dark.
-  assert.match(css, /--color-accent:\s*var\(--sky-700\)/i);
-  assert.match(css, /--color-accent:\s*var\(--sky-400\)/i);
-  assert.match(css, /--color-module-wealth:\s*var\(--sky-700\)/i);
+  // 1. Primitives are literal colours, and each is declared exactly once.
+  const primitives = ["ink-900", "ink-700", "paper-100", "paper-000", "money-in", "money-out"];
+  for (const name of primitives) {
+    const declarations = css.match(new RegExp(`--${name}:\\s*#[0-9a-f]{3,8}\\b`, "gi")) ?? [];
+    assert.equal(declarations.length, 1, `--${name} must be declared exactly once, found ${declarations.length}`);
+  }
 
-  // Emerald = positive, amber/red = negative. Never decorative.
-  assert.match(css, /--color-positive:\s*var\(--emerald-(400|700)\)/i);
-  assert.match(css, /--color-danger:\s*var\(--red-(400|600)\)/i);
-  assert.match(css, /--color-warning:\s*var\(--amber-(400|700)\)/i);
+  // 2. Semantic tokens always point AT a primitive — never at a raw hex. This
+  //    is what keeps one palette shared instead of colours copied per surface.
+  for (const name of ["positive", "negative", "warning", "action", "info"]) {
+    assert.match(
+      css,
+      new RegExp(`--${name}:\\s*var\\(--[\\w-]+\\)`, "i"),
+      `--${name} must reference a primitive through var(), not a literal colour`,
+    );
+  }
 
-  // Lavender stays a tertiary investment-only accent.
-  assert.match(css, /--investment:\s*var\(--lavender-(300|ink)\)/i);
-  assert.match(css, /--asset-investment:\s*var\(--lavender-(300|ink)\)/i);
+  // 3. Every asset family resolves through the same mechanism.
+  for (const family of ["cash", "investment", "crypto", "other"]) {
+    assert.match(css, new RegExp(`--asset-${family}:\\s*var\\(--[\\w-]+\\)`, "i"));
+  }
 
-  // The retired violet identity must not come back as the brand colour.
-  assert.doesNotMatch(css, /--color-accent:\s*#6e6ff0/i);
-  assert.doesNotMatch(css, /--brand:\s*#(6e6ff0|8b8cf5)/i);
-  assert.doesNotMatch(css, /--color-module-wealth:\s*#6e6ff0/i);
-  // the flat cyan-700 accent was replaced for being the least chromatic passing option
-  assert.doesNotMatch(css, /--color-accent:\s*var\(--cyan-700\)/i);
+  // 4. Dark mode re-points the SAME semantic names rather than inventing new
+  //    ones, so a component never has to know which theme it is painted in.
+  const dark = css.match(/\.dark[^{]*\{[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.ok(dark, "a dark-scheme block must exist");
+  for (const name of ["positive", "negative", "warning"]) {
+    assert.match(dark, new RegExp(`--${name}:`, "i"), `dark mode must redefine --${name}`);
+  }
+
+  // 5. Retired identities must not come back — the violet brand, and now also
+  //    the sky/emerald/lavender generation this test used to be written against.
+  for (const retired of [/#6e6ff0/i, /#8b8cf5/i, /--color-accent\b/i, /--sky-\d/i, /--emerald-\d/i, /--lavender-\d/i]) {
+    assert.doesNotMatch(css, retired, `retired token still present: ${retired}`);
+  }
 
   assert.match(css, /\.brand-wordmark/);
   // The wordmark is Bold, not Black. Vazirmatn Black was a fifth 49.8 KB font

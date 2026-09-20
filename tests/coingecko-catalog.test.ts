@@ -229,6 +229,8 @@ test("priced picker rows expose current USD price and graceful unavailable state
   );
 
   const priced = await listPricedCoinGeckoCatalog("", 50, {
+    // CoinGecko alone: no Wallex, no public spot quotes, no network.
+    fallbacks: null,
     now: 10_000,
     client: new CoinGeckoClient({
       apiKey: null,
@@ -247,6 +249,7 @@ test("priced picker rows expose current USD price and graceful unavailable state
   // reported as Stale instead of Unavailable.
   clearCoinGeckoPriceCache();
   const stale = await listPricedCoinGeckoCatalog("BTC", 50, {
+    fallbacks: null,
     now: 20_000,
     client: new CoinGeckoClient({ apiKey: null, fetchImpl: async () => jsonResponse({}, 429) }),
   });
@@ -257,6 +260,7 @@ test("priced picker rows expose current USD price and graceful unavailable state
   // A coin with NO last-known price stays gracefully unavailable (never a guess).
   clearCoinGeckoPriceCache();
   const unavailable = await listPricedCoinGeckoCatalog("HYPE", 50, {
+    fallbacks: null,
     now: 30_000,
     client: new CoinGeckoClient({ apiKey: null, fetchImpl: async () => jsonResponse({}, 429) }),
   });
