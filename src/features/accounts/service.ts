@@ -24,14 +24,25 @@
  *     are user-scoped. (This is the isolated interpretation of "don't store the
  *     bank name globally".)
  */
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, assetClasses, assets, currencies, wallets } from "@/db/schema";
-import { postEntry } from "@/features/ledger/service";
+import {
+  accounts,
+  assetClasses,
+  assets,
+  currencies,
+  funds,
+  goals,
+  journalEntries,
+  plannedTransactions,
+  postings,
+  wallets,
+} from "@/db/schema";
+import { postEntry, reverseEntry } from "@/features/ledger/service";
 import { recordAuditEvent } from "@/lib/audit";
 import { assertRealUsdIrtRate, getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { D } from "@/domain/decimal";
-import { todayIso } from "@/lib/format";
+import { formatMoney, todayIso } from "@/lib/format";
 import { requireSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
 import { canonicalWalletName, moneyPlaceError } from "@/features/setup/holdingWallets";
 
@@ -493,6 +504,421 @@ export async function registerMoneyAccount(
       accountCode: code,
       entryId,
       baseValue: baseValue.toString(),
+    };
+  };
+
+  if (txClient) return run(txClient);
+  return db.transaction(run);
+}
+
+/* ------------------------------------------------------------------ */
+/* Money-account DELETION                                              */
+/*                                                                     */
+/* A user registers an account by mistake, or their bank suspends /    */
+/* blocks it, and they want it gone. The ledger is immutable, so       */
+/* "delete" here means exactly one of two honest outcomes, decided by  */
+/* the account's own history — never a silent rewrite of the books:    */
+/*                                                                     */
+/*   • «full»    — the ONLY posted entry touching the account is the   */
+/*                 standalone opening entry `registerMoneyAccount`     */
+/*                 wrote for it. That entry is REVERSED through the    */
+/*                 unchanged `reverseEntry` core path, which returns   */
+/*                 both legs (the account and opening equity) to zero, */
+/*                 and the account disappears with no trace in net     */
+/*                 worth. This is the "created by mistake" case.       */
+/*                                                                     */
+/*   • «archive» — the account carries real history, but its balance   */
+/*                 is already zero. The account row is soft-deleted;   */
+/*                 every journal entry, posting and lot stays exactly  */
+/*                 as it was, so past reports are unchanged. This is   */
+/*                 the "the bank closed it, I moved the money out"     */
+/*                 case.                                               */
+/*                                                                     */
+/* Anything else is REFUSED with the reason, because the alternative   */
+/* is money vanishing from net worth: `getAccountBalances` filters     */
+/* `deleted_at is null`, so hiding an account that still holds a       */
+/* balance would both lose the balance and break the Σ = 0 control     */
+/* sum the accounts page asserts.                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Chart rows the app itself resolves by CODE (fee, P&L, opening equity,
+ * depreciation reserve, the RWA containers and every header row). They are
+ * infrastructure, not a user's bank account, and deleting one would break the
+ * next entry that looks it up. Non-asset accounts are already out of scope.
+ */
+const PROTECTED_ACCOUNT_CODES: ReadonlySet<string> = new Set([
+  "1000", // header «دارایی‌ها»
+  "1300", // طلای ۱۸ عیار — an investment position, owned by the assets module
+  "1400", // reserved asset container
+  "1600", // املاک و مستغلات (real-estate container)
+  // 1610 and upwards are deliberately NOT here: `nextAssetCode` hands those
+  // out to the very accounts this feature deletes (its floor is max(…,1600)+10).
+  "2000",
+  "2010",
+  "3000",
+  OPENING_EQUITY_CODE,
+  "3015",
+  "3200",
+  "4000",
+  "4010",
+  "4100",
+  "4900",
+  "4960",
+  "5000",
+  "5010",
+  "5020",
+  "5030",
+  "5040",
+  "5050",
+  "5900",
+  "5960",
+]);
+
+export type MoneyAccountDeletionMode = "full" | "archive";
+
+export type MoneyAccountDeletionPreview = {
+  accountId: string;
+  /** Account display name, as the money list shows it. */
+  name: string;
+  /** Wallet/container the account lives in, when it has one. */
+  walletName: string | null;
+  walletKind: string | null;
+  /** Denomination of the account (IRT / USD / USDT / …). */
+  symbol: string | null;
+  assetName: string | null;
+  assetDecimals: number;
+  /** Balance in the account's OWN unit (canonical), from posted entries only. */
+  quantity: string;
+  /** Same balance as USD book value. */
+  baseValue: string;
+  /** Posted journal entries that touch this account. */
+  entryCount: number;
+  /** How many of those are the account's own standalone opening entry (0 or 1). */
+  reversesOpeningEntry: boolean;
+  /** Pending planned transactions that would be cancelled by the deletion. */
+  plannedTransactions: number;
+  /** Goals / funds whose link to this account would be detached. */
+  linkedGoals: number;
+  linkedFunds: number;
+  /** True when the wallet row is removed together with the account. */
+  removesWallet: boolean;
+  /** What the deletion would do — only meaningful when `canDelete`. */
+  mode: MoneyAccountDeletionMode;
+  canDelete: boolean;
+  /** Why not, in Persian, when `canDelete` is false. */
+  blockedReason: string | null;
+};
+
+export type DeleteMoneyAccountResult = {
+  ok: boolean;
+  message: string;
+  mode?: MoneyAccountDeletionMode;
+  /** Id of the reversal entry, when the opening entry was reversed. */
+  reversalEntryId?: string;
+};
+
+type LoadedMoneyAccount = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  userId: string | null;
+  walletId: string | null;
+  assetId: string | null;
+  walletName: string | null;
+  walletKind: string | null;
+  symbol: string | null;
+  assetName: string | null;
+  assetDecimals: number;
+};
+
+/**
+ * Loads ONE deletable money account, tenant-scoped and fail-closed.
+ *
+ * Ownership is matched the same way the rest of the module scopes rows: an
+ * authenticated tenant may only reach their OWN account; the legacy
+ * single-tenant (no-auth) deployment may only reach unowned rows. A shared
+ * chart row can therefore never be deleted by a tenant, and one tenant can
+ * never reach another's account by guessing an id.
+ */
+async function loadDeletableAccount(tx: any, accountId: string, userId?: string | null): Promise<LoadedMoneyAccount> {
+  if (!accountId) throw new Error("شناسه حساب الزامی است.");
+  const ownership = userId ? eq(accounts.userId, userId) : isNull(accounts.userId);
+  const [row] = await tx
+    .select({
+      id: accounts.id,
+      code: accounts.code,
+      name: accounts.name,
+      type: accounts.type,
+      userId: accounts.userId,
+      walletId: accounts.walletId,
+      assetId: accounts.assetId,
+      walletName: wallets.name,
+      walletKind: wallets.kind,
+      symbol: assets.symbol,
+      assetName: assets.name,
+      assetDecimals: assets.decimals,
+    })
+    .from(accounts)
+    .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+    .leftJoin(assets, eq(assets.id, accounts.assetId))
+    .where(and(eq(accounts.id, accountId), ownership, isNull(accounts.deletedAt)))
+    .limit(1);
+
+  if (!row) throw new Error("حساب یافت نشد یا متعلق به شما نیست.");
+  if (row.type !== "asset") {
+    throw new Error("تنها حساب‌های دارایی (بانک، صندوق و کیف پول) از این مسیر حذف می‌شوند.");
+  }
+  if (PROTECTED_ACCOUNT_CODES.has(row.code)) {
+    throw new Error("این حساب بخشی از ساختار پایه‌ی دفترکل است و حذف نمی‌شود.");
+  }
+  return { ...row, assetDecimals: row.assetDecimals ?? 2 };
+}
+
+/**
+ * The posted entries that touch this account, its balance, and whether its
+ * whole history is the ONE standalone opening entry that registering it wrote.
+ *
+ * The opening entry is only reversible when it touches nothing but this
+ * account and an equity leg. The setup wizard posts a SINGLE opening entry
+ * covering the bank account, the cash box, every crypto holding and gold at
+ * once — reversing that from here would wipe out unrelated opening balances,
+ * so a shared opening entry is deliberately not treated as reversible.
+ */
+async function summarizeAccountHistory(
+  tx: any,
+  accountId: string,
+): Promise<{ entryCount: number; quantity: string; baseValue: string; reversibleOpeningEntryId: string | null }> {
+  const entries = await tx
+    .select({ id: journalEntries.id, type: journalEntries.type })
+    .from(journalEntries)
+    .innerJoin(postings, eq(postings.entryId, journalEntries.id))
+    .where(and(eq(postings.accountId, accountId), eq(journalEntries.status, "posted")))
+    .groupBy(journalEntries.id, journalEntries.type);
+
+  const totals = await tx
+    .select({
+      quantity: sql<string>`coalesce(sum(${postings.quantity}), 0)::text`,
+      baseValue: sql<string>`coalesce(sum(${postings.baseValue}), 0)::text`,
+    })
+    .from(postings)
+    .innerJoin(journalEntries, eq(journalEntries.id, postings.entryId))
+    .where(and(eq(postings.accountId, accountId), eq(journalEntries.status, "posted")));
+
+  let reversibleOpeningEntryId: string | null = null;
+  if (entries.length === 1 && entries[0].type === "opening") {
+    const legs = await tx
+      .select({ accountId: postings.accountId, accountType: accounts.type })
+      .from(postings)
+      .innerJoin(accounts, eq(accounts.id, postings.accountId))
+      .where(eq(postings.entryId, entries[0].id));
+    const foreign = legs.filter((leg: { accountId: string }) => leg.accountId !== accountId);
+    const onlyEquityCounterparts =
+      foreign.length > 0 && foreign.every((leg: { accountType: string }) => leg.accountType === "equity");
+    if (onlyEquityCounterparts) reversibleOpeningEntryId = entries[0].id;
+  }
+
+  return {
+    entryCount: entries.length,
+    quantity: totals[0]?.quantity ?? "0",
+    baseValue: totals[0]?.baseValue ?? "0",
+    reversibleOpeningEntryId,
+  };
+}
+
+/** Planning rows bound to the account — disclosed BEFORE the user confirms. */
+async function summarizeAccountLinks(
+  tx: any,
+  accountId: string,
+): Promise<{ plannedTransactions: number; linkedGoals: number; linkedFunds: number }> {
+  const [planned, goalRows, fundRows] = await Promise.all([
+    tx
+      .select({ id: plannedTransactions.id })
+      .from(plannedTransactions)
+      .where(
+        and(
+          eq(plannedTransactions.status, "pending"),
+          isNull(plannedTransactions.deletedAt),
+          or(eq(plannedTransactions.fromAccountId, accountId), eq(plannedTransactions.toAccountId, accountId)),
+        ),
+      ),
+    tx.select({ id: goals.id }).from(goals).where(and(eq(goals.fundAccountId, accountId), isNull(goals.deletedAt))),
+    tx.select({ id: funds.id }).from(funds).where(and(eq(funds.accountId, accountId), isNull(funds.deletedAt))),
+  ]);
+  return { plannedTransactions: planned.length, linkedGoals: goalRows.length, linkedFunds: fundRows.length };
+}
+
+/** Would the wallet be left with no live account once this one is deleted? */
+async function walletBecomesEmpty(tx: any, walletId: string | null, accountId: string): Promise<boolean> {
+  if (!walletId) return false;
+  const siblings = await tx
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.walletId, walletId), isNull(accounts.deletedAt), ne(accounts.id, accountId)))
+    .limit(1);
+  return siblings.length === 0;
+}
+
+/**
+ * Everything the confirmation box needs to state the consequence BEFORE the
+ * user commits: the balance at stake, how much history exists, what is
+ * attached to the account, and whether the deletion is even possible.
+ *
+ * READ-ONLY. It writes nothing, and its answer is never trusted by the
+ * deletion itself — `deleteMoneyAccount` re-derives every check inside its own
+ * transaction, so a stale preview cannot authorise a write.
+ */
+export async function previewMoneyAccountDeletion(input: {
+  accountId: string;
+  userId?: string | null;
+}): Promise<MoneyAccountDeletionPreview> {
+  const account = await loadDeletableAccount(db, input.accountId, input.userId);
+  const [history, links, removesWallet] = await Promise.all([
+    summarizeAccountHistory(db, account.id),
+    summarizeAccountLinks(db, account.id),
+    walletBecomesEmpty(db, account.walletId, account.id),
+  ]);
+
+  const mode: MoneyAccountDeletionMode = history.reversibleOpeningEntryId ? "full" : "archive";
+  const balance = D(history.quantity);
+  const blockedReason =
+    mode === "archive" && !balance.isZero()
+      ? `این حساب هنوز موجودی دارد (${formatMoney(
+          balance.toFixed(account.symbol === "IRT" ? 0 : Math.min(account.assetDecimals, 8)),
+          account.symbol ?? "USD",
+        )}). ابتدا موجودی را به حساب دیگری منتقل کنید، سپس حساب را حذف کنید.`
+      : null;
+
+  return {
+    accountId: account.id,
+    name: account.name,
+    walletName: account.walletName,
+    walletKind: account.walletKind,
+    symbol: account.symbol,
+    assetName: account.assetName,
+    assetDecimals: account.assetDecimals,
+    quantity: history.quantity,
+    baseValue: history.baseValue,
+    entryCount: history.entryCount,
+    reversesOpeningEntry: !!history.reversibleOpeningEntryId,
+    plannedTransactions: links.plannedTransactions,
+    linkedGoals: links.linkedGoals,
+    linkedFunds: links.linkedFunds,
+    removesWallet,
+    mode,
+    canDelete: !blockedReason,
+    blockedReason,
+  };
+}
+
+/**
+ * Deletes a user-registered money account.
+ *
+ * ACCOUNTING INVARIANTS (never violated):
+ *   - No posting, lot or balance column is rewritten. The only ledger write is
+ *     a reversal produced by the unchanged `reverseEntry` core path, and only
+ *     for an opening entry that belongs to this account alone.
+ *   - Σ(base_value) over live accounts stays zero: either the opening entry is
+ *     reversed (both legs return to zero) or the account's balance is already
+ *     zero before it is hidden.
+ *   - The account and its wallet are SOFT-deleted; history stays readable in
+ *     the ledger, and every flow report keeps its past figures.
+ */
+export async function deleteMoneyAccount(
+  input: { accountId: string; userId?: string | null },
+  txClient?: any,
+): Promise<DeleteMoneyAccountResult> {
+  const run = async (tx: any): Promise<DeleteMoneyAccountResult> => {
+    const account = await loadDeletableAccount(tx, input.accountId, input.userId);
+    // Re-derived inside the transaction: the preview is a display, never an
+    // authorisation. A transaction posted between preview and confirm is seen
+    // here and stops the deletion.
+    const history = await summarizeAccountHistory(tx, account.id);
+    const mode: MoneyAccountDeletionMode = history.reversibleOpeningEntryId ? "full" : "archive";
+    const balance = D(history.quantity);
+
+    if (mode === "archive" && !balance.isZero()) {
+      throw new Error(
+        `این حساب هنوز موجودی دارد (${formatMoney(
+          balance.toFixed(account.symbol === "IRT" ? 0 : Math.min(account.assetDecimals, 8)),
+          account.symbol ?? "USD",
+        )}). ابتدا موجودی را به حساب دیگری منتقل کنید، سپس حساب را حذف کنید.`,
+      );
+    }
+
+    let reversalEntryId: string | undefined;
+    if (history.reversibleOpeningEntryId) {
+      const reversal = await reverseEntry(history.reversibleOpeningEntryId, tx);
+      reversalEntryId = reversal.id;
+    }
+
+    // Detach planning links so nothing is left pointing at a hidden account.
+    // Every column below is nullable; a pending plan whose account is gone can
+    // no longer be executed, so it is cancelled rather than left to fail.
+    const links = await summarizeAccountLinks(tx, account.id);
+    if (links.linkedGoals > 0) {
+      await tx.update(goals).set({ fundAccountId: null, updatedAt: new Date() }).where(eq(goals.fundAccountId, account.id));
+    }
+    if (links.linkedFunds > 0) {
+      await tx.update(funds).set({ accountId: null, updatedAt: new Date() }).where(eq(funds.accountId, account.id));
+    }
+    if (links.plannedTransactions > 0) {
+      await tx
+        .update(plannedTransactions)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(
+          and(
+            eq(plannedTransactions.status, "pending"),
+            isNull(plannedTransactions.deletedAt),
+            or(eq(plannedTransactions.fromAccountId, account.id), eq(plannedTransactions.toAccountId, account.id)),
+          ),
+        );
+    }
+
+    const now = new Date();
+    await tx.update(accounts).set({ isActive: false, deletedAt: now, updatedAt: now }).where(eq(accounts.id, account.id));
+
+    // The wallet is the user-facing container. It only goes when this was its
+    // last live account — a shared wallet (e.g. one exchange holding several
+    // coins) keeps its remaining accounts.
+    const walletRemoved = await walletBecomesEmpty(tx, account.walletId, account.id);
+    if (walletRemoved && account.walletId) {
+      await tx.update(wallets).set({ deletedAt: now, updatedAt: now }).where(eq(wallets.id, account.walletId));
+    }
+
+    await recordAuditEvent(
+      {
+        action: "DELETE_MONEY_ACCOUNT",
+        entityType: "money_account",
+        entityId: account.id,
+        userId: input.userId ?? null,
+        result: "SUCCESS",
+        payload: {
+          mode,
+          code: account.code,
+          name: account.name,
+          assetSymbol: account.symbol,
+          entryCount: history.entryCount,
+          reversalEntryId: reversalEntryId ?? null,
+          walletRemoved,
+          detachedGoals: links.linkedGoals,
+          detachedFunds: links.linkedFunds,
+          cancelledPlans: links.plannedTransactions,
+        },
+      },
+      tx,
+    );
+
+    const tail =
+      mode === "full"
+        ? "سند افتتاحیه‌ی آن ابطال شد و اثری در دارایی خالص باقی نماند."
+        : "سوابق دفترکل آن دست‌نخورده باقی ماند و گزارش‌های گذشته تغییر نکرد.";
+    return {
+      ok: true,
+      message: `حساب «${account.name}» حذف شد. ${tail}`,
+      mode,
+      reversalEntryId,
     };
   };
 

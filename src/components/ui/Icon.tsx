@@ -414,6 +414,14 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M6.2 12.5v6.2h11.6v-6.2" />
     </>
   ),
+  trash: (
+    <>
+      <path d="M4.5 7h15" />
+      <path d="M9.5 7V4.8h5V7" />
+      <path d="M6.5 7v12.2h11V7" />
+      <path d="M10 10.5v5.5M14 10.5v5.5" />
+    </>
+  ),
 };
 
 export type IconName = keyof typeof PATHS;

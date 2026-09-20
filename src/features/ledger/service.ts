@@ -413,9 +413,17 @@ export async function postEntry(
   return db.transaction(runTx);
 }
 
-/** Immutable ledger: corrections are made with a mirrored reversal entry and FIFO lot restoration. */
-export async function reverseEntry(entryId: string): Promise<{ id: string }> {
-  return db.transaction(async (tx) => {
+/**
+ * Immutable ledger: corrections are made with a mirrored reversal entry and
+ * FIFO lot restoration.
+ *
+ * `txClient` lets a caller that already owns a transaction reverse an entry as
+ * part of ONE atomic unit — e.g. deleting a money account reverses its own
+ * opening entry and soft-deletes the account together, so the control sum can
+ * never be observed out of balance between the two writes.
+ */
+export async function reverseEntry(entryId: string, txClient?: any): Promise<{ id: string }> {
+  const run = async (tx: any) => {
     // SECURITY (M-04): serialize concurrent reversals of the SAME entry.
     // Lock the journal_entries row FOR UPDATE first; a concurrent reverseEntry()
     // for this entry waits here until this transaction COMMITs or ROLLBACKs,
@@ -489,6 +497,10 @@ export async function reverseEntry(entryId: string): Promise<{ id: string }> {
       .insert(journalEntries)
       .values({
         entryDate: todayIso(),
+        // The reversal inherits the ORIGINAL entry's tenant. Without it the
+        // mirror row landed with user_id NULL — shared-scope in a multi-tenant
+        // database, and invisible in the owner's own ledger view.
+        userId: original[0].userId ?? null,
         type: "adjustment",
         description: `ابطال: ${original[0].description}`,
         reversalOf: entryId,
@@ -498,7 +510,7 @@ export async function reverseEntry(entryId: string): Promise<{ id: string }> {
       .returning();
 
     await tx.insert(postings).values(
-      lines.map((l) => ({
+      lines.map((l: typeof postings.$inferSelect) => ({
         entryId: reversalEntry.id,
         accountId: l.accountId,
         assetId: l.assetId,
@@ -529,7 +541,10 @@ export async function reverseEntry(entryId: string): Promise<{ id: string }> {
     });
 
     return { id: reversalEntry.id };
-  });
+  };
+
+  if (txClient) return run(txClient);
+  return db.transaction(run);
 }
 
 /**
