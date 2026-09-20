@@ -1098,6 +1098,25 @@ export const vehicleValuationSnapshots = pgTable(
   (t) => [
     index("vehicle_valuation_catalog_date_idx").on(t.vehicleCatalogId, t.snapshotDate),
     index("vehicle_valuation_user_vehicle_idx").on(t.userVehicleId),
+    /*
+     * One snapshot per model per day, and per car per day.
+     *
+     * valuation.ts already refuses a same-day write, but it does so by
+     * selecting first and inserting second, which two concurrent requests both
+     * pass. Snapshots are append-only, so a duplicate is never corrected — it
+     * just sits there and a later read chooses between the two arbitrarily.
+     *
+     * TWO partial indexes, not one: a row is either a market-level snapshot of
+     * a model (user_vehicle_id IS NULL) or one user's specific car. A single
+     * index across both columns would not constrain the market-level rows at
+     * all, because NULL is never equal to NULL in a unique index.
+     */
+    uniqueIndex("vehicle_valuation_catalog_date_uq")
+      .on(t.vehicleCatalogId, t.snapshotDate)
+      .where(sql`${t.userVehicleId} is null`),
+    uniqueIndex("vehicle_valuation_vehicle_date_uq")
+      .on(t.userVehicleId, t.snapshotDate)
+      .where(sql`${t.userVehicleId} is not null`),
   ],
 );
 

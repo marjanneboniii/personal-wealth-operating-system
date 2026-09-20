@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
-import { createSchemaIfNotExists } from "../src/db/init-schema";
+import { createSchemaIfNotExists, rootCauseOf } from "../src/db/init-schema";
 import { assets, exchangeRates, vehicleAssets, vehicleBrands, vehicleCatalog, vehicleValuationSnapshots } from "../src/db/schema";
 import {
   createVehicleBrand,
@@ -40,6 +40,20 @@ import { cagrPercent, periodPerformance, roiPercent } from "../src/features/rwa/
 import { tomanToUsd } from "../src/features/rwa/vehicle/fx";
 import { jalaliToIso } from "../src/lib/format";
 import { D } from "../src/domain/decimal";
+
+/**
+ * A unique violation has to be recognised through the WRAPPER.
+ *
+ * Drizzle raises a DrizzleQueryError whose own message is only
+ * "Failed query: insert into …" and which carries no `code`; the Postgres
+ * error, with 23505 on it, sits one level down in `cause`. Matching a regex
+ * against the outer message never fires, which is how a first version of this
+ * test appeared to pass with the constraint removed.
+ */
+const isUniqueViolation = (error: unknown) => {
+  const root = rootCauseOf(error);
+  return root.code === "23505" || /unique|duplicate/i.test(root.message);
+};
 
 const OWNERSHIP_DATE = jalaliToIso(1404, 5, 18); // 2025-08-09
 const SNAP_1 = jalaliToIso(1405, 2, 10); // 2026-04-30
@@ -237,7 +251,67 @@ test("current value comes only from the latest snapshot; gains/ROI are computed 
     currentValueToman: "10200000000",
   });
 
+  /*
+   * One snapshot per car per day — and the DATABASE is what guarantees it.
+   *
+   * valuation.ts reads for an existing same-day row before inserting, but the
+   * read and the write are separate statements, so two concurrent requests
+   * both find nothing and both write. Snapshots are append-only, so the
+   * duplicate is never corrected: it sits there and the dashboard picks
+   * between the two by whatever order the plan produces.
+   *
+   * This inserts DIRECTLY, bypassing that read, because the read is exactly
+   * the thing being distrusted. Driving two concurrent calls through the
+   * service instead would prove nothing here — the embedded test database is
+   * single-connection and serialises them, so the read catches the second one
+   * and the constraint is never reached. Removing the unique index and
+   * watching that version still pass is how this comment came to be written.
+   */
+  await assert.rejects(
+    () =>
+      db.insert(vehicleValuationSnapshots).values({
+        vehicleCatalogId: model.id,
+        userVehicleId: created.id,
+        snapshotDate: SNAP_2,
+        currentValueToman: "99999999999",
+        usdRate: "200000",
+        currentValueUsd: "499999.99",
+        source: "manual",
+      }),
+    isUniqueViolation,
+    "a second snapshot for the same car on the same day must be rejected by the database",
+  );
+
+  // The market-level scope has its own one-per-day rule: a row with no
+  // user_vehicle_id is a valuation of the MODEL, and NULL never equals NULL in
+  // a unique index, so it needs its own partial index rather than sharing one.
+  await db.insert(vehicleValuationSnapshots).values({
+    vehicleCatalogId: model.id,
+    userVehicleId: null,
+    snapshotDate: SNAP_2,
+    currentValueToman: "10000000000",
+    usdRate: "200000",
+    currentValueUsd: "50000.00",
+    source: "market_estimate",
+  });
+  await assert.rejects(
+    () =>
+      db.insert(vehicleValuationSnapshots).values({
+        vehicleCatalogId: model.id,
+        userVehicleId: null,
+        snapshotDate: SNAP_2,
+        currentValueToman: "10000000001",
+        usdRate: "200000",
+        currentValueUsd: "50000.01",
+        source: "market_estimate",
+      }),
+    isUniqueViolation,
+    "…and the same holds for a market-level snapshot of the model",
+  );
+
   [item] = await getVehicleDashboard();
+  // The original snapshot is untouched: neither racer overwrote it, and
+  // neither slipped a second row in beside it.
   assert.equal(item.valuation.currentValueToman, "10200000000");
   assert.equal(item.valuation.lastValuationDate, SNAP_2);
   assert.equal(item.valuation.scope, "vehicle");

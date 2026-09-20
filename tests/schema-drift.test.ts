@@ -69,21 +69,11 @@ const EXPECTED_ONLY_IN_INIT = {
     "sessions(token) UNIQUE",
     "sessions(user_id)",
 
-    // NOT deliberate — a gap in PRODUCTION, recorded here so it is not
-    // mistaken for one.
-    //
-    // These two partial unique indexes enforce "one valuation snapshot per
-    // model per day, and per car per day". They exist ONLY in init-schema:
-    // schema.ts declares the two plain indexes on these columns but neither
-    // unique one, so no migration ever created them. Tests therefore reject a
-    // duplicate same-day snapshot while production accepts it — and snapshots
-    // are append-only by contract, so duplicates would accumulate silently and
-    // a valuation read would pick between them arbitrarily.
-    //
-    // Closing it needs a migration AND a check for rows that already violate
-    // it, so it is deliberately not done here.
-    "vehicle_valuation_snapshots(user_vehicle_id,snapshot_date) UNIQUE",
-    "vehicle_valuation_snapshots(vehicle_catalog_id,snapshot_date) UNIQUE",
+    // The two vehicle one-per-day unique indexes used to be listed here: they
+    // existed in init-schema and in no migration, so tests rejected a
+    // duplicate same-day snapshot that production accepted. drizzle/0038 adds
+    // them (after collapsing any row that already violated the rule), so both
+    // paths now agree and the exception is gone rather than grandfathered.
   ],
 };
 

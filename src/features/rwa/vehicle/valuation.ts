@@ -13,6 +13,7 @@
  */
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
+import { rootCauseOf } from "@/db/init-schema";
 import { vehicleAssets, vehicleValuationSnapshots } from "@/db/schema";
 import { D } from "@/domain/decimal";
 import { resolveUsdRateForDateToFreeze, tomanToUsd } from "./fx";
@@ -42,6 +43,21 @@ export function toPoint(s: VehicleValuationSnapshot): SnapshotPoint {
     usdRate: s.usdRate,
     valueUsd: s.currentValueUsd,
   };
+}
+
+/**
+ * True when a unique-violation bubbled up from the driver (concurrent insert).
+ *
+ * The driver error must be UNWRAPPED to see it. Drizzle raises a
+ * DrizzleQueryError whose own message is only "Failed query: insert into …"
+ * and which carries no `code`; the Postgres error, with 23505 on it, is one
+ * level down in `cause`. Testing the outer message — as a first version of
+ * this did — silently never matches, and the race would surface to the user as
+ * a raw query dump instead of the sentence below.
+ */
+function isUniqueViolation(e: unknown): boolean {
+  const root = rootCauseOf(e);
+  return root.code === "23505" || /unique|duplicate/i.test(root.message);
 }
 
 /**
@@ -101,28 +117,43 @@ export async function recordVehicleValuationSnapshot(
     )
     .limit(1);
 
-  if (existing.length) {
-    throw new Error(
-      "برای این تاریخ ارزش‌گذاری ثبت شده است. اسنپ‌شات‌های قبلی تغییرناپذیرند؛ برای ارزش جدید یک تاریخ جدید ثبت کنید.",
-    );
-  }
+  const SAME_DAY_MESSAGE =
+    "برای این تاریخ ارزش‌گذاری ثبت شده است. اسنپ‌شات‌های قبلی تغییرناپذیرند؛ برای ارزش جدید یک تاریخ جدید ثبت کنید.";
+
+  // The read below is what produces the Persian message; it is NOT what makes
+  // the rule true. It and the insert are two statements, so two concurrent
+  // requests both find nothing and both write. The partial unique indexes
+  // added in drizzle/0038 are the actual guarantee, and the insert catches
+  // their violation so the loser of that race gets the same message as anyone
+  // else who picks a date that is already taken.
+  if (existing.length) throw new Error(SAME_DAY_MESSAGE);
 
   const currentValueUsd = tomanToUsd(valueToman.toFixed(0), usdRate);
 
-  const [row] = await db
-    .insert(vehicleValuationSnapshots)
-    .values({
-      vehicleCatalogId: input.catalogId,
-      userVehicleId: scopeId,
-      snapshotDate,
-      currentValueToman: valueToman.toFixed(0),
-      usdRate: D(usdRate).toString(),
-      currentValueUsd,
-      source: input.source ?? "manual",
-      note: input.note ?? null,
-      createdByUserId: input.createdByUserId ?? null,
-    })
-    .returning();
+  let row;
+  try {
+    [row] = await db
+      .insert(vehicleValuationSnapshots)
+      .values({
+        vehicleCatalogId: input.catalogId,
+        userVehicleId: scopeId,
+        snapshotDate,
+        currentValueToman: valueToman.toFixed(0),
+        usdRate: D(usdRate).toString(),
+        currentValueUsd,
+        source: input.source ?? "manual",
+        note: input.note ?? null,
+        createdByUserId: input.createdByUserId ?? null,
+      })
+      .returning();
+  } catch (error) {
+    // 23505 = unique_violation. Only the two one-per-day indexes can raise it
+    // on this insert, so the cause is unambiguous: a concurrent request took
+    // this date between the read above and this write. Report it as the same
+    // situation the user would have seen a moment earlier, not as a crash.
+    if (isUniqueViolation(error)) throw new Error(SAME_DAY_MESSAGE);
+    throw error;
+  }
 
   return mapSnapshot(row);
 }
