@@ -100,7 +100,12 @@ import { executePlanned, payInstallment } from "@/features/planning/service";
 import { calculateInstallmentPayment } from "@/features/planning/installmentFx";
 import { completeSetup, getSetupState } from "@/features/setup/service";
 import { rootCauseOf } from "@/db/init-schema";
-import { registerMoneyAccount } from "@/features/accounts/service";
+import {
+  deleteMoneyAccount,
+  previewMoneyAccountDeletion,
+  registerMoneyAccount,
+  type MoneyAccountDeletionPreview,
+} from "@/features/accounts/service";
 import { createPortfolioSnapshot, getCurrentNetWorth, getPortfolioValuation } from "@/features/portfolio/service";
 import { getAnalyticsSummary, recordAnalyticsRun } from "@/features/analytics/service";
 import { formatMoney, todayIso } from "@/lib/format";
@@ -373,6 +378,73 @@ export async function createTransferDestinationAction(
   } catch (e) {
     const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطا";
     return { ok: false, message: msg };
+  }
+}
+
+/**
+ * Read model behind the «حذف حساب» confirmation box: what the user is about to
+ * lose, and whether the deletion is possible at all. Read-only — it never
+ * authorises the write, which re-checks everything itself.
+ */
+export async function previewMoneyAccountDeletionAction(
+  accountId: string,
+): Promise<{ ok: boolean; message?: string; preview?: MoneyAccountDeletionPreview }> {
+  let user: any = null;
+  try {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
+  }
+
+  try {
+    const preview = await previewMoneyAccountDeletion({
+      accountId: String(accountId ?? ""),
+      // SECURITY: tenant identity comes ONLY from the session, never the client.
+      userId: user?.id ?? null,
+    });
+    return { ok: true, preview };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "پیش‌نمایش حذف حساب در دسترس نیست." };
+  }
+}
+
+/**
+ * Deletes a money account the user registered. The accounting core is not
+ * touched: the only ledger write is a reversal of the account's OWN opening
+ * entry through the unchanged `reverseEntry` path, and an account that still
+ * holds a balance is refused rather than silently hidden (see
+ * `deleteMoneyAccount`).
+ */
+export async function deleteMoneyAccountAction(accountId: string): Promise<ActionResult> {
+  let user: any = null;
+  try {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e?.message?.includes("Authentication/Database error")) {
+      return { ok: false, message: "خطای احراز هویت/پایگاه داده: دسترسی رد شد" };
+    }
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
+  }
+
+  try {
+    const result = await deleteMoneyAccount({
+      accountId: String(accountId ?? ""),
+      // SECURITY: tenant identity comes ONLY from the session, never the client.
+      userId: user?.id ?? null,
+    });
+    refreshAll();
+    return { ok: result.ok, message: result.message };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "حذف حساب ناموفق بود." };
   }
 }
 

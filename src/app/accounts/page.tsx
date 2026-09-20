@@ -23,6 +23,7 @@ import { faCount, formatMoney, formatPct, toIrtMoney, toFaDigits } from "@/lib/f
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getUserProMode } from "@/features/preferences/service";
 import AccountListItem from "@/components/accounts/AccountListItem";
+import DeleteAccountButton from "@/components/accounts/DeleteAccountButton";
 import { walletLogoFor } from "@/features/setup/holdingWallets";
 
 export const dynamic = "force-dynamic";
@@ -391,6 +392,11 @@ export default async function AccountsPage() {
                         </p>
                       )}
                     </div>
+                    {/* One account in this wallet → the row IS the account, so
+                        «حذف» here removes it (and the now-empty wallet with it).
+                        A multi-account wallet is deleted one account at a time
+                        from the sub-rows below. */}
+                    {single && <DeleteAccountButton accountId={first.accountId} accountName={w.name} />}
                   </div>
                   {!single && (
                     <ul className="wallet-sub">
@@ -414,6 +420,7 @@ export default async function AccountsPage() {
                             logoUrl={meta?.logoUrl ?? null}
                             assetClassName={b.className}
                             coingeckoId={meta?.coingeckoId ?? null}
+                            deletable
                           />
                         );
                       })}

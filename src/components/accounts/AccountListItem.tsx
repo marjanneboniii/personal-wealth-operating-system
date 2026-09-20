@@ -5,6 +5,7 @@
 // cross the server/client boundary — that used to crash «پول → حساب‌ها» with
 // "Functions cannot be passed directly to Client Components".
 import AssetLogo from "@/components/ui/AssetLogo";
+import DeleteAccountButton from "@/components/accounts/DeleteAccountButton";
 
 interface AccountListItemProps {
   accountId: string;
@@ -25,9 +26,12 @@ interface AccountListItemProps {
   assetClassName?: string | null;
   brandName?: string | null;
   coingeckoId?: string | null;
+  /** Shows «حذف حساب» on this row (with its own confirmation box). */
+  deletable?: boolean;
 }
 
 export default function AccountListItem({
+  accountId,
   name,
   symbol,
   balanceLabel,
@@ -37,6 +41,7 @@ export default function AccountListItem({
   assetClassName,
   brandName,
   coingeckoId,
+  deletable,
 }: AccountListItemProps) {
   // A trailing separator left in a stored name («بانک سامان ·») would render
   // as a lone dot next to the title.
@@ -72,6 +77,7 @@ export default function AccountListItem({
           </p>
         )}
       </div>
+      {deletable && <DeleteAccountButton accountId={accountId} accountName={safeName} compact />}
     </li>
   );
 }
