@@ -55,6 +55,34 @@ function initDb(): Db {
   // Fail-closed: production must never run on the embedded memory database.
   assertProductionDatabaseConfig();
 
+  /*
+   * TENANT ISOLATION IS ENFORCED IN APPLICATION CODE, NOT BY THIS CONNECTION.
+   *
+   * Read this before changing which role DATABASE_URL connects as.
+   *
+   * Every tenant-scoped query filters on user_id explicitly, and
+   * tests/security-isolation-hardening.test.ts proves it by having one user
+   * attempt to read and write another's properties, vehicles, valuations,
+   * accounts and installments. That is the mechanism.
+   *
+   * There is ALSO a set of row-level security policies from
+   * drizzle/0016_tenant_rls.sql that key off `current_setting('app.user_id')`.
+   * They are currently INERT, for two independent reasons: nothing sets that
+   * setting (the helper that did was never called by anything, and has been
+   * removed), and RLS is bypassed for a table owner unless FORCE ROW LEVEL
+   * SECURITY is used, which it is not. They were written as defence in depth
+   * for a deployment that runs as a NON-OWNER role, which this one does not.
+   *
+   * The trap: switching to a non-owner runtime role activates those policies
+   * against an unset app.user_id, and `user_id::text = NULL` is never true. No
+   * error is raised. Every tenant query simply returns nothing, everywhere, at
+   * once. If that move is ever made, the policies must be wired up — or
+   * dropped — in the same change.
+   *
+   * Note that this does NOT describe the Supabase Data API path. Browser
+   * clients go through PostgREST as the `authenticated` role, where the
+   * auth.uid() policies from drizzle/0017 are live and are what protect it.
+   */
   if (!isMemoryUrl(databaseUrl)) {
     const pool =
       globalForDb.__pwosPgPool ??
