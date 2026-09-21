@@ -43,6 +43,48 @@ test("iPhone SMS: setup, write-only credentials, encrypted tenant inbox, retries
   const input = { message: "بانک ملت برداشت: 250000 تومان", sender: "بانک ملت", sentAt: new Date(Date.now() + 1000).toISOString() };
   const post = (body: unknown, token = connection.token, contentType = "application/json") => POST(new Request("https://example.test/api/bank-messages", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": contentType }, body: JSON.stringify(body) }));
   assert.equal((await post(input, "invalid")).status, 401);
+
+  /*
+   * An unknown-but-well-formed token is rejected BEFORE the database is
+   * touched, and a single source cannot keep that rejection path busy.
+   *
+   * The per-connection bucket is keyed by the token, so inventing a new token
+   * each time buys a fresh allowance; every one of those requests would
+   * otherwise open a transaction and take SELECT … FOR UPDATE just to be told
+   * the connection does not exist. The per-IP bucket is what bounds that, and
+   * it is checked first — guessing a 256-bit token is not the risk, the cost
+   * of saying "no" is.
+   */
+  const inboxBefore = (await db.select().from(bankSmsInbox)).length;
+  const strangerIp = "203.0.113.7"; // TEST-NET-3, never a real client
+  const fromStranger = (n: number) =>
+    POST(new Request("https://example.test/api/bank-messages", {
+      method: "POST",
+      headers: {
+        // A different, syntactically valid token every time — the shape a
+        // caller would use to sidestep a purely token-keyed limit.
+        Authorization: `Bearer tzsms_${String(n).padStart(43, "x")}`,
+        "Content-Type": "application/json",
+        "x-forwarded-for": strangerIp,
+      },
+      body: JSON.stringify(input),
+    }));
+
+  const statuses: number[] = [];
+  for (let n = 0; n < 260; n++) statuses.push((await fromStranger(n)).status);
+  assert.ok(statuses.includes(429), "a single source must eventually be throttled");
+  assert.equal(statuses.at(-1), 429, "and stay throttled once over the limit");
+  assert.ok(
+    statuses.filter((s) => s === 401).length <= 240,
+    "no more than the per-IP allowance may reach the connection lookup",
+  );
+  assert.equal(
+    (await db.select().from(bankSmsInbox)).length,
+    inboxBefore,
+    "none of it wrote anything",
+  );
+  // The legitimate device, on its own address, is unaffected by that burst.
+  assert.equal((await post(input, "invalid")).status, 401);
   assert.equal((await post(input, connection.token, "text/plain")).status, 415);
   assert.equal((await post({ ...input, userId: other.id })).status, 400);
   assert.equal((await post({ ...input, sentAt: "not-a-date" })).status, 400);

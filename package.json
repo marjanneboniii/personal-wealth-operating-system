@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-test-module-mocks --import tsx --test tests/**/*.test.ts",
+    "test": "node --experimental-test-module-mocks --import tsx --import ./tests/support/no-network.mjs --test \"tests/**/*.test.ts\"",
     "test:security": "node --experimental-test-module-mocks --import tsx --test tests/security-accounting-invariant.test.ts tests/security-backup-restore.test.ts tests/security-fail-closed.test.ts tests/security-isolation-hardening.test.ts tests/security-supabase-auth.test.ts tests/audit-specific.test.ts",
     "seed": "tsx src/scripts/seed.ts",
     "fx:history": "tsx src/scripts/build-historical-usd.ts",

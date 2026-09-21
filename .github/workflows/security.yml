@@ -1,4 +1,4 @@
-name: Security checks
+name: Verify
 on:
   pull_request:
   push:
@@ -17,8 +17,26 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm audit --omit=dev --audit-level=high
-      - name: Security regression tests
-        run: npm run test:security
+
+      # The FULL suite, not the security subset.
+      #
+      # This job used to run `npm run test:security` — 6 files out of 131. The
+      # other 125 had no gate at all, and the suite sat red for weeks without
+      # anything noticing: a formatting change broke 6 assertions on 11 Sep and
+      # was found by an audit on 20 Sep, four commits later.
+      #
+      # The security subset is still meaningful as a name, but it is a SUBSET;
+      # running it alone is what made the gate decorative.
+      - name: Tests
+        run: npm test
         env: { DATABASE_URL: "memory://", NODE_ENV: "test" }
+
+      # The production build is its own failure mode: `typecheck` does not
+      # exercise the App Router's route-type generation, page data collection
+      # or static shell rendering, so a build break reached deploy without ever
+      # failing here.
+      - run: npm run build
+        env: { NODE_ENV: "production" }
+
       - uses: gitleaks/gitleaks-action@v2
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
