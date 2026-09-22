@@ -1232,6 +1232,31 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const MAX_ATTEMPTS = 5;
 
+/** دفتر چک — see src/db/schema.ts `cheques`; mirrors drizzle/0041. */
+const CHEQUE_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS cheques (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   updated_at timestamptz,
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   direction text NOT NULL CHECK (direction IN ('issued','received')),
+   counterparty text NOT NULL CHECK (char_length(counterparty) BETWEEN 1 AND 120),
+   amount_toman numeric(38,18) NOT NULL CHECK (amount_toman > 0),
+   due_date date NOT NULL,
+   account_id uuid REFERENCES accounts(id),
+   sayad_id text CHECK (sayad_id ~ '^[0-9]{16}$'),
+   serial text CHECK (char_length(serial) <= 40),
+   bank_name text CHECK (char_length(bank_name) <= 60),
+   installment_id uuid REFERENCES installments(id) ON DELETE SET NULL,
+   note text CHECK (char_length(note) <= 500),
+   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','cleared','bounced','cancelled')),
+   status_changed_at timestamptz,
+   cleared_entry_id uuid REFERENCES journal_entries(id)
+  );`,
+  `CREATE INDEX IF NOT EXISTS cheques_user_due_idx ON cheques(user_id, status, due_date);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS cheques_user_sayad_uq ON cheques(user_id, sayad_id) WHERE sayad_id IS NOT NULL;`,
+];
+
 /**
  * Best-effort hardening statements. They are applied when the database
  * supports them and silently skipped otherwise — never fatal for boot.
@@ -1364,6 +1389,7 @@ export async function createSchemaIfNotExists() {
     ...BANK_SMS_STATEMENTS,
     ...BANK_IDENTIFIER_STATEMENTS,
     ...BANK_ACCOUNT_NAME_STATEMENTS,
+    ...CHEQUE_STATEMENTS,
     // Required, not optional: these close a measured 57-index gap against the
     // migrations, and tests/schema-drift.test.ts fails if any is missing.
     ...PARITY_INDEX_STATEMENTS,

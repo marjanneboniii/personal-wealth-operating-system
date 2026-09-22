@@ -2,8 +2,8 @@
  * یادآورها — reminders DERIVED on every read, never stored.
  *
  * Each one is something with a date that needs the user's hand: an
- * installment to pay, an installment owed TO the user, a recurring income to
- * record, imported transactions to review. When the underlying row changes
+ * installment to pay, an installment owed TO the user, a cheque coming due
+ * or bounced, a recurring income to record, imported transactions to review. When the underlying row changes
  * (paid, recorded, reviewed) the reminder simply stops being derived.
  *
  * Only the "seen" marker is stored (notification_reads). A key embeds the
@@ -18,6 +18,7 @@ import { debts, installments, notificationReads } from "@/db/schema";
 import { D } from "@/domain/decimal";
 import { hasMultipleUsers, resolveQueryUserId } from "@/features/ledger/queries";
 import { listDueIncomePlans } from "@/features/income/service";
+import { chequesNeedingAttention } from "@/features/cheques/service";
 import { resolveInstallmentToman } from "@/features/planning/installmentFx";
 import { remainingToman, resolveDirection } from "@/features/planning/obligations";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
@@ -28,7 +29,7 @@ export const INSTALLMENT_HORIZON_DAYS = 7;
 /** Recurring incomes are reminded a little ahead, as on the overview. */
 const INCOME_HORIZON_DAYS = 3;
 
-export type ReminderKind = "installment" | "receivable" | "income" | "review";
+export type ReminderKind = "installment" | "receivable" | "cheque" | "bounced" | "income" | "review";
 
 export type Reminder = {
   /** Stable identity of this reminder occurrence (the seen-marker key). */
@@ -64,7 +65,7 @@ export async function getReminders(userId?: string, today = todayIso()): Promise
   if (!u && (await hasMultipleUsers())) return [];
 
   const horizon = addDays(today, INSTALLMENT_HORIZON_DAYS);
-  const [instRows, fx, incomes, review] = await Promise.all([
+  const [instRows, fx, incomes, review, chequeRows] = await Promise.all([
     db
       .select({
         id: installments.id,
@@ -101,6 +102,7 @@ export async function getReminders(userId?: string, today = todayIso()): Promise
         ${u ? sql`and je.user_id = ${u}` : sql``}
         and not exists (select 1 from entry_reviews er where er.entry_id = je.id)
     `),
+    u ? chequesNeedingAttention(u, horizon) : Promise.resolve([]),
   ]);
 
   const out: Omit<Reminder, "read">[] = [];
@@ -119,6 +121,35 @@ export async function getReminders(userId?: string, today = todayIso()): Promise
       amountToman: left ? left.toFixed(0) : null,
       href: receivable ? "/debts/obligations" : "/debts/installments",
       action: receivable ? "مشاهده طلب" : "پرداخت",
+    });
+  }
+
+  for (const c of chequeRows) {
+    const issued = c.direction === "issued";
+    const amountToman = D(c.amountToman).toFixed(0);
+    if (c.status === "bounced") {
+      out.push({
+        // A cheque that bounces again after being re-presented is new again.
+        key: `bounced:${c.id}:${c.statusChangedAt ? new Date(c.statusChangedAt).toISOString().slice(0, 10) : c.dueDate}`,
+        kind: "bounced",
+        title: issued ? `چک برگشتی شما به «${c.counterparty}»` : `چک برگشتی از «${c.counterparty}»`,
+        date: c.dueDate,
+        days: daysBetween(today, c.dueDate),
+        amountToman,
+        href: "/debts/cheques",
+        action: "پیگیری",
+      });
+      continue;
+    }
+    out.push({
+      key: `cheque:${c.id}:${c.dueDate}`,
+      kind: "cheque",
+      title: issued ? `چک به «${c.counterparty}» — موجودی حساب را آماده کنید` : `وصول چک «${c.counterparty}»`,
+      date: c.dueDate,
+      days: daysBetween(today, c.dueDate),
+      amountToman,
+      href: "/debts/cheques",
+      action: "دفتر چک",
     });
   }
 

@@ -61,6 +61,7 @@ import { closeIncomeOccurrence, scheduleNextIncome } from "@/features/income/ser
 import { jalaliDayOf } from "@/features/income/recurring";
 import { addTagToEntries, setEntryTags } from "@/features/tags/service";
 import { MAX_TAGS_PER_ENTRY, parseTags } from "@/features/tags/normalize";
+import { clearChequeInTx, revertClearedChequeInTx } from "@/features/cheques/service";
 import { setUserOccupations } from "@/features/preferences/service";
 import {
   assertDebtOwnership,
@@ -464,7 +465,9 @@ function refreshAll() {
     "/budgets",
     "/goals",
     "/debts",
+    "/debts/cheques",
     "/installments",
+    "/notifications",
     "/reports",
     "/audit",
     "/accounts",
@@ -718,6 +721,8 @@ const txSchema = z.object({
   recurringDay: z.string().optional(),
   /** Income recorded from a reminder: closes that occurrence and schedules the next. */
   planId: z.string().optional(),
+  /** Recorded as the clearing of a pending cheque (دفتر چک) — linked in the same DB transaction. */
+  chequeId: z.string().optional(),
   fee: z.string().optional(),
   /**
    * Unit of the `fee` field. `irt` (default, historical) reads it as Toman;
@@ -892,7 +897,10 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     // «فروش دارایی» of a property or vehicle: Toman only, into a bank account,
     // through the registry's own sale services (they post the ledger entry and
     // remove the asset from holdings atomically).
+    if (input.chequeId && !isUuid(input.chequeId)) throw new Error("چک انتخاب‌شده معتبر نیست");
+    if (input.chequeId && !authUser?.id) throw new Error("برای ثبت پاس شدن چک وارد شوید");
     if (input.type === "sell" && input.registryKind) {
+      if (input.chequeId) throw new Error("پاس شدن چک را نمی‌توان با فروش ملک یا خودرو یک‌جا ثبت کرد؛ ابتدا فروش را ثبت کنید.");
       if (!isUuid(input.registryId)) throw new Error("دارایی انتخاب‌شده معتبر نیست");
       if (!isUuid(input.counterAccountId)) throw new Error("حساب بانکی واریز را انتخاب کنید");
       const [bank] = await db
@@ -1582,6 +1590,11 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       if (tagList.length) {
         await tx.insert(entryTags).values(tagList.map((tag) => ({ entryId: entry.id, tag }))).onConflictDoNothing();
       }
+      // A cheque cleared by this entry — refused (and the entry rolled back)
+      // unless it is this user's pending cheque and the type moves money its way.
+      if (input.chequeId) {
+        await clearChequeInTx(tx, { chequeId: input.chequeId, userId: authUser.id, entryId: entry.id, type: input.type });
+      }
 
       // Recurring income: close the reminder this entry came from, or schedule
       // next month's reminder. A reminder is never posted without a tap.
@@ -1758,7 +1771,11 @@ export async function reverseEntryAction(entryId: string): Promise<ActionResult>
         return { ok: false, message: e?.message || "دسترسی غیرمجاز." };
       }
     }
-    await reverseEntry(entryId);
+    // A cheque cleared by this entry is pending again — atomically with the reversal.
+    await db.transaction(async (tx) => {
+      await reverseEntry(entryId, tx);
+      await revertClearedChequeInTx(tx, entryId);
+    });
     refreshAll();
     return { ok: true, message: "سند معکوس ثبت و سند اصلی ابطال شد." };
   } catch (e) {

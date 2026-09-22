@@ -177,6 +177,8 @@ type Props = {
   expenseRecentCategoryIds?: string[];
   /** The user's hashtags, most used first. */
   tagSuggestions?: string[];
+  /** Recording this pending cheque as cleared (دفتر چک). */
+  cheque?: { id: string; direction: "issued" | "received"; counterparty: string; amountToman: string; accountId: string | null } | null;
   /** The account that paid the user's latest expense — pre-selected. */
   lastExpenseAccountId?: string | null;
   debts?: DebtOption[];
@@ -253,6 +255,7 @@ export default function TransactionForm({
   categories = [],
   expenseRecentCategoryIds = [],
   tagSuggestions = [],
+  cheque = null,
   lastExpenseAccountId = null,
   debts = [],
   defaultType = "expense",
@@ -281,10 +284,12 @@ export default function TransactionForm({
   const [description, setDescription] = useState(initialDescription ?? initialTitle ?? "");
   // Kept after a save: a trip is usually several expenses in a row.
   const [tagsText, setTagsText] = useState("");
+  // The cheque link is spent by the first successful save.
+  const [chequeOpen, setChequeOpen] = useState(!!cheque);
 
   // One selection per ROLE, not per ledger column: a bank account chosen to
   // pay an expense is still selected when the user switches to «خرید دارایی».
-  const [moneyAccountId, setMoneyAccountId] = useState(initialIncome?.accountId ?? "");
+  const [moneyAccountId, setMoneyAccountId] = useState(initialIncome?.accountId ?? cheque?.accountId ?? "");
   const [assetAccountId, setAssetAccountId] = useState("");
   const [fromAccountId, setFromAccountId] = useState("");
   const [toAccountId, setToAccountId] = useState("");
@@ -293,7 +298,7 @@ export default function TransactionForm({
   const [incomeGroups, setIncomeGroups] = useState<CategoryGroupOption[]>(incomeCategories);
   const [incomeParentId, setIncomeParentId] = useState(initialIncome?.parentId ?? "");
   const [incomeCategoryId, setIncomeCategoryId] = useState(initialIncome?.categoryId ?? "");
-  const [incomeAmount, setIncomeAmount] = useState(initialIncome?.amount ?? "");
+  const [incomeAmount, setIncomeAmount] = useState(initialIncome?.amount ?? cheque?.amountToman ?? "");
   const [recurring, setRecurring] = useState(false);
   const [recurringDay, setRecurringDay] = useState(() => jalaliDayOf(initialEntryDate ?? today));
   const planId = initialIncome?.planId ?? "";
@@ -328,6 +333,7 @@ export default function TransactionForm({
     setHandledState(state);
     setConfirming(false);
     if (state?.ok) {
+      setChequeOpen(false);
       setIrtAmount("");
       setQuantity("");
       setLimitPrice("");
@@ -898,6 +904,17 @@ export default function TransactionForm({
       <input type="hidden" name="feeMode" value={feeInToman ? "irt" : "native"} />
       <input type="hidden" name="description" value={finalDescription} />
       <input type="hidden" name="tags" value={tagsText} />
+      <input type="hidden" name="chequeId" value={cheque && chequeOpen ? cheque.id : ""} />
+
+      {cheque && chequeOpen && (
+        <div className="card flex items-start gap-2 p-3 text-[length:var(--fs-sm)]" style={{ borderColor: "var(--action)" }} role="note">
+          <Icon name="note" size={16} />
+          <span>
+            ثبت پاس شدن چک {cheque.direction === "issued" ? "صادره در وجه" : "دریافتی از"} «{cheque.counterparty}» به مبلغ{" "}
+            <b className="num">{formatMoney(cheque.amountToman, "IRT")}</b>. با ثبت این تراکنش، چک در دفتر چک «پاس شد» می‌شود.
+          </span>
+        </div>
+      )}
       <input type="hidden" name="fxRate" value={effectiveRate ?? ""} />
       <input type="hidden" name="fxRateDate" value={effectiveRateDate ?? ""} />
       <input type="hidden" name="debtId" value={type === "debt_repayment" ? selectedDebt?.id ?? "" : ""} />

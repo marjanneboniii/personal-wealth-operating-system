@@ -17,6 +17,7 @@ import { getUserOccupations } from "@/features/preferences/service";
 import { suggestedIncomeCodes } from "@/features/income/occupations";
 import { getIncomePlan } from "@/features/income/service";
 import { listTags } from "@/features/tags/service";
+import { getPendingCheque } from "@/features/cheques/service";
 import { D } from "@/domain/decimal";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ const VALID: TxType[] = ["expense", "income", "transfer", "buy", "sell", "debt_r
 export default async function NewTransactionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; debtId?: string; installmentId?: string; irtAmount?: string; title?: string; entryDate?: string; planId?: string }>;
+  searchParams: Promise<{ type?: string; debtId?: string; installmentId?: string; irtAmount?: string; title?: string; entryDate?: string; planId?: string; chequeId?: string }>;
 }) {
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? null;
@@ -44,7 +45,7 @@ export default async function NewTransactionPage({
   // price refresh is what made «ثبت تراکنش» slow to open.
   // Coin networks refresh in the background (at most daily); the page reads what is stored now.
   void ensureCryptoNetworks();
-  const [rows, fxSnap, debts, categoryTree, balances, properties, vehicles, assetNetworks, incomeTree, occupations, incomePlan, expenseHabits, tagCounts] = await Promise.all([
+  const [rows, fxSnap, debts, categoryTree, balances, properties, vehicles, assetNetworks, incomeTree, occupations, incomePlan, expenseHabits, tagCounts, cheque] = await Promise.all([
     db
       .select({
         id: accounts.id,
@@ -92,6 +93,7 @@ export default async function NewTransactionPage({
     // Recent categories and the last paying account — the expense form pre-selects from them.
     userId ? getExpenseHabits(userId) : Promise.resolve({ categoryIds: [], lastAccountId: null }),
     listTags(userId ?? undefined),
+    userId && params.chequeId && /^[0-9a-f-]{36}$/i.test(params.chequeId) ? getPendingCheque(userId, params.chequeId) : Promise.resolve(null),
   ]);
   const incomePlanParent = incomePlan ? incomeTree.find((p) => p.children.some((c) => c.id === incomePlan.categoryId)) : undefined;
 
@@ -162,8 +164,13 @@ export default async function NewTransactionPage({
         initialRateSource={fxSnap.source}
         initialDebtId={params.debtId}
         initialInstallmentId={params.installmentId}
-        initialIrtAmount={params.irtAmount}
-        initialTitle={params.title}
+        initialIrtAmount={params.irtAmount ?? (cheque ? D(cheque.amountToman).toFixed(0) : undefined)}
+        initialTitle={params.title ?? (cheque ? `پاس شدن چک ${cheque.direction === "issued" ? "به" : "از"} ${cheque.counterparty}` : undefined)}
+        cheque={
+          cheque
+            ? { id: cheque.id, direction: cheque.direction, counterparty: cheque.counterparty, amountToman: D(cheque.amountToman).toFixed(0), accountId: cheque.accountId }
+            : null
+        }
         initialEntryDate={params.entryDate}
       />
     </div>
