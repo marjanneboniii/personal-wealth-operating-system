@@ -663,6 +663,8 @@ export type TxFilter = {
   accountId?: string;
   /** category id (leaf OR parent — a parent matches all of its children) */
   categoryId?: string;
+  /** normalized hashtag (see features/tags/normalize) */
+  tag?: string;
   from?: string; // ISO date
   to?: string; // ISO date
   review?: "reviewed" | "unreviewed";
@@ -670,7 +672,11 @@ export type TxFilter = {
   userId?: string;
 };
 
-export type TxRow = LedgerRow & { reviewed: boolean };
+export type TxRow = LedgerRow & {
+  reviewed: boolean;
+  /** hashtags, alphabetical — reporting only, editable after posting */
+  tags: string[];
+};
 
 /** Recent activity — same repository as the Transactions module (SSOT). */
 export async function getRecent(limit = 6, userId?: string): Promise<TxRow[]> {
@@ -678,7 +684,7 @@ export async function getRecent(limit = 6, userId?: string): Promise<TxRow[]> {
 }
 
 export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
-  const { type, q, accountId, categoryId, from, to } = filter;
+  const { type, q, accountId, categoryId, tag, from, to } = filter;
   const safeLimit = Math.min(Math.max(1, filter.limit || 120), 500);
   const u = await resolveQueryUserId(filter.userId);
   // Fail-closed: never blend tenants' transactions.
@@ -707,6 +713,7 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
              'memo', p.memo
            ) order by p.base_value desc) filter (where p.id is not null), '[]') as lines,
            (er.entry_id is not null) as reviewed,
+           coalesce((select json_agg(t.tag order by t.tag) from entry_tags t where t.entry_id = je.id), '[]') as tags,
            -- Frozen Toman (commit-time snapshot) — display only, never accounting.
            (select s.irt_amount::text from entry_fx_snapshots s where s.entry_id = je.id limit 1) as "fxIrtAmount",
            -- Frozen historical purchase Toman for a real-estate opening entry.
@@ -734,6 +741,7 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
           ? sql`and (je.category_id = ${categoryId} or je.category_id in (select id from expense_categories where parent_id = ${categoryId}))`
           : sql``
       }
+      ${tag ? sql`and exists (select 1 from entry_tags t2 where t2.entry_id = je.id and t2.tag = ${tag})` : sql``}
       ${filter.review === "reviewed" ? sql`and er.entry_id is not null` : sql``}
       ${filter.review === "unreviewed" ? sql`and er.entry_id is null` : sql``}
       -- Presentation-only consistency filter. Hide activity for a deleted

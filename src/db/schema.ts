@@ -16,6 +16,7 @@ import {
   integer,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -321,6 +322,24 @@ export const entryReviews = pgTable("entry_reviews", {
     .references(() => journalEntries.id, { onDelete: "cascade" }),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Free-form hashtags on a journal entry (#سفر, #تعمیر_خانه). A reporting
+ * dimension only, like the category: it never touches the balance, and it can
+ * be edited after posting because it lives beside the immutable entry, not in
+ * it. Tenancy follows the entry (journal_entries.user_id), as entry_reviews does.
+ */
+export const entryTags = pgTable(
+  "entry_tags",
+  {
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => journalEntries.id, { onDelete: "cascade" }),
+    tag: text("tag").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.entryId, t.tag] }), index("entry_tags_tag_idx").on(t.tag)],
+);
 
 /* ------------------------------------------------------------------ */
 /* Prices & snapshots                                                   */

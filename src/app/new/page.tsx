@@ -16,6 +16,7 @@ import { ensureCryptoNetworks, getCryptoNetworks } from "@/features/trade/networ
 import { getUserOccupations } from "@/features/preferences/service";
 import { suggestedIncomeCodes } from "@/features/income/occupations";
 import { getIncomePlan } from "@/features/income/service";
+import { listTags } from "@/features/tags/service";
 import { D } from "@/domain/decimal";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ export default async function NewTransactionPage({
   // price refresh is what made «ثبت تراکنش» slow to open.
   // Coin networks refresh in the background (at most daily); the page reads what is stored now.
   void ensureCryptoNetworks();
-  const [rows, fxSnap, debts, categoryTree, balances, properties, vehicles, assetNetworks, incomeTree, occupations, incomePlan, expenseHabits] = await Promise.all([
+  const [rows, fxSnap, debts, categoryTree, balances, properties, vehicles, assetNetworks, incomeTree, occupations, incomePlan, expenseHabits, tagCounts] = await Promise.all([
     db
       .select({
         id: accounts.id,
@@ -90,6 +91,7 @@ export default async function NewTransactionPage({
     userId && params.planId && /^[0-9a-f-]{36}$/i.test(params.planId) ? getIncomePlan(params.planId, userId) : Promise.resolve(null),
     // Recent categories and the last paying account — the expense form pre-selects from them.
     userId ? getExpenseHabits(userId) : Promise.resolve({ categoryIds: [], lastAccountId: null }),
+    listTags(userId ?? undefined),
   ]);
   const incomePlanParent = incomePlan ? incomeTree.find((p) => p.children.some((c) => c.id === incomePlan.categoryId)) : undefined;
 
@@ -150,6 +152,7 @@ export default async function NewTransactionPage({
           })),
         }))}
         expenseRecentCategoryIds={expenseHabits.categoryIds}
+        tagSuggestions={tagCounts.map((t) => t.tag)}
         lastExpenseAccountId={expenseHabits.lastAccountId}
         debts={debts as any}
         defaultType={defaultType}

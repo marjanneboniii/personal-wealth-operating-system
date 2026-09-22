@@ -7,6 +7,8 @@ import { seedIfEmpty } from "@/db/seed";
 import { getAccountBalances, getTransactions, type TxRow } from "@/features/ledger/queries";
 import { getEntryFxSnapshots } from "@/features/ledger/fxSnapshots";
 import { listCategoryTree } from "@/features/categories/service";
+import { getTagSummary, listTags } from "@/features/tags/service";
+import { normalizeTag } from "@/features/tags/normalize";
 import { PageHeader } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
@@ -40,6 +42,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const type = ["income", "expense", "transfer", "buy", "sell", "adjustment", "installment", "opening", "debt", "debt_repayment", "fx"].includes(s("type")) ? s("type") : "";
   const accountId = s("account");
   const categoryId = s("category");
+  const tag = normalizeTag(s("tag")) ?? "";
   const review = s("review") === "reviewed" || s("review") === "unreviewed" ? (s("review") as "reviewed" | "unreviewed") : "";
   const sort = ["new", "old", "amount"].includes(s("sort")) ? s("sort") : "new";
   const range = ["m1", "m3", "m6", "ytd", "all"].includes(s("range")) ? s("range") : "m3";
@@ -48,13 +51,14 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const from =
     range === "m1" ? monthShift(today, -1) : range === "m3" ? monthShift(today, -3) : range === "m6" ? monthShift(today, -6) : range === "ytd" ? `${today.slice(0, 4)}-01-01` : undefined;
 
-  const [rows, accounts, fx, categoryTree] = await Promise.all([
+  const [rows, accounts, fx, categoryTree, tagCounts, tagSummary] = await Promise.all([
     getTransactions({
       limit: ROW_LIMIT,
       q: q || undefined,
       type: type || undefined,
       accountId: accountId || undefined,
       categoryId: categoryId || undefined,
+      tag: tag || undefined,
       from,
       review: (review || undefined) as "reviewed" | "unreviewed" | undefined,
       sort: sort as "new" | "old" | "amount",
@@ -63,6 +67,8 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     getAccountBalances(userId),
     getLatestUsdIrtRate(),
     listCategoryTree(userId),
+    listTags(userId),
+    tag ? getTagSummary(tag, userId) : Promise.resolve(null),
   ]);
 
   // FX freeze + installment linkage for the detail panel. The ids come from the
@@ -129,7 +135,9 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         accountGroups={accountGroups}
         categoryGroups={categoryGroups}
         rate={String(fx.rate ?? "")}
-        filters={{ q, type, accountId, categoryId, review, range, sort }}
+        tags={tagCounts}
+        tagSummary={tagSummary}
+        filters={{ q, type, accountId, categoryId, tag, review, range, sort }}
         truncated={rows.length >= ROW_LIMIT}
       />
     </div>
