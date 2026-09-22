@@ -16,6 +16,7 @@ import {
   debts,
   entryFxSnapshots,
   entryReviews,
+  entryTags,
   events,
   goals,
   installments,
@@ -58,6 +59,8 @@ import {
 } from "@/features/accounts/systemAccounts";
 import { closeIncomeOccurrence, scheduleNextIncome } from "@/features/income/service";
 import { jalaliDayOf } from "@/features/income/recurring";
+import { addTagToEntries, setEntryTags } from "@/features/tags/service";
+import { MAX_TAGS_PER_ENTRY, parseTags } from "@/features/tags/normalize";
 import { setUserOccupations } from "@/features/preferences/service";
 import {
   assertDebtOwnership,
@@ -553,6 +556,69 @@ export async function markManyReviewedAction(entryIds: string[]): Promise<Action
   }
 }
 
+/**
+ * Hashtags are a reporting dimension beside the entry (entry_tags), so they
+ * may change after posting without touching the immutable ledger. Ownership
+ * is checked exactly as for review state.
+ */
+export async function setEntryTagsAction(entryId: string, input: string): Promise<ActionResult> {
+  let user: any = null;
+  try {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
+  }
+
+  try {
+    if (user) {
+      try {
+        await assertJournalEntryOwnership(entryId, user);
+      } catch (e: any) {
+        return { ok: false, message: e?.message || "دسترسی غیرمجاز." };
+      }
+    }
+    const tags = await setEntryTags(entryId, input);
+    revalidatePath("/transactions");
+    return { ok: true, message: tags.length ? "برچسب‌ها ذخیره شد." : "برچسب‌ها حذف شد." };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطا" };
+  }
+}
+
+export async function tagEntriesAction(entryIds: string[], tag: string): Promise<ActionResult> {
+  let user: any = null;
+  try {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    user = ctx.user;
+  } catch (e: any) {
+    if (e instanceof Error && e.message.includes("وارد شوید")) return { ok: false, message: e.message };
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
+  }
+
+  try {
+    const ids = [...new Set(entryIds)];
+    // SECURITY: all-or-nothing, as for bulk review.
+    if (user && ids.length) {
+      const owned = await db
+        .select({ id: journalEntries.id, userId: journalEntries.userId })
+        .from(journalEntries)
+        .where(inArray(journalEntries.id, ids));
+      if (owned.length !== ids.length || !owned.every((r) => r.userId === user.id)) {
+        return { ok: false, message: "دسترسی غیرمجاز: برخی اسناد متعلق به شما نیستند." };
+      }
+    }
+    const stored = await addTagToEntries(ids, tag);
+    revalidatePath("/transactions");
+    return { ok: true, message: `برچسب #${stored} به ${ids.length} تراکنش اضافه شد.` };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطا" };
+  }
+}
+
 const budgetSchema = z.object({
   name: z.string().min(2, "نام بودجه را وارد کنید"),
   accountId: z.string().uuid("حساب هزینه را انتخاب کنید"),
@@ -740,6 +806,9 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     const idempotencyKey = String(raw.idempotencyKey || fd.get("idempotencyKey") || "").trim() || undefined;
     // Support both legacy 'amount' (USD) and new 'irtAmount' (IRT) — IRT is reference, USD is computed via server rate (freeze)
     const input = txSchema.parse(raw);
+    // Hashtags: reporting only, stored beside the entry in the same transaction.
+    const tagList = parseTags(raw.tags ?? "");
+    if (tagList.length > MAX_TAGS_PER_ENTRY) return { ok: false, message: `حداکثر ${MAX_TAGS_PER_ENTRY} برچسب برای هر تراکنش مجاز است.` };
     const importProvenance = raw.bankImport === "confirmed" && idempotencyKey?.match(/^bank-import:[0-9a-f]{64}$/)
       ? { source: "import" as const, reference: idempotencyKey }
       : {};
@@ -907,6 +976,9 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           })
           .onConflictDoUpdate({ target: entryFxSnapshots.entryId, set: saleFreeze });
         await db.insert(entryReviews).values({ entryId: ledgerEntryId }).onConflictDoNothing();
+        if (tagList.length) {
+          await db.insert(entryTags).values(tagList.map((tag) => ({ entryId: ledgerEntryId!, tag }))).onConflictDoNothing();
+        }
       }
 
       refreshAll();
@@ -1507,6 +1579,9 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
 
       // Manual entries are reviewed by construction — a human just made them.
       await tx.insert(entryReviews).values({ entryId: entry.id }).onConflictDoNothing();
+      if (tagList.length) {
+        await tx.insert(entryTags).values(tagList.map((tag) => ({ entryId: entry.id, tag }))).onConflictDoNothing();
+      }
 
       // Recurring income: close the reminder this entry came from, or schedule
       // next month's reminder. A reminder is never posted without a tap.

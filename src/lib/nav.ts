@@ -328,6 +328,13 @@ export const NAV_GROUPS: NavGroup[] = [
         question: "سیستم چه چیزی در داده‌های من می‌بیند؟",
         keywords: ["insights", "health", "alerts", "بینش", "سلامت مالی", "هشدار", "تحلیل"],
       },
+      {
+        href: "/notifications",
+        label: "یادآورها",
+        icon: "bell",
+        question: "چه کاری سررسید شده است؟",
+        keywords: ["notifications", "reminders", "یادآور", "اعلان", "سررسید", "قسط"],
+      },
     ],
   },
   {

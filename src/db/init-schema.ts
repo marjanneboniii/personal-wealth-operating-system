@@ -478,6 +478,12 @@ const STATEMENTS = [
     level text NOT NULL DEFAULT 'info',
     read_at timestamptz
   );`,
+  `CREATE TABLE IF NOT EXISTS notification_reads (
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    key text NOT NULL CHECK (char_length(key) BETWEEN 1 AND 200),
+    read_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, key)
+  );`,
   `CREATE TABLE IF NOT EXISTS audit_log (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -490,6 +496,13 @@ const STATEMENTS = [
     entry_id uuid PRIMARY KEY REFERENCES journal_entries(id) ON DELETE CASCADE,
     reviewed_at timestamptz NOT NULL DEFAULT now()
   );`,
+  `CREATE TABLE IF NOT EXISTS entry_tags (
+    entry_id uuid NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
+    tag text NOT NULL CHECK (char_length(tag) BETWEEN 1 AND 32),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (entry_id, tag)
+  );`,
+  `CREATE INDEX IF NOT EXISTS entry_tags_tag_idx ON entry_tags(tag);`,
   `CREATE TABLE IF NOT EXISTS user_setup_state (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid REFERENCES users(id),

@@ -30,6 +30,8 @@
  * rule moved into the UI, and nothing is written before «تأیید و ثبت».
  */
 import { useActionState, useEffect, useRef, useState } from "react";
+import TagInput from "@/components/transactions/TagInput";
+import { parseTags } from "@/features/tags/normalize";
 import { createTransactionAction, createCategoryAction, createTransferDestinationAction, type ActionResult } from "@/app/actions";
 import { KNOWN_WALLETS } from "@/features/setup/holdingWallets";
 import { currencyLabel, faCount, formatMoney, formatQty, getDualDate } from "@/lib/format";
@@ -173,6 +175,8 @@ type Props = {
   categories?: CategoryGroupOption[];
   /** Expense categories the user reaches for most, most used first. */
   expenseRecentCategoryIds?: string[];
+  /** The user's hashtags, most used first. */
+  tagSuggestions?: string[];
   /** The account that paid the user's latest expense — pre-selected. */
   lastExpenseAccountId?: string | null;
   debts?: DebtOption[];
@@ -248,6 +252,7 @@ export default function TransactionForm({
   initialIncome = null,
   categories = [],
   expenseRecentCategoryIds = [],
+  tagSuggestions = [],
   lastExpenseAccountId = null,
   debts = [],
   defaultType = "expense",
@@ -274,6 +279,8 @@ export default function TransactionForm({
   const [fee, setFee] = useState("");
   const [entryDate, setEntryDate] = useState(initialEntryDate ?? today);
   const [description, setDescription] = useState(initialDescription ?? initialTitle ?? "");
+  // Kept after a save: a trip is usually several expenses in a row.
+  const [tagsText, setTagsText] = useState("");
 
   // One selection per ROLE, not per ledger column: a bank account chosen to
   // pay an expense is still selected when the user switches to «خرید دارایی».
@@ -855,6 +862,8 @@ export default function TransactionForm({
     summary.push(["کارمزد", <span key="f" className="num">{formatMoney(fee, feeInToman ? "IRT" : feeSymbol)}</span>]);
   }
   summary.push(["تاریخ", entryDate ? getDualDate(entryDate).jalali : "—"], ["شرح", finalDescription]);
+  const parsedTags = parseTags(tagsText);
+  if (parsedTags.length) summary.push(["برچسب", parsedTags.map((t) => `#${t}`).join(" ")]);
 
   const stepOneTitle: Record<TxType, string> = {
     expense: "برای چه خرج کردید؟",
@@ -888,6 +897,7 @@ export default function TransactionForm({
       <input type="hidden" name="fee" value={type === "expense" ? "" : fee} />
       <input type="hidden" name="feeMode" value={feeInToman ? "irt" : "native"} />
       <input type="hidden" name="description" value={finalDescription} />
+      <input type="hidden" name="tags" value={tagsText} />
       <input type="hidden" name="fxRate" value={effectiveRate ?? ""} />
       <input type="hidden" name="fxRateDate" value={effectiveRateDate ?? ""} />
       <input type="hidden" name="debtId" value={type === "debt_repayment" ? selectedDebt?.id ?? "" : ""} />
@@ -1317,6 +1327,15 @@ export default function TransactionForm({
         </div>
       </Step>
       </>
+      )}
+
+      {!confirming && (
+        <details className="card p-4" open={tagsText !== "" || undefined}>
+          <summary className="cursor-pointer text-[length:var(--fs-sm)] font-semibold">برچسب (اختیاری)</summary>
+          <div className="mt-3">
+            <TagInput id="tx-tags" value={tagsText} onChange={setTagsText} suggestions={tagSuggestions} />
+          </div>
+        </details>
       )}
 
       {/* ── Review, then confirm. Nothing is written before «تأیید و ثبت». ── */}

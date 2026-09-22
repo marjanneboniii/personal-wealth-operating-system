@@ -6,7 +6,9 @@ import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import AdvancedFilter from "@/components/ui/AdvancedFilter";
 import FlowIcon from "@/components/transactions/FlowIcon";
-import { markManyReviewedAction, markReviewedAction } from "@/app/actions";
+import { markManyReviewedAction, markReviewedAction, setEntryTagsAction, tagEntriesAction } from "@/app/actions";
+import TagInput from "@/components/transactions/TagInput";
+import type { TagCount, TagSummary } from "@/features/tags/service";
 import { humanizeEntry, moneyFlowLabel, txAmountLabel } from "@/lib/tx";
 import type { TxRow } from "@/features/ledger/queries";
 import type { EntryFxSnapshot } from "@/features/ledger/fxSnapshots";
@@ -29,7 +31,7 @@ export type ClientTxRow = TxRow & {
   linkedInstallment: { title: string; seq: number } | null;
 };
 
-type Filters = { q: string; type: string; accountId: string; categoryId: string; review: string; range: string; sort: string };
+type Filters = { q: string; type: string; accountId: string; categoryId: string; tag: string; review: string; range: string; sort: string };
 
 const TYPE_OPTIONS = [
   { key: "expense", label: "هزینه" },
@@ -72,6 +74,8 @@ export default function TransactionsView({
   accountGroups,
   categoryGroups = [],
   rate,
+  tags = [],
+  tagSummary = null,
   filters,
   truncated = false,
 }: {
@@ -79,6 +83,10 @@ export default function TransactionsView({
   accountGroups: { label: string; options: { id: string; name: string }[] }[];
   categoryGroups?: { id: string; name: string; children: { id: string; name: string }[] }[];
   rate: string;
+  /** The user's hashtags, most used first. */
+  tags?: TagCount[];
+  /** All-time totals of the filtered tag. */
+  tagSummary?: TagSummary | null;
   filters: Filters;
   /** The query hit its row limit — older matches exist but are not listed. */
   truncated?: boolean;
@@ -91,6 +99,26 @@ export default function TransactionsView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const searchRef = useRef<HTMLInputElement>(null);
+  const [tagEdit, setTagEdit] = useState<{ id: string; text: string } | null>(null);
+  const [bulkTag, setBulkTag] = useState<string | null>(null);
+  const [tagMsg, setTagMsg] = useState<string | null>(null);
+  const tagNames = useMemo(() => tags.map((t) => t.tag), [tags]);
+
+  const saveTags = (id: string, text: string) =>
+    startTransition(async () => {
+      const res = await setEntryTagsAction(id, text);
+      setTagMsg(res.ok ? null : res.message);
+      if (res.ok) setTagEdit(null);
+    });
+  const saveBulkTag = (text: string) =>
+    startTransition(async () => {
+      const res = await tagEntriesAction([...selected], text);
+      setTagMsg(res.message);
+      if (res.ok) {
+        setBulkTag(null);
+        setSelected(new Set());
+      }
+    });
 
   // URL state — filters survive refresh, share and browser back
   const apply = (patch: Partial<Filters>) => {
@@ -101,6 +129,7 @@ export default function TransactionsView({
       type: "type",
       accountId: "account",
       categoryId: "category",
+      tag: "tag",
       review: "review",
       range: "range",
       sort: "sort",
@@ -138,7 +167,7 @@ export default function TransactionsView({
   }, [rows, byDay]);
 
   const exportCsv = () => {
-    const head = "date,description,type,from,to,amount_usd,amount_irt\n";
+    const head = "date,description,type,from,to,amount_usd,amount_irt,tags\n";
     const body = selectedRows
       .map((r) => {
         const h = humanizeEntry(r);
@@ -153,6 +182,7 @@ export default function TransactionsView({
           `"${h.to ?? ""}"`,
           h.amount,
           `"${irt}"`,
+          `"${r.tags.map((t) => `#${t}`).join(" ")}"`,
         ].join(",");
       })
       .join("\n");
@@ -166,7 +196,7 @@ export default function TransactionsView({
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const isFiltered = filters.q || filters.type || filters.accountId || filters.categoryId || filters.review || filters.range !== "m3";
+  const isFiltered = filters.q || filters.type || filters.accountId || filters.categoryId || filters.tag || filters.review || filters.range !== "m3";
 
   const renderRow = (e: ClientTxRow) => {
     const h = humanizeEntry(e);
@@ -182,7 +212,8 @@ export default function TransactionsView({
         ? trade.tradeSymbol
         : `${formatQty(trade.tradeQuantity, 8)} ${currencyLabel(trade.tradeSymbol)}`
       : null;
-    const meta = [h.typeLabel, tradeQty, category, flow].filter(Boolean).join(" · ");
+    const tagLine = e.tags.length ? e.tags.map((t) => `#${t}`).join(" ") : null;
+    const meta = [h.typeLabel, tradeQty, category, flow, tagLine].filter(Boolean).join(" · ");
     const amount = txAmountLabel(h, e.fx?.irtAmount, rate);
 
     return (
@@ -343,6 +374,46 @@ export default function TransactionsView({
               </p>
             )}
 
+            {tagEdit?.id === e.id ? (
+              <form
+                className="mt-3 space-y-2"
+                onSubmit={(ev) => {
+                  ev.preventDefault();
+                  saveTags(e.id, tagEdit.text);
+                }}
+              >
+                <label className="label" htmlFor={`tags-${e.id}`}>برچسب‌ها</label>
+                <TagInput id={`tags-${e.id}`} value={tagEdit.text} onChange={(text) => setTagEdit({ id: e.id, text })} suggestions={tagNames} autoFocus />
+                <div className="flex gap-2">
+                  <button type="submit" disabled={pending} className="btn btn-primary !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]">
+                    ذخیره برچسب‌ها
+                  </button>
+                  <button type="button" className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]" onClick={() => setTagEdit(null)}>
+                    انصراف
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                {e.tags.map((t) => (
+                  <button key={t} type="button" className="tag-chip" onClick={() => apply({ tag: t })} title={`همه تراکنش‌های #${t}`}>
+                    #{t}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="btn btn-ghost !min-h-8 !px-2.5 !py-1 text-[length:var(--fs-xs)]"
+                  onClick={() => {
+                    setTagMsg(null);
+                    setTagEdit({ id: e.id, text: e.tags.map((t) => `#${t}`).join(" ") });
+                  }}
+                >
+                  <Icon name="plus" size={13} />
+                  {e.tags.length ? "ویرایش برچسب" : "افزودن برچسب"}
+                </button>
+              </div>
+            )}
+
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -429,6 +500,22 @@ export default function TransactionsView({
                 },
               ]
             : []),
+          ...(tags.length > 0 || filters.tag
+            ? [
+                {
+                  key: "tag",
+                  label: "برچسب",
+                  value: filters.tag,
+                  placeholder: "همه برچسب‌ها",
+                  options: (tags.some((t) => t.tag === filters.tag) || !filters.tag ? tags : [{ tag: filters.tag, entries: 0 }, ...tags]).map((t) => ({
+                    value: t.tag,
+                    label: `#${t.tag}`,
+                  })),
+                  maxWidthClass: "max-w-[160px]",
+                  onChange: (v: string) => apply({ tag: v }),
+                },
+              ]
+            : []),
           {
             key: "sort",
             label: "ترتیب",
@@ -449,6 +536,56 @@ export default function TransactionsView({
         isFiltered={!!isFiltered}
         onClear={() => router.replace("/transactions")}
       />
+
+      {tagSummary && tagSummary.entries > 0 && (
+        <section className="card space-y-2 p-4" aria-label={`جمع برچسب #${tagSummary.tag}`}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-[length:var(--fs-sm)] font-bold">
+              <span className="tag-chip">#{tagSummary.tag}</span>
+            </h2>
+            <span className="muted num text-[length:var(--fs-xs)]">
+              {faCount(tagSummary.entries)} تراکنش
+              {tagSummary.firstDate && tagSummary.lastDate
+                ? ` · ${formatJalaliIso(tagSummary.firstDate)}${tagSummary.lastDate !== tagSummary.firstDate ? ` تا ${formatJalaliIso(tagSummary.lastDate)}` : ""}`
+                : ""}
+            </span>
+          </div>
+          <dl className="tx-detail-grid">
+            <div>
+              <dt>کل هزینه</dt>
+              <dd className="num" dir="rtl">
+                {tagSummary.expenseEntries > 0 ? formatMoney(D(tagSummary.expenseToman).toFixed(0), "IRT") : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt>معادل دلاری هزینه</dt>
+              <dd className="num" dir="rtl">
+                {tagSummary.expenseEntries > 0 ? formatMoney(tagSummary.expenseUsd) : "—"}
+              </dd>
+            </div>
+            {tagSummary.incomeEntries > 0 && (
+              <div>
+                <dt>کل درآمد</dt>
+                <dd className="num" dir="rtl">
+                  {formatMoney(D(tagSummary.incomeToman).toFixed(0), "IRT")}
+                </dd>
+              </div>
+            )}
+          </dl>
+          <p className="muted text-[length:var(--fs-xs)] leading-5">
+            جمع کل دوره است و به بازه‌ی فهرست بستگی ندارد. تومان با نرخ روز ثبت هر تراکنش است، نه نرخ امروز.
+            {tagSummary.expenseEntriesWithSnap < tagSummary.expenseEntries
+              ? ` برای ${faCount(tagSummary.expenseEntries - tagSummary.expenseEntriesWithSnap)} هزینه مبلغ تومانی ثبت نشده و در جمع تومانی نیامده است.`
+              : ""}
+          </p>
+        </section>
+      )}
+
+      {tagMsg && (
+        <p className="text-[length:var(--fs-xs)]" role="status">
+          {tagMsg}
+        </p>
+      )}
 
       {rows.length === 0 ? (
         <div className="card flex flex-col items-center gap-2 px-6 py-12 text-center">
@@ -491,8 +628,43 @@ export default function TransactionsView({
           role="region"
           aria-label="اقدامات گروهی"
         >
+          {bulkTag !== null ? (
+            <form
+              className="flex flex-1 items-center gap-1.5"
+              onSubmit={(ev) => {
+                ev.preventDefault();
+                saveBulkTag(bulkTag);
+              }}
+            >
+              <input
+                className="field !min-h-9 flex-1 !py-1 text-[length:var(--fs-xs)]"
+                value={bulkTag}
+                onChange={(ev) => setBulkTag(ev.target.value)}
+                placeholder="#سفر"
+                aria-label={`برچسب برای ${faCount(selectedRows.length)} تراکنش`}
+                list="tx-tag-options"
+                autoFocus
+              />
+              <datalist id="tx-tag-options">
+                {tagNames.map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
+              <button type="submit" disabled={pending || !bulkTag.trim()} className="btn btn-primary !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
+                افزودن
+              </button>
+              <button type="button" className="icon-btn !min-h-9 !min-w-9" onClick={() => setBulkTag(null)} aria-label="انصراف از برچسب">
+                <Icon name="x" size={15} />
+              </button>
+            </form>
+          ) : (
+          <>
           <span className="text-[length:var(--fs-xs)] font-semibold">{faCount(selectedRows.length)} مورد انتخاب شده</span>
           <div className="flex items-center gap-1.5">
+            <button type="button" className="btn !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]" onClick={() => { setTagMsg(null); setBulkTag(""); }}>
+              #
+              برچسب
+            </button>
             <button type="button" className="btn btn-primary !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]" onClick={exportCsv}>
               <Icon name="download" size={14} />
               خروجی CSV
@@ -515,6 +687,8 @@ export default function TransactionsView({
               <Icon name="x" size={15} />
             </button>
           </div>
+          </>
+          )}
         </div>
       )}
     </div>
