@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import ReminderBell from "@/components/notifications/ReminderBell";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import Sheet from "@/components/ui/Sheet";
 import CommandPalette from "@/components/ui/CommandPalette";
@@ -529,6 +530,7 @@ export default function Shell({
           ))}
           <div className={`mt-1.5 flex items-center gap-1.5 px-1.5 ${collapsed ? "flex-col" : ""}`}>
             <AccountLink user={authUser} compact={collapsed} />
+            <ReminderBell />
             <ThemeToggle />
             <Link
               href="/new"
@@ -562,6 +564,7 @@ export default function Shell({
           <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
             <Icon name="search" size={18} />
           </button>
+          <ReminderBell />
           <AccountLink user={authUser} compact />
           <ThemeToggle />
           <Link href="/new" className="btn btn-primary !px-3 !text-[length:var(--fs-sm)]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>

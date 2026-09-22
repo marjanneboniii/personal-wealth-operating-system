@@ -281,6 +281,13 @@
       "when": 1789600300002,
       "tag": "0039_entry_tags",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789600400002,
+      "tag": "0040_notification_reads",
+      "breakpoints": true
     }
   ]
 }

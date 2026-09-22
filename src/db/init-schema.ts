@@ -478,6 +478,12 @@ const STATEMENTS = [
     level text NOT NULL DEFAULT 'info',
     read_at timestamptz
   );`,
+  `CREATE TABLE IF NOT EXISTS notification_reads (
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    key text NOT NULL CHECK (char_length(key) BETWEEN 1 AND 200),
+    read_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, key)
+  );`,
   `CREATE TABLE IF NOT EXISTS audit_log (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),

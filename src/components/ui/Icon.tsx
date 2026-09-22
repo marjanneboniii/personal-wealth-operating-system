@@ -231,6 +231,12 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="m9.2 9.2 5.6 5.6M14.8 9.2l-5.6 5.6" />
     </>
   ),
+  bell: (
+    <>
+      <path d="M6.5 10a5.5 5.5 0 0 1 11 0c0 4.5 1.8 6 1.8 6H4.7s1.8-1.5 1.8-6Z" />
+      <path d="M10.2 19a2 2 0 0 0 3.6 0" />
+    </>
+  ),
   clock: (
     <>
       <circle cx="12" cy="12" r="8.2" />

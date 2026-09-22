@@ -1497,6 +1497,23 @@ export const settings = pgTable("settings", {
   value: text("value").notNull(),
 });
 
+/**
+ * Which reminders a user has seen. Reminders themselves are DERIVED on read
+ * (features/notifications) and never stored — only this seen-marker is. A
+ * key embeds the due date, so a rescheduled item is new again.
+ */
+export const notificationReads = pgTable(
+  "notification_reads",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
+);
+
 export const notifications = pgTable("notifications", {
   id: uuid("id").primaryKey().defaultRandom(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
