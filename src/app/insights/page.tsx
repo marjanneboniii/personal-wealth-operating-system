@@ -5,6 +5,7 @@ import { getCashflow, getLiabilitiesTotal, countUnreviewed } from "@/features/le
 import { getFlowByCategory } from "@/features/categories/service";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { listDebts, projectCashflow } from "@/features/planning/service";
+import { computeDebtService, WINDOW_DAYS } from "@/features/planning/debtService";
 import { Alert, EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import { D, Decimal } from "@/domain/decimal";
@@ -29,6 +30,7 @@ export const metadata = { title: "بینش‌ها" };
  * from existing read primitives:
  *   getCurrentNetWorth · getCashflow · getFlowByCategory ·
  *   listDebts · projectCashflow · getLiabilitiesTotal · countUnreviewed
+ * and pure derivations of them (computeDebtService).
  */
 
 type Insight = {
@@ -96,6 +98,10 @@ export default async function InsightsPage() {
 
   const liquidShare = totalAssets.isZero() ? Decimal.zero() : liquid.div(totalAssets).mul(100);
 
+  // Installments vs income — what share of a month's income is already promised.
+  const service = computeDebtService({ today, rate: fx.rate, debts, cashflow: flow });
+  const serviceRatio = service.ratioPct != null ? D(service.ratioPct) : null;
+
   /* ── Spending analysis ────────────────────────────────────────── */
 
   const spendTotal = Decimal.sum(categories.map((c) => c.total));
@@ -149,6 +155,17 @@ export default async function InsightsPage() {
       body: `بدهی‌های شما ${formatPct(debtRatio.toFixed(1), 1)} از کل دارایی‌ها را تشکیل می‌دهند. کاهش این نسبت، انعطاف مالی شما را بیشتر می‌کند.`,
       href: "/debts",
       action: "مدیریت بدهی",
+    });
+  }
+
+  if (serviceRatio && serviceRatio.gt("40")) {
+    insights.push({
+      tone: "warn",
+      icon: "calendar",
+      title: "اقساط سهم بزرگی از درآمد را گرفته است",
+      body: `در ${faCount(WINDOW_DAYS)} روز آینده، به‌طور میانگین ${formatPct(serviceRatio.toFixed(0), 0)} از درآمد ماهانه‌تان صرف قسط می‌شود. پیش از بدهی تازه، به این عدد نگاه کنید.`,
+      href: "/debts/installments",
+      action: "مشاهده اقساط",
     });
   }
 
@@ -221,6 +238,18 @@ export default async function InsightsPage() {
           value={formatPct(debtRatio.toFixed(1), 1)}
           tone={debtRatio.gt("50") ? "down" : debtRatio.gt("30") ? "neutral" : "up"}
           hint={toIrt(totalLiabilities.toString()) ?? formatMoney(totalLiabilities.toString())}
+        />
+        <Metric
+          label="نسبت اقساط به درآمد"
+          value={serviceRatio ? formatPct(serviceRatio.toFixed(1), 1) : "—"}
+          tone={serviceRatio ? (serviceRatio.gt("40") ? "down" : serviceRatio.gt("30") ? "neutral" : "up") : "neutral"}
+          hint={
+            service.monthlyIncomeToman == null
+              ? "درآمدی در ۶ ماه اخیر ثبت نشده"
+              : service.installmentsInWindow === 0
+                ? `قسطی در ${faCount(WINDOW_DAYS)} روز آینده نیست`
+                : `قسط ماهانه ${formatMoney(service.monthlyInstallmentsToman, "IRT")} از درآمد ${service.incomeFrozen ? "" : "≈ "}${formatMoney(service.monthlyIncomeToman, "IRT")}`
+          }
         />
         <Metric
           label="نرخ پس‌انداز"
