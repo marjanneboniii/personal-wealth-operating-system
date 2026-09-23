@@ -1,11 +1,9 @@
-import { listBankIdentifiers } from "@/features/bankImport/identifiers";
+import { listBankIdentifiers, listSmsBankAccounts, listTomanAccounts } from "@/features/bankImport/identifiers";
+import SmsProgress from "@/components/transactions/SmsProgress";
 import BankIdentifiers from "@/components/transactions/BankIdentifiers";
 import Link from "next/link";
 import { listSmsConnections, listSmsDrafts } from "@/features/bankImport/sms";
 import IphoneSmsConnection from "@/components/transactions/IphoneSmsConnection";
-import { and, asc, eq, isNull } from "drizzle-orm";
-import { db } from "@/db";
-import { accounts, assets } from "@/db/schema";
 import { ensureAuth } from "@/lib/authGuard";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { formatJalaliIso, jalaliToIso, todayIso } from "@/lib/format";
@@ -20,11 +18,9 @@ export const metadata = { title: "اتصال پیامک" };
 
 export default async function BankImportPage() {
   const user = await ensureAuth();
-  const [moneyAccounts, expenseTree, incomeTree, history, rate, connections, smsDrafts, identifiers] = await Promise.all([
-    db.select({ id: accounts.id, name: accounts.name }).from(accounts)
-      .innerJoin(assets, eq(accounts.assetId, assets.id))
-      .where(and(eq(accounts.userId, user.id), eq(accounts.type, "asset"), eq(accounts.isActive, true), eq(assets.symbol, "IRT"), isNull(accounts.deletedAt), isNull(assets.deletedAt)))
-      .orderBy(asc(accounts.name)),
+  const [bankAccounts, tomanAccounts, expenseTree, incomeTree, history, rate, connections, smsDrafts, identifiers] = await Promise.all([
+    listSmsBankAccounts(user.id),
+    listTomanAccounts(user.id),
     listCategoryTree(user.id, "expense"),
     listCategoryTree(user.id, "income"),
     getTransactions({ userId: user.id, limit: 500, sort: "new", review: "reviewed" }),
@@ -42,11 +38,11 @@ export default async function BankImportPage() {
   try { const url = new URL(process.env.NEXT_PUBLIC_SITE_URL || ""); if (url.protocol === "https:") endpoint = new URL("/api/bank-messages", url.origin).href; } catch {}
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <PageHeader title="اتصال پیامک" subtitle="بانک و کارت را معرفی کنید، آیفون را وصل کنید و پیام‌های جدید را با تأیید خودتان ثبت کنید." action={<Link href="/transactions" className="btn btn-ghost">تراکنش‌ها</Link>} />
-      <div className="sms-flow" aria-label="مراحل اتصال"><span>۱ · بانک و کارت</span><span>۲ · ساخت کلید</span><span>۳ · تنظیم آیفون</span><span>۴ · تأیید پیام‌ها</span></div>
-      <BankIdentifiers accounts={moneyAccounts} identifiers={identifiers} />
+      <PageHeader title="اتصال پیامک" subtitle="پیامک‌های بانک خودشان به تراکنش پیشنهادی تبدیل می‌شوند؛ شما فقط بررسی و تأیید می‌کنید." action={<Link href="/transactions" className="btn btn-ghost">تراکنش‌ها</Link>} />
+      <SmsProgress cards={identifiers.length} iphones={connections.length} waiting={smsDrafts.length} />
+      <BankIdentifiers accounts={bankAccounts} identifiers={identifiers} />
       <IphoneSmsConnection endpoint={endpoint} connections={connections.map((c) => ({ ...c, createdAt: c.createdAt.toISOString(), lastReceivedAt: c.lastReceivedAt?.toISOString() ?? null }))} />
-      <BankImportWorkspace smsDrafts={smsDrafts} accounts={moneyAccounts} expenseCategories={categories(expenseTree)} incomeCategories={categories(incomeTree)} history={history.map((r) => ({ entryDate: r.entryDate, type: r.type, status: r.status, reviewed: r.reviewed, description: r.description, categoryId: r.categoryId, categoryNonCash: r.categoryNonCash, fxIrtAmount: r.fxIrtAmount }))} habits={habits} historyLimited={history.length >= 500} rate={String(rate.rate)} rateDate={rate.effectiveDate} />
+      <BankImportWorkspace smsDrafts={smsDrafts} accounts={bankAccounts} destinations={tomanAccounts} expenseCategories={categories(expenseTree)} incomeCategories={categories(incomeTree)} history={history.map((r) => ({ entryDate: r.entryDate, type: r.type, status: r.status, reviewed: r.reviewed, description: r.description, categoryId: r.categoryId, categoryNonCash: r.categoryNonCash, fxIrtAmount: r.fxIrtAmount }))} habits={habits} historyLimited={history.length >= 500} rate={String(rate.rate)} rateDate={rate.effectiveDate} />
     </div>
   );
 }

@@ -327,7 +327,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
 
         {/* «خانه» is already a bottom tab. */}
         {NAV_GROUPS.filter((g) => g.id !== "home").map((g) => (
-          <section key={g.id} aria-label={g.label}>
+          <section key={g.id} aria-label={g.label} className="more-group">
             <h3 className="more-group-title">{g.label}</h3>
             <ul className="more-grid">
               {g.items.map((n) => {
@@ -343,7 +343,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
                       <span className="more-tile-icon">
                         <Icon name={n.icon} size={18} />
                       </span>
-                      {n.label}
+                      <span className="more-tile-label">{n.label}</span>
                     </Link>
                   </li>
                 );

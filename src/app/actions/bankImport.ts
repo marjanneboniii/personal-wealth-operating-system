@@ -11,6 +11,7 @@ import { todayIso } from "@/lib/format";
 import { getCategoryById } from "@/features/categories/service";
 import { normalizeBankText } from "@/features/bankImport/parser";
 import { getSmsInboxItem, requireSmsSetup } from "@/features/bankImport/sms";
+import { isSmsBankAccount } from "@/features/bankImport/identifiers";
 import { createTransactionAction } from "@/app/actions";
 
 export type BankImportResult = {
@@ -68,6 +69,9 @@ export async function confirmBankImportAction(fd: FormData): Promise<BankImportR
       .where(and(inArray(accounts.id, ids), eq(accounts.userId, user.id), eq(accounts.type, "asset"), eq(accounts.isActive, true), isNull(accounts.deletedAt), isNull(assets.deletedAt)));
     // Keep this first version entirely in native Toman; investment/crypto accounts cannot be posted here.
     if (owned.length !== ids.length || owned.some((a) => a.symbol !== "IRT")) return { ok: false, message: "فقط حساب‌های پول فعال و تومانی متعلق به شما قابل انتخاب هستند." };
+    // The message came from a bank: its own account must be a Toman bank account.
+    // A transfer may still land anywhere Toman (e.g. an exchange wallet).
+    if (!(await isSmsBankAccount(user.id, v.accountId))) return { ok: false, message: "پیامک بانک فقط برای حساب‌های بانکی تومانی ثبت می‌شود." };
     if (v.type !== "transfer") {
       if (!v.categoryId || !z.uuid().safeParse(v.categoryId).success) return { ok: false, message: "دسته یا منبع تراکنش را انتخاب و تأیید کنید." };
       const category = await getCategoryById(v.categoryId, user.id);

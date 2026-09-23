@@ -1,10 +1,9 @@
 "use client";
 
-import SmsGuideSteps from "./SmsGuideSteps";
 import Link from "next/link";
 import SmsChoices from "./SmsChoices";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { rejectBankSmsAction } from "@/app/actions/bankSms";
 import { confirmBankImportAction, type BankImportResult } from "@/app/actions/bankImport";
 import { MAX_IMPORT_CHARS, MAX_IMPORT_ROWS, normalizeBankText, parseBankCsv, parseBankMessage, type BankDraft } from "@/features/bankImport/parser";
@@ -17,7 +16,10 @@ import { Card } from "@/components/ui/Card";
 type CategoryGroup = { id: string; name: string; children: { id: string; name: string }[] };
 type Props = {
   smsDrafts: BankDraft[];
+  /** Toman bank accounts — where a bank message can come from. */
   accounts: { id: string; name: string }[];
+  /** Every Toman account — where a transfer from the bank may land. */
+  destinations: { id: string; name: string }[];
   expenseCategories: CategoryGroup[];
   incomeCategories: CategoryGroup[];
   history: ConfirmedBankRow[];
@@ -47,6 +49,10 @@ function ReviewRow({ draft, props, onPendingChange }: { draft: BankDraft; props:
   const posting = useRef(false);
   const transferLink = useRef<string | null>(null);
   const groups = type === "income" ? props.incomeCategories : props.expenseCategories;
+  const [pickedGroup, setGroupId] = useState("");
+  // The group follows the chosen item (a suggestion may pick one directly).
+  const groupId = groups.find((g) => g.children.some((c) => c.id === categoryId))?.id ?? pickedGroup;
+  const group = groups.find((g) => g.id === groupId) ?? null;
   const suggestedId = suggestBankCategory(description, type, props.history);
   const suggestion = groups.flatMap((g) => g.children).find((c) => c.id === suggestedId);
   const ready = ["expense", "income", "transfer"].includes(type) && !!accountId && /^\d{1,18}$/.test(amount) && BigInt(amount || "0") > 0n && !!date && description.trim().length >= 2 && confirmed && (!draft.inboxId || openingConfirmed) && rateConfirmed && acknowledgedRate === props.rate && (type === "transfer" ? !!destinationId && destinationId !== accountId : !!categoryId);
@@ -87,11 +93,15 @@ function ReviewRow({ draft, props, onPendingChange }: { draft: BankDraft; props:
       {draft.accountMatchMessage && <p className="mb-3 text-sm">{draft.accountMatchMessage}</p>}
       <form onSubmit={submit} className="space-y-4">
         <fieldset disabled={pending} className="space-y-4">
-          <SmsChoices label="این جابه‌جایی چه نوعی است؟" value={type} options={[{ id: "expense", name: "هزینه" }, { id: "income", name: "درآمد" }, { id: "transfer", name: "انتقال خودم" }, { id: "debt_repayment", name: "قسط / بدهی" }, { id: "buy", name: "خرید دارایی" }, { id: "sell", name: "فروش دارایی" }, { id: "debt", name: "وام / طلب" }]} onChange={(id) => { setType(id); setCategoryId(""); changed(); }} />
+          <SmsChoices label="این جابه‌جایی چه نوعی است؟" value={type} options={[{ id: "expense", name: "هزینه" }, { id: "income", name: "درآمد" }, { id: "transfer", name: "انتقال خودم" }, { id: "debt_repayment", name: "قسط / بدهی" }, { id: "buy", name: "خرید دارایی" }, { id: "sell", name: "فروش دارایی" }, { id: "debt", name: "وام / طلب" }]} onChange={(id) => { setType(id); setCategoryId(""); setGroupId(""); changed(); }} />
           {["buy", "sell", "debt_repayment", "debt"].includes(type) ? <p className="text-sm">این مورد باید به دارایی یا تعهد موجود متصل شود. <Link className="underline" href={type === "debt" ? "/debts" : `/new?${new URLSearchParams({ type, irtAmount: amount, entryDate: date, title: description })}`}>ادامه در بخش مربوط</Link>؛ پس از ثبت، این مورد را از صف رد کنید.</p> : <>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2"><SmsChoices label={type === "income" ? "واریز به کدام حساب؟" : "پرداخت از کدام حساب؟"} value={accountId} options={props.accounts} onChange={(id) => { setAccountId(id); changed(); }} /></div>
-              {type === "transfer" ? <div className="sm:col-span-2"><SmsChoices label="حساب مقصد" value={destinationId} options={props.accounts.filter((a) => a.id !== accountId)} onChange={(id) => { setDestinationId(id); changed(); }} /></div> : <div className="sm:col-span-2 space-y-2"><p className="label">{type === "income" ? "منبع درآمد" : "دستهٔ هزینه"}</p>{categoryId && <p className="expense-note">انتخاب شما: {groups.flatMap((g) => g.children).find((c) => c.id === categoryId)?.name}</p>}{groups.map((g) => <details key={g.id} className="sms-guide"><summary>{g.name}</summary><div className="pt-3"><SmsChoices label={`انتخاب از ${g.name}`} value={categoryId} options={g.children} onChange={(id) => { setCategoryId(id); changed(); }} /></div></details>)}</div>}
+              {type === "transfer" ? <div className="sm:col-span-2"><SmsChoices label="حساب مقصد" value={destinationId} options={props.destinations.filter((a) => a.id !== accountId)} onChange={(id) => { setDestinationId(id); changed(); }} /></div> : <div className="sm:col-span-2 space-y-3">
+                {/* Two taps: the group, then the item in it — not sixteen folded lists. */}
+                <SmsChoices label={type === "income" ? "منبع درآمد" : "دستهٔ هزینه"} value={groupId} options={groups.map((g) => ({ id: g.id, name: g.name }))} onChange={(id) => { setGroupId(id); setCategoryId(""); changed(); }} />
+                {group && <SmsChoices label={`کدام مورد از «${group.name}»؟`} value={categoryId} options={group.children} onChange={(id) => { setCategoryId(id); changed(); }} />}
+              </div>}
               <label className="block"><span className="label">مبلغ تراکنش به تومان</span><AmountInput className="field" value={amount} inputMode="decimal" maxDecimals={1} onValueChange={(v) => { setAmount(v); changed(); }} unit="toman" required /></label>
               <DualDateInput name="date" value={date} onChange={(v) => { setDate(v); changed(); }} required />
             </div>
@@ -116,6 +126,13 @@ function ReviewRow({ draft, props, onPendingChange }: { draft: BankDraft; props:
 }
 
 export default function BankImportWorkspace(props: Props) {
+  const router = useRouter();
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") router.refresh(); }, 15_000);
+    return () => window.clearInterval(id);
+  }, [autoRefresh, router]);
   const [text, setText] = useState("");
   const [drafts, setDrafts] = useState<BankDraft[]>([]);
   const [error, setError] = useState("");
@@ -140,16 +157,16 @@ export default function BankImportWorkspace(props: Props) {
   }
   return (
     <div className="space-y-5">
-      <Card title="قدم چهارم · بررسی پیام‌ها"><p className="text-sm">{props.smsDrafts.length ? `${props.smsDrafts.length.toLocaleString("fa-IR")} پیام منتظر بازبینی است. فقط پس از تأیید ثبت مالی می‌شود.` : "هنوز پیام جدیدی نرسیده است. بعد از تنظیم آیفون، پیامک‌های تراکنش جدید اینجا دیده می‌شوند."}</p><SmsGuideSteps steps={[
-        { title: "حساب و مبلغ را بررسی کنید", content: <p>پیام بانک را با اطلاعات پیشنهادی مقایسه کنید. اگر حساب تشخیص داده نشده، حساب درست را انتخاب کنید.</p> },
-        { title: "دسته را انتخاب کنید", content: <p>برای برداشت، دستهٔ هزینه و برای واریز، منبع درآمد را انتخاب کنید. اگر جابه‌جایی بین حساب‌های خودتان است، نوع انتقال و حساب مقصد را مشخص کنید.</p> },
-        { title: "تأیید کنید تا ثبت شود", content: <p>بعد از بررسی اطلاعات، «تأیید نهایی و ثبت» را بزنید. دریافت پیام به‌تنهایی موجودی شما را تغییر نمی‌دهد.</p> },
-      ]} /></Card>
+      <section id="sms-inbox" className="card expense-card scroll-mt-20">
+        <header className="expense-head"><h2 className="sms-step-title"><span className="sms-step-number is-3" aria-hidden="true">۳</span>تأیید پیام‌ها</h2><span className="expense-sub">{props.smsDrafts.length ? `${props.smsDrafts.length.toLocaleString("fa-IR")} پیام` : "صندوق خالی"}</span></header>
+        <p className="text-sm leading-7">{props.smsDrafts.length ? "هر پیام فقط یک پیشنهاد است: نوع، حساب و دسته را انتخاب کنید و «تأیید نهایی» بزنید. تا تأیید نکنید، موجودی تغییر نمی‌کند." : "پیامک‌های بانکی تازه اینجا می‌آیند تا شما تأییدشان کنید. تا تأیید نکنید، چیزی ثبت نمی‌شود."}</p>
+        <div className="flex flex-wrap items-center gap-3"><button className="btn btn-ghost" type="button" onClick={() => router.refresh()}>تازه‌سازی صندوق</button><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />هر ۱۵ ثانیه خودکار</label></div>
+      </section>
       {props.smsDrafts.map((d) => <ReviewRow key={d.inboxId} draft={d} props={props} onPendingChange={(pending) => setBusyRows((n) => n + (pending ? 1 : -1))} />)}
-      <details className="sms-guide"><summary>روش جایگزین: پیام یا صورت‌حساب دستی</summary>
+      <details className="sms-guide"><summary>آیفون ندارید؟ متن پیام یا صورت‌حساب را دستی وارد کنید</summary>
       <Card className="mt-3" title="ورود دستی">
-        <p className="mb-3 text-sm">این روش اختیاری است؛ برای اتصال آیفون نیازی به آن ندارید. متن یک پیام را وارد کنید یا فایل صورت‌حساب را انتخاب کنید، سپس پیشنهادها را بررسی و تأیید کنید. پیشنهادهای این بخش با خروج یا تازه‌سازی صفحه پاک می‌شوند؛ فقط تراکنش‌های تأییدشده باقی می‌مانند. پیام‌های دریافتی از آیفون در صندوق بالا ذخیره می‌شوند.</p>
-        {!props.accounts.length && <p className="mb-3 text-sm"><Link className="underline" href="/accounts">ابتدا یک حساب پول تومانی ثبت کنید.</Link></p>}
+        <p className="mb-3 text-sm leading-7">متن یک پیام را بچسبانید یا فایل صورت‌حساب را انتخاب کنید؛ مثل پیام‌های آیفون بررسی و تأیید می‌شوند. این صف موقت است و با تازه‌سازی صفحه پاک می‌شود.</p>
+        {!props.accounts.length && <p className="mb-3 text-sm"><Link className="underline" href="/accounts">اول یک حساب بانکی تومانی بسازید.</Link></p>}
         <label className="block"><span className="label">متن یک پیام بانکی</span><textarea className="field min-h-28" value={text} maxLength={8000} onChange={(e) => setText(e.target.value)} placeholder="بانک ملت — برداشت: ۲٬۵۰۰٬۰۰۰ ریال — ۱۴۰۵/۰۶/۲۶" /></label>
         <button type="button" className="btn btn-primary mt-3" disabled={!text.trim() || filePending} onClick={() => { try { add([parseBankMessage(text)]); setText(""); } catch (e) { setError(e instanceof Error ? e.message : "پیام معتبر نیست."); } }}>ساخت پیشنهاد برای بازبینی</button>
         <label className="mt-4 block"><span className="label">صورت‌حساب CSV با متن UTF-8</span><input type="file" accept=".csv,text/csv" disabled={filePending} onChange={(e) => { void readCsv(e.target.files?.[0]); e.target.value = ""; }} /></label>
@@ -163,13 +180,15 @@ export default function BankImportWorkspace(props: Props) {
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">صف بازبینی — {drafts.length.toLocaleString("fa-IR")} مورد</h2><button type="button" className="btn btn-ghost" disabled={busyRows > 0 || filePending} onClick={() => { if (window.confirm("صف موقت پاک شود؟ تراکنش‌های ثبت‌شده باقی می‌مانند.")) { setDrafts([]); setBatch(batch + 1); } }}>پاک‌کردن صف موقت</button></div>
         {drafts.map((d, i) => <ReviewRow key={`${batch}-${i}`} draft={d} props={props} onPendingChange={(pending) => setBusyRows((n) => n + (pending ? 1 : -1))} />)}
       </>}
-      <Card title="الگوی درآمد و هزینهٔ این ماه شمسی تا امروز">
+      <details className="sms-guide"><summary>خلاصهٔ درآمد و هزینهٔ این ماه</summary>
+      <Card className="mt-3" title="الگوی درآمد و هزینهٔ این ماه شمسی تا امروز">
         <p className="mb-3 text-sm">این خلاصه از تراکنش‌هایی است که بررسی و ثبت کرده‌اید. انتقال بین حساب‌ها، بازپرداخت اصل بدهی و هزینه‌های غیرنقدی در آن حساب نمی‌شوند. تبدیل به تومان با نرخ ذخیره‌شده هنگام ثبت هر تراکنش انجام می‌شود.</p>
         {props.habits.count ? <dl className="grid gap-4 sm:grid-cols-2"><div><dt className="text-sm">درآمد ثبت‌شده</dt><dd>{formatMoney(props.habits.income, "IRT")}</dd></div><div><dt className="text-sm">هزینهٔ ثبت‌شده</dt><dd>{formatMoney(props.habits.spending, "IRT")}</dd></div><div><dt className="text-sm">مازاد / کسری درآمد نسبت به هزینه</dt><dd>{formatMoney(props.habits.net, "IRT")}</dd></div><div><dt className="text-sm">خرج معمول در روزهای دارای هزینه (میانه)</dt><dd>{props.habits.typicalSpendingDay ? formatMoney(props.habits.typicalSpendingDay, "IRT") : "دادهٔ هزینه موجود نیست"}</dd></div><div><dt className="text-sm">هزینه‌های تا ۱۰۰ هزار تومان</dt><dd>{props.habits.smallExpenseCount.toLocaleString("fa-IR")} تراکنش</dd></div></dl> : <p>پس از ثبت تراکنش‌های تأییدشده با مبلغ تومانی، خلاصهٔ درآمد و هزینه اینجا نمایش داده می‌شود.</p>}
         {props.habits.missing > 0 && <p className="mt-3 text-sm">{props.habits.missing.toLocaleString("fa-IR")} تراکنش مبلغ تومانیِ ذخیره‌شده ندارد و در این خلاصه حساب نشده؛ اعداد این ماه کامل نیستند.</p>}
         {props.historyLimited && <p className="mt-3 text-sm">تحلیل و پیشنهاد دسته بر اساس آخرین ۵۰۰ تراکنش بازبینی‌شده است؛ ممکن است بخشی از داده‌های ماه در این مجموعه نباشد.</p>}
         <Link className="btn btn-ghost mt-4" href="/insights">بینش‌های مالی بیشتر</Link>
       </Card>
+      </details>
     </div>
   );
 }
