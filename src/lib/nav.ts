@@ -101,6 +101,13 @@ export const NAV_GROUPS: NavGroup[] = [
         question: "پول از کجا می‌آید و به کجا می‌رود؟",
         keywords: ["cashflow", "income", "expense", "جریان", "درآمد", "هزینه"],
       },
+      {
+        href: "/deposits",
+        label: "سپرده‌ها",
+        icon: "coins",
+        question: "سپرده‌هایم چقدر سود می‌دهند و کی سررسید می‌شوند؟",
+        keywords: ["deposit", "interest", "fund", "سپرده", "سود", "سود بانکی", "صندوق درآمد ثابت", "سررسید"],
+      },
     ],
   },
   {

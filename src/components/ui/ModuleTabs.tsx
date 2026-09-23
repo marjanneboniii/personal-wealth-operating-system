@@ -24,6 +24,7 @@ export const MONEY_TABS: ModuleTab[] = [
   { href: "/transactions", label: "تراکنش‌ها" },
   { href: "/accounts", label: "حساب‌ها" },
   { href: "/cash-flow", label: "جریان نقدی" },
+  { href: "/deposits", label: "سپرده‌ها" },
 ];
 
 /**

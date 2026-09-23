@@ -68,7 +68,7 @@ function ChequeList({ rows, today }: { rows: ChequeRow[]; today: string }) {
             </span>
             <span className="min-w-0 flex-1">
               <b className="flex items-center gap-2 text-[length:var(--fs-sm)]">
-                <span className="truncate">
+                <span className="min-w-0 break-words">
                   {issued ? "در وجه" : "از"} {c.counterparty}
                 </span>
                 <span className={`${STATUS_BADGE[c.status]} shrink-0`}>{CHEQUE_STATUS_LABEL[c.status]}</span>
@@ -78,7 +78,8 @@ function ChequeList({ rows, today }: { rows: ChequeRow[]; today: string }) {
               </span>
               {c.note && <span className="expense-sub block">{c.note}</span>}
             </span>
-            <span className="num plan-amount money-nowrap shrink-0" dir="rtl" style={{ color: issued ? undefined : "var(--positive)" }}>
+            {/* Beside the name on wide screens; under it on a phone, so the name is never cut. */}
+            <span className="num plan-amount money-nowrap shrink-0 max-sm:w-full max-sm:ps-11" dir="rtl" style={{ color: issued ? undefined : "var(--positive)" }}>
               {formatMoney(D(c.amountToman).toFixed(0), "IRT")}
             </span>
             <ChequeRowActions id={c.id} status={c.status} clearHref={clearHref(c)} />

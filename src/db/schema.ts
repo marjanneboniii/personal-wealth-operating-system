@@ -624,6 +624,8 @@ export const plannedTransactions = pgTable(
     categoryId: uuid("category_id").references(() => expenseCategories.id, { onDelete: "set null" }),
     amountNative: money("amount_native"),
     dayOfMonth: integer("day_of_month"),
+    /** Interest of a deposit (سپرده): carried from each month's reminder to the next; stops at maturity. */
+    depositId: uuid("deposit_id").references(() => deposits.id, { onDelete: "set null" }),
   },
   (t) => [
     index("planned_date_idx").on(t.plannedDate, t.status),
@@ -800,6 +802,47 @@ export const cheques = pgTable(
     index("cheques_user_due_idx").on(t.userId, t.status, t.dueDate),
     uniqueIndex("cheques_user_sayad_uq").on(t.userId, t.sayadId).where(sql`sayad_id IS NOT NULL`),
   ],
+);
+
+/**
+ * سپرده‌ها — a bank term deposit or an income fund paying monthly.
+ *
+ * Metadata over money already in the ledger: the principal sits in
+ * `account_id` (recorded by an ordinary transfer), so a deposit posts
+ * nothing. Its monthly interest is a recurring income reminder
+ * (planned_transactions.deposit_id) that the user records with a tap; the
+ * reminders stop after `maturity_date` or when the deposit is closed.
+ */
+export const deposits = pgTable(
+  "deposits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // bank | fund
+    title: text("title").notNull(),
+    institution: text("institution"),
+    /** Where the principal is held. */
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    /** Where the interest is paid — a Toman account. */
+    payoutAccountId: uuid("payout_account_id")
+      .notNull()
+      .references(() => accounts.id),
+    principalToman: money("principal_toman").notNull(),
+    /** Annual rate in percent, e.g. 23.5. */
+    annualRate: numeric("annual_rate", { precision: 7, scale: 4 }).notNull(),
+    startDate: date("start_date").notNull(),
+    maturityDate: date("maturity_date"),
+    status: text("status").notNull().default("active"), // active | closed
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    note: text("note"),
+  },
+  (t) => [index("deposits_user_idx").on(t.userId, t.status)],
 );
 
 export const obligations = pgTable(

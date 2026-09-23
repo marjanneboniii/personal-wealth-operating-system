@@ -1232,6 +1232,30 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const MAX_ATTEMPTS = 5;
 
+/** سپرده‌ها — see src/db/schema.ts `deposits`; mirrors drizzle/0043. */
+const DEPOSIT_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS deposits (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   updated_at timestamptz,
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   kind text NOT NULL CHECK (kind IN ('bank','fund')),
+   title text NOT NULL CHECK (char_length(title) BETWEEN 1 AND 120),
+   institution text CHECK (char_length(institution) <= 80),
+   account_id uuid NOT NULL REFERENCES accounts(id),
+   payout_account_id uuid NOT NULL REFERENCES accounts(id),
+   principal_toman numeric(38,18) NOT NULL CHECK (principal_toman > 0),
+   annual_rate numeric(7,4) NOT NULL CHECK (annual_rate > 0 AND annual_rate <= 100),
+   start_date date NOT NULL,
+   maturity_date date CHECK (maturity_date IS NULL OR maturity_date > start_date),
+   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','closed')),
+   closed_at timestamptz,
+   note text CHECK (char_length(note) <= 500)
+  );`,
+  `CREATE INDEX IF NOT EXISTS deposits_user_idx ON deposits(user_id, status);`,
+  `ALTER TABLE planned_transactions ADD COLUMN IF NOT EXISTS deposit_id uuid REFERENCES deposits(id) ON DELETE SET NULL;`,
+];
+
 /** دفتر چک — see src/db/schema.ts `cheques`; mirrors drizzle/0041. */
 const CHEQUE_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS cheques (
@@ -1390,6 +1414,7 @@ export async function createSchemaIfNotExists() {
     ...BANK_IDENTIFIER_STATEMENTS,
     ...BANK_ACCOUNT_NAME_STATEMENTS,
     ...CHEQUE_STATEMENTS,
+    ...DEPOSIT_STATEMENTS,
     // Required, not optional: these close a measured 57-index gap against the
     // migrations, and tests/schema-drift.test.ts fails if any is missing.
     ...PARITY_INDEX_STATEMENTS,
