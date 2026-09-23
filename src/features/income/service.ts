@@ -10,7 +10,7 @@
  */
 import { and, asc, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, assets, expenseCategories, plannedTransactions } from "@/db/schema";
+import { accounts, assets, deposits, expenseCategories, plannedTransactions } from "@/db/schema";
 import { todayIso } from "@/lib/format";
 import { clampDayOfMonth, jalaliDayOf, nextMonthlyDate } from "./recurring";
 
@@ -112,17 +112,25 @@ export type NewIncomePlan = {
   amountNative: string;
   /** Toman — what the forecast reads (planned_transactions.amount_base is contractual Toman). */
   amountBase: string;
+  /** A deposit's interest: carried to every later occurrence. */
+  depositId?: string | null;
+  /** Last date an occurrence may fall on (a deposit's maturity); none after it. */
+  until?: string | null;
+  /** The exact date of this occurrence, instead of one month after `fromDate`. */
+  at?: string | null;
 };
 
-/** Schedule the next monthly occurrence. */
-export async function scheduleNextIncome(plan: NewIncomePlan, client: any = db): Promise<string> {
+/** Schedule the next monthly occurrence — or none, when it would fall after `until`. */
+export async function scheduleNextIncome(plan: NewIncomePlan, client: any = db): Promise<string | null> {
   const day = clampDayOfMonth(plan.dayOfMonth);
+  const plannedDate = plan.at ?? nextMonthlyDate(plan.fromDate, day);
+  if (plan.until && plannedDate > plan.until) return null;
   const [row] = await client
     .insert(plannedTransactions)
     .values({
       userId: plan.userId,
       title: plan.title,
-      plannedDate: nextMonthlyDate(plan.fromDate, day),
+      plannedDate,
       direction: "inflow",
       amountBase: plan.amountBase,
       toAccountId: plan.accountId,
@@ -132,6 +140,7 @@ export async function scheduleNextIncome(plan: NewIncomePlan, client: any = db):
       categoryId: plan.categoryId,
       amountNative: plan.amountNative,
       dayOfMonth: day,
+      depositId: plan.depositId ?? null,
     })
     .returning({ id: plannedTransactions.id });
   return row.id;
@@ -170,6 +179,17 @@ export async function closeIncomeOccurrence(
     .where(eq(plannedTransactions.id, plan.id));
 
   if (!plan.categoryId || !plan.toAccountId) return;
+  // A deposit's interest stops once it is closed or past maturity.
+  let until: string | null = null;
+  if (plan.depositId) {
+    const [deposit] = await client
+      .select({ status: deposits.status, maturityDate: deposits.maturityDate })
+      .from(deposits)
+      .where(eq(deposits.id, plan.depositId))
+      .limit(1);
+    if (!deposit || deposit.status !== "active") return;
+    until = deposit.maturityDate ?? null;
+  }
   await scheduleNextIncome(
     {
       userId: input.userId,
@@ -181,6 +201,8 @@ export async function closeIncomeOccurrence(
       assetId: plan.assetId,
       amountNative: input.amountNative ?? String(plan.amountNative ?? "0"),
       amountBase: input.amountBase ?? String(plan.amountBase),
+      depositId: plan.depositId ?? null,
+      until,
     },
     client,
   );

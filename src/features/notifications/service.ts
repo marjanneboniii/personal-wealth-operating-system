@@ -19,6 +19,7 @@ import { D } from "@/domain/decimal";
 import { hasMultipleUsers, resolveQueryUserId } from "@/features/ledger/queries";
 import { listDueIncomePlans } from "@/features/income/service";
 import { chequesNeedingAttention } from "@/features/cheques/service";
+import { depositsNearMaturity } from "@/features/deposits/service";
 import { resolveInstallmentToman } from "@/features/planning/installmentFx";
 import { remainingToman, resolveDirection } from "@/features/planning/obligations";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
@@ -29,7 +30,7 @@ export const INSTALLMENT_HORIZON_DAYS = 7;
 /** Recurring incomes are reminded a little ahead, as on the overview. */
 const INCOME_HORIZON_DAYS = 3;
 
-export type ReminderKind = "installment" | "receivable" | "cheque" | "bounced" | "income" | "review";
+export type ReminderKind = "installment" | "receivable" | "cheque" | "bounced" | "deposit" | "income" | "review";
 
 export type Reminder = {
   /** Stable identity of this reminder occurrence (the seen-marker key). */
@@ -65,7 +66,7 @@ export async function getReminders(userId?: string, today = todayIso()): Promise
   if (!u && (await hasMultipleUsers())) return [];
 
   const horizon = addDays(today, INSTALLMENT_HORIZON_DAYS);
-  const [instRows, fx, incomes, review, chequeRows] = await Promise.all([
+  const [instRows, fx, incomes, review, chequeRows, maturing] = await Promise.all([
     db
       .select({
         id: installments.id,
@@ -103,6 +104,7 @@ export async function getReminders(userId?: string, today = todayIso()): Promise
         and not exists (select 1 from entry_reviews er where er.entry_id = je.id)
     `),
     u ? chequesNeedingAttention(u, horizon) : Promise.resolve([]),
+    u ? depositsNearMaturity(u, horizon) : Promise.resolve([]),
   ]);
 
   const out: Omit<Reminder, "read">[] = [];
@@ -150,6 +152,20 @@ export async function getReminders(userId?: string, today = todayIso()): Promise
       amountToman,
       href: "/debts/cheques",
       action: "دفتر چک",
+    });
+  }
+
+  for (const d of maturing) {
+    if (!d.maturityDate) continue;
+    out.push({
+      key: `deposit:${d.id}:${d.maturityDate}`,
+      kind: "deposit",
+      title: `سررسید ${d.kind === "fund" ? "صندوق" : "سپرده"} «${d.title}» — تمدید یا بستن`,
+      date: d.maturityDate,
+      days: daysBetween(today, d.maturityDate),
+      amountToman: D(d.principalToman).toFixed(0),
+      href: "/deposits",
+      action: "سپرده‌ها",
     });
   }
 
