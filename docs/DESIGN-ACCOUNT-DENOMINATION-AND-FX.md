@@ -2,7 +2,7 @@
 
 **Status:** Design only. No implementation, schema change, or migration in this phase.  
 **Date:** 2026-08-18  
-**Depends on:** `docs/AUDIT-PER-ACCOUNT-ACCOUNTING-CURRENCY.md`
+**Depends on:** `docs/history/AUDIT-PER-ACCOUNT-ACCOUNTING-CURRENCY.md`
 
 This document is the architectural contract for a later implementation. Until it is approved, **no code changes**.
 

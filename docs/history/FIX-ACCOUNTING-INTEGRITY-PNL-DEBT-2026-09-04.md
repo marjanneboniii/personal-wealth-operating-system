@@ -110,7 +110,7 @@ No mutation was needed. A regression test locks it (10B Toman stays 10B Toman ac
 | Pre-existing failure family | Files / count |
 |---|---|
 | Money-display bidi-isolate / Persian-digit ordering (in `src/lib/format.ts`) | `e2e-smoke-denomination-fx` (1), `global-system-directive` (4), `landing-pwa` (2), `money-display` (4) = 11 |
-| RWA compact-symbol `001` unique collision (`nextRwaSymbol` id-generation bug, see `AUDIT-REAL-ESTATE-CLEANUP.md`) | `vehicle-module` (7), `real-estate-module` / `real-estate-valuation-history` / `real-estate-actions.smoke` (5) = 12 |
+| RWA compact-symbol `001` unique collision (`nextRwaSymbol` id-generation bug, see `docs/history/AUDIT-REAL-ESTATE-CLEANUP-2026-08-25.md`) | `vehicle-module` (7), `real-estate-module` / `real-estate-valuation-history` / `real-estate-actions.smoke` (5) = 12 |
 | `listBudgets` N+1 batch-query assertion | `stage6-performance-caching-scalability` (1) |
 
 ## Findings recorded (not fixed — per scope lock)

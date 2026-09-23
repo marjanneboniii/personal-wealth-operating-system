@@ -82,5 +82,5 @@ const [
 * ❌ هیچ مایگریشن مخربی اجرا نشد.
 * ✅ فقط لایهٔ خواندن (read model) و ارائه (presentation) اصلاح شد.
 * ✅ رفتارِ مالکیت/جداسازی tenant دقیقاً همان است که در
-  `docs/DIAGNOSE-REAL-ESTATE-VISIBILITY-2026-09-04.md` توضیح داده شده؛ این رفع فقط اشتباهِ نگاشتِ props بود،
+  `docs/history/DIAGNOSE-REAL-ESTATE-VISIBILITY-2026-09-04.md` توضیح داده شده؛ این رفع فقط اشتباهِ نگاشتِ props بود،
   نه تغییر در قواعدِ نمایش (cases ۱–۴ آن سند همچنان معتبرند).

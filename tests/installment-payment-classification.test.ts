@@ -2,7 +2,7 @@
  * INSTALLMENT-PAYMENT CLASSIFICATION — «پرداخت اقساط» is a bucket of its own.
  *
  * Closes findings F-1, F-2 and F-3 of
- * docs/AUDIT-INSTALLMENT-PAYMENT-CLASSIFICATION-2026-09-07.md:
+ * docs/history/AUDIT-INSTALLMENT-PAYMENT-CLASSIFICATION-2026-09-07.md:
  *
  *   F-3  a repayment of a debt that has no ledger liability account must land
  *        on the dedicated expense chart row 5960 «پرداخت اقساط», NEVER on 5900

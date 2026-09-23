@@ -1,7 +1,7 @@
 /**
  * Reports page — «کل هزینه ثبت‌شده» must not be an installment graveyard.
  *
- * Audit F-1 (docs/AUDIT-INSTALLMENT-PAYMENT-CLASSIFICATION-2026-09-07.md):
+ * Audit F-1 (docs/history/AUDIT-INSTALLMENT-PAYMENT-CLASSIFICATION-2026-09-07.md):
  * the KPI strip used to sum `getAccountBalances()` rows by account TYPE, so the
  * contra leg of every repayment of a planning-only debt — booked on an
  * EXPENSE-typed bucket (5960 «پرداخت اقساط», 5900 before it) — inflated

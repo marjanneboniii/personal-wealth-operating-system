@@ -1,7 +1,7 @@
 /**
  * Hotfix regression suite — ledger multi-tenancy, fee application and the
  * Liquid/Investment separation (audit report
- * docs/AUDIT-BUY-SELL-ACCOUNTS-ASSETS-2026-09-04.md, findings F-01…F-11).
+ * docs/history/AUDIT-BUY-SELL-ACCOUNTS-ASSETS-2026-09-04.md, findings F-01…F-11).
  *
  * Every test here pins a number the OLD code got wrong, so the file is the
  * executable definition of "fixed":
