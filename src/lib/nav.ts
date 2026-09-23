@@ -246,6 +246,13 @@ export const NAV_GROUPS: NavGroup[] = [
         question: "چه پرداخت‌های دانسته‌ای در راه است؟",
         keywords: ["obligation", "future", "تعهد", "آینده", "پرداخت آینده"],
       },
+      {
+        href: "/debts/cheques",
+        label: "دفتر چک",
+        icon: "note",
+        question: "کدام چک‌ها در راه است؟",
+        keywords: ["cheque", "check", "sayad", "چک", "صیادی", "برگشتی", "سررسید چک"],
+      },
     ],
   },
   {

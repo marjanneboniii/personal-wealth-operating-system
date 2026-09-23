@@ -288,6 +288,20 @@
       "when": 1789600400002,
       "tag": "0040_notification_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1789600500002,
+      "tag": "0041_cheques",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1789600600002,
+      "tag": "0042_income_plan_amount_toman",
+      "breakpoints": true
     }
   ]
 }

@@ -30,7 +30,7 @@ function subscribeTheme(cb: () => void) {
   return () => obs.disconnect();
 }
 
-function ThemeToggle() {
+function ThemeToggle({ className = "icon-btn" }: { className?: string }) {
   const dark = useSyncExternalStore(
     subscribeTheme,
     () => document.documentElement.classList.contains("dark"),
@@ -40,7 +40,8 @@ function ThemeToggle() {
     <button
       type="button"
       aria-label="تغییر حالت روشن و تاریک"
-      className="icon-btn"
+      title="حالت روشن / تاریک"
+      className={className}
       style={{ touchAction: "manipulation" }}
       onClick={() => {
         const next = !dark;
@@ -96,12 +97,26 @@ type ShellUser = {
   role: string;
 };
 
-function AccountLink({ user, compact = false }: { user: ShellUser | null; compact?: boolean }) {
+function isAdminUser(user: ShellUser | null) {
+  return !!user && (user.role === "owner" || user.role === "admin");
+}
+
+/** Admin panel as a quiet icon — where a text chip would crowd the row. */
+function AdminIconLink({ user, className = "icon-btn" }: { user: ShellUser | null; className?: string }) {
+  if (!isAdminUser(user)) return null;
+  return (
+    <Link href="/admin" className={className} aria-label="پنل مدیریت کاربران" title="پنل مدیریت کاربران" style={{ touchAction: "manipulation" }}>
+      <Icon name="shield" size={17} />
+    </Link>
+  );
+}
+
+function AccountLink({ user, compact = false, showAdmin = true, className = "" }: { user: ShellUser | null; compact?: boolean; showAdmin?: boolean; className?: string }) {
   if (user) {
     const label = user.name || user.username || "حساب کاربری";
-    const isAdmin = user.role === "owner" || user.role === "admin";
+    const isAdmin = showAdmin && isAdminUser(user);
     return (
-      <span className="inline-flex items-center gap-1.5">
+      <span className={`inline-flex min-w-0 items-center gap-1.5 ${className}`}>
       {isAdmin && (
         <Link
           href="/admin"
@@ -115,15 +130,15 @@ function AccountLink({ user, compact = false }: { user: ShellUser | null; compac
       )}
       <Link
         href="/settings"
-        className={`inline-flex items-center gap-1.5 rounded-[var(--r-md)] text-[length:var(--fs-xs)] font-medium ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
+        className={`inline-flex min-w-0 items-center gap-1.5 rounded-[var(--r-md)] text-[length:var(--fs-xs)] font-medium ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
         style={{ background: "var(--action-soft)", color: "var(--action)", touchAction: "manipulation" }}
         aria-label={`حساب کاربری ${label}`}
         title={user.email || user.username || label}
       >
-        <span className="flex h-5 w-5 items-center justify-center rounded-full text-[length:var(--fs-xs)] font-bold" style={{ background: "var(--action)", color: "var(--on-ink)" }}>
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[length:var(--fs-xs)] font-bold" style={{ background: "var(--action)", color: "var(--on-ink)" }}>
           {(user.username?.[0] || user.name?.[0] || "U").toUpperCase()}
         </span>
-        {!compact && <span className="max-w-[110px] truncate">{label}</span>}
+        {!compact && <span className="min-w-0 max-w-[110px] truncate">{label}</span>}
       </Link>
       </span>
     );
@@ -296,6 +311,9 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
         <div className="more-profile">
           <AccountLink user={authUser} />
           {!authUser && <p className="muted min-w-0 flex-1 text-[length:var(--fs-xs)]">برای مدیریت داده‌ها وارد شوید</p>}
+          <span className="ms-auto">
+            <ThemeToggle />
+          </span>
         </div>
 
         <div className="more-quick">
@@ -528,19 +546,25 @@ export default function Shell({
           {SECONDARY_ITEMS.map((n) => (
             <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed={collapsed} />
           ))}
-          <div className={`mt-1.5 flex items-center gap-1.5 px-1.5 ${collapsed ? "flex-col" : ""}`}>
-            <AccountLink user={authUser} compact={collapsed} />
-            <ReminderBell />
-            <ThemeToggle />
+          {/* One primary action on its own row, then one quiet row of
+              account + small icons — nothing competes for the button's width. */}
+          <div className={`mt-1.5 px-1.5 ${collapsed ? "flex flex-col items-center gap-1" : "space-y-1.5"}`}>
             <Link
               href="/new"
-              className={`btn btn-primary min-w-0 flex-1 !px-2 !text-[length:var(--fs-xs)] ${collapsed ? "!w-11 !px-0" : ""}`}
+              className={`btn btn-primary whitespace-nowrap !text-[length:var(--fs-xs)] ${collapsed ? "!w-11 !min-w-11 !px-0" : "w-full"}`}
               aria-label="ثبت تراکنش جدید"
+              title="ثبت تراکنش"
               style={{ touchAction: "manipulation" }}
             >
               <Icon name="plus" size={16} />
-              {!(collapsed) && "ثبت تراکنش"}
+              {!collapsed && "ثبت تراکنش"}
             </Link>
+            <div className={`flex items-center gap-0.5 ${collapsed ? "flex-col" : ""}`}>
+              <AccountLink user={authUser} compact={collapsed} showAdmin={false} className={collapsed ? "" : "flex-1"} />
+              <AdminIconLink user={authUser} className="icon-btn !min-h-10 !min-w-10" />
+              <ReminderBell className="icon-btn !min-h-10 !min-w-10" />
+              <ThemeToggle className="icon-btn !min-h-10 !min-w-10" />
+            </div>
           </div>
         </div>
       </aside>
@@ -556,21 +580,19 @@ export default function Shell({
           paddingTop: "max(0.625rem, env(safe-area-inset-top))",
         }}
       >
-        <Link href="/" className="flex items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="توازن">
+        <Link href="/" className="flex min-w-0 items-center gap-2" style={{ touchAction: "manipulation" }} aria-label="توازن">
           <BrandMark size={28} framed />
-          <BrandWordmark className="text-[length:var(--fs-md)]" />
+          {/* The wordmark yields first on the narrowest phones. */}
+          <BrandWordmark className="text-[length:var(--fs-md)] max-[359px]:hidden" />
         </Link>
-        <div className="flex items-center gap-1">
+        {/* Minimal: search, reminders, account. «ثبت تراکنش» is the «+» in the
+            bottom bar; theme and admin live in «بیشتر», next to the profile. */}
+        <div className="flex shrink-0 items-center gap-0.5">
           <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
             <Icon name="search" size={18} />
           </button>
           <ReminderBell />
-          <AccountLink user={authUser} compact />
-          <ThemeToggle />
-          <Link href="/new" className="btn btn-primary !px-3 !text-[length:var(--fs-sm)]" aria-label="ثبت تراکنش جدید" style={{ touchAction: "manipulation" }}>
-            <Icon name="plus" size={15} />
-            ثبت
-          </Link>
+          <AccountLink user={authUser} compact showAdmin={false} />
         </div>
       </header>
       )}

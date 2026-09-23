@@ -758,6 +758,50 @@ export const installments = pgTable(
   ],
 );
 
+/**
+ * دفتر چک — cheques the user wrote (issued) or holds (received).
+ *
+ * A PENDING cheque is a plan, like planned_transactions: it moves the cash
+ * forecast and raises reminders but never touches the ledger. It reaches the
+ * ledger only when the user records it as cleared through the ordinary
+ * transaction form (cleared_entry_id), in the same database transaction.
+ * Reversing that entry returns the cheque to pending. A bounced or
+ * cancelled cheque never posted anything, so changing its state is safe.
+ */
+export const cheques = pgTable(
+  "cheques",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    direction: text("direction").notNull(), // issued | received
+    counterparty: text("counterparty").notNull(),
+    /** Face value, Toman — contractual, never re-derived. */
+    amountToman: money("amount_toman").notNull(),
+    dueDate: date("due_date").notNull(),
+    /** Issued: the user's account it is drawn on. Received: where it will be deposited (optional). */
+    accountId: uuid("account_id").references(() => accounts.id),
+    /** شناسه صیادی — 16 digits, unique per user. */
+    sayadId: text("sayad_id"),
+    serial: text("serial"),
+    /** Received: the drawer's bank. */
+    bankName: text("bank_name"),
+    /** Issued for a scheduled installment: the forecast counts the installment, not the cheque. */
+    installmentId: uuid("installment_id").references(() => installments.id, { onDelete: "set null" }),
+    note: text("note"),
+    status: text("status").notNull().default("pending"), // pending | cleared | bounced | cancelled
+    statusChangedAt: timestamp("status_changed_at", { withTimezone: true }),
+    clearedEntryId: uuid("cleared_entry_id").references(() => journalEntries.id),
+  },
+  (t) => [
+    index("cheques_user_due_idx").on(t.userId, t.status, t.dueDate),
+    uniqueIndex("cheques_user_sayad_uq").on(t.userId, t.sayadId).where(sql`sayad_id IS NOT NULL`),
+  ],
+);
+
 export const obligations = pgTable(
   "obligations",
   {

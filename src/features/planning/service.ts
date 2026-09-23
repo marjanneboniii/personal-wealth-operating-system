@@ -1,4 +1,5 @@
 import { and, asc, eq, sql } from "drizzle-orm";
+import { pendingChequesForForecast } from "@/features/cheques/service";
 import { db } from "@/db";
 import {
   accounts,
@@ -1134,6 +1135,11 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
     if (e.status !== "planned") continue;
     // budgetBase stores contractual Toman.
     push(e.eventDate, D(e.budgetBase), "outflow");
+  }
+  // Pending cheques: a written cheque leaves on its due date, a held one
+  // arrives. One tied to an installment is already counted above.
+  for (const c of u ? await pendingChequesForForecast(u) : []) {
+    push(c.dueDate, D(c.amountToman), c.direction === "received" ? "inflow" : "outflow");
   }
 
   // Opening liquidity: ledger reports USD book; convert once → Toman for the axis.
