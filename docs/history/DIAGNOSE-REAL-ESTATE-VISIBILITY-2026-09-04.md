@@ -63,7 +63,7 @@ PWOS_ALLOW_LEGACY_CLAIM=true npm run db:legacy-claim
 ## ۴) چیزی که این ابزار **نمی‌گوید**
 
 * هیچ داده‌ای را ترمیم نمی‌کند و هیچ UPDATE/DELETE ارسال نمی‌کند.
-* درباره درست‌بودن **مبلغ‌ها** نظر نمی‌دهد؛ آن از `getPortfolioValuation()` می‌آید (اسناد: `AUDIT-REAL-ESTATE-CLEANUP.md`، `docs/AUDIT-REAL-ASSETS-VALUATION-HISTORY-2026-08-25.md`).
+* درباره درست‌بودن **مبلغ‌ها** نظر نمی‌دهد؛ آن از `getPortfolioValuation()` می‌آید (اسناد: `docs/history/AUDIT-REAL-ESTATE-CLEANUP-2026-08-25.md`، `docs/history/AUDIT-REAL-ASSETS-VALUATION-HISTORY-2026-08-25.md`).
 * عیب‌یابی اتصال/SSL: `npm run db:check` · بازرسی schema و مهاجرت‌ها: `npx tsx src/scripts/db-inspect-readonly.ts`.
 
 ## ۵) قرارداد آزمون

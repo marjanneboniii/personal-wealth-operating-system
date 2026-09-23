@@ -7,7 +7,7 @@
  *     /debts          «مانده کل بدهی»  ۷۱٬۳۰۰٬۰۰۰ تومان
  *     /installments   «مانده اقساط»    ۸۶٬۸۱۸٬۱۸۰ تومان
  *
- * ROOT CAUSE (see docs/AUDIT-TOTAL-DEBT-VS-INSTALLMENTS.md):
+ * ROOT CAUSE (see docs/history/AUDIT-TOTAL-DEBT-VS-INSTALLMENTS.md):
  * `listDebts().outstandingToman` was derived as `principal_toman − Σ(paid)`.
  * That is a *principal amortisation* view, not the remaining obligation:
  *   1. a repayment schedule totals MORE than its principal (interest), so the

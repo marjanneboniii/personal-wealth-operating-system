@@ -212,7 +212,7 @@ Run via: `npx tsx --test tests/scenario-engine.test.ts`
 - src/features/scenarios/service.ts
 - tests/scenario-engine.test.ts
 - docs/SCENARIO_ENGINE_ARCHITECTURE.md (pre-impl analysis + plan)
-- docs/SCENARIO_ENGINE_FINAL_REPORT.md (this file)
+- docs/history/SCENARIO_ENGINE_FINAL_REPORT.md (this file)
 
 **Modified Files (Isolated Only):**
 - src/db/schema.ts — added scenarioSimulations, scenarioEvaluationRuns

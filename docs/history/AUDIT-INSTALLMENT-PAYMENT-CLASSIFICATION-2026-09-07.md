@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-07
 **Trigger:** سؤال کاربر پس از کامیت `c44869f` («چرا هزینه متفرقه؟ پرداخت اقساط در دسته هزینه متفرقه قرار می‌گیرد؟»)
-**Method:** بازبینی ایستای کد + اسناد داخلی (`docs/EXPENSE_CATEGORIES.md`, `docs/AUDIT-TOTAL-DEBT-VS-INSTALLMENTS.md`).
+**Method:** بازبینی ایستای کد + اسناد داخلی (`docs/EXPENSE_CATEGORIES.md`, `docs/history/AUDIT-TOTAL-DEBT-VS-INSTALLMENTS.md`).
 **⚠️ مرحلۀ بازرسی بدون تغییر کد بود** — فقط یافته‌ها و گزینه‌ها. رفع یافته‌ها (پس از
 تصمیم کاربر) در §۷ مستند شده و همان کد را با ارجاع خط، نشان می‌دهد.
 **Scope:** مسیر نوشتن `payInstallment` (Quick Pay) و مسیرهای خواندنِ تحت‌تأثیر: `/reports`، `/budgets`، `/accounts`، `/installments`، گزارش دسته‌ها، جریان نقدینگی، ارزش خالص.

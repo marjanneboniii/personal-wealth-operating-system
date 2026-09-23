@@ -32,7 +32,7 @@
 | `src/scripts` | ۷ | ۸۳۰ | `migrate`, `seed`, `check-db`, `db-inspect-readonly`, `repair-migration-baseline`, `migrate-multiuser`, `migrate-debt-toman` | ابزار عملیاتی سالم و خواندنی. |
 | `drizzle` | ۲۳ | ۱٬۱۷۲ | ۱۱ مهاجرت SQL (۰۰۰۰…۰۰۱۰) + snapshot‌ها | ۰۰۱۰ آخرین مهاجرت (نرخ ارز اصلی اقساط). |
 | `tests` | ۶۵ | ۱۷٬۷۲۰ | node:test + PGlite، بدون Postgres واقعی | پوشش قوی؛ اما ۳ شکاف مهم (بخش ۱۵). |
-| `docs` | ۱۸ | ۳٬۷۱۳ | ۶ ممیزی قبلی + DESIGN + سیستم طراحی + برنامه‌ها | `docs/AUDIT-FINANCIAL-LOGIC-2026-08-21.md` ۴ مورد از مشکلات امروز را از قبل پیش‌بینی کرده بود. |
+| `docs` | ۱۸ | ۳٬۷۱۳ | ۶ ممیزی قبلی + DESIGN + سیستم طراحی + برنامه‌ها | `docs/history/AUDIT-FINANCIAL-LOGIC-2026-08-21.md` ۴ مورد از مشکلات امروز را از قبل پیش‌بینی کرده بود. |
 | `public` | ۱۷۵ | — | ۱۶۰ آیکون SVG ایرانی (بانک/خودرو/برند/صرافی/بیمه/کریپتو) + ۵ وزن Vazirmatn + `sw.js` + manifest | PWA کامل؛ هیچ دارایی غیرمجازی در snapshot نیست. |
 | `brand` | ۳۸ | — | لوگو/آیکون/برند‌بورد + `راهنمای-برند.md` | خارج از باندل اجرایی (فقط منبع). |
 | ریشه | ۱۲ | — | `README.md`، ۴ گزارش (`REPORT`, `FIX_REPORT`, `SECURITY-REMEDIATION-REPORT`, `AUDIT-REAL-ESTATE-CLEANUP`)، `.env.example`، `next.config.ts`، `tsconfig`، `eslint`، `postcss`، `drizzle.config` | ۴ فایل گزارش در ریشه + ۶ فایل در `docs/` ⇒ پراکندگی مستندات (پیشنهاد P-07). |
@@ -377,7 +377,7 @@ lookup of code '4100' (no tenant filter) returned → سود علی | owner: ALI
 * `refreshAll()` (`actions.ts:207-228`) مسیرهای `/assets`, `/assets/financial`, `/asset-registry`, `/new` را revalidate **نمی‌کند**؛ چون همه `force-dynamic` هستند عملاً مشکل‌ساز نیست، اما اگر روزی static شوند، ماندهٔ دارایی‌ها کهنه می‌ماند.
 
 ### F-14 · Info — نکات ساختاری (بدون باگ)
-* یک حساب کریپتو به‌ازای هر (asset, user) و **بدون `wallet_id`** ⇒ FIFO لاها سراسری بر اساس `asset_id` مصرف می‌شوند، نه به‌ تفکیک صرافی/کیف (`service.ts:310-330`)؛ اگر کاربر همان دارایی را در دو صرافی داشته باشد، امانت‌داری و P&L هر صرافی جدا نمی‌شود (این محدودیت در `docs/AUDIT-FINANCIAL-LOGIC-2026-08-21.md` از قبل مستند است).
+* یک حساب کریپتو به‌ازای هر (asset, user) و **بدون `wallet_id`** ⇒ FIFO لاها سراسری بر اساس `asset_id` مصرف می‌شوند، نه به‌ تفکیک صرافی/کیف (`service.ts:310-330`)؛ اگر کاربر همان دارایی را در دو صرافی داشته باشد، امانت‌داری و P&L هر صرافی جدا نمی‌شود (این محدودیت در `docs/history/AUDIT-FINANCIAL-LOGIC-2026-08-21.md` از قبل مستند است).
 * `resolveServiceUserId` در حالت تک‌کاربره `undefined` برمی‌گرداند ⇒ اسناد بی‌صاحب؛ در DB چند‌کاربره **401** (Fail-Closed) ✅.
 * `i18n/` (۱۲۰ خط) در عمل بی‌مصرف است.
 
