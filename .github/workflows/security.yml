@@ -49,7 +49,7 @@ jobs:
   # Sharding splits the files, never the tests: the four shards together are
   # exactly `npm test` (TEST_SHARD defaults to 1/1 locally).
   tests:
-    name: tests (${{ matrix.shard }}/4)
+    name: tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -62,7 +62,9 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Tests
         run: npm test
-        env: { DATABASE_URL: "memory://", NODE_ENV: "test", TEST_SHARD: "${{ matrix.shard }}/4" }
+        # The total comes from the matrix itself, so adding or removing a
+        # shard can never leave a slice of the suite silently unrun.
+        env: { DATABASE_URL: "memory://", NODE_ENV: "test", TEST_SHARD: "${{ matrix.shard }}/${{ strategy.job-total }}" }
 
   # Keeps the check name «verify» that branch protection may require: it
   # passes only when every job above passed.
