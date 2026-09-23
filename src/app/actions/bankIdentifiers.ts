@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { accounts, assets, bankSmsIdentifiers, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { requireSmsSetup } from "@/features/bankImport/sms";
+import { isSmsBankAccount } from "@/features/bankImport/identifiers";
 import { normalizeBankName } from "@/features/bankImport/matching";
 import { normalizeBankText } from "@/features/bankImport/parser";
 
@@ -19,8 +20,8 @@ export async function addBankIdentifierAction(input: unknown) {
   const v = parsed.data;
   await db.transaction(async (tx) => {
    await tx.select({ id: users.id }).from(users).where(eq(users.id, user.id)).for("update");
-   const [account] = await tx.select({ id: accounts.id }).from(accounts).innerJoin(assets, eq(assets.id, accounts.assetId)).where(and(eq(accounts.id, v.accountId), eq(accounts.userId, user.id), eq(accounts.type, "asset"), eq(accounts.isActive, true), eq(assets.symbol, "IRT"), isNull(accounts.deletedAt), isNull(assets.deletedAt)));
-   if (!account) throw new Error("Invalid account");
+   // Only a Toman account held at a bank receives bank messages.
+   if (!(await isSmsBankAccount(user.id, v.accountId, tx))) throw new Error("Invalid account");
    const rows = await tx.select({ id: bankSmsIdentifiers.id }).from(bankSmsIdentifiers).where(eq(bankSmsIdentifiers.userId, user.id));
    if (rows.length >= 100) throw new Error("Limit");
    await tx.insert(bankSmsIdentifiers).values({ ...v, userId: user.id }).onConflictDoNothing();

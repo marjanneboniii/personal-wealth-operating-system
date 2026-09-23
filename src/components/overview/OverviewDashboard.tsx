@@ -40,8 +40,8 @@ const QUICK = [
   { href: "/new?type=expense", label: "هزینه", icon: "arrow-down" as const },
   { href: "/new?type=income", label: "درآمد", icon: "arrow-up" as const },
   { href: "/new?type=transfer", label: "انتقال", icon: "swap" as const },
-  { href: "/new?type=buy", label: "خرید دارایی", icon: "plus" as const },
-  { href: "/new?type=sell", label: "فروش دارایی", icon: "arrow-down" as const },
+  { href: "/new?type=buy", label: "خرید دارایی", short: "خرید", icon: "plus" as const },
+  { href: "/new?type=sell", label: "فروش دارایی", short: "فروش", icon: "arrow-down" as const },
 ];
 
 const FA_MONTHS = ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
@@ -277,9 +277,16 @@ export default async function OverviewDashboard() {
         </div>
         <nav className="quick-row" aria-label="ثبت سریع">
           {QUICK.map((q) => (
-            <Link key={q.href} href={q.href} className="quick-pill">
+            <Link key={q.href} href={q.href} className="quick-pill" aria-label={q.label}>
               <Icon name={q.icon} size={14} />
-              {q.label}
+              {"short" in q ? (
+                <>
+                  <span className="quick-full">{q.label}</span>
+                  <span className="quick-short" aria-hidden="true">{q.short}</span>
+                </>
+              ) : (
+                q.label
+              )}
             </Link>
           ))}
         </nav>
