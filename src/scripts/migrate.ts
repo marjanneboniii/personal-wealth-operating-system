@@ -53,9 +53,37 @@ async function main() {
   process.exit(0);
 }
 
+/**
+ * Drizzle wraps every driver error as «Failed query: <sql>», so the first
+ * statement it runs (CREATE SCHEMA) is blamed for anything — a wrong database
+ * name, a refused login, an unreachable host. The real reason is on `cause`.
+ */
+function describe(err: unknown): string {
+  const parts: string[] = [];
+  let cur: any = err;
+  for (let depth = 0; cur && depth < 4; depth++) {
+    const msg = cur instanceof Error ? cur.message : String(cur);
+    const code = cur?.code ? ` [${cur.code}]` : "";
+    if (msg && !parts.some((p) => p.startsWith(msg))) parts.push(msg.split("\nparams:")[0].trim() + code);
+    cur = cur?.cause;
+  }
+  return parts.join("\n  caused by: ");
+}
+
+function hint(err: unknown): string | null {
+  const text = describe(err);
+  if (/database ".*" does not exist|3D000/.test(text)) return "The database name at the end of the connection string is wrong (e.g. «postgre» instead of «postgres»).";
+  if (/password authentication failed|28P01/.test(text)) return "The user or password in the connection string is wrong.";
+  if (/ENOTFOUND|EAI_AGAIN|ENETUNREACH|ECONNREFUSED|ETIMEDOUT/.test(text)) return "The database host is unreachable. On Supabase the direct host is IPv6-only — use the pooler connection string instead.";
+  if (/permission denied|42501/.test(text)) return "This database user may not run DDL. Set MIGRATION_DATABASE_URL to the owner (postgres) connection string.";
+  return null;
+}
+
 main().catch((err) => {
   // Driver messages may mention a username/host but never the password or the
   // full connection string. Keep the output generic and actionable.
-  console.error("db:migrate failed:", err instanceof Error ? err.message : String(err));
+  console.error("db:migrate failed:", describe(err));
+  const h = hint(err);
+  if (h) console.error("hint:", h);
   process.exit(1);
 });
