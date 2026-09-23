@@ -5,31 +5,29 @@ on:
     branches: [main]
 permissions:
   contents: read
+
+# A new push to the same PR supersedes the run still in progress; pushes to
+# main always run to completion.
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The gate is unchanged — typecheck, lint, audit, the FULL test suite, the
+# production build and gitleaks all still have to pass. It is split into jobs
+# that run side by side: the suite alone took ~7.5 of a ~9-minute serial run
+# (each test file boots its own embedded database), so it is sharded four ways.
 jobs:
-  verify:
+  checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with: { fetch-depth: 0 } # gitleaks scans history
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm run lint
       - run: npm audit --omit=dev --audit-level=high
-
-      # The FULL suite, not the security subset.
-      #
-      # This job used to run `npm run test:security` — 6 files out of 131. The
-      # other 125 had no gate at all, and the suite sat red for weeks without
-      # anything noticing: a formatting change broke 6 assertions on 11 Sep and
-      # was found by an audit on 20 Sep, four commits later.
-      #
-      # The security subset is still meaningful as a name, but it is a SUBSET;
-      # running it alone is what made the gate decorative.
-      - name: Tests
-        run: npm test
-        env: { DATABASE_URL: "memory://", NODE_ENV: "test" }
 
       # The production build is its own failure mode: `typecheck` does not
       # exercise the App Router's route-type generation, page data collection
@@ -40,3 +38,40 @@ jobs:
 
       - uses: gitleaks/gitleaks-action@v2
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+
+  # The FULL suite, not the security subset.
+  #
+  # This job used to run `npm run test:security` — 6 files out of 131. The
+  # other 125 had no gate at all, and the suite sat red for weeks without
+  # anything noticing: a formatting change broke 6 assertions on 11 Sep and
+  # was found by an audit on 20 Sep, four commits later.
+  #
+  # Sharding splits the files, never the tests: the four shards together are
+  # exactly `npm test` (TEST_SHARD defaults to 1/1 locally).
+  tests:
+    name: tests (${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --ignore-scripts
+      - name: Tests
+        run: npm test
+        env: { DATABASE_URL: "memory://", NODE_ENV: "test", TEST_SHARD: "${{ matrix.shard }}/4" }
+
+  # Keeps the check name «verify» that branch protection may require: it
+  # passes only when every job above passed.
+  verify:
+    needs: [checks, tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: All checks passed
+        run: |
+          echo "checks: ${{ needs.checks.result }} · tests: ${{ needs.tests.result }}"
+          test "${{ needs.checks.result }}" = "success" && test "${{ needs.tests.result }}" = "success"
