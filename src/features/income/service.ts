@@ -110,6 +110,7 @@ export type NewIncomePlan = {
   accountId: string;
   assetId: string | null;
   amountNative: string;
+  /** Toman — what the forecast reads (planned_transactions.amount_base is contractual Toman). */
   amountBase: string;
 };
 

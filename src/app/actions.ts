@@ -1601,9 +1601,13 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
       if (input.type === "income" && authUser?.id && category && isUuid(input.primaryAccountId)) {
         const nativeForPlan =
           input.nativeAmount && D(input.nativeAmount).gt(0) ? D(input.nativeAmount).toString() : D(irtAmountStr).toString();
+        // A plan's amount_base is contractual TOMAN — the forecast and the
+        // planning page read it that way. It once received the entry's USD
+        // amount, which put a 45M-Toman salary into the forecast as 450.
+        const tomanForPlan = D(irtAmountStr).toFixed(0);
         if (input.planId && isUuid(input.planId)) {
           await closeIncomeOccurrence(
-            { planId: input.planId, userId: authUser.id, entryId: entry.id, amountNative: nativeForPlan, amountBase: amount.toString() },
+            { planId: input.planId, userId: authUser.id, entryId: entry.id, amountNative: nativeForPlan, amountBase: tomanForPlan },
             tx,
           );
         } else if (input.recurring === "monthly") {
@@ -1622,7 +1626,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
               accountId: input.primaryAccountId,
               assetId: cashRow?.assetId ?? null,
               amountNative: nativeForPlan,
-              amountBase: amount.toString(),
+              amountBase: tomanForPlan,
             },
             tx,
           );
