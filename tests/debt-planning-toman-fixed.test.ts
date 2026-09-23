@@ -268,7 +268,11 @@ test("projectCashflow: scheduled Toman outflows do not scale with FX", async () 
   // One planned outflow of 10_000_000 Toman next month
   const fd = new FormData();
   fd.set("title", "خرج برنامه‌ای");
-  fd.set("plannedDate", "2026-09-15");
+  // Relative to today: a fixed date falls out of the 3-month window as the
+  // calendar moves (a Jalali month boundary is what first broke this).
+  const nextMonth = new Date();
+  nextMonth.setUTCDate(nextMonth.getUTCDate() + 30);
+  fd.set("plannedDate", nextMonth.toISOString().slice(0, 10));
   fd.set("direction", "outflow");
   fd.set("amountBase", "10000000");
   fd.set("recurrence", "none");
