@@ -741,6 +741,14 @@ export type FxCmd = {
   feeBase?: string;
   feeAccountId?: string | null;
   feeAssetId?: string | null;
+  /**
+   * The fee in the paying account's OWN unit (e.g. 138,110 Toman), and which
+   * leg pays it. When set, the fee leaves that account's balance: a sale
+   * deposits `toQuantity − fee`, a purchase withdraws `fromQuantity + fee`.
+   * Without it (legacy callers) the fee only moves book value.
+   */
+  feeQuantity?: string;
+  feePaidBy?: "from" | "to";
   userId?: string;
   idempotencyKey?: string | null;
   preventOverdraft?: boolean;
@@ -788,27 +796,37 @@ export async function recordFx(cmd: FxCmd, txClient?: any) {
   }
 
   const fee = D(cmd.feeBase ?? "0");
+  const feeQty = cmd.feePaidBy && cmd.feeQuantity && D(cmd.feeQuantity).gt(0) ? D(cmd.feeQuantity) : null;
+  if (feeQty && cmd.feePaidBy === "to" && feeQty.gte(toQty)) {
+    throw new Error("کارمزد باید کمتر از مبلغ دریافتی باشد.");
+  }
+  // The fee leaves the account that pays it — in that account's own unit —
+  // so the balance matches what actually arrived or left.
+  const paidByFrom = !!feeQty && cmd.feePaidBy === "from";
+  const paidByTo = !!feeQty && cmd.feePaidBy === "to";
   const lines: DraftPosting[] = [
     {
       accountId: cmd.fromAccountId,
       assetId: cmd.fromAssetId,
-      quantity: fromQty.neg().toString(),
-      baseValue: book.add(fee).neg().toString(),
+      quantity: (paidByFrom ? fromQty.add(feeQty!) : fromQty).neg().toString(),
+      baseValue: (paidByTo ? book : book.add(fee)).neg().toString(),
       memo: "خروج واحد بومی (تبدیل ارز)",
     },
     {
       accountId: cmd.toAccountId,
       assetId: cmd.toAssetId,
-      quantity: toQty.toString(),
-      baseValue: book.toString(),
-      memo: "ورود واحد بومی (تبدیل ارز)",
+      quantity: (paidByTo ? toQty.sub(feeQty!) : toQty).toString(),
+      baseValue: (paidByTo ? book.sub(fee) : book).toString(),
+      memo: paidByTo ? "ورود خالص واحد بومی (پس از کسر کارمزد)" : "ورود واحد بومی (تبدیل ارز)",
     },
   ];
   if (fee.gt(0) && cmd.feeAccountId) {
     lines.push({
       accountId: cmd.feeAccountId,
-      assetId: cmd.feeAssetId ?? cmd.fromAssetId,
-      quantity: fee.toString(),
+      // A fee paid in Toman is booked as Toman — never relabelled as the
+      // other currency's quantity.
+      assetId: feeQty ? (paidByTo ? cmd.toAssetId : cmd.fromAssetId) : (cmd.feeAssetId ?? cmd.fromAssetId),
+      quantity: (feeQty ?? fee).toString(),
       baseValue: fee.toString(),
       memo: "کارمزد تبدیل ارز",
     });
