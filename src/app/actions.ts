@@ -1326,6 +1326,16 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
             rateIrtPerUsd: serverRate.toString(),
             irtAmount: irtAmountStr,
           });
+          // The fee leaves the SOURCE account in its own unit, and reaches the
+          // book at this transfer's own rate — as for a trade.
+          let transferFeeNative: Decimal | null = null;
+          if (input.fee && D(input.fee).gt(0)) {
+            const raw = D(input.fee);
+            const sourceSymbol = (fromAst?.symbol ?? "").toUpperCase();
+            if (sourceSymbol === "IRT") transferFeeNative = raw;
+            else if (sourceSymbol === "IRR") transferFeeNative = input.feeMode === "native" ? raw : raw.mul(10);
+            else transferFeeNative = input.feeMode === "native" ? raw : raw.div(D(irtAmountStr).div(legs.fromQuantity));
+          }
           entry = await recordFx(
             {
               entryDate: input.entryDate,
@@ -1338,7 +1348,9 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
               toQuantity: legs.toQuantity,
               bookValue: legs.bookValue,
               rateIrtPerUsd: serverRate.toString(),
-              feeBase: fee,
+              feeBase: transferFeeNative ? transferFeeNative.mul(legs.bookValue).div(legs.fromQuantity).toString() : "0",
+              feeQuantity: transferFeeNative?.toString(),
+              feePaidBy: "from",
               feeAccountId: (await ensureFeeExpenseAccount(authUser?.id ?? null, tx))?.id,
               userId: authUser?.id ?? undefined,
               idempotencyKey,
@@ -1497,6 +1509,26 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           irtAmountStr = settleQty.mul(usdtToman).toFixed(0);
         }
 
+        // The fee is typed in the SETTLEMENT account's own unit — the unit the
+        // form previews «proceeds − fee» / «value + fee» in — and it moves that
+        // account by exactly that much. It reaches the book at THIS trade's own
+        // rate (book ÷ settlement), never at the separate dollar rate: mixing
+        // the two turned a 138,110-Toman fee into 139,262 in the reports.
+        let tradeFeeNative: Decimal | null = null;
+        if (input.fee && D(input.fee).gt(0)) {
+          const raw = D(input.fee);
+          if (settleUnit === "toman") {
+            tradeFeeNative = cashSymbol === "IRR" && input.feeMode !== "native" ? raw.mul(10) : raw;
+          } else {
+            // A Tether/dollar wallet: typed in its own unit, or (legacy) in Toman.
+            tradeFeeNative = input.feeMode === "native" ? raw : raw.div(D(irtAmountStr).div(settleQty));
+          }
+        }
+        if (tradeFeeNative && side === "sell" && tradeFeeNative.gte(settleNative)) {
+          throw new Error("کارمزد باید کمتر از مبلغ فروش باشد");
+        }
+        const tradeFeeUsd = (book: Decimal) => (tradeFeeNative ? tradeFeeNative.mul(book).div(settleNative).toString() : "0");
+
         // Selling more than is held would leave a negative position.
         if (side === "sell") {
           const [held] = await tx
@@ -1530,8 +1562,11 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
               fromQuantity: (side === "sell" ? qty : settleNative).toString(),
               toQuantity: (side === "sell" ? settleNative : qty).toString(),
               bookValue: amount.toString(),
-              feeBase: fee,
+              feeBase: tradeFeeUsd(amount),
               feeAccountId,
+              // Paid by the settlement account: out of a sale's proceeds, on top of a buy.
+              feeQuantity: tradeFeeNative?.toString(),
+              feePaidBy: side === "sell" ? "to" : "from",
               userId: authUser?.id ?? undefined,
               idempotencyKey,
               preventOverdraft: true,
@@ -1549,7 +1584,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
             cashAssetId,
             cashQuantity: settleNative.toString(),
             baseValue: amount.toString(),
-            feeBase: fee,
+            feeBase: tradeFeeUsd(amount),
             feeAccountId,
             userId: authUser?.id ?? undefined,
             idempotencyKey,
