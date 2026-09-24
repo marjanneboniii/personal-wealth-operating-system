@@ -191,6 +191,22 @@ type Props = {
   initialTitle?: string;
   initialDescription?: string;
   initialEntryDate?: string;
+  /** Pre-selected money account (a missed transaction found by «تطبیق با بانک»). */
+  initialAccountId?: string;
+  /** The user's cars and properties, and the tag each one's costs (and a property's rent) are recorded under. */
+  assetTags?: { label: string; tag: string; kind: "vehicle" | "property" }[];
+  /**
+   * Values to start from — an insurance premium reminder (its occurrence to
+   * close, its insurance category or the policy's savings account), a repeated
+   * transaction or a saved shortcut. Everything stays editable before recording.
+   */
+  prefill?: {
+    planId?: string | null;
+    categoryId: string | null;
+    parentId: string | null;
+    toAccountId: string | null;
+    tags?: string;
+  } | null;
   initialDebtId?: string;
   initialInstallmentId?: string;
 };
@@ -267,6 +283,9 @@ export default function TransactionForm({
   initialTitle,
   initialDescription,
   initialEntryDate,
+  initialAccountId,
+  prefill = null,
+  assetTags = [],
   initialDebtId,
   initialInstallmentId,
 }: Props) {
@@ -283,29 +302,31 @@ export default function TransactionForm({
   const [entryDate, setEntryDate] = useState(initialEntryDate ?? today);
   const [description, setDescription] = useState(initialDescription ?? initialTitle ?? "");
   // Kept after a save: a trip is usually several expenses in a row.
-  const [tagsText, setTagsText] = useState("");
+  const [tagsText, setTagsText] = useState(prefill?.tags ?? "");
   // The cheque link is spent by the first successful save.
   const [chequeOpen, setChequeOpen] = useState(!!cheque);
 
   // One selection per ROLE, not per ledger column: a bank account chosen to
   // pay an expense is still selected when the user switches to «خرید دارایی».
-  const [moneyAccountId, setMoneyAccountId] = useState(initialIncome?.accountId ?? cheque?.accountId ?? "");
+  const [moneyAccountId, setMoneyAccountId] = useState(initialIncome?.accountId ?? cheque?.accountId ?? initialAccountId ?? "");
   const [assetAccountId, setAssetAccountId] = useState("");
-  const [fromAccountId, setFromAccountId] = useState("");
-  const [toAccountId, setToAccountId] = useState("");
+  const [fromAccountId, setFromAccountId] = useState(prefill?.toAccountId ? (initialAccountId ?? "") : "");
+  const [toAccountId, setToAccountId] = useState(prefill?.toAccountId ?? "");
   // Income: a SOURCE from the income category tree (never a ledger account), an
   // amount in the receiving account's own unit, and an optional monthly repeat.
   const [incomeGroups, setIncomeGroups] = useState<CategoryGroupOption[]>(incomeCategories);
-  const [incomeParentId, setIncomeParentId] = useState(initialIncome?.parentId ?? "");
-  const [incomeCategoryId, setIncomeCategoryId] = useState(initialIncome?.categoryId ?? "");
-  const [incomeAmount, setIncomeAmount] = useState(initialIncome?.amount ?? cheque?.amountToman ?? "");
+  const [incomeParentId, setIncomeParentId] = useState(initialIncome?.parentId ?? (defaultType === "income" ? (prefill?.parentId ?? "") : ""));
+  const [incomeCategoryId, setIncomeCategoryId] = useState(initialIncome?.categoryId ?? (defaultType === "income" ? (prefill?.categoryId ?? "") : ""));
+  const [incomeAmount, setIncomeAmount] = useState(
+    initialIncome?.amount ?? cheque?.amountToman ?? (defaultType === "income" && prefill ? (initialIrtAmount ?? "") : ""),
+  );
   const [recurring, setRecurring] = useState(false);
   const [recurringDay, setRecurringDay] = useState(() => jalaliDayOf(initialEntryDate ?? today));
   const planId = initialIncome?.planId ?? "";
 
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroupOption[]>(categories);
-  const [categoryParentId, setCategoryParentId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [categoryParentId, setCategoryParentId] = useState(defaultType === "expense" ? (prefill?.parentId ?? "") : "");
+  const [categoryId, setCategoryId] = useState(defaultType === "expense" ? (prefill?.categoryId ?? "") : "");
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [categoryMessage, setCategoryMessage] = useState("");
@@ -490,6 +511,16 @@ export default function TransactionForm({
   const installmentBucket =
     accountOptions.find((a) => a.type === "expense" && a.code === "5960") ??
     accountOptions.find((a) => a.type === "expense");
+
+  // Which real assets a one-tap tag is offered for: a car under «خودرو و
+  // حمل‌ونقل», a property under housing costs or as the source of rent.
+  const chipKind: "vehicle" | "property" | null =
+    type === "expense" && selectedParent?.code === "TRN"
+      ? "vehicle"
+      : (type === "expense" && selectedParent?.code === "HSG") || (type === "income" && incomeParent?.code === "INC-INV")
+        ? "property"
+        : null;
+  const chipAssets = chipKind ? assetTags.filter((a) => a.kind === chipKind) : [];
 
   /* ── What the server receives, per type ───────────────────────────── */
   let primaryAccountId = "";
@@ -896,7 +927,7 @@ export default function TransactionForm({
       <input type="hidden" name="nativeAmount" value={type === "income" ? incomeAmount : ""} />
       <input type="hidden" name="recurring" value={type === "income" && recurring && !planId ? "monthly" : ""} />
       <input type="hidden" name="recurringDay" value={type === "income" && recurring ? String(recurringDay) : ""} />
-      <input type="hidden" name="planId" value={type === "income" ? planId : ""} />
+      <input type="hidden" name="planId" value={type === "income" ? planId : (type === "expense" || type === "transfer") && prefill?.planId ? prefill.planId : ""} />
       <input type="hidden" name="primaryAccountId" value={primaryAccountId} />
       <input type="hidden" name="counterAccountId" value={counterAccountId} />
       <input type="hidden" name="quantity" value={(isTrade && !isRegistrySale) || (type === "transfer" && !transferIsToman) ? quantity : ""} />
@@ -1344,6 +1375,32 @@ export default function TransactionForm({
         </div>
       </Step>
       </>
+      )}
+
+      {/* A car or property expense — or a property's rent: one tap files it under that asset. */}
+      {!confirming && chipAssets.length > 0 && (
+        <div className="card flex flex-wrap items-center gap-2 p-3" role="group" aria-label={chipAssets[0].kind === "vehicle" ? "برای کدام خودرو؟" : "برای کدام ملک؟"}>
+          <span className="muted text-[length:var(--fs-xs)]">{chipAssets[0].kind === "vehicle" ? "برای کدام خودرو؟" : "برای کدام ملک؟"}</span>
+          {chipAssets.map((v) => {
+            const token = `#${v.tag}`;
+            const on = tagsText.split(/\s+/).includes(token);
+            return (
+              <button
+                key={v.tag}
+                type="button"
+                className="shortcut-chip"
+                aria-pressed={on}
+                style={on ? { background: "var(--action-soft)", color: "var(--action)" } : undefined}
+                onClick={() =>
+                  setTagsText(on ? tagsText.split(/\s+/).filter((t) => t && t !== token).join(" ") : `${tagsText} ${token}`.trim())
+                }
+              >
+                <Icon name={v.kind === "vehicle" ? "car" : "home"} size={13} />
+                {v.label}
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {!confirming && (

@@ -100,7 +100,7 @@ const INVESTMENT_CLASS_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /** Wallet kinds whose whole purpose is to hold money, not positions. */
-const MONEY_WALLET_KINDS: ReadonlySet<string> = new Set(["bank", "cash", "fund"]);
+const MONEY_WALLET_KINDS: ReadonlySet<string> = new Set(["bank", "cash", "fund", "insurance"]);
 
 const normalizeCode = (value: string | null | undefined) =>
   (value ?? "").trim().toLowerCase().replace(/[\s_-]+/g, "");

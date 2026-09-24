@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { asc, sql } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
 import { accounts } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { listBudgets } from "@/features/planning/service";
+import { listTags } from "@/features/tags/service";
 import { EmptyState, Metric, PageHeader } from "@/components/ui/Card";
 import { AddBudgetButton } from "@/components/planning/AddPlanningSheet";
 import { D } from "@/domain/decimal";
@@ -28,9 +30,10 @@ export const metadata = { title: "بودجه‌ها" };
  * are untouched, so the contractual Toman ceiling still never moves with FX.
  */
 export default async function BudgetsPage() {
-  await ensureAuth();
+  const user = await ensureAuth();
+  const userId = (user as { id?: string } | null)?.id;
   await seedIfEmpty();
-  const [budgets, expenseAccounts, fx] = await Promise.all([
+  const [budgets, expenseAccounts, fx, tagCounts] = await Promise.all([
     listBudgets(),
     db
       .select({ id: accounts.id, code: accounts.code, name: accounts.name })
@@ -38,7 +41,9 @@ export default async function BudgetsPage() {
       .where(sql`${accounts.type} = 'expense' and ${accounts.deletedAt} is null`)
       .orderBy(asc(accounts.code)),
     getLatestUsdIrtRate(),
+    listTags(userId).catch(() => []),
   ]);
+  const tags = tagCounts.map((t) => t.tag);
 
   const overCount = budgets.filter((b) => b.over).length;
   // amountBase / amountToman = contractual Toman ceiling (never moves with FX).
@@ -50,6 +55,7 @@ export default async function BudgetsPage() {
   const addButton = (
     <AddBudgetButton
       accounts={expenseAccounts}
+      tags={tags}
       today={todayIso()}
       rate={fx.rate}
       rateDate={fx.effectiveDate}
@@ -61,7 +67,7 @@ export default async function BudgetsPage() {
     <div className="space-y-5">
       <PageHeader
         title="بودجه‌ها"
-        subtitle="سقف هزینه هر دسته در یک بازه. مبلغ تومان ثابت است؛ معادل دلاری فقط نمایشی است."
+        subtitle="سقف هزینه‌ی یک دسته یا یک برچسب (مثلاً یک سفر) در یک بازه. مبلغ تومان ثابت است؛ معادل دلاری فقط نمایشی است."
         action={addButton}
       />
 
@@ -88,6 +94,7 @@ export default async function BudgetsPage() {
             action={
               <AddBudgetButton
                 accounts={expenseAccounts}
+                tags={tags}
                 today={todayIso()}
                 rate={fx.rate}
                 rateDate={fx.effectiveDate}
@@ -113,6 +120,11 @@ export default async function BudgetsPage() {
                 <div className="plan-row-head">
                   <span className="plan-row-title">
                     <b className="truncate">{b.name}</b>
+                    {b.tag && (
+                      <Link href={`/transactions?${new URLSearchParams({ tag: b.tag, range: "all" }).toString()}`} className="badge badge-neutral shrink-0">
+                        #{b.tag}
+                      </Link>
+                    )}
                     {over && <span className="badge badge-neg">خارج از چارچوب</span>}
                     {almost && <span className="badge badge-warn">نزدیک به سقف</span>}
                   </span>

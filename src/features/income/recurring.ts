@@ -3,7 +3,7 @@
  * A salary on «۲۵ هر ماه» stays on the 25th; a day beyond the month's length
  * (۳۱ in a 30-day month) lands on its last day. PURE.
  */
-import { jalaliToIso, toJalali } from "@/lib/format";
+import { jalaliMonthLength, jalaliToIso, toJalali } from "@/lib/format";
 
 const jalaliMonthDays = (month: number) => (month <= 6 ? 31 : month <= 11 ? 30 : 29);
 
@@ -22,4 +22,17 @@ export function nextMonthlyDate(isoDate: string, dayOfMonth: number): string {
 /** Jalali day of month of an ISO date. */
 export function jalaliDayOf(isoDate: string): number {
   return toJalali(isoDate).d;
+}
+
+/**
+ * `months` Jalali months after `iso`, on the Jalali day `day` (default: its
+ * own), clamped to the target month's real length — leap Esfand included.
+ * Used for premiums every 1, 3 or 12 months and a car's yearly inspection.
+ */
+export function addJalaliMonths(iso: string, months: number, day?: number): string {
+  const { y, m, d } = toJalali(iso);
+  const index = y * 12 + (m - 1) + months;
+  const ny = Math.floor(index / 12);
+  const nm = (index % 12) + 1;
+  return jalaliToIso(ny, nm, Math.min(day ?? d, jalaliMonthLength(ny, nm)));
 }

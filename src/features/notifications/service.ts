@@ -20,6 +20,9 @@ import { hasMultipleUsers, resolveQueryUserId } from "@/features/ledger/queries"
 import { listDueIncomePlans } from "@/features/income/service";
 import { chequesNeedingAttention } from "@/features/cheques/service";
 import { depositsNearMaturity } from "@/features/deposits/service";
+import { reconcileMismatches } from "@/features/reconcile/service";
+import { insuranceReminders } from "@/features/insurance/service";
+import { VEHICLE_DUE_HORIZON_DAYS, vehicleDueReminders } from "@/features/vehicles/service";
 import { resolveInstallmentToman } from "@/features/planning/installmentFx";
 import { remainingToman, resolveDirection } from "@/features/planning/obligations";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
@@ -30,7 +33,7 @@ export const INSTALLMENT_HORIZON_DAYS = 7;
 /** Recurring incomes are reminded a little ahead, as on the overview. */
 const INCOME_HORIZON_DAYS = 3;
 
-export type ReminderKind = "installment" | "receivable" | "cheque" | "bounced" | "deposit" | "income" | "review";
+export type ReminderKind = "installment" | "receivable" | "cheque" | "bounced" | "deposit" | "reconcile" | "insurance" | "vehicle" | "income" | "review";
 
 export type Reminder = {
   /** Stable identity of this reminder occurrence (the seen-marker key). */
@@ -66,7 +69,7 @@ export async function getReminders(userId?: string, today = todayIso()): Promise
   if (!u && (await hasMultipleUsers())) return [];
 
   const horizon = addDays(today, INSTALLMENT_HORIZON_DAYS);
-  const [instRows, fx, incomes, review, chequeRows, maturing] = await Promise.all([
+  const [instRows, fx, incomes, review, chequeRows, maturing, mismatches, insurance, carDues] = await Promise.all([
     db
       .select({
         id: installments.id,
@@ -105,6 +108,9 @@ export async function getReminders(userId?: string, today = todayIso()): Promise
     `),
     u ? chequesNeedingAttention(u, horizon) : Promise.resolve([]),
     u ? depositsNearMaturity(u, horizon) : Promise.resolve([]),
+    u ? reconcileMismatches(u).catch(() => []) : Promise.resolve([]),
+    u ? insuranceReminders(u, horizon, today) : Promise.resolve({ premiums: [], expiring: [] }),
+    u ? vehicleDueReminders(u, addDays(today, VEHICLE_DUE_HORIZON_DAYS)) : Promise.resolve([]),
   ]);
 
   const out: Omit<Reminder, "read">[] = [];
@@ -166,6 +172,63 @@ export async function getReminders(userId?: string, today = todayIso()): Promise
       amountToman: D(d.principalToman).toFixed(0),
       href: "/deposits",
       action: "سپرده‌ها",
+    });
+  }
+
+  for (const p of insurance.premiums) {
+    out.push({
+      key: `premium:${p.id}`,
+      kind: "insurance",
+      title: `حق بیمه «${p.title}»`,
+      date: p.plannedDate,
+      days: daysBetween(today, p.plannedDate),
+      amountToman: D(p.amountBase).toFixed(0),
+      href: `/new?type=${p.savingsAccountId ? "transfer" : "expense"}&planId=${p.id}`,
+      action: "پرداخت",
+    });
+  }
+  for (const p of insurance.expiring) {
+    if (!p.endDate) continue;
+    const days = daysBetween(today, p.endDate);
+    out.push({
+      key: `renewal:${p.id}:${p.endDate}`,
+      kind: "insurance",
+      title: days < 0 ? `بیمه‌نامه «${p.title}» تمام شده است — تمدید` : `بیمه‌نامه «${p.title}» رو به پایان است — تمدید`,
+      date: p.endDate,
+      days,
+      amountToman: null,
+      href: `/insurance#policy-${p.id}`,
+      action: "تمدید",
+    });
+  }
+
+  for (const d of carDues) {
+    out.push({
+      key: `vehicle-due:${d.id}`,
+      kind: "vehicle",
+      title: `${d.title} ${d.brand} ${d.model}`,
+      date: d.dueDate,
+      days: daysBetween(today, d.dueDate),
+      amountToman: null,
+      href: `/vehicles#vehicle-${d.vehicleId}`,
+      action: "خودرو",
+    });
+  }
+
+  // Gone by itself once the missed transaction is recorded: agreement is derived.
+  for (const m of mismatches) {
+    if (!m.checkpoint || !m.difference) continue;
+    const toman = m.symbol === "IRT";
+    out.push({
+      key: `reconcile:${m.checkpoint.id}`,
+      kind: "reconcile",
+      title: `موجودی «${m.name}» با بانک یکی نیست`,
+      date: m.checkpoint.asOf,
+      days: daysBetween(today, m.checkpoint.asOf),
+      amountToman: toman ? D(m.difference).abs().toFixed(0) : null,
+      amountLabel: toman ? null : `${formatQty(D(m.difference).abs().toString(), 6)} ${currencyLabel(m.symbol)}`,
+      href: `/accounts/reconcile#acc-${m.accountId}`,
+      action: "تطبیق",
     });
   }
 

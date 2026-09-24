@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { ensureAuth, isAdminOrOwner } from "@/lib/authGuard";
 import { ensureSchemaOnce } from "@/db/init-schema";
 import { loadAssetRegistryData } from "@/features/registry/loadAssetRegistryData";
 import { PageHeader } from "@/components/ui/Card";
+import Icon from "@/components/ui/Icon";
 import ModuleTabs, { ASSET_TABS } from "@/components/ui/ModuleTabs";
 import { splitAssetFamilies } from "@/features/portfolio/assetFamilies";
 import AssetValuationSummary, { valuationTotalsOf } from "@/components/assets/AssetValuationSummary";
@@ -38,7 +40,27 @@ export default async function AssetRegistryPage() {
   return (
     <div className="space-y-7">
       <div>
-        <PageHeader title="دارایی‌های واقعی" />
+        <PageHeader
+          title="دارایی‌های واقعی"
+          action={
+            data.vehicleDashboard.length > 0 || data.realEstateDashboard.length > 0 ? (
+              <span className="flex flex-wrap gap-2">
+                {data.realEstateDashboard.length > 0 && (
+                  <Link href="/properties" className="btn btn-soft">
+                    <Icon name="home" size={16} />
+                    اجاره و بازده
+                  </Link>
+                )}
+                {data.vehicleDashboard.length > 0 && (
+                  <Link href="/vehicles" className="btn btn-soft">
+                    <Icon name="car" size={16} />
+                    هزینه و سررسید خودرو
+                  </Link>
+                )}
+              </span>
+            ) : undefined
+          }
+        />
         <ModuleTabs tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
       </div>
 

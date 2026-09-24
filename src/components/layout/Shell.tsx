@@ -7,8 +7,10 @@ import ReminderBell from "@/components/notifications/ReminderBell";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import Sheet from "@/components/ui/Sheet";
 import CommandPalette from "@/components/ui/CommandPalette";
+import GuidedTour, { type TourStep } from "@/components/onboarding/GuidedTour";
 import BrandMark, { BrandWordmark } from "@/components/layout/BrandMark";
 import InstallPromotion, { usePwaInstallState } from "@/components/pwa/InstallPromotion";
+import { paintTheme, readPrivacy, readThemeMode, setPrivacy, setThemeMode, subscribeDisplay } from "@/lib/displayPrefs";
 import {
   NAV_GROUPS,
   SECONDARY_ITEMS,
@@ -16,6 +18,7 @@ import {
   QUICK_ACTIONS,
   isNavActive,
   isGroupActive,
+  newNavHrefs,
   type NavItem,
   type NavGroup,
 } from "@/lib/nav";
@@ -43,13 +46,28 @@ function ThemeToggle({ className = "icon-btn" }: { className?: string }) {
       title="حالت روشن / تاریک"
       className={className}
       style={{ touchAction: "manipulation" }}
-      onClick={() => {
-        const next = !dark;
-        document.documentElement.classList.toggle("dark", next);
-        localStorage.setItem("pwos-theme", next ? "dark" : "light");
-      }}
+      // One tap picks the opposite of what is on screen; «سیستم» lives in تنظیمات.
+      onClick={() => setThemeMode(dark ? "light" : "dark")}
     >
       <Icon name={dark ? "sun" : "moon"} size={18} />
+    </button>
+  );
+}
+
+/** Privacy mode: every amount blurred on this device until tapped again. */
+function PrivacyToggle({ className = "icon-btn" }: { className?: string }) {
+  const on = useSyncExternalStore(subscribeDisplay, readPrivacy, () => false);
+  return (
+    <button
+      type="button"
+      aria-label={on ? "نمایش مبالغ" : "پنهان کردن مبالغ"}
+      aria-pressed={on}
+      title={on ? "نمایش مبالغ" : "پنهان کردن مبالغ"}
+      className={className}
+      style={{ touchAction: "manipulation" }}
+      onClick={() => setPrivacy(!on)}
+    >
+      <Icon name={on ? "eye-off" : "eye"} size={18} />
     </button>
   );
 }
@@ -88,6 +106,75 @@ function useNavCollapsed() {
     () => localStorage.getItem("pwos-nav") === "collapsed",
     () => false,
   );
+}
+
+/* ─────────────────── First-run tour ────────────────────── */
+
+/** Four controls, one sentence each. Phone and desktop mark their own element with the same name. */
+const TOUR_STEPS: TourStep[] = [
+  { target: "record", title: "ثبت هر تراکنش", body: "هزینه، درآمد، انتقال یا خرید و فروش دارایی از همین دکمه ثبت می‌شود. پیش از ثبت، خلاصه را می‌بینید." },
+  { target: "search", title: "جستجوی همه‌چیز", body: "صفحه‌ها و همین‌طور حساب، تراکنش، مبلغ، چک یا #برچسب خودتان را از اینجا پیدا کنید." },
+  { target: "reminders", title: "یادآورها", body: "قسط، چک، حق بیمه، سود سپرده و اختلاف موجودی با بانک، به‌موقع اینجا می‌آید." },
+  { target: "more", title: "همه‌ی بخش‌ها", body: "بیمه‌نامه‌ها، خودرو، پرداخت‌های تکراری، تطبیق با بانک و بقیه‌ی بخش‌ها اینجاست." },
+];
+
+/* ─────────────────── «جدید» badges ────────────────────── */
+
+const SEEN_KEY = "pwos-seen-nav";
+
+function readSeenRaw(): string {
+  try {
+    return localStorage.getItem(SEEN_KEY) ?? "[]";
+  } catch {
+    return "[]";
+  }
+}
+
+/**
+ * Tiles to badge «جدید»: a new destination, or the tile that leads to it (a
+ * new page nested under «حساب‌ها» badges «حساب‌ها»). Empty on the server, so
+ * the first paint never disagrees with hydration.
+ */
+function useNewBadges(): ReadonlySet<string> {
+  const raw = useSyncExternalStore(subscribeNav, readSeenRaw, () => "ssr");
+  return useMemo(() => {
+    if (raw === "ssr") return new Set<string>();
+    let seen: string[] = [];
+    try {
+      seen = JSON.parse(raw);
+    } catch {
+      seen = [];
+    }
+    const fresh = newNavHrefs(new Date().toISOString().slice(0, 10), new Set(seen));
+    const tiles = new Set<string>();
+    for (const g of NAV_GROUPS) {
+      for (const i of g.items) {
+        if (fresh.includes(i.href) || (i.children ?? []).some((c) => fresh.includes(c.href))) tiles.add(i.href);
+      }
+    }
+    return tiles;
+  }, [raw]);
+}
+
+/** Opening a new destination retires its badge on this device. */
+function markVisited(pathname: string) {
+  const fresh = newNavHrefs(new Date().toISOString().slice(0, 10), new Set());
+  const hit = fresh.filter((h) => isNavActive(pathname, h));
+  if (!hit.length) return;
+  try {
+    const seen = new Set<string>(JSON.parse(readSeenRaw()));
+    const before = seen.size;
+    hit.forEach((h) => seen.add(h));
+    if (seen.size === before) return;
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...seen]));
+  } catch {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent(NAV_EVENT));
+}
+
+function NewBadge() {
+  return <span className="new-badge">جدید</span>;
 }
 
 type ShellUser = {
@@ -159,7 +246,7 @@ function AccountLink({ user, compact = false, showAdmin = true, className = "" }
 
 /* ─────────────────── Desktop nav link ──────────────────── */
 
-function SideLink({ item, active, collapsed }: { item: NavItem; active: boolean; collapsed: boolean }) {
+function SideLink({ item, active, collapsed, isNew = false }: { item: NavItem; active: boolean; collapsed: boolean; isNew?: boolean }) {
   return (
     <Link
       href={item.href}
@@ -170,6 +257,7 @@ function SideLink({ item, active, collapsed }: { item: NavItem; active: boolean;
     >
       <Icon name={item.icon} size={19} className="shrink-0" />
       {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && isNew && <NewBadge />}
     </Link>
   );
 }
@@ -211,10 +299,12 @@ function NavGroupBlock({
   group,
   pathname,
   collapsed,
+  badges,
 }: {
   group: NavGroup;
   pathname: string;
   collapsed: boolean;
+  badges: ReadonlySet<string>;
 }) {
   const groupActive = isGroupActive(pathname, group);
   const prefs = useGroupPrefs();
@@ -232,7 +322,7 @@ function NavGroupBlock({
         )}
         <div className="space-y-0.5">
           {group.items.map((n) => (
-            <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed={collapsed} />
+            <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed={collapsed} isNew={badges.has(n.href)} />
           ))}
         </div>
       </div>
@@ -287,12 +377,13 @@ function NavGroupBlock({
         <span className="flex-1 text-right">
           {group.label}
         </span>
+        {!open && group.items.some((i) => badges.has(i.href)) && <span className="new-dot" aria-label="جدید" />}
         <Icon name="chevronDown" size={14} className={`shrink-0 nav-chevron ${open ? "nav-chevron-open" : ""}`} />
       </button>
       {open && (
         <div id={panelId} className="space-y-0.5 pb-1">
           {group.items.map((n) => (
-            <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed={false} />
+            <SideLink key={n.href} item={n} active={isNavActive(pathname, n.href)} collapsed={false} isNew={badges.has(n.href)} />
           ))}
         </div>
       )}
@@ -302,7 +393,7 @@ function NavGroupBlock({
 
 /* ─────────────────────── Mobile More ───────────────────── */
 
-function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClose: () => void; pathname: string; authUser: ShellUser | null }) {
+function MoreSheet({ open, onClose, pathname, authUser, badges }: { open: boolean; onClose: () => void; pathname: string; authUser: ShellUser | null; badges: ReadonlySet<string> }) {
   return (
     <Sheet open={open} onClose={onClose} title="همه بخش‌ها">
       {/* Sections are tile grids, three across: the whole app fits in about
@@ -311,7 +402,8 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
         <div className="more-profile">
           <AccountLink user={authUser} />
           {!authUser && <p className="muted min-w-0 flex-1 text-[length:var(--fs-xs)]">برای مدیریت داده‌ها وارد شوید</p>}
-          <span className="ms-auto">
+          <span className="ms-auto flex items-center gap-0.5">
+            <PrivacyToggle />
             <ThemeToggle />
           </span>
         </div>
@@ -344,6 +436,7 @@ function MoreSheet({ open, onClose, pathname, authUser }: { open: boolean; onClo
                         <Icon name={n.icon} size={18} />
                       </span>
                       <span className="more-tile-label">{n.label}</span>
+                      {badges.has(n.href) && <NewBadge />}
                     </Link>
                   </li>
                 );
@@ -381,10 +474,13 @@ export default function Shell({
   children,
   authUser = null,
   publicHome = false,
+  showTour = false,
 }: {
   children: ReactNode;
   authUser?: ShellUser | null;
   publicHome?: boolean;
+  /** Setup is complete and this account has not finished or skipped the tour yet. */
+  showTour?: boolean;
 }) {
   const pathname = usePathname();
   const collapsed = useNavCollapsed();
@@ -393,6 +489,23 @@ export default function Shell({
   const [quickOpen, setQuickOpen] = useState(false);
   const online = useOnline();
   const pwa = usePwaInstallState();
+  const badges = useNewBadges();
+  useEffect(() => markVisited(pathname), [pathname]);
+
+  // «سیستم»: follow the OS when it switches between light and dark.
+  useEffect(() => {
+    let media: MediaQueryList;
+    try {
+      media = window.matchMedia("(prefers-color-scheme: dark)");
+    } catch {
+      return;
+    }
+    const onChange = () => {
+      if (readThemeMode() === "system") paintTheme("system");
+    };
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
 
   // Global keyboard: ⌘K / Ctrl+K → command palette
   useEffect(() => {
@@ -513,6 +626,7 @@ export default function Shell({
         <div className="px-3 pb-2 pt-1">
           <button
             type="button"
+            data-tour="search"
             onClick={() => setPaletteOpen(true)}
             className={`flex w-full items-center gap-2 rounded-[10px] border px-3 py-2 text-[length:var(--fs-xs)] transition-colors ${
               collapsed ? "justify-center !px-0" : ""
@@ -535,9 +649,9 @@ export default function Shell({
         </div>
 
         {/* Groups */}
-        <nav className="min-h-0 flex-1 overflow-y-auto pb-2" aria-label="بخش‌های اصلی">
+        <nav className="min-h-0 flex-1 overflow-y-auto pb-2" aria-label="بخش‌های اصلی" data-tour="more">
           {NAV_GROUPS.map((g) => (
-            <NavGroupBlock key={g.id} group={g} pathname={pathname} collapsed={collapsed} />
+            <NavGroupBlock key={g.id} group={g} pathname={pathname} collapsed={collapsed} badges={badges} />
           ))}
         </nav>
 
@@ -551,6 +665,7 @@ export default function Shell({
           <div className={`mt-1.5 px-1.5 ${collapsed ? "flex flex-col items-center gap-1" : "space-y-1.5"}`}>
             <Link
               href="/new"
+              data-tour="record"
               className={`btn btn-primary whitespace-nowrap !text-[length:var(--fs-xs)] ${collapsed ? "!w-11 !min-w-11 !px-0" : "w-full"}`}
               aria-label="ثبت تراکنش جدید"
               title="ثبت تراکنش"
@@ -562,7 +677,10 @@ export default function Shell({
             <div className={`flex items-center gap-0.5 ${collapsed ? "flex-col" : ""}`}>
               <AccountLink user={authUser} compact={collapsed} showAdmin={false} className={collapsed ? "" : "flex-1"} />
               <AdminIconLink user={authUser} className="icon-btn !min-h-10 !min-w-10" />
-              <ReminderBell className="icon-btn !min-h-10 !min-w-10" />
+              <span data-tour="reminders" className="inline-flex">
+                <ReminderBell className="icon-btn !min-h-10 !min-w-10" />
+              </span>
+              <PrivacyToggle className="icon-btn !min-h-10 !min-w-10" />
               <ThemeToggle className="icon-btn !min-h-10 !min-w-10" />
             </div>
           </div>
@@ -588,10 +706,13 @@ export default function Shell({
         {/* Minimal: search, reminders, account. «ثبت تراکنش» is the «+» in the
             bottom bar; theme and admin live in «بیشتر», next to the profile. */}
         <div className="flex shrink-0 items-center gap-0.5">
-          <button type="button" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
+          <button type="button" data-tour="search" className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="جستجو و فرمان" style={{ touchAction: "manipulation" }}>
             <Icon name="search" size={18} />
           </button>
-          <ReminderBell />
+          <PrivacyToggle />
+          <span data-tour="reminders" className="inline-flex">
+            <ReminderBell />
+          </span>
           <AccountLink user={authUser} compact showAdmin={false} />
         </div>
       </header>
@@ -650,6 +771,7 @@ export default function Shell({
             aria-label="ثبت تراکنش جدید"
             aria-haspopup="dialog"
             aria-expanded={quickOpen}
+            data-tour="record"
             className="tab-record"
             data-active={pathname === "/new" || undefined}
           >
@@ -662,13 +784,17 @@ export default function Shell({
             <button
               type="button"
               onClick={() => setMoreOpen(true)}
+              data-tour="more"
               aria-label="بیشتر"
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
               className={`tab-item ${moreActive ? "tab-active" : ""}`}
               style={{ touchAction: "manipulation" }}
             >
-              <Icon name="more" size={20} />
+              <span className="relative inline-flex">
+                <Icon name="more" size={20} />
+                {badges.size > 0 && <span className="new-dot new-dot-corner" aria-label="بخش جدید" />}
+              </span>
               <span className="tab-label">بیشتر</span>
             </button>
           </div>
@@ -676,7 +802,7 @@ export default function Shell({
       </nav>
       )}
 
-      {!hideAppNav && <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} authUser={authUser} />}
+      {!hideAppNav && <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} authUser={authUser} badges={badges} />}
       {!hideAppNav && (
         <Sheet open={quickOpen} onClose={() => setQuickOpen(false)} title="ثبت تراکنش">
           <nav className="grid grid-cols-1 gap-1 px-3 py-3" aria-label="اقدامات سریع">
@@ -701,6 +827,8 @@ export default function Shell({
         </Sheet>
       )}
       {!hideAppNav && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
+      {/* Home only, once per account: the tour points at controls, and the home page is where they all are. */}
+      {!hideAppNav && showTour && pathname === "/" && !publicHome && <GuidedTour steps={TOUR_STEPS} />}
     </div>
   );
 }

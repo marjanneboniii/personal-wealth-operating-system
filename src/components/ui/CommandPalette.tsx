@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/ui/Icon";
 import { ALL_NAV_ITEMS, QUICK_ACTIONS } from "@/lib/nav";
+import { toLatinDigits } from "@/lib/format";
+import { searchEverythingAction } from "@/app/actions/search";
 
 type Cmd = {
   href: string;
@@ -36,12 +38,12 @@ const COMMANDS: Cmd[] = [
 ];
 
 function norm(s: string) {
-  return s
+  return toLatinDigits(s)
     .toLowerCase()
     .replace(/[يى]/g, "ی")
     .replace(/[ك]/g, "ک")
     .replace(/[أإآ]/g, "ا")
-    .replace(/‌/g, " ")
+    .replace(/[\u200c\u200e\u200f]/g, " ")
     .trim();
 }
 
@@ -62,11 +64,37 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     }
   }
 
+  // The user's own records (accounts, transactions, #tags, cheques, …) come
+  // from the server after a short pause in typing; a slower, older answer
+  // never overwrites a newer one.
+  const [data, setData] = useState<{ query: string; hits: Cmd[] }>({ query: "", hits: [] });
+  const [searching, setSearching] = useState(false);
+  const latest = useRef("");
+  useEffect(() => {
+    const q = query.trim();
+    latest.current = q;
+    if (!open || norm(q).length < 2) return;
+    const timer = setTimeout(() => {
+      setSearching(true);
+      searchEverythingAction(q)
+        .then((hits) => {
+          if (latest.current !== q) return;
+          setData({ query: q, hits: hits.map((h) => ({ href: h.href, label: h.label, icon: h.icon, hint: h.hint, group: h.group, keywords: "" })) });
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (latest.current === q) setSearching(false);
+        });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query, open]);
+
   const results = useMemo(() => {
     const q = norm(query);
     if (!q) return COMMANDS;
-    return COMMANDS.filter((c) => norm(`${c.label} ${c.hint ?? ""} ${c.keywords} ${c.group}`).includes(q));
-  }, [query]);
+    const pages = COMMANDS.filter((c) => norm(`${c.label} ${c.hint ?? ""} ${c.keywords} ${c.group}`).includes(q));
+    return data.query === query.trim() && q.length >= 2 ? [...pages, ...data.hits] : pages;
+  }, [query, data]);
 
   // Items with group headers woven in — computed once, no render mutation
   const items = useMemo(() => {
@@ -138,7 +166,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
               setQuery(e.target.value);
               setIndex(0);
             }}
-            placeholder="جستجو یا رفتن به… (مثلاً «تراکنش»، «سوابق مالی»، «ثبت هزینه»)"
+            placeholder="جستجوی صفحه، حساب، تراکنش، مبلغ، چک یا #برچسب…"
             className="h-12 w-full bg-transparent text-[length:var(--fs-sm)] outline-none placeholder:opacity-40"
             role="combobox"
             aria-expanded="true"
@@ -150,9 +178,11 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
 
         <div ref={listRef} id="cmdk-list" role="listbox" className="min-h-0 flex-1 overflow-y-auto p-1.5">
           {results.length === 0 && (
-            <div className="muted px-4 py-10 text-center text-[length:var(--fs-sm)]">
-              چیزی پیدا نشد.
-              <div className="mt-1 text-[length:var(--fs-xs)]">نام صفحه یا اقدام را جستجو کنید — مثلاً «ارزش خالص» یا «ثبت درآمد».</div>
+            <div className="muted px-4 py-10 text-center text-[length:var(--fs-sm)]" role="status" aria-live="polite">
+              {searching ? "در حال جستجو…" : "چیزی پیدا نشد."}
+              {!searching && (
+                <div className="mt-1 text-[length:var(--fs-xs)]">نام صفحه، حساب، شرح تراکنش، مبلغ، طرف چک یا یک #برچسب را بنویسید.</div>
+              )}
             </div>
           )}
           {items.map((item) =>
@@ -162,7 +192,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
               </div>
             ) : (
               <button
-                key={item.cmd.href + item.cmd.label}
+                key={`${item.cmd.group}-${item.idx}`}
                 id={`cmd-${item.idx}`}
                 data-idx={item.idx}
                 role="option"

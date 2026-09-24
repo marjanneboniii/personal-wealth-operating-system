@@ -49,6 +49,72 @@ function money(value: string, unit: "rial" | "toman"): string {
   return unit === "rial" ? amount.div(10).toString() : amount.toString();
 }
 
+type Unit = "rial" | "toman";
+
+/**
+ * Labelled transaction amounts. «مانده قابل برداشت» is a balance, not a
+ * withdrawal, so «برداشت» right after «قابل» is not an amount label.
+ */
+function amountCandidates(text: string): { amount: string; unit: Unit | null }[] {
+  const expression = /(?:مبلغ|(?<!قابل\s)برداشت|واریز|خرید|پرداخت|دریافت)\s*(?:به\s*مبلغ\s*)?[:：\-]?\s*([0-9][0-9,٬]*(?:[٫.][0-9]{1,2})?)\s*(ریال|تومان)?/g;
+  return [...text.matchAll(expression)].map((match) => ({
+    amount: match[1],
+    unit: match[2] === "ریال" ? "rial" : match[2] === "تومان" ? "toman" : null,
+  }));
+}
+
+/** The one unit the whole message is written in, if it names exactly one. */
+function messageUnit(text: string): Unit | null {
+  const units = [...text.matchAll(/ریال|تومان/g)].map((m) => m[0]);
+  return units.length && units.every((u) => u === units[0]) ? (units[0] === "ریال" ? "rial" : "toman") : null;
+}
+
+const plainDigits = (value: string) => toLatinDigits(value).replace(/[,٬\s]/g, "").replace(/٫/g, ".");
+
+export type ReportedBalance = { value: string; unit: Unit | null };
+
+/**
+ * The balance a bank printed after the transaction («مانده: ۱۲٬۰۰۰٬۰۰۰»,
+ * «موجودی حساب 5,000,000 ریال»). Conservative like the amount: two different
+ * balances in one message, or none, mean no balance. «مانده قابل برداشت» is
+ * deliberately not read — it can differ from the book balance by blocked funds.
+ */
+export function parseReportedBalance(source: string): ReportedBalance | null {
+  const text = normalizeBankText(source);
+  const expression = /(?:مانده|موجودی)(?:\s*(?:حساب|فعلی|جدید))?\s*[:：]?\s*(-?)\s*([0-9][0-9,٬]*(?:[٫.][0-9]{1,2})?)(-?)\s*(ریال|تومان)?/g;
+  const found: ReportedBalance[] = [];
+  for (const match of text.matchAll(expression)) {
+    const digits = plainDigits(match[2]);
+    if (!/^\d{1,18}(?:\.\d{1,2})?$/.test(digits)) continue;
+    const negative = match[1] === "-" || match[3] === "-";
+    found.push({ value: `${negative && D(digits).gt(0) ? "-" : ""}${D(digits).toString()}`, unit: match[4] === "ریال" ? "rial" : match[4] === "تومان" ? "toman" : null });
+  }
+  if (!found.length) return null;
+  return new Set(found.map((f) => `${f.value}|${f.unit ?? ""}`)).size === 1 ? found[0] : null;
+}
+
+/**
+ * The reported balance in Toman. Many bank messages print no unit at all; the
+ * user has just confirmed the amount in Toman, so the message's own amount
+ * figure says whether the bank wrote Rial (×10) or Toman. No decision → null,
+ * never a guess that would raise a false tenfold difference.
+ */
+export function reportedBalanceToman(source: string, confirmedAmountToman: string): string | null {
+  const balance = parseReportedBalance(source);
+  if (!balance) return null;
+  const text = normalizeBankText(source);
+  let unit = balance.unit ?? messageUnit(text);
+  if (!unit && D(confirmedAmountToman).gt(0)) {
+    const printed = new Set(amountCandidates(text).map((c) => plainDigits(c.amount)).filter((v) => /^\d{1,18}(?:\.\d{1,2})?$/.test(v)).map((v) => D(v).toString()));
+    const asToman = D(confirmedAmountToman).toString();
+    const asRial = D(confirmedAmountToman).mul(10).toString();
+    if (printed.size === 1 && printed.has(asRial)) unit = "rial";
+    else if (printed.size === 1 && printed.has(asToman)) unit = "toman";
+  }
+  if (!unit) return null;
+  return unit === "rial" ? D(balance.value).div(10).toString() : balance.value;
+}
+
 /** Conservative extraction: never mistake a balance or card number for the amount. */
 export function parseBankMessage(source: string): BankDraft {
   if (source.length > 8000) throw new Error("هر پیام باید کمتر از ۸۰۰۰ نویسه باشد.");
@@ -57,13 +123,8 @@ export function parseBankMessage(source: string): BankDraft {
   const deposit = /واریز|دریافت/.test(text);
   const direction = withdrawal === deposit ? "unknown" : withdrawal ? "withdrawal" : "deposit";
   const warnings: string[] = [];
-  const candidates: { amount: string; unit: "rial" | "toman" | null }[] = [];
-  const expression = /(?:مبلغ|برداشت|واریز|خرید|پرداخت|دریافت)\s*(?:به\s*مبلغ\s*)?[:：\-]?\s*([0-9][0-9,٬]*(?:[٫.][0-9]{1,2})?)\s*(ریال|تومان)?/g;
-  for (const match of text.matchAll(expression)) {
-    candidates.push({ amount: match[1], unit: match[2] === "ریال" ? "rial" : match[2] === "تومان" ? "toman" : null });
-  }
-  const units = [...text.matchAll(/ریال|تومان/g)].map((m) => m[0]);
-  const globalUnit = units.length && units.every((u) => u === units[0]) ? (units[0] === "ریال" ? "rial" : "toman") : null;
+  const candidates = amountCandidates(text);
+  const globalUnit = messageUnit(text);
   const amounts = candidates.map((c) => c.unit || globalUnit ? money(c.amount, c.unit ?? globalUnit!) : "");
   const unique = [...new Set(amounts.filter(Boolean))];
   const amountToman = unique.length === 1 && amounts.every(Boolean) ? unique[0] : "";

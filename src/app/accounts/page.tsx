@@ -25,6 +25,7 @@ import { getUserProMode } from "@/features/preferences/service";
 import AccountListItem from "@/components/accounts/AccountListItem";
 import DeleteAccountButton from "@/components/accounts/DeleteAccountButton";
 import { walletLogoFor } from "@/features/setup/holdingWallets";
+import { listReconciliation } from "@/features/reconcile/service";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ const WALLET_KIND: Record<string, string> = {
   cold: "کیف سرد",
   cash: "نقد",
   fund: "صندوق/کارگزاری",
+  insurance: "اندوخته بیمه",
 };
 
 /**
@@ -94,6 +96,9 @@ export default async function AccountsPage() {
       .orderBy(asc(wallets.name)),
     getLatestUsdIrtRate(),
   ]);
+  const reconcileMismatchCount = userId
+    ? (await listReconciliation(userId).catch(() => [])).filter((r) => r.state === "mismatch").length
+    : 0;
 
   type Balance = (typeof balances)[number];
 
@@ -266,6 +271,18 @@ export default async function AccountsPage() {
         </Alert>
       )}
 
+      {reconcileMismatchCount > 0 && (
+        <Alert
+          tone="warn"
+          title={`موجودی ${faCount(reconcileMismatchCount)} حساب با بانک یکی نیست`}
+          action={
+            <Link href="/accounts/reconcile" className="btn btn-soft !px-3.5 text-[length:var(--fs-xs)]">
+              تطبیق
+            </Link>
+          }
+        />
+      )}
+
       <section className="metric-strip">
         <Metric
           label="موجودی کل"
@@ -285,7 +302,12 @@ export default async function AccountsPage() {
 
       <Section
         title="کیف‌ها و بانک‌ها"
-        action={zeroBalanceCount > 0 ? <ZeroBalanceToggle showing={showZeroBalances} hiddenCount={zeroBalanceCount} /> : undefined}
+        action={
+          <span className="flex items-center gap-3">
+            {zeroBalanceCount > 0 && <ZeroBalanceToggle showing={showZeroBalances} hiddenCount={zeroBalanceCount} />}
+            <SectionLink href="/accounts/reconcile" label="تطبیق با بانک" />
+          </span>
+        }
       >
         {walletViews.length === 0 ? (
           <div className="card">

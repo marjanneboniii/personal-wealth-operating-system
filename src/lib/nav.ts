@@ -33,6 +33,8 @@ export type NavItem = {
   children?: NavItem[];
   /** keep out of the command palette (anchor duplicates of a parent page) */
   paletteHidden?: boolean;
+  /** ISO release date — «جدید» for NEW_BADGE_DAYS, until first visited (see newNavHrefs). */
+  since?: string;
 };
 
 export type NavModule = "expenses" | "commitments" | "wealth";
@@ -93,6 +95,16 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "accounts",
         question: "پول من کجاست؟",
         keywords: ["accounts", "wallets", "حساب", "کیف", "بانک"],
+        children: [
+          {
+            href: "/accounts/reconcile",
+            since: "2026-09-24",
+            label: "تطبیق با بانک",
+            icon: "scale",
+            question: "موجودی حساب‌هایم با بانک یکی است؟",
+            keywords: ["reconcile", "balance", "تطبیق", "مانده", "موجودی بانک", "اختلاف", "مغایرت"],
+          },
+        ],
       },
       {
         href: "/cash-flow",
@@ -107,6 +119,14 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "coins",
         question: "سپرده‌هایم چقدر سود می‌دهند و کی سررسید می‌شوند؟",
         keywords: ["deposit", "interest", "fund", "سپرده", "سود", "سود بانکی", "صندوق درآمد ثابت", "سررسید"],
+      },
+      {
+        href: "/recurring",
+        since: "2026-09-24",
+        label: "پرداخت‌های تکراری",
+        icon: "receipt",
+        question: "هر ماه بی‌تصمیم چقدر از حسابم می‌رود؟",
+        keywords: ["subscription", "recurring", "direct debit", "اشتراک", "تکراری", "قبض", "کسورات", "پرداخت مستقیم", "هزینه ثابت"],
       },
     ],
   },
@@ -148,6 +168,24 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "home",
         question: "ارزش املاک، خودرو و طلای من چیست؟",
         keywords: ["rwa", "real estate", "vehicle", "gold", "ملک", "خودرو", "طلا", "ارزش‌گذاری"],
+        children: [
+          {
+            href: "/vehicles",
+            since: "2026-09-24",
+            label: "هزینه و سررسید خودرو",
+            icon: "car",
+            question: "خودروام واقعاً ماهی چقدر خرج دارد و معاینه فنی‌اش کی است؟",
+            keywords: ["car", "vehicle", "inspection", "خودرو", "ماشین", "معاینه فنی", "عوارض", "سرویس", "هزینه خودرو", "بنزین"],
+          },
+          {
+            href: "/properties",
+            since: "2026-09-24",
+            label: "اجاره و بازده املاک",
+            icon: "home",
+            question: "ملکم بعد از هزینه‌ها چقدر بازده دارد؟",
+            keywords: ["rent", "rental yield", "property", "اجاره", "بازده", "ملک", "مستاجر", "شارژ", "هزینه ملک"],
+          },
+        ],
       },
       {
         href: "/market",
@@ -259,6 +297,14 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: "note",
         question: "کدام چک‌ها در راه است؟",
         keywords: ["cheque", "check", "sayad", "چک", "صیادی", "برگشتی", "سررسید چک"],
+      },
+      {
+        href: "/insurance",
+        since: "2026-09-24",
+        label: "بیمه‌نامه‌ها",
+        icon: "shield",
+        question: "چه چیزهایی بیمه است و کی باید تمدید شود؟",
+        keywords: ["insurance", "policy", "بیمه", "ثالث", "بدنه", "آتش‌سوزی", "عمر", "درمان تکمیلی", "حق بیمه", "تمدید"],
       },
     ],
   },
@@ -436,16 +482,16 @@ export const MOBILE_TABS: { href: string; label: string; icon: IconName; match?:
     label: "پول",
     icon: "transactions",
     module: "expenses",
-    match: ["/transactions", "/accounts", "/cash-flow"],
+    match: ["/transactions", "/accounts", "/cash-flow", "/deposits", "/recurring"],
   },
   {
     href: "/assets",
     label: "دارایی‌ها",
     icon: "portfolio",
     module: "wealth",
-    match: ["/assets", "/portfolio", "/crypto", "/asset-registry"],
+    match: ["/assets", "/portfolio", "/crypto", "/asset-registry", "/vehicles", "/properties"],
   },
-  { href: "/debts", label: "تعهدات", icon: "debts", module: "commitments", match: ["/debts", "/installments"] },
+  { href: "/debts", label: "تعهدات", icon: "debts", module: "commitments", match: ["/debts", "/installments", "/insurance"] },
   { href: "/net-worth", label: "ثروت", icon: "networth", module: "wealth", match: ["/net-worth"] },
 ];
 
@@ -476,4 +522,23 @@ export function isGroupActive(pathname: string, group: NavGroup): boolean {
   return group.items.some(
     (i) => isNavActive(pathname, i.href) || (i.children ?? []).some((c) => isNavActive(pathname, c.href)),
   );
+}
+
+/** How long a destination is «جدید» after its release. */
+export const NEW_BADGE_DAYS = 30;
+/** Never more than this many «جدید» at once — a badge on everything means nothing. */
+export const MAX_NEW_BADGES = 2;
+
+/**
+ * The destinations to mark «جدید» now: released within NEW_BADGE_DAYS, not yet
+ * visited on this device, newest first, at most MAX_NEW_BADGES. PURE.
+ */
+export function newNavHrefs(today: string, visited: ReadonlySet<string>): string[] {
+  const cutoff = new Date(`${today}T00:00:00Z`);
+  cutoff.setUTCDate(cutoff.getUTCDate() - NEW_BADGE_DAYS);
+  const from = cutoff.toISOString().slice(0, 10);
+  return ALL_NAV_ITEMS.filter((i) => i.since && i.since >= from && i.since <= today && !visited.has(i.href))
+    .sort((a, b) => b.since!.localeCompare(a.since!))
+    .slice(0, MAX_NEW_BADGES)
+    .map((i) => i.href);
 }

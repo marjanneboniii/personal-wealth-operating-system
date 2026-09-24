@@ -17,6 +17,7 @@ export const DEBT_TABS: ModuleTab[] = [
   { href: "/debts/installments", label: "اقساط" },
   { href: "/debts/obligations", label: "تعهدات آینده" },
   { href: "/debts/cheques", label: "چک‌ها" },
+  { href: "/insurance", label: "بیمه" },
 ];
 
 /** «پول» — the same sub-navigation on every page of the module. */
@@ -25,6 +26,7 @@ export const MONEY_TABS: ModuleTab[] = [
   { href: "/accounts", label: "حساب‌ها" },
   { href: "/cash-flow", label: "جریان نقدی" },
   { href: "/deposits", label: "سپرده‌ها" },
+  { href: "/recurring", label: "تکراری" },
 ];
 
 /**

@@ -107,3 +107,29 @@ export async function setUserProMode(
     return { ok: false, message: "ذخیره تنظیمات ممکن نشد — دوباره تلاش کنید.", proMode: !proMode };
   }
 }
+
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ * The one-time guided tour («راهنمای شروع»). Per account: a phone's installed
+ * PWA keeps storage apart from its browser, so a device-local flag would show
+ * the same person the tour twice. Any error reads as «seen» — a tour that
+ * fails to stay dismissed is worse than one that never appears.
+ */
+export async function hasSeenTour(userId: string | null | undefined): Promise<boolean> {
+  if (!userId) return true;
+  try {
+    const [row] = await db
+      .select({ at: userPreferences.tourSeenAt })
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, userId))
+      .limit(1);
+    return !!row?.at;
+  } catch {
+    return true;
+  }
+}
+
+export async function markTourSeen(userId: string): Promise<void> {
+  await db.insert(userPreferences).values({ userId, tourSeenAt: new Date() }).onConflictDoNothing();
+  await db.update(userPreferences).set({ tourSeenAt: new Date(), updatedAt: new Date() }).where(eq(userPreferences.userId, userId));
+}

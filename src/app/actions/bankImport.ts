@@ -9,8 +9,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { normalizeNumericInput } from "@/lib/numericInput";
 import { todayIso } from "@/lib/format";
 import { getCategoryById } from "@/features/categories/service";
-import { normalizeBankText } from "@/features/bankImport/parser";
-import { getSmsInboxItem, requireSmsSetup } from "@/features/bankImport/sms";
+import { normalizeBankText, reportedBalanceToman } from "@/features/bankImport/parser";
+import { decryptInboxMessage, getSmsInboxItem, requireSmsSetup } from "@/features/bankImport/sms";
+import { recordBalanceCheckpoint } from "@/features/reconcile/service";
 import { isSmsBankAccount } from "@/features/bankImport/identifiers";
 import { createTransactionAction } from "@/app/actions";
 
@@ -21,6 +22,31 @@ export type BankImportResult = {
   duplicate?: boolean;
   transferEntryId?: string;
 };
+
+/**
+ * The «مانده» of a confirmed message is the bank's own statement of the
+ * account right after this transaction — kept as a reconciliation checkpoint
+ * before the message text is deleted. Best effort: a message without a clear
+ * balance, or any failure here, never blocks the confirmation itself.
+ */
+async function captureReportedBalance(input: { userId: string; accountId: string; date: string; message: string | null; amountToman: string; observedAt?: Date; entryId: string }) {
+  if (!input.message) return;
+  try {
+    const balance = reportedBalanceToman(input.message, input.amountToman);
+    if (balance === null) return;
+    await recordBalanceCheckpoint({
+      userId: input.userId,
+      accountId: input.accountId,
+      asOf: input.date,
+      balance,
+      source: "sms",
+      observedAt: input.observedAt,
+      entryId: input.entryId,
+    });
+  } catch {
+    /* reconciliation is advisory; the entry stands */
+  }
+}
 
 const schema = z.object({
   inboxId: z.uuid().optional(),
@@ -55,6 +81,9 @@ export async function confirmBankImportAction(fd: FormData): Promise<BankImportR
     const inbox = v.inboxId ? await getSmsInboxItem(user.id, v.inboxId) : null;
     if (v.inboxId && (!inbox || inbox.status === "rejected")) return { ok: false, message: "پیام قابل ثبت نیست." };
     if (v.inboxId && v.openingConfirmed !== "yes") return { ok: false, message: "تأیید کنید این مبلغ در موجودی افتتاحیه منظور نشده است." };
+    const message = inbox ? decryptInboxMessage(user.id, inbox) : v.source;
+    const balanceCapture = (entryId: string) =>
+      captureReportedBalance({ userId: user.id, accountId: v.accountId, date: v.date, message, amountToman: v.amountToman, observedAt: inbox?.sentAt, entryId });
     const time = new Date(`${v.date}T00:00:00Z`);
     if (!Number.isFinite(time.getTime()) || time.toISOString().slice(0, 10) !== v.date || v.date > todayIso() || v.date < "1900-01-01") {
       return { ok: false, message: "تاریخ واقعی و معتبر تراکنش را انتخاب کنید؛ تاریخ آینده مجاز نیست." };
@@ -104,6 +133,7 @@ export async function confirmBankImportAction(fd: FormData): Promise<BankImportR
         return true;
       });
       if (!linked) return { ok: false, message: "پیام یا سند قابل اتصال نیست؛ مبلغ، تاریخ، حساب‌ها و وضعیت را بررسی کنید." };
+      await balanceCapture(v.existingTransferId);
       return { ok: true, message: "پیام به سند انتقال قبلی وصل شد؛ موجودی دوباره تغییر نکرد.", entryId: v.existingTransferId };
     }
 
@@ -153,7 +183,10 @@ export async function confirmBankImportAction(fd: FormData): Promise<BankImportR
     const entry = await existing();
     // A concurrent replay may have reached the unique constraint; the committed entry wins.
     if (entry && inbox) await db.update(bankSmsInbox).set({ status: "confirmed", entryId: entry.id, encryptedPayload: null, processingAt: null }).where(and(eq(bankSmsInbox.id, inbox.id), eq(bankSmsInbox.userId, user.id)));
-    if (entry) return { ok: true, message: "تراکنش تأیید و ثبت شد.", entryId: entry.id };
+    if (entry) {
+      await balanceCapture(entry.id);
+      return { ok: true, message: "تراکنش تأیید و ثبت شد.", entryId: entry.id };
+    }
     return result;
   } catch {
     return { ok: false, message: "ثبت انجام نشد؛ راه‌اندازی اولیه، اتصال و دسترسی حساب را بررسی کنید." };

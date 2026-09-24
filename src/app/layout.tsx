@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { DISPLAY_BOOT_SCRIPT } from "@/lib/displayPrefs";
 import type { ReactNode } from "react";
 import "./globals.css";
 import Shell from "@/components/layout/Shell";
 import { ProModeProvider } from "@/components/layout/ProModeProvider";
 import { getCurrentUser } from "@/lib/auth";
-import { getUserProMode } from "@/features/preferences/service";
+import { getUserProMode, hasSeenTour } from "@/features/preferences/service";
+import { getSetupState } from "@/features/setup/service";
 import { resolveHomeMode } from "@/lib/publicEntry";
 
 export const metadata: Metadata = {
@@ -43,7 +45,8 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const themeScript = `(function(){try{var t=localStorage.getItem('pwos-theme')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();`;
+// Theme and privacy mode before first paint — see src/lib/displayPrefs.ts.
+const themeScript = DISPLAY_BOOT_SCRIPT;
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // Keep the account affordance visible in the shell without exposing any
@@ -52,6 +55,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   let authUser: { name: string; username: string | null; email: string | null; role: string } | null = null;
   let publicHome = false;
   let proMode = false;
+  let showTour = false;
   try {
     const user = await getCurrentUser();
     if (user) {
@@ -64,6 +68,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       // Per-user UI vocabulary preference — resolved server-side per request
       // (Directive §2). Fails safe to the SIMPLE view for anonymous users.
       proMode = await getUserProMode((user as { id?: string }).id);
+      // The first-run tour: after setup, until finished or skipped (per account).
+      const uid = (user as { id?: string }).id;
+      if (uid && !(await hasSeenTour(uid))) showTour = (await getSetupState(uid)).completed;
     }
     publicHome = (await resolveHomeMode(user)) === "landing";
   } catch {
@@ -109,7 +116,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           پرش به محتوای اصلی
         </a>
         <ProModeProvider pro={proMode}>
-          <Shell authUser={authUser} publicHome={publicHome}>
+          <Shell authUser={authUser} publicHome={publicHome} showTour={showTour}>
             {children}
           </Shell>
         </ProModeProvider>

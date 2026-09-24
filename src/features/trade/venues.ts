@@ -183,7 +183,8 @@ const FIAT_UNITS: ReadonlySet<string> = new Set(["IRT", "IRR", "USD", "EUR", "AE
  *
  *   • Toman moves between Toman bank accounts, the Toman held at an Iranian
  *     exchange and the Toman held at a brokerage, in every direction — never
- *     to a crypto wallet, a foreign exchange or a cash box.
+ *     to a crypto wallet, a foreign exchange or a cash box. It is also paid
+ *     INTO a life policy's savings account (wallet kind `insurance`).
  *   • A coin or a tokenised asset (Tether included) goes to the SAME asset
  *     held at an exchange or a wallet — never into Toman, a bank or a
  *     brokerage — and only on a network that place supports.
@@ -201,6 +202,8 @@ export function transferDestinationError(
   if (TOMAN_UNITS.has(fromSymbol)) {
     if (!TOMAN_UNITS.has(toSymbol)) return "تومان فقط به حساب تومانی منتقل می‌شود.";
     if (isTomanBankAccount(to) || isTomanExchangeAccount(to) || isTomanBrokerAccount(to)) return null;
+    // A life policy's savings (اندوخته): the saved part of each premium is paid into it.
+    if ((to.walletKind ?? "").trim().toLowerCase() === "insurance") return null;
     return "تومان فقط بین حساب بانکی، تومانِ صرافی داخلی و تومانِ کارگزاری منتقل می‌شود.";
   }
 

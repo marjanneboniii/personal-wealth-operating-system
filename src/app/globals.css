@@ -4029,6 +4029,146 @@ details[open] > summary .inst-caret { transform: rotate(180deg); }
   border-color: var(--border-strong);
   color: var(--text);
 }
+/* Privacy mode (html[data-privacy]): every amount blurred on this device.
+   Presentation only — nothing about the figures changes, inputs stay readable
+   so a form can still be filled in. */
+html[data-privacy] :is(.num, .money-nowrap, .metric-value, .overview-hero-value, .plan-amount):not(input, textarea, select, .field) {
+  filter: blur(7px);
+  transition: filter var(--motion-micro) var(--ease);
+  user-select: none;
+}
+html[data-privacy] svg text {
+  filter: blur(4px);
+}
+
+/* Guided tour: the spotlight dims everything but one control; the card sits beside it. */
+.tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+}
+.tour-spotlight {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px var(--overlay);
+  transition: top 180ms var(--ease), left 180ms var(--ease), width 180ms var(--ease), height 180ms var(--ease);
+  pointer-events: none;
+}
+.tour-card {
+  position: fixed;
+  padding: 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-elev);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  outline: none;
+  margin-bottom: env(safe-area-inset-bottom);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-spotlight {
+    transition: none;
+  }
+}
+
+/* «جدید» — at most two at a time, for 30 days, until first visited (lib/nav). */
+.new-badge {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--action-soft);
+  color: var(--action);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.more-tile .new-badge {
+  margin-inline-start: 0;
+}
+.new-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--action);
+}
+.new-dot-corner {
+  position: absolute;
+  top: -2px;
+  inset-inline-end: -3px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* «پوشش داده» — the ring and the one-line strip that leads to the checks. */
+.coverage-ring {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+.coverage-ring svg {
+  position: absolute;
+  inset: 0;
+}
+.coverage-ring-value {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text);
+}
+.coverage-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+}
+.coverage-strip:hover {
+  border-color: var(--border-strong);
+}
+
+/* Saved shortcuts under the quick actions: wrap, never cut off on a phone. */
+.shortcut-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.1rem;
+}
+.shortcut-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  touch-action: manipulation;
+}
+.shortcut-chip svg {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+.shortcut-chip.is-editing {
+  background: var(--negative-soft);
+  color: var(--negative);
+}
+.shortcut-chip.is-editing svg {
+  color: var(--negative);
+}
+.shortcut-edit {
+  min-height: 36px;
+  padding: 0 0.5rem;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
 /* Wider screens: one tidy toolbar of equal buttons instead of loose pills.
    Phones (and the installed PWA) keep the swipeable pill row above. */
 .quick-full {
@@ -4421,6 +4561,44 @@ details[open] > summary .inst-caret { transform: rotate(180deg); }
   margin-top: 0.1rem;
   font-weight: 500;
   color: var(--text);
+}
+
+/* تطبیق با بانک — the row's figures and actions sit under it, aligned with the title */
+.reconcile-row {
+  scroll-margin-top: 5rem;
+}
+.reconcile-row:target {
+  background: var(--warning-soft);
+}
+.reconcile-body {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0 1rem 0.85rem;
+  padding-inline-start: calc(1rem + 34px + 0.75rem);
+}
+.reconcile-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.5rem;
+  font-size: var(--fs-xs);
+}
+.reconcile-figures dt {
+  color: var(--text-3);
+}
+.reconcile-figures dd {
+  font-weight: 600;
+}
+.reconcile-form {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border-radius: var(--r-md);
+  background: var(--sunken);
+}
+@media (max-width: 420px) {
+  .reconcile-body {
+    padding-inline-start: 1rem;
+  }
 }
 
 /* Accounts — a wallet with several accounts lists them indented under it */
