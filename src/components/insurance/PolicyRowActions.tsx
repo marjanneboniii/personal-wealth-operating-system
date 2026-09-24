@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import { cancelPolicyAction, deletePolicyAction, renewPolicyAction } from "@/app/actions/insurance";
 import type { ActionResult } from "@/app/actions";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 import { FormStatus } from "@/components/ui/FormStatus";
+import Icon from "@/components/ui/Icon";
 
 const SMALL = "btn !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]";
 
@@ -16,25 +17,37 @@ function plusOneYear(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * One primary action (pay the premium, see the installments, or renew) and a
+ * quiet «⋯» for the rest — a row never becomes a wall of buttons.
+ */
 export default function PolicyRowActions({
   id,
   active,
   payHref,
+  debtHref,
   endDate,
   premiumToman,
   coverageToman,
   today,
   renewSoon,
+  bankAccounts,
+  needsAccount,
 }: {
   id: string;
   active: boolean;
   payHref: string | null;
+  /** Paid through a debt: its installments, instead of a premium to pay. */
+  debtHref: string | null;
   endDate: string | null;
   premiumToman: string;
   coverageToman: string | null;
   today: string;
   /** Near or past the end of the term: renewal is the main action. */
   renewSoon: boolean;
+  /** Toman bank accounts, for a renewal of a term that had none (it was paid through a debt). */
+  bankAccounts: { id: string; label: string }[];
+  needsAccount: boolean;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -44,8 +57,11 @@ export default function PolicyRowActions({
   const [newEnd, setNewEnd] = useState(plusOneYear(from));
   const [premium, setPremium] = useState(premiumToman);
   const [coverage, setCoverage] = useState(coverageToman ?? "");
+  const [payAccountId, setPayAccountId] = useState(bankAccounts.length === 1 ? bankAccounts[0].id : "");
+  const menuRef = useRef<HTMLDetailsElement>(null);
 
   const run = (fn: () => Promise<ActionResult>, confirmText: string) => {
+    if (menuRef.current) menuRef.current.open = false;
     if (!window.confirm(confirmText)) return;
     start(async () => {
       const res = await fn();
@@ -54,10 +70,15 @@ export default function PolicyRowActions({
   };
 
   return (
-    <div className="flex w-full flex-wrap justify-end gap-2">
-      {active && payHref && (
-        <Link href={payHref} className={`${SMALL} ${renewSoon ? "btn-soft" : "btn-primary"}`}>
+    <div className="policy-row-actions flex w-full flex-wrap items-center justify-end gap-2">
+      {active && payHref && !renewSoon && (
+        <Link href={payHref} className={`${SMALL} btn-primary`}>
           پرداخت حق بیمه
+        </Link>
+      )}
+      {active && debtHref && !renewSoon && (
+        <Link href={debtHref} className={`${SMALL} btn-soft`}>
+          اقساط
         </Link>
       )}
       {active && (
@@ -65,25 +86,35 @@ export default function PolicyRowActions({
           تمدید
         </button>
       )}
-      {active && (
-        <button
-          type="button"
-          className={`${SMALL} btn-ghost`}
-          disabled={pending}
-          onClick={() => run(() => cancelPolicyAction(id), "بیمه‌نامه لغو شود؟ یادآور حق بیمه‌ی بعدی حذف می‌شود؛ حق بیمه‌های ثبت‌شده در دفترکل می‌مانند.")}
-        >
-          لغو
-        </button>
-      )}
-      <button
-        type="button"
-        className={`${SMALL} btn-ghost`}
-        style={{ color: "var(--negative)" }}
-        disabled={pending}
-        onClick={() => run(() => deletePolicyAction(id), "این بیمه‌نامه حذف شود؟ حق بیمه‌های ثبت‌شده و حساب اندوخته در دفترکل می‌مانند.")}
-      >
-        حذف
-      </button>
+      <details ref={menuRef} className="policy-menu">
+        <summary className={`${SMALL} btn-ghost !px-2`} aria-label="گزینه‌های بیشتر">
+          <Icon name="more" size={16} />
+        </summary>
+        <div className="policy-menu-list">
+          {active && payHref && renewSoon && (
+            <Link href={payHref} className="policy-menu-link">
+              پرداخت حق بیمه
+            </Link>
+          )}
+          {active && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => run(() => cancelPolicyAction(id), "بیمه‌نامه لغو شود؟ یادآور حق بیمه‌ی بعدی حذف می‌شود؛ حق بیمه‌های ثبت‌شده در دفترکل می‌مانند.")}
+            >
+              لغو بیمه‌نامه
+            </button>
+          )}
+          <button
+            type="button"
+            style={{ color: "var(--negative)" }}
+            disabled={pending}
+            onClick={() => run(() => deletePolicyAction(id), "این بیمه‌نامه حذف شود؟ حق بیمه‌های ثبت‌شده، بدهی و حساب اندوخته سر جایشان می‌مانند.")}
+          >
+            حذف
+          </button>
+        </div>
+      </details>
       {error && (
         <p className="w-full text-end text-[length:var(--fs-xs)]" role="alert" style={{ color: "var(--negative)" }}>
           {error}
@@ -100,6 +131,21 @@ export default function PolicyRowActions({
             </label>
             <AmountInput id={`renew-premium-${id}`} name="premiumToman" value={premium} onValueChange={setPremium} className="field num" unit="toman" />
           </div>
+          {needsAccount && (
+            <div>
+              <label className="label" htmlFor={`renew-pay-${id}`}>
+                از کدام حساب بانکی؟
+              </label>
+              <select id={`renew-pay-${id}`} name="payAccountId" className="field" value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)} required>
+                <option value="">انتخاب حساب بانکی تومانی</option>
+                {bankAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="label" htmlFor={`renew-coverage-${id}`}>
               سرمایه‌ی بیمه‌شده (اختیاری)
@@ -107,7 +153,7 @@ export default function PolicyRowActions({
             <AmountInput id={`renew-coverage-${id}`} name="coverageToman" value={coverage} onValueChange={setCoverage} className="field num" unit="toman" />
           </div>
           <FormStatus state={state} />
-          <button type="submit" className="btn btn-primary w-full disabled:opacity-40" disabled={saving || !premium || newEnd <= from}>
+          <button type="submit" className="btn btn-primary w-full disabled:opacity-40" disabled={saving || !premium || newEnd <= from || (needsAccount && !payAccountId)}>
             {saving ? "در حال ثبت…" : "ثبت تمدید"}
           </button>
         </form>

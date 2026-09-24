@@ -9,6 +9,7 @@
  *   • money accounts agree with the bank, recently
  *   • imported transactions reviewed
  *   • property values not older than VALUATION_STALE_DAYS
+ *   • a car has third-party cover, a home fire cover (the «بیمه‌نامه‌ها» gaps)
  *   • market prices fresh (supplied by the caller, who already valued the portfolio)
  *
  * A check that does not apply (no properties, no accounts) is left out rather
@@ -21,6 +22,7 @@ import { countAssetsByCategory } from "@/features/onboarding/counts";
 import { CATEGORY_META, evaluateChecklist } from "@/features/onboarding/categories";
 import { listIntents } from "@/features/onboarding/service";
 import { listReconciliation } from "@/features/reconcile/service";
+import { coverageGaps, gapHref, type CoverageGap } from "@/features/insurance/service";
 import { countUnreviewed } from "@/features/ledger/queries";
 import { D } from "@/domain/decimal";
 import { todayIso } from "@/lib/format";
@@ -49,9 +51,9 @@ export function scoreCoverage(checks: CoverageCheck[]): Coverage {
 }
 
 export async function dataCoverage(userId: string, opts: { stalePrices?: number } = {}, today = todayIso()): Promise<Coverage> {
-  const [intents, counts, recon, unreviewed, properties] = await Promise.all([
+  const [intents, counts, recon, unreviewed, properties, insuranceGaps] = await Promise.all([
     listIntents(userId).catch(() => []),
-    countAssetsByCategory(userId).catch(() => ({})),
+    countAssetsByCategory(userId).catch(() => ({}) as Awaited<ReturnType<typeof countAssetsByCategory>>),
     listReconciliation(userId, today).catch(() => []),
     countUnreviewed(userId).catch(() => 0),
     db
@@ -63,6 +65,8 @@ export async function dataCoverage(userId: string, opts: { stalePrices?: number 
       `)
       .then((r) => r.rows[0] as { n: number; stale: number })
       .catch(() => ({ n: 0, stale: 0 })),
+    // A car without third-party cover, or a home without fire cover — the same list «بیمه‌نامه‌ها» shows.
+    coverageGaps(userId, today).catch(() => [] as CoverageGap[]),
   ]);
 
   const checks: CoverageCheck[] = [];
@@ -120,6 +124,19 @@ export async function dataCoverage(userId: string, opts: { stalePrices?: number 
       href: "/asset-registry?kind=real-estate",
       action: "ارزش‌گذاری",
       icon: "home",
+    });
+  }
+  // Only for someone who owns a car or a home — otherwise there is nothing to insure.
+  if (Number(counts.vehicle ?? 0) > 0 || Number(counts.real_estate ?? 0) > 0 || insuranceGaps.length > 0) {
+    const first = insuranceGaps[0];
+    checks.push({
+      key: "insurance",
+      label: "خودرو و ملک بیمه دارند",
+      ok: insuranceGaps.length === 0,
+      detail: !first ? null : insuranceGaps.length === 1 ? first.title : `${fa(insuranceGaps.length)} مورد بیمه‌ی لازم را ندارد`,
+      href: first ? gapHref(first) : "/insurance",
+      action: "ثبت بیمه",
+      icon: "shield",
     });
   }
   if (opts.stalePrices != null) {

@@ -1329,6 +1329,10 @@ const VEHICLE_DUE_STATEMENTS = [
   `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS tag text;`,
   // mirrors drizzle/0050
   `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS tour_seen_at timestamptz;`,
+  // mirrors drizzle/0051
+  `ALTER TABLE insurance_policies ADD COLUMN IF NOT EXISTS debt_id uuid REFERENCES debts(id) ON DELETE SET NULL;`,
+  `ALTER TABLE insurance_policies ALTER COLUMN pay_account_id DROP NOT NULL;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS insurance_policies_debt_active_idx ON insurance_policies(debt_id) WHERE debt_id IS NOT NULL AND status = 'active';`,
   `CREATE TABLE IF NOT EXISTS vehicle_due_dates (
    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
    created_at timestamptz NOT NULL DEFAULT now(),

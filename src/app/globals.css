@@ -4056,14 +4056,45 @@ html[data-privacy] svg text {
 }
 .tour-card {
   position: fixed;
-  padding: 1rem;
-  border: 1px solid var(--border-strong);
+  padding: 0.9rem 1rem 0.8rem;
+  border: 1px solid var(--border);
   border-radius: var(--r-lg);
   background: var(--surface-elev);
   box-shadow: var(--shadow-lg);
   color: var(--text);
   outline: none;
   margin-bottom: env(safe-area-inset-bottom);
+}
+.tour-close {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin: -0.35rem -0.35rem 0 0;
+  border-radius: 999px;
+  color: var(--text-3);
+}
+.tour-close:hover {
+  background: var(--sunken);
+  color: var(--text);
+}
+.tour-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.tour-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: width var(--motion-micro) var(--ease), background var(--motion-micro) var(--ease);
+}
+.tour-dots span.is-current {
+  width: 16px;
+  background: var(--action);
 }
 @media (prefers-reduced-motion: reduce) {
   .tour-spotlight {
@@ -4098,37 +4129,6 @@ html[data-privacy] svg text {
   top: -2px;
   inset-inline-end: -3px;
   box-shadow: 0 0 0 2px var(--surface);
-}
-
-/* «پوشش داده» — the ring and the one-line strip that leads to the checks. */
-.coverage-ring {
-  position: relative;
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-}
-.coverage-ring svg {
-  position: absolute;
-  inset: 0;
-}
-.coverage-ring-value {
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  color: var(--text);
-}
-.coverage-strip {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  color: var(--text);
-}
-.coverage-strip:hover {
-  border-color: var(--border-strong);
 }
 
 /* Saved shortcuts under the quick actions: wrap, never cut off on a phone. */
@@ -4575,6 +4575,59 @@ html[data-privacy] svg text {
   gap: 0.6rem;
   padding: 0 1rem 0.85rem;
   padding-inline-start: calc(1rem + 34px + 0.75rem);
+}
+.recon-diff {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+}
+.recon-sms {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color var(--motion-micro) var(--ease);
+}
+.recon-sms:hover {
+  border-color: var(--border-strong);
+}
+.recon-sms-icon {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--action-soft);
+  color: var(--action);
+}
+.recon-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+  font-size: var(--fs-xs);
+}
+.recon-summary > span {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--text-2);
+}
+.recon-summary > .is-warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.recon-summary > .is-ok {
+  background: var(--positive-soft);
+  color: var(--positive);
 }
 .reconcile-figures {
   display: flex;
@@ -5855,4 +5908,371 @@ a.expense-square { text-decoration: none; color: var(--text-2); }
 
 @media (min-width: 1024px) and (max-width: 1439px) {
   .valuation-grid-4 .valuation-group:nth-child(3) { border-inline-start: 0; }
+}
+
+/* ── بیمه‌نامه‌ها: the new-policy form — three short steps, one decision each. ── */
+.policy-form {
+  display: grid;
+  gap: 1.25rem;
+}
+.policy-step {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.policy-step-title {
+  margin-bottom: 0.1rem;
+  padding: 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text);
+}
+.expense-seg.policy-mode,
+.expense-seg.policy-freq {
+  justify-self: stretch;
+}
+.expense-seg.policy-freq {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (min-width: 640px) {
+  .expense-seg.policy-mode {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .expense-seg.policy-freq {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.policy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--r-md);
+  background: var(--sunken);
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  color: var(--text-2);
+}
+.policy-note > svg {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+}
+.policy-pct {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.policy-pct .field {
+  width: 5.5rem;
+  min-height: 44px;
+  text-align: center;
+}
+.policy-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--r-md);
+  background: var(--action-soft);
+  font-size: var(--fs-xs);
+}
+.policy-summary > span,
+.debt-pick-detail > span {
+  display: grid;
+  gap: 0.1rem;
+}
+.policy-summary b,
+.debt-pick-detail b {
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+.debt-picks {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.debt-pick {
+  display: grid;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  text-align: start;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--motion-micro) var(--ease), background var(--motion-micro) var(--ease);
+}
+.debt-pick:hover {
+  border-color: var(--border-strong);
+}
+.debt-pick.is-on {
+  border-color: var(--action);
+  background: var(--action-soft);
+}
+.debt-pick.is-on .place-chip-check {
+  border-color: var(--action);
+  background: var(--action);
+  color: #fff;
+}
+.debt-pick-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.debt-pick-bar {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--sunken);
+}
+.debt-pick-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--positive);
+}
+.debt-pick-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.debt-pick-detail {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--border-strong);
+  font-size: var(--fs-xs);
+}
+@media (max-width: 420px) {
+  .debt-pick-detail {
+    grid-template-columns: 1fr 1fr;
+  }
+  .debt-pick-detail > span:last-child {
+    grid-column: 1 / -1;
+  }
+}
+.policy-more {
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+.policy-more > summary {
+  display: flex;
+  min-height: 44px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  list-style: none;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-2);
+}
+.policy-more > summary::-webkit-details-marker {
+  display: none;
+}
+.policy-more[open] > summary > svg {
+  transform: rotate(180deg);
+}
+
+/* بیمه‌نامه‌ها: a gap (uninsured car/home) and a policy row — one line of title, one of detail. */
+.gap-row .btn,
+.policy-row-actions .btn {
+  min-height: 2.25rem;
+}
+.policy-progress {
+  display: block;
+  height: 3px;
+  margin-top: 0.4rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--sunken);
+}
+.policy-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--positive);
+}
+.place-chips.policy-kinds {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.policy-kinds .place-chip {
+  min-height: 40px;
+  padding-inline: 0.25rem;
+}
+.policy-menu {
+  position: relative;
+}
+.policy-menu > summary {
+  list-style: none;
+}
+.policy-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.policy-menu-list {
+  position: absolute;
+  z-index: 20;
+  inset-inline-end: 0;
+  top: calc(100% + 0.3rem);
+  display: grid;
+  min-width: 8.5rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-elev);
+  box-shadow: var(--shadow-lg);
+}
+.policy-menu-list > button,
+.policy-menu-list > a {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding-inline: 0.75rem;
+  border-radius: calc(var(--r-md) - 3px);
+  font-size: var(--fs-xs);
+  text-align: start;
+  color: var(--text-2);
+}
+.policy-menu-list > button:hover,
+.policy-menu-list > a:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* پرداخت‌های تکراری — this month's figure, next month beside it, and the months ahead. */
+.commit-hero {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1.1rem 1.1rem 1rem;
+}
+.commit-hero-value {
+  font-size: var(--fs-xl, 1.6rem);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.commit-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  margin-top: 0.4rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+.commit-delta {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  background: var(--sunken);
+  color: var(--text-2);
+}
+.commit-delta.is-down {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+.commit-delta.is-up {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.commit-bars {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 0.35rem;
+  height: 128px;
+}
+.commit-bar {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.25rem 0.1rem 0;
+  border-radius: var(--r-md);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.commit-bar-track {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 0;
+}
+.commit-bar-fill {
+  display: block;
+  width: min(60%, 22px);
+  border-radius: 4px 4px 0 0;
+  background: var(--action);
+  opacity: 0.35;
+  transition: opacity var(--motion-micro) var(--ease);
+}
+.commit-bar.is-on .commit-bar-fill {
+  opacity: 1;
+}
+.commit-bar-label {
+  overflow: hidden;
+  font-size: 10.5px;
+  color: var(--text-3);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.commit-bar.is-on .commit-bar-label {
+  font-weight: 700;
+  color: var(--text);
+}
+.commit-detail {
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: var(--r-md);
+  background: var(--sunken);
+}
+.commit-items {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.commit-items > li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+/* بینش‌ها — «پوشش داده»: the ring and the headline in one line, then only what is missing. */
+.coverage-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 1rem;
+}
+.coverage-done {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.7rem 1rem;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
 }

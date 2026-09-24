@@ -31,11 +31,15 @@ export type ReconcileRowView = {
 };
 
 const STATE = {
-  matched: { label: "با بانک یکی است", icon: "check", c: "var(--positive)", bg: "var(--positive-soft)" },
-  mismatch: { label: "اختلاف با بانک", icon: "alert", c: "var(--warning)", bg: "var(--warning-soft)" },
+  matched: { label: "یکی با بانک", icon: "check", c: "var(--positive)", bg: "var(--positive-soft)" },
+  mismatch: { label: "اختلاف", icon: "alert", c: "var(--warning)", bg: "var(--warning-soft)" },
   unchecked: { label: "تطبیق نشده", icon: "scale", c: "var(--text-3)", bg: "var(--sunken)" },
 } as const;
 
+/**
+ * One account, one line: name, balance in توازن, state — and a single «تطبیق».
+ * The figures and the two fixes appear only when there is a difference.
+ */
 export default function ReconcileRow({ row }: { row: ReconcileRowView }) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(recordBankBalanceAction, null);
@@ -57,9 +61,10 @@ export default function ReconcileRow({ row }: { row: ReconcileRowView }) {
   const s = STATE[row.state];
   const adjust = () => {
     if (!row.checkpointId) return;
-    if (!window.confirm("یک سند «اصلاحی» به اندازه‌ی اختلاف ثبت شود؟ این سند هزینه یا درآمد حساب نمی‌شود و اگر بعداً تراکنش واقعی را پیدا کردید، می‌توانید آن را ابطال کنید.")) return;
+    if (!window.confirm("اختلاف با یک سند اصلاحی صاف شود؟ هزینه یا درآمد حساب نمی‌شود و بعداً قابل ابطال است.")) return;
     startAdjust(async () => setAdjustResult(await adjustToBankAction(row.checkpointId!)));
   };
+  const mismatch = row.state === "mismatch";
 
   return (
     <li id={`acc-${row.accountId}`} className="reconcile-row">
@@ -68,88 +73,101 @@ export default function ReconcileRow({ row }: { row: ReconcileRowView }) {
           <Icon name={s.icon} size={15} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="acct-title text-[length:var(--fs-sm)] font-semibold">{row.name}</p>
-          <p className="muted text-[length:var(--fs-xs)]" style={row.state === "mismatch" ? { color: s.c } : undefined}>
-            {s.label}
-            {row.bankMeta ? ` · ${row.bankMeta}` : ""}
+          <p className="truncate text-[length:var(--fs-sm)] font-semibold">{row.name}</p>
+          <p className="muted truncate text-[length:var(--fs-xs)]">
+            <span className="num money-nowrap" dir="rtl">
+              {row.ledgerNowLabel}
+            </span>
+            <span style={{ color: row.state === "unchecked" ? undefined : s.c }}>
+              {" · "}
+              {s.label}
+            </span>
+            {row.bankMeta && row.state === "matched" ? ` · ${row.bankMeta}` : ""}
             {row.stale && row.state !== "unchecked" ? " · قدیمی" : ""}
           </p>
         </div>
-        <div className="acct-amount shrink-0 text-left">
-          <p className="num money-nowrap text-[length:var(--fs-sm)] font-semibold" dir="rtl">
-            {row.ledgerNowLabel}
-          </p>
-          <p className="muted text-[length:var(--fs-xs)]">در توازن</p>
-        </div>
+        <button
+          type="button"
+          className={`${SMALL} ${row.state === "unchecked" ? "btn-soft" : "btn-ghost"} shrink-0`}
+          aria-expanded={open}
+          aria-label={`تطبیق ${row.name}`}
+          onClick={() => setOpen((o) => !o)}
+        >
+          تطبیق
+        </button>
       </div>
 
-      <div className="reconcile-body">
-        {row.bankLabel && (
-          <dl className="reconcile-figures">
-            <div>
-              <dt>بانک</dt>
-              <dd className="num money-nowrap" dir="rtl">{row.bankLabel}</dd>
-            </div>
-            {row.differenceLabel && (
-              <div>
-                <dt>اختلاف</dt>
-                <dd className="num money-nowrap" dir="rtl" style={{ color: row.state === "mismatch" ? "var(--warning)" : undefined }}>
-                  {row.differenceLabel}
-                </dd>
+      {(mismatch || open || adjustResult) && (
+        <div className="reconcile-body">
+          {mismatch && (
+            <div className="recon-diff">
+              <dl className="reconcile-figures">
+                <div>
+                  <dt>بانک</dt>
+                  <dd className="num money-nowrap" dir="rtl">
+                    {row.bankLabel}
+                  </dd>
+                </div>
+                {row.differenceLabel && (
+                  <div>
+                    <dt>اختلاف</dt>
+                    <dd className="num money-nowrap" dir="rtl" style={{ color: "var(--warning)" }}>
+                      {row.differenceLabel}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              {row.hint && <p className="muted text-[length:var(--fs-xs)]">{row.hint}</p>}
+              <div className="flex flex-wrap gap-2">
+                {row.missingHref && (
+                  <Link href={row.missingHref} className={`${SMALL} btn-primary`}>
+                    ثبت تراکنش جاافتاده
+                  </Link>
+                )}
+                {row.checkpointId && (
+                  <button type="button" className={`${SMALL} btn-ghost`} disabled={adjusting} onClick={adjust}>
+                    {adjusting ? "در حال ثبت…" : "اصلاح موجودی"}
+                  </button>
+                )}
               </div>
-            )}
-          </dl>
-        )}
-        {row.state === "mismatch" && row.hint && <p className="muted text-[length:var(--fs-xs)]">{row.hint}</p>}
-
-        <div className="flex flex-wrap justify-end gap-2">
-          {row.state === "mismatch" && row.missingHref && (
-            <Link href={row.missingHref} className={`${SMALL} btn-primary`}>
-              ثبت تراکنش جاافتاده
-            </Link>
-          )}
-          {row.state === "mismatch" && row.checkpointId && (
-            <button type="button" className={`${SMALL} btn-soft`} disabled={adjusting} onClick={adjust}>
-              {adjusting ? "در حال ثبت…" : "اصلاح موجودی"}
-            </button>
-          )}
-          <button type="button" className={`${SMALL} btn-ghost`} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-            {row.state === "unchecked" ? "ثبت موجودی بانک" : "موجودی تازه"}
-          </button>
-        </div>
-        <FormStatus state={adjustResult} />
-
-        {open && (
-          <form action={action} className="reconcile-form">
-            <input type="hidden" name="accountId" value={row.accountId} />
-            <input type="hidden" name="negative" value={negative ? "yes" : ""} />
-            <div>
-              <label className="label" htmlFor={`bal-${row.accountId}`}>
-                موجودی‌ای که بانک نشان می‌دهد
-              </label>
-              <AmountInput
-                id={`bal-${row.accountId}`}
-                name="balance"
-                value={balance}
-                onValueChange={setBalance}
-                placeholder="۰"
-                className="field num"
-                unit={row.unit}
-                inputMode={row.unit === "toman" ? "numeric" : "decimal"}
-              />
-              <label className="mt-1.5 flex items-center gap-2 text-[length:var(--fs-xs)]">
-                <input type="checkbox" checked={negative} onChange={(e) => setNegative(e.target.checked)} />
-                موجودی منفی است (برداشت بیش از موجودی)
-              </label>
             </div>
-            <DualDateInput name="asOf" value={asOf} onChange={setAsOf} label="تاریخ" required showGregorian={false} />
-            <FormStatus state={state} />
-            <button type="submit" className="btn btn-primary w-full disabled:opacity-40" disabled={pending || !balance}>
-              {pending ? "در حال ثبت…" : "مقایسه با توازن"}
-            </button>
-          </form>
-        )}
-      </div>
+          )}
+          <FormStatus state={adjustResult} />
+
+          {open && (
+            <form action={action} className="reconcile-form">
+              <input type="hidden" name="accountId" value={row.accountId} />
+              <input type="hidden" name="negative" value={negative ? "yes" : ""} />
+              <div>
+                <label className="label" htmlFor={`bal-${row.accountId}`}>
+                  موجودی در اپ بانک یا کیف پول
+                </label>
+                <AmountInput
+                  id={`bal-${row.accountId}`}
+                  name="balance"
+                  value={balance}
+                  onValueChange={setBalance}
+                  placeholder="۰"
+                  className="field num"
+                  unit={row.unit}
+                  inputMode={row.unit === "toman" ? "numeric" : "decimal"}
+                />
+                {row.unit === "toman" && (
+                  <label className="mt-1.5 flex items-center gap-2 text-[length:var(--fs-xs)] text-[color:var(--text-3)]">
+                    <input type="checkbox" checked={negative} onChange={(e) => setNegative(e.target.checked)} />
+                    منفی است
+                  </label>
+                )}
+              </div>
+              <DualDateInput name="asOf" value={asOf} onChange={setAsOf} label="تاریخ" required showGregorian={false} />
+              <FormStatus state={state} />
+              <button type="submit" className="btn btn-primary w-full disabled:opacity-40" disabled={pending || !balance}>
+                {pending ? "در حال مقایسه…" : "مقایسه"}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
     </li>
   );
 }

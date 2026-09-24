@@ -68,7 +68,9 @@ test("reconcile, insurance and insights pages render with real data", async () =
   const reconcile = await render(ReconcilePage);
   assert.match(reconcile, /تطبیق با بانک/);
   assert.match(reconcile, /بانک ملت/);
-  assert.match(reconcile, /اختلاف با بانک/, "the mismatch is shown");
+  assert.match(reconcile, /is-warn/, "the mismatch is counted");
+  assert.match(reconcile, /اختلاف/, "the mismatch is shown");
+  assert.match(reconcile, /\/transactions\/import#sms-iphone/, "without SMS, the page leads to connecting it");
   assert.match(reconcile, /ثبت تراکنش جاافتاده/, "and the way to resolve it");
   assert.match(reconcile, /type=income/, "the bank holds more → a missed income");
 
@@ -83,6 +85,9 @@ test("reconcile, insurance and insights pages render with real data", async () =
   const insights = await render(InsightsPage);
   assert.match(insights, /با بانک یکی نیست/);
   assert.match(insights, /بیمه‌ی شخص ثالث فعال ندارد/);
+  assert.match(insights, /\/insurance\?kind=third_party&amp;vehicle=/, "the alert opens the insurance form already set for that car");
+  assert.match(insights, /«آتش‌سوزی منزل»/, "a policy ending soon is an insight too — in sync with «بیمه‌نامه‌ها»");
+  assert.match(insights, /ثبت بیمه/, "the missing cover is part of «پوشش داده»");
 
   const { default: VehiclesPage } = await import("../src/app/vehicles/page");
   const vehiclesHtml = await render(VehiclesPage);
@@ -97,7 +102,7 @@ test("reconcile, insurance and insights pages render with real data", async () =
   const { default: OverviewDashboard } = await import("../src/components/overview/OverviewDashboard");
   const home = await render(OverviewDashboard);
   assert.doesNotMatch(home, /بخشی از داده‌ها بارگذاری نشد/, "every home widget loads — none silently failed");
-  assert.match(home, /پوشش داده/, "the coverage strip is shown while something is missing");
+  assert.match(home, /پوشش داده/, "the coverage row is shown while something is missing");
   assert.match(home, /\/insights#data-coverage/);
 
   const { default: PropertiesPage } = await import("../src/app/properties/page");

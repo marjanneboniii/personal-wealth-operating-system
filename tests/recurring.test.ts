@@ -9,7 +9,8 @@
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { accounts, assetClasses, assets, users, userFxSettings } from "../src/db/schema";
-import { detectRecurring, recurringKey, type ExpenseSample } from "../src/features/recurring/service";
+import { buildSchedule, detectRecurring, recurringKey, type ExpenseSample } from "../src/features/recurring/service";
+import { D } from "../src/domain/decimal";
 import { addJalaliMonths } from "../src/features/income/recurring";
 import { jalaliToIso } from "../src/lib/format";
 
@@ -19,6 +20,28 @@ mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
 const at = (y: number, m: number, d: number) => jalaliToIso(y, m, d);
 const s = (description: string, entryDate: string, toman: string): ExpenseSample => ({ description, entryDate, toman, category: null, accountName: null });
+
+test("commitments are a schedule: a loan that ends stops weighing, a quarterly one weighs in its own month", () => {
+  const today = jalaliToIso(1405, 7, 10);
+  const months = buildSchedule(
+    [
+      { key: "d:sofa", kind: "installment", title: "مبل", date: jalaliToIso(1405, 7, 20), toman: "10700000" },
+      { key: "d:car", kind: "installment", title: "بیمه ثالث", date: jalaliToIso(1405, 6, 25), toman: "1692579" },
+      { key: "d:car", kind: "installment", title: "بیمه ثالث", date: jalaliToIso(1405, 8, 25), toman: "1692579" },
+      { key: "d:loan", kind: "installment", title: "وام", date: jalaliToIso(1405, 10, 1), toman: "3000000" },
+    ],
+    [{ key: "s:net", title: "اینترنت", monthlyToman: "600000", lastDate: jalaliToIso(1405, 6, 28) }],
+    today,
+    6,
+  );
+  assert.deepEqual(months.map((m) => m.label), ["مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"]);
+  assert.equal(months[0].totalToman, D("10700000").add("1692579").add("600000").toFixed(0), "the overdue installment weighs on this month");
+  assert.equal(months[0].overdueToman, "1692579");
+  assert.equal(months[1].totalToman, D("1692579").add("600000").toFixed(0), "the sofa is paid off: next month is lighter");
+  assert.equal(months[2].totalToman, "600000");
+  assert.equal(months[3].totalToman, "3600000", "a quarterly installment weighs only in its month");
+  assert.equal(months[0].items[0].title, "مبل", "largest first");
+});
 
 test("recurring detection", () => {
   assert.equal(recurringKey("اشتراک فیلیمو مهر ۱۴۰۵"), recurringKey("اشتراك فيليمو آبان 1405"));
@@ -100,7 +123,12 @@ test("recurring payments from the ledger, premiums once", async () => {
   const data = await listRecurringPayments(u.id, today);
   assert.deepEqual(data.detected.map((d) => d.label), ["اشتراک اسپاتیفای"], "the premium is not detected a second time");
   assert.equal(data.detected[0].monthlyToman, "250000");
-  assert.deepEqual(data.premiums.map((p) => [p.title, p.monthlyToman]), [["درمان تکمیلی", "1200000"]]);
-  assert.equal(data.monthlyTotal, "1450000");
+  assert.deepEqual(data.premiums.map((p) => [p.title, p.perPaymentToman, p.frequency]), [["درمان تکمیلی", "1200000", "monthly"]]);
+  assert.equal(data.months.length, 12);
+  assert.equal(data.months[0].totalToman, "0", "this month's premium and subscription are already paid");
+  assert.equal(data.months[1].totalToman, "1450000", "next month: the premium and the subscription");
+  // The policy ends ten months after its start: no premium after it.
+  assert.equal(data.months[11].parts.premium, "0");
+  assert.notEqual(data.next12Toman, D("1450000").mul(12).toFixed(0), "never «× 12»");
   assert.deepEqual((await listRecurringPayments(other.id, today)).detected, [], "another tenant sees nothing");
 });

@@ -9,9 +9,9 @@ import { computeDebtService, WINDOW_DAYS } from "@/features/planning/debtService
 import { Alert, EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import { D, Decimal } from "@/domain/decimal";
-import { formatMoney, formatNumber, formatPct, formatShortDate, todayIso, faCount, toIrtMoney } from "@/lib/format";
+import { formatDaysUntil, formatMoney, formatNumber, formatPct, formatShortDate, todayIso, faCount, toIrtMoney } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
-import { coverageGaps } from "@/features/insurance/service";
+import { coverageGaps, gapHref, insuranceReminders } from "@/features/insurance/service";
 import { reconcileMismatches } from "@/features/reconcile/service";
 import { dataCoverage } from "@/features/coverage/service";
 import CoverageRing from "@/components/ui/CoverageRing";
@@ -58,7 +58,8 @@ export default async function InsightsPage() {
   const userId = (user as { id?: string } | null)?.id ?? null;
   await seedIfEmpty();
 
-  const [nw, flow, categories, debts, projection, liabilities, unreviewed, fx, gaps, mismatches, coverage] = await Promise.all([
+  const today = todayIso();
+  const [nw, flow, categories, debts, projection, liabilities, unreviewed, fx, gaps, mismatches, coverage, insurance] = await Promise.all([
     getCurrentNetWorth(),
     getCashflow(6),
     getFlowByCategory(3),
@@ -70,10 +71,9 @@ export default async function InsightsPage() {
     userId ? coverageGaps(userId).catch(() => []) : Promise.resolve([]),
     userId ? reconcileMismatches(userId).catch(() => []) : Promise.resolve([]),
     userId ? dataCoverage(userId).catch(() => null) : Promise.resolve(null),
+    userId ? insuranceReminders(userId, today, today).catch(() => ({ premiums: [], expiring: [] })) : Promise.resolve({ premiums: [], expiring: [] }),
   ]);
   const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
-
-  const today = todayIso();
 
   /* ── Financial health ─────────────────────────────────────────── */
 
@@ -239,9 +239,10 @@ export default async function InsightsPage() {
       tone: "neg",
       icon: "shield",
       title: uninsuredCars.length === 1 ? uninsuredCars[0].title : `${faCount(uninsuredCars.length)} خودرو بیمه‌ی شخص ثالث فعال ندارد`,
-      body: uninsuredCars[0].detail,
-      href: "/insurance",
-      action: "بیمه‌نامه‌ها",
+      body: "رانندگی بدون ثالث جریمه دارد و خسارت طرف مقابل با شماست.",
+      // Straight into the form, already set to third-party for that car.
+      href: uninsuredCars.length === 1 ? gapHref(uninsuredCars[0]) : "/insurance",
+      action: "ثبت بیمه",
     });
   }
   const homeGaps = gaps.filter((g) => g.kind !== "vehicle_no_third_party");
@@ -250,9 +251,21 @@ export default async function InsightsPage() {
       tone: "warn",
       icon: "shield",
       title: homeGaps.length === 1 ? homeGaps[0].title : `${faCount(homeGaps.length)} ملک بیمه‌ی کافی ندارد`,
-      body: homeGaps[0].detail,
-      href: "/insurance",
-      action: "بیمه‌نامه‌ها",
+      body: homeGaps[0].kind === "property_underinsured" ? "هنگام تمدید، سرمایه‌ی بیمه را به ارزش روز برسانید." : "حق بیمه‌ی آتش‌سوزی کسر کوچکی از ارزش ملک است.",
+      href: homeGaps.length === 1 ? gapHref(homeGaps[0]) : "/insurance",
+      action: homeGaps[0].kind === "property_underinsured" ? "بیمه‌نامه‌ها" : "ثبت بیمه",
+    });
+  }
+  // A policy about to end (or just ended, unrenewed) — the same reminder «بیمه‌نامه‌ها» shows.
+  for (const p of insurance.expiring) {
+    const days = p.endDate ? Math.round((Date.parse(`${p.endDate}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000) : 0;
+    insights.push({
+      tone: days < 0 ? "neg" : "warn",
+      icon: "shield",
+      title: days < 0 ? `«${p.title}» تمام شده است` : `«${p.title}» ${formatDaysUntil(days)} تمام می‌شود`,
+      body: "با تمدید، حق بیمه‌ی دوره‌ی تازه یادآوری می‌شود.",
+      href: `/insurance#policy-${p.id}`,
+      action: "تمدید",
     });
   }
 
@@ -271,7 +284,7 @@ export default async function InsightsPage() {
     <div className="space-y-5">
       <PageHeader
         title="بینش‌ها"
-        subtitle="مشاهدات سیستم از داده‌های شما. این صفحه فقط می‌خواند و تحلیل می‌کند — هیچ سند یا مانده‌ای را تغییر نمی‌دهد."
+        subtitle="آنچه داده‌هایتان می‌گوید."
       />
 
       {/* ── سلامت مالی ── */}
@@ -320,39 +333,52 @@ export default async function InsightsPage() {
 
       {/* ── پوشش داده: how much of the picture the numbers above stand on ── */}
       {coverage && coverage.total > 0 && (
-        <Section id="data-coverage" title="پوشش داده" hint={`${coverage.passed.toLocaleString("fa-IR")} از ${coverage.total.toLocaleString("fa-IR")}`}>
-          <div className="card flex items-center gap-4 p-4">
-            <CoverageRing percent={coverage.percent} size={56} />
-            <p className="muted text-[length:var(--fs-xs)] leading-6">
-              ارزش خالص و گزارش‌ها فقط به اندازه‌ی داده‌ای که ثبت شده درست‌اند. هر مورد ناقص را از همین‌جا کامل کنید.
-            </p>
+        <Section id="data-coverage" title="پوشش داده">
+          <div className="card list-card">
+            <div className="coverage-head">
+              <CoverageRing percent={coverage.percent} size={52} />
+              <div className="min-w-0 flex-1">
+                <b className="block text-[length:var(--fs-sm)]">
+                  {coverage.percent >= 100 ? "داده‌ها کامل است" : `${faCount(coverage.total - coverage.passed)} مورد ناقص`}
+                </b>
+                <span className="muted block text-[length:var(--fs-xs)]">گزارش‌ها به اندازه‌ی همین داده‌ها دقیق‌اند.</span>
+              </div>
+            </div>
+            <ul role="list">
+              {coverage.checks
+                .filter((c) => !c.ok)
+                .map((c) => (
+                  <li key={c.key} className="list-row" style={{ borderTop: "1px solid var(--border)" }}>
+                    <span className="flow-icon" aria-hidden="true" style={{ background: "var(--warning-soft)", color: "var(--warning)" }}>
+                      <Icon name={c.icon} size={15} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[length:var(--fs-sm)] font-medium">{c.detail ?? c.label}</p>
+                    </div>
+                    <Link href={c.href} className="btn btn-soft !min-h-9 shrink-0 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
+                      {c.action}
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+            {coverage.passed > 0 && (
+              <p className="coverage-done">
+                <Icon name="check" size={13} />
+                {coverage.checks
+                  .filter((c) => c.ok)
+                  .map((c) => c.label)
+                  .join("، ")}
+              </p>
+            )}
           </div>
-          <ul className="card list-card mt-2" role="list">
-            {coverage.checks.map((c) => (
-              <li key={c.key} className="list-row">
-                <span className="flow-icon" aria-hidden="true" style={c.ok ? { background: "var(--positive-soft)", color: "var(--positive)" } : { background: "var(--warning-soft)", color: "var(--warning)" }}>
-                  <Icon name={c.ok ? "check" : c.icon} size={15} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[length:var(--fs-sm)] font-medium">{c.label}</p>
-                  {c.detail && <p className="muted text-[length:var(--fs-xs)]">{c.detail}</p>}
-                </div>
-                {!c.ok && (
-                  <Link href={c.href} className="btn btn-ghost !min-h-9 shrink-0 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
-                    {c.action}
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
         </Section>
       )}
 
       {/* ── هشدارها ── */}
-      <Section id="insights-alerts" title="هشدارها" hint="فقط مواردی که واقعاً به تصمیم شما نیاز دارند">
+      <Section id="insights-alerts" title="هشدارها">
         {insights.length === 0 ? (
-          <Alert tone="pos" title="نکته‌ای برای هشدار وجود ندارد">
-            بر اساس داده‌های فعلی، هیچ ریسک نقدینگی، تمرکز دارایی یا قسط معوقی شناسایی نشد.
+          <Alert tone="pos" title="هشداری نیست">
+            ریسک نقدینگی، تمرکز دارایی یا قسط معوقی دیده نشد.
           </Alert>
         ) : (
           <ul className="card plan-list">
@@ -365,10 +391,10 @@ export default async function InsightsPage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <b className="block text-[length:var(--fs-sm)]">{n.title}</b>
-                    <span className="expense-sub block">{n.body}</span>
+                    <span className="expense-sub line-clamp-2 block">{n.body}</span>
                   </span>
                   {n.href && (
-                    <Link href={n.href} className="btn btn-ghost !min-h-9 shrink-0 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
+                    <Link href={n.href} className="btn btn-soft !min-h-9 shrink-0 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
                       {n.action}
                     </Link>
                   )}
@@ -457,10 +483,6 @@ export default async function InsightsPage() {
         )}
       </Section>
 
-      <p className="expense-sub flex items-center gap-1.5">
-        <Icon name="info" size={13} />
-        بینش‌ها مشتق از سوابق مالی موجودند و هرگز آن را تغییر نمی‌دهند.
-      </p>
     </div>
   );
 }

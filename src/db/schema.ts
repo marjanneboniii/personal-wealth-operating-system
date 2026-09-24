@@ -878,9 +878,10 @@ export const insurancePolicies = pgTable(
     /** One premium payment, Toman — contractual. */
     premiumToman: money("premium_toman").notNull(),
     premiumFrequency: text("premium_frequency").notNull(), // once | monthly | quarterly | annual
-    payAccountId: uuid("pay_account_id")
-      .notNull()
-      .references(() => accounts.id),
+    /** Where premiums leave from — a Toman bank account. Null when the policy is paid through its debt. */
+    payAccountId: uuid("pay_account_id").references(() => accounts.id),
+    /** Bought on installments: the debt whose schedule pays for it (بدهی‌ها). No premium reminders then. */
+    debtId: uuid("debt_id").references(() => debts.id, { onDelete: "set null" }),
     /** Sum insured (سقف تعهد), Toman. */
     coverageToman: money("coverage_toman"),
     insuredPropertyId: uuid("insured_property_id").references(() => realEstateProperties.id, { onDelete: "set null" }),

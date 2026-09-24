@@ -800,7 +800,7 @@ export async function getFlowByAccount(accountType: "income" | "expense", months
              je.id as entry_id,
              coalesce(sum(case when ${accountType} = 'income' then -p.base_value else p.base_value end), 0) as total_usd,
              s.irt_amount::numeric as irt_amount,
-             sum(case when ${accountType} = 'income' then 1 when ${accountType} = 'expense' then 1 else 0 end) as matched
+             s.usd_amount::numeric as snap_usd
       from postings p
         join journal_entries je on je.id = p.entry_id
         join accounts a on a.id = p.account_id
@@ -810,17 +810,27 @@ export async function getFlowByAccount(accountType: "income" | "expense", months
         and je.type not in ('debt_repayment')
         ${u ? sql`and je.user_id = ${u}` : sql``}
         and je.entry_date >= (current_date - (${months} || ' months')::interval)
-      group by a.id, a.code, a.name, je.id, s.irt_amount
+      group by a.id, a.code, a.name, je.id, s.irt_amount, s.usd_amount
+    ),
+    -- The snapshot freezes the Toman of the WHOLE entry: a 25M-Toman crypto buy
+    -- carries 25M even though only its commission leg (5040) is an expense.
+    -- Attribute the frozen Toman to this leg pro rata, at the entry's own
+    -- commit-time ratio — the same rule as getCashflow. Summing the whole
+    -- snapshot here once showed a 0.61-dollar fee as «۲۴٬۹۳۸٬۱۱۰ تومان».
+    attributed as (
+      select acc_id, code, name, entry_id, total_usd,
+             case when snap_usd > 0 then irt_amount * total_usd / snap_usd end as irt_amount
+      from per_entry
     )
     select acc_id as "accountId", code, name,
            coalesce(sum(total_usd),0)::text as total,
-           coalesce(sum(case when total_usd != 0 then irt_amount else 0 end),0)::text as \"totalToman\",
+           coalesce(sum(case when total_usd != 0 then round(irt_amount) else 0 end),0)::text as \"totalToman\",
            -- Snapshot coverage: the Toman total is FROZEN only when every
            -- contributing entry carries its commit-time FX snapshot.
            count(*) filter (where total_usd != 0)::int as entries,
            count(*) filter (where total_usd != 0 and irt_amount is not null)::int as \"entriesWithSnap\",
            ${months}::int as months
-    from per_entry
+    from attributed
     group by acc_id, code, name
     having abs(coalesce(sum(total_usd),0)) > 0.000000001
     order by abs(sum(total_usd)) desc

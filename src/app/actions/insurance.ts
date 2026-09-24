@@ -6,10 +6,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { normalizeNumericInput } from "@/lib/numericInput";
 import type { ActionResult } from "@/app/actions";
 import { cancelPolicy, createPolicy, deletePolicy, renewPolicy } from "@/features/insurance/service";
+import { getWritableUsdIrtRateForUser } from "@/lib/fx";
 
 /**
  * بیمه‌نامه‌ها — none of these write the ledger. A premium is recorded from its
- * reminder as an ordinary expense (or a transfer into a life policy's savings).
+ * reminder as an ordinary expense (or a transfer into a life policy's savings);
+ * a policy bought on installments is paid through its debt (بدهی‌ها).
  */
 
 async function signedIn() {
@@ -21,7 +23,7 @@ async function signedIn() {
 }
 
 function refresh() {
-  for (const p of ["/insurance", "/planning", "/notifications", "/insights", "/accounts", "/"]) revalidatePath(p);
+  for (const p of ["/insurance", "/planning", "/notifications", "/insights", "/accounts", "/debts", "/debts/installments", "/"]) revalidatePath(p);
 }
 
 const s = (fd: FormData, k: string) => {
@@ -34,6 +36,9 @@ export async function createPolicyAction(_prev: ActionResult | null, fd: FormDat
   const user = await signedIn();
   if (!user?.id) return { ok: false, message: "برای ثبت بیمه‌نامه وارد شوید." };
   try {
+    const paymentMode = s(fd, "paymentMode") || "cash";
+    // A new installment plan is a debt, and a debt freezes its creation-time USD — never at a placeholder rate.
+    const usdIrtRate = paymentMode === "installments" ? (await getWritableUsdIrtRateForUser(user.id)).rate : null;
     await createPolicy(user.id, {
       kind: s(fd, "kind"),
       title: s(fd, "title"),
@@ -43,7 +48,14 @@ export async function createPolicyAction(_prev: ActionResult | null, fd: FormDat
       endDate: s(fd, "endDate") || null,
       premiumToman: normalizeNumericInput(s(fd, "premiumToman")) || "0",
       premiumFrequency: s(fd, "premiumFrequency"),
-      payAccountId: s(fd, "payAccountId"),
+      payAccountId: uuidOrNull(s(fd, "payAccountId")),
+      paymentMode,
+      debtId: uuidOrNull(s(fd, "debtId")),
+      downPaymentPercent: normalizeNumericInput(s(fd, "downPaymentPercent")) || "0",
+      installmentCount: Number(normalizeNumericInput(s(fd, "installmentCount")) || "0"),
+      intervalMonths: Number(s(fd, "intervalMonths") || "1"),
+      firstDueDate: s(fd, "firstDueDate") || null,
+      usdIrtRate,
       coverageToman: normalizeNumericInput(s(fd, "coverageToman")) || null,
       insuredPropertyId: uuidOrNull(s(fd, "insuredPropertyId")),
       insuredVehicleId: uuidOrNull(s(fd, "insuredVehicleId")),
@@ -51,7 +63,15 @@ export async function createPolicyAction(_prev: ActionResult | null, fd: FormDat
       note: s(fd, "note") || null,
     });
     refresh();
-    return { ok: true, message: "بیمه‌نامه ثبت شد؛ حق بیمه و سررسید تمدید در یادآورها می‌آید." };
+    return {
+      ok: true,
+      message:
+        paymentMode === "debt"
+          ? "بیمه‌نامه ثبت شد و به بدهی‌اش وصل شد؛ اقساط از همان بدهی پیگیری می‌شود."
+          : paymentMode === "installments"
+            ? "بیمه‌نامه و برنامه‌ی اقساطش ثبت شد؛ اقساط در «بدهی‌ها» یادآوری می‌شود."
+            : "بیمه‌نامه ثبت شد؛ حق بیمه و سررسید تمدید در یادآورها می‌آید.",
+    };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت بیمه‌نامه انجام نشد." };
   }
@@ -68,6 +88,7 @@ export async function renewPolicyAction(_prev: ActionResult | null, fd: FormData
       endDate: s(fd, "endDate"),
       premiumToman: normalizeNumericInput(s(fd, "premiumToman")) || "0",
       coverageToman: normalizeNumericInput(s(fd, "coverageToman")) || null,
+      payAccountId: uuidOrNull(s(fd, "payAccountId")),
     });
     refresh();
     return { ok: true, message: "بیمه‌نامه تمدید شد." };
