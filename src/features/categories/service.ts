@@ -408,7 +408,9 @@ export async function getFlowByCategory(
       select c.id as cat_id,
              je.id as entry_id,
              coalesce(sum(${signed}), 0) as total_usd,
-             s.irt_amount::numeric as irt_amount
+             -- This leg's share of the entry's frozen Toman (pro rata, as getCashflow):
+             -- the whole snapshot only when the entry is nothing but this category.
+             case when s.usd_amount::numeric > 0 then s.irt_amount::numeric * coalesce(sum(${signed}), 0) / s.usd_amount::numeric end as irt_amount
       from postings p
         join journal_entries je on je.id = p.entry_id
         join accounts a on a.id = p.account_id
@@ -420,7 +422,7 @@ export async function getFlowByCategory(
         and je.type = ${kind}
         and je.entry_date >= (current_date - (${months} || ' months')::interval)
         ${u ? sql`and je.user_id = ${u}` : sql``}
-      group by c.id, je.id, s.irt_amount
+      group by c.id, je.id, s.irt_amount, s.usd_amount
     )
     select c.id::text as "categoryId",
            c.code,
@@ -432,7 +434,7 @@ export async function getFlowByCategory(
            coalesce(sum(pe.total_usd), 0)::text as total,
            -- FROZEN Toman: derived at read time from the immutable
            -- commit-time snapshot. An FX-rate change can never move it.
-           coalesce(sum(case when pe.total_usd != 0 then pe.irt_amount else 0 end), 0)::text as "totalToman",
+           coalesce(sum(case when pe.total_usd != 0 then round(pe.irt_amount) else 0 end), 0)::text as "totalToman",
            count(*) filter (where pe.total_usd != 0)::int as entries,
            count(*) filter (where pe.total_usd != 0 and pe.irt_amount is not null)::int as "entriesWithSnap"
     from per_entry pe

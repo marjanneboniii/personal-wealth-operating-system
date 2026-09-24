@@ -425,6 +425,8 @@ test("SINGLE-USER LEGACY MODE — unresolved identity keeps the global view (no 
 test("TRADE COMMISSION — only the fee's share of a frozen trade counts as monthly outflow Toman", async () => {
   const { userA, usd, accA } = await fixture();
   const before = (await getCashflow(6, userA.id)).at(-1)!;
+  const feeLine = async () => (await getFlowByAccount("expense", 6, userA.id)).find((r) => r.accountId === accA.expAcct.id);
+  const lineBefore = D((await feeLine())?.totalToman ?? "0");
 
   // A 25,000,000-Toman buy whose only expense leg is its 128,100-Toman
   // commission. The snapshot freezes the WHOLE trade's Toman; the report used
@@ -459,4 +461,6 @@ test("TRADE COMMISSION — only the fee's share of a frozen trade counts as mont
   assert.equal(D(after.outflowToman!).sub(D(before.outflowToman!)).toString(), "128100", "only the commission is outflow");
   assert.equal(D(after.outflow).sub(D(before.outflow)).toFixed(6), D(fee).toFixed(6));
   assert.equal(after.outflowEntries, after.outflowEntriesSnap, "the trade's fee is fully covered by its snapshot");
+  // The «هزینه‌ها» breakdown by account: the same share, never the whole trade.
+  assert.equal(D((await feeLine())!.totalToman!).sub(lineBefore).toString(), "128100", "the fee line shows the fee, not the 25M trade");
 });

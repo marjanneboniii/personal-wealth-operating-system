@@ -35,7 +35,6 @@ import { recordPlannedIncomeFormAction, skipPlannedIncomeFormAction } from "@/ap
 import { currencyLabel, formatQty } from "@/lib/format";
 import { listTemplates, quickActionUsage, type TemplateRow } from "@/features/templates/service";
 import ShortcutChips from "@/components/overview/ShortcutChips";
-import CoverageRing from "@/components/ui/CoverageRing";
 import { dataCoverage, type Coverage } from "@/features/coverage/service";
 
 export const dynamic = "force-dynamic";
@@ -173,7 +172,7 @@ export default async function OverviewDashboard() {
   const barsInToman = flowToman.length > 0 && flowToman.every((m) => m != null);
   const nextDeficit = projection.points.find((p) => p.deficit);
 
-  const attention: { icon: "alert" | "clock" | "refresh" | "check"; tone: "warn" | "neg" | "info" | "pos"; text: string; detail?: string; href: string; action: string }[] = [];
+  const attention: { icon: "alert" | "clock" | "refresh" | "check" | "pie"; tone: "warn" | "neg" | "info" | "pos"; text: string; detail?: string; href: string; action: string }[] = [];
   if (unreviewed > 0)
     attention.push({
       icon: "check",
@@ -215,7 +214,20 @@ export default async function OverviewDashboard() {
       action: "مشاهده",
     });
 
+  // «پوشش داده» is one quiet row of the same list, not a card of its own.
+  if (coverage && coverage.percent < 100)
+    attention.push({
+      icon: "pie",
+      tone: "info",
+      text: `پوشش داده ${coverage.percent.toLocaleString("fa-IR")}٪`,
+      detail: coverage.checks.find((c) => !c.ok)?.detail ?? "چند مورد کامل نیست",
+      href: "/insights#data-coverage",
+      action: "تکمیل",
+    });
+
   const hasAnything = !D(nw.totalAssets).isZero();
+  // An empty account still sees how far its books are from complete.
+  const attentionShown = hasAnything ? attention : attention.filter((a) => a.icon === "pie");
   // Receivables surface only for a user who has one. The figure comes from the
   // backend, already direction-filtered.
   const receivableToman = nw.totalReceivableToman ?? "0";
@@ -331,23 +343,10 @@ export default async function OverviewDashboard() {
         ))}
       </section>
 
-      {coverage && coverage.percent < 100 && (
-        <Link href="/insights#data-coverage" className="coverage-strip">
-          <CoverageRing percent={coverage.percent} size={40} />
-          <span className="min-w-0 flex-1">
-            <b className="block text-[length:var(--fs-sm)]">پوشش داده {coverage.percent.toLocaleString("fa-IR")}٪</b>
-            <span className="muted block truncate text-[length:var(--fs-xs)]">
-              {coverage.checks.find((c) => !c.ok)?.detail ?? "چند مورد کامل نیست"}
-            </span>
-          </span>
-          <Icon name="chevronLeft" size={15} />
-        </Link>
-      )}
-
-      {hasAnything && attention.length > 0 && (
+      {attentionShown.length > 0 && (
         <Section title="نیاز به توجه">
           <ul className="list-none" role="list">
-            {attention.map((a) => (
+            {attentionShown.map((a) => (
               <ActionItem
                 key={`${a.href}-${a.text}`}
                 icon={a.icon}

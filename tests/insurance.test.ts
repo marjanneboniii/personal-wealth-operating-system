@@ -176,6 +176,91 @@ test("insurance: register, remind, pay once, savings stay in net worth, gaps, re
   assert.deepEqual(await listPolicies(other.id), []);
 });
 
+test("insurance: paid in cash from a Toman bank only, on a new installment plan, or through a debt already registered", async () => {
+  const { db } = await import("../src/db");
+  const { createSchemaIfNotExists } = await import("../src/db/init-schema");
+  const { createSession } = await import("../src/lib/auth");
+  const { createPolicyAction } = await import("../src/app/actions/insurance");
+  const { listPolicies, listLinkableDebts, listPremiumAccounts, downPaymentToman } = await import("../src/features/insurance/service");
+  const { createDebtRecord } = await import("../src/features/planning/createDebt");
+  const { payInstallment } = await import("../src/features/planning/service");
+  const { debts, installments, wallets } = await import("../src/db/schema");
+  await createSchemaIfNotExists();
+
+  const [u] = await db.insert(users).values({ name: "قسطی", username: `inst-${Math.random().toString(36).slice(2, 8)}`, role: "user" } as any).returning();
+  await db.insert(userFxSettings).values({ userId: u.id, currentRate: "100000" } as any);
+  const [cls] = await db.select().from(assetClasses).limit(1);
+  const irt = (await db.select().from(assets).where(eq(assets.symbol, "IRT")))[0];
+  const usdt =
+    (await db.select().from(assets).where(eq(assets.symbol, "USDT")))[0] ??
+    (await db.insert(assets).values({ symbol: "USDT", name: "تتر", classId: cls.id, decimals: 2 } as any).returning())[0];
+  const [bankWallet] = await db.insert(wallets).values({ userId: u.id, name: "ملت", kind: "bank" } as any).returning();
+  const [fundWallet] = await db.insert(wallets).values({ userId: u.id, name: "صندوق درآمد ثابت", kind: "fund" } as any).returning();
+  const [bank] = await db.insert(accounts).values({ userId: u.id, code: "1010", name: "ملت", type: "asset", assetId: irt.id, walletId: bankWallet.id } as any).returning();
+  const [fund] = await db.insert(accounts).values({ userId: u.id, code: "1011", name: "صندوق درآمد ثابت", type: "asset", assetId: irt.id, walletId: fundWallet.id } as any).returning();
+  const [tether] = await db.insert(accounts).values({ userId: u.id, code: "1012", name: "تتر", type: "asset", assetId: usdt.id } as any).returning();
+  await db.insert(accounts).values({ userId: u.id, code: "3010", name: "سرمایه", type: "equity", assetId: irt.id } as any);
+  cookie = (await createSession(u.id)).token;
+  const today = todayIso();
+  const form = (fields: Record<string, string>) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries({ kind: "third_party", title: "ثالث کوییک", startDate: today, endDate: addYear(today), premiumToman: "12000000", premiumFrequency: "once", ...fields })) fd.set(k, v);
+    return fd;
+  };
+
+  assert.deepEqual((await listPremiumAccounts(u.id)).map((a) => a.id), [bank.id], "only the Toman bank account is offered");
+  for (const acc of [fund, tether]) {
+    const r = await createPolicyAction(null, form({ paymentMode: "cash", payAccountId: acc.id }));
+    assert.equal(r.ok, false, "a fund or a Tether account is refused for a premium");
+  }
+  assert.equal(downPaymentToman("12000000", "20"), "2400000");
+  assert.throws(() => downPaymentToman("12000000", "100"));
+
+  // Bought before the app, on two installments, one already paid — the debt was registered in «بدهی‌ها».
+  const debtId = await createDebtRecord(
+    { userId: u.id, title: "بیمه شخص ثالث", creditor: "بیمه ایران", principalIrt: "10000000", startDate: addDays(today, -40), installmentCount: 2, firstDueDate: addDays(today, -10) },
+    { usdIrtRate: "100000" },
+  );
+  const [first] = await db.select().from(installments).where(eq(installments.debtId, debtId)).orderBy(installments.seq);
+  await payInstallment(first.id, bank.id, u.id);
+  const [candidate] = await listLinkableDebts(u.id);
+  assert.equal(candidate.id, debtId);
+  assert.equal(candidate.suggested, true, "an insurance debt is suggested first");
+  assert.deepEqual([candidate.paidCount, candidate.totalCount, candidate.totalToman, candidate.remainingToman], [1, 2, "10000000", "5000000"], "the preview shows what is paid and what is left");
+
+  const plansBefore = (await db.select().from(plannedTransactions).where(eq(plannedTransactions.userId, u.id))).length;
+  const entriesBefore = (await db.select().from(journalEntries).where(eq(journalEntries.userId, u.id))).length;
+  const linked = await createPolicyAction(null, form({ paymentMode: "debt", debtId, premiumToman: candidate.totalToman, startDate: candidate.startDate, endDate: addYear(candidate.startDate) }));
+  assert.equal(linked.ok, true, linked.message);
+  assert.equal((await db.select().from(plannedTransactions).where(eq(plannedTransactions.userId, u.id))).length, plansBefore, "no premium reminder: the debt already reminds");
+  assert.equal((await db.select().from(journalEntries).where(eq(journalEntries.userId, u.id))).length, entriesBefore, "nothing is paid again");
+  const [policy] = await listPolicies(u.id);
+  assert.equal(policy.debtId, debtId);
+  assert.equal(policy.payAccountId, null);
+  assert.deepEqual([policy.debtPaidCount, policy.debtTotalCount, D(policy.debtRemainingToman!).toFixed(0)], [1, 2, "5000000"]);
+  assert.deepEqual(await listLinkableDebts(u.id), [], "a linked debt is not offered twice");
+  assert.equal((await createPolicyAction(null, form({ paymentMode: "debt", debtId }))).ok, false, "one debt pays for one policy");
+
+  // A new policy on installments: 20% down from the bank, the rest as a debt of 3 installments.
+  const created = await createPolicyAction(null, form({ kind: "car_body", title: "بدنه کوییک", paymentMode: "installments", downPaymentPercent: "20", installmentCount: "3", payAccountId: bank.id, insurer: "بیمه دانا" }));
+  assert.equal(created.ok, true, created.message);
+  const body = (await listPolicies(u.id)).find((p) => p.kind === "car_body")!;
+  assert.ok(body.debtId);
+  const [newDebt] = await db.select().from(debts).where(eq(debts.id, body.debtId!));
+  assert.equal(D(newDebt.principalToman!).toFixed(0), "9600000", "the debt is what is not paid up front");
+  assert.equal(newDebt.creditor, "بیمه دانا");
+  assert.equal((await db.select().from(installments).where(eq(installments.debtId, body.debtId!))).length, 3);
+  const downPlans = await db.select().from(plannedTransactions).where(and(eq(plannedTransactions.insurancePolicyId, body.id), eq(plannedTransactions.status, "pending")));
+  assert.deepEqual(downPlans.map((p) => [D(p.amountBase).toFixed(0), p.fromAccountId]), [["2400000", bank.id]], "one reminder: the down payment, from the bank");
+
+  // No down payment: no account needed, no reminder.
+  const noDown = await createPolicyAction(null, form({ kind: "fire", title: "آتش‌سوزی", paymentMode: "installments", downPaymentPercent: "0", installmentCount: "2" }));
+  assert.equal(noDown.ok, true, noDown.message);
+  const fire = (await listPolicies(u.id)).find((p) => p.kind === "fire")!;
+  assert.equal(fire.payAccountId, null);
+  assert.equal(fire.nextPlanId, null);
+});
+
 function addDays(iso: string, n: number) {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);

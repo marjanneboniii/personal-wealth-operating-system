@@ -125,6 +125,12 @@ function BreakdownRow({
 
 const VISIBLE_LINES = 6;
 
+/**
+ * Ledger accounts whose chart-of-accounts name reads wrong on its own: 5040 is
+ * the commission leg of a buy/sell/swap, not «bank» spending.
+ */
+const ACCOUNT_LABEL: Record<string, string> = { "5040": "کارمزد خرید و فروش" };
+
 function FlowList({ rows, color, rate, empty }: { rows: FlowRow[]; color: string; rate: string | null; empty: string }) {
   if (rows.length === 0) return <p className="card muted text-center text-[length:var(--fs-sm)]">{empty}</p>;
   const sum = Decimal.sum(rows.map((r) => r.total));
@@ -135,7 +141,7 @@ function FlowList({ rows, color, rate, empty }: { rows: FlowRow[]; color: string
         {shown.map((r) => (
           <BreakdownRow
             key={r.code}
-            name={r.name}
+            name={ACCOUNT_LABEL[r.code] ?? r.name}
             share={sum.isZero() ? 0 : D(r.total).div(sum).mul(100).toNumber()}
             toman={lineToman(r, rate)}
             usd={r.total}

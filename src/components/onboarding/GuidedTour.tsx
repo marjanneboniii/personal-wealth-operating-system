@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { markTourSeenAction } from "@/app/actions/tour";
+import Icon from "@/components/ui/Icon";
 
 export type TourStep = { target: string; title: string; body: string };
 
@@ -94,20 +95,27 @@ export default function GuidedTour({ steps }: { steps: TourStep[] }) {
         className="tour-card"
         style={{ width, left, ...(above ? { bottom: vh - rect.top + pad + 12 } : { top: rect.top + rect.height + pad + 12 }) }}
       >
-        <p className="muted text-[length:var(--fs-xs)]" aria-live="polite">
-          {(index + 1).toLocaleString("fa-IR")} از {visible.length.toLocaleString("fa-IR")}
-        </p>
-        <h2 id={titleId} className="mt-1 text-[length:var(--fs-sm)] font-bold">
-          {step.title}
-        </h2>
-        <p className="mt-1.5 text-[length:var(--fs-sm)] leading-6">{step.body}</p>
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <button type="button" className="btn btn-ghost !min-h-10 !px-3 text-[length:var(--fs-xs)]" onClick={finish}>
-            {last ? "بستن" : "رد کردن"}
+        <div className="flex items-start justify-between gap-2">
+          <h2 id={titleId} className="text-[length:var(--fs-sm)] font-bold leading-6">
+            {step.title}
+          </h2>
+          <button type="button" className="tour-close" onClick={finish} aria-label="بستن راهنما">
+            <Icon name="x" size={16} />
           </button>
+        </div>
+        <p className="muted mt-1 text-[length:var(--fs-sm)] leading-6">{step.body}</p>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <span className="tour-dots" aria-hidden="true">
+            {visible.map((s, i) => (
+              <span key={s.target} className={i === index ? "is-current" : undefined} />
+            ))}
+          </span>
+          <span className="sr-only" aria-live="polite">
+            مرحله {(index + 1).toLocaleString("fa-IR")} از {visible.length.toLocaleString("fa-IR")}
+          </span>
           <button
             type="button"
-            className="btn btn-primary !min-h-10 !px-4 text-[length:var(--fs-xs)]"
+            className="btn btn-primary !min-h-9 !px-4 text-[length:var(--fs-xs)]"
             onClick={() => (last ? finish() : setIndex((i) => i + 1))}
           >
             {last ? "متوجه شدم" : "بعدی"}

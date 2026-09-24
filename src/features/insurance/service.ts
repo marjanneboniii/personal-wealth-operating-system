@@ -17,13 +17,27 @@
  * exactly like a deposit's interest: it reaches the reminder centre and the
  * cash-flow forecast, and recording it schedules the next one until the term
  * ends.
+ *
+ * HOW IT IS PAID (paymentMode) — three shapes, one rule: money leaves once.
+ *   • cash         premiums from a Toman BANK account (no Tether, fund, exchange
+ *                  or cash box), each one a reminder as above.
+ *   • installments bought on credit: a debt (بدهی‌ها) is created for the part
+ *                  not paid up front, and its schedule — not premium reminders —
+ *                  carries the payments. A down payment, if any, is one premium
+ *                  reminder from a Toman bank account.
+ *   • debt         the user already registered that debt in «بدهی‌ها» (before
+ *                  this section existed): the policy only points at it
+ *                  (debt_id). Nothing new is scheduled, so an installment
+ *                  already paid is never asked for again.
  */
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, assets, expenseCategories, insurancePolicies, plannedTransactions, realEstateProperties, vehicleAssets } from "@/db/schema";
+import { accounts, assets, debts, expenseCategories, insurancePolicies, plannedTransactions, realEstateProperties, vehicleAssets, wallets } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import { registerMoneyAccount } from "@/features/accounts/service";
 import { addJalaliMonths } from "@/features/income/recurring";
+import { createDebtRecord } from "@/features/planning/createDebt";
+import { isTomanBankAccount } from "@/features/trade/rules";
 import { todayIso, toJalali } from "@/lib/format";
 
 export const INSURANCE_KINDS = ["third_party", "car_body", "fire", "life", "health", "travel", "liability", "other"] as const;
@@ -41,6 +55,16 @@ export const INSURANCE_KIND_META: Record<InsuranceKind, { label: string; insured
   liability: { label: "مسئولیت", insured: "property", category: "INS-OTHER" },
   other: { label: "سایر", insured: "none", category: "INS-OTHER" },
 };
+
+export const PAYMENT_MODES = ["cash", "installments", "debt"] as const;
+export type PaymentMode = (typeof PAYMENT_MODES)[number];
+
+/** Down payment of a policy bought on installments, rounded to the Toman. PURE. */
+export function downPaymentToman(totalToman: string, percent: string | number): string {
+  const pct = D(String(percent || "0"));
+  if (pct.isNegative() || pct.gte(100)) throw new Error("پیش‌پرداخت باید کمتر از ۱۰۰ درصد باشد.");
+  return D(totalToman).mul(pct).div(100).toFixed(0);
+}
 
 export const PREMIUM_FREQUENCY_LABEL: Record<PremiumFrequency, string> = {
   once: "یک‌جا",
@@ -98,7 +122,20 @@ export type PolicyInput = {
   endDate?: string | null;
   premiumToman: string;
   premiumFrequency: string;
-  payAccountId: string;
+  /** A Toman bank account. Not needed when the policy is paid through a debt with no down payment. */
+  payAccountId?: string | null;
+  /** How it is paid — cash (default), a new installment plan, or a debt already in «بدهی‌ها». */
+  paymentMode?: string | null;
+  /** paymentMode "debt": the existing debt that pays for it. */
+  debtId?: string | null;
+  /** paymentMode "installments": share paid up front, 0–99. */
+  downPaymentPercent?: string | null;
+  installmentCount?: number | null;
+  /** Months between installments (1 = monthly). */
+  intervalMonths?: number | null;
+  firstDueDate?: string | null;
+  /** paymentMode "installments": the live USD→IRT rate, for the debt's audit snapshot only. */
+  usdIrtRate?: string | null;
   coverageToman?: string | null;
   insuredPropertyId?: string | null;
   insuredVehicleId?: string | null;
@@ -116,16 +153,103 @@ const clean = (v: string | null | undefined, max: number) => {
   return t || null;
 };
 
-async function tomanMoneyAccount(tx: any, userId: string, accountId: string) {
-  const [acc] = await tx
-    .select({ userId: accounts.userId, type: accounts.type, deletedAt: accounts.deletedAt, symbol: assets.symbol })
-    .from(accounts)
-    .leftJoin(assets, eq(assets.id, accounts.assetId))
-    .where(eq(accounts.id, accountId))
-    .limit(1);
-  if (!acc || acc.userId !== userId || acc.type !== "asset" || acc.deletedAt || acc.symbol !== "IRT") {
-    throw new Error("حق بیمه را از یک حساب تومانیِ خودتان انتخاب کنید.");
+/** Premiums leave from a Toman BANK account only — never Tether, a fund, an exchange or the cash box. */
+async function tomanBankAccount(tx: any, userId: string, accountId: string | null | undefined) {
+  const [acc] = accountId
+    ? await tx
+        .select({
+          userId: accounts.userId,
+          type: accounts.type,
+          deletedAt: accounts.deletedAt,
+          symbol: assets.symbol,
+          name: accounts.name,
+          code: accounts.code,
+          walletKind: wallets.kind,
+        })
+        .from(accounts)
+        .leftJoin(assets, eq(assets.id, accounts.assetId))
+        .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+        .where(eq(accounts.id, accountId))
+        .limit(1)
+    : [];
+  if (!acc || acc.userId !== userId || acc.type !== "asset" || acc.deletedAt || !isTomanBankAccount(acc)) {
+    throw new Error("حق بیمه را از یکی از حساب‌های بانکی تومانیِ خودتان انتخاب کنید.");
   }
+}
+
+/** Toman bank accounts the premium can leave from — what the forms offer. */
+export async function listPremiumAccounts(userId: string, client: any = db): Promise<{ id: string; name: string }[]> {
+  const rows = await client
+    .select({ id: accounts.id, name: accounts.name, code: accounts.code, symbol: assets.symbol, walletKind: wallets.kind })
+    .from(accounts)
+    .innerJoin(assets, eq(assets.id, accounts.assetId))
+    .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+    .where(and(eq(accounts.userId, userId), eq(accounts.type, "asset"), isNull(accounts.deletedAt), eq(assets.symbol, "IRT")))
+    .orderBy(asc(accounts.code));
+  return rows.filter((r: any) => isTomanBankAccount(r)).map((r: any) => ({ id: r.id, name: r.name }));
+}
+
+export type LinkableDebt = {
+  id: string;
+  title: string;
+  creditor: string;
+  startDate: string;
+  totalToman: string;
+  paidToman: string;
+  remainingToman: string;
+  paidCount: number;
+  totalCount: number;
+  nextDueDate: string | null;
+  nextDueToman: string | null;
+  /** Looks like an insurance debt by its title or creditor — listed first. */
+  suggested: boolean;
+};
+
+/**
+ * Debts a policy can be paid through: this user's active «بدهی من» rows not
+ * already paying for another active policy. `paidToman` is a running total on
+ * every installment (partial payments included), so what is left is exactly
+ * what the «اقساط» page shows.
+ */
+export async function listLinkableDebts(userId: string, client: any = db): Promise<LinkableDebt[]> {
+  const res = await client.execute(sql`
+    select d.id, d.title, d.creditor, d.start_date::text as "startDate",
+           coalesce(nullif(s.total, 0), d.principal_toman, 0)::text as "totalToman",
+           coalesce(s.paid, 0)::text as "paidToman",
+           coalesce(s.paid_count, 0)::int as "paidCount",
+           coalesce(s.total_count, 0)::int as "totalCount",
+           n.due_date::text as "nextDueDate",
+           (n.amount_toman - coalesce(n.paid_toman, 0))::text as "nextDueToman"
+    from debts d
+      left join lateral (
+        select sum(i.amount_toman) as total,
+               sum(case when i.paid_toman is not null then i.paid_toman when i.status = 'paid' then i.amount_toman else 0 end) as paid,
+               count(*) filter (where i.status = 'paid') as paid_count,
+               count(*) as total_count
+        from installments i where i.debt_id = d.id
+      ) s on true
+      left join lateral (
+        select i.due_date, i.amount_toman, i.paid_toman from installments i
+        where i.debt_id = d.id and i.status <> 'paid'
+        order by i.due_date asc limit 1
+      ) n on true
+    where d.user_id = ${userId}::uuid and d.deleted_at is null and d.status = 'active' and d.direction = 'payable'
+      and not exists (select 1 from insurance_policies p where p.debt_id = d.id and p.status = 'active')
+    order by d.start_date desc, d.created_at desc
+  `);
+  return (res.rows as any[]).map((r) => {
+    const total = D(r.totalToman || "0");
+    const paid = D(r.paidToman || "0");
+    const left = total.sub(paid);
+    return {
+      ...r,
+      totalToman: total.toFixed(0),
+      paidToman: paid.toFixed(0),
+      remainingToman: (left.isNegative() ? D("0") : left).toFixed(0),
+      nextDueToman: r.nextDueToman != null ? D(r.nextDueToman).toFixed(0) : null,
+      suggested: /بیمه|ثالث|بدنه|insurance/i.test(`${r.title} ${r.creditor}`),
+    } as LinkableDebt;
+  }).sort((a: LinkableDebt, b: LinkableDebt) => Number(b.suggested) - Number(a.suggested));
 }
 
 function premiumPlanRow(input: {
@@ -177,10 +301,51 @@ export async function createPolicy(userId: string, input: PolicyInput, today = t
   if (!premium.gt(0)) throw new Error("مبلغ حق بیمه را وارد کنید.");
   if (coverage && !coverage.gt(0)) coverage = null;
   const meta = INSURANCE_KIND_META[kind];
-  const withSavings = kind === "life" && !!input.withSavings;
+  const mode = (input.paymentMode || "cash") as PaymentMode;
+  if (!PAYMENT_MODES.includes(mode)) throw new Error("نحوه‌ی پرداخت را انتخاب کنید.");
+  // A policy bought on credit is paid through its debt — never also as a life policy's savings.
+  const withSavings = kind === "life" && mode === "cash" && !!input.withSavings;
+  const down = mode === "installments" ? D(downPaymentToman(premium.toFixed(0), input.downPaymentPercent || "0")) : D("0");
+  const payAccountId = mode === "cash" || down.gt(0) ? input.payAccountId || null : null;
 
   return db.transaction(async (tx) => {
-    await tomanMoneyAccount(tx, userId, input.payAccountId);
+    if (mode === "cash" || down.gt(0)) await tomanBankAccount(tx, userId, payAccountId);
+
+    let debtId: string | null = null;
+    if (mode === "debt") {
+      if (!input.debtId) throw new Error("بدهیِ این بیمه‌نامه را انتخاب کنید.");
+      const [d] = await tx
+        .select({ id: debts.id, direction: debts.direction, status: debts.status, deletedAt: debts.deletedAt })
+        .from(debts)
+        .where(and(eq(debts.id, input.debtId), eq(debts.userId, userId)))
+        .limit(1);
+      if (!d || d.deletedAt || d.status !== "active" || d.direction !== "payable") throw new Error("بدهی انتخاب‌شده پیدا نشد یا تسویه شده است.");
+      const [taken] = await tx
+        .select({ id: insurancePolicies.id })
+        .from(insurancePolicies)
+        .where(and(eq(insurancePolicies.debtId, d.id), eq(insurancePolicies.status, "active")))
+        .limit(1);
+      if (taken) throw new Error("این بدهی از قبل به بیمه‌نامه‌ی دیگری وصل است.");
+      debtId = d.id;
+    } else if (mode === "installments") {
+      const count = Number(input.installmentCount ?? 0);
+      if (!Number.isInteger(count) || count < 1 || count > 60) throw new Error("تعداد اقساط را بین ۱ تا ۶۰ انتخاب کنید.");
+      if (!input.usdIrtRate) throw new Error("نرخ تبدیل دلار به تومان برای ثبت بدهی موجود نیست.");
+      debtId = await createDebtRecord(
+        {
+          userId,
+          title: `بیمه «${title}»`,
+          creditor: clean(input.insurer, 80) || "شرکت بیمه",
+          principalIrt: premium.sub(down).toFixed(0),
+          startDate: input.startDate,
+          direction: "payable",
+          installmentCount: count,
+          intervalMonths: Number(input.intervalMonths || 1),
+          firstDueDate: input.firstDueDate || addJalaliMonths(input.startDate, Number(input.intervalMonths || 1)),
+        },
+        { usdIrtRate: input.usdIrtRate, tx: tx as unknown as typeof db },
+      );
+    }
 
     let propertyId: string | null = null;
     let vehicleId: string | null = null;
@@ -226,8 +391,10 @@ export async function createPolicy(userId: string, input: PolicyInput, today = t
         startDate: input.startDate,
         endDate,
         premiumToman: premium.toFixed(0),
-        premiumFrequency: frequency,
-        payAccountId: input.payAccountId,
+        // Bought on credit: one price for the term; the debt's schedule carries the payments.
+        premiumFrequency: mode === "cash" ? frequency : "once",
+        payAccountId,
+        debtId,
         coverageToman: coverage ? coverage.toFixed(0) : null,
         insuredPropertyId: propertyId,
         insuredVehicleId: vehicleId,
@@ -237,17 +404,18 @@ export async function createPolicy(userId: string, input: PolicyInput, today = t
       })
       .returning({ id: insurancePolicies.id });
 
-    const first = nextPremiumDate(input.startDate, frequency, today, endDate);
-    if (first) {
+    // cash: the premium schedule. installments: only the down payment. debt: nothing — the debt already reminds.
+    const first = mode === "debt" || (mode === "installments" && !down.gt(0)) ? null : nextPremiumDate(input.startDate, mode === "cash" ? frequency : "once", today, endDate);
+    if (first && payAccountId) {
       await tx.insert(plannedTransactions).values(
         premiumPlanRow({
           userId,
           policyId: policy.id,
           title,
           date: first,
-          premiumToman: premium.toFixed(0),
-          frequency,
-          payAccountId: input.payAccountId,
+          premiumToman: mode === "cash" ? premium.toFixed(0) : down.toFixed(0),
+          frequency: mode === "cash" ? frequency : "once",
+          payAccountId,
           savingsAccountId,
           irtAssetId: irt?.id ?? null,
         }) as any,
@@ -265,7 +433,7 @@ export async function createPolicy(userId: string, input: PolicyInput, today = t
 export async function renewPolicy(
   userId: string,
   id: string,
-  input: { startDate?: string | null; endDate: string; premiumToman: string; coverageToman?: string | null },
+  input: { startDate?: string | null; endDate: string; premiumToman: string; coverageToman?: string | null; payAccountId?: string | null },
 ): Promise<string> {
   const [old] = await db
     .select()
@@ -283,7 +451,8 @@ export async function renewPolicy(
     endDate: input.endDate,
     premiumToman: input.premiumToman,
     premiumFrequency: old.premiumFrequency,
-    payAccountId: old.payAccountId,
+    // A term paid through a debt had no account: the renewal names one (cash).
+    payAccountId: input.payAccountId || old.payAccountId,
     coverageToman: input.coverageToman ?? old.coverageToman,
     insuredPropertyId: old.insuredPropertyId,
     insuredVehicleId: old.insuredVehicleId,
@@ -425,7 +594,7 @@ export async function closePremiumOccurrence(input: { planId: string; userId: st
     .set({ status: "executed", executedEntryId: input.entryId, updatedAt: new Date() })
     .where(eq(plannedTransactions.id, plan.id));
   const [policy] = await client.select().from(insurancePolicies).where(eq(insurancePolicies.id, plan.policyId)).limit(1);
-  if (!policy || policy.status !== "active") return;
+  if (!policy || policy.status !== "active" || !policy.payAccountId) return;
   const next = followingPremiumDate(policy.startDate, policy.premiumFrequency as PremiumFrequency, plan.plannedDate, policy.endDate);
   if (!next) return;
   const [irt] = await client.select({ id: assets.id }).from(assets).where(and(eq(assets.symbol, "IRT"), isNull(assets.deletedAt))).limit(1);
@@ -437,7 +606,7 @@ export async function closePremiumOccurrence(input: { planId: string; userId: st
       date: next,
       premiumToman: policy.premiumToman,
       frequency: policy.premiumFrequency as PremiumFrequency,
-      payAccountId: policy.payAccountId,
+      payAccountId: policy.payAccountId!,
       savingsAccountId: policy.savingsAccountId,
       irtAssetId: irt?.id ?? null,
     }) as any,
@@ -455,8 +624,15 @@ export type PolicyRow = {
   premiumToman: string;
   premiumFrequency: PremiumFrequency;
   annualPremiumToman: string;
-  payAccountId: string;
+  payAccountId: string | null;
   payAccountName: string | null;
+  /** Paid through this debt (بدهی‌ها), with its progress. */
+  debtId: string | null;
+  debtTitle: string | null;
+  debtPaidCount: number | null;
+  debtTotalCount: number | null;
+  debtRemainingToman: string | null;
+  debtNextDueDate: string | null;
   coverageToman: string | null;
   insuredPropertyId: string | null;
   insuredVehicleId: string | null;
@@ -485,11 +661,21 @@ export async function listPolicies(userId: string): Promise<PolicyRow[]> {
            (select coalesce(sum(po.quantity), 0)::text from postings po join journal_entries je on je.id = po.entry_id
              where po.account_id = p.savings_account_id and je.status = 'posted' and je.user_id = ${userId}::uuid) as "savingsBalanceToman",
            p.status, p.note,
-           n.planned_date::text as "nextPremiumDate", n.id as "nextPlanId"
+           n.planned_date::text as "nextPremiumDate", n.id as "nextPlanId",
+           p.debt_id as "debtId", dt.title as "debtTitle",
+           ds.paid_count as "debtPaidCount", ds.total_count as "debtTotalCount",
+           ds.remaining::text as "debtRemainingToman", ds.next_due::text as "debtNextDueDate"
     from insurance_policies p
       left join accounts pa on pa.id = p.pay_account_id
       left join real_estate_properties rep on rep.id = p.insured_property_id
       left join vehicle_assets v on v.id = p.insured_vehicle_id
+      left join debts dt on dt.id = p.debt_id
+      left join lateral (
+        select count(*) filter (where i.status = 'paid')::int as paid_count, count(*)::int as total_count,
+               sum(case when i.status = 'paid' then 0 else i.amount_toman - coalesce(i.paid_toman, 0) end) as remaining,
+               min(i.due_date) filter (where i.status <> 'paid') as next_due
+        from installments i where i.debt_id = p.debt_id
+      ) ds on p.debt_id is not null
       left join lateral (
         select id, planned_date from planned_transactions pt
         where pt.insurance_policy_id = p.id and pt.status = 'pending' and pt.deleted_at is null
@@ -514,6 +700,12 @@ export type CoverageGap = {
   vehicleId?: string;
   propertyId?: string;
 };
+
+/** The new-policy form, pre-filled for this gap (kind + the car or home). */
+export function gapHref(g: Pick<CoverageGap, "suggestKind" | "vehicleId" | "propertyId">): string {
+  const q = new URLSearchParams({ kind: g.suggestKind, ...(g.vehicleId ? { vehicle: g.vehicleId } : {}), ...(g.propertyId ? { property: g.propertyId } : {}) });
+  return `/insurance?${q.toString()}#new-policy`;
+}
 
 /**
  * What the user owns that is not covered. Third-party cover is compulsory for
