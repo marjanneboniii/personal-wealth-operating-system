@@ -1256,6 +1256,94 @@ const DEPOSIT_STATEMENTS = [
   `ALTER TABLE planned_transactions ADD COLUMN IF NOT EXISTS deposit_id uuid REFERENCES deposits(id) ON DELETE SET NULL;`,
 ];
 
+/** تطبیق موجودی — see src/db/schema.ts `balanceCheckpoints`; mirrors drizzle/0044. */
+const BALANCE_CHECKPOINT_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS balance_checkpoints (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+   as_of date NOT NULL,
+   observed_at timestamptz NOT NULL,
+   balance numeric(38,18) NOT NULL,
+   source text NOT NULL CHECK (source IN ('sms','manual')),
+   entry_id uuid REFERENCES journal_entries(id) ON DELETE SET NULL,
+   resolution_entry_id uuid REFERENCES journal_entries(id) ON DELETE SET NULL
+  );`,
+  `CREATE INDEX IF NOT EXISTS balance_checkpoints_account_idx ON balance_checkpoints(user_id, account_id, as_of, observed_at);`,
+];
+
+/** بیمه‌نامه‌ها — see src/db/schema.ts `insurancePolicies`; mirrors drizzle/0045. */
+const INSURANCE_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS insurance_policies (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   updated_at timestamptz,
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   kind text NOT NULL CHECK (kind IN ('third_party','car_body','fire','life','health','travel','liability','other')),
+   title text NOT NULL CHECK (char_length(title) BETWEEN 1 AND 120),
+   insurer text CHECK (char_length(insurer) <= 80),
+   policy_number text CHECK (char_length(policy_number) <= 60),
+   start_date date NOT NULL,
+   end_date date CHECK (end_date IS NULL OR end_date > start_date),
+   premium_toman numeric(38,18) NOT NULL CHECK (premium_toman > 0),
+   premium_frequency text NOT NULL CHECK (premium_frequency IN ('once','monthly','quarterly','annual')),
+   pay_account_id uuid NOT NULL REFERENCES accounts(id),
+   coverage_toman numeric(38,18) CHECK (coverage_toman IS NULL OR coverage_toman > 0),
+   insured_property_id uuid REFERENCES real_estate_properties(id) ON DELETE SET NULL,
+   insured_vehicle_id uuid REFERENCES vehicle_assets(id) ON DELETE SET NULL,
+   savings_account_id uuid REFERENCES accounts(id),
+   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','renewed','cancelled')),
+   renewed_from_id uuid REFERENCES insurance_policies(id) ON DELETE SET NULL,
+   closed_at timestamptz,
+   note text CHECK (char_length(note) <= 500)
+  );`,
+  `CREATE INDEX IF NOT EXISTS insurance_policies_user_idx ON insurance_policies(user_id, status);`,
+  `ALTER TABLE planned_transactions ADD COLUMN IF NOT EXISTS insurance_policy_id uuid REFERENCES insurance_policies(id) ON DELETE SET NULL;`,
+];
+
+/** میان‌برهای ثبت — see src/db/schema.ts `transactionTemplates`; mirrors drizzle/0046. */
+const TEMPLATE_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS transaction_templates (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   label text NOT NULL CHECK (char_length(label) BETWEEN 1 AND 40),
+   type text NOT NULL CHECK (type IN ('expense','income','transfer')),
+   account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+   counter_account_id uuid REFERENCES accounts(id) ON DELETE CASCADE,
+   category_id uuid REFERENCES expense_categories(id) ON DELETE SET NULL,
+   amount_toman numeric(38,18) CHECK (amount_toman IS NULL OR amount_toman > 0),
+   description text NOT NULL CHECK (char_length(description) BETWEEN 1 AND 200),
+   tags text CHECK (char_length(tags) <= 200)
+  );`,
+  `CREATE INDEX IF NOT EXISTS transaction_templates_user_idx ON transaction_templates(user_id, created_at);`,
+];
+
+/** خودرو: هزینه‌ها و سررسیدها — see src/db/schema.ts `vehicleDueDates`; mirrors drizzle/0047. */
+const VEHICLE_DUE_STATEMENTS = [
+  `ALTER TABLE vehicle_assets ADD COLUMN IF NOT EXISTS expense_tag text;`,
+  // mirrors drizzle/0048
+  `ALTER TABLE real_estate_properties ADD COLUMN IF NOT EXISTS expense_tag text;`,
+  // mirrors drizzle/0049
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS tag text;`,
+  // mirrors drizzle/0050
+  `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS tour_seen_at timestamptz;`,
+  `CREATE TABLE IF NOT EXISTS vehicle_due_dates (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   vehicle_id uuid NOT NULL REFERENCES vehicle_assets(id) ON DELETE CASCADE,
+   kind text NOT NULL CHECK (kind IN ('inspection','toll','service','other')),
+   title text NOT NULL CHECK (char_length(title) BETWEEN 1 AND 80),
+   due_date date NOT NULL,
+   repeat_months integer CHECK (repeat_months IS NULL OR repeat_months BETWEEN 1 AND 60),
+   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','done','cancelled')),
+   done_at timestamptz
+  );`,
+  `CREATE INDEX IF NOT EXISTS vehicle_due_dates_user_idx ON vehicle_due_dates(user_id, status, due_date);`,
+];
+
 /** دفتر چک — see src/db/schema.ts `cheques`; mirrors drizzle/0041. */
 const CHEQUE_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS cheques (
@@ -1415,6 +1503,10 @@ export async function createSchemaIfNotExists() {
     ...BANK_ACCOUNT_NAME_STATEMENTS,
     ...CHEQUE_STATEMENTS,
     ...DEPOSIT_STATEMENTS,
+    ...BALANCE_CHECKPOINT_STATEMENTS,
+    ...INSURANCE_STATEMENTS,
+    ...TEMPLATE_STATEMENTS,
+    ...VEHICLE_DUE_STATEMENTS,
     // Required, not optional: these close a measured 57-index gap against the
     // migrations, and tests/schema-drift.test.ts fails if any is missing.
     ...PARITY_INDEX_STATEMENTS,

@@ -84,6 +84,16 @@ export async function getSmsInboxItem(userId: string, id: string) {
   return row;
 }
 
+/** The original message of a still-pending inbox row, decrypted on the server — never the client's copy. */
+export function decryptInboxMessage(userId: string, row: { encryptedPayload: string | null }): string | null {
+  if (!row.encryptedPayload) return null;
+  try {
+    return smsPayloadSchema.parse(JSON.parse(decryptSensitive(row.encryptedPayload, context(userId)) || "{}")).message;
+  } catch {
+    return null;
+  }
+}
+
 export async function listSmsDrafts(userId: string) {
   const identifiers = await listBankIdentifiers(userId);
   const rows = await db.select().from(bankSmsInbox).where(and(eq(bankSmsInbox.userId, userId), sql`${bankSmsInbox.status} in ('pending','processing')`)).orderBy(desc(bankSmsInbox.receivedAt)).limit(100);

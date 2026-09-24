@@ -85,10 +85,10 @@ function KindSeg<T extends string>({
 
 type FormProps = { accounts: AccountOpt[]; today: string } & RateProps;
 
-export function AddBudgetButton({ accounts, today, label, variant, ...rate }: FormProps & LauncherProps) {
+export function AddBudgetButton({ accounts, tags, today, label, variant, ...rate }: FormProps & LauncherProps & { tags?: string[] }) {
   return (
     <Launcher title="بودجه جدید" label={label} variant={variant}>
-      {(close) => <BudgetCardForm accounts={accounts} today={today} onDone={close} {...rate} />}
+      {(close) => <BudgetCardForm accounts={accounts} tags={tags} today={today} onDone={close} {...rate} />}
     </Launcher>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { BNPL_PROVIDERS, BNPL_INSTALLMENTS, bnplPreset } from "@/features/planning/bnpl";
 import { useRouter } from "next/navigation";
 import { createDebtAction, type ActionResult } from "@/app/actions";
 import { D } from "@/domain/decimal";
@@ -161,6 +162,30 @@ export default function DebtForm({
             <header className="expense-head">
               <h2 id="debt-details-title">مشخصات {noun}</h2>
             </header>
+            {!receivable && (
+              <div className="grid gap-2" role="group" aria-label="خرید اقساطی">
+                <span className="expense-sub">خرید اقساطی (اسنپ‌پی، دیجی‌پی…)؟ سرویس را انتخاب کنید تا {BNPL_INSTALLMENTS.toLocaleString("fa-IR")} قسط ماهانه‌ی بدون سود آماده شود:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {BNPL_PROVIDERS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className="shortcut-chip"
+                      aria-pressed={creditor === p}
+                      onClick={() => {
+                        const preset = bnplPreset(startDate || today);
+                        setCreditor(p);
+                        if (!title.trim()) setTitle(`خرید اقساطی ${p}`);
+                        setInterestRate(preset.interestRate);
+                        setSchedule(preset.schedule);
+                      }}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="label">عنوان</label>

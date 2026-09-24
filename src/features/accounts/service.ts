@@ -46,7 +46,8 @@ import { formatMoney, todayIso } from "@/lib/format";
 import { requireSupportedCryptoBySymbol } from "@/features/pricing/supportedAssets";
 import { canonicalWalletName, moneyPlaceError } from "@/features/setup/holdingWallets";
 
-export const WALLET_KINDS = ["bank", "cash", "exchange", "broker", "hot", "cold", "fund"] as const;
+/** `insurance`: the savings (اندوخته) of a life policy — opened only by «بیمه‌نامه‌ها», never offered in the account forms. */
+export const WALLET_KINDS = ["bank", "cash", "exchange", "broker", "hot", "cold", "fund", "insurance"] as const;
 export type WalletKind = (typeof WALLET_KINDS)[number];
 
 /**

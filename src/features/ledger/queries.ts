@@ -1,4 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
+import { containsPattern, normalizedColumn } from "@/lib/searchText";
 import { db } from "@/db";
 import { accounts, journalEntries, postings } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
@@ -730,7 +731,7 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
       ${type ? sql`and je.type = ${type}` : sql``}
       ${from ? sql`and je.entry_date >= ${from}` : sql``}
       ${to ? sql`and je.entry_date <= ${to}` : sql``}
-      ${q ? sql`and (je.description ilike ${"%" + q + "%"} or je.reference ilike ${"%" + q + "%"})` : sql``}
+      ${q ? sql`and (${normalizedColumn(sql`je.description`)} like ${containsPattern(q)} or je.reference ilike ${"%" + q + "%"})` : sql``}
       ${
         accountId
           ? sql`and exists (select 1 from postings p2 where p2.entry_id = je.id and p2.account_id = ${accountId})`

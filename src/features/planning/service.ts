@@ -180,6 +180,7 @@ export async function listBudgets(userId?: string) {
       accountId: budgets.accountId,
       accountName: accounts.name,
       accountCode: accounts.code,
+      tag: budgets.tag,
     })
     .from(budgets)
     .leftJoin(accounts, eq(accounts.id, budgets.accountId))
@@ -235,6 +236,23 @@ export async function listBudgets(userId?: string) {
       const spendToman = rate.gt(0) ? sumSpendUsd.mul(rate) : Decimal.zero();
       spendMap.set(b.id, spendToman.toFixed(0));
     }
+  }
+
+  // A budget on a hashtag measures every expense carrying it, at the Toman
+  // frozen on each entry — the same figure the tag's own total shows, so the
+  // two can never disagree, and FX never moves money already spent.
+  for (const b of rows) {
+    if (!b.tag) continue;
+    const res = await db.execute(sql`
+      select coalesce(sum(s.irt_amount), 0)::text as toman
+      from journal_entries je
+        join entry_fx_snapshots s on s.entry_id = je.id
+      where je.status = 'posted' and je.type = 'expense'
+        ${u ? sql`and je.user_id = ${u}` : sql``}
+        and je.entry_date >= ${b.periodStart} and je.entry_date <= ${b.periodEnd}
+        and exists (select 1 from entry_tags t where t.entry_id = je.id and t.tag = ${b.tag})
+    `);
+    spendMap.set(b.id, D((res.rows[0] as { toman: string }).toman).toFixed(0));
   }
 
   const result = [];

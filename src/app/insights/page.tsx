@@ -11,6 +11,10 @@ import Icon, { type IconName } from "@/components/ui/Icon";
 import { D, Decimal } from "@/domain/decimal";
 import { formatMoney, formatNumber, formatPct, formatShortDate, todayIso, faCount, toIrtMoney } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
+import { coverageGaps } from "@/features/insurance/service";
+import { reconcileMismatches } from "@/features/reconcile/service";
+import { dataCoverage } from "@/features/coverage/service";
+import CoverageRing from "@/components/ui/CoverageRing";
 
 export const dynamic = "force-dynamic";
 
@@ -50,10 +54,11 @@ const TONE_COLOR: Record<Insight["tone"], { c: string; bg: string }> = {
 };
 
 export default async function InsightsPage() {
-  await ensureAuth();
+  const user = await ensureAuth();
+  const userId = (user as { id?: string } | null)?.id ?? null;
   await seedIfEmpty();
 
-  const [nw, flow, categories, debts, projection, liabilities, unreviewed, fx] = await Promise.all([
+  const [nw, flow, categories, debts, projection, liabilities, unreviewed, fx, gaps, mismatches, coverage] = await Promise.all([
     getCurrentNetWorth(),
     getCashflow(6),
     getFlowByCategory(3),
@@ -62,6 +67,9 @@ export default async function InsightsPage() {
     getLiabilitiesTotal(),
     countUnreviewed(),
     getLatestUsdIrtRate(),
+    userId ? coverageGaps(userId).catch(() => []) : Promise.resolve([]),
+    userId ? reconcileMismatches(userId).catch(() => []) : Promise.resolve([]),
+    userId ? dataCoverage(userId).catch(() => null) : Promise.resolve(null),
   ]);
   const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
@@ -213,6 +221,41 @@ export default async function InsightsPage() {
     });
   }
 
+  // Books that disagree with the bank make every other figure on this page suspect.
+  if (mismatches.length > 0) {
+    insights.push({
+      tone: "warn",
+      icon: "scale",
+      title: `موجودی ${faCount(mismatches.length)} حساب با بانک یکی نیست`,
+      body: "احتمالاً تراکنشی ثبت نشده است؛ تا تطبیق نشود، مانده‌ها و گزارش‌ها کامل نیستند.",
+      href: "/accounts/reconcile",
+      action: "تطبیق",
+    });
+  }
+
+  const uninsuredCars = gaps.filter((g) => g.kind === "vehicle_no_third_party");
+  if (uninsuredCars.length > 0) {
+    insights.push({
+      tone: "neg",
+      icon: "shield",
+      title: uninsuredCars.length === 1 ? uninsuredCars[0].title : `${faCount(uninsuredCars.length)} خودرو بیمه‌ی شخص ثالث فعال ندارد`,
+      body: uninsuredCars[0].detail,
+      href: "/insurance",
+      action: "بیمه‌نامه‌ها",
+    });
+  }
+  const homeGaps = gaps.filter((g) => g.kind !== "vehicle_no_third_party");
+  if (homeGaps.length > 0) {
+    insights.push({
+      tone: "warn",
+      icon: "shield",
+      title: homeGaps.length === 1 ? homeGaps[0].title : `${faCount(homeGaps.length)} ملک بیمه‌ی کافی ندارد`,
+      body: homeGaps[0].detail,
+      href: "/insurance",
+      action: "بیمه‌نامه‌ها",
+    });
+  }
+
   if (savingsRate.gte("20") && !totalIn.isZero()) {
     insights.push({
       tone: "pos",
@@ -274,6 +317,36 @@ export default async function InsightsPage() {
           hint={toIrt(liquid.toString()) ?? formatMoney(liquid.toString())}
         />
       </section>
+
+      {/* ── پوشش داده: how much of the picture the numbers above stand on ── */}
+      {coverage && coverage.total > 0 && (
+        <Section id="data-coverage" title="پوشش داده" hint={`${coverage.passed.toLocaleString("fa-IR")} از ${coverage.total.toLocaleString("fa-IR")}`}>
+          <div className="card flex items-center gap-4 p-4">
+            <CoverageRing percent={coverage.percent} size={56} />
+            <p className="muted text-[length:var(--fs-xs)] leading-6">
+              ارزش خالص و گزارش‌ها فقط به اندازه‌ی داده‌ای که ثبت شده درست‌اند. هر مورد ناقص را از همین‌جا کامل کنید.
+            </p>
+          </div>
+          <ul className="card list-card mt-2" role="list">
+            {coverage.checks.map((c) => (
+              <li key={c.key} className="list-row">
+                <span className="flow-icon" aria-hidden="true" style={c.ok ? { background: "var(--positive-soft)", color: "var(--positive)" } : { background: "var(--warning-soft)", color: "var(--warning)" }}>
+                  <Icon name={c.ok ? "check" : c.icon} size={15} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[length:var(--fs-sm)] font-medium">{c.label}</p>
+                  {c.detail && <p className="muted text-[length:var(--fs-xs)]">{c.detail}</p>}
+                </div>
+                {!c.ok && (
+                  <Link href={c.href} className="btn btn-ghost !min-h-9 shrink-0 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
+                    {c.action}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
 
       {/* ── هشدارها ── */}
       <Section id="insights-alerts" title="هشدارها" hint="فقط مواردی که واقعاً به تصمیم شما نیاز دارند">

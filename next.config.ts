@@ -1,4 +1,21 @@
 import type { NextConfig } from "next";
+import { execSync } from "node:child_process";
+
+/**
+ * Which build is running — shown in تنظیمات, and compared there with the
+ * client bundle so a PWA served an old bundle from its cache can say so.
+ * The commit comes from the host's CI variable when there is one, else git;
+ * a build without either still builds, labelled «محلی».
+ */
+function buildCommit(): string {
+  const fromEnv = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || process.env.GIT_COMMIT;
+  if (fromEnv) return fromEnv.slice(0, 7);
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim() || "local";
+  } catch {
+    return "local";
+  }
+}
 
 /**
  * SECURITY (L-01): HTTP security headers.
@@ -57,6 +74,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_BUILD_COMMIT: buildCommit(),
+    NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
+  },
   serverExternalPackages: ["@electric-sql/pglite", "pg"],
   // Preview sandboxes serve the dev server through proxied origins.
   allowedDevOrigins: ["*.e2b.app"],

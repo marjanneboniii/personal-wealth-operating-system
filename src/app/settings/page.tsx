@@ -14,6 +14,8 @@ import { refreshUserFxRateFromMarket } from "@/features/fx/userRate";
 import FxSettings from "@/components/settings/FxSettings";
 import UserPanel from "@/components/settings/UserPanel";
 import AuthAccessCard from "@/components/auth/AuthAccessCard";
+import DisplaySettings from "@/components/settings/DisplaySettings";
+import AppVersion from "@/components/settings/AppVersion";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +60,10 @@ export default async function SettingsPage() {
         )}
       </Section>
 
+      <Section title="نمایش" hint="فقط روی همین دستگاه ذخیره می‌شود">
+        <DisplaySettings />
+      </Section>
+
       <Section title="بررسی اطلاعات">
         <div className="card expense-card">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -98,10 +104,7 @@ export default async function SettingsPage() {
         </div>
       </Section>
 
-      <p className="expense-sub flex items-center gap-1.5">
-        <Icon name="info" size={13} />
-        پوستهٔ روشن و تاریک از نوار بالا (موبایل) یا پایین سایدبار (دسکتاپ) عوض می‌شود و روی همین دستگاه ذخیره می‌ماند.
-      </p>
+      <AppVersion />
     </div>
   );
 }

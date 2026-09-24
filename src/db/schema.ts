@@ -21,6 +21,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 const money = (name: string) => numeric(name, { precision: 38, scale: 18 });
@@ -597,6 +598,8 @@ export const budgets = pgTable(
     periodStart: date("period_start").notNull(),
     periodEnd: date("period_end").notNull(),
     accountId: uuid("account_id").references(() => accounts.id),
+    /** A budget on a hashtag instead of an account: every expense carrying it, in frozen Toman. */
+    tag: text("tag"),
     amountBase: money("amount_base").notNull(),
   },
   (t) => [index("budgets_user_idx").on(t.userId)],
@@ -626,6 +629,8 @@ export const plannedTransactions = pgTable(
     dayOfMonth: integer("day_of_month"),
     /** Interest of a deposit (سپرده): carried from each month's reminder to the next; stops at maturity. */
     depositId: uuid("deposit_id").references(() => deposits.id, { onDelete: "set null" }),
+    /** A premium of an insurance policy (بیمه‌نامه): carried to the next occurrence until the term ends. */
+    insurancePolicyId: uuid("insurance_policy_id").references((): AnyPgColumn => insurancePolicies.id, { onDelete: "set null" }),
   },
   (t) => [
     index("planned_date_idx").on(t.plannedDate, t.status),
@@ -845,6 +850,139 @@ export const deposits = pgTable(
   (t) => [index("deposits_user_idx").on(t.userId, t.status)],
 );
 
+/**
+ * بیمه‌نامه‌ها — one row per policy TERM (a renewal is a new row pointing back
+ * through `renewed_from_id`, so last year's premium and cover stay on record).
+ *
+ * Metadata, like a deposit: a policy posts nothing. Each premium is a planned
+ * outflow (planned_transactions.insurance_policy_id) the user records with a
+ * tap — an expense in the policy's insurance category or, for a life policy
+ * with a cash value, a TRANSFER into `savings_account_id`, because that part
+ * of the premium is savings the user still owns, not spending.
+ */
+export const insurancePolicies = pgTable(
+  "insurance_policies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // third_party | car_body | fire | life | health | travel | liability | other
+    title: text("title").notNull(),
+    insurer: text("insurer"),
+    policyNumber: text("policy_number"),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date"),
+    /** One premium payment, Toman — contractual. */
+    premiumToman: money("premium_toman").notNull(),
+    premiumFrequency: text("premium_frequency").notNull(), // once | monthly | quarterly | annual
+    payAccountId: uuid("pay_account_id")
+      .notNull()
+      .references(() => accounts.id),
+    /** Sum insured (سقف تعهد), Toman. */
+    coverageToman: money("coverage_toman"),
+    insuredPropertyId: uuid("insured_property_id").references(() => realEstateProperties.id, { onDelete: "set null" }),
+    insuredVehicleId: uuid("insured_vehicle_id").references(() => vehicleAssets.id, { onDelete: "set null" }),
+    /** Life policy with a cash value (اندوخته): where the saved part of each premium accumulates. */
+    savingsAccountId: uuid("savings_account_id").references(() => accounts.id),
+    status: text("status").notNull().default("active"), // active | renewed | cancelled
+    renewedFromId: uuid("renewed_from_id").references((): AnyPgColumn => insurancePolicies.id, { onDelete: "set null" }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    note: text("note"),
+  },
+  (t) => [index("insurance_policies_user_idx").on(t.userId, t.status)],
+);
+
+/**
+ * میان‌برهای ثبت — the saved shape of a transaction recorded often («نان از
+ * کارت ملت»). Presentation only: a template never posts. It pre-fills the
+ * ordinary form, which the user still reviews and confirms.
+ */
+export const transactionTemplates = pgTable(
+  "transaction_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    type: text("type").notNull(), // expense | income | transfer
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    counterAccountId: uuid("counter_account_id").references(() => accounts.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id").references(() => expenseCategories.id, { onDelete: "set null" }),
+    /** Toman; null = ask every time (a bill that changes month to month). */
+    amountToman: money("amount_toman"),
+    description: text("description").notNull(),
+    tags: text("tags"),
+  },
+  (t) => [index("transaction_templates_user_idx").on(t.userId, t.createdAt)],
+);
+
+/**
+ * سررسیدهای خودرو — technical inspection, the annual municipal toll, service.
+ * A reminder, never a posting: paying for one is an ordinary expense tagged
+ * with the car's `expense_tag`. A repeating one is rolled forward when done.
+ */
+export const vehicleDueDates = pgTable(
+  "vehicle_due_dates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => vehicleAssets.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // inspection | toll | service | other
+    title: text("title").notNull(),
+    dueDate: date("due_date").notNull(),
+    repeatMonths: integer("repeat_months"),
+    status: text("status").notNull().default("pending"), // pending | done | cancelled
+    doneAt: timestamp("done_at", { withTimezone: true }),
+  },
+  (t) => [index("vehicle_due_dates_user_idx").on(t.userId, t.status, t.dueDate)],
+);
+
+/**
+ * تطبیق موجودی — a balance the bank reported for one of the user's accounts.
+ *
+ * Captured when a bank SMS carrying «مانده» is confirmed (the message text is
+ * deleted right after, so this is the only place the number survives), or
+ * typed in by hand. Nothing is overwritten: whether the account agrees with
+ * the bank is DERIVED by comparing `balance` (native units of the account)
+ * with SUM(postings) up to `as_of`. A correction is an ordinary balanced
+ * `adjustment` entry, linked back through `resolution_entry_id`.
+ */
+export const balanceCheckpoints = pgTable(
+  "balance_checkpoints",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    asOf: date("as_of").notNull(),
+    /** Orders several reports of the same day; the latest one is the account's state. */
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    balance: money("balance").notNull(),
+    source: text("source").notNull(), // sms | manual
+    /** The confirmed SMS entry whose message carried this balance. */
+    entryId: uuid("entry_id").references(() => journalEntries.id, { onDelete: "set null" }),
+    /** The adjustment entry that closed the difference, if the user chose one. */
+    resolutionEntryId: uuid("resolution_entry_id").references(() => journalEntries.id, { onDelete: "set null" }),
+  },
+  (t) => [index("balance_checkpoints_account_idx").on(t.userId, t.accountId, t.asOf, t.observedAt)],
+);
+
 export const obligations = pgTable(
   "obligations",
   {
@@ -999,6 +1137,8 @@ export const realEstateProperties = pgTable(
     ledgerEntryId: uuid("ledger_entry_id").references(() => journalEntries.id),
     /** Per-user property counter shown as «ملک ۱», independent of vehicles and other users. */
     userSeq: integer("user_seq"),
+    /** The hashtag this property's rent and running costs are recorded under — set once, then stable. */
+    expenseTag: text("expense_tag"),
   },
   (t) => [
     index("real_estate_properties_user_idx").on(t.userId),
@@ -1272,6 +1412,8 @@ export const vehicleAssets = pgTable(
     notes: text("notes"),
     /** Per-user vehicle counter shown as «خودرو ۱», independent of properties and other users. */
     userSeq: integer("user_seq"),
+    /** The hashtag this car's running costs are recorded under — set once, then stable. */
+    expenseTag: text("expense_tag"),
   },
   (t) => [
     index("vehicle_assets_user_idx").on(t.userId),
@@ -1792,6 +1934,8 @@ export const userPreferences = pgTable(
     proMode: boolean("pro_mode").notNull().default(false),
     /** Comma-separated occupation codes (features/income/occupations) — orders income suggestions. */
     occupations: text("occupations"),
+    /** When the one-time guided tour was finished or skipped — per account, so a PWA does not replay it. */
+    tourSeenAt: timestamp("tour_seen_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

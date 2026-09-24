@@ -58,9 +58,10 @@ import {
   resolveIncomeCounterAccount,
 } from "@/features/accounts/systemAccounts";
 import { closeIncomeOccurrence, scheduleNextIncome } from "@/features/income/service";
+import { closePremiumOccurrence } from "@/features/insurance/service";
 import { jalaliDayOf } from "@/features/income/recurring";
 import { addTagToEntries, setEntryTags } from "@/features/tags/service";
-import { MAX_TAGS_PER_ENTRY, parseTags } from "@/features/tags/normalize";
+import { MAX_TAGS_PER_ENTRY, normalizeTag, parseTags } from "@/features/tags/normalize";
 import { clearChequeInTx, revertClearedChequeInTx } from "@/features/cheques/service";
 import { setUserOccupations } from "@/features/preferences/service";
 import {
@@ -624,7 +625,9 @@ export async function tagEntriesAction(entryIds: string[], tag: string): Promise
 
 const budgetSchema = z.object({
   name: z.string().min(2, "نام بودجه را وارد کنید"),
-  accountId: z.string().uuid("حساب هزینه را انتخاب کنید"),
+  // Exactly one of the two: an expense account, or a hashtag.
+  accountId: z.string().uuid("حساب هزینه را انتخاب کنید").optional().or(z.literal("").transform(() => undefined)),
+  tag: z.string().max(60).optional(),
   amountBase: z.string().min(1, "مبلغ بودجه را وارد کنید"),
   periodStart: z.string().min(8),
   periodEnd: z.string().min(8),
@@ -647,11 +650,14 @@ export async function createBudgetAction(_p: ActionResult | null, fd: FormData):
   try {
     const v = budgetSchema.parse(Object.fromEntries(fd) as Record<string, string>);
     if (v.periodEnd < v.periodStart) throw new Error("پایان دوره باید بعد از شروع آن باشد");
+    const tag = v.tag ? normalizeTag(v.tag) : null;
+    if (!!tag === !!v.accountId) throw new Error("بودجه را یا برای یک دسته هزینه یا برای یک برچسب تعریف کنید.");
     // SECURITY: client-provided account reference must belong to the user.
-    if (user) await validateAccountOwnership(v.accountId, user.id);
+    if (user && v.accountId) await validateAccountOwnership(v.accountId, user.id);
     await db.insert(budgets).values({
       name: v.name,
-      accountId: v.accountId,
+      accountId: v.accountId ?? null,
+      tag,
       amountBase: D(v.amountBase).toString(),
       periodStart: v.periodStart,
       periodEnd: v.periodEnd,
@@ -1631,6 +1637,12 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
             tx,
           );
         }
+      }
+
+      // Insurance premium recorded from its reminder: close that occurrence and
+      // schedule the next, in this transaction — a reminder is paid once.
+      if ((input.type === "expense" || input.type === "transfer") && input.planId && isUuid(input.planId) && authUser?.id) {
+        await closePremiumOccurrence({ planId: input.planId, userId: authUser.id, entryId: entry.id }, tx);
       }
 
       // Debt / Installment linkage — update status within same transaction (Transactional Integrity)

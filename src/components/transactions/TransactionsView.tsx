@@ -7,6 +7,7 @@ import RowAction from "@/components/RowAction";
 import AdvancedFilter from "@/components/ui/AdvancedFilter";
 import FlowIcon from "@/components/transactions/FlowIcon";
 import { markManyReviewedAction, markReviewedAction, setEntryTagsAction, tagEntriesAction } from "@/app/actions";
+import { saveTemplateAction } from "@/app/actions/templates";
 import TagInput from "@/components/transactions/TagInput";
 import type { TagCount, TagSummary } from "@/features/tags/service";
 import { humanizeEntry, moneyFlowLabel, txAmountLabel } from "@/lib/tx";
@@ -63,6 +64,9 @@ const SOURCE_LABEL: Record<string, string> = { manual: "دستی", plan: "اجر
 
 const CURRENT_JALALI_YEAR = toJalali(todayIso()).y;
 
+/** Types «تکرار» and «میان‌بر» are offered for — the everyday shapes a copy gets right. */
+const REPEATABLE: ReadonlySet<string> = new Set(["expense", "income", "transfer"]);
+
 /** «۱۲ شهریور», plus the year only when it is not the current one. Jalali only. */
 function dayLabel(iso: string) {
   const { y } = toJalali(iso);
@@ -100,6 +104,8 @@ export default function TransactionsView({
   const [pending, startTransition] = useTransition();
   const searchRef = useRef<HTMLInputElement>(null);
   const [tagEdit, setTagEdit] = useState<{ id: string; text: string } | null>(null);
+  // «میان‌بر»: the entry's shape saved as a home-screen shortcut.
+  const [shortcut, setShortcut] = useState<{ id: string; label: string; keepAmount: boolean; message?: string; ok?: boolean } | null>(null);
   const [bulkTag, setBulkTag] = useState<string | null>(null);
   const [tagMsg, setTagMsg] = useState<string | null>(null);
   const tagNames = useMemo(() => tags.map((t) => t.tag), [tags]);
@@ -428,6 +434,23 @@ export default function TransactionsView({
                 <Icon name={e.reviewed ? "undo" : "check"} size={14} />
                 {e.reviewed ? "برگشت به بررسی‌نشده" : "تأیید"}
               </button>
+              {!isVoid && REPEATABLE.has(e.type) && (
+                <a href={`/new?repeat=${e.id}`} className="btn btn-soft !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
+                  <Icon name="refresh" size={14} />
+                  تکرار
+                </a>
+              )}
+              {!isVoid && REPEATABLE.has(e.type) && (
+                <button
+                  type="button"
+                  className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]"
+                  aria-expanded={shortcut?.id === e.id}
+                  onClick={() => setShortcut(shortcut?.id === e.id ? null : { id: e.id, label: e.description.slice(0, 40), keepAmount: true })}
+                >
+                  <Icon name="plus" size={14} />
+                  میان‌بر
+                </button>
+              )}
               {!isVoid && (
                 <RowAction
                   kind="reverse"
@@ -442,6 +465,44 @@ export default function TransactionsView({
                 </a>
               )}
             </div>
+            {shortcut?.id === e.id && (
+              <form
+                className="mt-3 grid gap-2 rounded-[var(--r-md)] p-3"
+                style={{ background: "var(--sunken)" }}
+                onSubmit={(ev) => {
+                  ev.preventDefault();
+                  const s = shortcut;
+                  startTransition(async () => {
+                    const res = await saveTemplateAction(s.id, s.label, s.keepAmount);
+                    setShortcut(res.ok ? null : { ...s, message: res.message, ok: false });
+                    if (res.ok) router.refresh();
+                  });
+                }}
+              >
+                <label className="label" htmlFor={`shortcut-${e.id}`}>
+                  نام میان‌بر در صفحه‌ی اصلی
+                </label>
+                <input
+                  id={`shortcut-${e.id}`}
+                  className="field"
+                  maxLength={40}
+                  value={shortcut.label}
+                  onChange={(ev) => setShortcut({ ...shortcut, label: ev.target.value })}
+                />
+                <label className="flex items-center gap-2 text-[length:var(--fs-xs)]">
+                  <input type="checkbox" checked={shortcut.keepAmount} onChange={(ev) => setShortcut({ ...shortcut, keepAmount: ev.target.checked })} />
+                  مبلغ ثابت است (برای قبض با مبلغ متغیر، تیک را بردارید)
+                </label>
+                {shortcut.message && (
+                  <p className="text-[length:var(--fs-xs)]" role="alert" style={{ color: "var(--negative)" }}>
+                    {shortcut.message}
+                  </p>
+                )}
+                <button type="submit" className="btn btn-primary !min-h-9 text-[length:var(--fs-xs)]" disabled={pending || !shortcut.label.trim()}>
+                  ذخیره‌ی میان‌بر
+                </button>
+              </form>
+            )}
           </div>
         )}
       </li>

@@ -33,6 +33,10 @@ import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { listDueIncomePlans, type IncomePlan } from "@/features/income/service";
 import { recordPlannedIncomeFormAction, skipPlannedIncomeFormAction } from "@/app/actions/income";
 import { currencyLabel, formatQty } from "@/lib/format";
+import { listTemplates, quickActionUsage, type TemplateRow } from "@/features/templates/service";
+import ShortcutChips from "@/components/overview/ShortcutChips";
+import CoverageRing from "@/components/ui/CoverageRing";
+import { dataCoverage, type Coverage } from "@/features/coverage/service";
 
 export const dynamic = "force-dynamic";
 
@@ -119,6 +123,17 @@ export default async function OverviewDashboard() {
     getEntryFxSnapshots(tx.map((e) => e.id)),
   );
 
+  // Saved shortcuts, and the quick actions in the order the user reaches for them.
+  const [templates, usage] = userId
+    ? await Promise.all([
+        optionalRead("shortcuts", [] as TemplateRow[], () => listTemplates(userId)),
+        optionalRead("shortcuts", {} as Record<string, number>, () => quickActionUsage(userId)),
+      ])
+    : [[] as TemplateRow[], {} as Record<string, number>];
+  const quick = QUICK.map((q, i) => ({ q, i, n: usage[new URLSearchParams(q.href.split("?")[1]).get("type") ?? ""] ?? 0 }))
+    .sort((a, b) => b.n - a.n || a.i - b.i)
+    .map((x) => x.q);
+
   // Recurring incomes due within three days (or overdue) — recorded only on a tap.
   const dueIncome = userId
     ? await optionalRead("recurring income", [] as IncomePlan[], () => listDueIncomePlans(userId))
@@ -126,6 +141,10 @@ export default async function OverviewDashboard() {
 
   const rate = fx.rate && D(fx.rate).gt(0) ? fx.rate : "";
   const staleCount = nw.valuation.priceStatus.stale + nw.valuation.priceStatus.unavailable;
+  // How complete and current the books are — shown only while something is missing.
+  const coverage = userId
+    ? await optionalRead("data coverage", null as Coverage | null, () => dataCoverage(userId, { stalePrices: staleCount }))
+    : null;
 
   const series = [...snaps]
     .reverse()
@@ -276,7 +295,7 @@ export default async function OverviewDashboard() {
           </p>
         </div>
         <nav className="quick-row" aria-label="ثبت سریع">
-          {QUICK.map((q) => (
+          {quick.map((q) => (
             <Link key={q.href} href={q.href} className="quick-pill" aria-label={q.label}>
               <Icon name={q.icon} size={14} />
               {"short" in q ? (
@@ -290,6 +309,14 @@ export default async function OverviewDashboard() {
             </Link>
           ))}
         </nav>
+        <ShortcutChips
+          items={templates.map((t) => ({
+            id: t.id,
+            label: t.label,
+            type: t.type,
+            amountLabel: t.amountToman ? formatMoney(t.amountToman, "IRT") : null,
+          }))}
+        />
       </section>
 
       <section className="metric-strip">
@@ -303,6 +330,19 @@ export default async function OverviewDashboard() {
           />
         ))}
       </section>
+
+      {coverage && coverage.percent < 100 && (
+        <Link href="/insights#data-coverage" className="coverage-strip">
+          <CoverageRing percent={coverage.percent} size={40} />
+          <span className="min-w-0 flex-1">
+            <b className="block text-[length:var(--fs-sm)]">پوشش داده {coverage.percent.toLocaleString("fa-IR")}٪</b>
+            <span className="muted block truncate text-[length:var(--fs-xs)]">
+              {coverage.checks.find((c) => !c.ok)?.detail ?? "چند مورد کامل نیست"}
+            </span>
+          </span>
+          <Icon name="chevronLeft" size={15} />
+        </Link>
+      )}
 
       {hasAnything && attention.length > 0 && (
         <Section title="نیاز به توجه">

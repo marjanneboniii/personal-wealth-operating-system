@@ -16,6 +16,9 @@ const KIND: Record<Reminder["kind"], { icon: IconName; c: string; bg: string }> 
   cheque: { icon: "note", c: "var(--warning)", bg: "var(--warning-soft)" },
   bounced: { icon: "alert", c: "var(--negative)", bg: "var(--negative-soft)" },
   deposit: { icon: "coins", c: "var(--info)", bg: "var(--info-soft)" },
+  reconcile: { icon: "scale", c: "var(--warning)", bg: "var(--warning-soft)" },
+  insurance: { icon: "shield", c: "var(--info)", bg: "var(--info-soft)" },
+  vehicle: { icon: "car", c: "var(--warning)", bg: "var(--warning-soft)" },
   income: { icon: "arrow-up", c: "var(--positive)", bg: "var(--positive-soft)" },
   review: { icon: "check", c: "var(--info)", bg: "var(--info-soft)" },
 };
@@ -75,7 +78,7 @@ export default async function NotificationsPage() {
     <div className="space-y-5">
       <PageHeader
         title="یادآورها"
-        subtitle={`اقساط و چک‌های سررسیدگذشته و ${faCount(INSTALLMENT_HORIZON_DAYS)} روز آینده، چک‌های برگشتی، سپرده‌های نزدیک سررسید، طلب‌هایی که باید دریافت کنید، درآمدهای ماهانه و تراکنش‌های بررسی‌نشده. هر یادآور با انجام کارش خودبه‌خود حذف می‌شود.`}
+        subtitle={`اقساط و چک‌های سررسیدگذشته و ${faCount(INSTALLMENT_HORIZON_DAYS)} روز آینده، چک‌های برگشتی، سپرده‌های نزدیک سررسید، حساب‌هایی که با موجودی بانک یکی نیستند، حق بیمه‌ها و بیمه‌نامه‌های رو به پایان، معاینه فنی و عوارض خودرو، طلب‌هایی که باید دریافت کنید، درآمدهای ماهانه و تراکنش‌های بررسی‌نشده. هر یادآور با انجام کارش خودبه‌خود حذف می‌شود.`}
       />
       {userId && <MarkRemindersSeen keys={unreadKeys} />}
 

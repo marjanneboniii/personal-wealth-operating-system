@@ -16,6 +16,10 @@ import { ensureCryptoNetworks, getCryptoNetworks } from "@/features/trade/networ
 import { getUserOccupations } from "@/features/preferences/service";
 import { suggestedIncomeCodes } from "@/features/income/occupations";
 import { getIncomePlan } from "@/features/income/service";
+import { getPremiumPlan } from "@/features/insurance/service";
+import { entryPrefill, getTemplate } from "@/features/templates/service";
+import { vehicleTagOptions } from "@/features/vehicles/service";
+import { propertyTagOptions } from "@/features/properties/service";
 import { listTags } from "@/features/tags/service";
 import { getPendingCheque } from "@/features/cheques/service";
 import { D } from "@/domain/decimal";
@@ -28,13 +32,13 @@ const VALID: TxType[] = ["expense", "income", "transfer", "buy", "sell", "debt_r
 export default async function NewTransactionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; debtId?: string; installmentId?: string; irtAmount?: string; title?: string; entryDate?: string; planId?: string; chequeId?: string }>;
+  searchParams: Promise<{ type?: string; debtId?: string; installmentId?: string; irtAmount?: string; title?: string; entryDate?: string; planId?: string; chequeId?: string; accountId?: string; repeat?: string; template?: string; tags?: string }>;
 }) {
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? null;
   await seedIfEmpty();
   const params = await searchParams;
-  const defaultType = VALID.includes(params.type as TxType) ? (params.type as TxType) : "expense";
+  const requestedType = VALID.includes(params.type as TxType) ? (params.type as TxType) : "expense";
 
   const sharedAccountingCodes = [
     "3000", "3010", "3200", "4000", "4010", "4100", "4900",
@@ -45,7 +49,7 @@ export default async function NewTransactionPage({
   // price refresh is what made «ثبت تراکنش» slow to open.
   // Coin networks refresh in the background (at most daily); the page reads what is stored now.
   void ensureCryptoNetworks();
-  const [rows, fxSnap, debts, categoryTree, balances, properties, vehicles, assetNetworks, incomeTree, occupations, incomePlan, expenseHabits, tagCounts, cheque] = await Promise.all([
+  const [rows, fxSnap, debts, categoryTree, balances, properties, vehicles, assetNetworks, incomeTree, occupations, incomePlan, premiumPlan, expenseHabits, tagCounts, cheque] = await Promise.all([
     db
       .select({
         id: accounts.id,
@@ -90,12 +94,36 @@ export default async function NewTransactionPage({
     ensureCategoryCatalog().then(() => listCategoryTree(userId ?? undefined, "income")),
     getUserOccupations(userId),
     userId && params.planId && /^[0-9a-f-]{36}$/i.test(params.planId) ? getIncomePlan(params.planId, userId) : Promise.resolve(null),
+    userId && params.planId && /^[0-9a-f-]{36}$/i.test(params.planId) ? getPremiumPlan(params.planId, userId) : Promise.resolve(null),
     // Recent categories and the last paying account — the expense form pre-selects from them.
     userId ? getExpenseHabits(userId) : Promise.resolve({ categoryIds: [], lastAccountId: null }),
     listTags(userId ?? undefined),
     userId && params.chequeId && /^[0-9a-f-]{36}$/i.test(params.chequeId) ? getPendingCheque(userId, params.chequeId) : Promise.resolve(null),
   ]);
   const incomePlanParent = incomePlan ? incomeTree.find((p) => p.children.some((c) => c.id === incomePlan.categoryId)) : undefined;
+  // A premium reminder decides the form: an expense in its insurance category,
+  // or a transfer into a life policy's savings account.
+  const premiumParent = premiumPlan?.categoryId ? categoryTree.find((p) => p.children.some((c) => c.id === premiumPlan.categoryId)) : undefined;
+  // «تکرار» of a past entry, or a saved shortcut — both only pre-fill the form.
+  const isId = (v?: string) => !!v && /^[0-9a-f-]{36}$/i.test(v);
+  const source =
+    premiumPlan || !userId
+      ? null
+      : isId(params.template)
+        ? await getTemplate(userId, params.template!)
+        : isId(params.repeat)
+          ? await entryPrefill(userId, params.repeat!)
+          : null;
+  const sourceParent = source?.categoryId
+    ? (source.type === "income" ? incomeTree : categoryTree).find((p) => p.children.some((c) => c.id === source.categoryId))
+    : undefined;
+  const assetTags = userId
+    ? [
+        ...(await vehicleTagOptions(userId).catch(() => [])).map((v) => ({ ...v, kind: "vehicle" as const })),
+        ...(await propertyTagOptions(userId).catch(() => [])).map((p) => ({ ...p, kind: "property" as const })),
+      ]
+    : [];
+  const defaultType: TxType = premiumPlan ? (premiumPlan.savingsAccountId ? "transfer" : "expense") : source ? source.type : requestedType;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -164,14 +192,35 @@ export default async function NewTransactionPage({
         initialRateSource={fxSnap.source}
         initialDebtId={params.debtId}
         initialInstallmentId={params.installmentId}
-        initialIrtAmount={params.irtAmount ?? (cheque ? D(cheque.amountToman).toFixed(0) : undefined)}
-        initialTitle={params.title ?? (cheque ? `پاس شدن چک ${cheque.direction === "issued" ? "به" : "از"} ${cheque.counterparty}` : undefined)}
+        initialIrtAmount={params.irtAmount ?? (cheque ? D(cheque.amountToman).toFixed(0) : premiumPlan ? premiumPlan.premiumToman : (source?.amountToman ?? undefined))}
+        initialTitle={params.title ?? (cheque ? `پاس شدن چک ${cheque.direction === "issued" ? "به" : "از"} ${cheque.counterparty}` : premiumPlan ? `حق بیمه «${premiumPlan.title}»` : source?.description)}
+        prefill={
+          premiumPlan
+            ? {
+                planId: premiumPlan.id,
+                categoryId: premiumParent ? premiumPlan.categoryId : null,
+                parentId: premiumParent?.id ?? null,
+                toAccountId: premiumPlan.savingsAccountId,
+              }
+            : params.tags && !source
+              ? { categoryId: null, parentId: null, toAccountId: null, tags: params.tags.slice(0, 200) }
+              : source
+              ? {
+                  categoryId: sourceParent ? source.categoryId : null,
+                  parentId: sourceParent?.id ?? null,
+                  toAccountId: source.counterAccountId,
+                  tags: source.tags,
+                }
+              : null
+        }
+        assetTags={assetTags}
         cheque={
           cheque
             ? { id: cheque.id, direction: cheque.direction, counterparty: cheque.counterparty, amountToman: D(cheque.amountToman).toFixed(0), accountId: cheque.accountId }
             : null
         }
         initialEntryDate={params.entryDate}
+        initialAccountId={premiumPlan?.payAccountId ?? source?.accountId ?? (params.accountId && /^[0-9a-f-]{36}$/i.test(params.accountId) ? params.accountId : undefined)}
       />
     </div>
   );

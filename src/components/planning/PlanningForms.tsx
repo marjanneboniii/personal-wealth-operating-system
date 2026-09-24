@@ -226,15 +226,19 @@ function jalaliPeriod(today: string, mode: "month" | "quarter" | "year") {
 
 export function BudgetCardForm({
   accounts,
+  tags = [],
   today,
   onDone,
   rate,
   rateDate,
   rateSource,
-}: { accounts: AccountOpt[]; today: string; onDone: () => void } & RateProps) {
+}: { accounts: AccountOpt[]; tags?: string[]; today: string; onDone: () => void } & RateProps) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(createBudgetAction, null);
   useCloseOnSuccess(state, onDone);
 
+  // A budget caps an expense category — or everything carrying one #tag (a trip, a renovation).
+  const [scope, setScope] = useState<"account" | "tag">("account");
+  const [tag, setTag] = useState("");
   const [accountId, setAccountId] = useState("");
   const [browsing, setBrowsing] = useState(true);
   const [query, setQuery] = useState("");
@@ -258,12 +262,23 @@ export function BudgetCardForm({
   };
 
   const range = period === "custom" ? { start, end } : jalaliPeriod(today, period);
-  const ready = !!accountId && name.trim().length >= 2 && Number(amount) > 0 && range.start <= range.end;
+  const cleanTag = tag.trim().replace(/^#+/, "");
+  const ready = (scope === "account" ? !!accountId : cleanTag.length > 0) && name.trim().length >= 2 && Number(amount) > 0 && range.start <= range.end;
 
   return (
     <form action={action} className="expense-form p-3 sm:p-4">
-      <input type="hidden" name="accountId" value={accountId} />
+      <input type="hidden" name="accountId" value={scope === "account" ? accountId : ""} />
+      <input type="hidden" name="tag" value={scope === "tag" ? cleanTag : ""} />
       <input type="hidden" name="name" value={name} />
+      <Seg
+        value={scope}
+        onChange={setScope}
+        label="بودجه روی"
+        options={[
+          ["account", "دسته هزینه"],
+          ["tag", "برچسب"],
+        ]}
+      />
       {period !== "custom" && (
         <>
           <input type="hidden" name="periodStart" value={range.start} />
@@ -271,6 +286,43 @@ export function BudgetCardForm({
         </>
       )}
 
+      {scope === "tag" && (
+        <Card title="بودجه برای کدام برچسب؟">
+          <input
+            className="field"
+            dir="auto"
+            value={tag}
+            onChange={(e) => {
+              setTag(e.target.value);
+              if (!touchedName) setName(e.target.value.trim() ? `#${e.target.value.trim().replace(/^#+/, "")}` : "");
+            }}
+            placeholder="مثلاً سفر_مشهد"
+            aria-label="برچسب"
+            maxLength={60}
+          />
+          {tags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {tags.slice(0, 12).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className="shortcut-chip"
+                  aria-pressed={cleanTag === t}
+                  onClick={() => {
+                    setTag(t);
+                    if (!touchedName) setName(`#${t}`);
+                  }}
+                >
+                  #{t}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="expense-sub mt-2">هر هزینه‌ای که این برچسب را داشته باشد، از هر دسته‌ای، در این بودجه حساب می‌شود.</p>
+        </Card>
+      )}
+
+      {scope === "account" && (
       <Card
         title="بودجه برای کدام دسته هزینه؟"
         aside={
@@ -329,6 +381,7 @@ export function BudgetCardForm({
           </>
         )}
       </Card>
+      )}
 
       <AmountCard
         title="سقف بودجه"
@@ -381,7 +434,12 @@ export function BudgetCardForm({
       </section>
 
       <Feedback state={state} />
-      <Submit pending={pending} disabled={!ready} label="ایجاد بودجه" note="مصرف واقعی این دسته به‌طور خودکار با این سقف سنجیده می‌شود." />
+      <Submit
+        pending={pending}
+        disabled={!ready}
+        label="ایجاد بودجه"
+        note={scope === "tag" ? "هزینه‌های این برچسب به تومانِ روز ثبت با این سقف سنجیده می‌شود." : "مصرف واقعی این دسته به‌طور خودکار با این سقف سنجیده می‌شود."}
+      />
     </form>
   );
 }
