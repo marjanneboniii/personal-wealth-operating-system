@@ -14,6 +14,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   primaryKey,
@@ -1583,6 +1584,69 @@ export const coingeckoPriceCache = pgTable(
     index("coingecko_price_cache_updated_idx").on(t.updatedAt),
   ],
 );
+
+/**
+ * PUBLIC MARKET DATA ONLY — the last VALID reference price per source and
+ * instrument (gold, coins, currencies, commodities, the Tehran exchange). See
+ * features/pricing/referenceQuotes.ts.
+ *
+ * `price` is already per ONE `quantity_unit` in `currency`; the source's raw
+ * unit (e.g. 100 yen) is recorded in `source_unit_quantity`. `observed_at` is
+ * the SOURCE's time and only ever moves forward — an older figure fetched
+ * again cannot overwrite a newer one, and fetching it again does not make it
+ * fresh (`fetched_at` records the fetch separately).
+ *
+ * No user, no holding, no ledger row. Nothing reads this as an accounting
+ * authority.
+ */
+export const marketReferenceQuotes = pgTable(
+  "market_reference_quotes",
+  {
+    source: text("source").notNull(),
+    /** `<feed>:<id>` for BrsAPI, the metal symbol for Gold API. */
+    ref: text("ref").notNull(),
+    instrumentId: text("instrument_id").notNull(),
+    price: money("price").notNull(),
+    /** IRT | IRR | USD — explicit, never inferred from magnitude. */
+    currency: text("currency").notNull(),
+    quantityUnit: text("quantity_unit").notNull(),
+    sourceUnitQuantity: text("source_unit_quantity").notNull().default("1"),
+    basis: text("basis").notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    observedAtInferred: boolean("observed_at_inferred").notNull().default(false),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+    /** Further figures of the same instrument (closing price, ISIN class…), strings only. */
+    extra: jsonb("extra"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.source, t.ref] }),
+    index("market_reference_quotes_source_idx").on(t.source),
+  ],
+);
+
+/**
+ * One row per reference source: the SHARED lease and quota state that keeps
+ * every Vercel instance together under one request budget. A per-process
+ * memory cache cannot do that — each cold instance would start from zero.
+ */
+export const marketSourceStatus = pgTable("market_source_status", {
+  source: text("source").primaryKey(),
+  /** Held by the one instance currently fetching; others skip until it passes. */
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+  /** A PriceFailureCode — never an upstream message, which could echo a key. */
+  lastErrorCode: text("last_error_code"),
+  consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+  backoffUntil: timestamp("backoff_until", { withTimezone: true }),
+  /** Tehran calendar day (YYYY-MM-DD) that `requests_today` counts. */
+  quotaDay: text("quota_day"),
+  requestsToday: integer("requests_today").notNull().default(0),
+  quotaExhaustedUntil: timestamp("quota_exhausted_until", { withTimezone: true }),
+  lastQuoteCount: integer("last_quote_count"),
+  lastRejectedCount: integer("last_rejected_count"),
+});
 
 /* ------------------------------------------------------------------ */
 /* Commodities Domain — Dynamic Price Tracking & Inflation Analytics    */

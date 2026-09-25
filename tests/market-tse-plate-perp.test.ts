@@ -25,7 +25,14 @@ const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "u
 
 test("every Tehran fund and stock is a priceless market row with its drawn mark", () => {
   const rows = tseMarketRows();
-  assert.equal(rows.length, FUND_CATALOG.length + STOCK_CATALOG.length);
+  const certificates = rows.filter((r) => r.kind === "ir_certificate");
+  assert.equal(rows.length, FUND_CATALOG.length + certificates.length + STOCK_CATALOG.length);
+  assert.deepEqual(
+    certificates.map((c) => [c.displayName, c.logoUrl]),
+    [["گواهی سپردهٔ شمش نقره", "mark:silver"], ["گواهی نفت دیجیتال", "mark:oil"]],
+    "commodity certificates sit beside the funds, drawn by what they hold",
+  );
+  assert.equal(WALLEX_KIND_LABELS.ir_certificate, "گواهی کالایی");
 
   const funds = rows.filter((r) => r.kind === "ir_fund");
   const stocks = rows.filter((r) => r.kind === "ir_stock");

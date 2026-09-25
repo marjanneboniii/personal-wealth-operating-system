@@ -45,7 +45,7 @@ export type QuoteKind =
 export type PriceQuote = {
   /** Exact decimal string in `currency`. Never a JS number. */
   price: string;
-  /** ISO code of the quote currency — "IRT" or "USD". */
+  /** ISO code of the quote currency — "IRT", "IRR" or "USD". Never "USDT" for a dollar price. */
   currency: string;
   /** When the SOURCE observed this price (ISO 8601). */
   observedAt: string;
@@ -53,6 +53,44 @@ export type PriceQuote = {
   fetchedAt: string;
   /** Provider id that produced it, for display and for debugging. */
   source: string;
+  /**
+   * WHAT the price is for, when the source says more than «per unit». Optional
+   * so every existing provider stays valid; the reference-price sources
+   * (BrsAPI, Gold API) always set it, because a gram, a troy ounce, a barrel
+   * and one hundred yen are not interchangeable and a bare number hides that.
+   */
+  meta?: QuoteMeta;
+};
+
+/**
+ * The facts a reference price needs before it may be shown or trusted.
+ * Every field is what the SOURCE stated or what was verified against it —
+ * never a default filled in to make a row look complete.
+ */
+export type QuoteMeta = {
+  /** The source's own identity for the instrument: an ISIN, «IR_GOLD_18K», «XAU». */
+  instrumentId: string;
+  /** The unit ONE price buys: "gram", "troy_ounce", "coin", "currency_unit", "barrel", "share", "fund_unit". */
+  quantityUnit: string;
+  /**
+   * How many of `quantityUnit` the source's raw number was for. 100 for
+   * «یکصد ین ژاپن». `price` is always already divided down to ONE unit.
+   */
+  sourceUnitQuantity: string;
+  /**
+   * What kind of price this is: "last_trade", "market_rate", "spot", …
+   * "unspecified" when the source does not say (BrsAPI does not state whether
+   * its currency rates are free-market or official, nor whether Brent is spot
+   * or front-month) — shown as such, never guessed.
+   */
+  basis: string;
+  /**
+   * True when the source gave only a clock time and the DATE was inferred
+   * (TSETMC's `time` is «HH:MM:SS» with no day). The UI must say so.
+   */
+  observedAtInferred?: boolean;
+  /** Further prices of the same instrument, kept SEPARATE from `price`. */
+  extra?: Record<string, string>;
 };
 
 export type ProviderResult = {

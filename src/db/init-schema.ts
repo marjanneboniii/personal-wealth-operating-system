@@ -860,6 +860,39 @@ const STATEMENTS = [
     updated_at timestamptz NOT NULL DEFAULT now()
   );`,
   `CREATE INDEX IF NOT EXISTS coingecko_price_cache_updated_idx ON coingecko_price_cache(updated_at);`,
+  // 0052 — reference prices (gold, coins, currencies, commodities, TSE) and the
+  // shared per-source lease/quota state. Public market data only.
+  `CREATE TABLE IF NOT EXISTS market_reference_quotes (
+    source text NOT NULL,
+    ref text NOT NULL,
+    instrument_id text NOT NULL,
+    price numeric(38,18) NOT NULL,
+    currency text NOT NULL,
+    quantity_unit text NOT NULL,
+    source_unit_quantity text NOT NULL DEFAULT '1',
+    basis text NOT NULL,
+    observed_at timestamptz NOT NULL,
+    observed_at_inferred boolean NOT NULL DEFAULT false,
+    fetched_at timestamptz NOT NULL,
+    extra jsonb,
+    CONSTRAINT market_reference_quotes_source_ref_pk PRIMARY KEY (source, ref)
+  );`,
+  `CREATE INDEX IF NOT EXISTS market_reference_quotes_source_idx ON market_reference_quotes(source);`,
+  `CREATE TABLE IF NOT EXISTS market_source_status (
+    source text PRIMARY KEY,
+    lease_until timestamptz,
+    last_attempt_at timestamptz,
+    last_success_at timestamptz,
+    last_error_at timestamptz,
+    last_error_code text,
+    consecutive_failures integer NOT NULL DEFAULT 0,
+    backoff_until timestamptz,
+    quota_day text,
+    requests_today integer NOT NULL DEFAULT 0,
+    quota_exhausted_until timestamptz,
+    last_quote_count integer,
+    last_rejected_count integer
+  );`,
 
   /* Commodities Domain — Dynamic Price Tracking & Inflation Analytics — Isolated, No FK to Financial Core
      0012 tenancy: user_id NULL = shared/global row (legacy + suggested catalog),

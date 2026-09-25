@@ -39,7 +39,10 @@ test("there is no meme section; crypto stays «رمزارز»", () => {
   assert.equal(WALLEX_KIND_LABELS.meme, undefined, "no meme label");
   assert.deepEqual(
     [...MARKET_KIND_ORDER],
-    ["crypto", "stablecoin", "tokenized_stock", "index", "commodity", "bond", "gold", "ir_fund", "ir_stock"],
+    [
+      "gold_bullion", "gold_coin", "silver_bullion", "fiat",
+      "crypto", "stablecoin", "tokenized_stock", "index", "commodity", "energy", "bond", "gold", "ir_fund", "ir_certificate", "ir_stock", "ir_right",
+    ],
     "every section, in a stable order — without memes",
   );
 });

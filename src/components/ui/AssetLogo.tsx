@@ -36,12 +36,19 @@ import {
 import TomanIcon from "@/components/ui/TomanIcon";
 import { marketLogoFor } from "@/features/branding/marketLogos";
 import {
+  CoinMark,
   CommodityFundMark,
   EquityFundMark,
+  FIAT_MARKS,
   FixedIncomeFundMark,
   GoldFundMark,
+  GramCoinMark,
+  HalfCoinMark,
   IndexMark,
+  OilMark,
+  QuarterCoinMark,
   RealEstateMark,
+  SilverMark,
   StockMark,
   VehicleMark,
   WALLEX_ASSET_MARKS,
@@ -59,7 +66,15 @@ const KIND_MARKS: Record<string, typeof StockMark> = {
   "fund-fixed_income": FixedIncomeFundMark,
   "fund-etf": EquityFundMark,
   "fund-commodity": CommodityFundMark,
+  // Gold, coins, silver and oil as the Iranian market lists them.
+  coin: CoinMark,
+  "coin-half": HalfCoinMark,
+  "coin-quarter": QuarterCoinMark,
+  "coin-gram": GramCoinMark,
+  silver: SilverMark,
+  oil: OilMark,
 };
+
 
 /** The drawn marks' plate: rx=12 on a 48 grid — a quarter of the size. */
 export function plateRadius(size: number): number {
@@ -153,9 +168,17 @@ export default function AssetLogo({
    * with no trustworthy artwork that asks for the drawn mark of its kind.
    * An explicit user logo, or a real local market logo, still wins.
    */
+  const upperSymbol = (input.symbol ?? "").trim().toUpperCase();
+  // `mark:fiat-EUR` → the euro's sign; any other `mark:<key>` → KIND_MARKS.
+  const markKey = input.logoUrl?.startsWith("mark:") ? input.logoUrl.slice(5) : null;
   const commodityMark = !input.userLogoUrl && !marketLogo
-    ? WALLEX_ASSET_MARKS[(input.symbol ?? "").trim().toUpperCase()] ??
-      (input.logoUrl?.startsWith("mark:") ? KIND_MARKS[input.logoUrl.slice(5)] ?? StockMark : undefined)
+    ? WALLEX_ASSET_MARKS[upperSymbol] ??
+      (markKey
+        ? (markKey.startsWith("fiat-") ? FIAT_MARKS[markKey.slice(5)] : KIND_MARKS[markKey]) ?? StockMark
+        : undefined) ??
+      // A foreign-currency holding with no artwork (a EUR account) gets the
+      // same sign the market list draws for it, not the generic placeholder.
+      (resolved.source === "default" && resolved.assetType === "fiat" ? FIAT_MARKS[upperSymbol] : undefined)
     : undefined;
   if (commodityMark) {
     const Mark = commodityMark;

@@ -19,11 +19,29 @@ import AssetLogo from "@/components/ui/AssetLogo";
 import NoLivePrice from "./NoLivePrice";
 import { formatMoney, toFaDigits } from "@/lib/format";
 import { primeMarketCatalog, refreshMarketCatalog } from "./marketCatalogClient";
+import type { MarketRow } from "@/features/pricing/marketSearch";
+import type { ReferenceQuoteView } from "@/features/pricing/referencePresentation";
+import ReferencePrice from "./ReferencePrice";
 
 const PAGE = 50;
 
-export default function MarketView({ initial }: { initial: MarketCatalogLoadResult }) {
-  const [catalog, setCatalog] = useState(initial);
+export default function MarketView({
+  initial,
+  supplementalRows = [],
+  referenceQuotes = {},
+}: {
+  /** The exchange catalogue — the part a manual refresh replaces. */
+  initial: MarketCatalogLoadResult;
+  /** Gold, coins, currencies, oil, the Tehran exchange — never replaced by that refresh. */
+  supplementalRows?: MarketRow[];
+  /** Stored reference prices, by `kind:symbol`. */
+  referenceQuotes?: Record<string, ReferenceQuoteView>;
+}) {
+  const [exchange, setCatalog] = useState(initial);
+  const catalog = useMemo(
+    () => ({ ...exchange, rows: [...exchange.rows, ...supplementalRows] }),
+    [exchange, supplementalRows],
+  );
   const [section, setSection] = useState<string>("all");
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
@@ -31,6 +49,8 @@ export default function MarketView({ initial }: { initial: MarketCatalogLoadResu
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  // Only the exchange catalogue primes the pickers' shared copy: reference and
+  // Tehran-exchange rows are market-view-only and must never be pickable.
   useEffect(() => primeMarketCatalog(initial), [initial]);
 
   const counts = useMemo(() => {
@@ -107,18 +127,24 @@ export default function MarketView({ initial }: { initial: MarketCatalogLoadResu
       )}
 
       <ul className="card divide-y overflow-hidden" style={{ borderColor: "var(--border)" }}>
-        {matches.slice(0, shown).map((row) => (
-          <li key={row.symbol} className="flex min-h-14 items-center gap-3 px-3 py-2.5">
+        {matches.slice(0, shown).map((row) => {
+          const reference = referenceQuotes[`${row.kind}:${row.symbol}`];
+          return (
+          <li key={`${row.kind}:${row.symbol}`} className="flex min-h-14 items-center gap-3 px-3 py-2.5">
             <AssetLogo symbol={row.symbol} name={row.displayName} logoUrl={row.logoUrl} size={32} radius={9} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
                 <b className="truncate text-[length:var(--fs-sm)]">{row.displayName}</b>
                 <span className="muted num text-[length:var(--fs-xs)]" dir="ltr">{row.symbol}</span>
               </div>
-              <span className="chip mt-0.5 text-[length:var(--fs-xs)]">{row.kindLabel}</span>
+              <span className="chip mt-0.5 text-[length:var(--fs-xs)]">
+                {reference?.boardLabel ? `${row.kindLabel} · ${reference.boardLabel}` : row.kindLabel}
+              </span>
             </div>
             <div className="shrink-0 text-end text-[length:var(--fs-xs)] leading-5">
-              {row.priceTmn || row.priceUsdt ? (
+              {reference ? (
+                <ReferencePrice quote={reference} />
+              ) : row.priceTmn || row.priceUsdt ? (
                 <>
                   <div className="num" dir="rtl">
                     {row.priceTmn ? <b>{formatMoney(row.priceTmn, "IRT")}</b> : <span className="muted">—</span>}
@@ -132,7 +158,8 @@ export default function MarketView({ initial }: { initial: MarketCatalogLoadResu
               )}
             </div>
           </li>
-        ))}
+          );
+        })}
         {matches.length === 0 && (
           <li className="muted p-6 text-center text-[length:var(--fs-sm)]">نمادی با این نام پیدا نشد.</li>
         )}

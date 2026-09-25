@@ -11,10 +11,11 @@
  * service — HTTP 200, 385 markets, 193 quoted in Toman, Persian names and
  * icons served from an Iranian host.
  *
- * The other sources in the plan (نوبیتکس, بیت‌پین, رمزینکس, fipiran, TSETMC,
- * brsapi) are NOT registered here yet, and deliberately so: none of those hosts
- * resolves from the environment this was built in, so their response shapes
- * could only have been guessed from documentation. An adapter written against
+ * Gold API and BrsAPI were added on 2026-09-24 (see goldApi.ts / brsapi.ts
+ * for what was verified and how). The other sources in the plan (نوبیتکس,
+ * بیت‌پین, رمزینکس, fipiran) are NOT registered, and deliberately so: those
+ * hosts did not resolve from the environment this was built in, so their
+ * response shapes could only have been guessed from documentation. An adapter written against
  * an unverified shape is a bug waiting for production. Each needs one real
  * request from an Iranian network to confirm status code, JSON shape and data
  * freshness before it is written and registered.
@@ -22,6 +23,9 @@
 import { ProviderRegistry, providerRegistry } from "./registry";
 import { WallexProvider } from "./wallex";
 import { AbanTetherProvider } from "./abantether";
+import { GoldApiProvider } from "./goldApi";
+import { BrsApiProvider } from "./brsapi";
+import { brsApiKey, readReferenceConfig } from "../referenceConfig";
 
 let bootstrapped = false;
 
@@ -39,6 +43,16 @@ export function bootstrapProviders(registry: ProviderRegistry = providerRegistry
   // stocks / ETFs / commodities). Registered AFTER Wallex: where both quote a
   // symbol, Wallex keeps priority.
   if (!registry.get("abantether")) registry.register(new AbanTetherProvider());
+
+  // Reference prices — gold, coins, currencies, commodities, the Tehran
+  // exchange. Each is behind its own switch (referenceConfig.ts): Gold API is
+  // on by default (verified live 2026-09-24); BrsAPI whenever a key is set —
+  // its support confirmed this host is allowed (2026-09-24).
+  const reference = readReferenceConfig();
+  if (reference.goldApi.enabled && !registry.get("gold-api")) registry.register(new GoldApiProvider());
+  if (reference.brsapi.enabled && reference.brsapi.hasKey && !registry.get("brsapi")) {
+    registry.register(new BrsApiProvider({ apiKey: brsApiKey() }));
+  }
   return registry;
 }
 
@@ -47,6 +61,8 @@ export type { ResolvedQuote, LastKnownLookup, ResolveOptions } from "./registry"
 export { QuoteCache, quoteCache, DEFAULT_TTL_MS } from "./cache";
 export { WallexProvider } from "./wallex";
 export { AbanTetherProvider } from "./abantether";
+export { GoldApiProvider } from "./goldApi";
+export { BrsApiProvider } from "./brsapi";
 export type {
   PriceProvider,
   PriceQuote,
