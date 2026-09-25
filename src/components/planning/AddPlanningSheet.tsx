@@ -83,7 +83,7 @@ function KindSeg<T extends string>({
   );
 }
 
-type FormProps = { accounts: AccountOpt[]; today: string } & RateProps;
+type FormProps = { accounts: AccountOpt[]; balances?: Record<string, string>; today: string } & RateProps;
 
 export function AddBudgetButton({ accounts, tags, today, label, variant, ...rate }: FormProps & LauncherProps & { tags?: string[] }) {
   return (
@@ -94,7 +94,7 @@ export function AddBudgetButton({ accounts, tags, today, label, variant, ...rate
 }
 
 /** اهداف و صندوق‌ها — a goal or a future event. */
-export function AddGoalButton({ accounts, today, label, variant, ...rate }: FormProps & LauncherProps) {
+export function AddGoalButton({ accounts, balances, today, label, variant, ...rate }: FormProps & LauncherProps) {
   const [kind, setKind] = useState<"goal" | "event">("goal");
   return (
     <Launcher title="افزودن" label={label ?? "هدف یا رویداد"} variant={variant}>
@@ -109,7 +109,7 @@ export function AddGoalButton({ accounts, today, label, variant, ...rate }: Form
             ]}
           />
           {kind === "goal" ? (
-            <GoalCardForm accounts={accounts} today={today} onDone={close} {...rate} />
+            <GoalCardForm accounts={accounts} balances={balances} today={today} onDone={close} {...rate} />
           ) : (
             <EventCardForm today={today} onDone={close} {...rate} />
           )}
@@ -120,7 +120,7 @@ export function AddGoalButton({ accounts, today, label, variant, ...rate }: Form
 }
 
 /** پیش‌بینی مالی — a planned transaction, a goal or an event. */
-export function AddPlanButton({ accounts, today, label, variant, ...rate }: FormProps & LauncherProps) {
+export function AddPlanButton({ accounts, balances, today, label, variant, ...rate }: FormProps & LauncherProps) {
   const [kind, setKind] = useState<"planned" | "goal" | "event">("planned");
   return (
     <Launcher title="افزودن برنامه" label={label ?? "برنامه جدید"} variant={variant}>
@@ -135,8 +135,8 @@ export function AddPlanButton({ accounts, today, label, variant, ...rate }: Form
               ["event", "رویداد آینده"],
             ]}
           />
-          {kind === "planned" && <PlannedCardForm accounts={accounts} today={today} onDone={close} {...rate} />}
-          {kind === "goal" && <GoalCardForm accounts={accounts} today={today} onDone={close} {...rate} />}
+          {kind === "planned" && <PlannedCardForm accounts={accounts} balances={balances} today={today} onDone={close} {...rate} />}
+          {kind === "goal" && <GoalCardForm accounts={accounts} balances={balances} today={today} onDone={close} {...rate} />}
           {kind === "event" && <EventCardForm today={today} onDone={close} {...rate} />}
         </>
       )}

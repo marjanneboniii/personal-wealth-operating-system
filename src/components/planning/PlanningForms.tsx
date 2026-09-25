@@ -22,11 +22,12 @@ import {
 } from "@/app/actions";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
+import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import Icon from "@/components/ui/Icon";
 import { SmartAmountPreview } from "@/components/ui/SmartPreview";
 import { addMonthsIso, formatJalaliIso, jalaliMonthLength, jalaliToIso, toJalali } from "@/lib/format";
 
-export type AccountOpt = { id: string; code: string; name: string };
+export type AccountOpt = { id: string; code: string; name: string } & Partial<Omit<PickerAccount, "id" | "name">>;
 
 export type RateProps = {
   rate?: string | null;
@@ -448,14 +449,16 @@ export function BudgetCardForm({
 
 export function GoalCardForm({
   accounts,
+  balances,
   today,
   onDone,
   rate,
   rateDate,
   rateSource,
-}: { accounts: AccountOpt[]; today: string; onDone: () => void } & RateProps) {
+}: { accounts: AccountOpt[]; balances?: Record<string, string>; today: string; onDone: () => void } & RateProps) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(createGoalAction, null);
   useCloseOnSuccess(state, onDone);
+  const [fundAccountId, setFundAccountId] = useState("");
 
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
@@ -526,16 +529,16 @@ export function GoalCardForm({
             presetDate && <p className="expense-sub num">{formatJalaliIso(presetDate)}</p>
           )}
         </Row>
-        <Row label="حساب پس‌انداز" htmlFor="goal-account">
-          <select id="goal-account" name="fundAccountId" className="field" defaultValue="">
-            <option value="">بدون حساب اختصاصی</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </Row>
+        <AccountPicker
+          label="حساب پس‌انداز"
+          name="fundAccountId"
+          value={fundAccountId}
+          options={accounts}
+          balances={balances}
+          onChange={setFundAccountId}
+          noneLabel="بدون حساب اختصاصی"
+          sheetTitle="پس‌انداز در کدام حساب؟"
+        />
       </section>
 
       <Feedback state={state} />
@@ -633,14 +636,17 @@ export function EventCardForm({
 
 export function PlannedCardForm({
   accounts,
+  balances,
   today,
   onDone,
   rate,
   rateDate,
   rateSource,
-}: { accounts: AccountOpt[]; today: string; onDone: () => void } & RateProps) {
+}: { accounts: AccountOpt[]; balances?: Record<string, string>; today: string; onDone: () => void } & RateProps) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(createPlannedAction, null);
   useCloseOnSuccess(state, onDone);
+  const [fromAccountId, setFromAccountId] = useState("");
+  const [toAccountId, setToAccountId] = useState("");
 
   const [direction, setDirection] = useState<"outflow" | "inflow">("outflow");
   const [title, setTitle] = useState("");
@@ -702,26 +708,24 @@ export function PlannedCardForm({
             ]}
           />
         </Row>
-        <Row label={direction === "outflow" ? "از حساب" : "حساب مبدأ"} htmlFor="plan-from">
-          <select id="plan-from" name="fromAccountId" className="field" defaultValue="">
-            <option value="">—</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </Row>
-        <Row label="به حساب" htmlFor="plan-to">
-          <select id="plan-to" name="toAccountId" className="field" defaultValue="">
-            <option value="">—</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </Row>
+        <AccountPicker
+          label={direction === "outflow" ? "از حساب" : "حساب مبدأ"}
+          name="fromAccountId"
+          value={fromAccountId}
+          options={accounts}
+          balances={balances}
+          onChange={setFromAccountId}
+          noneLabel="بدون حساب"
+        />
+        <AccountPicker
+          label="به حساب"
+          name="toAccountId"
+          value={toAccountId}
+          options={accounts.filter((a) => a.id !== fromAccountId)}
+          balances={balances}
+          onChange={setToAccountId}
+          noneLabel="بدون حساب"
+        />
       </section>
 
       <Feedback state={state} />

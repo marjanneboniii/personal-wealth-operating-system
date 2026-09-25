@@ -16,6 +16,7 @@
 import { useMemo, useState } from "react";
 import { faCount, formatDaysUntil, formatMoney, getDualDate } from "@/lib/format";
 import { D } from "@/domain/decimal";
+import AccountPicker from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 import Icon from "@/components/ui/Icon";
@@ -315,28 +316,14 @@ export default function DebtRepaymentFields(p: Props) {
                 </a>
               </p>
             ) : (
-              <div className="expense-accounts" role="radiogroup" aria-label={receivable ? "حساب واریز" : "حساب پرداخت"}>
-                {p.accounts.map((a) => {
-                  const on = a.id === p.accountId;
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={on}
-                      onClick={() => p.setAccountId(a.id)}
-                      className="expense-acct"
-                      data-on={on || undefined}
-                    >
-                      <span className="expense-radio" aria-hidden="true" />
-                      <span className="expense-acct-text">
-                        <span className="expense-acct-name">{a.name}</span>
-                        <span className="expense-acct-bal">{balanceLabel(a, p.balances[a.id])}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              <AccountPicker
+                value={p.accountId}
+                options={p.accounts}
+                balances={p.balances}
+                onChange={p.setAccountId}
+                placeholder={receivable ? "انتخاب حساب واریز" : "انتخاب حساب پرداخت"}
+                sheetTitle={receivable ? "واریز به کدام حساب؟" : "پرداخت از کدام حساب؟"}
+              />
             )}
           </section>
         </>

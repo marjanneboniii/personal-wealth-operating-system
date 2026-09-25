@@ -48,7 +48,15 @@ import { getPortfolioValuation } from "@/features/portfolio/service";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { allNamed } from "@/lib/namedPromises";
 
-export type PayoutAccount = { id: string; name: string; symbol: string | null; walletKind: string | null };
+export type PayoutAccount = {
+  id: string;
+  name: string;
+  symbol: string | null;
+  decimals: number | null;
+  walletName: string | null;
+  walletKind: string | null;
+  balance: string | null;
+};
 
 /** Current USD/IRT rate of this tenant, as a plain string. */
 async function loadFxRate(userId?: string | null): Promise<string> {
@@ -69,7 +77,15 @@ function loadPayoutAccounts(userId?: string | null) {
   return getAccountBalances(userId ?? undefined).then((rows) =>
     rows
       .filter((r) => r.type === "asset" && isLiquidAccount(r))
-      .map((r) => ({ id: r.accountId, name: r.name, symbol: r.symbol, walletKind: r.walletKind ?? null })),
+      .map((r) => ({
+        id: r.accountId,
+        name: r.name,
+        symbol: r.symbol,
+        decimals: r.assetDecimals ?? null,
+        walletName: r.walletName ?? null,
+        walletKind: r.walletKind ?? null,
+        balance: r.quantity ?? null,
+      })),
   );
 }
 

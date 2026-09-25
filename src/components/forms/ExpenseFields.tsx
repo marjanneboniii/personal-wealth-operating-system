@@ -6,7 +6,7 @@
  *   مبلغ        a regular amount field and preset amounts (a tap sets it)
  *   دسته‌بندی   search, then square tiles: recent picks and groups; a group
  *               tile opens its subcategories as square tiles
- *   پرداخت از   the paying accounts as square tiles with their balance
+ *   پرداخت از   the paying account, in the shared AccountPicker
  *   تاریخ       today / yesterday / another date, and a note
  *
  * Nothing scrolls sideways: every choice wraps in a grid.
@@ -23,6 +23,7 @@ import { useMemo, useState } from "react";
 import { createCategoryAction } from "@/app/actions";
 import { formatMoney, formatNumber, getDualDate } from "@/lib/format";
 import { D } from "@/domain/decimal";
+import AccountPicker from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 import Icon from "@/components/ui/Icon";
@@ -398,37 +399,7 @@ export default function ExpenseFields({
               </a>
             </p>
           ) : (
-            <div className="expense-accounts" role="radiogroup" aria-label="حساب پرداخت">
-              {accounts.map((a) => {
-                const on = a.id === accountId;
-                const bal = balances[a.id];
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => setAccountId(a.id)}
-                    className="expense-acct"
-                    data-on={on || undefined}
-                  >
-                    <span className="expense-radio" aria-hidden="true" />
-                    <span className="expense-acct-text">
-                      <span className="expense-acct-name">{a.walletName || a.name}</span>
-                      <span className="expense-acct-bal">
-                        {bal !== undefined ? (
-                          <>
-                            <span className="num">{formatNumber(D(bal).toFixed(0), { decimals: 0 })}</span> تومان
-                          </>
-                        ) : (
-                          "موجودی ثبت نشده"
-                        )}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <AccountPicker value={accountId} options={accounts} balances={balances} onChange={setAccountId} placeholder="انتخاب حساب پرداخت" sheetTitle="پرداخت از کدام حساب؟" />
           )}
           {overBalance && (
             <p className="expense-note expense-note-warn" role="status">

@@ -20,6 +20,7 @@
 import { useState, type ComponentProps } from "react";
 import { currencyLabel, formatMoney, formatNumber, formatQty, getDualDate } from "@/lib/format";
 import { D } from "@/domain/decimal";
+import AccountPicker from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import AssetLogo from "@/components/ui/AssetLogo";
 import DualDateInput from "@/components/ui/DualDateInput";
@@ -433,28 +434,14 @@ export default function TradeFields(p: Props) {
               </a>
             </p>
           ) : (
-            <div className="expense-accounts" role="radiogroup" aria-label={buy ? "حساب پرداخت" : "حساب واریز"}>
-              {p.settleOptions.map((a) => {
-                const on = a.id === p.moneyId;
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => p.onMoneyChange(a.id)}
-                    className="expense-acct"
-                    data-on={on || undefined}
-                  >
-                    <span className="expense-radio" aria-hidden="true" />
-                    <span className="expense-acct-text">
-                      <span className="expense-acct-name">{a.name}</span>
-                      <span className="expense-acct-bal">{balanceLabel(a, p.balances[a.id])}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <AccountPicker
+              value={p.moneyId}
+              options={p.settleOptions}
+              balances={p.balances}
+              onChange={p.onMoneyChange}
+              placeholder={buy ? "انتخاب حساب پرداخت" : "انتخاب حساب واریز"}
+              sheetTitle={buy ? "پرداخت با کدام حساب؟" : "واریز به کدام حساب؟"}
+            />
           )}
         </section>
       )}

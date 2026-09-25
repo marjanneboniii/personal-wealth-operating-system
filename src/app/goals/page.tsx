@@ -1,7 +1,8 @@
 import { asc, eq, sql } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
-import { accounts, assets } from "@/db/schema";
+import { accounts, assets, wallets } from "@/db/schema";
+import { getAccountBalances } from "@/features/ledger/queries";
 import { seedIfEmpty } from "@/db/seed";
 import { listEvents, listFunds, listGoals, listObligations } from "@/features/planning/service";
 import { EmptyState, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
@@ -42,21 +43,35 @@ const EVENT_CATEGORY: Record<string, string> = {
  * `createEventAction` are untouched, so every Toman figure stays contractual.
  */
 export default async function GoalsPage() {
-  await ensureAuth();
+  const user = await ensureAuth();
+  const userId = (user as { id?: string } | null)?.id;
   await seedIfEmpty();
-  const [goals, funds, events, obligations, accountRows, fx] = await Promise.all([
+  const [goals, funds, events, obligations, accountRows, fx, balanceRows] = await Promise.all([
     listGoals(),
     listFunds(),
     listEvents(),
     listObligations(),
     db
-      .select({ id: accounts.id, code: accounts.code, name: accounts.name })
+      .select({
+        id: accounts.id,
+        code: accounts.code,
+        name: accounts.name,
+        symbol: assets.symbol,
+        decimals: assets.decimals,
+        logoUrl: assets.logoUrl,
+        walletName: wallets.name,
+        walletKind: wallets.kind,
+      })
       .from(accounts)
       .leftJoin(assets, eq(assets.id, accounts.assetId))
-      .where(sql`${accounts.deletedAt} is null and ${accounts.assetId} is not null`)
+      .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+      // Only this user's accounts — never another tenant's.
+      .where(sql`${accounts.deletedAt} is null and ${accounts.assetId} is not null${userId ? sql` and ${accounts.userId} = ${userId}` : sql``}`)
       .orderBy(asc(accounts.code)),
     getLatestUsdIrtRate(),
+    getAccountBalances(userId).catch(() => []),
   ]);
+  const balances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
 
   const activeGoals = goals.filter((g) => g.status === "active");
   // targetBase / targetToman = contractual Toman (never moves with FX).
@@ -87,6 +102,7 @@ export default async function GoalsPage() {
 
   const addProps = {
     accounts: accountRows,
+    balances,
     today: todayIso(),
     rate: fx.rate,
     rateDate: fx.effectiveDate,

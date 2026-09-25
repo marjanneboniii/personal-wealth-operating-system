@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
+import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import { previewPurchaseUsdAction, saveVehicleAction } from "@/app/actions/registry";
 import DualDateInput from "@/components/ui/DualDateInput";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
@@ -41,10 +42,11 @@ export default function VehicleForm({
   models: VehicleCatalogModel[];
   ownerName: string;
   /** Toman bank accounts a car bought now may be paid from. */
-  bankAccounts?: { id: string; name: string }[];
+  bankAccounts?: PickerAccount[];
 }) {
   const [state, action, pending] = useActionState(saveVehicleAction, null);
   const today = todayIso();
+  const [paymentAccountId, setPaymentAccountId] = useState("");
 
   const [brandId, setBrandId] = useState("");
   const [catalogId, setCatalogId] = useState("");
@@ -263,14 +265,14 @@ export default function VehicleForm({
         label="پرداخت از حساب بانکی"
         hint="اگر خودرو را همین حالا می‌خرید، حساب بانکی را انتخاب کنید تا مبلغ خرید از آن کسر شود. برای خودرویی که از قبل دارید خالی بگذارید."
       >
-        <select className="field" name="paymentAccountId" defaultValue="">
-          <option value="">بدون کسر از حساب (خودروی فعلی)</option>
-          {bankAccounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
+        <AccountPicker
+          name="paymentAccountId"
+          value={paymentAccountId}
+          options={bankAccounts}
+          onChange={setPaymentAccountId}
+          noneLabel="بدون کسر از حساب (خودروی فعلی)"
+          sheetTitle="حساب بانکی تومانی"
+        />
       </Labeled>
 
       <div className="grid gap-3 md:grid-cols-3">

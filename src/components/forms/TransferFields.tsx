@@ -3,8 +3,8 @@
 /**
  * انتقال — the same plain cards as «ثبت هزینه»:
  *
- *   از حساب     every account, as tiles with its balance, grouped by what it
- *               holds (تومان · رمزارز و استیبل‌کوین)
+ *   از حساب     every account, in the shared AccountPicker (grouped by what it
+ *               holds, with its mark and balance)
  *   به حساب     only the accounts this money may go to:
  *                 تومان      → a bank account, exchange Toman or brokerage Toman
  *                 a coin     → the same coin at an exchange or a wallet, on a
@@ -19,11 +19,11 @@ import { useState, useTransition } from "react";
 import { currencyLabel, formatMoney, formatQty, getDualDate } from "@/lib/format";
 import { D } from "@/domain/decimal";
 import type { KnownWallet } from "@/features/setup/holdingWallets";
+import AccountPicker from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import AssetLogo from "@/components/ui/AssetLogo";
 import DualDateInput from "@/components/ui/DualDateInput";
 import Icon from "@/components/ui/Icon";
-import { balanceLabel } from "./TradeFields";
 import type { AccountOption } from "./TransactionForm";
 
 const SHARES: Array<[string, string]> = [
@@ -31,8 +31,6 @@ const SHARES: Array<[string, string]> = [
   ["۵۰٪", "0.5"],
   ["همه", "1"],
 ];
-
-const isTomanUnit = (a: AccountOption) => ["IRT", "IRR"].includes((a.symbol ?? "").toUpperCase());
 
 function shiftIso(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -44,45 +42,6 @@ function cutDecimals(value: string, decimals: number): string {
   const [int, frac = ""] = value.split(".");
   const cut = frac.slice(0, decimals).replace(/0+$/, "");
   return cut ? `${int}.${cut}` : int;
-}
-
-function AccountTiles({
-  label,
-  accounts,
-  balances,
-  selectedId,
-  onPick,
-}: {
-  label: string;
-  accounts: AccountOption[];
-  balances: Record<string, string>;
-  selectedId: string;
-  onPick: (id: string) => void;
-}) {
-  return (
-    <div className="expense-accounts" role="radiogroup" aria-label={label}>
-      {accounts.map((a) => {
-        const on = a.id === selectedId;
-        return (
-          <button
-            key={a.id}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            onClick={() => onPick(a.id)}
-            className="expense-acct"
-            data-on={on || undefined}
-          >
-            <span className="expense-radio" aria-hidden="true" />
-            <span className="expense-acct-text">
-              <span className="expense-acct-name">{a.name}</span>
-              <span className="expense-acct-bal">{balanceLabel(a, balances[a.id])}</span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 type Props = {
@@ -124,7 +83,6 @@ type Props = {
 };
 
 export default function TransferFields(p: Props) {
-  const [browsingFrom, setBrowsingFrom] = useState(!p.fromId);
   const [pickingDate, setPickingDate] = useState(false);
   const [addingTo, setAddingTo] = useState(false);
   const [addError, setAddError] = useState("");
@@ -136,9 +94,6 @@ export default function TransferFields(p: Props) {
       setAddError(error ?? "");
       if (!error) setAddingTo(false);
     });
-  const showSources = browsingFrom || !from;
-  const tomanSources = p.sources.filter(isTomanUnit);
-  const otherSources = p.sources.filter((a) => !isTomanUnit(a));
   const held = p.heldQty ? D(p.heldQty) : null;
   const typed = p.isToman ? (p.amount ? D(p.amount) : null) : p.quantity ? D(p.quantity) : null;
   const overBalance = !!typed && !!held && typed.gt(0) && typed.gt(held);
@@ -154,11 +109,6 @@ export default function TransferFields(p: Props) {
       <section className="card expense-card" aria-labelledby="transfer-from-title">
         <header className="expense-head">
           <h2 id="transfer-from-title">از حساب</h2>
-          {from && !showSources && (
-            <button type="button" className="expense-link" onClick={() => setBrowsingFrom(true)}>
-              تغییر
-            </button>
-          )}
         </header>
         {p.sources.length === 0 ? (
           <p className="expense-empty">
@@ -167,45 +117,12 @@ export default function TransferFields(p: Props) {
               افزودن حساب
             </a>
           </p>
-        ) : showSources ? (
-          <>
-            {tomanSources.length > 0 && (
-              <>
-                <p className="expense-sub">تومان</p>
-                <AccountTiles
-                  label="حساب‌های تومانی"
-                  accounts={tomanSources}
-                  balances={p.balances}
-                  selectedId={p.fromId}
-                  onPick={(id) => {
-                    p.setFromId(id);
-                    setBrowsingFrom(false);
-                  }}
-                />
-              </>
-            )}
-            {otherSources.length > 0 && (
-              <>
-                <p className="expense-sub">رمزارز و استیبل‌کوین</p>
-                <AccountTiles
-                  label="رمزارز و استیبل‌کوین"
-                  accounts={otherSources}
-                  balances={p.balances}
-                  selectedId={p.fromId}
-                  onPick={(id) => {
-                    p.setFromId(id);
-                    setBrowsingFrom(false);
-                  }}
-                />
-              </>
-            )}
-          </>
         ) : (
-          <AccountTiles label="حساب مبدأ" accounts={[from!]} balances={p.balances} selectedId={p.fromId} onPick={() => setBrowsingFrom(true)} />
+          <AccountPicker value={p.fromId} options={p.sources} balances={p.balances} onChange={p.setFromId} placeholder="انتخاب حساب مبدأ" sheetTitle="انتقال از کدام حساب؟" />
         )}
       </section>
 
-      {from && !showSources && (
+      {from && (
         <>
           {/* ── To ── */}
           <section className="card expense-card" aria-labelledby="transfer-to-title">
@@ -242,7 +159,7 @@ export default function TransferFields(p: Props) {
               </p>
             )}
             {p.targets.length > 0 && (
-              <AccountTiles label="حساب مقصد" accounts={p.targets} balances={p.balances} selectedId={p.toId} onPick={p.setToId} />
+              <AccountPicker value={p.toId} options={p.targets} balances={p.balances} onChange={p.setToId} placeholder="انتخاب حساب مقصد" sheetTitle="انتقال به کدام حساب؟" />
             )}
             {addingTo && (
               <>
