@@ -45,7 +45,7 @@ import {
   refreshReferenceQuotes,
 } from "../src/features/pricing/referenceQuotes";
 import { readReferenceConfig, type ReferenceConfig } from "../src/features/pricing/referenceConfig";
-import { referenceState, referenceViewsFor, toQuoteView, tseRowsFromQuotes, rowKey } from "../src/features/pricing/referencePresentation";
+import { referenceState, referenceViewsFor, supplementalMarketRows, toQuoteView, tseRowsFromQuotes, rowKey } from "../src/features/pricing/referencePresentation";
 import { REFERENCE_QUOTE_REFS, referenceMarketRows } from "../src/features/pricing/referenceMarketRows";
 import { tseMarketRows } from "../src/features/pricing/tseMarketRows";
 
@@ -442,4 +442,30 @@ test("the provider's sample files never reach the product", () => {
     const code = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
     assert.doesNotMatch(code, /Api\/(Market|Tsetmc|IME)\/Sample|FreeApi_Gold_Currency|tests\/fixtures/, file);
   }
+});
+
+test("a catalogue row with no ISIN on record takes the feed's ISIN for the same kind and ticker", () => {
+  const now = new Date("2025-06-01T10:00:00Z");
+  const feedRow = (isin: string, symbol: string, kind: string) =>
+    stored("brsapi", `tsetmc:${isin}`, {
+      price: "53000",
+      currency: "IRR",
+      observedAt: now.toISOString(),
+      fetchedAt: now.toISOString(),
+      source: "brsapi",
+      meta: { instrumentId: isin, quantityUnit: "share", sourceUnitQuantity: "1", basis: "last_trade", observedAtInferred: true, extra: { kind, symbol, name: symbol } },
+    });
+  const quotes = new Map([
+    ["brsapi|tsetmc:IRO1PNBA0001", feedRow("IRO1PNBA0001", "شبندر", "stock")],
+    ["brsapi|tsetmc:IRO3BNOP0001", feedRow("IRO3BNOP0001", "نوین", "stock")],
+  ]);
+  const rows = supplementalMarketRows([], tseMarketRows(), quotes, new Set());
+  const shabandar = rows.filter((r) => r.symbol === "شبندر");
+  assert.equal(shabandar.length, 1, "joined, not listed twice");
+  assert.equal(shabandar[0].displayName, "پالایش نفت بندرعباس", "the catalogue's own name and mark stay");
+  const views = referenceViewsFor(rows, quotes, [], now);
+  assert.equal(views[rowKey({ kind: "ir_stock", symbol: "شبندر" })]?.amount, "5300", "priced in toman");
+  // «نوین»: a fund here, an insurer in the feed — never joined.
+  assert.equal(views[rowKey({ kind: "ir_fund", symbol: "نوین" })], undefined);
+  assert.ok(views[rowKey({ kind: "ir_stock", symbol: "نوین" })], "the insurer is listed on its own row");
 });

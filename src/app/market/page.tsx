@@ -4,7 +4,7 @@ import MarketView from "@/components/assets/MarketView";
 import { tseMarketRows } from "@/features/pricing/tseMarketRows";
 import { referenceMarketRows } from "@/features/pricing/referenceMarketRows";
 import { readReferenceQuotes, readSourceStatus, scheduleReferenceRefresh } from "@/features/pricing/referenceQuotes";
-import { referenceViewsFor, rowKey, tseRowsFromQuotes } from "@/features/pricing/referencePresentation";
+import { referenceViewsFor, rowKey, supplementalMarketRows } from "@/features/pricing/referencePresentation";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +39,12 @@ export default async function MarketPage() {
   // here, not persisted in the exchange catalogue, so no picker offers them.
   // They are kept apart from the exchange rows so a manual refresh of those
   // cannot drop them from the screen.
-  const listed = [...referenceMarketRows(), ...tseMarketRows()];
-  const known = new Set([...exchangeRows, ...listed].map(rowKey));
-  const supplementalRows = [...listed, ...tseRowsFromQuotes(quotes, known)];
+  const supplementalRows = supplementalMarketRows(
+    [...referenceMarketRows()],
+    [...tseMarketRows()],
+    quotes,
+    new Set(exchangeRows.map(rowKey)),
+  );
   const referenceQuotes = referenceViewsFor(supplementalRows, quotes, sources, new Date());
 
   return (

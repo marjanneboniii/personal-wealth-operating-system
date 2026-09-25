@@ -217,3 +217,33 @@ export function tseRowsFromQuotes(
   }
   return rows.sort((a, b) => a.symbol.localeCompare(b.symbol, "fa"));
 }
+
+/**
+ * Everything «نمای بازار» lists beyond the exchange catalogue, with the
+ * hand-kept Tehran rows joined to the live feed.
+ *
+ * A catalogue row whose ISIN is not on record (see funds/tseIsinData) takes
+ * the ISIN of the feed row with the SAME kind and ticker — the feed's own
+ * identity, never a name match — and that feed row is not listed a second
+ * time. Same ticker, different kind (the catalogue's fund «نوین» vs the
+ * feed's بیمه نوین) never joins: both are listed, apart.
+ */
+export function supplementalMarketRows(
+  referenceRows: readonly MarketRow[],
+  catalogRows: readonly MarketRow[],
+  quotes: ReadonlyMap<string, StoredReferenceQuote>,
+  exchangeKeys: ReadonlySet<string>,
+): MarketRow[] {
+  const isTse = (r: MarketRow) => r.kind === "ir_fund" || r.kind === "ir_stock" || r.kind === "ir_right";
+  const unmapped = new Set(catalogRows.filter((r) => isTse(r) && !CATALOG_ISIN.has(r.symbol)).map(rowKey));
+  const known = new Set(
+    [...exchangeKeys, ...[...referenceRows, ...catalogRows].map(rowKey)].filter((k) => !unmapped.has(k)),
+  );
+  const feed = tseRowsFromQuotes(quotes, known);
+  const isinByKey = new Map(feed.filter((r) => unmapped.has(rowKey(r))).map((r) => [rowKey(r), r.latinName]));
+  const joined = catalogRows.map((r) => {
+    const isin = isinByKey.get(rowKey(r));
+    return isin ? { ...r, latinName: isin } : r;
+  });
+  return [...referenceRows, ...joined, ...feed.filter((r) => !isinByKey.has(rowKey(r)))];
+}
