@@ -4,8 +4,9 @@
  * WHAT THIS PINS
  *   • Gold, coins, silver, cash currencies and oil are market rows with NO
  *     price — never a stale scraped number — each with a Persian name and a
- *     drawn mark of the app's own system (no flags, no photographs).
- *   • Every currency has a drawn sign or code; every mark key resolves.
+ *     mark of the app's own system (coloured metal/oil marks, round flags).
+ *   • Every currency has a flag file and a sign/code fallback; every mark
+ *     key resolves.
  *   • Only the market page lists them — never the transaction picker.
  */
 import assert from "node:assert/strict";
@@ -13,7 +14,8 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { REFERENCE_GROUPS, referenceMarketRows } from "../src/features/pricing/referenceMarketRows";
 import { MARKET_KIND_ORDER, WALLEX_KIND_LABELS } from "../src/features/pricing/wallexKinds";
-import { FIAT_GLYPHS, FIAT_MARKS } from "../src/components/ui/AssetTypeMarks";
+import { existsSync } from "node:fs";
+import { FIAT_FLAGS, FIAT_GLYPHS, FIAT_MARKS } from "../src/components/ui/AssetTypeMarks";
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
@@ -44,6 +46,10 @@ test("every currency row has a drawn sign or code", () => {
     assert.equal(r.logoUrl, `mark:fiat-${r.symbol}`);
     assert.ok(FIAT_GLYPHS[r.symbol], `${r.symbol} has a glyph`);
     assert.equal(typeof FIAT_MARKS[r.symbol], "function");
+    assert.ok(FIAT_FLAGS.has(r.symbol), `${r.symbol} has a round flag`);
+  }
+  for (const code of FIAT_FLAGS) {
+    assert.ok(existsSync(new URL(`../public/icons/flags/${code}.svg`, import.meta.url)), `flag file for ${code}`);
   }
   // A shared sign would make two currencies indistinguishable.
   const glyphs = Object.values(FIAT_GLYPHS);

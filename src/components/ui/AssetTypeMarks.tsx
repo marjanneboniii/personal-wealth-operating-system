@@ -13,6 +13,26 @@ type MarkProps = {
   className?: string;
 };
 
+/**
+ * Metal and energy colours. These marks name a MATERIAL, so they carry its
+ * colour — the way every Iranian price board shows gold as gold and oil as
+ * crude — instead of the neutral ink the document-like marks use.
+ */
+export const MATERIAL_INK = {
+  goldLight: "#F7C948",
+  gold: "#E6A817",
+  goldDeep: "#C28410",
+  silverLight: "#D5DCE4",
+  silver: "#A3AFBD",
+  silverDeep: "#7D8A99",
+  crude: "#3E2A1C",
+  crudeSheen: "#F59E0B",
+  gas: "#2F80ED",
+  gasCore: "#A9CCFF",
+  platinum: "#8A9BB4",
+  copper: "#C4672D",
+} as const;
+
 /* The pair shares one plate so the two marks are visually interchangeable in
    a list: same square, same radius, same inset for the artwork. */
 const PLATE_RADIUS = 12;
@@ -109,15 +129,16 @@ export function RealEstateMark({
    ══════════════════════════════════════════════════════════════════════ */
 
 /** صندوق طلا — stacked bullion. Three bars survive 24px; a coin pile does not. */
-export function GoldFundMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-800)", className = "" }: MarkProps) {
+export function GoldFundMark({ size = 48, plate = "var(--paper-000)", ink = MATERIAL_INK.gold, className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
       {/* Trapezoids, not rectangles: the taper is what says "ingot". */}
-      <path d="M19.4 15.2h9.2c.5 0 .9.3 1.1.8l1.6 4.2H16.7l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={ink} />
+      {/* Lit from above: the top bar lightest, the base row deepest. */}
+      <path d="M19.4 15.2h9.2c.5 0 .9.3 1.1.8l1.6 4.2H16.7l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={MATERIAL_INK.goldLight} />
       <path d="M14.2 23.4h9.2c.5 0 .9.3 1.1.8l1.6 4.2H11.5l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={ink} />
       <path d="M24.6 23.4h9.2c.5 0 .9.3 1.1.8l1.6 4.2H21.9l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={ink} />
-      <path d="M19.4 31.6h9.2c.5 0 .9.3 1.1.8l1.6 4.2H16.7l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={ink} />
+      <path d="M19.4 31.6h9.2c.5 0 .9.3 1.1.8l1.6 4.2H16.7l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={MATERIAL_INK.goldDeep} />
     </svg>
   );
 }
@@ -195,24 +216,24 @@ export function StockMark({ size = 48, plate = "var(--paper-000)", ink = "var(--
    ══════════════════════════════════════════════════════════════════════ */
 
 /** نفت — a single drop. A barrel needs hoops and a lid that die at 24px. */
-export function OilMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-800)", className = "" }: MarkProps) {
+export function OilMark({ size = 48, plate = "var(--paper-000)", ink = MATERIAL_INK.crude, className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
       <path d="M24 11.4c-3.8 4.6-9.6 11.2-9.6 17.4a9.6 9.6 0 0 0 19.2 0c0-6.2-5.8-12.8-9.6-17.4z" fill={ink} />
       {/* The sheen — the one detail that makes a drop read as LIQUID. */}
-      <path d="M19.4 29.2c.1 2.7 2 4.7 4.6 5.1" stroke={plate} strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M19.4 29.2c.1 2.7 2 4.7 4.6 5.1" stroke={MATERIAL_INK.crudeSheen} strokeWidth="2.4" strokeLinecap="round" />
     </svg>
   );
 }
 
 /** گاز طبیعی — a blue flame with its hollow core. */
-export function NaturalGasMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-700)", className = "" }: MarkProps) {
+export function NaturalGasMark({ size = 48, plate = "var(--paper-000)", ink = MATERIAL_INK.gas, className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
       <path d="M24.4 10.8c1 4.6 4.4 7.2 7 10.6 1.9 2.5 2.8 5 2.8 7.6 0 5.6-4.5 9.6-10.2 9.6s-10.2-4-10.2-9.6c0-3.9 2-6.9 4.6-9.2.3 2.6 1.4 4.4 3.2 5.2-.6-5 .8-10 2.8-14.2z" fill={ink} />
-      <path d="M24 26.4c2.4 2.2 3.8 4 3.8 6 0 2.2-1.7 3.8-3.8 3.8s-3.8-1.6-3.8-3.8c0-2 1.4-3.8 3.8-6z" fill={plate} />
+      <path d="M24 26.4c2.4 2.2 3.8 4 3.8 6 0 2.2-1.7 3.8-3.8 3.8s-3.8-1.6-3.8-3.8c0-2 1.4-3.8 3.8-6z" fill={MATERIAL_INK.gasCore} />
     </svg>
   );
 }
@@ -222,20 +243,20 @@ export function NaturalGasMark({ size = 48, plate = "var(--paper-000)", ink = "v
  * siblings, but stacked as a pyramid on a bar so they differ in silhouette and
  * not only in colour (a colour-blind user must still tell them apart).
  */
-export function SilverMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-500)", className = "" }: MarkProps) {
+export function SilverMark({ size = 48, plate = "var(--paper-000)", ink = MATERIAL_INK.silver, className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
-      <path d="M19.4 16.4h9.2c.5 0 .9.3 1.1.8l1.6 4.2H16.7l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={ink} />
+      <path d="M19.4 16.4h9.2c.5 0 .9.3 1.1.8l1.6 4.2H16.7l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={MATERIAL_INK.silverLight} />
       <path d="M14.2 24.6h9.2c.5 0 .9.3 1.1.8l1.6 4.2H11.5l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={ink} />
       <path d="M24.6 24.6h9.2c.5 0 .9.3 1.1.8l1.6 4.2H21.9l1.6-4.2c.2-.5.6-.8 1.1-.8z" fill={ink} />
-      <rect x="11.5" y="32.6" width="25" height="3.4" rx="1.7" fill={ink} opacity="0.4" />
+      <rect x="11.5" y="32.6" width="25" height="3.4" rx="1.7" fill={MATERIAL_INK.silverDeep} />
     </svg>
   );
 }
 
 /** پلاتین — a faceted hexagon: the one metal here sold as a «precious» cut. */
-export function PlatinumMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-700)", className = "" }: MarkProps) {
+export function PlatinumMark({ size = 48, plate = "var(--paper-000)", ink = MATERIAL_INK.platinum, className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -250,7 +271,7 @@ export function PlatinumMark({ size = 48, plate = "var(--paper-000)", ink = "var
  * coil was tried first and read as a MAGNIFYING GLASS — a search icon — which
  * in an app full of search boxes is a genuine misreading.
  */
-export function CopperMark({ size = 48, plate = "var(--paper-000)", ink = "var(--ink-700)", className = "" }: MarkProps) {
+export function CopperMark({ size = 48, plate = "var(--paper-000)", ink = MATERIAL_INK.copper, className = "" }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
@@ -298,10 +319,10 @@ export const FUND_KIND_MARKS = {
 
 /* ══════════════════════════════════════════════════════════════════════
    سکه و ارز — the Iranian market's everyday holdings, listed on «نمای بازار».
-   Drawn in the same system as every mark above — one ink on the white plate,
-   inside the 12px margin — and NOT as coloured flags or coin photographs: a
-   list of 25 flags reads as a travel brochure, and a flag names a country,
-   not the money a user holds.
+   Coins are drawn in gold on the white plate. Currencies show the issuer's
+   round flag, as every Iranian price board (tgju, alanchand, bonbast) does:
+   that is the mark users scan for. The sign/code glyph is kept as the
+   fallback for a currency with no flag file.
    ══════════════════════════════════════════════════════════════════════ */
 
 type CoinPart = "full" | "half" | "quarter" | "gram";
@@ -312,17 +333,17 @@ type CoinPart = "full" | "half" | "quarter" | "gram";
  * disc, ربع‌سکه a quarter. That survives 24px, where the digits «½» and «¼»
  * do not, and it tells the four sizes apart by silhouette alone.
  */
-function CoinGlyph({ part, size = 48, plate = "var(--paper-000)", ink = "var(--ink-800)", className = "" }: MarkProps & { part: CoinPart }) {
+function CoinGlyph({ part, size = 48, plate = "var(--paper-000)", ink = MATERIAL_INK.gold, className = "" }: MarkProps & { part: CoinPart }) {
   const r = part === "gram" ? 8.6 : 12.6;
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
       <Plate fill={plate} />
-      {(part === "half" || part === "quarter") && <circle cx="24" cy="24" r={r} fill={ink} opacity="0.22" />}
+      {(part === "half" || part === "quarter") && <circle cx="24" cy="24" r={r} fill={ink} opacity="0.25" />}
       {(part === "full" || part === "gram") && <circle cx="24" cy="24" r={r} fill={ink} />}
       {part === "half" && <path d="M24 11.4a12.6 12.6 0 0 1 0 25.2z" fill={ink} />}
       {part === "quarter" && <path d="M24 24V11.4a12.6 12.6 0 0 1 12.6 12.6z" fill={ink} />}
       {/* The rim — what makes a disc a COIN and not a dot. */}
-      <circle cx="24" cy="24" r={r - 3.2} stroke={plate} strokeWidth="2" opacity="0.7" />
+      <circle cx="24" cy="24" r={r - 3.2} stroke={MATERIAL_INK.goldLight} strokeWidth="2" />
     </svg>
   );
 }
@@ -374,8 +395,27 @@ export const FIAT_GLYPHS: Record<string, string> = {
   AFN: "AFN",
 };
 
-/** ارز — the currency's sign or code, set in the system's ink on the plate. */
-export function FiatMark({ glyph, size = 48, plate = "var(--paper-000)", ink = "var(--ink-800)", className = "" }: MarkProps & { glyph: string }) {
+/**
+ * Currencies with a round flag under /public/icons/flags (circle-flags, MIT —
+ * see the README there). Stored locally so they render offline in the PWA.
+ */
+export const FIAT_FLAGS: ReadonlySet<string> = new Set([
+  "USD", "EUR", "AED", "GBP", "TRY", "CNY", "CAD", "AUD", "CHF", "JPY", "IQD", "OMR", "KWD",
+  "SAR", "RUB", "INR", "AZN", "AMD", "AFN", "THB", "MYR", "SEK", "HKD", "NOK", "DKK",
+]);
+
+/** ارز — the issuer's round flag on the plate; the sign or code when it has none. */
+export function FiatMark({ code, glyph, size = 48, plate = "var(--paper-000)", ink = "var(--ink-800)", className = "" }: MarkProps & { code: string; glyph: string }) {
+  if (FIAT_FLAGS.has(code)) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
+        <Plate fill={plate} />
+        <image href={`/icons/flags/${code}.svg`} x="8" y="8" width="32" height="32" />
+        {/* A hairline edge, so a mostly-white flag (Japan) still reads as a disc. */}
+        <circle cx="24" cy="24" r="15.75" stroke="#000" strokeOpacity="0.08" strokeWidth="0.5" />
+      </svg>
+    );
+  }
   // One sign fills the glyph box; a three-letter code has to fit the same box.
   const fontSize = glyph.length === 1 ? 26 : glyph.length === 2 ? 18 : 13.5;
   return (
@@ -407,7 +447,7 @@ export function FiatMark({ glyph, size = 48, plate = "var(--paper-000)", ink = "
  */
 export const FIAT_MARKS: Record<string, (props: MarkProps) => React.JSX.Element> = Object.fromEntries(
   Object.entries(FIAT_GLYPHS).map(([code, glyph]) => {
-    const Mark = (props: MarkProps) => <FiatMark glyph={glyph} {...props} />;
+    const Mark = (props: MarkProps) => <FiatMark code={code} glyph={glyph} {...props} />;
     Mark.displayName = `FiatMark(${code})`;
     return [code, Mark];
   }),
