@@ -12,6 +12,7 @@ import {
   type VehicleDraftRow,
 } from "@/components/setup/SetupRealAssetsStep";
 import { addPropertiesAction, addVehiclesAction, type AddRealAssetsResult } from "@/app/actions/addRealAssets";
+import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import { faCount } from "@/lib/format";
 import { Result } from "@/components/registry/vehicle/shared";
 
@@ -26,7 +27,7 @@ export default function RealAssetQuickAdd({
 }: {
   kind: "property" | "vehicle";
   /** Toman bank accounts a purchase made now may be paid from. */
-  bankAccounts?: { id: string; name: string }[];
+  bankAccounts?: PickerAccount[];
 }) {
   const router = useRouter();
   const [propertyRows, setPropertyRows] = useState<PropertyDraftRow[]>([]);
@@ -91,22 +92,14 @@ export default function RealAssetQuickAdd({
         <div className="re-quick-foot">
           {bankAccounts.length > 0 && (
             <div className="min-w-0">
-              <label className="label" htmlFor={`re-quick-pay-${kind}`}>
-                پرداخت از
-              </label>
-              <select
-                id={`re-quick-pay-${kind}`}
-                className="field"
+              <AccountPicker
+                label="پرداخت از"
                 value={paymentAccountId}
-                onChange={(event) => setPaymentAccountId(event.target.value)}
-              >
-                <option value="">بدون پرداخت — تملک قبلی</option>
-                {bankAccounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
+                options={bankAccounts}
+                onChange={setPaymentAccountId}
+                noneLabel="بدون پرداخت — تملک قبلی"
+                sheetTitle="حساب بانکی تومانی"
+              />
             </div>
           )}
           <button type="button" className="btn btn-primary" disabled={pending || readyCount === 0} onClick={submit}>

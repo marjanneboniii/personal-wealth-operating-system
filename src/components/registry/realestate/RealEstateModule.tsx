@@ -5,6 +5,7 @@ import type { RealEstateDashboardItem, RealEstatePortfolioSummary } from "@/feat
 import type { MarketSegmentSummary, PropertyMarketView } from "@/features/rwa/realEstate/market/service";
 import type { City, Neighborhood, PropertyType } from "@/features/rwa/realEstate/types";
 import { RealEstateLogo } from "@/components/ui/IranLogo";
+import type { PickerAccount } from "@/components/ui/AccountPicker";
 import RealAssetQuickAdd from "@/components/registry/RealAssetQuickAdd";
 import type { MarketReminder } from "@/features/rwa/realEstate/market/reminders";
 import MarketPriceTracker from "./MarketPriceTracker";
@@ -68,7 +69,7 @@ export default function RealEstateModule({
   marketReminders,
   canManageMasterData = false,
 }: {
-  bankAccounts?: { id: string; name: string }[];
+  bankAccounts?: PickerAccount[];
   dashboard?: RealEstateDashboardItem[] | null;
   summary?: RealEstatePortfolioSummary | null;
   cities?: City[] | null;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
+import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import {
   previewRealEstateIdentityAction,
   previewRealEstateUsdAction,
@@ -46,11 +47,12 @@ export default function RealEstateForm({
   neighborhoods: Neighborhood[];
   propertyTypes: PropertyType[];
   /** Toman bank accounts a property bought now may be paid from. */
-  bankAccounts?: { id: string; name: string }[];
+  bankAccounts?: PickerAccount[];
 }) {
   const [state, action, pending] = useActionState(saveRealEstateAction, null);
 
   const activeCities = cities.filter((c) => c.isActive);
+  const [paymentAccountId, setPaymentAccountId] = useState("");
   const [cityId, setCityId] = useState(activeCities[0]?.id ?? "");
   const [neighborhoodId, setNeighborhoodId] = useState("");
   const [propertyTypeId, setPropertyTypeId] = useState("");
@@ -266,14 +268,14 @@ export default function RealEstateForm({
           label="پرداخت از حساب بانکی"
           hint="اگر ملک را همین حالا می‌خرید، حساب بانکی را انتخاب کنید تا قیمت خرید از آن کسر شود. برای ملکی که از قبل دارید خالی بگذارید."
         >
-          <select className="field" name="paymentAccountId" defaultValue="">
-            <option value="">بدون کسر از حساب (ملک فعلی)</option>
-            {bankAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+          <AccountPicker
+            name="paymentAccountId"
+            value={paymentAccountId}
+            options={bankAccounts}
+            onChange={setPaymentAccountId}
+            noneLabel="بدون کسر از حساب (ملک فعلی)"
+            sheetTitle="حساب بانکی تومانی"
+          />
         </Labeled>
       </div>
       </section>

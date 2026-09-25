@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, assets } from "@/db/schema";
+import { accounts, assets, wallets } from "@/db/schema";
+import { getAccountBalances } from "@/features/ledger/queries";
 import { seedIfEmpty } from "@/db/seed";
 import {
   listDebts,
@@ -47,22 +48,36 @@ function daysUntil(iso: string) {
  * panels into the header's «+ برنامه جدید» sheet.
  */
 export default async function PlanningPage() {
-  await ensureAuth();
+  const user = await ensureAuth();
+  const userId = (user as { id?: string } | null)?.id;
   await seedIfEmpty();
-  const [planned, insts, debts, events, projection, accountRows, fx] = await Promise.all([
+  const [planned, insts, debts, events, projection, accountRows, fx, balanceRows] = await Promise.all([
     listPlanned(),
     upcomingInstallments(6),
     listDebts(),
     listEvents(),
     projectCashflow(12),
     db
-      .select({ id: accounts.id, code: accounts.code, name: accounts.name })
+      .select({
+        id: accounts.id,
+        code: accounts.code,
+        name: accounts.name,
+        symbol: assets.symbol,
+        decimals: assets.decimals,
+        logoUrl: assets.logoUrl,
+        walletName: wallets.name,
+        walletKind: wallets.kind,
+      })
       .from(accounts)
       .leftJoin(assets, eq(assets.id, accounts.assetId))
-      .where(sql`${accounts.deletedAt} is null and ${accounts.assetId} is not null`)
+      .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+      // Only this user's accounts — never another tenant's.
+      .where(sql`${accounts.deletedAt} is null and ${accounts.assetId} is not null${userId ? sql` and ${accounts.userId} = ${userId}` : sql``}`)
       .orderBy(asc(accounts.code)),
     getLatestUsdIrtRate(),
+    getAccountBalances(userId).catch(() => []),
   ]);
+  const balances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
 
   const pending = planned.filter((p) => p.status === "pending");
   const deficit = projection.points.find((p) => p.deficit);
@@ -121,6 +136,7 @@ export default async function PlanningPage() {
 
   const addProps = {
     accounts: accountRows,
+    balances,
     today: todayIso(),
     rate: fx.rate,
     rateDate: fx.effectiveDate,

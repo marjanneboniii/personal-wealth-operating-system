@@ -11,6 +11,7 @@
  *   صندوق و نقد            cash boxes, funds, policy savings
  *   صرافی و کارگزاری       Toman held at an exchange or broker
  *   ارزی                   USD, EUR, AED…
+ *   رمزارز                 BTC, ETH… (offered by transfers only)
  *
  * A search box appears once the list is long. PRESENTATION ONLY: the chosen
  * id goes to `onChange` (and to a hidden input when `name` is set); which
@@ -29,7 +30,7 @@ export type PickerAccount = {
   id: string;
   name: string;
   symbol?: string | null;
-  decimals?: number;
+  decimals?: number | null;
   logoUrl?: string | null;
   coingeckoId?: string | null;
   className?: string | null;
@@ -37,9 +38,11 @@ export type PickerAccount = {
   walletName?: string | null;
   /** `wallets.kind` — bank | cash | exchange | broker | hot | cold | fund | insurance. */
   walletKind?: string | null;
+  /** Posted quantity in the account's own unit, when the caller has it on the row. */
+  balance?: string | null;
 };
 
-type GroupKey = "bank" | "stable" | "cash" | "venue" | "fx" | "other";
+type GroupKey = "bank" | "stable" | "cash" | "venue" | "fx" | "crypto" | "other";
 
 const GROUPS: { key: GroupKey; title: string; icon: IconName }[] = [
   { key: "bank", title: "حساب‌های بانکی", icon: "card" },
@@ -47,6 +50,7 @@ const GROUPS: { key: GroupKey; title: string; icon: IconName }[] = [
   { key: "cash", title: "صندوق و نقد", icon: "wallet" },
   { key: "venue", title: "صرافی و کارگزاری", icon: "swap" },
   { key: "fx", title: "ارزی", icon: "globe" },
+  { key: "crypto", title: "رمزارز و سایر دارایی‌ها", icon: "crypto" },
   { key: "other", title: "سایر حساب‌ها", icon: "layers" },
 ];
 
@@ -67,7 +71,7 @@ function groupOf(a: PickerAccount): GroupKey {
     return kind ? "other" : "bank";
   }
   if (kind === "cash" || kind === "fund") return "cash";
-  return LIQUID_SYMBOLS.has(unit) ? "fx" : "other";
+  return LIQUID_SYMBOLS.has(unit) ? "fx" : "crypto";
 }
 
 /** The place, then the unit — whatever the name does not already say. */
@@ -186,7 +190,9 @@ export default function AccountPicker({
 
   const shownGroups = new Set(options.map(groupOf)).size;
   const selectedSub = selected ? subtitleOf(selected) : "";
-  const selectedBal = selected && balances ? balanceText(selected, balances[selected.id]) : null;
+  const balanceOf = (a: PickerAccount) => balances?.[a.id] ?? a.balance ?? undefined;
+  const showBalances = !!balances || options.some((o) => o.balance != null);
+  const selectedBal = selected && showBalances ? balanceText(selected, balanceOf(selected)) : null;
 
   return (
     <div>
@@ -272,7 +278,7 @@ export default function AccountPicker({
                 {g.items.map((a) => {
                   const on = a.id === value;
                   const sub = subtitleOf(a);
-                  const bal = balances ? balanceText(a, balances[a.id]) : null;
+                  const bal = showBalances ? balanceText(a, balanceOf(a)) : null;
                   return (
                     <li key={a.id}>
                       <button type="button" role="radio" aria-checked={on} className="acct-pick-row" data-on={on || undefined} onClick={() => pick(a.id)}>
@@ -281,7 +287,7 @@ export default function AccountPicker({
                           <span className="acct-pick-name">{a.name}</span>
                           {sub && <span className="acct-pick-sub">{sub}</span>}
                         </span>
-                        {balances && (
+                        {showBalances && (
                           <span className="acct-pick-bal money-nowrap" dir="rtl">
                             {bal ?? <span className="muted">بدون موجودی</span>}
                           </span>

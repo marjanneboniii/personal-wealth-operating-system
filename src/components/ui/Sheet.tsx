@@ -41,6 +41,9 @@ export default function Sheet({
       'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
     const onKey = (e: KeyboardEvent) => {
+      // A sheet opened from inside this one (e.g. «انتخاب حساب» in a form
+      // sheet) owns the keyboard: Escape closes only it, Tab stays in it.
+      if (ref.current?.querySelector(".sheet-overlay")) return;
       if (e.key === "Escape") {
         onCloseRef.current();
         return;

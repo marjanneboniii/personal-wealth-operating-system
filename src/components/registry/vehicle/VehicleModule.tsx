@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { VehicleDashboardItem, VehiclePortfolioSummary } from "@/features/rwa/vehicle/dto";
 import type { VehicleBrand, VehicleCatalogModel } from "@/features/rwa/vehicle/types";
 import { AutomobileLogo } from "@/components/ui/IranLogo";
+import type { PickerAccount } from "@/components/ui/AccountPicker";
 import RealAssetQuickAdd from "@/components/registry/RealAssetQuickAdd";
 import CatalogAdmin from "./CatalogAdmin";
 import VehicleCard from "./VehicleCard";
@@ -32,7 +33,7 @@ export default function VehicleModule({
   bankAccounts = [],
 }: {
   /** Toman bank accounts a car bought now may be paid from. */
-  bankAccounts?: { id: string; name: string }[];
+  bankAccounts?: PickerAccount[];
   brands: VehicleBrand[];
   models: VehicleCatalogModel[];
   dashboard: VehicleDashboardItem[];
