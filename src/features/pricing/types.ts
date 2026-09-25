@@ -7,7 +7,11 @@ export type PriceFailureCode =
   | "timeout"
   | "network_failure"
   | "invalid_response"
-  | "asset_not_found";
+  | "asset_not_found"
+  /** The source's daily/5-minute allowance is used up — stop asking until it resets. */
+  | "quota_exhausted"
+  /** The source refused the request itself (bad key, bad parameter). Retrying cannot help and can get a key banned. */
+  | "rejected_request";
 
 export type CoinGeckoPricePoint = {
   coingeckoId: string;

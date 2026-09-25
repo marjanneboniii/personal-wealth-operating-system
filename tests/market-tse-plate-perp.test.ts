@@ -26,6 +26,9 @@ const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "u
 test("every Tehran fund and stock is a priceless market row with its drawn mark", () => {
   const rows = tseMarketRows();
   assert.equal(rows.length, FUND_CATALOG.length + STOCK_CATALOG.length);
+  // Commodity certificates are not in the Tehran feed this app receives, so
+  // they are not listed (no symbol without a price).
+  assert.equal(WALLEX_KIND_LABELS.ir_certificate, undefined);
 
   const funds = rows.filter((r) => r.kind === "ir_fund");
   const stocks = rows.filter((r) => r.kind === "ir_stock");

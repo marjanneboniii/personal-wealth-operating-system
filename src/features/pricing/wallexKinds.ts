@@ -16,19 +16,34 @@ export const WALLEX_KIND_LABELS: Record<string, string> = {
   gold: "فلز توکنیزه",
   ir_fund: "صندوق بورسی",
   ir_stock: "سهام بورسی",
+  // A right to subscribe to new shares — its price is not the share's.
+  ir_right: "حق‌تقدم",
+  // Listed without a price — see pricing/referenceMarketRows.
+  gold_bullion: "طلا",
+  gold_coin: "سکه",
+  silver_bullion: "نقره",
+  fiat: "ارز",
+  energy: "انرژی",
 };
 
 /** Section order on «نمای بازار» and in every picker's tabs. */
 export const MARKET_KIND_ORDER = [
+  // What an Iranian household holds first: gold, coins, silver, cash.
+  "gold_bullion",
+  "gold_coin",
+  "silver_bullion",
+  "fiat",
   "crypto",
   "stablecoin",
   "tokenized_stock",
   "index",
   "commodity",
+  "energy",
   "bond",
   "gold",
   "ir_fund",
   "ir_stock",
+  "ir_right",
 ] as const;
 
 /**

@@ -295,3 +295,120 @@ export const FUND_KIND_MARKS = {
   etf: EquityFundMark,
   commodity: CommodityFundMark,
 } as const;
+
+/* ══════════════════════════════════════════════════════════════════════
+   سکه و ارز — the Iranian market's everyday holdings, listed on «نمای بازار».
+   Drawn in the same system as every mark above — one ink on the white plate,
+   inside the 12px margin — and NOT as coloured flags or coin photographs: a
+   list of 25 flags reads as a travel brochure, and a flag names a country,
+   not the money a user holds.
+   ══════════════════════════════════════════════════════════════════════ */
+
+type CoinPart = "full" | "half" | "quarter" | "gram";
+
+/**
+ * سکه — a disc with its milled rim. The fraction a coin IS is drawn as the
+ * share of the disc that is filled, over a faint whole: نیم‌سکه is half a
+ * disc, ربع‌سکه a quarter. That survives 24px, where the digits «½» and «¼»
+ * do not, and it tells the four sizes apart by silhouette alone.
+ */
+function CoinGlyph({ part, size = 48, plate = "var(--paper-000)", ink = "var(--ink-800)", className = "" }: MarkProps & { part: CoinPart }) {
+  const r = part === "gram" ? 8.6 : 12.6;
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
+      <Plate fill={plate} />
+      {(part === "half" || part === "quarter") && <circle cx="24" cy="24" r={r} fill={ink} opacity="0.22" />}
+      {(part === "full" || part === "gram") && <circle cx="24" cy="24" r={r} fill={ink} />}
+      {part === "half" && <path d="M24 11.4a12.6 12.6 0 0 1 0 25.2z" fill={ink} />}
+      {part === "quarter" && <path d="M24 24V11.4a12.6 12.6 0 0 1 12.6 12.6z" fill={ink} />}
+      {/* The rim — what makes a disc a COIN and not a dot. */}
+      <circle cx="24" cy="24" r={r - 3.2} stroke={plate} strokeWidth="2" opacity="0.7" />
+    </svg>
+  );
+}
+
+export function CoinMark(props: MarkProps) {
+  return <CoinGlyph part="full" {...props} />;
+}
+export function HalfCoinMark(props: MarkProps) {
+  return <CoinGlyph part="half" {...props} />;
+}
+export function QuarterCoinMark(props: MarkProps) {
+  return <CoinGlyph part="quarter" {...props} />;
+}
+export function GramCoinMark(props: MarkProps) {
+  return <CoinGlyph part="gram" {...props} />;
+}
+
+/**
+ * The glyph each foreign currency is drawn with: its SIGN where one sign names
+ * exactly one currency and people read it (€ £ ₺ ₽ ₹), and its ISO code where
+ * a sign is shared or unknown — «kr» is Swedish, Norwegian AND Danish, «$» is
+ * five different dollars, and the Gulf currencies have no sign in any font.
+ */
+export const FIAT_GLYPHS: Record<string, string> = {
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  TRY: "₺",
+  RUB: "₽",
+  INR: "₹",
+  JPY: "¥",
+  CNY: "CN¥",
+  THB: "฿",
+  AZN: "₼",
+  AMD: "֏",
+  CAD: "C$",
+  AUD: "A$",
+  HKD: "HK$",
+  MYR: "RM",
+  CHF: "CHF",
+  SEK: "SEK",
+  NOK: "NOK",
+  DKK: "DKK",
+  AED: "AED",
+  SAR: "SAR",
+  OMR: "OMR",
+  KWD: "KWD",
+  IQD: "IQD",
+  AFN: "AFN",
+};
+
+/** ارز — the currency's sign or code, set in the system's ink on the plate. */
+export function FiatMark({ glyph, size = 48, plate = "var(--paper-000)", ink = "var(--ink-800)", className = "" }: MarkProps & { glyph: string }) {
+  // One sign fills the glyph box; a three-letter code has to fit the same box.
+  const fontSize = glyph.length === 1 ? 26 : glyph.length === 2 ? 18 : 13.5;
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true" focusable="false">
+      <Plate fill={plate} />
+      {/* LTR explicitly: inside an RTL page the bidi algorithm would print
+          «C$» as «$C». System fonts first — Vazirmatn has no ₼, ֏ or ฿. */}
+      <text
+        x="24"
+        y="25"
+        direction="ltr"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontFamily='ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
+        fontWeight="700"
+        fontSize={fontSize}
+        letterSpacing={glyph.length > 2 ? "-0.3" : undefined}
+        fill={ink}
+      >
+        {glyph}
+      </text>
+    </svg>
+  );
+}
+
+/**
+ * ISO code → a ready mark component. Built ONCE here, so a renderer never
+ * creates a component inside render (which would remount it every time).
+ */
+export const FIAT_MARKS: Record<string, (props: MarkProps) => React.JSX.Element> = Object.fromEntries(
+  Object.entries(FIAT_GLYPHS).map(([code, glyph]) => {
+    const Mark = (props: MarkProps) => <FiatMark glyph={glyph} {...props} />;
+    Mark.displayName = `FiatMark(${code})`;
+    return [code, Mark];
+  }),
+);
