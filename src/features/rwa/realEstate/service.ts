@@ -142,7 +142,7 @@ async function ensureRealEstateLedgerAccounts(tx: any = db): Promise<{ assetAcco
     if (!equityAccount) equityAccount = await getByCode("3015");
   }
 
-  if (!assetAccount || !equityAccount) throw new Error("حساب‌های دفترکل املاک ایجاد نشدند.");
+  if (!assetAccount || !equityAccount) throw new Error("ثبت ملک در حساب‌ها ناموفق بود.");
   return { assetAccountId: assetAccount.id, openingEquityAccountId: equityAccount.id };
 }
 
@@ -1081,7 +1081,7 @@ export async function sellRealEstateAsset(input: {
 
   const carrying = D(prop.p.purchaseValueUsd ?? "0");
   if (carrying.lte(0)) {
-    throw new Error("این ملک سند افتتاحیه حسابداری ندارد و فروش از مسیر دفترکل ممکن نیست.");
+    throw new Error("این ملک در سوابق مالی ثبت اولیه ندارد و فروش آن ممکن نیست.");
   }
   const purchaseToman = D(prop.p.purchasePriceToman ?? "0");
 

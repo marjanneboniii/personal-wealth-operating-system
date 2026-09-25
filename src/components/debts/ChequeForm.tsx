@@ -3,10 +3,11 @@
 import { useActionState, useState } from "react";
 import { createChequeAction } from "@/app/actions/cheques";
 import type { ActionResult } from "@/app/actions";
+import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 
-export type ChequeAccountOption = { id: string; name: string };
+export type ChequeAccountOption = PickerAccount;
 export type ChequeInstallmentOption = { id: string; label: string; amountToman: string | null; dueDate: string };
 
 /**
@@ -15,10 +16,13 @@ export type ChequeInstallmentOption = { id: string; label: string; amountToman: 
  */
 export default function ChequeForm({
   accounts,
+  balances,
   installments,
   today,
 }: {
   accounts: ChequeAccountOption[];
+  /** Posted balance per account id, in the account's own unit. */
+  balances?: Record<string, string>;
   installments: ChequeInstallmentOption[];
   today: string;
 }) {
@@ -96,19 +100,15 @@ export default function ChequeForm({
 
       <DualDateInput name="dueDate" value={dueDate} onChange={setDueDate} label="تاریخ سررسید" required showGregorian={false} />
 
-      <div>
-        <label className="label" htmlFor="cheque-account">
-          {issued ? "از حساب" : "واریز به حساب (اختیاری)"}
-        </label>
-        <select id="cheque-account" name="accountId" className="field" value={accountId} onChange={(e) => setAccountId(e.target.value)} required={issued}>
-          <option value="">{issued ? "انتخاب حساب" : "هنوز مشخص نیست"}</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <AccountPicker
+        label={issued ? "از حساب" : "واریز به حساب (اختیاری)"}
+        name="accountId"
+        value={accountId}
+        options={accounts}
+        balances={balances}
+        onChange={setAccountId}
+        noneLabel={issued ? undefined : "هنوز مشخص نیست"}
+      />
 
       {issued && installments.length > 0 && (
         <div>
@@ -170,7 +170,7 @@ export default function ChequeForm({
         {pending ? "در حال ثبت…" : "ثبت چک"}
       </button>
       <p className="muted text-center text-[length:var(--fs-xs)]">
-        چک تا وقتی پاس نشده فقط در برنامه و پیش‌بینی اثر دارد و هیچ سندی در دفترکل نمی‌سازد.
+        چک تا وقتی پاس نشده فقط در برنامه و پیش‌بینی اثر دارد و از موجودی حساب‌ها چیزی کم یا زیاد نمی‌کند.
       </p>
     </form>
   );

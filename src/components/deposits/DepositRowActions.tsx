@@ -39,7 +39,7 @@ export default function DepositRowActions({ id, active, nextPlanId }: { id: stri
         className={`${SMALL} btn-ghost`}
         style={{ color: "var(--negative)" }}
         disabled={pending}
-        onClick={() => run(() => deleteDepositAction(id), "این سپرده حذف شود؟ سودهای ثبت‌شده در دفترکل می‌مانند.")}
+        onClick={() => run(() => deleteDepositAction(id), "این سپرده حذف شود؟ سودهای ثبت‌شده سر جایشان می‌مانند.")}
       >
         حذف
       </button>

@@ -38,7 +38,7 @@ export default class ErrorBoundary extends Component<
         <p className="text-[length:var(--fs-sm)] font-semibold">{this.props.title ?? "نمایش این بخش ممکن نیست"}</p>
         <p className="muted mt-1 text-[length:var(--fs-xs)] leading-6" style={{ color: "var(--text-2)" }}>
           {this.props.description ??
-            "داده‌های مالی شما در دفترکل امن‌اند و این خطا هیچ تغییری در آن‌ها ایجاد نکرده است. بخش‌های دیگر صفحه همچنان کار می‌کنند."}
+            "داده‌های مالی شما امن‌اند و این خطا هیچ تغییری در آن‌ها ایجاد نکرده است. بخش‌های دیگر صفحه همچنان کار می‌کنند."}
         </p>
         <button type="button" className="btn mt-3" onClick={() => this.setState({ failed: false })}>
           تلاش دوباره

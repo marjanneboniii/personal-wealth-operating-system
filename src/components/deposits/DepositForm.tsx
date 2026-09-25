@@ -3,15 +3,25 @@
 import { useActionState, useState } from "react";
 import { createDepositAction } from "@/app/actions/deposits";
 import type { ActionResult } from "@/app/actions";
+import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 import { formatMoney } from "@/lib/format";
 import { normalizeNumericInput } from "@/lib/numericInput";
 
-export type DepositAccountOption = { id: string; name: string; toman: boolean };
+export type DepositAccountOption = PickerAccount & { toman: boolean };
 
 /** «ثبت سپرده» — nothing here posts; the interest becomes a monthly reminder. */
-export default function DepositForm({ accounts, today }: { accounts: DepositAccountOption[]; today: string }) {
+export default function DepositForm({
+  accounts,
+  balances,
+  today,
+}: {
+  accounts: DepositAccountOption[];
+  /** Posted balance per account id, in the account's own unit. */
+  balances?: Record<string, string>;
+  today: string;
+}) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(createDepositAction, null);
   const [kind, setKind] = useState<"bank" | "fund">("bank");
   const [title, setTitle] = useState("");
@@ -111,32 +121,22 @@ export default function DepositForm({ accounts, today }: { accounts: DepositAcco
       <DualDateInput name="startDate" value={startDate} onChange={setStartDate} label="تاریخ شروع (روز واریز سود هر ماه)" required showGregorian={false} />
       <DualDateInput name="maturityDate" value={maturityDate} onChange={setMaturityDate} label="تاریخ سررسید (اختیاری)" showGregorian={false} />
 
-      <div>
-        <label className="label" htmlFor="deposit-account">
-          اصل پول در کدام حساب است؟
-        </label>
-        <select id="deposit-account" name="accountId" className="field" value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
-          <option value="">انتخاب حساب</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="label" htmlFor="deposit-payout">
-          سود به کدام حساب واریز می‌شود؟
-        </label>
-        <select id="deposit-payout" className="field" value={effectivePayout} onChange={(e) => setPayoutId(e.target.value)} required>
-          <option value="">انتخاب حساب تومانی</option>
-          {payoutOptions.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <AccountPicker
+        label="اصل پول در کدام حساب است؟"
+        name="accountId"
+        value={accountId}
+        options={accounts}
+        balances={balances}
+        onChange={setAccountId}
+      />
+      <AccountPicker
+        label="سود به کدام حساب واریز می‌شود؟"
+        placeholder="انتخاب حساب تومانی"
+        value={effectivePayout}
+        options={payoutOptions}
+        balances={balances}
+        onChange={setPayoutId}
+      />
       <div>
         <label className="label" htmlFor="deposit-note">
           یادداشت (اختیاری)

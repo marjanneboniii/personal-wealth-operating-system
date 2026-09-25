@@ -139,7 +139,7 @@ export async function saveRealEstateAction(_previous: RealEstateResult | null, f
     refresh();
     return {
       ok: true,
-      message: `«${result.label}» ${optional(form, "paymentAccountId") ? "خریداری شد و مبلغ خرید از حساب بانکی کسر شد" : "ثبت شد"}. معادل‌های دلاری با نرخ تاریخی همان روزها محاسبه و سند افتتاحیه دفترکل با تاریخ تملک واقعی ایجاد شد.`,
+      message: `«${result.label}» ${optional(form, "paymentAccountId") ? "خریداری شد و مبلغ خرید از حساب بانکی کسر شد" : "ثبت شد"}. معادل دلاری با نرخ همان روزها محاسبه و ملک با تاریخ واقعی خرید در دارایی‌ها ثبت شد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت ملک ناموفق بود." };
@@ -216,7 +216,7 @@ export async function sellRealEstateAction(input: {
     refresh();
     return {
       ok: true,
-      message: `${result.label} فروخته شد؛ سود/زیان تحقق‌یافته ${formatMoney(result.realizedToman, "IRT")} (≈ ${formatMoney(result.realizedUsd, "USD")}) در دفترکل ثبت شد.`,
+      message: `${result.label} فروخته شد؛ سود/زیان تحقق‌یافته ${formatMoney(result.realizedToman, "IRT")} (≈ ${formatMoney(result.realizedUsd, "USD")}) در سوابق مالی ثبت شد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "فروش ملک ناموفق بود." };
@@ -289,7 +289,7 @@ export async function recordRealEstateValuationAction(_previous: RealEstateResul
     refresh();
     return {
       ok: true,
-      message: `ارزش‌گذاری جدید ثبت شد: ${formatMoney(result.currentValueToman, "IRT")} با نرخ دلار ${formatMoney(result.valuationFxRate, "IRT")} (≈ ${formatMoney(result.currentValueUsd, "USD")}). سند دفترکل تغییری نکرد.`,
+      message: `ارزش‌گذاری جدید ثبت شد: ${formatMoney(result.currentValueToman, "IRT")} با نرخ دلار ${formatMoney(result.valuationFxRate, "IRT")} (≈ ${formatMoney(result.currentValueUsd, "USD")}). موجودی حساب‌ها تغییری نکرد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "ثبت ارزش‌گذاری ناموفق بود." };

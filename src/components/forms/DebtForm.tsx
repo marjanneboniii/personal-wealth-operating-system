@@ -344,7 +344,7 @@ export default function DebtForm({
             )}
 
             <p className="muted text-[length:var(--fs-xs)] leading-5">
-              {receivable ? "تا وصول هر قسط، دفترکل تغییری نمی‌کند." : "تا پرداخت هر قسط، دفترکل تغییری نمی‌کند."}
+              {receivable ? "تا وصول هر قسط، موجودی حساب‌ها تغییری نمی‌کند." : "تا پرداخت هر قسط، موجودی حساب‌ها تغییری نمی‌کند."}
             </p>
           </div>
           <div className="flex gap-2">

@@ -624,7 +624,7 @@ export function EventCardForm({
       </section>
 
       <Feedback state={state} />
-      <Submit pending={pending} disabled={!ready} label="ثبت رویداد" note="رویداد فقط برنامه است و هیچ سندی در دفترکل ایجاد نمی‌کند." />
+      <Submit pending={pending} disabled={!ready} label="ثبت رویداد" note="رویداد فقط برنامه است و در موجودی حساب‌ها اثری ندارد." />
     </form>
   );
 }
@@ -725,7 +725,7 @@ export function PlannedCardForm({
       </section>
 
       <Feedback state={state} />
-      <Submit pending={pending} disabled={!ready} label="ثبت برنامه" note="تا زدن «اجرا» هیچ سندی در دفترکل ایجاد نمی‌شود." />
+      <Submit pending={pending} disabled={!ready} label="ثبت برنامه" note="تا زدن «اجرا» چیزی در حساب‌ها ثبت نمی‌شود." />
     </form>
   );
 }

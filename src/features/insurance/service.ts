@@ -178,15 +178,20 @@ async function tomanBankAccount(tx: any, userId: string, accountId: string | nul
 }
 
 /** Toman bank accounts the premium can leave from — what the forms offer. */
-export async function listPremiumAccounts(userId: string, client: any = db): Promise<{ id: string; name: string }[]> {
+export async function listPremiumAccounts(
+  userId: string,
+  client: any = db,
+): Promise<{ id: string; name: string; symbol: string; walletName: string | null; walletKind: string | null }[]> {
   const rows = await client
-    .select({ id: accounts.id, name: accounts.name, code: accounts.code, symbol: assets.symbol, walletKind: wallets.kind })
+    .select({ id: accounts.id, name: accounts.name, code: accounts.code, symbol: assets.symbol, walletKind: wallets.kind, walletName: wallets.name })
     .from(accounts)
     .innerJoin(assets, eq(assets.id, accounts.assetId))
     .leftJoin(wallets, eq(wallets.id, accounts.walletId))
     .where(and(eq(accounts.userId, userId), eq(accounts.type, "asset"), isNull(accounts.deletedAt), eq(assets.symbol, "IRT")))
     .orderBy(asc(accounts.code));
-  return rows.filter((r: any) => isTomanBankAccount(r)).map((r: any) => ({ id: r.id, name: r.name }));
+  return rows
+    .filter((r: any) => isTomanBankAccount(r))
+    .map((r: any) => ({ id: r.id, name: r.name, symbol: r.symbol, walletName: r.walletName ?? null, walletKind: r.walletKind ?? null }));
 }
 
 export type LinkableDebt = {

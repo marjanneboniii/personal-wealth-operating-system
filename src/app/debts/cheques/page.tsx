@@ -2,7 +2,8 @@ import Link from "next/link";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
-import { accounts, assets } from "@/db/schema";
+import { accounts, assets, wallets } from "@/db/schema";
+import { getAccountBalances } from "@/features/ledger/queries";
 import { CHEQUE_STATUS_LABEL, listCheques, type ChequeRow } from "@/features/cheques/service";
 import { upcomingInstallments } from "@/features/planning/service";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
@@ -106,17 +107,20 @@ export default async function ChequesPage() {
     );
   }
 
-  const [rows, moneyAccounts, insts] = await Promise.all([
+  const [rows, moneyAccounts, insts, balanceRows] = await Promise.all([
     listCheques(userId),
     // Cheques are Toman: the user's own Toman / Rial accounts.
     db
-      .select({ id: accounts.id, name: accounts.name })
+      .select({ id: accounts.id, name: accounts.name, symbol: assets.symbol, walletName: wallets.name, walletKind: wallets.kind })
       .from(accounts)
       .innerJoin(assets, eq(assets.id, accounts.assetId))
+      .leftJoin(wallets, eq(wallets.id, accounts.walletId))
       .where(and(eq(accounts.userId, userId), eq(accounts.type, "asset"), isNull(accounts.deletedAt), inArray(assets.symbol, ["IRT", "IRR"])))
       .orderBy(asc(accounts.code)),
     upcomingInstallments(60, userId),
+    getAccountBalances(userId).catch(() => []),
   ]);
+  const balances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
 
   const linked = new Set(rows.filter((r) => r.status === "pending" && r.installmentId).map((r) => r.installmentId));
   const installmentOptions = insts
@@ -164,7 +168,7 @@ export default async function ChequesPage() {
       </section>
 
       <DisclosurePanel anchor="new" label="ثبت چک" defaultOpen={rows.length === 0}>
-        <ChequeForm accounts={moneyAccounts} installments={installmentOptions} today={today} />
+        <ChequeForm accounts={moneyAccounts} balances={balances} installments={installmentOptions} today={today} />
       </DisclosurePanel>
 
       <Section title="در جریان و برگشتی" hint={open.length ? `${faCount(open.length)} چک` : undefined}>
@@ -185,7 +189,7 @@ export default async function ChequesPage() {
 
       <p className="expense-sub flex items-center gap-1.5">
         <Icon name="info" size={13} />
-        چک در جریان فقط برنامه است. «ثبت پاس شدن» فرم ثبت تراکنش را با مبلغ و حساب چک باز می‌کند و تنها همان سند وارد دفترکل می‌شود.
+        چک در جریان فقط برنامه است. «ثبت پاس شدن» فرم ثبت تراکنش را با مبلغ و حساب چک باز می‌کند و فقط همان وقت در موجودی حساب اثر می‌گذارد.
       </p>
     </div>
   );

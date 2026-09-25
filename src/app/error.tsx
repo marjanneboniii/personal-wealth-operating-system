@@ -30,7 +30,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       <p className="sub mt-2 max-w-md text-[length:var(--fs-sm)] leading-6">
         {isDb
           ? "اتصال به پایگاه داده قطع است. داده‌های شما امن‌اند — هیچ چیزی حذف نشده. شاید سرور پایگاه داده خواب است؛ چند ثانیه دیگر دوباره تلاش کنید."
-          : "یک خطای غیرمنتظره رخ داد. داده‌های مالی شما در دفترکل امن‌اند و این خطا هیچ تغییری در آن‌ها ایجاد نکرده است."}
+          : "یک خطای غیرمنتظره رخ داد. داده‌های مالی شما امن‌اند و این خطا هیچ تغییری در آن‌ها ایجاد نکرده است."}
       </p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
         <button onClick={reset} className="btn btn-primary">

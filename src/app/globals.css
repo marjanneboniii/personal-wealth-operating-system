@@ -5917,33 +5917,302 @@ a.expense-square { text-decoration: none; color: var(--text-2); }
 }
 .policy-step {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.85rem;
   min-width: 0;
   margin: 0;
-  padding: 0;
-  border: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
 }
 .policy-step-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 0.1rem;
   padding: 0;
   font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--text);
 }
-.expense-seg.policy-mode,
+/* Inside a <fieldset> the legend sits on the border; pull it into the card. */
+fieldset.policy-step > .policy-step-title {
+  float: inline-start;
+  width: 100%;
+}
+fieldset.policy-step > .policy-step-title + * {
+  clear: both;
+}
+.policy-step-num {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--action-soft);
+  color: var(--action);
+  font-size: var(--fs-xs);
+}
+
+/* Kind of policy — icon tiles, four to a row. */
+.policy-kinds {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.policy-kind {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 4.75rem;
+  padding: 0.6rem 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-2);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--motion-micro) var(--ease), background var(--motion-micro) var(--ease), color var(--motion-micro) var(--ease);
+}
+.policy-kind:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.policy-kind[data-on] {
+  border-color: var(--action);
+  background: var(--action-soft);
+  box-shadow: inset 0 0 0 1px var(--action);
+  color: var(--text);
+}
+.policy-kind-icon {
+  display: inline-flex;
+  width: 2.1rem;
+  height: 2.1rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+.policy-kind-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+/* How it was paid — three cards with a one-line hint. */
+.policy-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.policy-mode-card {
+  display: grid;
+  justify-items: start;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-3);
+  text-align: start;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--motion-micro) var(--ease), background var(--motion-micro) var(--ease);
+}
+.policy-mode-card:hover {
+  border-color: var(--border-strong);
+}
+.policy-mode-card[data-on] {
+  border-color: var(--action);
+  background: var(--action-soft);
+  box-shadow: inset 0 0 0 1px var(--action);
+  color: var(--action);
+}
+.policy-mode-label {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text);
+}
+.policy-mode-hint {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+@media (max-width: 420px) {
+  .policy-mode-hint {
+    white-space: normal;
+    line-height: 1.5;
+  }
+}
 .expense-seg.policy-freq {
   justify-self: stretch;
-}
-.expense-seg.policy-freq {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
-@media (min-width: 640px) {
-  .expense-seg.policy-mode {
+
+/* Down payment and number of installments — option tiles with the amount each one means. */
+.policy-down,
+.policy-counts {
+  display: grid;
+  gap: 0.4rem;
+}
+.policy-down {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.policy-counts {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+@media (max-width: 560px) {
+  .policy-down {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .expense-seg.policy-freq {
+  .policy-counts {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+.policy-opt,
+.policy-pct {
+  display: flex;
+  min-width: 0;
+  min-height: 3.25rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.4rem 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 0.7rem;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--motion-micro) var(--ease), background var(--motion-micro) var(--ease);
+}
+.policy-opt > b {
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+.policy-opt > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.policy-opt:hover,
+.policy-pct:hover {
+  border-color: var(--border-strong);
+}
+.policy-opt[data-on],
+.policy-pct[data-on] {
+  border-color: var(--action);
+  background: var(--action);
+  color: var(--on-ink);
+}
+.policy-opt[data-on] > b {
+  color: var(--on-ink);
+}
+.policy-pct {
+  flex-direction: row;
+  gap: 0.2rem;
+  cursor: text;
+}
+.policy-pct input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+.policy-pct input::placeholder {
+  color: var(--text-3);
+  font-weight: 500;
+  font-size: var(--fs-xs);
+}
+.policy-pct[data-on] input::placeholder {
+  color: var(--on-ink);
+}
+.policy-pct:focus-within {
+  box-shadow: var(--ring);
+}
+
+/* The installment plan: what each one is, the down payment and the months as one bar. */
+.policy-plan {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-radius: var(--r-md);
+  background: var(--sunken);
+  font-size: var(--fs-xs);
+}
+.policy-plan-head {
+  display: grid;
+  gap: 0.15rem;
+}
+.policy-plan-head b {
+  font-size: var(--fs-lg);
+  color: var(--text);
+}
+.policy-plan-bar {
+  display: flex;
+  gap: 3px;
+  height: 8px;
+}
+.policy-plan-bar > span {
+  flex-basis: 0;
+  min-width: 4px;
+  border-radius: 999px;
+  background: var(--action);
+  opacity: 0.55;
+}
+.policy-plan-bar > span.is-down,
+.policy-plan-rows i.is-down {
+  background: var(--positive);
+  opacity: 1;
+}
+.policy-plan-rows {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+.policy-plan-rows > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.policy-plan-rows dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-2);
+}
+.policy-plan-rows i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--action);
+  opacity: 0.55;
+}
+.policy-plan-rows dd {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text);
 }
 .policy-note {
   display: flex;
@@ -5960,33 +6229,10 @@ a.expense-square { text-decoration: none; color: var(--text-2); }
   flex-shrink: 0;
   margin-top: 0.2rem;
 }
-.policy-pct {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: var(--fs-xs);
-  color: var(--text-3);
-}
-.policy-pct .field {
-  width: 5.5rem;
-  min-height: 44px;
-  text-align: center;
-}
-.policy-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 1.25rem;
-  padding: 0.7rem 0.85rem;
-  border-radius: var(--r-md);
-  background: var(--action-soft);
-  font-size: var(--fs-xs);
-}
-.policy-summary > span,
 .debt-pick-detail > span {
   display: grid;
   gap: 0.1rem;
 }
-.policy-summary b,
 .debt-pick-detail b {
   font-size: var(--fs-sm);
   color: var(--text);
@@ -6068,8 +6314,13 @@ a.expense-square { text-decoration: none; color: var(--text-2); }
   }
 }
 .policy-more {
-  border-top: 1px solid var(--border);
-  padding-top: 0.75rem;
+  padding: 0.35rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.policy-more[open] {
+  padding-bottom: 1rem;
 }
 .policy-more > summary {
   display: flex;
@@ -6090,6 +6341,177 @@ a.expense-square { text-decoration: none; color: var(--text-2); }
   transform: rotate(180deg);
 }
 
+/* «انتخاب حساب» — a field-shaped button and a sheet of accounts grouped by what they hold. */
+.acct-pick-trigger {
+  display: flex;
+  width: 100%;
+  min-height: 3.5rem;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-3);
+  text-align: start;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.acct-pick-trigger:hover {
+  background: var(--hover);
+}
+.acct-pick-trigger:focus-visible {
+  border-color: var(--action);
+  box-shadow: var(--ring);
+  outline: none;
+}
+.acct-pick-trigger[data-empty] {
+  border-style: dashed;
+}
+.acct-pick-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.acct-pick-text {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 0.1rem;
+}
+.acct-pick-name,
+.acct-pick-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acct-pick-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+.acct-pick-trigger[data-empty] .acct-pick-name {
+  font-weight: 500;
+  color: var(--text-2);
+}
+.acct-pick-sub {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.acct-pick-change {
+  flex-shrink: 0;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: var(--action-soft);
+  color: var(--action);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.acct-pick-glyph {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--text-2);
+}
+.acct-pick-mark {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.acct-pick-badge {
+  position: absolute;
+  inset-block-end: -3px;
+  inset-inline-start: -3px;
+  display: inline-flex;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--surface-elev);
+}
+.acct-pick-sheet {
+  display: grid;
+  gap: 1rem;
+  padding: 0.85rem 1rem 1.25rem;
+}
+.acct-pick-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  color: var(--text-3);
+  background: var(--surface-elev);
+}
+.acct-pick-search > svg {
+  position: absolute;
+  inset-inline-start: 0.8rem;
+  pointer-events: none;
+}
+.acct-pick-search .field {
+  padding-inline-start: 2.25rem;
+}
+.acct-pick-group {
+  display: grid;
+  gap: 0.4rem;
+}
+.acct-pick-group-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-inline: 0.15rem;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-3);
+}
+.acct-pick-group-title > .num {
+  margin-inline-start: auto;
+  font-weight: 500;
+}
+.acct-pick-group ul {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.acct-pick-row {
+  display: flex;
+  width: 100%;
+  min-height: 3.75rem;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  text-align: start;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--motion-micro) var(--ease), background var(--motion-micro) var(--ease);
+}
+.acct-pick-row:hover {
+  border-color: var(--border-strong);
+  background: var(--hover);
+}
+.acct-pick-row[data-on] {
+  border-color: var(--action);
+  background: var(--action-soft);
+  box-shadow: inset 0 0 0 1px var(--action);
+}
+.acct-pick-row[data-on] .place-chip-check {
+  border-color: var(--action);
+  background: var(--action);
+  color: #fff;
+}
+.acct-pick-bal {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
 /* بیمه‌نامه‌ها: a gap (uninsured car/home) and a policy row — one line of title, one of detail. */
 .gap-row .btn,
 .policy-row-actions .btn {
@@ -6107,13 +6529,6 @@ a.expense-square { text-decoration: none; color: var(--text-2); }
   display: block;
   height: 100%;
   background: var(--positive);
-}
-.place-chips.policy-kinds {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.policy-kinds .place-chip {
-  min-height: 40px;
-  padding-inline: 0.25rem;
 }
 .policy-menu {
   position: relative;

@@ -105,16 +105,16 @@ export async function runIntegrityChecks(userId = "00000000-0000-0000-0000-00000
   return [
     {
       id: "ledger-balance",
-      title: "تراز دفترکل",
+      title: "تراز سوابق مالی",
       description: "",
       status: unbalanced.length ? "fail" : "pass",
       outcome: unbalanced.length
         ? `${unbalanced.length} سند نامتوازن پیدا شد — مانده‌های مشتق‌شده قابل اتکا نیستند تا زمانی که اصلاح شوند.`
-        : "همه اسناد کاملاً تراز هستند؛ مانده‌ها از دفتری سالم مشتق می‌شوند.",
+        : "همه اسناد کاملاً تراز هستند؛ مانده‌ها درست حساب شده‌اند.",
       affected: unbalanced.length,
       samples: unbalanced.map((r) => `${r.description} — ${ago(r.entry_date)}`),
       severityLabel: unbalanced.length ? "بحرانی" : "سالم",
-      action: unbalanced.length ? { href: "/ledger", label: "مشاهده در دفترکل" } : undefined,
+      action: unbalanced.length ? { href: "/ledger", label: "مشاهده در سوابق مالی" } : undefined,
       ranAt,
     },
     {
@@ -147,12 +147,12 @@ export async function runIntegrityChecks(userId = "00000000-0000-0000-0000-00000
     },
     {
       id: "installment-linkage",
-      title: "پیوند اقساط با دفترکل",
+      title: "پیوند اقساط با پرداخت‌ها",
       description: "",
       status: orphanLinks.length ? "warn" : "pass",
       outcome: orphanLinks.length
         ? `${orphanLinks.length} قسط «پرداخت‌شده» سند مرتبط ندارد.`
-        : "همه اقساط پرداخت‌شده به سند دفترکل خود پیوند دارند.",
+        : "همه اقساط پرداخت‌شده به تراکنش پرداختشان پیوند دارند.",
       affected: orphanLinks.length,
       samples: orphanLinks.map((r) => `${r.title} — قسط ${r.seq} (${ago(r.due_date)})`),
       severityLabel: orphanLinks.length ? "هشدار" : "سالم",
@@ -208,7 +208,7 @@ export async function runIntegrityChecks(userId = "00000000-0000-0000-0000-00000
 export function summarize(checks: IntegrityCheck[]) {
   const get = (id: string) => checks.find((c) => c.id === id);
   return [
-    { id: "ledger-balance", label: "تراز دفترکل", ok: get("ledger-balance")?.status === "pass" },
+    { id: "ledger-balance", label: "تراز سوابق مالی", ok: get("ledger-balance")?.status === "pass" },
     { id: "record-completeness", label: "اسناد کامل", ok: get("record-completeness")?.status === "pass" },
     { id: "fifo-consistency", label: "بهای تمام‌شده سازگار", ok: get("fifo-consistency")?.status === "pass" },
     { id: "installment-linkage", label: "اقساط پیوند خورده", ok: get("installment-linkage")?.status === "pass" },

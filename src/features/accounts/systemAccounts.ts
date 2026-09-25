@@ -350,7 +350,7 @@ export function assertSystemAccount(
 ): SystemAccount {
   if (!account) {
     const err: any = new Error(
-      `حساب سیستمی «${label}» (${code}) در دفتر این کاربر موجود نیست و ساخت آن ناموفق بود.`,
+      `حساب سیستمی «${label}» (${code}) برای این کاربر موجود نیست و ساخت آن ناموفق بود.`,
     );
     err.code = "SYSTEM_ACCOUNT_MISSING";
     err.status = 500;

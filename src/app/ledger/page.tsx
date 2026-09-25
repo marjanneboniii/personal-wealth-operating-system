@@ -121,7 +121,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
       >
         <span className="flex items-center gap-2 font-semibold" style={{ color: bad ? "var(--negative)" : "var(--positive)" }}>
           <Icon name={bad ? "xcircle" : "check-circle"} size={16} />
-          {bad ? `${faCount(bad)} سند نامتوازن` : pro ? "دفترکل تراز است" : "همه سوابق تراز است"}
+          {bad ? `${faCount(bad)} سند نامتوازن` : "همه سوابق تراز است"}
         </span>
         <span className="muted num">{faCount(totalEntries)} سند ثبت‌شده</span>
       </div>
@@ -132,7 +132,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
         hint={
           pro
             ? undefined
-            : "«سرمایه افتتاحیه» عددی نیست که خودتان وارد کرده باشید: مجموع موجودی‌های اولیه‌ای است که هنگام ساخت حساب‌ها و ثبت دارایی‌ها اعلام کرده‌اید. در حسابداری دوطرفه هر دارایی که بدون منبع وارد دفتر می‌شود، با همین حساب موازنه می‌شود."
+            : "«سرمایه افتتاحیه» عددی نیست که خودتان وارد کرده باشید: مجموع موجودی‌های اولیه‌ای است که هنگام ساخت حساب‌ها و ثبت دارایی‌ها اعلام کرده‌اید. هر دارایی که بدون منبع مشخص ثبت می‌شود، در این ردیف جمع می‌شود تا حساب‌ها با هم جور باشند."
         }
       >
         <div className={`card overflow-x-auto ${pro ? "ledger-block" : ""}`}>

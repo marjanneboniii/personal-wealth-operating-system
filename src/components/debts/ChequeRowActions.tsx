@@ -51,7 +51,7 @@ export default function ChequeRowActions({ id, status, clearHref }: { id: string
           className={`${SMALL} btn-ghost`}
           style={{ color: "var(--negative)" }}
           disabled={pending}
-          onClick={() => run(() => deleteChequeAction(id), "این چک از دفتر چک حذف شود؟ چون پاس نشده، هیچ سندی در دفترکل ندارد.")}
+          onClick={() => run(() => deleteChequeAction(id), "این چک از دفتر چک حذف شود؟ چون پاس نشده، اثری در موجودی حساب‌ها ندارد.")}
         >
           حذف
         </button>

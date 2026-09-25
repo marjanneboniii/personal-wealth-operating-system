@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useRef, useState, useTransition } from "react";
 import { cancelPolicyAction, deletePolicyAction, renewPolicyAction } from "@/app/actions/insurance";
 import type { ActionResult } from "@/app/actions";
+import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 import { FormStatus } from "@/components/ui/FormStatus";
@@ -32,6 +33,7 @@ export default function PolicyRowActions({
   today,
   renewSoon,
   bankAccounts,
+  balances,
   needsAccount,
 }: {
   id: string;
@@ -46,7 +48,8 @@ export default function PolicyRowActions({
   /** Near or past the end of the term: renewal is the main action. */
   renewSoon: boolean;
   /** Toman bank accounts, for a renewal of a term that had none (it was paid through a debt). */
-  bankAccounts: { id: string; label: string }[];
+  bankAccounts: PickerAccount[];
+  balances?: Record<string, string>;
   needsAccount: boolean;
 }) {
   const [pending, start] = useTransition();
@@ -100,7 +103,7 @@ export default function PolicyRowActions({
             <button
               type="button"
               disabled={pending}
-              onClick={() => run(() => cancelPolicyAction(id), "بیمه‌نامه لغو شود؟ یادآور حق بیمه‌ی بعدی حذف می‌شود؛ حق بیمه‌های ثبت‌شده در دفترکل می‌مانند.")}
+              onClick={() => run(() => cancelPolicyAction(id), "بیمه‌نامه لغو شود؟ یادآور حق بیمه‌ی بعدی حذف می‌شود؛ حق بیمه‌های پرداخت‌شده سر جایشان می‌مانند.")}
             >
               لغو بیمه‌نامه
             </button>
@@ -132,19 +135,16 @@ export default function PolicyRowActions({
             <AmountInput id={`renew-premium-${id}`} name="premiumToman" value={premium} onValueChange={setPremium} className="field num" unit="toman" />
           </div>
           {needsAccount && (
-            <div>
-              <label className="label" htmlFor={`renew-pay-${id}`}>
-                از کدام حساب بانکی؟
-              </label>
-              <select id={`renew-pay-${id}`} name="payAccountId" className="field" value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)} required>
-                <option value="">انتخاب حساب بانکی تومانی</option>
-                {bankAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <AccountPicker
+              label="از کدام حساب بانکی؟"
+              sheetTitle="حساب بانکی تومانی"
+              placeholder="انتخاب حساب بانکی"
+              name="payAccountId"
+              value={payAccountId}
+              options={bankAccounts}
+              balances={balances}
+              onChange={setPayAccountId}
+            />
           )}
           <div>
             <label className="label" htmlFor={`renew-coverage-${id}`}>

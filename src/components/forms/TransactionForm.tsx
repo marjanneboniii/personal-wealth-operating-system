@@ -37,6 +37,7 @@ import { KNOWN_WALLETS } from "@/features/setup/holdingWallets";
 import { currencyLabel, faCount, formatMoney, formatQty, getDualDate } from "@/lib/format";
 import { useLatestRate } from "@/components/ui/SmartPreview";
 import DualDateInput from "@/components/ui/DualDateInput";
+import AccountPicker from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import { loadMarketCatalog } from "@/components/assets/marketCatalogClient";
@@ -226,37 +227,6 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
       </h2>
       {children}
     </section>
-  );
-}
-
-function AccountSelect({
-  label,
-  value,
-  options,
-  onChange,
-  empty,
-}: {
-  label: string;
-  value: string;
-  options: AccountOption[];
-  onChange: (id: string) => void;
-  empty?: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="label">{label}</label>
-      <select className="field" value={value} onChange={(e) => onChange(e.target.value)} disabled={options.length === 0}>
-        <option value="" disabled>
-          {options.length === 0 ? "حسابی موجود نیست" : "انتخاب کنید…"}
-        </option>
-        {options.map((a) => (
-          <option key={a.id} value={a.id}>
-            {accountLabel(a)}
-          </option>
-        ))}
-      </select>
-      {options.length === 0 ? empty : null}
-    </div>
   );
 }
 
@@ -1288,7 +1258,15 @@ export default function TransactionForm({
       <Step n={2} title="چقدر؟">
         {type === "income" ? (
           <div className="space-y-3">
-            <AccountSelect label="واریز به حساب" value={moneyId} options={moneyOptions} onChange={setMoneyAccountId} empty={noMoneyAccounts} />
+            <AccountPicker
+              label="واریز به حساب"
+              sheetTitle="واریز به کدام حساب؟"
+              value={moneyId}
+              options={moneyOptions}
+              balances={balances}
+              onChange={setMoneyAccountId}
+              empty={noMoneyAccounts}
+            />
             <div>
               <label className="label">
                 {incomeCategory?.code?.startsWith("INC-SAL") ? "خالص دریافتی" : "مبلغ دریافتی"}
