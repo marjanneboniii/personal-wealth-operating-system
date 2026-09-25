@@ -227,6 +227,11 @@ export function tseRowsFromQuotes(
  * identity, never a name match — and that feed row is not listed a second
  * time. Same ticker, different kind (the catalogue's fund «نوین» vs the
  * feed's بیمه نوین) never joins: both are listed, apart.
+ *
+ * NO ROW WITHOUT A PRICE: once the Tehran feed has delivered anything, a
+ * catalogue row it did not price is not listed (it stays in the registration
+ * catalogue). Before the first delivery they are shown, so the section is not
+ * empty for the few minutes until then.
  */
 export function supplementalMarketRows(
   referenceRows: readonly MarketRow[],
@@ -241,9 +246,16 @@ export function supplementalMarketRows(
   );
   const feed = tseRowsFromQuotes(quotes, known);
   const isinByKey = new Map(feed.filter((r) => unmapped.has(rowKey(r))).map((r) => [rowKey(r), r.latinName]));
-  const joined = catalogRows.map((r) => {
-    const isin = isinByKey.get(rowKey(r));
-    return isin ? { ...r, latinName: isin } : r;
-  });
+  const feedLoaded = [...quotes.keys()].some((k) => k.startsWith("brsapi|tsetmc:"));
+  const joined = catalogRows
+    .map((r) => {
+      const isin = isinByKey.get(rowKey(r));
+      return isin ? { ...r, latinName: isin } : r;
+    })
+    .filter((r) => {
+      if (!feedLoaded || !isTse(r)) return true;
+      const isin = CATALOG_ISIN.get(r.symbol) ?? (/^IR[A-Z0-9]{10}$/.test(r.latinName) ? r.latinName : null);
+      return isin !== null && quotes.has(`brsapi|tsetmc:${isin}`);
+    });
   return [...referenceRows, ...joined, ...feed.filter((r) => !isinByKey.has(rowKey(r)))];
 }

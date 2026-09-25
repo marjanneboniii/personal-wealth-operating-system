@@ -416,8 +416,13 @@ test("currency rates are labelled free-market only when the dollar sits beside t
 
 test("coins: one general half/quarter rate is never attributed to a design; unmapped rows stay priceless", () => {
   assert.deepEqual(REFERENCE_QUOTE_REFS.NIM, [{ source: "brsapi", ref: "gold_currency:IR_COIN_HALF" }]);
-  for (const design of ["NIM-EMAMI", "NIM-BAHAR", "ROB-EMAMI", "ROB-BAHAR", "SILVER999", "OPEC", "HKD", "NOK", "DKK"]) {
-    assert.equal(REFERENCE_QUOTE_REFS[design], undefined, `${design} has no verified source`);
+  // No symbol without a price: every listed row names its source instrument.
+  for (const row of referenceMarketRows()) {
+    assert.ok(REFERENCE_QUOTE_REFS[row.symbol]?.length, `${row.displayName} has a verified source`);
+  }
+  const listed = new Set(referenceMarketRows().map((r) => r.symbol));
+  for (const gone of ["NIM-EMAMI", "NIM-BAHAR", "ROB-EMAMI", "ROB-BAHAR", "SILVER999", "OPEC", "HKD", "NOK", "DKK"]) {
+    assert.equal(listed.has(gone), false, `${gone} has no source and is not listed`);
   }
 });
 
@@ -468,4 +473,16 @@ test("a catalogue row with no ISIN on record takes the feed's ISIN for the same 
   // «نوین»: a fund here, an insurer in the feed — never joined.
   assert.equal(views[rowKey({ kind: "ir_fund", symbol: "نوین" })], undefined);
   assert.ok(views[rowKey({ kind: "ir_stock", symbol: "نوین" })], "the insurer is listed on its own row");
+});
+
+test("once the Tehran feed has delivered, a catalogue row it did not price is not listed", () => {
+  const now = new Date("2025-06-01T10:00:00Z");
+  const parsed = ok(parseTsetmc(TSETMC, now));
+  const quotes = new Map([...parsed.quotes].map(([ref, q]) => [`brsapi|${ref}`, stored("brsapi", ref, q)]));
+  const rows = supplementalMarketRows([], tseMarketRows(), quotes, new Set());
+  const views = referenceViewsFor(rows, quotes, [], now);
+  for (const r of rows) assert.ok(views[rowKey(r)], `${r.symbol} is listed only with a price`);
+  assert.ok(rows.some((r) => r.symbol === "عیار"));
+  // Before the first delivery the catalogue is shown as is.
+  assert.equal(supplementalMarketRows([], tseMarketRows(), new Map(), new Set()).length, tseMarketRows().length);
 });

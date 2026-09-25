@@ -33,8 +33,8 @@ test("every reference row is priceless, Persian-named and drawn", () => {
 
   const bySymbol = new Map(rows.map((r) => [r.symbol, r]));
   assert.equal(bySymbol.get("EMAMI")?.logoUrl, "mark:coin");
-  assert.equal(bySymbol.get("NIM-BAHAR")?.logoUrl, "mark:coin-half");
-  assert.equal(bySymbol.get("ROB-EMAMI")?.logoUrl, "mark:coin-quarter");
+  assert.equal(bySymbol.get("NIM")?.logoUrl, "mark:coin-half");
+  assert.equal(bySymbol.get("ROB")?.logoUrl, "mark:coin-quarter");
   assert.equal(bySymbol.get("EUR")?.displayName, "یورو");
   assert.equal(bySymbol.get("BRENT")?.kindLabel, "انرژی");
 });

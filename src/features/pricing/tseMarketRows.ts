@@ -1,5 +1,5 @@
 /**
- * صندوق‌ها، گواهی‌های کالایی و سهام بورس تهران — as rows of «نمای بازار».
+ * صندوق‌ها و سهام بورس تهران — as rows of «نمای بازار».
  *
  * WHY THEY HAVE NO PRICE
  * There is no reachable live NAV / last-trade feed for the Tehran exchange
@@ -19,16 +19,6 @@ import { FUND_CATALOG } from "@/features/funds/catalogData";
 import { STOCK_CATALOG } from "@/features/funds/stockCatalogData";
 import type { MarketRow } from "./marketSearch";
 import { WALLEX_KIND_LABELS } from "./wallexKinds";
-
-/**
- * گواهی سپردهٔ کالایی — a certificate is a claim on metal or oil held in a
- * vault, traded like a fund unit, so it sits beside the funds and is drawn
- * by what it holds. The codes are the app's own, not exchange tickers.
- */
-const CERTIFICATES = [
-  { symbol: "CERT-SILVER", name: "گواهی سپردهٔ شمش نقره", latin: "Silver bullion deposit certificate", mark: "silver" },
-  { symbol: "CERT-OIL", name: "گواهی نفت دیجیتال", latin: "Digital crude oil certificate", mark: "oil" },
-] as const;
 
 export function tseMarketRows(): MarketRow[] {
   const funds: MarketRow[] = FUND_CATALOG.map((fund) => ({
@@ -51,15 +41,5 @@ export function tseMarketRows(): MarketRow[] {
     priceTmn: null,
     priceUsdt: null,
   }));
-  const certificates: MarketRow[] = CERTIFICATES.map((c) => ({
-    symbol: c.symbol,
-    displayName: c.name,
-    latinName: c.latin,
-    kind: "ir_certificate",
-    kindLabel: WALLEX_KIND_LABELS.ir_certificate,
-    logoUrl: `mark:${c.mark}`,
-    priceTmn: null,
-    priceUsdt: null,
-  }));
-  return [...funds, ...certificates, ...stocks];
+  return [...funds, ...stocks];
 }

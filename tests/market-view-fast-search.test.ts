@@ -41,7 +41,7 @@ test("there is no meme section; crypto stays «رمزارز»", () => {
     [...MARKET_KIND_ORDER],
     [
       "gold_bullion", "gold_coin", "silver_bullion", "fiat",
-      "crypto", "stablecoin", "tokenized_stock", "index", "commodity", "energy", "bond", "gold", "ir_fund", "ir_certificate", "ir_stock", "ir_right",
+      "crypto", "stablecoin", "tokenized_stock", "index", "commodity", "energy", "bond", "gold", "ir_fund", "ir_stock", "ir_right",
     ],
     "every section, in a stable order — without memes",
   );

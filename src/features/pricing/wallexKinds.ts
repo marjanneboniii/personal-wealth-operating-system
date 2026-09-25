@@ -16,7 +16,6 @@ export const WALLEX_KIND_LABELS: Record<string, string> = {
   gold: "فلز توکنیزه",
   ir_fund: "صندوق بورسی",
   ir_stock: "سهام بورسی",
-  ir_certificate: "گواهی کالایی",
   // A right to subscribe to new shares — its price is not the share's.
   ir_right: "حق‌تقدم",
   // Listed without a price — see pricing/referenceMarketRows.
@@ -43,7 +42,6 @@ export const MARKET_KIND_ORDER = [
   "bond",
   "gold",
   "ir_fund",
-  "ir_certificate",
   "ir_stock",
   "ir_right",
 ] as const;

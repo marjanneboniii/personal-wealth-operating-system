@@ -3,19 +3,19 @@
  *
  * WHERE THEIR PRICES COME FROM
  * `REFERENCE_QUOTE_REFS` below names, per row, the exact source instrument
- * that prices it — by the source's own id, never by matching a name. A row
- * with no entry, or whose source has nothing stored yet, shows no price:
- *   • MESGHAL is priced from «طلای آب‌شده نقدی» only when that response's own
- *     ratio to the 18K gram proves it is one مثقال at ۷۰۵ (providers/brsapi).
- *   • SILVER999 — no verified source for the domestic gram of silver. The
- *     world ounce (XAG) is NOT converted into it: that would be an estimate of
+ * that prices it — by the source's own id, never by matching a name. EVERY
+ * row listed here has one: a row with no verified source is not listed at
+ * all (product rule: no symbol without a price). MESGHAL is priced from
+ * «طلای آب‌شده نقدی» only when that response's own ratio to the 18K gram
+ * proves it is one مثقال at ۷۰۵ (providers/brsapi).
+ *
+ * DELIBERATELY NOT LISTED — no verified source (2026-09-25):
+ *   • نیم/ربع by design (امامی vs بهار آزادی) — the source quotes ONE general
+ *     rate for each fraction; «نیم‌سکه» and «ربع‌سکه» carry it.
+ *   • نقره ۹۹۹ per gram — converting the world ounce would be an estimate of
  *     the metal, not the price a gram trades at here.
- *   • HKD, NOK, DKK — not in BrsAPI's free currency list.
- *   • OPEC — the basket is a DAILY figure published by OPEC, whose site
- *     refuses automated requests; there is no permitted feed.
- *   • The design-specific نیم/ربع rows — the source quotes ONE general
- *     نیم‌سکه and ربع‌سکه rate, which is shown on its own «نرخ عمومی» row
- *     rather than attributed to either design.
+ *   • HKD, NOK, DKK — in no available currency feed.
+ *   • OPEC basket — OPEC's site refuses automated requests.
  * Prices are read in referenceQuotes.ts from what was stored; this module
  * stays pure data.
  *
@@ -42,18 +42,13 @@ const GOLD: readonly Ref[] = [
 const COINS: readonly Ref[] = [
   ["EMAMI", "سکه امامی", "Emami gold coin (new design)", "coin"],
   ["BAHAR", "سکه بهار آزادی", "Bahar Azadi gold coin (old design)", "coin"],
-  ["NIM-EMAMI", "نیم‌سکه امامی", "Half Emami coin (new design)", "coin-half"],
-  ["NIM-BAHAR", "نیم‌سکه بهار آزادی", "Half Bahar Azadi coin (old design)", "coin-half"],
-  ["ROB-EMAMI", "ربع‌سکه امامی", "Quarter Emami coin (new design)", "coin-quarter"],
-  ["ROB-BAHAR", "ربع‌سکه بهار آزادی", "Quarter Bahar Azadi coin (old design)", "coin-quarter"],
-  // The market's single quoted rate for each fraction, design unstated.
-  ["NIM", "نیم‌سکه (نرخ عمومی)", "Half coin (general market rate)", "coin-half"],
-  ["ROB", "ربع‌سکه (نرخ عمومی)", "Quarter coin (general market rate)", "coin-quarter"],
+  // The market's single quoted rate for each fraction.
+  ["NIM", "نیم‌سکه", "Half coin", "coin-half"],
+  ["ROB", "ربع‌سکه", "Quarter coin", "coin-quarter"],
   ["GERAMI", "سکه گرمی", "One-gram gold coin", "coin-gram"],
 ];
 
 const SILVER: readonly Ref[] = [
-  ["SILVER999", "نقره ۹۹۹ (گرم)", "Silver 999 per gram", "silver"],
   ["XAG", "اونس نقره", "Silver troy ounce", "silver"],
 ];
 
@@ -80,17 +75,13 @@ const FIAT: readonly Ref[] = [
   ["AFN", "افغانی افغانستان", "Afghan Afghani", "fiat-AFN"],
   ["THB", "بات تایلند", "Thai Baht", "fiat-THB"],
   ["MYR", "رینگیت مالزی", "Malaysian Ringgit", "fiat-MYR"],
-  ["HKD", "دلار هنگ‌کنگ", "Hong Kong Dollar", "fiat-HKD"],
   ["SEK", "کرون سوئد", "Swedish Krona", "fiat-SEK"],
-  ["NOK", "کرون نروژ", "Norwegian Krone", "fiat-NOK"],
-  ["DKK", "کرون دانمارک", "Danish Krone", "fiat-DKK"],
 ];
 
 /** انرژی — the benchmarks every oil headline quotes. */
 const ENERGY: readonly Ref[] = [
   ["BRENT", "نفت برنت", "Brent crude oil", "oil"],
   ["WTI", "نفت وست تگزاس (WTI)", "WTI crude oil", "oil"],
-  ["OPEC", "سبد نفتی اوپک", "OPEC reference basket", "oil"],
 ];
 
 export const REFERENCE_GROUPS = {
