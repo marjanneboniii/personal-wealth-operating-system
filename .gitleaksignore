@@ -1,0 +1,4 @@
+# False positive: an EMPTY placeholder line `BRSAPI_KEY=` in the env-var
+# example of docs/MARKET_DATA_SOURCES.md; the generic rule read the next line
+# as its value. No key was ever committed. The line was reworded afterwards.
+8548593f69316716fb8928eaf24dc8bdaee14dba:docs/MARKET_DATA_SOURCES.md:generic-api-key:47

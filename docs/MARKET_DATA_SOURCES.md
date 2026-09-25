@@ -42,15 +42,15 @@
 GOLD_API_ENABLED=true
 GOLD_API_REFRESH_SECONDS=60
 
-# BrsAPI — on as soon as BRSAPI_KEY is set (host confirmed by BrsAPI support).
+# BrsAPI — on as soon as the key variable is set (host confirmed by BrsAPI support).
 # BRSAPI_ENABLED=false switches it off without removing the key.
-BRSAPI_KEY=
 BRSAPI_ENABLED=true
 BRSAPI_FEEDS=gold_currency,commodity,tsetmc
 BRSAPI_REFRESH_SECONDS=300
 BRSAPI_DAILY_REQUEST_BUDGET=1200
 ```
 
+- کلید در متغیر `BRSAPI_KEY` قرار می‌گیرد و فقط در تنظیمات Vercel ثبت می‌شود، نه در هیچ فایلی.
 - هیچ‌کدام `NEXT_PUBLIC_` نیستند. کلید فقط هنگام ساخت provider خوانده می‌شود و در خطا، لاگ، وضعیت منبع یا پایگاه داده ذخیره نمی‌شود.
 - `BRSAPI_REFRESH_SECONDS` هرگز کمتر از ۶۰ اعمال نمی‌شود. `BRSAPI_DAILY_REQUEST_BUDGET` برای **مجموع** سه بخش است، چون سهمیهٔ ۱۵۰۰ درخواست روزانه طبق پاسخ پشتیبانی بین همهٔ مسیرها مشترک است. سقف داخلی ۱۲۰۰ و مصرف عادی ۸۶۴ درخواست در روز است. قانون عمومی ۳۰۰ درخواست در هر ۵ دقیقه برای هر کلید هم برقرار است.
 - پس از استقرار، migration شمارهٔ `0052_market_reference_quotes` باید با `npm run db:migrate` اعمال شود. تا آن زمان صفحهٔ بازار بدون قیمت مرجع باز می‌شود و خطا نمی‌دهد.
