@@ -498,7 +498,7 @@ export async function registerMoneyAccount(
     return {
       ok: true,
       message: baseValue.gt(0)
-        ? `حساب «${name}» با موجودی اولیه ایجاد شد و به دفترکل متصل شد.`
+        ? `حساب «${name}» با موجودی اولیه ایجاد شد.`
         : `حساب «${name}» (بدون موجودی اولیه) ایجاد شد و آماده‌ی ثبت تراکنش است.`,
       walletId: wallet.id,
       accountId: account.id,
@@ -672,7 +672,7 @@ async function loadDeletableAccount(tx: any, accountId: string, userId?: string 
     throw new Error("تنها حساب‌های دارایی (بانک، صندوق و کیف پول) از این مسیر حذف می‌شوند.");
   }
   if (PROTECTED_ACCOUNT_CODES.has(row.code)) {
-    throw new Error("این حساب بخشی از ساختار پایه‌ی دفترکل است و حذف نمی‌شود.");
+    throw new Error("این حساب بخشی از ساختار پایه‌ی برنامه است و حذف نمی‌شود.");
   }
   return { ...row, assetDecimals: row.assetDecimals ?? 2 };
 }
@@ -914,7 +914,7 @@ export async function deleteMoneyAccount(
     const tail =
       mode === "full"
         ? "سند افتتاحیه‌ی آن ابطال شد و اثری در دارایی خالص باقی نماند."
-        : "سوابق دفترکل آن دست‌نخورده باقی ماند و گزارش‌های گذشته تغییر نکرد.";
+        : "سوابق مالی آن دست‌نخورده باقی ماند و گزارش‌های گذشته تغییر نکرد.";
     return {
       ok: true,
       message: `حساب «${account.name}» حذف شد. ${tail}`,

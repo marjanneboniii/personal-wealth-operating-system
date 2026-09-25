@@ -77,7 +77,7 @@ export const VERDICT_INFO: Record<Verdict, { fa: string; fix: string }> = {
   HIDDEN_ASSET_SOFT_DELETED: {
     fa: "ردیف دارایی soft-delete شده است (assets.deleted_at پر است) — حذف ملک، فروش ملک، یا پاک‌سازی دارایی یتیم",
     fix:
-      "سند دفترکل و تاریخچه دست‌نخورده‌اند. برای بازگرداندن باید صریحاً assets.deleted_at = NULL شود و بررسی شود " +
+      "سوابق مالی و تاریخچه دست‌نخورده‌اند. برای بازگرداندن باید صریحاً assets.deleted_at = NULL شود و بررسی شود " +
       "که شناسهٔ کوتاه آزادشده (۰۰۱/۰۰۲…) به دارایی دیگری نچسبیده باشد. (مسیرهای ایجادکننده: deleteRealEstateAsset، " +
       "sellRealEstateAsset، repairOrphanedRealEstate)",
   },

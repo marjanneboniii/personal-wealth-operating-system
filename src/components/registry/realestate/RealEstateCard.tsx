@@ -118,7 +118,7 @@ export default function RealEstateCard({
         )}
         {ledgerLink && (
           <Link href={ledgerLink} className="btn btn-ghost">
-            سند دفترکل
+            سوابق مالی
           </Link>
         )}
         <button
@@ -126,7 +126,7 @@ export default function RealEstateCard({
           className="btn btn-ghost re-danger"
           disabled={deleting}
           onClick={() => {
-            const ok = window.confirm(`${a.label} از گزارش‌ها، سبد و شاخص‌های ثروت حذف می‌شود. سند دفترکل دست‌نخورده می‌ماند. ادامه می‌دهید؟`);
+            const ok = window.confirm(`${a.label} از گزارش‌ها، سبد و شاخص‌های ثروت حذف می‌شود. سوابق مالی آن دست‌نخورده می‌ماند. ادامه می‌دهید؟`);
             if (!ok) return;
             startDelete(async () => {
               const result = await deleteRealEstateAction(a.id);

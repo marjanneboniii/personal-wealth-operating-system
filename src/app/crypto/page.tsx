@@ -91,7 +91,7 @@ export default async function CryptoPage() {
             />
           </section>
 
-          <Section title="دارایی‌های دیجیتال شما" hint="قیمت جاری CoinGecko — مانده از دفترکل">
+          <Section title="دارایی‌های دیجیتال شما" hint="قیمت جاری CoinGecko — مانده از تراکنش‌های ثبت‌شده">
             <HoldingsTable rows={[...crypto, ...stable]} toIrt={toIrt} />
           </Section>
 
@@ -133,7 +133,7 @@ export default async function CryptoPage() {
           )}
 
           <p className="muted text-[length:var(--fs-xs)]">
-            مانده‌ها همیشه از دفترکل مشتق می‌شوند؛ قیمت‌ها هرگز سند حسابداری ایجاد نمی‌کنند. مانده حساب‌ها:{" "}
+            مانده‌ها همیشه از تراکنش‌های ثبت‌شده‌ی شما حساب می‌شوند؛ تغییر قیمت‌ها چیزی را در حساب‌ها ثبت نمی‌کند. مانده حساب‌ها:{" "}
             {balances
               .filter((b) => b.type === "asset" && b.symbol && cryptoSymbols.has(b.symbol) && Math.abs(Number(b.quantity)) > 0.000001)
               .map((b) => (

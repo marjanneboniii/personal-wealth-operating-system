@@ -19,6 +19,11 @@ import Icon from "@/components/ui/Icon";
 import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
 import PolicyForm from "@/components/insurance/PolicyForm";
 import PolicyRowActions from "@/components/insurance/PolicyRowActions";
+import { POLICY_KIND_VISUAL, policyKindStyle } from "@/components/insurance/kindVisual";
+import AssetLogo from "@/components/ui/AssetLogo";
+import type { PickerAccount } from "@/components/ui/AccountPicker";
+import { resolveAssetLogoDetailed } from "@/features/branding/assetLogo";
+import { getAccountBalances } from "@/features/ledger/queries";
 import { D, Decimal } from "@/domain/decimal";
 import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, todayIso } from "@/lib/format";
 
@@ -30,7 +35,17 @@ function daysBetween(from: string, to: string) {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 }
 
-function PolicyList({ rows, today, bankAccounts }: { rows: PolicyRow[]; today: string; bankAccounts: { id: string; label: string }[] }) {
+function PolicyList({
+  rows,
+  today,
+  bankAccounts,
+  balances,
+}: {
+  rows: PolicyRow[];
+  today: string;
+  bankAccounts: PickerAccount[];
+  balances: Record<string, string>;
+}) {
   return (
     <ul className="card plan-list">
       {rows.map((p) => {
@@ -55,9 +70,15 @@ function PolicyList({ rows, today, bankAccounts }: { rows: PolicyRow[]; today: s
         const debtPct = onDebt && p.debtTotalCount ? Math.round(((p.debtPaidCount ?? 0) * 100) / p.debtTotalCount) : null;
         return (
           <li key={p.id} id={`policy-${p.id}`} className="plan-queue-row reconcile-row flex-wrap">
-            <span className="plan-icon" style={{ background: "var(--info-soft)", color: "var(--info)" }} aria-hidden="true">
-              <Icon name="shield" size={16} />
-            </span>
+            {p.insurer && resolveAssetLogoDetailed({ assetType: "insurance", brandName: p.insurer, name: p.insurer }).source === "persianlabs" ? (
+              <span className="flex shrink-0" aria-hidden="true">
+                <AssetLogo assetType="insurance" brandName={p.insurer} name={p.insurer} size={36} />
+              </span>
+            ) : (
+              <span className="plan-icon" style={policyKindStyle(p.kind)} aria-hidden="true">
+                <Icon name={(POLICY_KIND_VISUAL[p.kind] ?? POLICY_KIND_VISUAL.other).icon} size={16} />
+              </span>
+            )}
             <span className="min-w-0 flex-1">
               <b className="flex items-center gap-2 text-[length:var(--fs-sm)]">
                 <span className="min-w-0 truncate">{p.title}</span>
@@ -90,6 +111,7 @@ function PolicyList({ rows, today, bankAccounts }: { rows: PolicyRow[]; today: s
               today={today}
               renewSoon={renewSoon}
               bankAccounts={bankAccounts}
+              balances={balances}
               needsAccount={!p.payAccountId}
             />
           </li>
@@ -116,7 +138,7 @@ export default async function InsurancePage({ searchParams }: { searchParams: Pr
     );
   }
 
-  const [rows, gaps, accountRows, linkableDebts, vehicles, properties] = await Promise.all([
+  const [rows, gaps, accountRows, linkableDebts, vehicles, properties, balanceRows] = await Promise.all([
     listPolicies(userId),
     coverageGaps(userId, today),
     // Premiums and down payments leave from a Toman BANK account only — no Tether, fund, exchange or cash box.
@@ -124,6 +146,7 @@ export default async function InsurancePage({ searchParams }: { searchParams: Pr
     listLinkableDebts(userId).catch(() => []),
     listUserVehicles(userId).catch(() => []),
     listRealEstateAssets(userId).catch(() => []),
+    getAccountBalances(userId).catch(() => []),
   ]);
 
   const active = rows.filter((r) => r.status === "active");
@@ -132,7 +155,8 @@ export default async function InsurancePage({ searchParams }: { searchParams: Pr
   const nextPremium = active.map((r) => r.nextPremiumDate).filter((d): d is string => !!d).sort()[0] ?? null;
   const expiring = active.filter((r) => r.endDate && daysBetween(today, r.endDate) <= RENEWAL_HORIZON_DAYS);
   const opened = !!(params.kind || params.vehicle || params.property) || rows.length === 0;
-  const bankAccounts = accountRows.map((a) => ({ id: a.id, label: a.name }));
+  const bankAccounts: PickerAccount[] = accountRows;
+  const balances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
 
   return (
     <div className="space-y-7">
@@ -191,6 +215,7 @@ export default async function InsurancePage({ searchParams }: { searchParams: Pr
         <PolicyForm
           key={`${params.kind ?? ""}-${params.vehicle ?? ""}-${params.property ?? ""}`}
           accounts={bankAccounts}
+          balances={balances}
           debts={linkableDebts}
           vehicles={vehicles.filter((v) => v.status !== "sold").map((v) => ({ id: v.id, label: `${v.brand} ${v.model} ${v.year}` }))}
           properties={properties.map((p) => ({ id: p.id, label: [p.label, p.neighborhoodNameFa ?? p.area, p.cityNameFa].filter(Boolean).join(" · ") || "ملک" }))}
@@ -205,13 +230,13 @@ export default async function InsurancePage({ searchParams }: { searchParams: Pr
             <EmptyState icon="shield" title="بیمه‌نامه‌ی فعالی ثبت نشده" body="بیمه‌ی ثالث، بدنه، آتش‌سوزی، عمر یا درمان را ثبت کنید تا حق بیمه و تمدید یادآوری شود و در پیش‌بینی نقدینگی بیاید." />
           </div>
         ) : (
-          <PolicyList rows={active} today={today} bankAccounts={bankAccounts} />
+          <PolicyList rows={active} today={today} bankAccounts={bankAccounts} balances={balances} />
         )}
       </Section>
 
       {past.length > 0 && (
         <Section title="دوره‌های گذشته">
-          <PolicyList rows={past} today={today} bankAccounts={bankAccounts} />
+          <PolicyList rows={past} today={today} bankAccounts={bankAccounts} balances={balances} />
         </Section>
       )}
 

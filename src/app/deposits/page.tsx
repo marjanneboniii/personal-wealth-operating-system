@@ -2,7 +2,8 @@ import Link from "next/link";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
-import { accounts, assets } from "@/db/schema";
+import { accounts, assets, wallets } from "@/db/schema";
+import { getAccountBalances } from "@/features/ledger/queries";
 import { listDeposits, type DepositRow } from "@/features/deposits/service";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import DisclosurePanel from "@/components/ui/DisclosurePanel";
@@ -83,16 +84,19 @@ export default async function DepositsPage() {
     );
   }
 
-  const [rows, accountRows] = await Promise.all([
+  const [rows, accountRows, balanceRows] = await Promise.all([
     listDeposits(userId),
     db
-      .select({ id: accounts.id, name: accounts.name, symbol: assets.symbol })
+      .select({ id: accounts.id, name: accounts.name, symbol: assets.symbol, decimals: assets.decimals, walletName: wallets.name, walletKind: wallets.kind })
       .from(accounts)
       .innerJoin(assets, eq(assets.id, accounts.assetId))
+      .leftJoin(wallets, eq(wallets.id, accounts.walletId))
       .where(and(eq(accounts.userId, userId), eq(accounts.type, "asset"), isNull(accounts.deletedAt)))
       .orderBy(asc(accounts.code)),
+    getAccountBalances(userId).catch(() => []),
   ]);
-  const accountOptions = accountRows.map((a) => ({ id: a.id, name: a.name, toman: ["IRT", "IRR"].includes((a.symbol ?? "").toUpperCase()) }));
+  const accountOptions = accountRows.map((a) => ({ ...a, toman: ["IRT", "IRR"].includes((a.symbol ?? "").toUpperCase()) }));
+  const balances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
 
   const active = rows.filter((r) => r.status === "active");
   const closed = rows.filter((r) => r.status === "closed");
@@ -124,7 +128,7 @@ export default async function DepositsPage() {
       </section>
 
       <DisclosurePanel anchor="new" label="ثبت سپرده" defaultOpen={rows.length === 0}>
-        <DepositForm accounts={accountOptions} today={today} />
+        <DepositForm accounts={accountOptions} balances={balances} today={today} />
       </DisclosurePanel>
 
       <Section title="سپرده‌های فعال" hint={active.length ? `${faCount(active.length)} مورد` : undefined}>
@@ -145,7 +149,7 @@ export default async function DepositsPage() {
 
       <p className="expense-sub flex items-center gap-1.5">
         <Icon name="info" size={13} />
-        سپرده هیچ سندی در دفترکل نمی‌سازد: اصل پول در حساب خودش است و سود هر ماه فقط با «ثبت سود این ماه» ثبت می‌شود.
+        ثبت سپرده چیزی از موجودی حساب‌ها کم یا زیاد نمی‌کند: اصل پول در حساب خودش است و سود هر ماه فقط با «ثبت سود این ماه» ثبت می‌شود.
       </p>
     </div>
   );

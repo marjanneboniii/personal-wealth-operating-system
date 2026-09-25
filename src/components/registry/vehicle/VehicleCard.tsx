@@ -9,6 +9,7 @@ import {
 import { compareDates, type SnapshotPoint } from "@/features/rwa/vehicle/analytics";
 import type { VehicleDashboardItem } from "@/features/rwa/vehicle/dto";
 import { currencyLabel, formatMoney, todayIso } from "@/lib/format";
+import AccountPicker from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import { DetailRow } from "@/components/registry/realestate/shared";
@@ -411,6 +412,7 @@ function ManagePanel({
 }) {
   const [detailState, detailAction, detailPending] = useActionState(updateVehicleDetailsAction, null);
   const [saleState, saleAction, salePending] = useActionState(sellVehicleAction, null);
+  const [saleAccountId, setSaleAccountId] = useState("");
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -451,16 +453,15 @@ function ManagePanel({
           <Labeled label="نرخ دلار فروش (اختیاری)">
             <AmountInput className="field num" name="saleUsdRate" inputMode="numeric" placeholder="نرخ تاریخ فروش" showWords={false} />
           </Labeled>
-          <Labeled label="واریز به حساب (اختیاری)" hint="با انتخاب حساب، سند فروش در دفترکل ثبت می‌شود.">
-            <select className="field" name="saleAccountId" defaultValue="">
-              <option value="">بدون ثبت در دفترکل</option>
-              {payoutAccounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                  {a.symbol && a.symbol !== "IRT" ? ` — ${currencyLabel(a.symbol)}` : ""}
-                </option>
-              ))}
-            </select>
+          <Labeled label="واریز به حساب (اختیاری)" hint="با انتخاب حساب، مبلغ فروش به موجودی آن حساب اضافه می‌شود.">
+            <AccountPicker
+              name="saleAccountId"
+              value={saleAccountId}
+              options={payoutAccounts}
+              onChange={setSaleAccountId}
+              noneLabel="به حسابی واریز نشده"
+              sheetTitle="واریز به کدام حساب؟"
+            />
           </Labeled>
           <div className="re-actions">
             <button className="btn" disabled={salePending}>

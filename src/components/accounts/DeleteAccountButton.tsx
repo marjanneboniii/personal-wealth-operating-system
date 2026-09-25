@@ -138,11 +138,11 @@ export default function DeleteAccountButton({
                     </li>
                   ) : preview.entryCount > 0 ? (
                     <li>
-                      {faCount(preview.entryCount)} سند دفترکل به این حساب متصل است. این اسناد حذف نمی‌شوند و
+                      {faCount(preview.entryCount)} تراکنش به این حساب متصل است. این تراکنش‌ها حذف نمی‌شوند و
                       گزارش‌های گذشته تغییری نمی‌کنند؛ فقط حساب از فهرست حساب‌ها برداشته می‌شود.
                     </li>
                   ) : (
-                    <li>این حساب هیچ سندی در دفترکل ندارد و حذف آن هیچ اثری بر گزارش‌ها نمی‌گذارد.</li>
+                    <li>این حساب هیچ تراکنشی ندارد و حذف آن هیچ اثری بر گزارش‌ها نمی‌گذارد.</li>
                   )}
                   {preview.removesWallet && preview.walletName && (
                     <li>کیف/بانک «{preview.walletName}» حساب دیگری ندارد و همراه این حساب برداشته می‌شود.</li>

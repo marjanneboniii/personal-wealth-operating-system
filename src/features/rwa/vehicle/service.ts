@@ -290,7 +290,7 @@ export async function createUserVehicle(
           .where(and(eq(accounts.code, code), input.userId ? eq(accounts.userId, input.userId) : isNull(accounts.userId)))
           .limit(1);
       }
-      if (!vehicleAccount) throw new Error("حساب دفترکل خودرو ایجاد نشد.");
+      if (!vehicleAccount) throw new Error("ثبت خودرو در حساب‌ها ناموفق بود.");
 
       const priceToman = purchase.toFixed(0);
       const entry = await postEntry(
@@ -463,7 +463,7 @@ export async function sellVehicle(
         fxRate: D(saleUsdRate).toString(),
         userId: input.userId ?? undefined,
         idempotencyKey: `vehicle-sale:${input.vehicleId}`,
-        memo: "خروج خودرو از دفتر (بهای ثبت‌شده: صفر — ثبت تاریخی در دفتر کل)",
+        memo: "فروش خودرو (بهای ثبت‌شده: صفر)",
       },
       tx,
     );

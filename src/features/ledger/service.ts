@@ -1180,7 +1180,7 @@ export async function recordRegistryDisposal(cmd: RegistryDisposalCmd, txClient?
       assetId: cmd.assetId,
       quantity: carrying.neg().toString(),
       baseValue: carrying.neg().toString(),
-      memo: cmd.memo ?? "خروج دارایی به بهای ثبت‌شده در دفتر",
+      memo: cmd.memo ?? "خروج دارایی به بهای ثبت‌شده",
     });
   }
 
@@ -1229,7 +1229,7 @@ export async function recordRegistryDisposal(cmd: RegistryDisposalCmd, txClient?
       quantity: safeQty(result.neg(), result),
       baseValue: result.neg().toString(),
       memo: useEquity
-        ? "ورود دارایی ثبت‌نشده در دفتر (سرمایه افتتاحیه)"
+        ? "ورود دارایی ثبت‌نشده (موجودی اولیه)"
         : "سود/زیان تحقق‌یافته از فروش دارایی",
     });
   }

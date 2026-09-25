@@ -264,7 +264,7 @@ export async function createMoneyAccountAction(input: unknown): Promise<ActionRe
       userId: user?.id ?? undefined,
     });
     refreshAll();
-    return { ok: true, message: "حساب با موفقیت ایجاد و به دفترکل متصل شد." };
+    return { ok: true, message: "حساب با موفقیت ایجاد شد." };
   } catch (e) {
     const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطا";
     return { ok: false, message: msg };
@@ -1754,7 +1754,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     });
 
     refreshAll();
-    return { ok: true, message: "سند با موفقیت در دفترکل ثبت شد. نرخ دلار و مبالغ تاریخی منجمد شدند." + (linkedInst || linkedDebt ? " وضعیت بدهی/قسط به‌روزرسانی شد." : "") };
+    return { ok: true, message: "تراکنش با موفقیت ثبت شد. نرخ دلار همان روز برای آن ثابت ماند." + (linkedInst || linkedDebt ? " وضعیت بدهی/قسط به‌روزرسانی شد." : "") };
   } catch (e) {
     const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطای ناشناخته";
     return { ok: false, message: msg };
@@ -1869,7 +1869,7 @@ export async function executePlanAction(id: string): Promise<ActionResult> {
     }
     await executePlanned(id);
     refreshAll();
-    return { ok: true, message: "برنامه اجرا شد و به دفترکل رفت." };
+    return { ok: true, message: "برنامه اجرا شد و در سوابق مالی ثبت شد." };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "خطا" };
   }
@@ -2090,8 +2090,8 @@ export async function createDebtAction(_prev: ActionResult | null, fd: FormData)
     return {
       ok: true,
       message: count > 0
-        ? `${noun} و برنامه ${count} قسط با موفقیت ثبت شد؛ دفترکل و حسابداری تغییری نکرد.`
-        : `${noun} با موفقیت ثبت شد؛ دفترکل و حسابداری تغییری نکرد.`,
+        ? `${noun} و برنامه ${count} قسط با موفقیت ثبت شد؛ موجودی حساب‌ها تغییری نکرد.`
+        : `${noun} با موفقیت ثبت شد؛ موجودی حساب‌ها تغییری نکرد.`,
     };
   } catch (e) {
     const msg = e instanceof z.ZodError ? e.issues[0]?.message : e instanceof Error ? e.message : "خطا در ثبت تعهد";
@@ -2171,7 +2171,7 @@ export async function createEventAction(_p: ActionResult | null, fd: FormData): 
       userId: user?.id ?? null,
     } as any);
     refreshAll();
-    return { ok: true, message: "رویداد ثبت شد (بدون اثر روی دفترکل)." };
+    return { ok: true, message: "رویداد ثبت شد (بدون اثر روی موجودی حساب‌ها)." };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "خطا" };
   }
@@ -2542,7 +2542,7 @@ export async function createPortfolioSnapshotAction(): Promise<ActionResult> {
     // SECURITY: scope the valuation snapshot to the session user.
     const res = await createPortfolioSnapshot(undefined, user?.id);
     refreshAll();
-    return { ok: true, message: "اسنپ‌شات ثروت با موفقیت ثبت شد (بدون تغییر در دفترکل)." };
+    return { ok: true, message: "اسنپ‌شات ثروت با موفقیت ثبت شد (بدون تغییر در موجودی حساب‌ها)." };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "خطای ثبت اسنپ‌شات" };
   }

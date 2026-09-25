@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { createPolicyAction } from "@/app/actions/insurance";
 import type { ActionResult } from "@/app/actions";
+import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 import { FormStatus } from "@/components/ui/FormStatus";
 import Icon from "@/components/ui/Icon";
+import { addJalaliMonths } from "@/features/income/recurring";
 import { faCount, formatJalaliIso, formatMoney } from "@/lib/format";
+import { POLICY_KIND_VISUAL, policyKindStyle } from "./kindVisual";
 
 export type PolicyOption = { id: string; label: string };
 /** A debt from «بدهی‌ها» the policy can be paid through — see listLinkableDebts. */
@@ -59,7 +62,24 @@ const FREQUENCIES = [
 ] as const;
 
 const DOWN_CHOICES = ["0", "20", "30", "50"] as const;
-const COUNT_CHOICES = [2, 3, 4, 6, 12] as const;
+const COUNT_CHOICES = [2, 3, 4, 6, 8, 10, 11] as const;
+
+const MODES: { key: Mode; label: string; hint: string; icon: "card" | "calendar" | "debts" }[] = [
+  { key: "cash", label: "نقدی", hint: "از حساب بانکی", icon: "card" },
+  { key: "installments", label: "اقساطی", hint: "پیش‌پرداخت و قسط ماهانه", icon: "calendar" },
+  { key: "debt", label: "از بدهی‌هایم", hint: "بدهیِ ثبت‌شده", icon: "debts" },
+];
+
+function StepTitle({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <legend className="policy-step-title">
+      <span className="policy-step-num num" aria-hidden="true">
+        {faCount(n)}
+      </span>
+      {children}
+    </legend>
+  );
+}
 
 /** One year after `iso` — the usual term of a policy, editable. */
 function plusOneYear(iso: string): string {
@@ -76,6 +96,7 @@ const toman = (v: string | number) => formatMoney(String(v), "IRT");
 
 export default function PolicyForm({
   accounts,
+  balances,
   debts,
   vehicles,
   properties,
@@ -83,7 +104,9 @@ export default function PolicyForm({
   initial,
 }: {
   /** Toman bank accounts only — the one place a premium or down payment leaves from. */
-  accounts: PolicyOption[];
+  accounts: PickerAccount[];
+  /** Posted Toman balance per account id. */
+  balances?: Record<string, string>;
   debts: DebtOption[];
   vehicles: PolicyOption[];
   properties: PolicyOption[];
@@ -130,6 +153,7 @@ export default function PolicyForm({
   const down = mode === "installments" ? Math.round((total * (Number(downPct) || 0)) / 100) : 0;
   const financed = Math.max(0, total - down);
   const perInstallment = count > 0 ? Math.ceil(financed / count) : 0;
+  const lastDue = firstDue ? addJalaliMonths(firstDue, count - 1) : firstDue;
   const needsAccount = mode === "cash" || (mode === "installments" && down > 0);
   const pctOk = Number(downPct) >= 0 && Number(downPct) < 100;
 
@@ -164,20 +188,19 @@ export default function PolicyForm({
 
       {/* ── ۱. چه بیمه‌ای ── */}
       <fieldset className="policy-step">
-        <legend className="policy-step-title">چه بیمه‌ای؟</legend>
-        <div className="place-chips policy-kinds" role="radiogroup" aria-label="نوع بیمه">
-          {KINDS.map((k) => (
-            <button
-              key={k.key}
-              type="button"
-              role="radio"
-              aria-checked={kind === k.key}
-              className={`place-chip justify-center${kind === k.key ? " is-on" : ""}`}
-              onClick={() => setKind(k.key)}
-            >
-              <span className="place-chip-name text-center">{k.label}</span>
-            </button>
-          ))}
+        <StepTitle n={1}>چه بیمه‌ای؟</StepTitle>
+        <div className="policy-kinds" role="radiogroup" aria-label="نوع بیمه">
+          {KINDS.map((k) => {
+            const on = kind === k.key;
+            return (
+              <button key={k.key} type="button" role="radio" aria-checked={on} className="policy-kind" data-on={on || undefined} onClick={() => setKind(k.key)}>
+                <span className="policy-kind-icon" style={policyKindStyle(k.key)} aria-hidden="true">
+                  <Icon name={POLICY_KIND_VISUAL[k.key].icon} size={17} />
+                </span>
+                <span className="policy-kind-name">{k.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {meta.insured !== "none" && (
@@ -215,19 +238,18 @@ export default function PolicyForm({
 
       {/* ── ۲. پرداخت ── */}
       <fieldset className="policy-step">
-        <legend className="policy-step-title">چطور پرداخت شده؟</legend>
-        <div className="expense-seg policy-mode" role="radiogroup" aria-label="نحوه‌ی پرداخت">
-          {(
-            [
-              ["cash", "نقدی"],
-              ["installments", "اقساطی"],
-              ["debt", "از بدهی‌هایم"],
-            ] as const
-          ).map(([key, text]) => (
-            <button key={key} type="button" role="radio" aria-checked={mode === key} data-on={mode === key || undefined} onClick={() => setMode(key)}>
-              {text}
-            </button>
-          ))}
+        <StepTitle n={2}>چطور پرداخت شده؟</StepTitle>
+        <div className="policy-modes" role="radiogroup" aria-label="نحوه‌ی پرداخت">
+          {MODES.map((m) => {
+            const on = mode === m.key;
+            return (
+              <button key={m.key} type="button" role="radio" aria-checked={on} className="policy-mode-card" data-on={on || undefined} onClick={() => setMode(m.key)}>
+                <Icon name={m.icon} size={18} />
+                <span className="policy-mode-label">{m.label}</span>
+                <span className="policy-mode-hint">{m.hint}</span>
+              </button>
+            );
+          })}
         </div>
 
         {mode === "debt" ? (
@@ -307,12 +329,15 @@ export default function PolicyForm({
             </div>
 
             {mode === "cash" && (
-              <div className="expense-seg policy-freq" role="radiogroup" aria-label="دوره‌ی پرداخت">
-                {FREQUENCIES.map(([key, text]) => (
-                  <button key={key} type="button" role="radio" aria-checked={frequency === key} data-on={frequency === key || undefined} onClick={() => setFrequency(key)}>
-                    {text}
-                  </button>
-                ))}
+              <div>
+                <span className="label">دوره‌ی پرداخت</span>
+                <div className="expense-seg policy-freq" role="radiogroup" aria-label="دوره‌ی پرداخت">
+                  {FREQUENCIES.map(([key, text]) => (
+                    <button key={key} type="button" role="radio" aria-checked={frequency === key} data-on={frequency === key || undefined} onClick={() => setFrequency(key)}>
+                      {text}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -320,15 +345,20 @@ export default function PolicyForm({
               <>
                 <div>
                   <span className="label">پیش‌پرداخت</span>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {DOWN_CHOICES.map((p) => (
-                      <button key={p} type="button" className={`chip${downPct === p ? " chip-on" : ""}`} aria-pressed={downPct === p} onClick={() => setDownPct(p)}>
-                        {p === "0" ? "بدون پیش‌پرداخت" : `${Number(p).toLocaleString("fa-IR")}٪`}
-                      </button>
-                    ))}
-                    <label className="policy-pct">
+                  <div className="policy-down" role="radiogroup" aria-label="پیش‌پرداخت">
+                    {DOWN_CHOICES.map((p) => {
+                      const on = downPct === p;
+                      return (
+                        <button key={p} type="button" role="radio" aria-checked={on} className="policy-opt" data-on={on || undefined} onClick={() => setDownPct(p)}>
+                          <b>{p === "0" ? "بدون" : `${Number(p).toLocaleString("fa-IR")}٪`}</b>
+                          {total > 0 && p !== "0" && <span className="num">{toman(Math.round((total * Number(p)) / 100))}</span>}
+                          {p === "0" && <span>پیش‌پرداخت</span>}
+                        </button>
+                      );
+                    })}
+                    <label className="policy-pct" data-on={!(DOWN_CHOICES as readonly string[]).includes(downPct) || undefined}>
                       <input
-                        className="field num"
+                        className="num"
                         inputMode="decimal"
                         aria-label="درصد پیش‌پرداخت دلخواه"
                         placeholder="دلخواه"
@@ -341,62 +371,81 @@ export default function PolicyForm({
                 </div>
                 <div>
                   <span className="label">تعداد قسط</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {COUNT_CHOICES.map((n) => (
-                      <button key={n} type="button" className={`chip${count === n ? " chip-on" : ""}`} aria-pressed={count === n} onClick={() => setCount(n)}>
-                        {faCount(n)} قسط
-                      </button>
-                    ))}
+                  <div className="policy-counts" role="radiogroup" aria-label="تعداد قسط">
+                    {COUNT_CHOICES.map((n) => {
+                      const on = count === n;
+                      return (
+                        <button key={n} type="button" role="radio" aria-checked={on} className="policy-opt" data-on={on || undefined} onClick={() => setCount(n)}>
+                          <b className="num">{faCount(n)}</b>
+                          <span>{financed > 0 ? <span className="num">≈ {toman(Math.ceil(financed / n))}</span> : "قسط"}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <DualDateInput name="firstDueDate" value={firstDue} onChange={setFirstDue} label="سررسید اولین قسط (ماهانه)" required showGregorian={false} />
                 {total > 0 && pctOk && (
-                  <div className="policy-summary" aria-live="polite">
-                    {down > 0 && (
-                      <span>
-                        <span className="muted">پیش‌پرداخت</span>
-                        <b className="num money-nowrap">{toman(down)}</b>
-                      </span>
-                    )}
-                    <span>
-                      <span className="muted">{faCount(count)} قسط ماهانه</span>
+                  <div className="policy-plan" aria-live="polite">
+                    <div className="policy-plan-head">
+                      <span className="muted">هر قسط</span>
                       <b className="num money-nowrap">≈ {toman(perInstallment)}</b>
-                    </span>
-                    <span>
-                      <span className="muted">از</span>
-                      <b>{formatJalaliIso(firstDue)}</b>
-                    </span>
+                      <span className="muted">
+                        {faCount(count)} قسط ماهانه · {formatJalaliIso(firstDue)} تا {formatJalaliIso(lastDue)}
+                      </span>
+                    </div>
+                    <div className="policy-plan-bar" aria-hidden="true">
+                      {down > 0 && <span className="is-down" style={{ flexGrow: down }} />}
+                      {Array.from({ length: count }, (_, i) => (
+                        <span key={i} style={{ flexGrow: financed / count }} />
+                      ))}
+                    </div>
+                    <dl className="policy-plan-rows">
+                      <div>
+                        <dt>مبلغ کل</dt>
+                        <dd className="num money-nowrap">{toman(total)}</dd>
+                      </div>
+                      <div>
+                        <dt>
+                          <i className="is-down" aria-hidden="true" />
+                          پیش‌پرداخت
+                        </dt>
+                        <dd className="num money-nowrap">{down > 0 ? toman(down) : "—"}</dd>
+                      </div>
+                      <div>
+                        <dt>
+                          <i aria-hidden="true" />
+                          مانده برای اقساط
+                        </dt>
+                        <dd className="num money-nowrap">{toman(financed)}</dd>
+                      </div>
+                    </dl>
                   </div>
                 )}
               </>
             )}
 
-            {needsAccount &&
-              (accounts.length ? (
-                <div>
-                  <label className="label" htmlFor="policy-pay">
-                    {mode === "installments" ? "پیش‌پرداخت از کدام حساب بانکی؟" : "از کدام حساب بانکی؟"}
-                  </label>
-                  <select id="policy-pay" className="field" value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)} required>
-                    <option value="">انتخاب حساب بانکی تومانی</option>
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div className="policy-note">
-                  <Icon name="info" size={15} />
-                  <span>
-                    حساب بانکی تومانی ثبت نشده است.{" "}
-                    <Link href="/accounts" className="font-semibold" style={{ color: "var(--action)" }}>
-                      افزودن حساب بانکی
-                    </Link>
-                  </span>
-                </div>
-              ))}
+            {needsAccount && (
+              <AccountPicker
+                label={mode === "installments" ? "پیش‌پرداخت از کدام حساب؟" : "پرداخت از کدام حساب؟"}
+                sheetTitle="حساب بانکی تومانی"
+                placeholder="انتخاب حساب بانکی"
+                value={payAccountId}
+                options={accounts}
+                balances={balances}
+                onChange={setPayAccountId}
+                empty={
+                  <div className="policy-note">
+                    <Icon name="info" size={15} />
+                    <span>
+                      حساب بانکی تومانی ثبت نشده است.{" "}
+                      <Link href="/accounts" className="font-semibold" style={{ color: "var(--action)" }}>
+                        افزودن حساب بانکی
+                      </Link>
+                    </span>
+                  </div>
+                }
+              />
+            )}
             {mode === "installments" && <p className="muted text-[length:var(--fs-xs)] leading-5">اقساط به «بدهی‌ها» اضافه و به‌موقع یادآوری می‌شود.</p>}
             {mode === "cash" && startDate < today && frequency === "once" && (
               <p className="muted text-[length:var(--fs-xs)] leading-5">شروع گذشته است؛ حق بیمه پرداخت‌شده فرض می‌شود و چیزی از حساب کم نمی‌شود.</p>
@@ -408,7 +457,13 @@ export default function PolicyForm({
       {/* ── ۳. جزئیات (اختیاری) ── */}
       <details className="policy-more">
         <summary>
-          <span>نام، شرکت بیمه و جزئیات دیگر</span>
+          <span className="policy-step-title">
+            <span className="policy-step-num num" aria-hidden="true">
+              {faCount(3)}
+            </span>
+            نام، شرکت بیمه و جزئیات
+            <span className="muted text-[length:var(--fs-xs)] font-normal">اختیاری</span>
+          </span>
           <Icon name="chevronDown" size={15} />
         </summary>
         <div className="space-y-3 pt-3">

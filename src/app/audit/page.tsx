@@ -152,7 +152,7 @@ export default async function AuditPage() {
       {/* ═══ Audit trail ═══ */}
       <Section title="ردپای حسابرسی" hint="هر نوشتن در سیستم — چه کسی، چه چیزی، چه زمانی" action={<Link href="/settings" className="chip">پشتیبان‌گیری</Link>}>
         {auditRows.length === 0 ? (
-          <EmptyState icon="audit" title="هنوز رویدادی ثبت نشده است" body="هر ثبت یا اصلاح در دفترکل، اینجا ردپای ماندگار می‌گذارد." />
+          <EmptyState icon="audit" title="هنوز رویدادی ثبت نشده است" body="هر ثبت یا اصلاح در سوابق مالی، اینجا ردپای ماندگار می‌گذارد." />
         ) : (
           <div className="card overflow-x-auto">
             <table className="table">

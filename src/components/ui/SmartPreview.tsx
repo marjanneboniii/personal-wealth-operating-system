@@ -41,7 +41,7 @@ export function SmartAmountPreview({ irtAmount, rate, rateDate, rateSource }: Sm
         {rateDate && <span> · تاریخ نرخ: <span dir="auto" className="num">{rateDate}</span></span>}
         {rateSource && <span> · منبع: {rateSource}</span>}
       </div>
-      <div className="muted text-[length:var(--fs-xs)]">این محاسبه صرفاً نمایشی است و تا قبل از «تأیید نهایی» هیچ سندی در دفترکل ایجاد نمی‌کند.</div>
+      <div className="muted text-[length:var(--fs-xs)]">این محاسبه صرفاً نمایشی است و تا قبل از «تأیید نهایی» چیزی ثبت نمی‌کند.</div>
     </div>
   );
 }
