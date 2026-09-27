@@ -12,7 +12,7 @@
  * `createEventAction`, `createPlannedAction`) — no action was changed, so the
  * Toman-is-the-contract rule and the ownership checks behind them still hold.
  */
-import { useActionState, useEffect, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import {
   createBudgetAction,
   createEventAction,
@@ -25,6 +25,7 @@ import DualDateInput from "@/components/ui/DualDateInput";
 import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import Icon from "@/components/ui/Icon";
 import { SmartAmountPreview } from "@/components/ui/SmartPreview";
+import { BUDGET_TEMPLATES, budgetTemplate, type BudgetTemplateKey } from "@/features/planning/budgetTemplates";
 import { addMonthsIso, formatJalaliIso, jalaliMonthLength, jalaliToIso, toJalali } from "@/lib/format";
 
 export type AccountOpt = { id: string; code: string; name: string } & Partial<Omit<PickerAccount, "id" | "name">>;
@@ -225,6 +226,11 @@ function jalaliPeriod(today: string, mode: "month" | "quarter" | "year") {
   return { start, end: jalaliToIso(endYear, endMonth, jalaliMonthLength(endYear, endMonth)) };
 }
 
+type BudgetMode = "category" | BudgetTemplateKey;
+type DraftItem = { key: string; title: string; amount: string };
+
+const faNum = (n: number) => n.toLocaleString("fa-IR");
+
 export function BudgetCardForm({
   accounts,
   tags = [],
@@ -237,8 +243,10 @@ export function BudgetCardForm({
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(createBudgetAction, null);
   useCloseOnSuccess(state, onDone);
 
-  // A budget caps an expense category — or everything carrying one #tag (a trip, a renovation).
-  const [scope, setScope] = useState<"account" | "tag">("account");
+  // What the budget is for: a monthly expense category, or an event / project
+  // (عقد، عروسی، تعویض ماشین…) — a budget on a #tag, split into lines.
+  const [mode, setMode] = useState<BudgetMode>("category");
+  const template = mode === "category" ? null : budgetTemplate(mode);
   const [tag, setTag] = useState("");
   const [accountId, setAccountId] = useState("");
   const [browsing, setBrowsing] = useState(true);
@@ -246,9 +254,29 @@ export function BudgetCardForm({
   const [name, setName] = useState("");
   const [touchedName, setTouchedName] = useState(false);
   const [amount, setAmount] = useState("");
+  const [touchedAmount, setTouchedAmount] = useState(false);
   const [period, setPeriod] = useState<"month" | "quarter" | "year" | "custom">("month");
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(today);
+  const [items, setItems] = useState<DraftItem[]>([]);
+  const [newItem, setNewItem] = useState("");
+
+  const chooseMode = (next: BudgetMode) => {
+    setMode(next);
+    const t = next === "category" ? null : budgetTemplate(next);
+    if (!t) {
+      setPeriod("month");
+      setItems([]);
+      if (!touchedName) setName(accounts.find((a) => a.id === accountId)?.name ?? "");
+      return;
+    }
+    setTag(t.tag);
+    if (!touchedName) setName(t.name);
+    setPeriod("custom");
+    setStart(today);
+    setEnd(addMonthsIso(today, t.months));
+    setItems([]);
+  };
 
   const selected = accounts.find((a) => a.id === accountId) ?? null;
   const q = norm(query);
@@ -262,24 +290,32 @@ export function BudgetCardForm({
     if (!touchedName) setName(a.name);
   };
 
+  const hasItem = (title: string) => items.some((i) => i.title === title);
+  const toggleItem = (title: string) =>
+    setItems((cur) => (cur.some((i) => i.title === title) ? cur.filter((i) => i.title !== title) : [...cur, { key: `${title}-${cur.length}-${Date.now()}`, title, amount: "" }]));
+  const addCustomItem = () => {
+    const title = newItem.replace(/\s+/g, " ").trim();
+    if (!title || hasItem(title)) return;
+    setItems((cur) => [...cur, { key: `${title}-${Date.now()}`, title, amount: "" }]);
+    setNewItem("");
+  };
+  const itemsTotal = items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+  // Until the user types a ceiling, the ceiling is the sum of the lines.
+  const effectiveAmount = !touchedAmount && itemsTotal > 0 ? String(itemsTotal) : amount;
+
   const range = period === "custom" ? { start, end } : jalaliPeriod(today, period);
   const cleanTag = tag.trim().replace(/^#+/, "");
-  const ready = (scope === "account" ? !!accountId : cleanTag.length > 0) && name.trim().length >= 2 && Number(amount) > 0 && range.start <= range.end;
+  const ready =
+    (template ? cleanTag.length > 0 : !!accountId) && name.trim().length >= 2 && Number(effectiveAmount) > 0 && range.start <= range.end;
 
   return (
     <form action={action} className="expense-form p-3 sm:p-4">
-      <input type="hidden" name="accountId" value={scope === "account" ? accountId : ""} />
-      <input type="hidden" name="tag" value={scope === "tag" ? cleanTag : ""} />
+      <input type="hidden" name="accountId" value={template ? "" : accountId} />
+      <input type="hidden" name="tag" value={template ? cleanTag : ""} />
+      <input type="hidden" name="template" value={template?.key ?? ""} />
       <input type="hidden" name="name" value={name} />
-      <Seg
-        value={scope}
-        onChange={setScope}
-        label="بودجه روی"
-        options={[
-          ["account", "دسته هزینه"],
-          ["tag", "برچسب"],
-        ]}
-      />
+      <input type="hidden" name="amountBase" value={effectiveAmount} />
+      <input type="hidden" name="items" value={template ? JSON.stringify(items.map((i) => ({ title: i.title, amountToman: i.amount || "0" }))) : ""} />
       {period !== "custom" && (
         <>
           <input type="hidden" name="periodStart" value={range.start} />
@@ -287,131 +323,232 @@ export function BudgetCardForm({
         </>
       )}
 
-      {scope === "tag" && (
-        <Card title="بودجه برای کدام برچسب؟">
-          <input
-            className="field"
-            dir="auto"
-            value={tag}
-            onChange={(e) => {
-              setTag(e.target.value);
-              if (!touchedName) setName(e.target.value.trim() ? `#${e.target.value.trim().replace(/^#+/, "")}` : "");
-            }}
-            placeholder="مثلاً سفر_مشهد"
-            aria-label="برچسب"
-            maxLength={60}
-          />
-          {tags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {tags.slice(0, 12).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className="shortcut-chip"
-                  aria-pressed={cleanTag === t}
-                  onClick={() => {
-                    setTag(t);
-                    if (!touchedName) setName(`#${t}`);
-                  }}
-                >
-                  #{t}
-                </button>
-              ))}
+      <Card title="بودجه برای چه؟">
+        <div className="bgt-tpl-grid" role="radiogroup" aria-label="نوع بودجه">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={mode === "category"}
+            className="bgt-tpl"
+            data-on={mode === "category" || undefined}
+            style={{ "--tone": "#475569" } as CSSProperties}
+            onClick={() => chooseMode("category")}
+          >
+            <span className="bgt-tpl-icon" aria-hidden="true">
+              <Icon name="budgets" size={18} />
+            </span>
+            <span className="bgt-tpl-title">هزینه‌های ماهانه</span>
+            <span className="bgt-tpl-hint">سقف برای یک دسته هزینه</span>
+          </button>
+          {BUDGET_TEMPLATES.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="radio"
+              aria-checked={mode === t.key}
+              className="bgt-tpl"
+              data-on={mode === t.key || undefined}
+              style={{ "--tone": t.tone } as CSSProperties}
+              onClick={() => chooseMode(t.key)}
+            >
+              <span className="bgt-tpl-icon" aria-hidden="true">
+                <Icon name={t.icon} size={18} />
+              </span>
+              <span className="bgt-tpl-title">{t.title}</span>
+              <span className="bgt-tpl-hint">{t.hint}</span>
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {template?.savings && (
+        <p className="bgt-callout" style={{ "--tone": template.tone } as CSSProperties}>
+          <Icon name="goals" size={16} />
+          <span>
+            بودجه، سقفِ خرج است. اگر هنوز باید برای {template.title} پول جمع کنید،{" "}
+            <a href="/goals" className="underline">
+              یک هدف مالی بسازید
+            </a>{" "}
+            تا پیشرفت پس‌انداز را هم ببینید.
+          </span>
+        </p>
+      )}
+
+      {template && (
+        <Card
+          title="ریز اقلام"
+          aside={items.length > 0 ? <span className="expense-sub num">{faNum(items.length)} قلم</span> : undefined}
+        >
+          {template.items.length > 0 && (
+            <div className="bgt-chips" role="group" aria-label="اقلام پیشنهادی">
+              {template.items.map((title) => {
+                const on = hasItem(title);
+                return (
+                  <button key={title} type="button" className="bgt-chip" data-on={on || undefined} aria-pressed={on} onClick={() => toggleItem(title)}>
+                    <Icon name={on ? "check" : "plus"} size={12} strokeWidth={2.4} />
+                    {title}
+                  </button>
+                );
+              })}
             </div>
           )}
-          <p className="expense-sub mt-2">هر هزینه‌ای که این برچسب را داشته باشد، از هر دسته‌ای، در این بودجه حساب می‌شود.</p>
+          {items.length > 0 && (
+            <ul className="bgt-draft-list">
+              {items.map((i) => (
+                <li key={i.key} className="bgt-draft">
+                  <span className="bgt-draft-title">{i.title}</span>
+                  <AmountInput
+                    value={i.amount}
+                    onValueChange={(v) => setItems((cur) => cur.map((x) => (x.key === i.key ? { ...x, amount: v } : x)))}
+                    placeholder="سقف (اختیاری)"
+                    className="field num"
+                    unit="toman"
+                    aria-label={`سقف ${i.title}`}
+                  />
+                  <button type="button" className="icon-btn" aria-label={`حذف ${i.title}`} onClick={() => setItems((cur) => cur.filter((x) => x.key !== i.key))}>
+                    <Icon name="x" size={15} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="bgt-add-line">
+            <input
+              className="field"
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addCustomItem();
+                }
+              }}
+              placeholder="قلم دیگر، مثلاً کیک"
+              maxLength={60}
+              aria-label="قلم دلخواه"
+            />
+            <button type="button" className="btn btn-soft" onClick={addCustomItem} disabled={!newItem.trim()}>
+              افزودن
+            </button>
+          </div>
+          {itemsTotal > 0 && (
+            <p className="expense-sub num">
+              مجموع اقلام: <b>{faNum(itemsTotal)}</b> تومان
+            </p>
+          )}
+          <p className="expense-sub">هر قلم برچسب خودش را می‌گیرد؛ هزینه‌ای که با آن ثبت شود هم در آن قلم و هم در کل بودجه حساب می‌شود. بعداً هم می‌توانید قلم اضافه یا ویرایش کنید.</p>
         </Card>
       )}
 
-      {scope === "account" && (
-      <Card
-        title="بودجه برای کدام دسته هزینه؟"
-        aside={
-          selected && !browsing ? (
-            <button type="button" className="expense-link" onClick={() => setBrowsing(true)}>
-              تغییر
-            </button>
-          ) : undefined
-        }
-      >
-        {selected && !browsing ? (
-          <div className="expense-squares">
-            <button type="button" className="expense-square" data-on onClick={() => setBrowsing(true)}>
-              <Check />
-              <span className="expense-square-label">{selected.name}</span>
-            </button>
-          </div>
-        ) : (
-          <>
-            {accounts.length > 8 && (
-              <div className="expense-search">
-                <Icon name="search" size={16} />
-                <input
-                  type="search"
-                  className="field"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="جست‌وجوی دسته هزینه…"
-                  aria-label="جست‌وجوی دسته هزینه"
-                />
-              </div>
-            )}
-            {matches.length === 0 ? (
-              <p className="expense-empty">دسته‌ای پیدا نشد.</p>
-            ) : (
-              <div className="expense-squares" role="radiogroup" aria-label="دسته هزینه">
-                {matches.map((a) => {
-                  const on = a.id === accountId;
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={on}
-                      className="expense-square"
-                      data-on={on || undefined}
-                      onClick={() => pick(a)}
-                    >
-                      {on && <Check />}
-                      <span className="expense-square-label">{a.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
-      </Card>
+      {!template && (
+        <Card
+          title="بودجه برای کدام دسته هزینه؟"
+          aside={
+            selected && !browsing ? (
+              <button type="button" className="expense-link" onClick={() => setBrowsing(true)}>
+                تغییر
+              </button>
+            ) : undefined
+          }
+        >
+          {selected && !browsing ? (
+            <div className="expense-squares">
+              <button type="button" className="expense-square" data-on onClick={() => setBrowsing(true)}>
+                <Check />
+                <span className="expense-square-label">{selected.name}</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              {accounts.length > 8 && (
+                <div className="expense-search">
+                  <Icon name="search" size={16} />
+                  <input
+                    type="search"
+                    className="field"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="جست‌وجوی دسته هزینه…"
+                    aria-label="جست‌وجوی دسته هزینه"
+                  />
+                </div>
+              )}
+              {matches.length === 0 ? (
+                <p className="expense-empty">دسته‌ای پیدا نشد.</p>
+              ) : (
+                <div className="expense-squares" role="radiogroup" aria-label="دسته هزینه">
+                  {matches.map((a) => {
+                    const on = a.id === accountId;
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        className="expense-square"
+                        data-on={on || undefined}
+                        onClick={() => pick(a)}
+                      >
+                        {on && <Check />}
+                        <span className="expense-square-label">{a.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </Card>
       )}
 
       <AmountCard
-        title="سقف بودجه"
-        name="amountBase"
-        value={amount}
-        onChange={setAmount}
-        presets={BUDGET_PRESETS}
+        title={template ? "سقف کل بودجه" : "سقف بودجه"}
+        name="amountDisplay"
+        value={effectiveAmount}
+        onChange={(v) => {
+          setAmount(v);
+          setTouchedAmount(true);
+        }}
+        presets={template ? GOAL_PRESETS.slice(0, 4) : BUDGET_PRESETS}
         rate={rate}
         rateDate={rateDate}
         rateSource={rateSource}
       />
+      {template && touchedAmount && itemsTotal > 0 && Number(amount) !== itemsTotal && (
+        <p className="expense-sub -mt-2 px-1">
+          {Number(amount) < itemsTotal ? "سقف کل از مجموع اقلام کمتر است. " : `${faNum(Number(amount) - itemsTotal)} تومان برای اقلام پیش‌بینی‌نشده می‌ماند. `}
+          <button
+            type="button"
+            className="expense-link"
+            onClick={() => {
+              setAmount(String(itemsTotal));
+              setTouchedAmount(false);
+            }}
+          >
+            برابر مجموع اقلام
+          </button>
+        </p>
+      )}
 
       <section className="card expense-card expense-details">
-        <Row label="دوره">
-          <Seg
-            value={period}
-            onChange={setPeriod}
-            label="دوره بودجه"
-            options={[
-              ["month", "این ماه"],
-              ["quarter", "سه ماه"],
-              ["year", "امسال"],
-              ["custom", "بازه دلخواه"],
-            ]}
-          />
+        <Row label={template ? "تا کی؟" : "دوره"}>
+          {!template && (
+            <Seg
+              value={period}
+              onChange={setPeriod}
+              label="دوره بودجه"
+              options={[
+                ["month", "این ماه"],
+                ["quarter", "سه ماه"],
+                ["year", "امسال"],
+                ["custom", "بازه دلخواه"],
+              ]}
+            />
+          )}
           {period === "custom" ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <DualDateInput name="periodStart" value={start} onChange={setStart} label="شروع دوره" required showGregorian={false} />
-              <DualDateInput name="periodEnd" value={end} onChange={setEnd} label="پایان دوره" required showGregorian={false} />
+              <DualDateInput name="periodStart" value={start} onChange={setStart} label="شروع" required showGregorian={false} />
+              <DualDateInput name="periodEnd" value={end} onChange={setEnd} label={template ? "تاریخ رویداد / پایان" : "پایان دوره"} required showGregorian={false} />
             </div>
           ) : (
             <p className="expense-sub num">
@@ -428,10 +565,32 @@ export function BudgetCardForm({
               setName(e.target.value);
               setTouchedName(true);
             }}
-            placeholder="مثلاً خوراک ماهانه"
+            placeholder={template ? "مثلاً عروسی سارا و علی" : "مثلاً خوراک ماهانه"}
             maxLength={120}
           />
         </Row>
+        {template && (
+          <Row label="برچسب" htmlFor="budget-tag">
+            <input
+              id="budget-tag"
+              className="field"
+              dir="auto"
+              value={tag}
+              onChange={(e) => setTag(e.target.value)}
+              placeholder="مثلاً عروسی"
+              maxLength={32}
+            />
+            {tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {tags.slice(0, 10).map((t) => (
+                  <button key={t} type="button" className="shortcut-chip" aria-pressed={cleanTag === t} onClick={() => setTag(t)}>
+                    #{t}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Row>
+        )}
       </section>
 
       <Feedback state={state} />
@@ -439,7 +598,7 @@ export function BudgetCardForm({
         pending={pending}
         disabled={!ready}
         label="ایجاد بودجه"
-        note={scope === "tag" ? "هزینه‌های این برچسب به تومانِ روز ثبت با این سقف سنجیده می‌شود." : "مصرف واقعی این دسته به‌طور خودکار با این سقف سنجیده می‌شود."}
+        note={template ? `هزینه‌هایی که برچسب #${cleanTag || "…"} یا برچسب یکی از اقلام را داشته باشند، با این سقف سنجیده می‌شوند.` : "مصرف واقعی این دسته به‌طور خودکار با این سقف سنجیده می‌شود."}
       />
     </form>
   );

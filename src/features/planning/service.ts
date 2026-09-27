@@ -4,6 +4,7 @@ import { db } from "@/db";
 import {
   accounts,
   assets,
+  budgetItems,
   budgets,
   debts,
   events,
@@ -165,28 +166,48 @@ export async function listFunds(userId?: string) {
 
 /* ---------------- Budgets ---------------- */
 
+/** undefined_column / undefined_table — a database the latest migration has not reached yet. */
+function isMissingSchema(e: unknown): boolean {
+  const err = e as { code?: string; cause?: { code?: string }; message?: string } | null;
+  const code = err?.code ?? err?.cause?.code;
+  return code === "42703" || code === "42P01" || /does not exist/.test(err?.message ?? "");
+}
+
 /** Budgets with actual spend derived from the ledger (never stored balances). */
 export async function listBudgets(userId?: string) {
   const u = await resolvePlanningUserId(userId);
   if (!u && (await hasMultipleUsers())) return [];
   const fx = await getLatestUsdIrtRateForUser(u ?? null);
   const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("0");
-  const rows = await db
-    .select({
-      id: budgets.id,
-      name: budgets.name,
-      periodStart: budgets.periodStart,
-      periodEnd: budgets.periodEnd,
-      amountBase: budgets.amountBase,
-      accountId: budgets.accountId,
-      accountName: accounts.name,
-      accountCode: accounts.code,
-      tag: budgets.tag,
-    })
-    .from(budgets)
-    .leftJoin(accounts, eq(accounts.id, budgets.accountId))
-    .where(and(sql`${budgets.deletedAt} is null`, u ? eq(budgets.userId, u) : sql`1=1`))
-    .orderBy(asc(budgets.periodStart));
+  // Before migration 0054 there is no `template` column and no `budget_items`
+  // table: the page still shows every budget, just without templates or lines.
+  const selectBudgets = (withTemplate: boolean) =>
+    db
+      .select({
+        id: budgets.id,
+        name: budgets.name,
+        periodStart: budgets.periodStart,
+        periodEnd: budgets.periodEnd,
+        amountBase: budgets.amountBase,
+        accountId: budgets.accountId,
+        accountName: accounts.name,
+        accountCode: accounts.code,
+        tag: budgets.tag,
+        template: withTemplate ? budgets.template : sql<string | null>`null`,
+      })
+      .from(budgets)
+      .leftJoin(accounts, eq(accounts.id, budgets.accountId))
+      .where(and(sql`${budgets.deletedAt} is null`, u ? eq(budgets.userId, u) : sql`1=1`))
+      .orderBy(asc(budgets.periodStart));
+  let lineSchema = true;
+  let rows: Awaited<ReturnType<typeof selectBudgets>>;
+  try {
+    rows = await selectBudgets(true);
+  } catch (e) {
+    if (!isMissingSchema(e)) throw e;
+    lineSchema = false;
+    rows = await selectBudgets(false);
+  }
 
   // Spend must respect each budget's own period — derive per budget without N+1 query loop.
   // Budget ceilings are contractual Toman. Ledger expense postings book USD base_value;
@@ -242,18 +263,60 @@ export async function listBudgets(userId?: string) {
   // A budget on a hashtag measures every expense carrying it, at the Toman
   // frozen on each entry — the same figure the tag's own total shows, so the
   // two can never disagree, and FX never moves money already spent.
+  //
+  // A tag budget's LINES (ریز اقلام) carry tags of their own: an expense tagged
+  // with a line counts toward that line and, once, toward its budget.
+  const tagBudgetIds = rows.filter((b) => b.tag).map((b) => b.id);
+  const itemRows = lineSchema && tagBudgetIds.length
+    ? await db
+        .select()
+        .from(budgetItems)
+        .where(sql`${budgetItems.budgetId} in (${sql.join(tagBudgetIds.map((id) => sql`${id}`), sql`, `)})`)
+        .orderBy(asc(budgetItems.sort), asc(budgetItems.createdAt))
+    : [];
+  const itemsByBudget = new Map<string, { id: string; title: string; tag: string; amountToman: string; spentToman: string; usage: number; over: boolean }[]>();
   for (const b of rows) {
     if (!b.tag) continue;
+    const lines = itemRows.filter((i) => i.budgetId === b.id);
+    const tags = Array.from(new Set([b.tag, ...lines.map((i) => i.tag)]));
+    const tagList = sql.join(tags.map((t) => sql`${t}`), sql`, `);
+    const scope = sql`je.status = 'posted' and je.type = 'expense'
+        ${u ? sql`and je.user_id = ${u}` : sql``}
+        and je.entry_date >= ${b.periodStart} and je.entry_date <= ${b.periodEnd}`;
     const res = await db.execute(sql`
       select coalesce(sum(s.irt_amount), 0)::text as toman
       from journal_entries je
         join entry_fx_snapshots s on s.entry_id = je.id
-      where je.status = 'posted' and je.type = 'expense'
-        ${u ? sql`and je.user_id = ${u}` : sql``}
-        and je.entry_date >= ${b.periodStart} and je.entry_date <= ${b.periodEnd}
-        and exists (select 1 from entry_tags t where t.entry_id = je.id and t.tag = ${b.tag})
+      where ${scope}
+        and exists (select 1 from entry_tags t where t.entry_id = je.id and t.tag in (${tagList}))
     `);
     spendMap.set(b.id, D((res.rows[0] as { toman: string }).toman).toFixed(0));
+    if (!lines.length) continue;
+    const perTag = await db.execute(sql`
+      select t.tag, coalesce(sum(s.irt_amount), 0)::text as toman
+      from journal_entries je
+        join entry_fx_snapshots s on s.entry_id = je.id
+        join entry_tags t on t.entry_id = je.id
+      where ${scope} and t.tag in (${tagList})
+      group by t.tag
+    `);
+    const byTag = new Map((perTag.rows as { tag: string; toman: string }[]).map((r) => [r.tag, D(r.toman)]));
+    itemsByBudget.set(
+      b.id,
+      lines.map((i) => {
+        const cap = D(i.amountToman);
+        const spent = byTag.get(i.tag) ?? Decimal.zero();
+        return {
+          id: i.id,
+          title: i.title,
+          tag: i.tag,
+          amountToman: cap.toFixed(0),
+          spentToman: spent.toFixed(0),
+          usage: cap.isZero() ? 0 : Math.max(0, spent.div(cap).mul(100).toNumber()),
+          over: !cap.isZero() && spent.gt(cap),
+        };
+      }),
+    );
   }
 
   const result = [];
@@ -278,6 +341,7 @@ export async function listBudgets(userId?: string) {
       remainingUsd,
       usage: limitToman.isZero() ? 0 : Math.max(0, spentToman.div(limitToman).mul(100).toNumber()),
       over: remainingToman.isNegative(),
+      items: itemsByBudget.get(b.id) ?? [],
     });
   }
   return result;

@@ -21,6 +21,7 @@ import { entryPrefill, getTemplate } from "@/features/templates/service";
 import { vehicleTagOptions } from "@/features/vehicles/service";
 import { propertyTagOptions } from "@/features/properties/service";
 import { listTags } from "@/features/tags/service";
+import { listActiveBudgetTags } from "@/features/planning/budgetItems";
 import { getPendingCheque } from "@/features/cheques/service";
 import { D } from "@/domain/decimal";
 
@@ -49,7 +50,7 @@ export default async function NewTransactionPage({
   // price refresh is what made «ثبت تراکنش» slow to open.
   // Coin networks refresh in the background (at most daily); the page reads what is stored now.
   void ensureCryptoNetworks();
-  const [rows, fxSnap, debts, categoryTree, balances, properties, vehicles, assetNetworks, incomeTree, occupations, incomePlan, premiumPlan, expenseHabits, tagCounts, cheque] = await Promise.all([
+  const [rows, fxSnap, debts, categoryTree, balances, properties, vehicles, assetNetworks, incomeTree, occupations, incomePlan, premiumPlan, expenseHabits, tagCounts, cheque, budgetTags] = await Promise.all([
     db
       .select({
         id: accounts.id,
@@ -99,6 +100,7 @@ export default async function NewTransactionPage({
     userId ? getExpenseHabits(userId) : Promise.resolve({ categoryIds: [], lastAccountId: null }),
     listTags(userId ?? undefined),
     userId && params.chequeId && /^[0-9a-f-]{36}$/i.test(params.chequeId) ? getPendingCheque(userId, params.chequeId) : Promise.resolve(null),
+    listActiveBudgetTags(userId, todayIso()).catch(() => [] as string[]),
   ]);
   const incomePlanParent = incomePlan ? incomeTree.find((p) => p.children.some((c) => c.id === incomePlan.categoryId)) : undefined;
   // A premium reminder decides the form: an expense in its insurance category,
@@ -182,7 +184,7 @@ export default async function NewTransactionPage({
           })),
         }))}
         expenseRecentCategoryIds={expenseHabits.categoryIds}
-        tagSuggestions={tagCounts.map((t) => t.tag)}
+        tagSuggestions={Array.from(new Set([...budgetTags, ...tagCounts.map((t) => t.tag)]))}
         lastExpenseAccountId={expenseHabits.lastAccountId}
         debts={debts as any}
         defaultType={defaultType}

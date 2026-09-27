@@ -7,6 +7,7 @@ import { seedIfEmpty } from "@/db/seed";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import SettleObligationSheet from "@/components/forms/SettleObligationSheet";
+import RepairPaymentButton from "@/components/forms/RepairPaymentButton";
 import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
 import {
   INSTALLMENT_PARTIAL,
@@ -24,6 +25,7 @@ import {
   sumToman,
 } from "@/lib/format";
 import { listInstallmentSchedule } from "@/features/planning/service";
+import { listUnsettledInstallmentPayments } from "@/features/planning/repairPayments";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { isTomanBankAccount } from "@/features/accounts/classification";
 import type { InstallmentFxView } from "@/features/planning/installmentFx";
@@ -94,7 +96,7 @@ export default async function InstallmentsPage() {
   // own TOMAN BANK accounts — no cash box, fund, Tether or FX account, and
   // never a guess. The user picks one in the sheet, so the
   // balance that actually moved in real life is the one that moves here.
-  const [accountRows, balanceRows] = await Promise.all([
+  const [accountRows, balanceRows, unsettled] = await Promise.all([
     db
       .select({
         id: accounts.id,
@@ -120,9 +122,12 @@ export default async function InstallmentsPage() {
       )
       .orderBy(asc(accounts.code)),
     getAccountBalances(authUser?.id).catch(() => []),
+    // Paid installments whose money never left a Toman bank (see repairPayments).
+    authUser ? listUnsettledInstallmentPayments(authUser.id).catch(() => []) : Promise.resolve([]),
   ]);
   const payAccounts = accountRows.filter((a) => isTomanBankAccount(a));
   const payBalances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
+  const unsettledById = new Map(unsettled.map((u) => [u.installmentId, u]));
 
   const today = todayIso();
   const pending = rows.filter((r) => !r.fx.isPaid);
@@ -276,6 +281,12 @@ export default async function InstallmentsPage() {
                     className="inst-settle"
                     buttonClassName="w-full"
                   />
+                </div>
+              )}
+
+              {unsettledById.has(r.id) && (
+                <div className="inst-actions">
+                  <RepairPaymentButton item={unsettledById.get(r.id)!} accounts={payAccounts} balances={payBalances} />
                 </div>
               )}
             </div>
