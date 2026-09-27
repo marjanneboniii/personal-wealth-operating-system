@@ -103,6 +103,9 @@ import {
   getMiscCategory,
 } from "@/features/categories/service";
 import { executePlanned, payInstallment } from "@/features/planning/service";
+import { repostInstallmentPayment } from "@/features/planning/repairPayments";
+import { addBudgetItems, deleteBudget, deleteBudgetItem, updateBudgetItem, type BudgetItemInput } from "@/features/planning/budgetItems";
+import { isBudgetTemplateKey } from "@/features/planning/budgetTemplates";
 import { calculateInstallmentPayment } from "@/features/planning/installmentFx";
 import { completeSetup, getSetupState } from "@/features/setup/service";
 import { rootCauseOf } from "@/db/init-schema";
@@ -632,7 +635,83 @@ const budgetSchema = z.object({
   amountBase: z.string().min(1, "مبلغ بودجه را وارد کنید"),
   periodStart: z.string().min(8),
   periodEnd: z.string().min(8),
+  template: z.string().max(20).optional(),
+  /** JSON: [{ title, amountToman }] — the lines of a tag budget. */
+  items: z.string().max(20000).optional(),
 });
+
+function parseBudgetItems(raw: string | undefined): BudgetItemInput[] {
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("فهرست اقلام نامعتبر است.");
+  }
+  if (!Array.isArray(parsed)) throw new Error("فهرست اقلام نامعتبر است.");
+  return parsed
+    .map((i: any) => ({ title: String(i?.title ?? ""), amountToman: String(i?.amountToman ?? "0").replace(/[^0-9]/g, "") || "0" }))
+    .filter((i) => i.title.trim());
+}
+
+/** Session user (or the single-user workspace), for the budget-line actions. */
+async function budgetActor(): Promise<{ ok: true; userId: string | null } | { ok: false; message: string }> {
+  try {
+    const ctx = await getAuthContext();
+    if (ctx.hasAuth && !ctx.user) return { ok: false, message: loginRequiredMessage() };
+    return { ok: true, userId: ctx.user?.id ?? null };
+  } catch {
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
+  }
+}
+
+export async function addBudgetItemAction(budgetId: string, input: BudgetItemInput): Promise<ActionResult> {
+  const actor = await budgetActor();
+  if (!actor.ok) return actor;
+  try {
+    await addBudgetItems(budgetId, [input], actor.userId);
+    refreshAll();
+    return { ok: true, message: "قلم اضافه شد." };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطا" };
+  }
+}
+
+export async function updateBudgetItemAction(itemId: string, input: BudgetItemInput): Promise<ActionResult> {
+  const actor = await budgetActor();
+  if (!actor.ok) return actor;
+  try {
+    await updateBudgetItem(itemId, input, actor.userId);
+    refreshAll();
+    return { ok: true, message: "قلم به‌روز شد." };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطا" };
+  }
+}
+
+export async function deleteBudgetItemAction(itemId: string): Promise<ActionResult> {
+  const actor = await budgetActor();
+  if (!actor.ok) return actor;
+  try {
+    await deleteBudgetItem(itemId, actor.userId);
+    refreshAll();
+    return { ok: true, message: "قلم حذف شد." };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطا" };
+  }
+}
+
+export async function deleteBudgetAction(budgetId: string): Promise<ActionResult> {
+  const actor = await budgetActor();
+  if (!actor.ok) return actor;
+  try {
+    await deleteBudget(budgetId, actor.userId);
+    refreshAll();
+    return { ok: true, message: "بودجه حذف شد؛ هزینه‌ها و برچسب‌ها دست‌نخورده ماندند." };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطا" };
+  }
+}
 
 export async function createBudgetAction(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   let user: any = null;
@@ -655,17 +734,22 @@ export async function createBudgetAction(_p: ActionResult | null, fd: FormData):
     if (!!tag === !!v.accountId) throw new Error("بودجه را یا برای یک دسته هزینه یا برای یک برچسب تعریف کنید.");
     // SECURITY: client-provided account reference must belong to the user.
     if (user && v.accountId) await validateAccountOwnership(v.accountId, user.id);
-    await db.insert(budgets).values({
-      name: v.name,
-      accountId: v.accountId ?? null,
-      tag,
-      amountBase: D(v.amountBase).toString(),
-      periodStart: v.periodStart,
-      periodEnd: v.periodEnd,
-      userId: user?.id ?? null,
-    } as any);
+    // A template and lines belong to a tag budget (an event or a project) only.
+    const template = tag && isBudgetTemplateKey(v.template) ? v.template : null;
+    const items = tag ? parseBudgetItems(v.items) : [];
+    await db.transaction(async (tx) => {
+      // Plain SQL naming `template` only when set, so a database before
+      // migration 0054 still takes plain budgets.
+      const res = await tx.execute(sql`
+        insert into budgets (name, account_id, tag, amount_base, period_start, period_end, user_id${template ? sql`, template` : sql``})
+        values (${v.name}, ${v.accountId ?? null}, ${tag}, ${D(v.amountBase).toString()}, ${v.periodStart}, ${v.periodEnd}, ${user?.id ?? null}${template ? sql`, ${template}` : sql``})
+        returning id
+      `);
+      const created = res.rows[0] as { id: string };
+      if (items.length) await addBudgetItems(created.id, items, user?.id ?? null, tx);
+    });
     refreshAll();
-    return { ok: true, message: "بودجه ایجاد شد." };
+    return { ok: true, message: items.length ? `بودجه با ${items.length} قلم ایجاد شد.` : "بودجه ایجاد شد." };
   } catch (e) {
     const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطا";
     return { ok: false, message: msg };
@@ -1997,6 +2081,40 @@ export async function payInstallmentAction(
         paid?.contra === "expense"
           ? `قسط پرداخت و از حساب${from} کم شد. این بدهی حساب بدهی جداگانه ندارد، پس خروج وجه در سرفصل «${paid.contraName ?? "پرداخت اقساط"}» بایگانی شد — بازپرداخت بدهی است، نه هزینه؛ در گزارش هزینه‌ها و در سقف بودجه‌ها شمارش نمی‌شود.`
           : `قسط پرداخت، از حساب${from} کم و مانده بدهی به‌روزرسانی شد.`,
+    };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "خطا" };
+  }
+}
+
+/**
+ * «اصلاح حساب پرداخت» — a paid installment whose money never left a Toman
+ * bank account (old Quick Pay took it from the first asset account; or the
+ * entry is missing / voided) is posted again from the bank the user names.
+ */
+export async function repairInstallmentPaymentAction(installmentId: string, cashAccountId: string): Promise<ActionResult> {
+  let user: any = null;
+  try {
+    const ctx = await getAuthContext();
+    user = ctx.user;
+  } catch {
+    return { ok: false, message: "خطای احراز هویت: دسترسی رد شد" };
+  }
+  if (!user?.id) return { ok: false, message: loginRequiredMessage() };
+
+  try {
+    await validateAccountOwnership(cashAccountId, user.id);
+    await assertTomanBankAccount(cashAccountId);
+    const fixed = await repostInstallmentPayment(installmentId, cashAccountId, user.id);
+    refreshAll();
+    const [cashAcct] = await db.select({ name: accounts.name }).from(accounts).where(eq(accounts.id, cashAccountId)).limit(1);
+    const amount = formatMoney(fixed.toman, "IRT");
+    return {
+      ok: true,
+      message:
+        fixed.problem === "wrong-account"
+          ? `پرداخت اصلاح شد: ${amount} به حساب قبلی برگشت و از «${cashAcct?.name ?? "حساب بانکی"}» کم شد.`
+          : `پرداخت ثبت شد: ${amount} از «${cashAcct?.name ?? "حساب بانکی"}» کم شد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "خطا" };

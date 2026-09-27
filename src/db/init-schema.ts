@@ -1425,6 +1425,22 @@ const HISTORY_RECORD_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS history_records_user_date_idx ON history_records(user_id, occurred_on);`,
 ];
 
+/** ریز اقلام بودجه — see src/db/schema.ts `budgetItems`; mirrors drizzle/0054. */
+const BUDGET_ITEM_STATEMENTS = [
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS template text;`,
+  `CREATE TABLE IF NOT EXISTS budget_items (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   updated_at timestamptz,
+   budget_id uuid NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
+   title text NOT NULL CHECK (char_length(title) BETWEEN 1 AND 60),
+   amount_toman numeric(38,18) NOT NULL DEFAULT 0 CHECK (amount_toman >= 0),
+   tag text NOT NULL CHECK (char_length(tag) BETWEEN 1 AND 32),
+   sort integer NOT NULL DEFAULT 0
+  );`,
+  `CREATE INDEX IF NOT EXISTS budget_items_budget_idx ON budget_items(budget_id, sort);`,
+];
+
 /**
  * Best-effort hardening statements. They are applied when the database
  * supports them and silently skipped otherwise — never fatal for boot.
@@ -1559,6 +1575,7 @@ export async function createSchemaIfNotExists() {
     ...BANK_ACCOUNT_NAME_STATEMENTS,
     ...CHEQUE_STATEMENTS,
     ...HISTORY_RECORD_STATEMENTS,
+    ...BUDGET_ITEM_STATEMENTS,
     ...DEPOSIT_STATEMENTS,
     ...BALANCE_CHECKPOINT_STATEMENTS,
     ...INSURANCE_STATEMENTS,

@@ -602,8 +602,34 @@ export const budgets = pgTable(
     /** A budget on a hashtag instead of an account: every expense carrying it, in frozen Toman. */
     tag: text("tag"),
     amountBase: money("amount_base").notNull(),
+    /** A tag budget made from a template (wedding | engagement | car | house | trip | renovation | custom) — look only. */
+    template: text("template"),
   },
   (t) => [index("budgets_user_idx").on(t.userId)],
+);
+
+/**
+ * ریز اقلام بودجه — the lines of a tag budget (a wedding: ring, dress, hall…).
+ * Each line has its own ceiling and its own tag; an expense carrying the line's
+ * tag counts toward the line AND its budget, inside the budget's period.
+ * Planning only: no account, no posting, nothing here moves a balance.
+ */
+export const budgetItems = pgTable(
+  "budget_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    budgetId: uuid("budget_id")
+      .notNull()
+      .references(() => budgets.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    /** Contractual Toman ceiling for the line; 0 = not decided yet. */
+    amountToman: money("amount_toman").notNull(),
+    tag: text("tag").notNull(),
+    sort: integer("sort").notNull().default(0),
+  },
+  (t) => [index("budget_items_budget_idx").on(t.budgetId, t.sort)],
 );
 
 export const plannedTransactions = pgTable(
