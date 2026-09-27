@@ -89,10 +89,10 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             href: "/transactions/history",
-            label: "پیش از توازن",
+            label: "سوابق گذشته",
             icon: "clock",
-            question: "پیش از توازن چه تراکنش‌هایی داشتم؟",
-            keywords: ["history", "past", "before", "سابقه", "تاریخچه", "گذشته", "قبل از توازن"],
+            question: "قبلاً چه تراکنش‌هایی داشتم؟",
+            keywords: ["history", "past", "before", "سابقه", "سوابق", "تاریخچه", "گذشته"],
           },
         ],
       },

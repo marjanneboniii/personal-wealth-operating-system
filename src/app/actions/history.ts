@@ -57,7 +57,7 @@ export async function saveHistoryRecordAction(_prev: ActionResult | null, fd: Fo
     if (id) await updateHistoryRecord(user.id, id, inputOf(fd));
     else await createHistoryRecord(user.id, inputOf(fd));
     refresh();
-    return { ok: true, message: id ? "سابقه به‌روز شد." : "سابقه در تاریخچه ثبت شد؛ موجودی حساب‌ها تغییری نکرد." };
+    return { ok: true, message: id ? "سابقه به‌روز شد." : "سابقه ثبت شد؛ موجودی حساب‌ها تغییری نکرد." };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "خطا در ثبت سابقه" };
   }

@@ -111,7 +111,7 @@ test("with no transaction yet, today and the future are refused", async () => {
   const today = new Date().toISOString().slice(0, 10);
   await assert.rejects(
     svc.createHistoryRecord(fresh.id, { kind: "expense", title: "امروز", amount: "10", occurredOn: today }),
-    /پیش از آغاز توازن/,
+    /اولین تراکنش ثبت‌شده/,
   );
   const past = await svc.createHistoryRecord(fresh.id, { kind: "expense", title: "دیروز", amount: "10", occurredOn: "2020-01-01" });
   assert.ok(past.id);
