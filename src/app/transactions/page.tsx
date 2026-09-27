@@ -13,6 +13,8 @@ import { PageHeader } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
 import TransactionsView, { type ClientTxRow } from "@/components/transactions/TransactionsView";
+import TxScopeSwitch from "@/components/transactions/TxScopeSwitch";
+import { countHistoryRecords } from "@/features/history/service";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { todayIso } from "@/lib/format";
 
@@ -51,7 +53,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const from =
     range === "m1" ? monthShift(today, -1) : range === "m3" ? monthShift(today, -3) : range === "m6" ? monthShift(today, -6) : range === "ytd" ? `${today.slice(0, 4)}-01-01` : undefined;
 
-  const [rows, accounts, fx, categoryTree, tagCounts, tagSummary] = await Promise.all([
+  const [rows, accounts, fx, categoryTree, tagCounts, tagSummary, historyCount] = await Promise.all([
     getTransactions({
       limit: ROW_LIMIT,
       q: q || undefined,
@@ -69,6 +71,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     listCategoryTree(userId),
     listTags(userId),
     tag ? getTagSummary(tag, userId) : Promise.resolve(null),
+    userId ? countHistoryRecords(userId).catch(() => 0) : Promise.resolve(0),
   ]);
 
   // FX freeze + installment linkage for the detail panel. The ids come from the
@@ -130,6 +133,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         />
         <ModuleTabs tabs={MONEY_TABS} active="/transactions" label="بخش‌های پول" />
       </div>
+      <TxScopeSwitch active="live" historyCount={historyCount} />
       <TransactionsView
         rows={clientRows}
         accountGroups={accountGroups}

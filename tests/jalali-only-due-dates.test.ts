@@ -184,8 +184,10 @@ const dbStub: any = {
   select: () => dbStub,
   from: () => dbStub,
   leftJoin: () => dbStub,
+  innerJoin: () => dbStub,
   where: () => dbStub,
-  orderBy: () => dbStub,
+  // Awaitable too: the installments page awaits `orderBy()` for its account list.
+  orderBy: () => ({ ...dbStub, then: (resolve: any) => resolve([{ id: "acc-cash", name: "بانک", symbol: "IRT" }]) }),
   limit: async () => [{ id: "acc-cash" }],
 };
 mock.module("@/db", { namedExports: { db: dbStub } });

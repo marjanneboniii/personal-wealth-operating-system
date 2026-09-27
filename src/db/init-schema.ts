@@ -1406,6 +1406,25 @@ const CHEQUE_STATEMENTS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS cheques_user_sayad_uq ON cheques(user_id, sayad_id) WHERE sayad_id IS NOT NULL;`,
 ];
 
+/** سوابق پیش از توازن — see src/db/schema.ts `historyRecords`; mirrors drizzle/0053. */
+const HISTORY_RECORD_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS history_records (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   updated_at timestamptz,
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   occurred_on date NOT NULL,
+   kind text NOT NULL CHECK (kind IN ('expense','income','transfer','buy','sell','borrow','repay','other')),
+   title text NOT NULL CHECK (char_length(title) BETWEEN 1 AND 120),
+   amount numeric(38,18) NOT NULL CHECK (amount > 0),
+   unit text NOT NULL DEFAULT 'IRT' CHECK (unit IN ('IRT','USD','USDT','EUR','GOLD','COIN')),
+   counterparty text CHECK (char_length(counterparty) <= 120),
+   account_label text CHECK (char_length(account_label) <= 120),
+   note text CHECK (char_length(note) <= 500)
+  );`,
+  `CREATE INDEX IF NOT EXISTS history_records_user_date_idx ON history_records(user_id, occurred_on);`,
+];
+
 /**
  * Best-effort hardening statements. They are applied when the database
  * supports them and silently skipped otherwise — never fatal for boot.
@@ -1539,6 +1558,7 @@ export async function createSchemaIfNotExists() {
     ...BANK_IDENTIFIER_STATEMENTS,
     ...BANK_ACCOUNT_NAME_STATEMENTS,
     ...CHEQUE_STATEMENTS,
+    ...HISTORY_RECORD_STATEMENTS,
     ...DEPOSIT_STATEMENTS,
     ...BALANCE_CHECKPOINT_STATEMENTS,
     ...INSURANCE_STATEMENTS,

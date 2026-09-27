@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { payInstallmentAction, type ActionResult } from "@/app/actions";
 import { D } from "@/domain/decimal";
 import { formatMoney } from "@/lib/format";
+import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import Sheet from "@/components/ui/Sheet";
 
@@ -15,8 +16,10 @@ type Props = {
   dueToman: string;
   /** Toman already settled against it (non-zero on a partly-paid row). */
   paidSoFarToman?: string;
-  /** The tenant's cash account the money moves through. */
-  cashAccountId?: string | null;
+  /** The user's money accounts — the one chosen here is the one that moves. */
+  accounts: PickerAccount[];
+  /** Posted quantity per account id, in the account's own unit. */
+  balances?: Record<string, string>;
   /** payable «بدهی من» → پرداخت · receivable «طلب من» → دریافت. */
   direction: string;
   /** What is being settled, for the sheet heading. */
@@ -46,7 +49,8 @@ export default function SettleObligationSheet({
   installmentId,
   dueToman,
   paidSoFarToman,
-  cashAccountId,
+  accounts,
+  balances,
   direction,
   label,
   className,
@@ -58,6 +62,9 @@ export default function SettleObligationSheet({
 
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(() => D(dueToman || "0").toFixed(0));
+  // No silent default: the account is the user's answer to «از کدام حساب؟».
+  // Only a single option is pre-selected, since there is nothing to choose.
+  const [cashAccountId, setCashAccountId] = useState(() => (accounts.length === 1 ? accounts[0].id : ""));
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, start] = useTransition();
 
@@ -66,6 +73,19 @@ export default function SettleObligationSheet({
   const partial = entered.gt(0) && entered.lt(due);
   const invalid = !entered.gt(0) || entered.gt(due);
   const alreadyPaid = paidSoFarToman != null && D(paidSoFarToman).gt(0);
+
+  // A soft overdraft hint for a Toman / Rial account — the payment still
+  // posts (the ledger is the record of what happened), but the user sees it.
+  const chosen = accounts.find((a) => a.id === cashAccountId);
+  const chosenUnit = (chosen?.symbol ?? "").toUpperCase();
+  const chosenBalance = chosen ? balances?.[chosen.id] ?? chosen.balance ?? "0" : null;
+  const chosenToman =
+    chosenBalance != null && (chosenUnit === "IRT" || chosenUnit === "IRR")
+      ? chosenUnit === "IRR"
+        ? D(chosenBalance).div(10)
+        : D(chosenBalance)
+      : null;
+  const overdraft = !receivable && chosenToman != null && entered.gt(0) && entered.gt(chosenToman);
 
   const submit = () => {
     if (invalid || !cashAccountId) return;
@@ -83,6 +103,7 @@ export default function SettleObligationSheet({
       if (res.ok) {
         setOpen(false);
         router.refresh();
+        setTimeout(() => setResult(null), 6000);
       }
     });
   };
@@ -96,18 +117,22 @@ export default function SettleObligationSheet({
           setResult(null);
           setOpen(true);
         }}
-        disabled={!cashAccountId || !due.gt(0)}
+        disabled={!due.gt(0)}
         className={`btn btn-primary !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)] ${buttonClassName ?? ""}`}
         style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
       >
         {receivable ? "ثبت دریافت" : "پرداخت قسط"}
       </button>
 
-      {result && !result.ok && (
+      {result && (
         <span
           className="badge"
           role="status"
-          style={{ background: "var(--negative-soft)", color: "var(--negative)" }}
+          style={
+            result.ok
+              ? { background: "var(--positive-soft)", color: "var(--positive)" }
+              : { background: "var(--negative-soft)", color: "var(--negative)" }
+          }
         >
           {result.message}
         </span>
@@ -151,6 +176,29 @@ export default function SettleObligationSheet({
               </p>
             )}
           </div>
+
+          <AccountPicker
+            label={receivable ? "واریز به حساب" : "پرداخت از حساب"}
+            value={cashAccountId}
+            options={accounts}
+            balances={balances}
+            onChange={setCashAccountId}
+            placeholder={receivable ? "انتخاب حساب واریز" : "انتخاب حساب پرداخت"}
+            sheetTitle={receivable ? "واریز به کدام حساب؟" : "پرداخت از کدام حساب؟"}
+            empty={
+              <p className="muted text-[length:var(--fs-xs)] leading-5">
+                هنوز حساب بانکی یا نقدی ثبت نکرده‌اید.{" "}
+                <a href="/accounts" className="underline">
+                  افزودن حساب
+                </a>
+              </p>
+            }
+          />
+          {overdraft && (
+            <p className="mt-[-0.5rem] text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }}>
+              موجودی این حساب از مبلغ {verb} کمتر است؛ پس از ثبت، موجودی آن منفی می‌شود.
+            </p>
+          )}
 
           {/* Toman is the contract. The USD equivalent is frozen from the rate
               at the moment this posts — the server captures it inside the same

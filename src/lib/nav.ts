@@ -87,6 +87,13 @@ export const NAV_GROUPS: NavGroup[] = [
             question: "چطور پیامک‌های بانکی را به توازن وصل کنم؟",
             keywords: ["import", "csv", "sms", "پیامک", "صورت‌حساب", "بازبینی"],
           },
+          {
+            href: "/transactions/history",
+            label: "پیش از توازن",
+            icon: "clock",
+            question: "پیش از توازن چه تراکنش‌هایی داشتم؟",
+            keywords: ["history", "past", "before", "سابقه", "تاریخچه", "گذشته", "قبل از توازن"],
+          },
         ],
       },
       {

@@ -49,6 +49,7 @@ import { assertRealUsdIrtRate, getLatestUsdIrtRateForUser, getLatestUsdIrtRate, 
 import { getCurrentUser } from "@/lib/auth";
 import { authUsersExistCached } from "@/lib/tenantState";
 import { validateAccountOwnership } from "@/lib/validation";
+import { isTomanBankAccount } from "@/features/accounts/classification";
 import {
   ensureFeeExpenseAccount,
   ensureInstallmentPaymentAccount,
@@ -848,6 +849,9 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     if (authUser) {
       if (isUuid(input.primaryAccountId)) await validateAccountOwnership(input.primaryAccountId, authUser.id);
       if (isUuid(input.counterAccountId)) await validateAccountOwnership(input.counterAccountId, authUser.id);
+      if (input.type === "debt_repayment" && isUuid(input.primaryAccountId)) {
+        await assertTomanBankAccount(input.primaryAccountId);
+      }
       if (input.installmentId) {
         await assertInstallmentOwnership(input.installmentId, authUser);
       } else if (input.debtId) {
@@ -1876,6 +1880,24 @@ export async function executePlanAction(id: string): Promise<ActionResult> {
 }
 
 /**
+ * A debt is paid from (or received into) a Toman bank account only — never a
+ * cash box, fund, exchange, Tether or FX account. Enforced here as well as in
+ * the pickers, so a hand-built request cannot route a repayment elsewhere.
+ */
+async function assertTomanBankAccount(accountId: string): Promise<void> {
+  const [row] = await db
+    .select({ symbol: assets.symbol, walletKind: wallets.kind })
+    .from(accounts)
+    .leftJoin(assets, eq(assets.id, accounts.assetId))
+    .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+    .where(eq(accounts.id, accountId))
+    .limit(1);
+  if (!row || !isTomanBankAccount(row)) {
+    throw new Error("پرداخت بدهی فقط از حساب بانکی تومانی ممکن است؛ یکی از حساب‌های بانکی خود را انتخاب کنید.");
+  }
+}
+
+/**
  * Settle an installment — «پرداخت قسط» for a debt, «ثبت دریافت» for a
  * receivable. The direction is read from the OBLIGATION inside the transaction,
  * never from the caller: a client that could name the direction could post a
@@ -1918,6 +1940,7 @@ export async function payInstallmentAction(
       // the current user before the installment payment posts to the ledger.
       await validateAccountOwnership(cashAccountId, user.id);
     }
+    await assertTomanBankAccount(cashAccountId);
     // SECURITY (M-03): tenant id flows into the service so ownership is also
     // verified at the DB query level inside the atomic payment transaction.
     // The payment freezes a rate inside its transaction, where no market call
@@ -1935,6 +1958,12 @@ export async function payInstallmentAction(
       remainingToman?: string;
     };
     refreshAll();
+    const [cashAcct] = await db
+      .select({ name: accounts.name })
+      .from(accounts)
+      .where(eq(accounts.id, cashAccountId))
+      .limit(1);
+    const from = cashAcct?.name ? ` «${cashAcct.name}»` : "";
     // The message follows the ACCOUNTING FACT, not a generic success string:
     // a planning-only debt has no liability account, so the outflow landed on
     // the expense bucket — the user must be told, because they never chose it.
@@ -1950,7 +1979,7 @@ export async function payInstallmentAction(
       const left = paid.remainingToman ? formatMoney(paid.remainingToman, "IRT") : "";
       return {
         ok: true,
-        message: `${verb} بخشی از قسط ثبت شد${left ? ` · باقی‌مانده این قسط: ${left}` : ""}.`,
+        message: `${verb} بخشی از قسط ${receivable ? "به" : "از"} حساب${from} ثبت شد${left ? ` · باقی‌مانده این قسط: ${left}` : ""}.`,
       };
     }
     if (receivable) {
@@ -1958,16 +1987,16 @@ export async function payInstallmentAction(
         ok: true,
         message:
           paid?.contra === "expense"
-            ? `دریافت ثبت و به حساب اضافه شد. این طلب حساب دریافتنی جداگانه ندارد، پس ورود وجه در سرفصل «${paid.contraName ?? "دریافت مطالبات"}» بایگانی شد — وصول مطالبات است، نه درآمد؛ در گزارش درآمد شمارش نمی‌شود.`
-            : "دریافت ثبت و مانده مطالبات به‌روزرسانی شد.",
+            ? `دریافت ثبت و به حساب${from} اضافه شد. این طلب حساب دریافتنی جداگانه ندارد، پس ورود وجه در سرفصل «${paid.contraName ?? "دریافت مطالبات"}» بایگانی شد — وصول مطالبات است، نه درآمد؛ در گزارش درآمد شمارش نمی‌شود.`
+            : `دریافت ثبت، به حساب${from} اضافه و مانده مطالبات به‌روزرسانی شد.`,
       };
     }
     return {
       ok: true,
       message:
         paid?.contra === "expense"
-          ? `قسط پرداخت و از حساب کم شد. این بدهی حساب بدهی جداگانه ندارد، پس خروج وجه در سرفصل «${paid.contraName ?? "پرداخت اقساط"}» بایگانی شد — بازپرداخت بدهی است، نه هزینه؛ در گزارش هزینه‌ها و در سقف بودجه‌ها شمارش نمی‌شود.`
-          : "قسط پرداخت و مانده بدهی به‌روزرسانی شد.",
+          ? `قسط پرداخت و از حساب${from} کم شد. این بدهی حساب بدهی جداگانه ندارد، پس خروج وجه در سرفصل «${paid.contraName ?? "پرداخت اقساط"}» بایگانی شد — بازپرداخت بدهی است، نه هزینه؛ در گزارش هزینه‌ها و در سقف بودجه‌ها شمارش نمی‌شود.`
+          : `قسط پرداخت، از حساب${from} کم و مانده بدهی به‌روزرسانی شد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "خطا" };
