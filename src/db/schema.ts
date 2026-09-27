@@ -811,6 +811,39 @@ export const cheques = pgTable(
 );
 
 /**
+ * سوابق پیش از توازن — money movements that happened BEFORE the user started
+ * the app, recorded for the story only.
+ *
+ * Deliberately NOT a journal entry: no account, no asset, no posting, no FX
+ * snapshot. Nothing here can move a balance, a lot, net worth, a budget, the
+ * cash-flow report or a forecast — the opening balances already contain the
+ * result of these movements, and posting them again would count them twice.
+ * `account_label` is free text for the same reason: the account may no longer
+ * exist, and linking it would invite a join into balance maths.
+ */
+export const historyRecords = pgTable(
+  "history_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    occurredOn: date("occurred_on").notNull(),
+    kind: text("kind").notNull(), // expense | income | transfer | buy | sell | borrow | repay | other
+    title: text("title").notNull(),
+    /** In `unit` — Toman for most records; never converted or valued. */
+    amount: money("amount").notNull(),
+    unit: text("unit").notNull().default("IRT"), // IRT | USD | USDT | EUR | GOLD | COIN
+    counterparty: text("counterparty"),
+    accountLabel: text("account_label"),
+    note: text("note"),
+  },
+  (t) => [index("history_records_user_date_idx").on(t.userId, t.occurredOn)],
+);
+
+/**
  * سپرده‌ها — a bank term deposit or an income fund paying monthly.
  *
  * Metadata over money already in the ledger: the principal sits in
