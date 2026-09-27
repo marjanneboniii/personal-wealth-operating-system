@@ -1935,6 +1935,12 @@ export async function payInstallmentAction(
       remainingToman?: string;
     };
     refreshAll();
+    const [cashAcct] = await db
+      .select({ name: accounts.name })
+      .from(accounts)
+      .where(eq(accounts.id, cashAccountId))
+      .limit(1);
+    const from = cashAcct?.name ? ` «${cashAcct.name}»` : "";
     // The message follows the ACCOUNTING FACT, not a generic success string:
     // a planning-only debt has no liability account, so the outflow landed on
     // the expense bucket — the user must be told, because they never chose it.
@@ -1950,7 +1956,7 @@ export async function payInstallmentAction(
       const left = paid.remainingToman ? formatMoney(paid.remainingToman, "IRT") : "";
       return {
         ok: true,
-        message: `${verb} بخشی از قسط ثبت شد${left ? ` · باقی‌مانده این قسط: ${left}` : ""}.`,
+        message: `${verb} بخشی از قسط ${receivable ? "به" : "از"} حساب${from} ثبت شد${left ? ` · باقی‌مانده این قسط: ${left}` : ""}.`,
       };
     }
     if (receivable) {
@@ -1958,16 +1964,16 @@ export async function payInstallmentAction(
         ok: true,
         message:
           paid?.contra === "expense"
-            ? `دریافت ثبت و به حساب اضافه شد. این طلب حساب دریافتنی جداگانه ندارد، پس ورود وجه در سرفصل «${paid.contraName ?? "دریافت مطالبات"}» بایگانی شد — وصول مطالبات است، نه درآمد؛ در گزارش درآمد شمارش نمی‌شود.`
-            : "دریافت ثبت و مانده مطالبات به‌روزرسانی شد.",
+            ? `دریافت ثبت و به حساب${from} اضافه شد. این طلب حساب دریافتنی جداگانه ندارد، پس ورود وجه در سرفصل «${paid.contraName ?? "دریافت مطالبات"}» بایگانی شد — وصول مطالبات است، نه درآمد؛ در گزارش درآمد شمارش نمی‌شود.`
+            : `دریافت ثبت، به حساب${from} اضافه و مانده مطالبات به‌روزرسانی شد.`,
       };
     }
     return {
       ok: true,
       message:
         paid?.contra === "expense"
-          ? `قسط پرداخت و از حساب کم شد. این بدهی حساب بدهی جداگانه ندارد، پس خروج وجه در سرفصل «${paid.contraName ?? "پرداخت اقساط"}» بایگانی شد — بازپرداخت بدهی است، نه هزینه؛ در گزارش هزینه‌ها و در سقف بودجه‌ها شمارش نمی‌شود.`
-          : "قسط پرداخت و مانده بدهی به‌روزرسانی شد.",
+          ? `قسط پرداخت و از حساب${from} کم شد. این بدهی حساب بدهی جداگانه ندارد، پس خروج وجه در سرفصل «${paid.contraName ?? "پرداخت اقساط"}» بایگانی شد — بازپرداخت بدهی است، نه هزینه؛ در گزارش هزینه‌ها و در سقف بودجه‌ها شمارش نمی‌شود.`
+          : `قسط پرداخت، از حساب${from} کم و مانده بدهی به‌روزرسانی شد.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "خطا" };

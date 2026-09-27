@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, assets } from "@/db/schema";
+import { accounts, assetClasses, assets, wallets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
@@ -24,6 +24,8 @@ import {
   sumToman,
 } from "@/lib/format";
 import { listInstallmentSchedule } from "@/features/planning/service";
+import { getAccountBalances } from "@/features/ledger/queries";
+import { isLiquidAccount } from "@/features/accounts/classification";
 import type { InstallmentFxView } from "@/features/planning/installmentFx";
 
 export const dynamic = "force-dynamic";
@@ -88,18 +90,39 @@ export default async function InstallmentsPage() {
   const rate = schedule.rate;
   const insight = schedule.pendingUsdInsight;
 
-  const cashAccount = await db
-    .select({ id: accounts.id })
-    .from(accounts)
-    .leftJoin(assets, eq(assets.id, accounts.assetId))
-    .where(
-      and(
-        sql`${accounts.type} = 'asset' and ${accounts.assetId} is not null and ${accounts.deletedAt} is null`,
-        authUser ? sql`(${accounts.userId} = ${authUser.id} or ${accounts.userId} is null)` : sql`1=1`,
-      ),
-    )
-    .orderBy(asc(accounts.code))
-    .limit(1);
+  // The accounts an installment can be paid from / received into: the user's
+  // own MONEY accounts (bank, cash box, Tether, FX…) — never an investment
+  // position, and never a guess. The user picks one in the sheet, so the
+  // balance that actually moved in real life is the one that moves here.
+  const [accountRows, balanceRows] = await Promise.all([
+    db
+      .select({
+        id: accounts.id,
+        name: accounts.name,
+        symbol: assets.symbol,
+        decimals: assets.decimals,
+        logoUrl: assets.logoUrl,
+        coingeckoId: assets.coingeckoId,
+        classCode: assetClasses.code,
+        className: assetClasses.name,
+        walletName: wallets.name,
+        walletKind: wallets.kind,
+      })
+      .from(accounts)
+      .innerJoin(assets, eq(assets.id, accounts.assetId))
+      .leftJoin(assetClasses, eq(assetClasses.id, assets.classId))
+      .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+      .where(
+        and(
+          sql`${accounts.type} = 'asset' and ${accounts.deletedAt} is null`,
+          authUser ? eq(accounts.userId, authUser.id) : sql`1=1`,
+        ),
+      )
+      .orderBy(asc(accounts.code)),
+    getAccountBalances(authUser?.id).catch(() => []),
+  ]);
+  const payAccounts = accountRows.filter((a) => isLiquidAccount(a));
+  const payBalances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
 
   const today = todayIso();
   const pending = rows.filter((r) => !r.fx.isPaid);
@@ -246,7 +269,8 @@ export default async function InstallmentsPage() {
                     installmentId={r.id}
                     dueToman={r.dueToman}
                     paidSoFarToman={r.paidSoFarToman}
-                    cashAccountId={cashAccount[0]?.id}
+                    accounts={payAccounts}
+                    balances={payBalances}
                     direction={r.direction}
                     label={`قسط ${r.seq} — ${r.title}`}
                     className="inst-settle"

@@ -1,8 +1,9 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { pendingChequesForForecast } from "@/features/cheques/service";
 import { db } from "@/db";
 import {
   accounts,
+  assets,
   budgets,
   debts,
   events,
@@ -806,7 +807,21 @@ export async function payInstallment(
 
     // Reference reads run INSIDE the transaction (single-connection drivers
     // hold an exclusive lock during it) — keeps the read set consistent too.
+    const [cashRow] = await tx
+      .select({ type: accounts.type, userId: accounts.userId, symbol: assets.symbol })
+      .from(accounts)
+      .leftJoin(assets, eq(assets.id, accounts.assetId))
+      .where(and(eq(accounts.id, cashAccountId), isNull(accounts.deletedAt)))
+      .limit(1);
+    if (!cashRow || cashRow.type !== "asset" || (u && cashRow.userId && cashRow.userId !== u)) {
+      throw new Error("حساب پرداخت معتبر نیست؛ یکی از حساب‌های بانکی یا نقدی خودتان را انتخاب کنید.");
+    }
     const cashUnits = await unitsFor(cashAccountId, paymentUsd.toString(), tx, u);
+    // A Toman / Rial account moves by EXACTLY the settled Toman — never by a
+    // USD round-trip that can leave 909,089.9999 on a 909,090 installment.
+    const cashSymbol = (cashRow.symbol ?? "").toUpperCase();
+    if (cashSymbol === "IRT") cashUnits.quantity = settledToman.toFixed(0);
+    else if (cashSymbol === "IRR") cashUnits.quantity = settledToman.mul(10).toFixed(0);
     const contraUnits = await unitsFor(contraAccountId, paymentUsd.toString(), tx, u);
 
     // 4) Post the ledger movement through the EXISTING single write path,
