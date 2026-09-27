@@ -25,7 +25,7 @@ import {
 } from "@/lib/format";
 import { listInstallmentSchedule } from "@/features/planning/service";
 import { getAccountBalances } from "@/features/ledger/queries";
-import { isLiquidAccount } from "@/features/accounts/classification";
+import { isTomanBankAccount } from "@/features/accounts/classification";
 import type { InstallmentFxView } from "@/features/planning/installmentFx";
 
 export const dynamic = "force-dynamic";
@@ -91,8 +91,8 @@ export default async function InstallmentsPage() {
   const insight = schedule.pendingUsdInsight;
 
   // The accounts an installment can be paid from / received into: the user's
-  // own MONEY accounts (bank, cash box, Tether, FX…) — never an investment
-  // position, and never a guess. The user picks one in the sheet, so the
+  // own TOMAN BANK accounts — no cash box, fund, Tether or FX account, and
+  // never a guess. The user picks one in the sheet, so the
   // balance that actually moved in real life is the one that moves here.
   const [accountRows, balanceRows] = await Promise.all([
     db
@@ -121,7 +121,7 @@ export default async function InstallmentsPage() {
       .orderBy(asc(accounts.code)),
     getAccountBalances(authUser?.id).catch(() => []),
   ]);
-  const payAccounts = accountRows.filter((a) => isLiquidAccount(a));
+  const payAccounts = accountRows.filter((a) => isTomanBankAccount(a));
   const payBalances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
 
   const today = todayIso();

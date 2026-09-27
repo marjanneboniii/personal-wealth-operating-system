@@ -168,3 +168,15 @@ export const ACCOUNT_FAMILY_LABELS: Record<AccountFamily, string> = {
   liquid: "حساب نقد",
   investment: "دارایی سرمایه‌گذاری",
 };
+
+/**
+ * Whether an account may pay (or receive) a debt / installment: a TOMAN bank
+ * account. A Toman / Rial row with no wallet is a bank account by the same
+ * rule AccountPicker groups it under «حساب‌های بانکی»; cash boxes, funds,
+ * exchanges, Tether and FX accounts are never offered.
+ */
+export function isTomanBankAccount(input: { symbol?: string | null; walletKind?: string | null }): boolean {
+  const unit = (input.symbol ?? "").trim().toUpperCase();
+  const kind = (input.walletKind ?? "").trim().toLowerCase();
+  return (unit === "IRT" || unit === "IRR") && (!kind || kind === "bank");
+}

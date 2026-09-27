@@ -46,7 +46,7 @@ import ExpenseFields from "./ExpenseFields";
 import TradeFields from "./TradeFields";
 import TransferFields from "./TransferFields";
 import { D } from "@/domain/decimal";
-import { isLiquidAccount } from "@/features/accounts/classification";
+import { isLiquidAccount, isTomanBankAccount } from "@/features/accounts/classification";
 import type { MarketRow } from "@/features/pricing/marketSearch";
 import { normalizeNumericInput } from "@/lib/numericInput";
 import { FormStatus } from "@/components/ui/FormStatus";
@@ -345,6 +345,8 @@ export default function TransactionForm({
   const assetAccounts = accountOptions.filter((a) => a.type === "asset");
   // Daily money — bank, cash box, stablecoin wallets (audit F-11).
   const moneyOptions = assetAccounts.filter((a) => isLiquidAccount(a));
+  // A debt is paid from a Toman bank account — never a cash box, fund or Tether.
+  const debtOptions = assetAccounts.filter((a) => isTomanBankAccount(a));
   // What can be bought or sold: any position that is not plain fiat.
   const tradeOptions = assetAccounts.filter((a) => !FIAT_SYMBOLS.has((a.symbol ?? "").toUpperCase()));
   const incomeParent = incomeGroups.find((g) => g.id === incomeParentId) ?? null;
@@ -462,7 +464,7 @@ export default function TransactionForm({
       ? resolve(moneyAccountId, expenseOptions, false) ||
         resolve(lastExpenseAccountId ?? "", expenseOptions, false) ||
         (expenseOptions[0]?.id ?? "")
-      : resolve(moneyAccountId, isTrade ? settleOptions : moneyOptions);
+      : resolve(moneyAccountId, isTrade ? settleOptions : type === "debt_repayment" ? debtOptions : moneyOptions);
 
   const moneyAccount = byId(moneyId);
   const fromAccount = byId(fromId);
@@ -985,7 +987,7 @@ export default function TransactionForm({
           amount={irtAmount}
           setAmount={setIrtAmount}
           previewUsd={previewUsd}
-          accounts={moneyOptions}
+          accounts={debtOptions}
           balances={balances}
           accountId={moneyId}
           setAccountId={setMoneyAccountId}

@@ -201,3 +201,14 @@ test("paying from an account that is not a money account is refused", async () =
   const res = await payInstallmentAction(open.id, liability.id);
   assert.equal(res.ok, false, "a liability row can never be the paying account");
 });
+
+test("a non-Toman account (USD / Tether / cash box) cannot pay a debt", async () => {
+  await modulesReady;
+  const [user] = await db.select().from(users).where(eq(users.name, "TomanBankOwner"));
+  const [usdCash] = await db.select().from(accounts).where(eq(accounts.name, "Cash"));
+  const schedule = await listInstallmentSchedule(user.id);
+  const open = schedule.rows.find((r: any) => !r.fx.isPaid)!;
+  const res = await payInstallmentAction(open.id, usdCash.id);
+  assert.equal(res.ok, false);
+  assert.match(res.message, /حساب بانکی تومانی/);
+});
