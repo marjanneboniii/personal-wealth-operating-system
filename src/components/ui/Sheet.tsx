@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Icon from "@/components/ui/Icon";
+
+/** True inside a sheet's content — a sheet opened from there is nested. */
+const InSheet = createContext(false);
+
+/** Open sheets, oldest first. Only the last one owns the keyboard. */
+const openSheets: object[] = [];
 
 /**
  * Sheet — bottom sheet on mobile, centered dialog on desktop.
@@ -24,6 +31,7 @@ export default function Sheet({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
+  const nested = useContext(InSheet);
   // Callers pass an inline onClose. Reading it through a ref keeps the effect
   // below tied to `open` only — otherwise every parent render re-ran it, which
   // yanked focus back to the first control and swallowed taps inside the sheet.
@@ -36,6 +44,8 @@ export default function Sheet({
     if (!open) return;
     // Remember what had focus so it can be restored on close.
     restoreRef.current = document.activeElement as HTMLElement | null;
+    const token = {};
+    openSheets.push(token);
 
     const FOCUSABLE =
       'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -43,7 +53,7 @@ export default function Sheet({
     const onKey = (e: KeyboardEvent) => {
       // A sheet opened from inside this one (e.g. «انتخاب حساب» in a form
       // sheet) owns the keyboard: Escape closes only it, Tab stays in it.
-      if (ref.current?.querySelector(".sheet-overlay")) return;
+      if (openSheets[openSheets.length - 1] !== token) return;
       if (e.key === "Escape") {
         onCloseRef.current();
         return;
@@ -88,6 +98,7 @@ export default function Sheet({
     });
     return () => {
       document.removeEventListener("keydown", onKey);
+      openSheets.splice(openSheets.indexOf(token), 1);
       document.body.style.overflow = prevOverflow;
       document.body.style.touchAction = prevTouchAction;
       (document.body.style as any).overscrollBehavior = prevOverscroll;
@@ -98,9 +109,9 @@ export default function Sheet({
 
   if (!open) return null;
 
-  return (
+  const sheet = (
     <div
-      className="sheet-overlay fixed inset-0 z-[80] flex flex-col justify-end sm:items-center sm:justify-center"
+      className={`sheet-overlay fixed inset-0 ${nested ? "z-[90]" : "z-[80]"} flex flex-col justify-end sm:items-center sm:justify-center`}
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? "sheet-title" : undefined}
@@ -167,9 +178,14 @@ export default function Sheet({
           }}
           onTouchMove={(e) => e.stopPropagation()}
         >
-          {children}
+          <InSheet.Provider value={true}>{children}</InSheet.Provider>
         </div>
       </div>
     </div>
   );
+
+  // A sheet opened from inside another («انتخاب حساب» in «ثبت پرداخت») goes to
+  // <body>: the parent panel animates with a transform and clips its overflow,
+  // so a `fixed` overlay left inside it is sized and cut to the parent's box.
+  return nested ? createPortal(sheet, document.body) : sheet;
 }
