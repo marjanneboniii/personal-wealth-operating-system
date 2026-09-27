@@ -72,9 +72,9 @@ const clean = (v: string | null | undefined, max: number, label: string) => {
   return t || null;
 };
 
-/** The only thing this module refuses on purpose: a record from توازن's own time. */
+/** The only thing this module refuses on purpose: a record from the ledger's own time. */
 export const HISTORY_AFTER_START_MESSAGE =
-  "این بخش فقط برای تراکنش‌های پیش از آغاز توازن است. تراکنش‌های فعلی و آینده را از «ثبت تراکنش» وارد کنید تا در موجودی حساب‌ها اثر بگذارند.";
+  "سوابق گذشته فقط برای تاریخ‌های قبل از اولین تراکنش ثبت‌شده است. تراکنش‌های فعلی و آینده را از «ثبت تراکنش» وارد کنید تا در موجودی حساب‌ها اثر بگذارند.";
 
 function validate(input: HistoryInput, start: string | null) {
   const kind = input.kind as HistoryKind;
@@ -147,6 +147,19 @@ export function summarizeHistory(rows: HistoryRow[]): HistorySummary {
     first: dates[0] ?? null,
     last: dates[dates.length - 1] ?? null,
   };
+}
+
+/**
+ * True when the database has not been migrated to 0053 yet (no
+ * `history_records` table, SQLSTATE 42P01). Pages use it to show a clear
+ * «update the database» state instead of the generic error page.
+ */
+export function isHistoryTableMissing(e: unknown): boolean {
+  for (let cur: any = e, i = 0; cur && i < 5; cur = cur.cause, i++) {
+    if (cur.code === "42P01") return true;
+    if (typeof cur.message === "string" && /history_records/.test(cur.message) && /does not exist|no such table/i.test(cur.message)) return true;
+  }
+  return false;
 }
 
 export async function countHistoryRecords(userId: string): Promise<number> {
