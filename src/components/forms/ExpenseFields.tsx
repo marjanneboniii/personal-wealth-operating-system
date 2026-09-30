@@ -446,8 +446,10 @@ export default function ExpenseFields({
               {dateChoice === "other" && entryDate ? getDualDate(entryDate).jalali : "تاریخ دیگر"}
             </button>
           </div>
-          {pickingDate && (
+          {pickingDate ? (
             <DualDateInput name="entryDate" value={entryDate} onChange={setEntryDate} label="تاریخ هزینه" required showGregorian={false} />
+          ) : (
+            <input type="hidden" name="entryDate" value={entryDate} />
           )}
         </div>
 
