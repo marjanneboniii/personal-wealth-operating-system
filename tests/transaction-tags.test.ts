@@ -168,6 +168,13 @@ test("tags ride with the entry, filter the list, total in frozen Toman, and stay
   assert.equal(summary.entries, 1);
   assert.equal(D(summary.expenseToman).toFixed(0), "3000000");
   assert.deepEqual(await tagsOf(foodEntry.id), ["سفر"]);
+  // …and leaves the transactions list, together with its reversal entry.
+  const listed = await getTransactions({ userId: f.owner.id });
+  assert.ok(!listed.some((r: any) => r.id === foodEntry.id), "a voided entry is not listed");
+  assert.ok(!listed.some((r: any) => r.status === "void"), "neither is its reversal");
+  assert.ok(listed.some((r: any) => r.id === plainEntry.id), "posted entries still are");
+  const all = await getTransactions({ userId: f.owner.id, includeVoid: true });
+  assert.equal(all.filter((r: any) => r.status === "void").length, 2, "includeVoid still reaches both");
 
   // Deleting an entry (cascade) takes its tags with it.
   await db.delete(postings).where(eq(postings.entryId, plainEntry.id));

@@ -671,6 +671,13 @@ export type TxFilter = {
   review?: "reviewed" | "unreviewed";
   sort?: "new" | "old" | "amount";
   userId?: string;
+  /**
+   * Voided entries — the cancelled original and the reversal that cancels it,
+   * both `status = 'void'` — are left out of the transactions module by
+   * default: together they net to zero and only clutter the list. The journal
+   * keeps them; the ledger / financial-records views still show them.
+   */
+  includeVoid?: boolean;
 };
 
 export type TxRow = LedgerRow & {
@@ -745,6 +752,7 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
       ${tag ? sql`and exists (select 1 from entry_tags t2 where t2.entry_id = je.id and t2.tag = ${tag})` : sql``}
       ${filter.review === "reviewed" ? sql`and er.entry_id is not null` : sql``}
       ${filter.review === "unreviewed" ? sql`and er.entry_id is null` : sql``}
+      ${filter.includeVoid ? sql`` : sql`and je.status <> 'void'`}
       -- Presentation-only consistency filter. Hide activity for a deleted
       -- real-estate asset or a legacy property-only delete that left an RWA
       -- asset orphaned. Opening entries also credit USD/equity, so we filter
