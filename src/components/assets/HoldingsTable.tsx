@@ -29,10 +29,26 @@ function MoneyCell({ primary, usd, strong = false }: { primary: string; usd?: st
   );
 }
 
+/** A P&L cell: the signed amount over its arrow and percent, coloured by sign. */
+function PnlCell({ pnl, cost, currency }: { pnl: string; cost: string; currency: "IRT" | "USD" }) {
+  const costD = D(cost);
+  const roi = costD.isZero() || costD.isNegative() ? "0" : D(pnl).div(costD).mul("100").toFixed(2);
+  return (
+    <td className="td-num" dir="rtl" style={{ color: trendColor(pnl) }}>
+      <div className="num money-nowrap text-[length:var(--fs-sm)] font-semibold">{formatSignedMoney(pnl, currency)}</div>
+      <div className="num money-nowrap text-[length:var(--fs-xs)]">
+        {trendArrow(roi)} {formatPct(D(roi).abs().toString(), 2)}
+      </div>
+    </td>
+  );
+}
+
 /**
- * Holdings valuation table — Toman-canonical. On a phone it shows the three
- * columns a balance is read from (asset · value · P&L); price, share, cost and
- * average buy price join as the screen widens.
+ * Holdings valuation table — Toman-canonical. On a phone it shows the columns
+ * a balance is read from (asset · value · P&L in Toman and in dollars); price,
+ * share, cost and average buy price join as the screen widens. The dollar P&L
+ * is the USD figure the valuation already carries (value − USD cost basis) —
+ * never the Toman P&L divided by today's rate.
  */
 export default function HoldingsTable({
   rows,
@@ -51,6 +67,7 @@ export default function HoldingsTable({
             <th scope="col" className="td-num hidden lg:table-cell">میانگین خرید</th>
             <th scope="col" className="td-num">ارزش روز</th>
             <th scope="col" className="td-num">سود/زیان</th>
+            <th scope="col" className="td-num">دلاری</th>
             <th scope="col" className="td-num hidden sm:table-cell">سهم</th>
           </tr>
         </thead>
@@ -65,7 +82,6 @@ export default function HoldingsTable({
             const unitLabel = currencyLabel(a.symbol) || null;
             const showUnit = unitLabel != null && unitLabel !== displayName;
 
-            const pnlToman = D(a.unrealizedPnlToman);
             const qtyD = D(a.quantity);
             const priceToman = qtyD.isZero() ? D(a.currentValueToman) : D(a.currentValueToman).div(qtyD);
             const costToman = D(a.costBasisToman ?? a.currentValueToman);
@@ -73,8 +89,6 @@ export default function HoldingsTable({
             // the lots still held.
             const dca = a.dca;
             const dcaUsable = !!dca && D(dca.quantityHeld).gt(0);
-            const roiToman =
-              costToman.isZero() || costToman.isNegative() ? "0" : pnlToman.div(costToman).mul("100").toFixed(2);
             return (
               <tr key={a.assetId}>
                 <td className="min-w-0">
@@ -150,14 +164,8 @@ export default function HoldingsTable({
                 <td className="td-num" dir="rtl">
                   <MoneyCell primary={formatMoney(a.currentValueToman, "IRT")} usd={a.currentValue} strong />
                 </td>
-                <td className="td-num" dir="rtl" style={{ color: trendColor(a.unrealizedPnlToman) }}>
-                  <div className="num money-nowrap text-[length:var(--fs-sm)] font-semibold">
-                    {formatSignedMoney(pnlToman.toString(), "IRT")}
-                  </div>
-                  <div className="num money-nowrap text-[length:var(--fs-xs)]">
-                    {trendArrow(roiToman)} {formatPct(D(roiToman).abs().toString(), 2)}
-                  </div>
-                </td>
+                <PnlCell pnl={D(a.unrealizedPnlToman).toString()} cost={costToman.toString()} currency="IRT" />
+                <PnlCell pnl={a.unrealizedPnl} cost={a.costBasis} currency="USD" />
                 <td className="td-num hidden sm:table-cell" dir="rtl">
                   <span className="num text-[length:var(--fs-xs)]">{formatPct(a.sharePercentage, 1)}</span>
                 </td>
