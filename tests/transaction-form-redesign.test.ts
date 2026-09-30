@@ -53,6 +53,15 @@ test("the server contract is unchanged — every field is still posted", () => {
   assert.match(CODE, /name="entryDate"/, "the date input still posts entryDate");
 });
 
+test("every type-specific section posts entryDate even when «امروز» / «دیروز» is picked", () => {
+  // The date picker only renders under «تاریخ دیگر»; without the hidden field
+  // a today/yesterday entry reached the server with no entryDate and failed.
+  for (const file of ["ExpenseFields", "TransferFields", "TradeFields", "DebtRepaymentFields"]) {
+    const src = read(`src/components/forms/${file}.tsx`);
+    assert.match(src, /<input type="hidden" name="entryDate" value=\{[^}]*entryDate\} \/>/, file);
+  }
+});
+
 test("a transfer can never target its own source account", () => {
   assert.match(CODE, /toOptions = assetAccounts\.filter\(\(a\) => a\.id !== fromId\)/);
 });
