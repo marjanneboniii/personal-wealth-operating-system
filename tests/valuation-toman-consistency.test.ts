@@ -61,6 +61,9 @@ function propertyRow(overrides: Record<string, unknown>) {
  */
 const toIrt = (usd: string | number) => `SENTINEL-${usd} تومان`;
 
+/** The row's cells, in column order: asset · price · cost · avg buy · value · P&L · دلاری · share. */
+const cells = (html: string) => html.split("<tbody")[1]!.split("<td").slice(1);
+
 async function render(rows: any[]): Promise<string> {
   const stream = await renderToReadableStream(
     createElement(HoldingsTable, { rows, toIrt }),
@@ -80,12 +83,14 @@ test("Toman market price for a Toman real asset is its static Toman value — ne
 test("a Toman real-asset GAIN stays green/positive even when its USD equivalent FELL", async () => {
   await modulesReady;
   const html = await render([propertyRow({})]);
-  const pnlCell = html.split("سود/زیان")[1] ?? "";
+  const [pnlCell, usdCell] = cells(html).slice(5, 7);
 
   assert.ok(pnlCell.includes("var(--positive)"), "Toman gain must be green");
-  assert.ok(!pnlCell.includes("var(--negative)"), "USD loss must NOT make the Toman-gain row red");
+  assert.ok(!pnlCell.includes("var(--negative)"), "USD loss must NOT make the Toman-gain cell red");
   assert.ok(pnlCell.includes("+"), "Toman gain keeps its plus sign");
   assert.ok(pnlCell.includes("۲٬۵۰۰٬۰۰۰٬۰۰۰"), "shows the Toman gain magnitude");
+  // The «دلاری» column beside it tells the other half: the USD value fell.
+  assert.ok(usdCell.includes("var(--negative)") && usdCell.includes("دلار"), "the dollar column shows the USD loss");
 });
 
 test("a Toman real-asset LOSS stays red/negative even when its USD equivalent ROSE", async () => {
@@ -99,10 +104,11 @@ test("a Toman real-asset LOSS stays red/negative even when its USD equivalent RO
       unrealizedPnlToman: "-3000000000", // Toman: 7B − 10B = LOSS
     }),
   ]);
-  const pnlCell = html.split("سود/زیان")[1] ?? "";
+  const [pnlCell, usdCell] = cells(html).slice(5, 7);
 
   assert.ok(pnlCell.includes("var(--negative)"), "Toman loss must be red");
-  assert.ok(!pnlCell.includes("var(--positive)"), "USD rise must NOT make the Toman-loss row green");
+  assert.ok(!pnlCell.includes("var(--positive)"), "USD rise must NOT make the Toman-loss cell green");
+  assert.ok(usdCell.includes("var(--positive)"), "the dollar column shows the USD gain");
   assert.ok(pnlCell.includes("−"), "Toman loss keeps its minus sign");
   assert.ok(pnlCell.includes("۳٬۰۰۰٬۰۰۰٬۰۰۰"), "shows the Toman loss magnitude");
 });

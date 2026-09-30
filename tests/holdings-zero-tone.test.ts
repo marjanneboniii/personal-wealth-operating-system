@@ -99,3 +99,20 @@ test("§2 non-zero PnL keeps its semantic colour, sign and arrow", async () => {
   assert.ok(body.includes("↑"), "a positive ROI keeps its up arrow");
   assert.ok(body.includes("↓"), "a negative ROI keeps its down arrow");
 });
+
+test("the dollar P&L sits beside the Toman one, from the USD figures, in the same cell design", async () => {
+  await modulesReady;
+  // Toman gain of 10% but a dollar LOSS: the Toman lost value against the
+  // dollar. The dollar column must show the USD numbers, not Toman ÷ rate.
+  const html = await render([
+    row({ unrealizedPnl: "-12.5", costBasis: "50", currentValue: "37.5", unrealizedPnlToman: "1000000", costBasisToman: "10000000" }),
+  ]);
+  assert.ok(html.includes(">دلاری</th>"), "the column is titled «دلاری», next to «سود/زیان»");
+  const dollarCell = html.split("<td").at(-2) ?? "";
+  assert.ok(dollarCell.includes("دلار"), "the amount is in dollars");
+  assert.ok(dollarCell.includes("−۱۲.۵"), "the USD P&L itself is shown");
+  assert.ok(dollarCell.includes("۲۵.۰۰٪"), "ROI against the USD cost basis: 12.5 / 50");
+  assert.ok(dollarCell.includes("var(--negative)") && dollarCell.includes("↓"), "a dollar loss is red with a down arrow");
+  const tomanCell = html.split("<td").at(-3) ?? "";
+  assert.ok(tomanCell.includes("var(--positive)") && tomanCell.includes("۱۰.۰۰٪"), "the Toman column is unchanged");
+});
