@@ -53,7 +53,7 @@ test("AssetLogo prefers the local logo, never over an explicit user choice", () 
 test("USDe, USDG and PYUSD: supported, Persian-named, and counted as money", () => {
   const expected: Record<string, [string, string]> = {
     USDE: ["ethena-usde", "اتنا یو‌اس‌دی‌ای"],
-    USDG: ["global-dollar", "گلوبال دلار"],
+    USDG: ["global-dollar", "یو اس دی جی"],
     PYUSD: ["paypal-usd", "پی‌پل یو‌اس‌دی"],
   };
   for (const [symbol, [id, fa]] of Object.entries(expected)) {

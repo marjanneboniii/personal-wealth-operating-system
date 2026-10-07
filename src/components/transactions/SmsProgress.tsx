@@ -5,10 +5,10 @@ import { faCount } from "@/lib/format";
  * The three steps of «اتصال پیامک», each saying where the user stands —
  * so the page answers «what is left to do?» before any explanation.
  */
-export default function SmsProgress({ cards, iphones, waiting }: { cards: number; iphones: number; waiting: number }) {
+export default function SmsProgress({ cards, iphones, waiting, received = 0 }: { cards: number; iphones: number; waiting: number; received?: number }) {
   const steps = [
     { href: "#sms-cards", title: "کارت‌ها", done: cards > 0, status: cards > 0 ? `${faCount(cards)} مورد وصل است` : "هنوز وصل نشده" },
-    { href: "#sms-iphone", title: "آیفون", done: iphones > 0, status: iphones > 0 ? "وصل است" : "هنوز وصل نشده" },
+    { href: "#sms-iphone", title: "آیفون", done: received > 0, status: received > 0 ? "دریافت تأیید شد" : iphones > 0 ? "کلید آماده؛ منتظر پیام" : "شروع نشده" },
     { href: "#sms-inbox", title: "تأیید پیام‌ها", done: false, status: waiting > 0 ? `${faCount(waiting)} پیام منتظر شماست` : "پیامی منتظر نیست" },
   ];
   return (

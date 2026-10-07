@@ -94,9 +94,11 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
   if (POSITIVE_TYPES.has(e.type)) sign = 1;
   else if (NEGATIVE_TYPES.has(e.type)) sign = -1;
 
-  // From = where value left (negative legs), To = where it arrived (positive legs)
+  // Category is the user's expense classification. The positive ledger leg
+  // is a shared system bucket (often 5900 «هزینه متفرقه»), not the category.
+  // Use the saved category in human-facing flows without altering postings.
   const from = negatives[0]?.account ?? null;
-  const to = positives[0]?.account ?? null;
+  const to = e.type === "expense" ? e.categoryName?.trim() || "هزینه" : positives[0]?.account ?? null;
 
   const qtyLeg = positives[0] ?? e.lines[0];
   // Display only: the asset label is shown to the user in Persian

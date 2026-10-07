@@ -24,19 +24,12 @@ function daysBetween(from: string, to: string) {
 
 function DepositList({ rows, today }: { rows: DepositRow[]; today: string }) {
   return (
-    <ul className="card plan-list">
+    <ul className="deposit-list">
       {rows.map((d) => {
         const active = d.status === "active";
         const toMaturity = d.maturityDate ? daysBetween(today, d.maturityDate) : null;
-        const meta = [
-          d.institution,
-          `${formatPct(D(d.annualRate).toFixed(2), 2)} سالانه`,
-          d.maturityDate ? `سررسید ${formatJalaliIso(d.maturityDate)}${active && toMaturity != null ? ` · ${formatDaysUntil(toMaturity)}` : ""}` : "بدون سررسید",
-          active && d.nextPayoutDate ? `سود بعدی ${formatJalaliIso(d.nextPayoutDate)}` : null,
-          d.payoutAccountName && d.payoutAccountId !== d.accountId ? `واریز سود به ${d.payoutAccountName}` : d.accountName,
-        ].filter(Boolean);
         return (
-          <li key={d.id} className="plan-queue-row flex-wrap">
+          <li key={d.id} className="card deposit-card">
             <span className="plan-icon" style={{ background: "var(--info-soft)", color: "var(--info)" }} aria-hidden="true">
               <Icon name="coins" size={16} />
             </span>
@@ -47,12 +40,10 @@ function DepositList({ rows, today }: { rows: DepositRow[]; today: string }) {
                   {active ? (d.kind === "fund" ? "صندوق" : "سپرده") : "بسته‌شده"}
                 </span>
               </b>
-              <span className="expense-sub block" style={active && toMaturity != null && toMaturity < 0 ? { color: "var(--negative)" } : undefined}>
-                {meta.join(" · ")}
-              </span>
+              <span className="expense-sub block">{d.institution || d.accountName}</span>
             </span>
             {/* Beside the title on wide screens; under it on a phone, so the name is never cut. */}
-            <span className="flex shrink-0 flex-col items-end max-sm:w-full max-sm:items-start max-sm:ps-11">
+            <span className="deposit-value">
               <span className="num plan-amount money-nowrap" dir="rtl">
                 {formatMoney(D(d.principalToman).toFixed(0), "IRT")}
               </span>
@@ -60,6 +51,14 @@ function DepositList({ rows, today }: { rows: DepositRow[]; today: string }) {
                 + {formatMoney(d.monthlyInterestToman, "IRT")} در ماه
               </span>
             </span>
+            <dl className="deposit-facts">
+              <div><dt>نرخ سالانه</dt><dd className="num">{formatPct(D(d.annualRate).toFixed(2), 2)}</dd></div>
+              <div><dt>سررسید</dt><dd>{d.maturityDate ? formatJalaliIso(d.maturityDate) : "بدون سررسید"}</dd>
+                {active && toMaturity != null && <small style={toMaturity < 0 ? { color: "var(--negative)" } : undefined}>{formatDaysUntil(toMaturity)}</small>}
+              </div>
+              <div><dt>سود بعدی</dt><dd>{active && d.nextPayoutDate ? formatJalaliIso(d.nextPayoutDate) : "—"}</dd></div>
+              <div><dt>حساب دریافت سود</dt><dd>{d.payoutAccountName || d.accountName || "—"}</dd></div>
+            </dl>
             <DepositRowActions id={d.id} active={active} nextPlanId={d.nextPlanId} />
           </li>
         );
@@ -106,10 +105,11 @@ export default async function DepositsPage() {
   const soon = active.filter((r) => r.maturityDate && daysBetween(today, r.maturityDate) <= 30);
 
   return (
-    <div className="space-y-7">
+    <div className="finance-page deposits-page space-y-7">
       <div>
         <PageHeader
           title="سپرده‌ها"
+          subtitle="اصل پول، سود ماهانه و سررسیدها در یک نگاه."
           action={
             <Link href="#new" className="btn btn-primary">
               <Icon name="plus" size={16} />
@@ -120,11 +120,11 @@ export default async function DepositsPage() {
         <ModuleTabs tabs={MONEY_TABS} active="/deposits" label="بخش‌های پول" />
       </div>
 
-      <section className="metric-strip">
+      <section className="finance-overview" aria-label="خلاصه سپرده‌ها">
         <Metric label="اصل سپرده‌های فعال" value={formatMoney(principal.toFixed(0), "IRT")} tone="neutral" />
         <Metric label="سود ماهانه" value={formatMoney(monthly.toFixed(0), "IRT")} tone={monthly.gt(0) ? "up" : "neutral"} hint="تخمین: اصل × نرخ ÷ ۱۲" />
         <Metric label="میانگین نرخ سالانه" value={weightedRate ? formatPct(weightedRate.toFixed(2), 2) : "—"} tone="neutral" hint="وزنی بر اساس مبلغ" />
-        <Metric label="سررسید ۳۰ روز آینده" value={faCount(soon.length)} tone={soon.length ? "down" : "neutral"} />
+        <Metric label="سررسیدهای نزدیک و گذشته" value={faCount(soon.length)} tone={soon.length ? "down" : "neutral"} hint="سررسید گذشته یا تا ۳۰ روز آینده" />
       </section>
 
       <DisclosurePanel anchor="new" label="ثبت سپرده" defaultOpen={rows.length === 0}>
@@ -142,9 +142,12 @@ export default async function DepositsPage() {
       </Section>
 
       {closed.length > 0 && (
-        <Section title="بسته‌شده">
-          <DepositList rows={closed} today={today} />
-        </Section>
+        <details className="deposit-archive">
+          <summary>سپرده‌های بسته‌شده · {faCount(closed.length)} مورد</summary>
+          <Section title="بسته‌شده">
+            <DepositList rows={closed} today={today} />
+          </Section>
+        </details>
       )}
 
       <p className="expense-sub flex items-center gap-1.5">

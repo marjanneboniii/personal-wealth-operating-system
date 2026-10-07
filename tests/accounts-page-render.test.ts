@@ -247,3 +247,17 @@ test("/accounts labels wallets in plain Persian and never repeats «بانک» u
 
   sessionToken = null;
 });
+
+test("/accounts localizes a previously stored Global Dollar row to یو اس دی جی", async () => {
+  await modulesReady;
+  const { users, assets, assetClasses, wallets, accounts } = schema;
+  const [user] = await db.select().from(users).where(eq(users.username, "logo-accounts"));
+  sessionToken = (await createSession(user.id)).token;
+  const [assetClass] = await db.select().from(assetClasses).limit(1);
+  const [coin] = await db.insert(assets).values({ symbol: "USDG", name: "Global Dollar", classId: assetClass.id, decimals: 6, coingeckoId: "global-dollar" }).returning();
+  const [wallet] = await db.insert(wallets).values({ userId: user.id, name: "ربی والت", kind: "hot" }).returning();
+  await db.insert(accounts).values({ userId: user.id, code: "1120", name: "Global Dollar", type: "asset", assetId: coin.id, walletId: wallet.id });
+  const html = await renderAccounts();
+  assert.ok(html.includes("یو اس دی جی"), "stored English asset names use the Persian display label");
+  assert.ok(html.includes("accounts-wallet-section"));
+});

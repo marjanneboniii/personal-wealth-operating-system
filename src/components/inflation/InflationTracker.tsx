@@ -20,13 +20,14 @@
  * A price is an observation, not a purchase: no quantity, no purchase date, no
  * account. The sheet posts the same fields to `saveInflationPriceAction`.
  */
-import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { useActionState, useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
   saveInflationPriceAction,
   updateInflationItemAction,
   updateInflationPriceAction,
   type InflationResult,
 } from "@/app/actions/inflation";
+import AdvancedFilter from "@/components/ui/AdvancedFilter";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 import Icon from "@/components/ui/Icon";
@@ -713,6 +714,14 @@ function RiserList({ rows }: { rows: InflationItemComparison[] }) {
 
 export default function InflationTracker({ items, histories, dashboard, categories, today }: Props) {
   const [view, setView] = useState<View>("items");
+  const tabId = useId();
+  const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const visibleItems = useMemo(() => {
+    const q = norm(query);
+    return items.filter((item) => (!categoryFilter || item.categoryId === categoryFilter) &&
+      (!q || norm(`${item.name} ${item.categoryName || ""} ${item.unit}`).includes(q)));
+  }, [items, query, categoryFilter]);
   const [openId, setOpenId] = useState("");
   const [sheet, setSheet] = useState<{ open: boolean; itemId: string }>({ open: false, itemId: "" });
 
@@ -725,7 +734,7 @@ export default function InflationTracker({ items, histories, dashboard, categori
   const headline = dashboard.headline.growthPercent;
 
   return (
-    <div className="space-y-5">
+    <div className="finance-page inflation-page space-y-5">
       <PageHeader
         title="ردیاب تورم شخصی"
         subtitle="تورم سبد خودتان را بسنجید. این کالاها دارایی نیستند و در ارزش خالص اثری ندارند."
@@ -737,7 +746,7 @@ export default function InflationTracker({ items, histories, dashboard, categori
         }
       />
 
-      <section className="metric-strip">
+      <section className="finance-overview" aria-label="خلاصه تورم سبد شخصی">
         <Metric
           label="تورم سبد کالا · ۶ ماه"
           value={faGrowth(headline)}
@@ -751,12 +760,25 @@ export default function InflationTracker({ items, histories, dashboard, categori
 
       <div className="expense-seg infl-views" role="tablist" aria-label="بخش‌های ردیاب تورم">
         {VIEWS.map((v) => (
-          <button key={v.key} type="button" role="tab" aria-selected={view === v.key} data-on={view === v.key || undefined} onClick={() => setView(v.key)}>
+          <button key={v.key} id={`${tabId}-${v.key}`} type="button" role="tab"
+            aria-selected={view === v.key} aria-controls={`${tabId}-panel`} tabIndex={view === v.key ? 0 : -1}
+            data-on={view === v.key || undefined} onClick={() => setView(v.key)}
+            onKeyDown={(event) => {
+              const index = VIEWS.findIndex((item) => item.key === v.key);
+              const next = event.key === "ArrowLeft" ? (index + 1) % VIEWS.length
+                : event.key === "ArrowRight" ? (index + VIEWS.length - 1) % VIEWS.length
+                : event.key === "Home" ? 0 : event.key === "End" ? VIEWS.length - 1 : null;
+              if (next === null) return;
+              event.preventDefault();
+              setView(VIEWS[next].key);
+              document.getElementById(`${tabId}-${VIEWS[next].key}`)?.focus();
+            }}>
             {v.label}
           </button>
         ))}
       </div>
 
+      <div id={`${tabId}-panel`} role="tabpanel" aria-labelledby={`${tabId}-${view}`} tabIndex={0}>
       {view === "items" &&
         (items.length === 0 ? (
           <div className="card">
@@ -774,9 +796,17 @@ export default function InflationTracker({ items, histories, dashboard, categori
           </div>
         ) : (
           <section className="space-y-2">
-            <p className="expense-sub">برای دیدن تاریخچه قیمت و رشد هر کالا، روی آن بزنید.</p>
-            <ul className="card infl-list">
-              {items.map((x) => (
+            <div className="card infl-filter-panel">
+              <AdvancedFilter
+                search={{ value: query, placeholder: "جستجوی کالا یا دسته…", ariaLabel: "جستجوی کالاهای تورم شخصی", onChange: setQuery }}
+                selects={[{ key: "category", label: "دسته", value: categoryFilter, placeholder: "همه دسته‌ها",
+                  options: categories.map((category) => ({ value: category.id, label: category.name })), onChange: setCategoryFilter }]}
+                isFiltered={!!query || !!categoryFilter} onClear={() => { setQuery(""); setCategoryFilter(""); }} />
+              <p className="expense-sub">{faCount(visibleItems.length)} کالا · برای تاریخچه قیمت و ثبت قیمت تازه، روی کالا بزنید.</p>
+            </div>
+            {visibleItems.length === 0 && <div className="card"><EmptyState icon="search" title="کالایی پیدا نشد" body="عبارت جستجو یا دسته را تغییر دهید." action={<button type="button" className="btn btn-soft" onClick={() => { setQuery(""); setCategoryFilter(""); }}>حذف فیلترها</button>} /></div>}
+            <ul className="card infl-list" hidden={visibleItems.length === 0}>
+              {visibleItems.map((x) => (
                 <ItemRow
                   key={x.id}
                   item={x}
@@ -811,7 +841,7 @@ export default function InflationTracker({ items, histories, dashboard, categori
       )}
 
       {view === "compare" && (
-        <section className="card expense-card overflow-x-auto">
+        <section className="card expense-card infl-comparison">
           <header className="expense-head">
             <h2>مقایسه رشد کالاها</h2>
           </header>
@@ -819,6 +849,19 @@ export default function InflationTracker({ items, histories, dashboard, categori
           {dashboard.items.length === 0 ? (
             <p className="expense-empty">هنوز کالایی ثبت نشده است.</p>
           ) : (
+            <>
+            <div className="infl-compare-mobile">
+              {dashboard.items.map((r) => (
+                <article key={r.itemId} className="infl-compare-item">
+                  <h3>{r.name}</h3><p className="expense-sub">{r.categoryName || INFLATION_NO_CATEGORY_LABEL}</p>
+                  <p className="num infl-compare-price" dir="rtl">{r.latestPrice ? formatMoney(r.latestPrice, "IRT") : "—"}<small className="muted"> · هر {r.unit}</small></p>
+                  <dl className="infl-windows">{INFLATION_COMPARISON_WINDOWS.map((w) => (
+                    <div key={w.key}><dt>{w.label}</dt><dd><GrowthBadge value={r.growth[w.key]} /></dd></div>
+                  ))}</dl>
+                </article>
+              ))}
+            </div>
+            <div className="infl-compare-desktop">
             <table className="w-full min-w-[640px] text-[length:var(--fs-xs)]">
               <thead>
                 <tr className="muted text-right">
@@ -851,10 +894,13 @@ export default function InflationTracker({ items, histories, dashboard, categori
                 ))}
               </tbody>
             </table>
+            </div>
+            </>
           )}
         </section>
       )}
 
+      </div>
       <datalist id="inflation-unit-suggestions">
         {INFLATION_UNIT_SUGGESTIONS.map((u) => (
           <option key={u} value={u} />

@@ -213,7 +213,7 @@ test("USDG — no exchange lists it, so its prices are converted from CoinGecko"
   const usdg = await getWallexAsset("USDG");
   assert.ok(usdg, "USDG is in the market list");
   assert.equal(usdg.kind, "stablecoin");
-  assert.equal(usdg.displayName, "گلوبال دلار");
+  assert.equal(usdg.displayName, "یو اس دی جی");
   assert.equal(usdg.source, "coingecko");
 
   // تتری = 1.0006 ÷ 1.0002, and تومانی = that × the catalogue's own USDT market.

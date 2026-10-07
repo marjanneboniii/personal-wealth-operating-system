@@ -1,85 +1,78 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/ui/Icon";
-import SmsGuideSteps from "./SmsGuideSteps";
+import IphoneSmsGuide from "./IphoneSmsGuide";
+import SmsCopyField from "./SmsCopyField";
 import { createIphoneConnectionAction, revokeIphoneConnectionAction } from "@/app/actions/bankSms";
 
 type Connection = { id: string; name: string; createdAt: string; lastReceivedAt: string | null };
 
-const En = ({ children }: { children: string }) => <bdi dir="ltr">{children}</bdi>;
-
-/** Step 2 — a one-time iPhone automation that forwards each bank SMS. */
-export default function IphoneSmsConnection({ connections, endpoint }: { connections: Connection[]; endpoint: string | null }) {
+export default function IphoneSmsConnection({ connections, endpoint, unavailableReason }: {
+  connections: Connection[]; endpoint: string | null; unavailableReason?: string | null;
+}) {
   const router = useRouter();
   const [name, setName] = useState("آیفون من");
   const [consent, setConsent] = useState(false);
   const [token, setToken] = useState("");
+  const [started, setStarted] = useState(false);
   const [pending, setPending] = useState(false);
+  const [refreshing, startRefresh] = useTransition();
   const [message, setMessage] = useState("");
+  const connected = connections.length > 0;
+  const received = connections.some((connection) => connection.lastReceivedAt);
+  const blocked = unavailableReason || (!endpoint ? "آدرس امن دریافت پیام در این نسخه آماده نیست." : null);
+
   async function create() {
-    setPending(true); setMessage(""); setToken("");
+    if (pending || blocked || token) return;
+    setPending(true); setMessage("");
     try {
       const result = await createIphoneConnectionAction({ name, consent });
       setMessage(result.message);
       if (result.ok) { setToken(result.token); router.refresh(); }
-    } catch { setMessage("پاسخ دریافت نشد؛ پیش از تلاش دوباره صفحه را تازه کنید."); }
+    } catch { setMessage("پاسخ دریافت نشد. صفحه را تازه کنید و فهرست کلیدها را بررسی کنید؛ ممکن است کلید ساخته شده باشد."); }
     finally { setPending(false); }
   }
   async function revoke(id: string) {
-    if (!window.confirm("ارسال پیام از این آیفون قطع شود؟")) return;
+    if (pending || !window.confirm("کلید این آیفون لغو شود؟ اتوماسیون آن را هم در Shortcuts خاموش کنید.")) return;
     setPending(true);
     try { const result = await revokeIphoneConnectionAction(id); setMessage(result.message); if (result.ok) { setToken(""); router.refresh(); } }
     catch { setMessage("قطع اتصال انجام نشد؛ دوباره تلاش کنید."); }
     finally { setPending(false); }
   }
-  const connected = connections.length > 0;
   const keyForm = <div className="space-y-3">
-    {!connected && <p className="label">الف) کلید اتصال بسازید</p>}
-    <fieldset disabled={pending || !endpoint} className="space-y-3">
-      <label className="block"><span className="label">نام این آیفون</span><input className="field" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} /></label>
-      <label className="flex items-start gap-2 text-sm leading-6"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>موافقم پیامک‌های تراکنش برای بررسی به توازن فرستاده و رمزگذاری‌شده نگه داشته شوند. پیامک رمز و کد تأیید فرستاده نمی‌شود.</span></label>
-      <button type="button" className="btn btn-primary w-full" disabled={!consent || !name.trim() || connections.length >= 5} onClick={create}>{pending ? "در حال ساخت…" : "ساخت کلید اتصال"}</button>
+    <fieldset disabled={pending || !!blocked || !!token} className="space-y-3">
+      <label className="block"><span className="label">نام دستگاه</span><input className="field" value={name} maxLength={60} onChange={(event) => setName(event.target.value)} /></label>
+      <label className="flex items-start gap-2 text-sm leading-6"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>موافقم پیامک‌های تراکنش برای بررسی به توازن ارسال و رمزگذاری‌شده نگه داشته شوند. در Shortcuts، پیام‌های رمز و کد تأیید را از ارسال کنار می‌گذارم.</span></label>
+      <button type="button" className="btn btn-primary w-full" disabled={!consent || !name.trim() || connections.length >= 5} onClick={create}>{pending ? "در حال ساخت کلید…" : "ساخت کلید برای این آیفون"}</button>
+      {connections.length >= 5 && <p className="expense-note">۵ دستگاه کلید دارند؛ برای افزودن دستگاه، ابتدا کلید دستگاه قدیمی را لغو کنید.</p>}
     </fieldset>
-    {token && <div className="expense-note space-y-2"><p className="text-sm">کلید فقط همین یک بار نشان داده می‌شود. کامل کپی کنید و در قدم «ب» استفاده کنید؛ برای کسی نفرستید.</p><label className="block"><span className="label">کلید (مقدار Authorization)</span><input className="field" dir="ltr" readOnly value={`Bearer ${token}`} onFocus={(e) => e.target.select()} /></label><button className="btn btn-ghost" type="button" onClick={() => setToken("")}>کپی کردم؛ پنهان کن</button></div>}
-    </div>;
+  </div>;
 
   return <section id="sms-iphone" className="card expense-card scroll-mt-20">
-    <header className="expense-head"><h2 className="sms-step-title"><span className="sms-step-number is-2" aria-hidden="true">۲</span>اتصال آیفون</h2><span className="expense-sub">{connected ? "وصل شد" : "قدم دوم"}</span></header>
-    <p className="text-sm leading-7">روی آیفون یک «اجرای خودکار» می‌سازید که هر پیامک بانک را برای توازن بفرستد. یک بار، حدود ۵ دقیقه.</p>
-
-    {connected && <ul className="sms-connected-list">{connections.map((c) => <li key={c.id} className="sms-connected-item">
-      <span className="flex min-w-0 items-center gap-2"><span className="sms-ok" aria-hidden="true"><Icon name="check" size={12} strokeWidth={3} /></span><span>{c.name} · {c.lastReceivedAt ? `آخرین پیام ${new Date(c.lastReceivedAt).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" })}` : "هنوز پیامی نرسیده"}</span></span>
-      <button className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]" type="button" disabled={pending} onClick={() => revoke(c.id)}>قطع اتصال</button>
+    <header className="expense-head"><h2 className="sms-step-title"><span className="sms-step-number is-2" aria-hidden="true">۲</span>فعال‌سازی روی آیفون</h2><span className={`badge ${received ? "badge-positive" : "badge-neutral"}`}>{received ? "دریافت پیام تأیید شد" : connected || token ? "کلید آماده؛ منتظر پیام" : "هنوز فعال نشده"}</span></header>
+    <div className="sms-activation-intro"><span className="flow-icon" aria-hidden="true"><Icon name="phone" size={24} /></span><div><h3 className="font-semibold">پیام بانک، آمادهٔ بررسی در توازن</h3><p className="muted text-sm leading-7">یک بار Shortcuts آیفون را تنظیم می‌کنید. پیام‌های جدید وارد صندوق می‌شوند و با تأیید شما به تراکنش تبدیل می‌شوند.</p></div></div>
+    {blocked && <p role="alert" className="expense-note expense-note-warn">{blocked}</p>}
+    {!connected && !token && !started && <><button type="button" className="btn btn-primary w-full" disabled={!!blocked} onClick={() => setStarted(true)}>شروع اتصال پیامک آیفون</button><p className="muted text-xs">ساخت کلید، تنظیم Shortcuts و بررسی اولین پیام · هر زمان قابل قطع است.</p></>}
+    {(started && !connected && !token) && keyForm}
+    {connected && <ul className="sms-connected-list">{connections.map((connection) => <li key={connection.id} className="sms-connected-item">
+      <span className="flex min-w-0 items-center gap-2"><Icon name={connection.lastReceivedAt ? "check" : "phone"} size={18} /><span><b>{connection.name}</b><br />{connection.lastReceivedAt ? `آخرین دریافت: ${new Date(connection.lastReceivedAt).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" })}` : "کلید ساخته شده؛ هنوز پیامی از این دستگاه نرسیده"}</span></span>
+      <button className="btn btn-ghost text-xs" type="button" disabled={pending} onClick={() => revoke(connection.id)}>لغو کلید</button>
     </li>)}</ul>}
-
-    {!endpoint && <p role="alert" className="expense-note">آدرس امن (HTTPS) این نسخه هنوز آماده نیست؛ اتصال آیفون بعد از آن فعال می‌شود.</p>}
-
-    {/* Once an iPhone is connected, a second key is a rare need: keep it folded. */}
-    {connected ? <details className="sms-guide" open={!!token}><summary>افزودن آیفون دیگر</summary><div className="mt-4">{keyForm}</div></details> : keyForm}
-
-    <details className="sms-guide text-sm" open={!!token}>
-      <summary>ب) اجرای خودکار را روی آیفون بسازید</summary>
-      <p className="sms-guide-intro">نام دکمه‌ها به انگلیسی آمده تا در آیفون راحت پیدایشان کنید.</p>
-      <SmsGuideSteps steps={[
-        { title: "یک اجرای خودکار تازه", content: <p>برنامهٔ <En>Shortcuts</En> ← <En>Automation</En> ← دکمهٔ + ← <En>Message</En>. در <En>Sender</En> بانک را انتخاب کنید و در <En>Message Contains</En> بنویسید «برداشت». گزینهٔ <En>Run Immediately</En> را روشن کنید و <En>New Blank Automation</En> را بزنید. برای «واریز» همین را یک بار دیگر بسازید.</p> },
-        { title: "متن پیام، بدون رمزها", content: <p>اقدام <En>Get Text from Input</En> را با ورودی <En>Shortcut Input</En> اضافه کنید. بعد یک <En>If</En> بگذارید: اگر متن «رمز» یا «کد» داشت، <En>Stop This Shortcut</En>.</p> },
-        { title: "زمان پیام", content: <p>اقدام <En>Current Date</En> و بعد <En>Format Date</En> را با قالب <En>ISO 8601</En> اضافه کنید.</p> },
-        { title: "آدرس توازن", content: <><p>اقدام <En>Get Contents of URL</En> را اضافه کنید، آدرس زیر را بگذارید و <En>Method</En> را <En>POST</En> کنید.</p>{endpoint ? <input className="field mt-2" dir="ltr" readOnly value={endpoint} aria-label="آدرس ارسال پیام" onFocus={(e) => e.target.select()} /> : <p className="expense-note">آدرس هنوز آماده نیست.</p>}</> },
-        { title: "کلید و نوع داده", content: <dl className="sms-settings"><div><dt>در <En>Headers</En>: <code>Authorization</code></dt><dd>کلید قدم «الف»، همراه با <En>Bearer</En></dd></div><div><dt>و <code>Content-Type</code></dt><dd><code>application/json</code></dd></div></dl> },
-        { title: "متن و زمان را بفرستید", content: <><dl className="sms-settings"><div><dt>در <En>Request Body</En> (نوع <En>JSON</En>): <code>message</code></dt><dd>متغیر متن پیام از قدم ۲</dd></div><div><dt><code>sentAt</code></dt><dd>متغیر تاریخ از قدم ۳</dd></div></dl><p>ذخیره کنید. با اولین پیامک بانکی جدید، پیام در بخش ۳ همین صفحه می‌نشیند.</p></> },
-      ]} />
-      <details className="sms-guide mt-3"><summary>پیام نرسید؟</summary>
-        <ul className="mt-3 list-disc space-y-2 ps-5 leading-7">
-          <li>آیفون اینترنت داشته باشد و <En>Run Immediately</En> روشن باشد.</li>
-          <li>آدرس، <En>POST</En> و دو ردیف <En>Headers</En> را دوباره نگاه کنید؛ کلید باید کامل و با <En>Bearer</En> باشد.</li>
-          <li>برای دیدن پاسخ، اقدام <En>Show Notification</En> اضافه کنید؛ <code>ok: true</code> یعنی رسید.</li>
-          <li>اگر اتصال را قطع کرده‌اید، کلید تازه بسازید.</li>
-        </ul>
-      </details>
-      <a className="mt-3 inline-block underline" href="https://support.apple.com/en-ke/guide/shortcuts/apd602971e63/9.0/ios/26" target="_blank" rel="noreferrer">راهنمای تصویری اپل</a>
-    </details>
-    {message && <p role="status" className="text-sm">{message}</p>}
+    {token && <div className="sms-token-card space-y-3"><h3 className="font-semibold text-sm">کلید آماده است؛ حالا Shortcuts را تنظیم کنید</h3><p className="text-sm leading-7">این کلید فقط همین بار نمایش داده می‌شود. با دکمهٔ کپی، مقدار کامل را در Authorization بگذارید. آن را برای کسی نفرستید؛ با بستن یا تازه‌کردن صفحه دوباره قابل نمایش نیست.</p><SmsCopyField label="Authorization · همراه با Bearer" value={`Bearer ${token}`} secret /><button className="btn btn-ghost" type="button" onClick={() => setToken("")}>در Shortcuts ذخیره کردم؛ پنهان کن</button></div>}
+    {connected && !token && <details className="sms-guide"><summary>کلید را ندارم یا آیفون دیگری اضافه می‌کنم</summary><p className="text-sm leading-7 my-3">کلید قبلی بازیابی نمی‌شود. اگر آن را گم کرده‌اید، کلید همان دستگاه را از فهرست بالا لغو کنید، کلید تازه بسازید و Authorization را در همهٔ اتوماسیون‌های آن دستگاه تغییر دهید.</p>{keyForm}</details>}
+    {endpoint && <SmsCopyField label="آدرس دریافت پیام در توازن" value={endpoint} />}
+    <details className="sms-guide" open={!!token || started || connected}><summary>راهنمای قدم‌به‌قدم Shortcuts</summary><IphoneSmsGuide endpoint={endpoint} authorization={token ? `Bearer ${token}` : undefined} /></details>
+    {(connected || token) && <div className="sms-receipt-check"><p className="text-sm leading-7">{received ? "دریافت از آیفون ثبت شده است. پیام‌های منتظر را در صندوق همین صفحه بررسی کنید." : "ساخت کلید به‌تنهایی اتصال را تأیید نمی‌کند. بعد از رسیدن پیامک بانکی جدید، دریافت را بررسی کنید."}</p><button type="button" className="btn btn-primary" disabled={refreshing} onClick={() => startRefresh(() => router.refresh())}><Icon name="refresh" size={16} />{refreshing ? "در حال بررسی…" : "بررسی دریافت پیام"}</button></div>}
+    <details className="sms-guide"><summary>پیام نرسیده یا Shortcuts خطا می‌دهد؟</summary><div className="sms-settings text-sm leading-7">
+      <div><b>اتوماسیون اصلاً اجرا نمی‌شود</b><p>فرستنده باید دقیقاً با پیام بانک یکی باشد؛ همهٔ شرط‌های Sender و Message Contains باید برقرار باشند. Run Immediately، اینترنت آیفون و مجوز دسترسی به دامنهٔ توازن را بررسی کنید. پیام قدیمی اتوماسیون را فعال نمی‌کند.</p></div>
+      <div><b>INVALID_CONNECTION · خطای 401</b><p>Authorization را کامل با Bearer و یک فاصله وارد کنید. کلید لغوشده کار نمی‌کند؛ از کلید دستگاه فعال استفاده کنید.</p></div>
+      <div><b>INVALID_PAYLOAD یا JSON_REQUIRED · خطای 400 یا 415</b><p>روش POST، نوع JSON، نام‌های message و sentAt و تاریخ ISO 8601 را بررسی کنید. مقدار message باید متن واقعی پیام و sentAt خروجی Format Date باشد.</p></div>
+      <div><b>BEFORE_ACTIVATION یا INVALID_TIME</b><p>پیام باید بعد از ساخت کلید رسیده باشد؛ تاریخ و ساعت آیفون را خودکار تنظیم کنید. پیام قدیمی را برای آزمایش نفرستید.</p></div>
+      <div><b>NOT_A_TRANSACTION</b><p>پیام شامل رمز یا کد تأیید است و پذیرفته نمی‌شود. پیام تراکنش جدید را بررسی کنید.</p></div>
+      <div><b>INBOX_FULL، RATE_LIMITED یا SERVICE_UNAVAILABLE</b><p>پیام‌های منتظر را بررسی کنید؛ برای محدودیت ارسال کمی بعد تلاش کنید. اگر سرویس در دسترس نیست، اتصال را بعداً بررسی کنید؛ کلید جدید مشکل سرویس را برطرف نمی‌کند.</p></div>
+    </div></details>
+    {message && <p role="status" className="expense-note text-sm">{message}</p>}
   </section>;
 }

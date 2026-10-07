@@ -219,7 +219,7 @@ export default function TransactionsView({
         : `${formatQty(trade.tradeQuantity, 8)} ${currencyLabel(trade.tradeSymbol)}`
       : null;
     const tagLine = e.tags.length ? e.tags.map((t) => `#${t}`).join(" ") : null;
-    const meta = [h.typeLabel, tradeQty, category, flow, tagLine].filter(Boolean).join(" · ");
+
     const amount = txAmountLabel(h, e.fx?.irtAmount, rate);
 
     return (
@@ -240,7 +240,7 @@ export default function TransactionsView({
             className="tx-item-main"
           >
             <FlowIcon sign={h.sign} />
-            <span className="min-w-0 flex-1">
+            <span className="tx-identity min-w-0 flex-1">
               <span className="flex min-w-0 items-center gap-2">
                 <span className={`min-w-0 truncate text-[length:var(--fs-sm)] font-medium ${isVoid ? "line-through" : ""}`}>
                   {e.description}
@@ -252,12 +252,17 @@ export default function TransactionsView({
                 )}
                 {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
               </span>
-              <span className="muted block truncate text-[length:var(--fs-xs)]">
-                {byDay ? meta : `${formatShortDate(e.entryDate)} · ${meta}`}
+              <span className="tx-row-meta">
+                <span className="tx-kind">{h.typeLabel}</span>
+                {!byDay && <span>{formatShortDate(e.entryDate)}</span>}
+                {category && <span>{category}</span>}
+                {tradeQty && <span className="num">{tradeQty}</span>}
               </span>
+              {flow && <span className="tx-flow muted">{flow}</span>}
+              {tagLine && <span className="tx-tags muted">{tagLine}</span>}
             </span>
             <span
-              className="num shrink-0 text-[length:var(--fs-sm)] font-semibold money-nowrap"
+              className="tx-row-amount num shrink-0 text-[length:var(--fs-sm)] font-semibold money-nowrap"
               dir="rtl"
               style={h.sign > 0 ? { color: "var(--positive)" } : undefined}
             >
@@ -510,7 +515,15 @@ export default function TransactionsView({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="transactions-content space-y-3">
+      <section className="card tx-filter-panel" aria-label="جستجو و بررسی تراکنش‌ها">
+        <div className="tx-filter-heading">
+          <div><h2>سوابق تراکنش‌ها</h2><p className="muted">{faCount(rows.length)} مورد در فهرست فعلی</p></div>
+          <button type="button" className="btn btn-soft" aria-pressed={filters.review === "unreviewed"}
+            onClick={() => apply({ review: filters.review === "unreviewed" ? "" : "unreviewed" })}>
+            بررسی‌نشده <span className="badge badge-neutral">{faCount(unreviewedCount)}</span>
+          </button>
+        </div>
       <AdvancedFilter
         searchRef={searchRef}
         search={{
@@ -597,6 +610,7 @@ export default function TransactionsView({
         isFiltered={!!isFiltered}
         onClear={() => router.replace("/transactions")}
       />
+      </section>
 
       {tagSummary && tagSummary.entries > 0 && (
         <section className="card space-y-2 p-4" aria-label={`جمع برچسب #${tagSummary.tag}`}>
@@ -664,13 +678,7 @@ export default function TransactionsView({
         </div>
       ) : (
         <>
-          <div className="tx-toolbar">
-            <span className="num">
-              {faCount(rows.length)} تراکنش
-              {unreviewedCount > 0 ? ` · ${faCount(unreviewedCount)} بررسی‌نشده` : ""}
-            </span>
-            {truncated && <span style={{ color: "var(--warning)" }}>فقط موارد اخیر نمایش داده شده — بازه را کوتاه‌تر کنید</span>}
-          </div>
+          {truncated && <p className="tx-toolbar" style={{ color: "var(--warning)" }}>فقط موارد اخیر نمایش داده شده — بازه را کوتاه‌تر کنید</p>}
           <div className="card tx-list">
             {groups.map((g) => (
               <section key={g.key} aria-label={g.label ?? undefined}>

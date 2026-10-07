@@ -18,7 +18,7 @@ export default function DepositRowActions({ id, active, nextPlanId }: { id: stri
   };
 
   return (
-    <div className="flex w-full flex-wrap justify-end gap-2">
+    <div className="deposit-actions flex w-full flex-wrap justify-end gap-2">
       {active && nextPlanId && (
         <Link href={`/new?type=income&planId=${nextPlanId}`} className={`${SMALL} btn-primary`}>
           ثبت سود این ماه
