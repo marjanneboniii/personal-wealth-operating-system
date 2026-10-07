@@ -7479,3 +7479,91 @@ fieldset.policy-step > .policy-step-title + * {
 .product-films-player:fullscreen .product-film-controls { width: min(100%, 900px); }
 
 .product-films-error a { text-decoration: underline; text-underline-offset: 4px; }
+
+/* Financial activity: semantic color pairs retain the app's light/dark tokens. */
+.tx-item { --tx-ink: var(--info); --tx-soft: var(--info-soft); border-inline-start: 3px solid var(--tx-ink); margin-block: 0.35rem; border-radius: var(--r-md); transition: background 150ms ease; }
+.tx-item[data-type="expense"] { --tx-ink: var(--negative); --tx-soft: var(--negative-soft); }
+.tx-item[data-type="income"] { --tx-ink: var(--positive); --tx-soft: var(--positive-soft); }
+.tx-item[data-type="debt_repayment"], .tx-item[data-type="installment"] { --tx-ink: var(--warning); --tx-soft: var(--warning-soft); }
+.tx-item[data-type="fx"], .tx-item[data-type="buy"], .tx-item[data-type="sell"] { --tx-ink: var(--lc-crypto-ink); --tx-soft: var(--lc-crypto-soft); }
+.tx-item:hover, .tx-item:focus-within { background: color-mix(in srgb, var(--tx-soft) 45%, var(--surface)); }
+.tx-item .flow-icon { width: 38px; height: 38px; border-radius: 13px; background: var(--tx-soft); color: var(--tx-ink); flex-shrink: 0; }
+.tx-item .tx-kind { background: var(--tx-soft); color: var(--tx-ink); font-weight: 600; border-radius: 6px; padding: 0.18rem 0.5rem; }
+.tx-item .tx-row-meta { align-items: center; gap: 0.5rem; }
+.tx-item .tx-row-amount { font-weight: 700; }
+
+/* Cash flow: one primary balance, two distinct monthly movements. */
+.cashflow-summary { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 1rem; }
+.cashflow-summary > .card { padding: 1.35rem; min-width: 0; }
+.cashflow-summary .stat-tile { border: 0; padding: 0; background: transparent; box-shadow: none; }
+.cashflow-net { grid-row: span 2; display: flex; flex-direction: column; justify-content: center; gap: 1.25rem; background: color-mix(in srgb, var(--action-soft) 45%, var(--surface)); border-color: color-mix(in srgb, var(--action) 25%, var(--border)); }
+.cashflow-eyebrow { color: var(--text-3); font-size: var(--fs-xs); }
+.cashflow-net .metric-value { font-size: clamp(1.25rem, 2vw, 1.9rem); }
+.cashflow-income { background: color-mix(in srgb, var(--positive-soft) 45%, var(--surface)); }
+.cashflow-expense { background: color-mix(in srgb, var(--negative-soft) 45%, var(--surface)); }
+.cashflow-entry { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-xs); min-height: 44px; margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.5rem; color: var(--text-2); }
+.cashflow-income .cashflow-entry { color: var(--positive); }
+.cashflow-expense .cashflow-entry { color: var(--negative); }
+.cashflow-year { grid-column: 2 / -1; }
+.cashflow-chart { overflow: hidden; }
+.cashflow-page .breakdown { padding: 0.25rem 1.25rem; border-radius: var(--r-lg); }
+.cashflow-page .breakdown-meter { height: 6px; border-radius: 999px; }
+
+/* Paid receipts are a first-class view next to upcoming installments. */
+.inst-view-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; padding: 0.4rem; background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.inst-view-tabs button { display: flex; justify-content: center; align-items: center; gap: 0.6rem; min-height: 48px; border-radius: var(--r-md); color: var(--text-2); font-size: var(--fs-sm); }
+.inst-view-tabs button > span { font-size: var(--fs-xs); padding: 0.15rem 0.45rem; background: var(--border); border-radius: 999px; }
+.inst-view-tabs button[aria-selected="true"] { background: var(--surface); color: var(--action); box-shadow: var(--shadow-sm); font-weight: 600; }
+.inst-view-tabs button[aria-selected="true"]:last-child { color: var(--positive); }
+.inst-paid-list { display: grid; gap: 0.75rem; border: 0; background: transparent; overflow: visible; }
+.inst-paid-list .inst-item { background: var(--surface); border: 1px solid var(--border); border-inline-start: 3px solid var(--positive); border-radius: var(--r-lg); overflow: hidden; }
+.inst-paid-list .inst-item + .inst-item { border-top: 1px solid var(--border); }
+.inst-paid-list .inst-seq { background: var(--positive-soft); color: var(--positive); border-radius: 12px; }
+.inst-paid-list .inst-amount { color: var(--text); font-weight: 700; }
+.inst-paid-list .inst-line { min-height: 92px; }
+
+/* Personal basket: category navigation, complete searchable expense catalog. */
+.inflation-page .finance-overview { padding: 1rem; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); gap: 1rem; }
+.inflation-page .finance-overview > :first-child { background: var(--warning-soft); border-radius: var(--r-md); padding: 1rem; }
+.infl-category-strip { display: flex; flex-wrap: wrap; gap: 0.5rem; padding-block: 0.5rem; }
+.infl-category-chip { display: inline-flex; align-items: center; gap: 0.65rem; min-height: 44px; padding: 0.5rem 0.85rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text-2); font-size: var(--fs-xs); }
+.infl-category-chip .num { border-radius: 5px; padding: 0.1rem 0.35rem; background: var(--sunken); }
+.infl-category-chip[aria-pressed="true"] { color: var(--action); border-color: var(--action); background: var(--action-soft); }
+.infl-category-search { margin-block: 0.5rem 0.75rem; }
+.infl-category-picker { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; padding: 0.25rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.infl-category-picker .expense-square { min-height: 66px; aspect-ratio: auto; }
+.inflation-page .infl-list { border: 0; background: transparent; display: grid; gap: 0.75rem; overflow: visible; }
+.inflation-page .infl-list > li { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+.inflation-page .infl-row-head { padding-inline: 1rem; }
+@media (max-width: 639px) {
+  .cashflow-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+  .cashflow-summary > .card { padding: 1rem; }
+  .cashflow-net { grid-column: 1 / -1; grid-row: auto; gap: 0.75rem; }
+  .cashflow-year { grid-column: 1 / -1; }
+  .inflation-page .finance-overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inflation-page .finance-overview > :first-child { grid-column: 1 / -1; }
+  .inflation-page .finance-overview > :last-child { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .inflation-page .finance-overview > :last-child > :last-child { grid-column: 1 / -1; }
+  .inflation-page .finance-overview > .stat-tile { display: block; min-width: 0; }
+  .infl-category-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inst-view-tabs button { gap: 0.4rem; }
+}
+
+.tx-item[data-type="transfer"] { --tx-ink: var(--lc-flow-ink); --tx-soft: var(--lc-flow-soft); }
+
+.tx-type-strip { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block: 1rem; }
+.tx-type-strip button { --chip-ink: var(--action); --chip-soft: var(--action-soft); min-height: 44px; padding: 0.5rem 0.85rem; border: 1px solid var(--border); border-radius: var(--r-md); font-size: var(--fs-xs); color: var(--text-2); }
+.tx-type-strip [data-type="expense"] { --chip-ink: var(--negative); --chip-soft: var(--negative-soft); }
+.tx-type-strip [data-type="income"] { --chip-ink: var(--positive); --chip-soft: var(--positive-soft); }
+.tx-type-strip [data-type="debt_repayment"] { --chip-ink: var(--warning); --chip-soft: var(--warning-soft); }
+.tx-type-strip [data-type="fx"] { --chip-ink: var(--lc-crypto-ink); --chip-soft: var(--lc-crypto-soft); }
+.tx-type-strip button::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-inline-end: 0.4rem; border-radius: 50%; background: var(--chip-ink); }
+.tx-type-strip button[aria-pressed="true"] { border-color: var(--chip-ink); color: var(--chip-ink); background: var(--chip-soft); font-weight: 600; }
+
+@media (max-width: 639px) { .transactions-page .tx-item-main { grid-template-columns: 38px minmax(0, 1fr) 16px; } }
+
+@media (max-width: 399px) {
+  .cashflow-income, .cashflow-expense { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+  .cashflow-income > .stat-tile, .cashflow-expense > .stat-tile { flex: 1; }
+  .cashflow-income .cashflow-entry, .cashflow-expense .cashflow-entry { border: 0; margin: 0; padding: 0; gap: 0.5rem; flex-shrink: 0; }
+}

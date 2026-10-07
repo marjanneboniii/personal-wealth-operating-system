@@ -1,3 +1,5 @@
+import { displayAccountName } from "@/lib/assetDisplay";
+import { isTomanBankAccount } from "@/features/accounts/classification";
 import Link from "next/link";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
@@ -40,7 +42,7 @@ function DepositList({ rows, today }: { rows: DepositRow[]; today: string }) {
                   {active ? (d.kind === "fund" ? "صندوق" : "سپرده") : "بسته‌شده"}
                 </span>
               </b>
-              <span className="expense-sub block">{d.institution || d.accountName}</span>
+              <span className="expense-sub block">{displayAccountName(d.institution || d.accountName || "—")}</span>
             </span>
             {/* Beside the title on wide screens; under it on a phone, so the name is never cut. */}
             <span className="deposit-value">
@@ -57,7 +59,7 @@ function DepositList({ rows, today }: { rows: DepositRow[]; today: string }) {
                 {active && toMaturity != null && <small style={toMaturity < 0 ? { color: "var(--negative)" } : undefined}>{formatDaysUntil(toMaturity)}</small>}
               </div>
               <div><dt>سود بعدی</dt><dd>{active && d.nextPayoutDate ? formatJalaliIso(d.nextPayoutDate) : "—"}</dd></div>
-              <div><dt>حساب دریافت سود</dt><dd>{d.payoutAccountName || d.accountName || "—"}</dd></div>
+              <div><dt>حساب دریافت سود</dt><dd>{displayAccountName(d.payoutAccountName || d.accountName || "—")}</dd></div>
             </dl>
             <DepositRowActions id={d.id} active={active} nextPlanId={d.nextPlanId} />
           </li>
@@ -94,7 +96,7 @@ export default async function DepositsPage() {
       .orderBy(asc(accounts.code)),
     getAccountBalances(userId).catch(() => []),
   ]);
-  const accountOptions = accountRows.map((a) => ({ ...a, toman: ["IRT", "IRR"].includes((a.symbol ?? "").toUpperCase()) }));
+  const accountOptions = accountRows.filter(isTomanBankAccount).map((a) => ({ ...a, toman: ["IRT", "IRR"].includes((a.symbol ?? "").toUpperCase()) }));
   const balances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
 
   const active = rows.filter((r) => r.status === "active");

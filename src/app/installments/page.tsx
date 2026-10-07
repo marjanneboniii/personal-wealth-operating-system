@@ -1,3 +1,4 @@
+import InstallmentViews from "@/components/planning/InstallmentViews";
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { and, asc, eq, sql } from "drizzle-orm";
@@ -204,7 +205,7 @@ export default async function InstallmentsPage() {
                 {r.title}
               </span>
               <span className="inst-meta">
-                <bdi className="num" dir="ltr">{formatJalaliIso(paidAt ?? r.dueDate)}</bdi>
+                {r.fx.isPaid && <span>{paidAt ? "تاریخ پرداخت" : "سررسید"} · </span>}<bdi className="num" dir="ltr">{formatJalaliIso(paidAt ?? r.dueDate)}</bdi>
                 {r.creditor ? ` · ${r.creditor}` : ""}
               </span>
             </span>
@@ -326,6 +327,11 @@ export default async function InstallmentsPage() {
         <Metric label="پرداخت‌شده" value={faCount(paid.length)} tone={paid.length > 0 ? "up" : "neutral"} hint={`از ${faCount(rows.length)} قسط`} />
       </section>
 
+      <InstallmentViews pendingCount={pending.length} paidCount={paid.length}
+        paid={<Section title="اقساط پرداخت‌شده" hint="سوابق پرداخت و مبلغ ثبت‌شده هر قسط">
+          {paid.length ? <ul className="inst-list inst-paid-list">{paid.map(renderRow)}</ul> : <div className="card"><EmptyState icon="check-circle" title="هنوز قسطی پرداخت نشده است" body="پس از ثبت پرداخت، رسید هر قسط در این بخش قرار می‌گیرد." /></div>}
+        </Section>}
+        pending={<div className="space-y-5">
       {insight && (
         <section className="card px-4 py-3">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -384,6 +390,7 @@ export default async function InstallmentsPage() {
           </div>
         ) : (
           <div className="space-y-4">
+            {pending.length === 0 && <div className="card"><EmptyState icon="check-circle" title="همه اقساط پرداخت شده‌اند" body="سوابق را در تب پرداخت‌شده ببینید." /></div>}
             {overdueList.length > 0 && (
               <div className="space-y-2">
                 <h3 className="inst-group-title" data-tone="late">
@@ -413,20 +420,10 @@ export default async function InstallmentsPage() {
                 <ul className="inst-list">{laterList.map(renderRow)}</ul>
               </div>
             )}
-
-            {paid.length > 0 && (
-              <details className="inst-paid" open={pending.length === 0}>
-                <summary className="inst-group-title" data-tone="paid">
-                  <span className="inst-group-dot" aria-hidden="true" />
-                  پرداخت‌شده‌ها <span className="inst-group-count num">{faCount(paid.length)}</span>
-                  <Icon name="chevronDown" size={14} className="inst-caret" />
-                </summary>
-                <ul className="inst-list">{paid.map(renderRow)}</ul>
-              </details>
-            )}
           </div>
         )}
       </Section>
+        </div>} />
     </div>
   );
 }

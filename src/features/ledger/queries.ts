@@ -1,3 +1,4 @@
+import { displayAccountName } from "@/lib/assetDisplay";
 import { and, eq, sql } from "drizzle-orm";
 import { containsPattern, normalizedColumn } from "@/lib/searchText";
 import { db } from "@/db";
@@ -15,7 +16,16 @@ import { hasSupabaseConfig } from "@/lib/supabase/config";
 
 async function rows<T>(query: ReturnType<typeof sql>): Promise<T[]> {
   const res = await db.execute(query);
-  return res.rows as T[];
+  // Normalize display labels only, including nested ledger lines. Quantities,
+  // values, IDs and stored names are never rewritten.
+  return res.rows.map((raw) => {
+    const row = { ...raw } as Record<string, unknown>;
+    for (const key of ["name", "assetName", "walletName", "accountName"]) {
+      if (typeof row[key] === "string") row[key] = displayAccountName(row[key] as string);
+    }
+    if (Array.isArray(row.lines)) row.lines = row.lines.map((line) => ({ ...line, account: displayAccountName(line.account ?? "") }));
+    return row as T;
+  });
 }
 
 /**

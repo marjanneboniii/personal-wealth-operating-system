@@ -256,16 +256,27 @@ export default async function CashFlowPage() {
         <ModuleTabs tabs={MONEY_TABS} active="/cash-flow" label="بخش‌های پول" />
       </div>
 
-      <section className="finance-overview" aria-label="خلاصه جریان نقدی">
+      <section className="cashflow-summary" aria-label="خلاصه جریان نقدی">
+        <div className="cashflow-net card">
+          <span className="cashflow-eyebrow">تراز ورودی و خروجی</span>
         <Metric
           label="خالص این ماه"
           value={formatSignedMoney(monthNet, unit)}
           tone={trendTone(monthNet)}
           hint={savingsRate != null ? `نرخ پس‌انداز ${formatPct(savingsRate, 0)}` : undefined}
         />
+        </div>
+        <div className="cashflow-income card">
         <Metric label="درآمد این ماه" value={formatMoney(monthInflow, unit)} tone={inflowTone(monthInflow)} />
+        <Link href="/new?type=income" className="cashflow-entry">ثبت درآمد <span aria-hidden="true">←</span></Link>
+        </div>
+        <div className="cashflow-expense card">
         <Metric label="هزینه این ماه" value={formatMoney(monthOutflow, unit)} tone={outflowTone(monthOutflow)} />
+        <Link href="/new?type=expense" className="cashflow-entry">ثبت هزینه <span aria-hidden="true">←</span></Link>
+        </div>
+        <div className="cashflow-year card">
         <Metric label="خالص ۱۲ ماه" value={formatSignedMoney(yearNet, year ? "IRT" : "USD")} tone={trendTone(yearNet)} />
+        </div>
       </section>
 
       {noData ? (
@@ -283,9 +294,11 @@ export default async function CashFlowPage() {
       ) : (
         <>
           <Section title="روند درآمد و هزینه" hint="مقایسه ماهانهٔ ورودی و خروجی پول" action={<span className="muted text-[length:var(--fs-xs)]">۱۲ ماه اخیر</span>}>
-            <div className="card p-3 sm:p-4">
+            <div className="card cashflow-chart p-3 sm:p-4">
               <BarsChart
                 height={210}
+                positiveLabel="درآمد"
+                negativeLabel="هزینه"
                 currency={barsInToman ? "IRT" : "USD"}
                 data={flow.map((f, i) => ({
                   label: FA_MONTHS[toJalali(f.month).m],

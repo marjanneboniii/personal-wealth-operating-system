@@ -18,6 +18,7 @@
  * accounts are allowed is decided by the caller.
  */
 import { useId, useMemo, useState, type ReactNode } from "react";
+import { displayAccountName } from "@/lib/assetDisplay";
 import { D } from "@/domain/decimal";
 import { LIQUID_SYMBOLS } from "@/features/accounts/classification";
 import { walletLogoFor } from "@/features/setup/holdingWallets";
@@ -131,7 +132,7 @@ function AccountMark({ account: a, size = 36 }: { account: PickerAccount; size?:
 export default function AccountPicker({
   label,
   value,
-  options,
+  options: rawOptions,
   onChange,
   balances,
   name,
@@ -157,6 +158,7 @@ export default function AccountPicker({
   /** When set, «no account» is a valid choice with this label (e.g. «هنوز مشخص نیست»). */
   noneLabel?: string;
 }) {
+  const options = useMemo(() => rawOptions.map((a) => ({ ...a, name: displayAccountName(a.name), walletName: a.walletName ? displayAccountName(a.walletName) : a.walletName })), [rawOptions]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const labelId = useId();

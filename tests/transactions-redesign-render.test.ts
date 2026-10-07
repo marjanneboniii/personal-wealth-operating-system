@@ -36,3 +36,14 @@ test("empty filtered transaction list keeps clear-filter recovery", async () => 
   assert.ok(html.includes("تراکنشی با این فیلترها پیدا نشد"));
   assert.ok(html.includes("حذف فیلترها"));
 });
+
+test("transaction semantics distinguish expense, income, repayment and FX without changing amounts", async () => {
+  const View = (await import("../src/components/transactions/TransactionsView")).default;
+  for (const type of ["expense", "income", "debt_repayment", "fx"]) {
+    const entry = { ...row, id: type, type };
+    const before = structuredClone(entry);
+    const html = renderToStaticMarkup(createElement(View, { rows: [entry], accountGroups: [], rate: "300000", filters }));
+    assert.ok(html.includes(`data-type="${type}"`));
+    assert.deepEqual(entry, before);
+  }
+});
