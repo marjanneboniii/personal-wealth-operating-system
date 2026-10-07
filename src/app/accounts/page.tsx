@@ -12,6 +12,7 @@ import { getAccountBalances } from "@/features/ledger/queries";
 import { classifyAccountFamily, isLiquidAccount } from "@/features/accounts/classification";
 import { Alert, EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
+import FormattedMoney from "@/components/ui/FormattedMoney";
 import AssetLogo from "@/components/ui/AssetLogo";
 import DisclosurePanel from "@/components/ui/DisclosurePanel";
 import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
@@ -19,7 +20,7 @@ import { resolveAssetLogoDetailed } from "@/features/branding/assetLogo";
 import MoneyAccountForm from "@/components/forms/MoneyAccountForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
-import { faCount, formatMoney, formatPct, toIrtMoney, toFaDigits } from "@/lib/format";
+import { faCount, persianAssetName, formatMoney, formatPct, toIrtMoney, toFaDigits } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getUserProMode } from "@/features/preferences/service";
 import AccountListItem from "@/components/accounts/AccountListItem";
@@ -214,8 +215,9 @@ export default async function AccountsPage() {
       // Older setups stored a coin as «کیف پول تتر» with no real wallet. A coin
       // is not a wallet, so such a row reads as the coin itself.
       const legacyCoinWallet = !meta && rows.length === 1 && rows[0]?.assetName && rows[0]?.name === `کیف پول ${rows[0].assetName}`;
+      const coinNamedAccount = !meta && rows.length === 1 && (rows[0].name === rows[0].assetName || rows[0].name === rows[0].symbol);
       const name =
-        cleanDisplayName(legacyCoinWallet ? rows[0].assetName! : (meta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف پول")) ||
+        cleanDisplayName(legacyCoinWallet || coinNamedAccount ? persianAssetName(rows[0].symbol, rows[0].assetName ?? rows[0].name ?? "بدون نام") : (meta?.name ?? rows[0]?.walletName ?? rows[0]?.name ?? "بدون کیف پول")) ||
         "بدون کیف پول";
       return {
         key,
@@ -228,7 +230,7 @@ export default async function AccountsPage() {
           ? [
               // A wallet holding one coin names that coin — «Trust Wallet» alone
               // would not say it holds USDC rather than USDT.
-              rows.length === 1 && rows[0]?.assetName && !isIrt(rows[0]) ? rows[0].assetName : null,
+              rows.length === 1 && rows[0]?.assetName && !isIrt(rows[0]) ? persianAssetName(rows[0].symbol, rows[0].assetName) : null,
               walletSubtitleOf({ name, kind: meta.kind, institution: meta.institution ?? null, network: meta.network ?? null }),
             ]
               .filter(Boolean)
@@ -240,7 +242,7 @@ export default async function AccountsPage() {
     .sort((a, b) => Number((rate ? (b.toman ?? b.usd) : b.usd).sub(rate ? (a.toman ?? a.usd) : a.usd).toString()));
 
   return (
-    <div className="space-y-7">
+    <div className="accounts-page space-y-6">
       <div>
         <PageHeader
           title="حساب‌ها"
@@ -283,17 +285,17 @@ export default async function AccountsPage() {
         />
       )}
 
-      <section className="metric-strip">
+      <section className="metric-strip accounts-summary" aria-label="خلاصهٔ موجودی حساب‌ها">
         <Metric
           label="موجودی کل"
-          value={totalToman ? formatMoney(totalToman.toFixed(0), "IRT") : formatMoney(totalUsd.toString())}
+          value={<FormattedMoney value={totalToman ? formatMoney(totalToman.toFixed(0), "IRT") : formatMoney(totalUsd.toString())} />}
           hint={totalToman ? `≈ ${formatMoney(totalUsd.toString())}` : undefined}
         />
-        <Metric label="تومانی" value={formatMoney(irtToman.toFixed(0), "IRT")} hint={shareOfTotal(irtToman)} />
+        <Metric label="تومانی" value={<FormattedMoney value={formatMoney(irtToman.toFixed(0), "IRT")} />} hint={shareOfTotal(irtToman)} />
         {fxAccounts.length > 0 && (
           <Metric
             label="ارزی"
-            value={fxToman ? formatMoney(fxToman.toFixed(0), "IRT") : formatMoney(usdTotal(fxAccounts).toString())}
+            value={<FormattedMoney value={fxToman ? formatMoney(fxToman.toFixed(0), "IRT") : formatMoney(usdTotal(fxAccounts).toString())} />}
             hint={fxToman ? `≈ ${formatMoney(usdTotal(fxAccounts).toString())}` : undefined}
           />
         )}
@@ -302,11 +304,13 @@ export default async function AccountsPage() {
 
       <Section
         title="کیف‌ها و بانک‌ها"
+        className="accounts-wallet-section"
+        hint={`${faCount(byWallet.size)} کیف و بانک · ${faCount(moneyAccounts.length)} حساب`}
         action={
-          <span className="flex items-center gap-3">
+          <div className="accounts-toolbar">
             {zeroBalanceCount > 0 && <ZeroBalanceToggle showing={showZeroBalances} hiddenCount={zeroBalanceCount} />}
             <SectionLink href="/accounts/reconcile" label="تطبیق با بانک" />
-          </span>
+          </div>
         }
       >
         {walletViews.length === 0 ? (
@@ -327,7 +331,7 @@ export default async function AccountsPage() {
             />
           </div>
         ) : (
-          <ul className="card list-card" role="list">
+          <ul className="accounts-wallet-list" role="list">
             {walletViews.map((w) => {
               const single = w.rows.length === 1;
               const first = w.rows[0];
@@ -357,8 +361,8 @@ export default async function AccountsPage() {
               }
 
               return (
-                <li key={w.key}>
-                  <div className="list-row">
+                <li key={w.key} className="card list-card accounts-wallet-card">
+                  <div className="list-row accounts-balance-row accounts-wallet-head">
                     {useWalletMark ? (
                       <span className="acct-icon flex shrink-0 items-center">
                         <AssetLogo
@@ -400,17 +404,17 @@ export default async function AccountsPage() {
                         <Icon name="wallet" size={15} />
                       </span>
                     )}
-                    <div className="min-w-0 flex-1">
+                    <div className="accounts-identity min-w-0">
                       <p className="acct-title text-[length:var(--fs-sm)] font-semibold">{w.name}</p>
                       {w.subtitle && <p className="acct-subtitle muted text-[length:var(--fs-xs)]">{w.subtitle}</p>}
                     </div>
-                    <div className="acct-amount shrink-0 text-left">
-                      <p className="num money-nowrap text-[length:var(--fs-sm)] font-semibold" dir="rtl">
-                        {primary}
+                    <div className="acct-amount accounts-row-amount">
+                      <p className="accounts-primary" dir="rtl">
+                        <FormattedMoney value={primary} />
                       </p>
                       {secondary && (
-                        <p className="acct-secondary muted num money-nowrap text-[length:var(--fs-xs)]" dir="rtl">
-                          {secondary}
+                        <p className="acct-secondary accounts-secondary" dir="rtl">
+                          <FormattedMoney value={secondary} />
                         </p>
                       )}
                     </div>
@@ -431,7 +435,7 @@ export default async function AccountsPage() {
                             key={b.accountId}
                             accountId={b.accountId}
                             // Inside its wallet «تتر - بیت‌پین» reads as «تتر».
-                            name={b.name?.endsWith(` - ${w.name}`) ? b.name.slice(0, -` - ${w.name}`.length) : b.name}
+                            name={persianAssetName(b.symbol, b.name?.endsWith(` - ${w.name}`) ? b.name.slice(0, -` - ${w.name}`.length) : b.name ?? b.assetName ?? "بدون نام")}
                             symbol={b.symbol}
                             quantity={b.quantity}
                             assetDecimals={b.assetDecimals}

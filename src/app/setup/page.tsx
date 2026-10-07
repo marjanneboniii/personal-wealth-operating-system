@@ -1,6 +1,9 @@
 "use client";
 
 import { validateSetupBankAccounts } from "@/features/setup/bankAccounts";
+import IphoneSmsGuide from "@/components/transactions/IphoneSmsGuide";
+import SetupBankPicker from "@/components/setup/SetupBankPicker";
+import { SETUP_BANKS, isSuggestedBankAccountName, suggestedBankAccountName } from "@/features/setup/bankCatalog";
 import SetupBankConnectionStep from "@/components/setup/SetupBankConnectionStep";
 import { validateSetupBankIdentifiers, type SetupBankIdentifier } from "@/features/setup/bankConnection";
 
@@ -40,7 +43,7 @@ import { OCCUPATIONS } from "@/features/income/occupations";
  * confirmed USD→IRT rate converts them. The book currency (USD) is internal.
  */
 
-const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک", "خودرو", "بدهی‌ها", "اتصال بانک‌ها", "بررسی و تأیید"] as const;
+const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک", "خودرو", "بدهی‌ها", "پیامک بانک‌ها", "بررسی و تأیید"] as const;
 const LAST_STEP = STEPS.length;
 
 /** Places that hold Toman: Iranian exchanges (crypto) and brokerages (Tehran market). */
@@ -519,13 +522,19 @@ export default function SetupWizardPage() {
                 <span className="badge badge-neutral">تومان</span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="label" htmlFor="setup-bank-name">
-                    نام حساب
+                <div className="space-y-3">
+                  <SetupBankPicker value={bankName} onSelect={(bank) => {
+                    const previous = SETUP_BANKS.find((option) => option.value === bankName);
+                    if (isSuggestedBankAccountName(bankAccountName, previous)) {
+                      setBankAccountName(suggestedBankAccountName(bank, extraBanks.map((row) => row.name)));
+                    }
+                    setBankName(bank.value);
+                    if (bankName !== bank.value) setBankConnection(null);
+                  }} />
+                  <label className="block">
+                    <span className="label">نام حساب <span className="muted">· قابل ویرایش</span></span>
+                    <input id="setup-bank-name" type="text" value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} placeholder="با انتخاب بانک، خودکار تکمیل می‌شود" className="field" autoComplete="off" maxLength={200} />
                   </label>
-                  <input id="setup-bank-name" type="text" value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} placeholder="مثلاً ملت جاری" className="field" autoComplete="off" />
-                  <label className="label mt-3" htmlFor="setup-bank-identity">نام بانک برای اتصال پیامک</label>
-                  <input id="setup-bank-identity" className="field" value={bankName} onChange={(event) => setBankName(event.target.value)} placeholder="مثلاً ملت؛ برای اتصال پیامک لازم است" maxLength={60} />
                 </div>
                 <div>
                   <label className="label">موجودی (تومان)</label>
@@ -542,9 +551,30 @@ export default function SetupWizardPage() {
               </div>
             </div>
 
-            {extraBanks.map((bank, index) => <div key={bank.id} className="card setup-row space-y-3"><div className="flex items-center justify-between"><b className="text-sm">حساب بانکی {index + 2}</b><button type="button" className="btn btn-ghost" onClick={() => { setExtraBanks((rows) => rows.filter((row) => row.id !== bank.id)); setExtraConnections((rows) => rows.filter((row) => row.bankId !== bank.id)); }}>حذف حساب</button></div><div className="grid gap-3 sm:grid-cols-2">{[{ key: "name" as const, label: "نام حساب", placeholder: "مثلاً ملی پس‌انداز" }, { key: "bankName" as const, label: "نام بانک", placeholder: "مثلاً ملی ایران" }].map((field) => <label key={field.key}><span className="label">{field.label}</span><input className="field" value={bank[field.key]} maxLength={field.key === "name" ? 200 : 60} placeholder={field.placeholder} onChange={(event) => setExtraBanks((rows) => rows.map((row) => row.id === bank.id ? { ...row, [field.key]: event.target.value } : row))} /></label>)}<label><span className="label">موجودی این حساب (تومان)</span><AmountInput className="field num" value={bank.balance} unit="toman" onValueChange={(balance) => setExtraBanks((rows) => rows.map((row) => row.id === bank.id ? { ...row, balance } : row))} /></label></div></div>)}
+            {extraBanks.map((bank, index) => (
+              <div key={bank.id} className="card setup-row space-y-3">
+                <div className="flex items-center justify-between">
+                  <b className="text-sm">حساب بانکی {faCount(index + 2)}</b>
+                  <button type="button" className="btn btn-ghost" onClick={() => {
+                    setExtraBanks((rows) => rows.filter((row) => row.id !== bank.id));
+                    setExtraConnections((rows) => rows.filter((row) => row.bankId !== bank.id));
+                  }}>حذف حساب</button>
+                </div>
+                <SetupBankPicker value={bank.bankName} onSelect={(selected) => {
+                  const previous = SETUP_BANKS.find((option) => option.value === bank.bankName);
+                  const useSuggestion = isSuggestedBankAccountName(bank.name, previous);
+                  const name = useSuggestion ? suggestedBankAccountName(selected, [bankAccountName, ...extraBanks.filter((row) => row.id !== bank.id).map((row) => row.name)]) : bank.name;
+                  setExtraBanks((rows) => rows.map((row) => row.id === bank.id ? { ...row, name, bankName: selected.value } : row));
+                  if (bank.bankName !== selected.value) setExtraConnections((rows) => rows.filter((row) => row.bankId !== bank.id));
+                }} />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label><span className="label">نام حساب <span className="muted">· قابل ویرایش</span></span><input className="field" value={bank.name} maxLength={200} placeholder="با انتخاب بانک، خودکار تکمیل می‌شود" onChange={(event) => setExtraBanks((rows) => rows.map((row) => row.id === bank.id ? { ...row, name: event.target.value } : row))} /></label>
+                  <label><span className="label">موجودی این حساب (تومان)</span><AmountInput className="field num" value={bank.balance} unit="toman" onValueChange={(balance) => setExtraBanks((rows) => rows.map((row) => row.id === bank.id ? { ...row, balance } : row))} /></label>
+                </div>
+              </div>
+            ))}
             <button type="button" className="btn btn-ghost w-full" disabled={extraBanks.length >= 9} onClick={() => setExtraBanks((rows) => [...rows, { id: crypto.randomUUID(), name: "", bankName: "", balance: "" }])}>+ افزودن حساب بانکی دیگر</button>
-            {!banksReady && <p className="expense-note expense-note-warn">نام بانک و نام متفاوت برای هر حساب وارد کنید؛ موجودی به تومان صحیح و صفر یا مثبت باشد. حداکثر ۱۰ حساب.</p>}
+            {!banksReady && <p className="expense-note expense-note-warn">بانک را انتخاب کنید؛ نام هر حساب باید متفاوت باشد و موجودی به تومان صحیح و صفر یا مثبت باشد. حداکثر ۱۰ حساب.</p>}
 
             <div className="card list-card">
               <label className="setup-toggle">
@@ -680,7 +710,7 @@ export default function SetupWizardPage() {
           </div>
         )}
 
-        {step === 8 && <div className="space-y-5"><SetupBankConnectionStep accountName={bankAccountName} bankName={bankName} draft={bankConnection} onChange={setBankConnection} onEditAccount={() => setStep(2)} />{extraBanks.map((bank) => <SetupBankConnectionStep key={bank.id} accountName={bank.name} bankName={bank.bankName} draft={extraConnections.find((row) => row.bankId === bank.id)?.connection ?? null} onChange={(draft) => setExtraConnections((rows) => [...rows.filter((row) => row.bankId !== bank.id), ...(draft ? [{ bankId: bank.id, connection: draft }] : [])])} onEditAccount={() => setStep(2)} />)}{!connectionReady && <p className="expense-note expense-note-warn">اتصال ناقص یا متعلق به حساب تغییرکرده است؛ آن را دوباره بررسی کنید.</p>}</div>}
+        {step === 8 && <div className="space-y-5"><StepIntro title="پیامک بانک‌ها" text="اختیاری · حساب‌های دریافت‌کنندهٔ پیام را مشخص کنید. بعد از تأیید نهایی، کلید می‌سازید و با راهنمای کوتاه آیفون، دریافت پیام را فعال می‌کنید." /><div className="expense-note text-sm leading-7">۱ · معرفی کارت یا حساب در همین مرحله<br />۲ · ساخت کلید و تنظیم Shortcuts بعد از ثبت نهایی<br />۳ · بررسی اولین پیام جدید و تأیید تراکنش</div><SetupBankConnectionStep accountName={bankAccountName} bankName={bankName} draft={bankConnection} onChange={setBankConnection} onEditAccount={() => setStep(2)} />{extraBanks.map((bank) => <SetupBankConnectionStep key={bank.id} accountName={bank.name} bankName={bank.bankName} draft={extraConnections.find((row) => row.bankId === bank.id)?.connection ?? null} onChange={(draft) => setExtraConnections((rows) => [...rows.filter((row) => row.bankId !== bank.id), ...(draft ? [{ bankId: bank.id, connection: draft }] : [])])} onEditAccount={() => setStep(2)} />)}{!connectionReady && <p className="expense-note expense-note-warn">اتصال ناقص یا متعلق به حساب تغییرکرده است؛ آن را دوباره بررسی کنید.</p>}<details className="sms-guide"><summary>پیش‌نمایش مراحل اتصال روی آیفون</summary><IphoneSmsGuide preview /></details></div>}
 
         {step === LAST_STEP && (
           <section className="space-y-5">

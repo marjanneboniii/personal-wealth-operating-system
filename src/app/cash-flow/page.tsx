@@ -99,7 +99,7 @@ function BreakdownRow({
           <span className="truncate text-[length:var(--fs-sm)] font-medium">{name}</span>
           {extra}
         </span>
-        <span className="flex shrink-0 items-baseline gap-2.5">
+        <span className="breakdown-values flex shrink-0 items-baseline gap-2.5">
           <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">
             {formatPct(share, 0)}
           </span>
@@ -149,7 +149,16 @@ function FlowList({ rows, color, rate, empty }: { rows: FlowRow[]; color: string
           />
         ))}
       </ul>
-      {rows.length > shown.length && <p className="breakdown-more">و {faCount(rows.length - shown.length)} مورد دیگر</p>}
+      {rows.length > shown.length && (
+        <details className="flow-more">
+          <summary>نمایش {faCount(rows.length - shown.length)} مورد دیگر</summary>
+          <ul>{rows.slice(VISIBLE_LINES).map((r) => (
+            <BreakdownRow key={r.code} name={ACCOUNT_LABEL[r.code] ?? r.name}
+              share={sum.isZero() ? 0 : D(r.total).div(sum).mul(100).toNumber()}
+              toman={lineToman(r, rate)} usd={r.total} color={color} />
+          ))}</ul>
+        </details>
+      )}
     </div>
   );
 }
@@ -241,21 +250,21 @@ export default async function CashFlowPage() {
     flow.length === 0 && expenses.length === 0 && incomes.length === 0 && categoryFlows.length === 0 && incomeCategoryFlows.length === 0;
 
   return (
-    <div className="space-y-7">
+    <div className="finance-page cashflow-page space-y-7">
       <div>
-        <PageHeader title="جریان نقدی" action={<SectionLink href="/planning" label="پیش‌بینی" />} />
+        <PageHeader title="جریان نقدی" subtitle="ببینید پول از کجا آمده و در کدام بخش‌ها خرج شده است." action={<SectionLink href="/planning" label="پیش‌بینی" />} />
         <ModuleTabs tabs={MONEY_TABS} active="/cash-flow" label="بخش‌های پول" />
       </div>
 
-      <section className="metric-strip">
-        <Metric label="درآمد این ماه" value={formatMoney(monthInflow, unit)} tone={inflowTone(monthInflow)} />
-        <Metric label="هزینه این ماه" value={formatMoney(monthOutflow, unit)} tone={outflowTone(monthOutflow)} />
+      <section className="finance-overview" aria-label="خلاصه جریان نقدی">
         <Metric
           label="خالص این ماه"
           value={formatSignedMoney(monthNet, unit)}
           tone={trendTone(monthNet)}
           hint={savingsRate != null ? `نرخ پس‌انداز ${formatPct(savingsRate, 0)}` : undefined}
         />
+        <Metric label="درآمد این ماه" value={formatMoney(monthInflow, unit)} tone={inflowTone(monthInflow)} />
+        <Metric label="هزینه این ماه" value={formatMoney(monthOutflow, unit)} tone={outflowTone(monthOutflow)} />
         <Metric label="خالص ۱۲ ماه" value={formatSignedMoney(yearNet, year ? "IRT" : "USD")} tone={trendTone(yearNet)} />
       </section>
 
@@ -273,10 +282,10 @@ export default async function CashFlowPage() {
         </div>
       ) : (
         <>
-          <Section title="درآمد و هزینه" action={<span className="muted text-[length:var(--fs-xs)]">۱۲ ماه اخیر</span>}>
+          <Section title="روند درآمد و هزینه" hint="مقایسه ماهانهٔ ورودی و خروجی پول" action={<span className="muted text-[length:var(--fs-xs)]">۱۲ ماه اخیر</span>}>
             <div className="card p-3 sm:p-4">
               <BarsChart
-                height={160}
+                height={210}
                 currency={barsInToman ? "IRT" : "USD"}
                 data={flow.map((f, i) => ({
                   label: FA_MONTHS[toJalali(f.month).m],
@@ -295,7 +304,7 @@ export default async function CashFlowPage() {
             </div>
           </Section>
 
-          <div className="grid items-start gap-7 lg:grid-cols-2">
+          <div className="cashflow-breakdowns grid items-start gap-7 lg:grid-cols-2">
             <Section
               title="هزینه‌های ۶ ماه اخیر"
               action={

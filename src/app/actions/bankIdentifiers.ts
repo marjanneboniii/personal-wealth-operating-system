@@ -27,6 +27,7 @@ export async function addBankIdentifierAction(input: unknown) {
    await tx.insert(bankSmsIdentifiers).values({ ...v, userId: user.id }).onConflictDoNothing();
   });
   revalidatePath("/transactions/import");
+  revalidatePath("/setup/messages");
   return { ok: true, message: "شناسه به حساب وصل شد؛ موجودی حساب تغییر نکرد." };
  } catch { return { ok: false, message: "ثبت شناسه انجام نشد؛ حساب فعال و سقف ۱۰۰ شناسه را بررسی کنید." }; }
 }
@@ -37,6 +38,7 @@ export async function removeBankIdentifierAction(id: string) {
   await requireSmsSetup(user.id);
   const rows = await db.delete(bankSmsIdentifiers).where(and(eq(bankSmsIdentifiers.userId, user.id), eq(bankSmsIdentifiers.id, id))).returning({ id: bankSmsIdentifiers.id });
   revalidatePath("/transactions/import");
+  revalidatePath("/setup/messages");
   return { ok: !!rows.length, message: rows.length ? "اتصال شناسه حذف شد؛ حساب و تراکنش‌ها باقی هستند." : "شناسه پیدا نشد." };
  } catch { return { ok: false, message: "حذف انجام نشد." }; }
 }

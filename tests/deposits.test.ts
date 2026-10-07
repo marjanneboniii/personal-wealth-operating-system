@@ -112,6 +112,16 @@ test("deposits: register, remind monthly, stop at maturity, close, isolate", asy
   assert.equal(plans[0].toAccountId, depositAcc.id);
   assert.equal((await db.select().from(journalEntries)).length, 0, "registering posts nothing");
 
+  // The redesigned page reads metadata and preserves the explicit interest action.
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const DepositsPage = (await import("../src/app/deposits/page")).default;
+  const activeHtml = renderToStaticMarkup(await DepositsPage());
+  for (const label of ["سپرده یک‌ساله", "نرخ سالانه", "سررسید", "سود بعدی", "حساب دریافت سود", "ثبت سود این ماه"]) {
+    assert.ok(activeHtml.includes(label), `deposit details must include ${label}`);
+  }
+  assert.ok(activeHtml.includes(`/new?type=income&amp;planId=${plans[0].id}`), "interest still uses the existing planned transaction");
+  assert.equal((await db.select().from(journalEntries)).length, 0, "rendering does not post interest or move principal");
+
   const projection = await projectCashflow(3, "base", owner.id);
   assert.ok(Decimal.sum(projection.points.map((p: any) => p.inflow)).gte("20000000"), "the interest is in the forecast");
 
@@ -147,6 +157,10 @@ test("deposits: register, remind monthly, stop at maturity, close, isolate", asy
   pending = await db.select().from(plannedTransactions).where(and(eq(plannedTransactions.depositId, dep.id), eq(plannedTransactions.status, "pending")));
   assert.equal(pending.length, 0, "closing cancels the pending interest reminder");
   assert.equal((await closeDepositAction(dep.id)).ok, false, "a closed deposit stays closed");
+
+  const closedHtml = renderToStaticMarkup(await DepositsPage());
+  assert.ok(closedHtml.includes("سپرده‌های بسته‌شده"), "closed deposits remain accessible in the archive");
+  assert.ok(!closedHtml.includes(`/new?type=income&amp;planId=`), "closed deposits offer no new interest action");
 
   // Entries recorded as interest stay; deleting the deposit never touches the ledger.
   const entriesBefore = (await db.select().from(journalEntries)).length;

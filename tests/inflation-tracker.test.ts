@@ -320,6 +320,11 @@ test("«ردیاب تورم شخصی» renders its five sections and never the r
   ]) {
     assert.ok(html.includes(label), `page must contain «${label}»`);
   }
+  assert.ok(html.includes('aria-label="جستجوی کالاهای تورم شخصی"'), "tracked items can be searched");
+  assert.ok(html.includes('role="tabpanel"'), "view tabs have an associated content panel");
+  const selectedTab = html.match(/id="([^"]+)"[^>]*role="tab"[^>]*aria-selected="true"[^>]*aria-controls="([^"]+)"/);
+  assert.ok(selectedTab, "selected tab references its panel");
+  assert.ok(html.includes(`id="${selectedTab[2]}" role="tabpanel" aria-labelledby="${selectedTab[1]}"`), "tab and panel IDs agree");
   assert.ok(!html.includes("املاک من"), "the real-asset workspace must not render here");
   assert.ok(!html.includes("تعداد / وزن"), "warehouse-style quantity must be gone from the form");
   assert.ok(!html.includes("تاریخ خرید"), "purchase-date semantics must be gone from the form");

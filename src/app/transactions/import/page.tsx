@@ -1,3 +1,4 @@
+import { smsConnectionConfig } from "@/features/bankImport/connectionConfig";
 import { listBankIdentifiers, listSmsBankAccounts, listTomanAccounts } from "@/features/bankImport/identifiers";
 import SmsProgress from "@/components/transactions/SmsProgress";
 import BankIdentifiers from "@/components/transactions/BankIdentifiers";
@@ -34,14 +35,13 @@ export default async function BankImportPage() {
   const monthStart = jalaliToIso(year, month, 1);
   const habits = summarizeBankHabits(history.filter((r) => r.entryDate >= monthStart && r.entryDate <= today));
   const categories = (tree: typeof expenseTree) => tree.map((g) => ({ id: g.id, name: g.name, children: g.children.filter((c) => c.nature !== "non_cash").map((c) => ({ id: c.id, name: c.name })) })).filter((g) => g.children.length);
-  let endpoint: string | null = null;
-  try { const url = new URL(process.env.NEXT_PUBLIC_SITE_URL || ""); if (url.protocol === "https:") endpoint = new URL("/api/bank-messages", url.origin).href; } catch {}
+  const { endpoint, unavailableReason } = smsConnectionConfig();
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <PageHeader title="اتصال پیامک" subtitle="پیامک‌های بانک خودشان به تراکنش پیشنهادی تبدیل می‌شوند؛ شما فقط بررسی و تأیید می‌کنید." action={<Link href="/transactions" className="btn btn-ghost">تراکنش‌ها</Link>} />
-      <SmsProgress cards={identifiers.length} iphones={connections.length} waiting={smsDrafts.length} />
+      <SmsProgress cards={identifiers.length} iphones={connections.length} received={connections.filter((connection) => connection.lastReceivedAt).length} waiting={smsDrafts.length} />
       <BankIdentifiers accounts={bankAccounts} identifiers={identifiers} />
-      <IphoneSmsConnection endpoint={endpoint} connections={connections.map((c) => ({ ...c, createdAt: c.createdAt.toISOString(), lastReceivedAt: c.lastReceivedAt?.toISOString() ?? null }))} />
+      <IphoneSmsConnection endpoint={endpoint} unavailableReason={unavailableReason} connections={connections.map((c) => ({ ...c, createdAt: c.createdAt.toISOString(), lastReceivedAt: c.lastReceivedAt?.toISOString() ?? null }))} />
       <BankImportWorkspace smsDrafts={smsDrafts} accounts={bankAccounts} destinations={tomanAccounts} expenseCategories={categories(expenseTree)} incomeCategories={categories(incomeTree)} history={history.map((r) => ({ entryDate: r.entryDate, type: r.type, status: r.status, reviewed: r.reviewed, description: r.description, categoryId: r.categoryId, categoryNonCash: r.categoryNonCash, fxIrtAmount: r.fxIrtAmount }))} habits={habits} historyLimited={history.length >= 500} rate={String(rate.rate)} rateDate={rate.effectiveDate} />
     </div>
   );

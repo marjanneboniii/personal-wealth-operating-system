@@ -117,10 +117,11 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   }));
 
   return (
-    <div className="space-y-5">
+    <div className="finance-page transactions-page space-y-5">
       <div>
         <PageHeader
           title="تراکنش‌ها"
+          subtitle="سوابق پول را مرور کنید، دسته‌ها را ببینید و موارد تازه را بررسی کنید."
           action={
             <div className="flex flex-wrap gap-2">
               <Link href="/transactions/import" className="btn btn-ghost">اتصال پیامک</Link>

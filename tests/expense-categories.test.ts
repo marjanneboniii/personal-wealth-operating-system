@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { eq } from "drizzle-orm";
+import { humanizeEntry, moneyFlowLabel } from "../src/lib/tx";
 import { db } from "../src/db";
 import { createSchemaIfNotExists } from "../src/db/init-schema";
 import {
@@ -32,7 +33,7 @@ import {
   RESERVE_ACCOUNT_CODE,
 } from "../src/features/categories/service";
 import { postEntry, recordExpense } from "../src/features/ledger/service";
-import { getAccountBalances, getCashflow, getFlowByAccount } from "../src/features/ledger/queries";
+import { getAccountBalances, getCashflow, getFlowByAccount, getTransactions } from "../src/features/ledger/queries";
 import { todayIso } from "../src/lib/format";
 
 async function resetDb() {
@@ -298,4 +299,32 @@ test("custom sub-categories — extensible, duplicate siblings rejected (overlap
 
   // Invalid parents rejected
   await assert.rejects(addCustomCategory(user.id, { name: "x جدید", parentId: created.id }), /دسته‌های اصلی/);
+});
+
+test("expenses from Tejarat and Shahr display their saved categories while the shared ledger bucket stays balanced", async () => {
+  const { user, usd, bank, expAcct } = await fixture();
+  await db.update(accounts).set({ name: "بانک تجارت" }).where(eq(accounts.id, bank.id));
+  await db.update(accounts).set({ code: "5900", name: "هزینه متفرقه" }).where(eq(accounts.id, expAcct.id));
+  const [shahr] = await db.insert(accounts).values({ userId: user.id, code: "1011", name: "بانک شهر", type: "asset", assetId: usd.id }).returning();
+  const fuel = (await getCategoryByCode("TRN-FUEL"))!;
+  const rent = (await getCategoryByCode("HSG-RENT"))!;
+  for (const [cashAccountId, categoryId, amount] of [[bank.id, fuel.id, "30"], [shahr.id, rent.id, "70"]]) {
+    await recordExpense({ entryDate: todayIso(), description: "هزینه آزمایشی", cashAccountId, categoryAccountId: expAcct.id, assetId: usd.id, quantity: amount, baseValue: amount, categoryId, userId: user.id });
+  }
+  const before = await db.select().from(postings);
+  const transactions = await getTransactions({ userId: user.id });
+  for (const [bankName, categoryName] of [["بانک تجارت", fuel.name], ["بانک شهر", rent.name]]) {
+    const entry = transactions.find((row) => row.categoryName === categoryName)!;
+    assert.ok(entry);
+    const human = humanizeEntry(entry);
+    assert.equal(moneyFlowLabel(human.from, human.to), `از ${bankName} به ${categoryName}`);
+    assert.equal(human.sign, -1);
+    assert.ok(entry.lines.some((line) => line.account === "هزینه متفرقه"), "the original system expense account is preserved");
+    const legs = before.filter((posting) => posting.entryId === entry.id);
+    assert.equal(legs.reduce((sum, leg) => sum + Number(leg.baseValue), 0), 0, "each journal entry remains balanced");
+  }
+  assert.deepEqual(await db.select().from(postings), before, "rendering never changes the ledger");
+  const flows = await getFlowByCategory(6, user.id);
+  assert.equal(Number(flows.find((flow) => flow.code === "TRN-FUEL")!.total), 30);
+  assert.equal(Number(flows.find((flow) => flow.code === "HSG-RENT")!.total), 70);
 });
