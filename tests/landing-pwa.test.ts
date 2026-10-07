@@ -103,8 +103,8 @@ test("Landing — four primary outcomes, how-it-works, FAQ, and final CTA copy",
   assert.match(landing, /همین امروز تصویر مالی‌تان را روشن کنید/);
   assert.match(landing, /ثبت‌نام ساده است و نیازی به کارت بانکی ندارد/);
 
-  // how-it-works (3 steps) and the FAQ accordion.
-  assert.match(landing, /شروع، ساده‌تر از یک فایل اکسل/);
+  // Setup explanation is now inside the optional full tour; FAQ remains public.
+  assert.match(read("src/components/landing/ProductFilms.tsx"), /شروع، ساده‌تر از یک فایل اکسل/);
   assert.match(landing, /آنچه دارید و بدهکارید را وارد کنید/);
   assert.match(landing, /بقیه‌اش با خودِ برنامه است/);
   assert.match(landing, /با یک نگاه تصمیم بگیرید/);

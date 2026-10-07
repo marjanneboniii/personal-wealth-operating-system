@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import ProductFilms from "@/components/landing/ProductFilms";
 import AnimatedAmount from "@/components/landing/AnimatedAmount";
 import LandingAmbience from "@/components/landing/LandingAmbience";
 import CoverageField, { type CoverageKind } from "@/components/landing/CoverageField";
@@ -251,7 +252,6 @@ const COVERAGE: CoverageKind[] = [
 ];
 
 /** Persian numerals for the steps. Three of them; a loop would cost more. */
-const STEP_NUMERALS = ["۱", "۲", "۳"] as const;
 
 function CtaCluster({ align = "start" }: { align?: "start" | "center" }) {
   return (
@@ -423,6 +423,7 @@ export default function LandingPage() {
               با یک نگاه می‌گوید چه دارید، چقدر بدهکارید و چقدر پول در دسترستان است.
             </p>
             <CtaCluster />
+            <Link href="#product-tour" className="landing-watch-demo">دیدن توازن در ۲۰ ثانیه<Icon name="arrow-start" size={18} /></Link>
             {/* Three claims the visitor can check, not a slogan. */}
             <ul className="landing-hero-proof">
               <li>
@@ -477,6 +478,8 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <ProductFilms setupSteps={STEPS} />
+
       <section className="landing-band" id="modules">
         <div className="landing-wrap landing-section" aria-labelledby="modules-title">
           <p className="landing-eyebrow">داخل محصول</p>
@@ -498,28 +501,6 @@ export default function LandingPage() {
               </article>
             ))}
           </div>
-        </div>
-      </section>
-
-      <section className="landing-band-surface" id="how">
-        <div className="landing-wrap landing-section" aria-labelledby="steps-title">
-          <p className="landing-eyebrow">چطور شروع می‌شود</p>
-          <h2 id="steps-title" className="landing-h2">
-            شروع، ساده‌تر از یک فایل اکسل.
-          </h2>
-          <ol className="landing-steps">
-            {STEPS.map((item, i) => (
-              <li key={item.title} className="landing-step landing-reveal">
-                <span className="landing-step-index" aria-hidden="true">
-                  {STEP_NUMERALS[i]}
-                </span>
-                <div className="min-w-0">
-                  <h3 className="landing-benefit-title">{item.title}</h3>
-                  <p className="landing-benefit-body">{item.body}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
         </div>
       </section>
 
