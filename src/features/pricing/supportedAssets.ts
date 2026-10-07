@@ -141,7 +141,7 @@ export const SUPPORTED_CRYPTO_ASSETS = [
   },
   {
     symbol: "USDG",
-    name: "Global Dollar",
+    name: "یو اس دی جی",
     displayName: "یو اس دی جی",
     coingeckoId: "global-dollar",
     logoUrl: "https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png",

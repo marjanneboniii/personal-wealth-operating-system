@@ -1,3 +1,4 @@
+import { displayAccountName } from "@/lib/assetDisplay";
 import { ENTRY_TYPE_LABELS, type EntryType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
 import type { LedgerRow } from "@/features/ledger/queries";
@@ -158,6 +159,7 @@ const PLAIN_ACCOUNT_RULES: { pattern: RegExp; label: string }[] = [
  * user's own data.
  */
 export function plainAccountName(name: string): string {
+  name = displayAccountName(name);
   for (const rule of PLAIN_ACCOUNT_RULES) {
     if (rule.pattern.test(name)) return rule.label;
   }

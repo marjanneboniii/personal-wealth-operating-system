@@ -11,10 +11,11 @@
  */
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, assets, deposits, expenseCategories, plannedTransactions } from "@/db/schema";
+import { accounts, assets, deposits, expenseCategories, plannedTransactions, wallets } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import { jalaliDayOf, nextMonthlyDate } from "@/features/income/recurring";
 import { scheduleNextIncome } from "@/features/income/service";
+import { isTomanBankAccount } from "@/features/accounts/classification";
 import { todayIso } from "@/lib/format";
 
 export type DepositKind = "bank" | "fund";
@@ -83,9 +84,10 @@ export function firstPayoutDate(startDate: string, today: string, maturityDate?:
 
 async function ownAccount(userId: string, accountId: string) {
   const [acc] = await db
-    .select({ userId: accounts.userId, type: accounts.type, deletedAt: accounts.deletedAt, symbol: assets.symbol, assetId: accounts.assetId })
+    .select({ userId: accounts.userId, type: accounts.type, deletedAt: accounts.deletedAt, symbol: assets.symbol, assetId: accounts.assetId, walletKind: wallets.kind })
     .from(accounts)
     .leftJoin(assets, eq(assets.id, accounts.assetId))
+    .leftJoin(wallets, eq(wallets.id, accounts.walletId))
     .where(eq(accounts.id, accountId))
     .limit(1);
   if (!acc || acc.userId !== userId || acc.type !== "asset" || acc.deletedAt) throw new Error("حساب انتخاب‌شده متعلق به شما نیست.");
@@ -119,11 +121,12 @@ export async function createDeposit(userId: string, input: DepositInput, today =
   const maturity = clean(input.maturityDate);
   if (maturity && (!ISO.test(maturity) || maturity <= input.startDate)) throw new Error("تاریخ سررسید باید بعد از تاریخ شروع باشد.");
 
-  await ownAccount(userId, input.accountId);
+  const source = await ownAccount(userId, input.accountId);
+  if (!isTomanBankAccount(source)) throw new Error("حساب سپرده باید یک حساب بانکی تومانی یا ریالی باشد.");
   const payoutId = clean(input.payoutAccountId) ?? input.accountId;
   const payout = await ownAccount(userId, payoutId);
   const unit = (payout.symbol ?? "").toUpperCase();
-  if (unit !== "IRT" && unit !== "IRR") throw new Error("سود باید به یک حساب تومانی یا ریالی واریز شود.");
+  if (!isTomanBankAccount(payout)) throw new Error("سود باید به یک حساب بانکی تومانی یا ریالی واریز شود.");
   const categoryId = await interestCategoryId(input.kind);
 
   const monthly = monthlyInterest(principal.toString(), rate.toString());

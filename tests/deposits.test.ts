@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { and, eq } from "drizzle-orm";
 import { D, Decimal } from "../src/domain/decimal";
-import { accounts, assetClasses, assets, deposits, journalEntries, plannedTransactions, users, userFxSettings } from "../src/db/schema";
+import { accounts, assetClasses, assets, deposits, journalEntries, plannedTransactions, users, userFxSettings, wallets } from "../src/db/schema";
 import { firstPayoutDate, monthlyInterest } from "../src/features/deposits/service";
 import { jalaliToIso, todayIso } from "../src/lib/format";
 
@@ -92,6 +92,16 @@ test("deposits: register, remind monthly, stop at maturity, close, isolate", asy
   assert.equal((await createDepositAction(null, form({ payoutAccountId: wallet.id }))).ok, false, "interest goes to a Toman account");
   assert.equal((await createDepositAction(null, form({ annualRate: "120" }))).ok, false, "rate is at most 100%");
   assert.equal((await createDepositAction(null, form({ maturityDate: addDays(-50) }))).ok, false, "maturity after start");
+
+  assert.equal((await createDepositAction(null, form({ accountId: wallet.id }))).ok, false, "stablecoin principal is refused");
+  for (const kind of ["cash", "fund", "exchange", "broker"]) {
+    const [place] = await db.insert(wallets).values({ userId: owner.id, name: `محل ${kind}`, kind }).returning();
+    const [nonBank] = await db.insert(accounts).values({ userId: owner.id, code: `test-${kind}`, name: `حساب ${kind}`, type: "asset", assetId: irt.id, walletId: place.id }).returning();
+    assert.equal((await createDepositAction(null, form({ accountId: nonBank.id }))).ok, false, `${kind} principal is refused even in Toman`);
+    assert.equal((await createDepositAction(null, form({ payoutAccountId: nonBank.id }))).ok, false, `${kind} payout is refused even in Toman`);
+  }
+  assert.equal((await db.select().from(deposits)).length, 0, "rejected accounts create no deposit");
+  assert.equal((await db.select().from(plannedTransactions)).length, 0, "rejected accounts create no reminder");
 
   // ── Register: one reminder, in Toman, tied to the deposit ──
   // Maturity 35 days after the first payout: exactly one more payout fits before it.

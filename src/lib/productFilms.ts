@@ -21,9 +21,9 @@ export const PRODUCT_PREVIEW_CHAPTERS = [
 ] as const;
 
 export const PRODUCT_FILM_TOPICS = [
-  { title: "نمای کلی", description: "بدانید چه دارید، چقدر بدهکارید و تا سقف بودجه چقدر مانده.", previewAt: 0, guideAt: 0, icon: "wallet" },
-  { title: "قسط", description: "قسط ثبت شد؛ موجودی حساب و ماندهٔ بدهی را همان‌جا ببینید.", previewAt: 8, guideAt: 27, icon: "installments" },
-  { title: "سرمایه‌گذاری", description: "ببینید سرمایه‌تان کجا پخش شده و نسبت به بهای خرید چه تغییری کرده.", previewAt: 16, guideAt: 36, icon: "portfolio" },
+  { title: "نمای کلی", description: "بدانید چه دارید، چقدر بدهکارید و تا سقف بودجه چقدر مانده.", previewAt: 0, icon: "wallet" },
+  { title: "قسط", description: "قسط ثبت شد؛ موجودی حساب و ماندهٔ بدهی را همان‌جا ببینید.", previewAt: 8, icon: "installments" },
+  { title: "سرمایه‌گذاری", description: "ببینید سرمایه‌تان کجا پخش شده و نسبت به بهای خرید چه تغییری کرده.", previewAt: 16, icon: "portfolio" },
 ] as const;
 
 export const PRODUCT_FILM_DURATION = 40;

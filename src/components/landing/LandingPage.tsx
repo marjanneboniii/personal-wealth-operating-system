@@ -125,27 +125,6 @@ const DIFFERENTIATORS: { icon: IconName; title: string; body: string; tone: stri
   },
 ];
 
-/*
- * The steps deliberately carry a NUMBER, not an icon. With icons they rendered
- * as a third identical row of icon-and-text cards, so a visitor scrolling past
- * outcomes → steps saw the same block twice and read neither. A numeral also
- * says the thing the copy is trying to say — that this is a sequence.
- */
-const STEPS: { title: string; body: string }[] = [
-  {
-    title: "آنچه دارید و بدهکارید را وارد کنید",
-    body: "حساب بانکی، ملک، طلا، سرمایه‌گذاری یا وام. برای شروع، چند قلم اصلی کافی است.",
-  },
-  {
-    title: "بقیه‌اش با خودِ برنامه است",
-    body: "با هر چیزی که ثبت می‌کنید، جمع‌ها و نمودارها خودشان به‌روز می‌شوند. نه فرمولی می‌نویسید، نه فایل جداگانه‌ای نگه می‌دارید.",
-  },
-  {
-    title: "با یک نگاه تصمیم بگیرید",
-    body: "یک صفحه که می‌گوید امروز کجا ایستاده‌اید و ماه بعد کجا خواهید بود.",
-  },
-];
-
 /** The promises made in the trust band — short enough to read in one pass. */
 const TRUST_POINTS: { icon: IconName; title: string; body: string }[] = [
   {
@@ -250,8 +229,6 @@ const COVERAGE: CoverageKind[] = [
   { icon: "car", label: "خودرو", tone: "vehicle" },
   { icon: "installments", label: "وام و اقساط", tone: "debt" },
 ];
-
-/** Persian numerals for the steps. Three of them; a loop would cost more. */
 
 function CtaCluster({ align = "start" }: { align?: "start" | "center" }) {
   return (
@@ -478,7 +455,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <ProductFilms setupSteps={STEPS} />
+      <ProductFilms />
 
       <section className="landing-band" id="modules">
         <div className="landing-wrap landing-section" aria-labelledby="modules-title">

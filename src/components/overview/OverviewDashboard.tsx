@@ -1,3 +1,4 @@
+import { displayAccountName } from "@/lib/assetDisplay";
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
@@ -375,7 +376,7 @@ export default async function OverviewDashboard() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[length:var(--fs-sm)] font-medium">{plan.title}</p>
                     <p className="muted truncate text-[length:var(--fs-xs)]">
-                      {plan.categoryName} · {plan.accountName} · {formatDaysUntil(d)}
+                      {plan.categoryName} · {displayAccountName(plan.accountName ?? "")} · {formatDaysUntil(d)}
                     </p>
                   </div>
                   <span className="num shrink-0 text-[length:var(--fs-sm)] font-semibold money-nowrap" dir="rtl" style={{ color: "var(--positive)" }}>

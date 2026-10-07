@@ -84,7 +84,7 @@ test("Landing — Persian RTL conversion page with primary CTA شروع رایگ
   }
 });
 
-test("Landing — four primary outcomes, how-it-works, FAQ, and final CTA copy", () => {
+test("Landing — four primary outcomes, product demo, FAQ, and final CTA copy", () => {
   const landing = read("src/components/landing/LandingPage.tsx");
 
   // The four outcomes are phrased as the QUESTIONS a reader already has, in
@@ -103,11 +103,7 @@ test("Landing — four primary outcomes, how-it-works, FAQ, and final CTA copy",
   assert.match(landing, /همین امروز تصویر مالی‌تان را روشن کنید/);
   assert.match(landing, /ثبت‌نام ساده است و نیازی به کارت بانکی ندارد/);
 
-  // Setup explanation is now inside the optional full tour; FAQ remains public.
-  assert.match(read("src/components/landing/ProductFilms.tsx"), /شروع، ساده‌تر از یک فایل اکسل/);
-  assert.match(landing, /آنچه دارید و بدهکارید را وارد کنید/);
-  assert.match(landing, /بقیه‌اش با خودِ برنامه است/);
-  assert.match(landing, /با یک نگاه تصمیم بگیرید/);
+  assert.match(landing, /<ProductFilms \/>/);
   assert.match(landing, /سؤالات متداول/);
   assert.match(landing, /آیا استفاده از توازن رایگان است؟/);
   assert.match(landing, /آیا باید حساب بانکی‌ام را وصل کنم؟/);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { isTomanBankAccount } from "@/features/accounts/classification";
+import { useActionState, useMemo, useState } from "react";
 import { createDepositAction } from "@/app/actions/deposits";
 import type { ActionResult } from "@/app/actions";
 import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
@@ -13,7 +14,7 @@ export type DepositAccountOption = PickerAccount & { toman: boolean };
 
 /** «ثبت سپرده» — nothing here posts; the interest becomes a monthly reminder. */
 export default function DepositForm({
-  accounts,
+  accounts: suppliedAccounts,
   balances,
   today,
 }: {
@@ -22,6 +23,7 @@ export default function DepositForm({
   balances?: Record<string, string>;
   today: string;
 }) {
+  const accounts = useMemo(() => suppliedAccounts.filter(isTomanBankAccount), [suppliedAccounts]);
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(createDepositAction, null);
   const [kind, setKind] = useState<"bank" | "fund">("bank");
   const [title, setTitle] = useState("");
@@ -122,7 +124,8 @@ export default function DepositForm({
       <DualDateInput name="maturityDate" value={maturityDate} onChange={setMaturityDate} label="تاریخ سررسید (اختیاری)" showGregorian={false} />
 
       <AccountPicker
-        label="اصل پول در کدام حساب است؟"
+        label="حساب بانکی سپرده"
+        empty={<p className="muted text-sm">برای ثبت سپرده، ابتدا از بخش حساب‌ها یک حساب بانکی اضافه کنید.</p>}
         name="accountId"
         value={accountId}
         options={accounts}
@@ -131,7 +134,7 @@ export default function DepositForm({
       />
       <AccountPicker
         label="سود به کدام حساب واریز می‌شود؟"
-        placeholder="انتخاب حساب تومانی"
+        placeholder="انتخاب حساب بانکی"
         value={effectivePayout}
         options={payoutOptions}
         balances={balances}

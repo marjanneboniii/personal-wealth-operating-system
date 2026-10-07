@@ -10,7 +10,7 @@ import { markManyReviewedAction, markReviewedAction, setEntryTagsAction, tagEntr
 import { saveTemplateAction } from "@/app/actions/templates";
 import TagInput from "@/components/transactions/TagInput";
 import type { TagCount, TagSummary } from "@/features/tags/service";
-import { humanizeEntry, moneyFlowLabel, txAmountLabel } from "@/lib/tx";
+import { humanizeEntry, moneyFlowLabel, txAmountLabel, plainAccountName } from "@/lib/tx";
 import type { TxRow } from "@/features/ledger/queries";
 import type { EntryFxSnapshot } from "@/features/ledger/fxSnapshots";
 import {
@@ -224,7 +224,7 @@ export default function TransactionsView({
 
     return (
       <li key={e.id} className={isVoid ? "opacity-55" : ""}>
-        <div className="tx-item">
+        <div className="tx-item" data-type={e.type}>
           <input
             type="checkbox"
             checked={selected.has(e.id)}
@@ -239,7 +239,7 @@ export default function TransactionsView({
             aria-expanded={open}
             className="tx-item-main"
           >
-            <FlowIcon sign={h.sign} />
+            <FlowIcon sign={h.sign} type={e.type} />
             <span className="tx-identity min-w-0 flex-1">
               <span className="flex min-w-0 items-center gap-2">
                 <span className={`min-w-0 truncate text-[length:var(--fs-sm)] font-medium ${isVoid ? "line-through" : ""}`}>
@@ -524,6 +524,9 @@ export default function TransactionsView({
             بررسی‌نشده <span className="badge badge-neutral">{faCount(unreviewedCount)}</span>
           </button>
         </div>
+      <div className="tx-type-strip" aria-label="فیلتر سریع نوع تراکنش">
+        {[{ key: "", label: "همه" }, { key: "expense", label: "هزینه" }, { key: "income", label: "درآمد" }, { key: "debt_repayment", label: "پرداخت بدهی" }, { key: "fx", label: "تبدیل ارز" }].map((type) => <button key={type.key} type="button" data-type={type.key} aria-pressed={filters.type === type.key} onClick={() => apply({ type: type.key })}>{type.label}</button>)}
+      </div>
       <AdvancedFilter
         searchRef={searchRef}
         search={{
@@ -554,7 +557,7 @@ export default function TransactionsView({
             label: "حساب",
             value: filters.accountId,
             placeholder: "همه حساب‌ها",
-            groups: accountGroups.map((g) => ({ label: g.label, options: g.options.map((a) => ({ value: a.id, label: a.name })) })),
+            groups: accountGroups.map((g) => ({ label: g.label, options: g.options.map((a) => ({ value: a.id, label: plainAccountName(a.name) })) })),
             maxWidthClass: "max-w-[160px]",
             onChange: (v: string) => apply({ accountId: v }),
           },

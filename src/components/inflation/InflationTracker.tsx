@@ -174,6 +174,7 @@ function NewPriceForm({
   const [itemName, setItemName] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [newCategory, setNewCategory] = useState("");
+  const [categoryQuery, setCategoryQuery] = useState("");
   const [addingCategory, setAddingCategory] = useState(false);
   const [unit, setUnit] = useState<string>(INFLATION_DEFAULT_UNIT);
   const [customUnit, setCustomUnit] = useState(false);
@@ -324,8 +325,9 @@ function NewPriceForm({
               />
             </div>
 
-            <p className="expense-sub">دسته‌بندی</p>
-            <div className="expense-squares" role="radiogroup" aria-label="دسته‌بندی کالا">
+            <p className="expense-sub">دسته هزینه</p>
+            <input className="field infl-category-search" type="search" value={categoryQuery} onChange={(e) => setCategoryQuery(e.target.value)} placeholder="جستجوی دسته هزینه…" aria-label="جستجوی دسته هزینه" />
+            <div className="expense-squares infl-category-picker" role="radiogroup" aria-label="دسته‌بندی کالا">
               <button
                 type="button"
                 role="radio"
@@ -339,7 +341,7 @@ function NewPriceForm({
               >
                 <span className="expense-square-label">{INFLATION_NO_CATEGORY_LABEL}</span>
               </button>
-              {categories.map((c) => {
+              {categories.filter((c) => norm(c.name).includes(norm(categoryQuery))).map((c) => {
                 const on = !addingCategory && c.id === categoryId;
                 return (
                   <button
@@ -618,7 +620,7 @@ function ItemRow({
             {g6 !== null && (
               <>
                 {" · "}
-                <GrowthBadge value={g6} />
+                <GrowthBadge value={g6} /> <span>در ۶ ماه</span>
               </>
             )}
           </span>
@@ -796,6 +798,10 @@ export default function InflationTracker({ items, histories, dashboard, categori
           </div>
         ) : (
           <section className="space-y-2">
+            <div className="infl-category-strip" aria-label="دسته‌های سبد من">
+              <button type="button" className="infl-category-chip" aria-pressed={!categoryFilter} onClick={() => setCategoryFilter("")}>همه کالاها <span className="num">{faCount(items.length)}</span></button>
+              {categories.map((c) => ({ ...c, count: items.filter((item) => item.categoryId === c.id).length })).filter((c) => c.count > 0).map((c) => <button key={c.id} type="button" className="infl-category-chip" aria-pressed={categoryFilter === c.id} onClick={() => setCategoryFilter(categoryFilter === c.id ? "" : c.id)}>{c.name} <span className="num">{faCount(c.count)}</span></button>)}
+            </div>
             <div className="card infl-filter-panel">
               <AdvancedFilter
                 search={{ value: query, placeholder: "جستجوی کالا یا دسته…", ariaLabel: "جستجوی کالاهای تورم شخصی", onChange: setQuery }}

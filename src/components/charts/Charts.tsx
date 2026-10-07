@@ -268,11 +268,15 @@ export function BarsChart({
   data,
   height = 150,
   currency = "USD",
+  positiveLabel = "ورودی",
+  negativeLabel = "خروجی",
 }: {
   data: { label: string; positive: number; negative: number }[];
   height?: number;
   /** Unit of `positive`/`negative` — pass "IRT" when the series is Toman. */
   currency?: string;
+  positiveLabel?: string;
+  negativeLabel?: string;
 }) {
   const [active, setActive] = useState<number | null>(null);
   if (!data.length) return <p className="muted py-8 text-center text-xs">داده‌ای نیست</p>;
@@ -283,11 +287,11 @@ export function BarsChart({
       <div className="mb-2 flex min-h-5 flex-wrap items-center gap-x-4 gap-y-1 text-[length:var(--fs-xs)]" aria-live="polite">
         <span className="flex items-center gap-1.5" style={{ color: "var(--positive)" }}>
           <i className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--positive)" }} />
-          ورودی {cur && <b className="num" dir="rtl">{formatMoney(cur.positive, currency)}</b>}
+          {positiveLabel} {cur && <b className="num" dir="rtl">{formatMoney(cur.positive, currency)}</b>}
         </span>
         <span className="flex items-center gap-1.5" style={{ color: "var(--negative)" }}>
           <i className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--negative)" }} />
-          خروجی {cur && <b className="num" dir="rtl">{formatMoney(cur.negative, currency)}</b>}
+          {negativeLabel} {cur && <b className="num" dir="rtl">{formatMoney(cur.negative, currency)}</b>}
         </span>
         {cur && (
           <span className="muted">
@@ -309,7 +313,7 @@ export function BarsChart({
             onBlur={() => setActive(null)}
             className="flex min-w-9 flex-1 cursor-pointer flex-col items-center justify-end gap-1 rounded-md"
             style={{ height }}
-            aria-label={`${d.label}: ورودی ${formatMoney(d.positive, currency)}، خروجی ${formatMoney(d.negative, currency)}`}
+            aria-label={`${d.label}: ${positiveLabel} ${formatMoney(d.positive, currency)}، ${negativeLabel} ${formatMoney(d.negative, currency)}`}
           >
             <div className="flex h-full w-full items-end justify-center gap-1">
               <div

@@ -1,4 +1,4 @@
-/** Browser integration checks for media loading, guides, keyboard and seeking. */
+/** Browser integration checks for 20-second demo loading, keyboard and seeking. */
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { writeFileSync } from 'node:fs';
@@ -25,8 +25,10 @@ export async function verifyLanding(browser, out) {
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'No horizontal overflow');
   assert.equal(await tour.locator('video').getAttribute('preload'),'none');
   assert.equal(await tour.getByRole('button',{name:/^(نمای کلی|قسط|سرمایه‌گذاری)$/}).count(),3);
-  assert.equal(await tour.locator('.product-films-guide[open]').count(),0);
+  assert.equal(await tour.locator('.product-films-guide').count(),0);
+  assert.equal(await tour.getByText('راهنمای کامل گوشی و وب').count(),0);
   assert.equal(await tour.locator('video').evaluate(v=>v.controls),false);
+  assert(await tour.locator('.product-films-topics').evaluate(g=>[...g.querySelectorAll('button')].every(b=>Math.round(b.getBoundingClientRect().height)>=48 && ['flex','inline-flex'].includes(getComputedStyle(b).display) && getComputedStyle(b).borderTopWidth==='1px')),'Styled touch targets at least 48px');
   if(width<768) {
    const positions=await tour.evaluate(t=>Object.fromEntries(['description','cta','everyday'].map(k=>[k,t.querySelector('.product-films-'+k).getBoundingClientRect().top])));
    assert(positions.description<positions.cta && positions.cta<positions.everyday,'Signup immediately follows the outcome: '+JSON.stringify(positions));
@@ -53,41 +55,25 @@ export async function verifyLanding(browser, out) {
   await previewPlayer.getByRole('button',{name:'نمایش تمام‌صفحه'}).click();
   await page.waitForFunction(()=>document.fullscreenElement?.classList.contains('product-films-player'));
   await page.evaluate(()=>document.exitFullscreen());
-  await tour.locator('.product-films-guide>summary').focus();
-  await page.keyboard.press('Enter');
-  await tour.locator('.product-films-guide[open]').waitFor();
-  await tour.locator('.product-films-guide video').waitFor();
-  assert.equal(await tour.locator('video').count(),2);
-  assert.equal(await tour.locator('.product-films-guide source').getAttribute('src'),!standalone && width>=768?'/videos/tavazon/web.mp4':'/videos/tavazon/pwa.mp4');
-  assert.equal(await tour.locator('.product-films-chapter-disclosure[open]').count(),0);
-  // Check both variants on every viewport.
-  const guideMetadata=[];
-  for(const [label,w,h] of [['وب',1280,800],['گوشی',900,1200]]) {
-   await tour.getByRole('button',{name:label,exact:true}).click();
-   const disclosure=tour.locator('.product-films-chapter-disclosure');
-   if(await disclosure.getAttribute('open')===null) await disclosure.locator('summary').click();
-   await disclosure.getByRole('button',{name:/سبد سرمایه‌گذاری/}).click();
-   await page.waitForFunction(()=>document.querySelector('.product-films-guide video').currentTime>=36.9 && document.querySelector('.product-films-guide video').readyState>=2);
-   const guide=tour.locator('.product-films-guide video');
-   await guide.evaluate(v=>v.pause());
-   const meta=await guide.evaluate(v=>({duration:v.duration,width:v.videoWidth,height:v.videoHeight,time:v.currentTime,error:v.error?.message}));
-   assert.equal(meta.duration,40);assert.equal(meta.width,w);assert.equal(meta.height,h);assert(!meta.error);
-   const player=tour.locator('.product-films-guide .product-films-player');
-   await player.getByRole('button',{name:'زیرنویس فارسی',exact:true}).click();
-   await page.waitForFunction(()=>document.querySelector('.product-films-guide video').textTracks[0].cues?.length===10);
-   assert(await preview.evaluate(v=>v.paused),'The short film pauses when full guide plays');
-   await page.waitForFunction(()=>document.querySelector('.product-films-guide .product-film-caption')?.textContent.includes('سبد'));
-   assert(await player.evaluate(p=>p.querySelector('.product-film-controls').getBoundingClientRect().top>=p.querySelector('video').getBoundingClientRect().bottom));
-   await player.screenshot({path:resolve(out,`${label==='وب'?'web':'pwa'}-playback-${standalone?'standalone':'browser'}-${width}.png`)});
-   guideMetadata.push({variant:label,...meta});
+  // Verify every topic and every financial scene in the same 20-second film.
+  for (const [topic,at] of [['نمای کلی',0],['قسط',8],['سرمایه‌گذاری',16]]) {
+   await tour.getByRole('button',{name:topic,exact:true}).click();
+   await page.waitForFunction(at=>document.querySelector('#product-tour video').currentTime>=at+.8,at);
+   await previewPlayer.getByRole('button',{name:'توقف ویدیو',exact:true}).click();
+   assert.equal(await tour.getByRole('button',{name:topic,exact:true}).getAttribute('aria-pressed'),'true');
   }
-  await tour.locator('.product-films-guide>summary').click();
-  await tour.locator('.product-films-guide video').waitFor({state:'detached'});
+  for(const [scene,at,caption] of [['overview',1.8,'ارزش خالص'],['budget',5.8,'بودجه'],['payment',9.8,'قسط'],['paid',13.8,'موجودی حساب'],['portfolio',17.8,'سبد']]) {
+   await preview.evaluate((v,t)=>{v.currentTime=t},at);
+   await page.waitForFunction(at=>Math.abs(document.querySelector('#product-tour video').currentTime-at)<.1,at);
+   await page.waitForFunction(text=>document.querySelector('.product-film-caption')?.textContent.includes(text),caption);
+   await previewPlayer.screenshot({path:resolve(out,`preview-${scene}-${standalone?'standalone':'browser'}-${width}.png`)});
+  }
   assert.equal(await tour.locator('video').count(),1);
+  assert(videos.every(url=>url.endsWith('/preview.mp4')),'Only the 20-second asset is ever requested');
   const cta=tour.getByRole('link',{name:'شروع رایگان',exact:false});
   assert.equal(await cta.getAttribute('href'),'/register');
   assert.deepEqual(errors,[]);
-  const result={mode:standalone?"standalone-emulation":"browser",viewport:width,preview:previewMeta,guides:guideMetadata,errors};
+  const result={mode:standalone?"standalone-emulation":"browser",viewport:width,preview:previewMeta,errors};
   results.push(result);console.log(JSON.stringify(result));
   await context.close();
  }

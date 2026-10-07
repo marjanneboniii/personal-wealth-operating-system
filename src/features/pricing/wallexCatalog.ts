@@ -40,7 +40,7 @@ import { D } from "@/domain/decimal";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 /**
- * Stablecoins the app supports that NO exchange feed lists (USDG «گلوبال دلار»,
+ * Stablecoins the app supports that NO exchange feed lists (USDG «یو اس دی جی»,
  * verified absent from both on 2026-09-13). They get a catalogue row so they
  * can be found, picked and valued.
  *

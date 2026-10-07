@@ -29,6 +29,7 @@
  * debtId / installmentId); only how they are collected changed. No accounting
  * rule moved into the UI, and nothing is written before «تأیید و ثبت».
  */
+import { displayAccountName } from "@/lib/assetDisplay";
 import { useActionState, useEffect, useRef, useState } from "react";
 import TagInput from "@/components/transactions/TagInput";
 import { parseTags } from "@/features/tags/normalize";
@@ -140,8 +141,9 @@ const FIAT_SYMBOLS = new Set(["IRT", "IRR", "USD"]);
 function accountLabel(a: AccountOption | undefined | null): string {
   if (!a) return "—";
   const unit = a.symbol ? currencyLabel(a.symbol) : "";
-  const named = unit && (a.name.includes(unit) || (a.symbol && a.name.includes(a.symbol)));
-  return unit && !named ? `${a.name} · ${unit}` : a.name;
+  const name = displayAccountName(a.name);
+  const named = unit && (name.includes(unit) || (a.symbol && name.includes(a.symbol)));
+  return unit && !named ? `${name} · ${unit}` : name;
 }
 
 /**

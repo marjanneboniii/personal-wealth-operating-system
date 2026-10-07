@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import Icon from "@/components/ui/Icon";
-import { PRODUCT_FILM_CHAPTERS, PRODUCT_PREVIEW_CHAPTERS, PRODUCT_FILM_TOPICS, PRODUCT_FILMS, PRODUCT_PREVIEW, type ProductFilmVariant } from "@/lib/productFilms";
+import { PRODUCT_PREVIEW_CHAPTERS, PRODUCT_FILM_TOPICS, PRODUCT_PREVIEW } from "@/lib/productFilms";
 
 type Film = { label: string; src: string; poster: string; width: number; height: number };
 const subscribe = () => () => {};
@@ -67,17 +67,10 @@ function FilmPlayer({ film, videoRef, pendingRef, captions, chapters, onTime, on
   </figure>;
 }
 
-export default function ProductFilms({ setupSteps }: { setupSteps: { title: string; body: string }[] }) {
+export default function ProductFilms() {
   const [topic, setTopic] = useState(0);
-  const [variant, setVariant] = useState<ProductFilmVariant>("pwa");
-  const [guideOpen, setGuideOpen] = useState(false);
-  const [chapter, setChapter] = useState(0);
   const previewRef = useRef<HTMLVideoElement>(null);
-  const guideRef = useRef<HTMLVideoElement>(null);
   const previewSeekRef = useRef<number | null>(null);
-  const guideSeekRef = useRef<number | null>(null);
-
-  const variantChosenRef = useRef(false);
 
   const seek = (ref: RefObject<HTMLVideoElement | null>, pendingRef: RefObject<number | null>, at: number) => {
     const video = ref.current;
@@ -98,7 +91,7 @@ export default function ProductFilms({ setupSteps }: { setupSteps: { title: stri
         <div className="product-films-story">
           <div className="product-films-topics" role="group" aria-label="موضوع نمایش کوتاه">
             {PRODUCT_FILM_TOPICS.map((item, index) => <button type="button" key={item.title} aria-pressed={topic === index}
-              onClick={() => { guideRef.current?.pause(); setTopic(index); seek(previewRef, previewSeekRef, item.previewAt); }}>
+              onClick={() => { setTopic(index); seek(previewRef, previewSeekRef, item.previewAt); }}>
               <Icon name={item.icon} size={20} /><span>{item.title}</span>
             </button>)}
           </div>
@@ -110,52 +103,10 @@ export default function ProductFilms({ setupSteps }: { setupSteps: { title: stri
           <p className="product-films-everyday">دخل‌وخرج ماه و فاصله تا سقف بودجه را هم می‌بینید.</p>
           <p className="product-films-note">توازن پرداخت انجام‌شده را ثبت می‌کند و پولی جابه‌جا نمی‌کند.</p>
         </div>
-        <FilmPlayer key="preview" film={PRODUCT_PREVIEW} videoRef={previewRef} pendingRef={previewSeekRef} captions="/videos/tavazon/preview.fa.vtt" chapters={PRODUCT_PREVIEW_CHAPTERS} onPlay={() => guideRef.current?.pause()}
+        <FilmPlayer key="preview" film={PRODUCT_PREVIEW} videoRef={previewRef} pendingRef={previewSeekRef} captions="/videos/tavazon/preview.fa.vtt" chapters={PRODUCT_PREVIEW_CHAPTERS} onPlay={() => {}}
           onTime={time => setTopic(Math.max(0, PRODUCT_FILM_TOPICS.findLastIndex(item => time >= item.previewAt)))} />
       </div>
-      <details className="product-films-guide" id="how" onToggle={event => {
-        const open = event.currentTarget.open;
-        setGuideOpen(open);
-        if (open) {
-          previewRef.current?.pause();
-          setChapter(0);
-          if (!variantChosenRef.current) {
-            setVariant(window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone || !window.matchMedia("(min-width: 768px)").matches ? "pwa" : "web");
-            variantChosenRef.current = true;
-          }
-        }
-        else { guideRef.current?.pause(); guideSeekRef.current = null; }
-      }}>
-        <summary><span><b>راهنمای کامل گوشی و وب</b><small>۴۰ ثانیه · از راه‌اندازی اولیه تا سبد دارایی</small></span><Icon name="chevronDown" size={20} /></summary>
-        {guideOpen && <div className="product-films-guide-body">
-          <div className="product-films-guide-toolbar">
-            <div className="product-films-switch" role="group" aria-label="نسخهٔ راهنمای کامل">
-              {(Object.keys(PRODUCT_FILMS) as ProductFilmVariant[]).map(key => <button type="button" key={key} aria-pressed={variant === key}
-                onClick={() => { if (variant === key) return; guideRef.current?.pause(); guideSeekRef.current = null; setVariant(key); setChapter(0); }}>
-                <Icon name={key === "pwa" ? "phone" : "globe"} size={18} />{PRODUCT_FILMS[key].label}
-              </button>)}
-            </div>
-            <a className="product-films-download" href={PRODUCT_FILMS[variant].src} download>دریافت ویدیوی {PRODUCT_FILMS[variant].label}</a>
-          </div>
-          <div className="product-films-guide-layout" data-variant={variant}>
-            <FilmPlayer key={variant} film={PRODUCT_FILMS[variant]} videoRef={guideRef} pendingRef={guideSeekRef} captions="/videos/tavazon/captions.fa.vtt" chapters={PRODUCT_FILM_CHAPTERS} onPlay={() => previewRef.current?.pause()}
-              onTime={time => setChapter(Math.max(0, PRODUCT_FILM_CHAPTERS.findLastIndex(item => time >= item.at)))} />
-            <div className="product-films-guide-copy">
-              <h3>شروع، ساده‌تر از یک فایل اکسل.</h3>
-              <ol className="product-films-setup">{setupSteps.map((item, index) => <li key={item.title}><span>{fa(index + 1)}</span><div><b>{item.title}</b><p>{item.body}</p></div></li>)}</ol>
-              <details className="product-films-chapter-disclosure">
-                <summary>انتخاب مرحلهٔ راهنما<Icon name="chevronDown" size={16} /></summary>
-                <ol className="product-films-chapters" aria-label="مرحله‌های راهنمای کامل">{PRODUCT_FILM_CHAPTERS.map((item, index) => <li key={item.at}>
-                  <button type="button" aria-current={chapter === index ? "step" : undefined} onClick={() => seek(guideRef, guideSeekRef, item.at)}>
-                    <span>{item.title}</span><small dir="ltr">۰:{fa(item.at).padStart(2, "۰")}</small>
-                  </button>
-                </li>)}</ol>
-              </details>
-              <Link href="/register" className="btn btn-primary">شروع رایگان<Icon name="arrow-start" size={18} /></Link>
-            </div>
-          </div>
-        </div>}
-      </details>
+
     </div>
   </section>;
 }
