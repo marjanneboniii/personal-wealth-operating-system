@@ -12,6 +12,8 @@ import DeleteAccountButton from "@/components/accounts/DeleteAccountButton";
 interface AccountListItemProps {
   accountId: string;
   name: string | null;
+  /** Full account identity for the delete button and confirmation. */
+  accountName?: string | null;
   symbol: string | null;
   quantity: string | null;
   assetDecimals?: number | null;
@@ -35,6 +37,7 @@ interface AccountListItemProps {
 export default function AccountListItem({
   accountId,
   name,
+  accountName,
   symbol,
   balanceLabel,
   valuationLabel,
@@ -79,7 +82,7 @@ export default function AccountListItem({
           </p>
         )}
       </div>
-      {deletable && <DeleteAccountButton accountId={accountId} accountName={safeName} compact />}
+      {deletable && <DeleteAccountButton accountId={accountId} accountName={accountName?.trim() || safeName} compact />}
     </li>
   );
 }

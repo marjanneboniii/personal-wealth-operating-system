@@ -434,6 +434,7 @@ export default async function AccountsPage() {
                           <AccountListItem
                             key={b.accountId}
                             accountId={b.accountId}
+                            accountName={cleanDisplayName(b.name ?? b.assetName ?? "بدون نام")}
                             // Inside its wallet «تتر - بیت‌پین» reads as «تتر».
                             name={persianAssetName(b.symbol, b.name?.endsWith(` - ${w.name}`) ? b.name.slice(0, -` - ${w.name}`.length) : b.name ?? b.assetName ?? "بدون نام")}
                             symbol={b.symbol}
