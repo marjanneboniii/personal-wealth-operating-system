@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 
@@ -57,7 +58,7 @@ async function cleanAll() {
   await db.delete(currencies);
   await db.delete(userFxSettings);
   await db.delete(sessions);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
   cookieJar.value = null;
   delete process.env.PWOS_AUTH_TOKEN;
 }
@@ -86,7 +87,7 @@ test("FINAL — DB Failure: getAuthContext should DENY on DB error (fail-closed)
   await cleanAll();
   // Create a user to enable auth mode
   const [u] = await db.insert(users).values({ name: "U", username: "u1", role: "user" } as any).returning();
-  const { token } = await createSession(u.id);
+  const { token } = await createReadySession(u.id);
   cookieJar.value = token;
   // Simulate DB failure by renaming users table
   await db.execute(sql`alter table users rename to users_broken`);
@@ -121,7 +122,7 @@ test("FINAL — Cross-user: User A cannot use User B's account", async () => {
   await modulesReady;
   await cleanAll();
   const fx = await setupTwoUsersWithAccounts();
-  const { token: tokenA } = await createSession(fx.userA.id);
+  const { token: tokenA } = await createReadySession(fx.userA.id);
   cookieJar.value = tokenA;
   // Try to create transaction using B's account — should be denied
   const fd = new FormData();
@@ -234,7 +235,7 @@ test("FINAL — Ledger NULL isolation: User A sees only A's data, not B's, not o
   const [jeOrphan] = await db.insert(journalEntries).values({ userId: null, entryDate: "2026-08-01", type: "income", description: "orphan", status: "posted" } as any).returning();
 
   // Mock getCurrentUser to return User A
-  const { token: tokenA } = await createSession(fx.userA.id);
+  const { token: tokenA } = await createReadySession(fx.userA.id);
   cookieJar.value = tokenA;
 
   const ledgerA = await ledgerQueries.getLedger(100);

@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  accounts, deposits,
   assetClasses,
   assets,
   currencies,
@@ -30,6 +31,7 @@ import type { AssetValuation, PortfolioSummary, ValuationBasis } from "./types";
 import { REAL_ESTATE_LOGO } from "@/features/branding/persianIcons";
 import { resolveAssetLogo } from "@/features/branding/assetLogo";
 import { isOrphanedRwaAssetWithClass } from "@/features/rwa/orphanFilter";
+import { isTomanBankAccount } from "@/features/trade/rules";
 import { isReceivable } from "@/features/planning/obligations";
 
 /**
@@ -79,7 +81,7 @@ async function resolveValuationUserId(explicitUserId?: string): Promise<string |
 async function historicalTomanCostByAsset(userId: string | null): Promise<Map<string, string>> {
   const response = await db.execute(sql`
     select l.asset_id as "assetId",
-           sum(l.qty_remaining * l.unit_cost_base * fx.fx_rate)::text as "costToman"
+           sum(l.qty_remaining * l.unit_cost_base * coalesce(l.purchase_fx_rate, fx.fx_rate))::text as "costToman"
     from lots l
       join assets ast on ast.id = l.asset_id
       join asset_classes ac on ac.id = ast.class_id
@@ -1097,7 +1099,18 @@ export async function getCurrentNetWorth(userId?: string) {
   const liquid = liquidAssets.reduce((sum, asset) => sum.add(asset.currentValue), Decimal.zero());
   const liquidToman = liquidAssets.reduce((sum, asset) => sum.add(asset.currentValueToman), Decimal.zero());
 
+  const resolvedOwner = await (await import("@/features/ledger/queries")).resolveQueryUserId(userId);
+  const restricted = resolvedOwner ? await db.select({accountId:deposits.accountId,amount:deposits.principalToman}).from(deposits).innerJoin(accounts,eq(accounts.id,deposits.accountId)).where(and(eq(deposits.userId,resolvedOwner),eq(accounts.userId,resolvedOwner),eq(deposits.status,"active"),eq(deposits.restrictsAccountBalance,true))) : [];
+  const restrictedByAccount = new Map<string, Decimal>();
+  for (const row of restricted) restrictedByAccount.set(row.accountId,(restrictedByAccount.get(row.accountId) ?? Decimal.zero()).add(row.amount));
+  const availableCashToman = balances.filter(b => b.type === "asset" && b.isActive !== false && (isTomanBankAccount({...b,symbol:b.symbol}) || (b.symbol === "USD" && (b.walletKind === "bank" || b.code === "1010")) || b.walletKind === "cash" || b.code === "1020")).reduce((sum,b) => {
+    const gross = b.symbol === "IRT" ? D(b.quantity) : b.symbol === "IRR" ? D(b.quantity).div("10") : b.symbol === "USD" ? D(b.quantity).mul(rate) : Decimal.zero();
+    const net = gross.sub(restrictedByAccount.get(b.accountId) ?? "0");
+    return sum.add(net.gt(0) ? net : "0");
+  },Decimal.zero());
   return {
+    availableCashToman: availableCashToman.toFixed(0),
+    availableCashUsd: availableCashToman.div(rate).toString(),
     totalAssets: valuation.totalNetWorth,
     totalAssetsToman: valuation.totalNetWorthToman,
     totalLiabilities: totalLiabilitiesUsd.toString(),

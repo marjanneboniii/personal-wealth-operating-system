@@ -1,8 +1,8 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getCurrentUser } from "@/lib/auth";
 import { normalizeNumericInput } from "@/lib/numericInput";
 import { todayIso } from "@/lib/format";
 import type { ActionResult } from "@/app/actions";
@@ -15,7 +15,7 @@ import { adjustToReported, recordBalanceCheckpoint } from "@/features/reconcile/
 
 async function signedIn() {
   try {
-    return (await getCurrentUser()) ?? null;
+    return (await getSetupReadyUser()) ?? null;
   } catch {
     return null;
   }

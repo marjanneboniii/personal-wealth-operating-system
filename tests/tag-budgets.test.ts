@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * بودجه روی برچسب — cap everything carrying one #tag (a trip, a renovation).
  *
@@ -39,7 +40,7 @@ test("a budget on a hashtag", async () => {
   const food = (await listCategoryTree(u.id)).flatMap((g) => g.children).find((c) => c.code === "FOD-GROCERY-HOME")!;
   const today = todayIso();
   const spend = async (userId: string, accountId: string, amount: string, tags: string, entryDate = today) => {
-    cookie = (await createSession(userId)).token;
+    cookie = (await createReadySession(userId)).token;
     const fd = new FormData();
     for (const [k, v] of Object.entries({ type: "expense", primaryAccountId: accountId, categoryId: food.id, irtAmount: amount, entryDate, description: "سفر", tags })) fd.set(k, v);
     const r = await createTransactionAction(null, fd);
@@ -51,7 +52,7 @@ test("a budget on a hashtag", async () => {
   await spend(u.id, bank.id, "7000000", "#سفر_مشهد", "2020-01-05");
   await spend(other.id, theirBank.id, "5000000", "#سفر_مشهد");
 
-  cookie = (await createSession(u.id)).token;
+  cookie = (await createReadySession(u.id)).token;
   const budget = (fields: Record<string, string>) => {
     const fd = new FormData();
     for (const [k, v] of Object.entries({ name: "سفر مشهد", amountBase: "10000000", periodStart: addDays(today, -10), periodEnd: addDays(today, 10), ...fields })) fd.set(k, v);

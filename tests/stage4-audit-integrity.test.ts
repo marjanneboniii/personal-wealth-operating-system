@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { db } from "../src/db";
@@ -61,7 +62,7 @@ async function setupStage4Scenario() {
   await db.delete(assetClasses);
   await db.delete(currencies);
   await db.delete(userFxSettings);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
 
   const [usd] = await db.insert(currencies).values({ code: "USD", name: "US Dollar", symbol: "$", decimals: 2, isFiat: true } as any).returning();
   const [irt] = await db.insert(currencies).values({ code: "IRT", name: "Toman", symbol: "T", decimals: 0, isFiat: true } as any).returning();
@@ -406,7 +407,7 @@ test("STAGE 4 (#11, #12, #13) — Sensitive Data Protection: passwords, session 
 
 test("STAGE 4 (#16, #17) — Restore & Backup Audit: RESTORE and BACKUP events logged without sensitive credentials", async () => {
   const { userA } = await setupStage4Scenario();
-  const { token } = await createSession(userA.id);
+  const { token } = await createReadySession(userA.id);
 
   // Test Backup
   const reqBackup = new Request("http://localhost/api/backup", {
@@ -528,7 +529,7 @@ test("STAGE 4 Validation — Amount & Currency validation reject NaN, Infinity, 
 
 test("STAGE 4 (#15, PART 19, #57) — Admin Authorization: Admin role permissions work cleanly without breaking user data isolation", async () => {
   const { userA, userB } = await setupStage4Scenario();
-  const { token: tokenAdmin } = await createSession(userA.id);
+  const { token: tokenAdmin } = await createReadySession(userA.id);
 
   // Admin can call backup
   const reqBackup = new Request("http://localhost/api/backup", {
@@ -543,7 +544,7 @@ test("STAGE 4 (#15, PART 19, #57) — Admin Authorization: Admin role permission
     .insert(users)
     .values({ name: "Viewer User", username: "viewer_s4", role: "viewer" } as any)
     .returning();
-  const { token: tokenViewer } = await createSession(viewer.id);
+  const { token: tokenViewer } = await createReadySession(viewer.id);
 
   const reqRestore = new Request("http://localhost/api/restore", {
     method: "POST",

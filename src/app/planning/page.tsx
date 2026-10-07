@@ -147,7 +147,7 @@ export default async function PlanningPage() {
     <div className="space-y-5">
       <PageHeader
         title="پیش‌بینی مالی"
-        subtitle="چه چیزی در راه است و نقدینگی کجا کم می‌آورد. مبالغ برنامه‌ریزی به تومان ثابت‌اند."
+        subtitle="پیش‌بینی از موجودی قابل خرج بانک و صندوق نقد شروع می‌شود؛ اصل سپردهٔ مسدود با تأیید شما کنار گذاشته می‌شود. مبالغ برنامه‌ریزی به تومان ثابت‌اند."
         action={<AddPlanButton {...addProps} />}
       />
 
@@ -158,7 +158,7 @@ export default async function PlanningPage() {
       )}
 
       <section className="metric-strip">
-        <Metric label="نقدینگی فعلی" value={liqDisp.primary} hint={liqDisp.usdHint ? `معادل ${liqDisp.usdHint}` : undefined} />
+        <Metric label="پول قابل خرج فعلی" value={liqDisp.primary} hint={liqDisp.usdHint ? `معادل ${liqDisp.usdHint}` : undefined} />
         <Metric
           label="خروجی برنامه‌ریزی‌شده"
           value={outDisp.primary}

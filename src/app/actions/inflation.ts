@@ -1,4 +1,5 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { revalidatePath } from "next/cache";
 import { and, eq, isNull, or } from "drizzle-orm";
@@ -6,7 +7,6 @@ import { z } from "zod";
 import { db } from "@/db";
 import { commodityItems, commodityPriceRecords } from "@/db/schema";
 import { D } from "@/domain/decimal";
-import { getCurrentUser } from "@/lib/auth";
 import { authUsersExistCached } from "@/lib/tenantState";
 import { recordInflationPrice } from "@/features/inflation/service";
 
@@ -23,7 +23,7 @@ const refresh = () => {
  */
 async function guardInflation(): Promise<string | null> {
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     let hasAuth = false;
     try {
       hasAuth = await authUsersExistCached();
@@ -43,7 +43,7 @@ async function guardInflation(): Promise<string | null> {
 
 async function currentUserId(): Promise<string | null> {
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     return user?.id ?? null;
   } catch {
     return null;

@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * BACKUP → RESTORE ROUND TRIP — the restore must give back exactly what the
  * backup took.
@@ -62,7 +63,7 @@ async function login() {
     .from(users)
     .where(sql`${users.username} = 'restore_admin'`)
     .limit(1);
-  cookie = (await createSession(admin.id)).token;
+  cookie = (await createReadySession(admin.id)).token;
 }
 
 test("setup — demo ledger, an FX snapshot, an admin", async () => {

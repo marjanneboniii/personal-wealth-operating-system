@@ -341,7 +341,7 @@ export default async function ReportsPage() {
             <Icon name="download" size={14} />
             دانلود پشتیبان
           </a>
-          <Link href="/import" className="btn btn-ghost !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]">
+          <Link href="/transactions/import" className="btn btn-ghost !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]">
             <Icon name="import" size={14} />
             درون‌ریزی
           </Link>

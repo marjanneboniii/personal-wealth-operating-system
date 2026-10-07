@@ -98,6 +98,7 @@ export default function DepositForm({
         </label>
         <AmountInput id="deposit-principal" name="principalToman" value={principal} onValueChange={setPrincipal} placeholder="۰" className="field num" unit="toman" />
       </div>
+      <label className="expense-note flex items-start gap-2"><input type="checkbox" name="restrictsAccountBalance" />اصل این سپرده در موجودی همین حساب لحاظ شده و فعلاً قابل برداشت نیست؛ از پول قابل خرج در پیش‌بینی کم شود.</label>
       <div>
         <label className="label" htmlFor="deposit-rate">
           نرخ سود سالانه (٪)

@@ -16,6 +16,7 @@
  * PLANNING ONLY — see createDebt.ts. Nothing here posts a journal entry.
  */
 import { db } from "@/db";
+import { isSetupRequired } from "@/lib/setupGate";
 import { getCurrentUser } from "@/lib/auth";
 import { assertRealUsdIrtRate, getLatestUsdIrtRate, getWritableUsdIrtRateForUser } from "@/lib/fx";
 import {
@@ -93,6 +94,7 @@ export async function registerSetupDebtsAction(
   drafts: SetupDebtDraft[],
 ): Promise<SetupDebtsResult> {
   const user = await getCurrentUser();
+  if (user && await isSetupRequired(user.id)) return {ok:false,message:"بدهی‌های راه‌اندازی را همراه تأیید نهایی ثبت کنید."};
   if (!user) return { ok: false, message: "برای ثبت بدهی‌ها ابتدا وارد شوید." };
 
   if (!Array.isArray(drafts) || drafts.length === 0) {

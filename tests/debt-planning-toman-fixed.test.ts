@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 /**
  * Debt + Planning modules — Toman is AUTHORITATIVE, USD is display-only.
  *
@@ -87,7 +88,7 @@ async function clean() {
   await db.delete(funds);
   await db.delete(budgets);
   await db.delete(userFxSettings);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
 }
 
 async function loginAs(name: string, rate = "280000") {
@@ -96,7 +97,7 @@ async function loginAs(name: string, rate = "280000") {
     .values({ name, username: name.toLowerCase().replace(/\s+/g, "-"), role: "owner" } as any)
     .returning();
   await db.insert(userFxSettings).values({ userId: user.id, currentRate: rate } as any);
-  const { token } = await createSession(user.id);
+  const { token } = await createReadySession(user.id);
   cookieJar.value = token;
   return user;
 }

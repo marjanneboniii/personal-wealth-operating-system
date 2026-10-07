@@ -1,7 +1,7 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth";
 import { authUsersExistCached } from "@/lib/tenantState";
 import { todayIso } from "@/lib/format";
 import { D } from "@/domain/decimal";
@@ -48,7 +48,7 @@ export type VehicleAddRow = {
 
 async function guard(): Promise<{ denied: string } | { userId: string | null }> {
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     const hasAuth = await authUsersExistCached();
     if (hasAuth && !user) return { denied: "برای این عملیات ابتدا وارد شوید." };
     return { userId: user?.id ?? null };

@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 /**
  * Security Remediation regression tests (Sections 24–29 of the remediation
  * mandate): role escalation, legacy claim gating, cross-user accounting,
@@ -76,7 +77,7 @@ async function cleanAll() {
   await db.delete(userFxSettings);
   await db.delete(sessions);
   await db.delete(currencies);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
   delete process.env.PWOS_AUTH_TOKEN;
   cookieJar.value = null;
 }
@@ -183,7 +184,7 @@ test("SEC-REMEDIATION — User A cannot post a ledger entry using User B's accou
 
   // User A session tries to use User B's account — denied at the action
   // boundary BEFORE any accounting service call.
-  const { token: tokenA } = await createSession(fx.userA.id);
+  const { token: tokenA } = await createReadySession(fx.userA.id);
   cookieJar.value = tokenA;
   const denied = await createTransactionAction(null, incomeFormData(fx.cashB.id, fx.incomeGlobal.id));
   assert.equal(denied.ok, false, "cross-user account usage must be denied");
@@ -233,7 +234,7 @@ test("SEC-REMEDIATION — User A cannot reverse User B's journal entry; orphan e
   const fx = await setupFixture();
 
   // B posts an entry through the unchanged accounting core.
-  const { token: tokenB } = await createSession(fx.userB.id);
+  const { token: tokenB } = await createReadySession(fx.userB.id);
   cookieJar.value = tokenB;
   const { recordIncome } = await import("../src/features/ledger/service");
   const created = await recordIncome({
@@ -251,7 +252,7 @@ test("SEC-REMEDIATION — User A cannot reverse User B's journal entry; orphan e
   assert.equal(entryB.status, "posted");
 
   // A attempts to reverse B's entry
-  const { token: tokenA } = await createSession(fx.userA.id);
+  const { token: tokenA } = await createReadySession(fx.userA.id);
   cookieJar.value = tokenA;
   const denied = await reverseEntryAction(entryB.id);
   assert.equal(denied.ok, false);
@@ -293,7 +294,7 @@ test("SEC-REMEDIATION — markManyReviewedAction denies cross-user batches", asy
     .values({ entryDate: "2026-08-01", type: "income", description: "B entry", status: "posted", userId: fx.userB.id } as any)
     .returning();
 
-  const { token: tokenA } = await createSession(fx.userA.id);
+  const { token: tokenA } = await createReadySession(fx.userA.id);
   cookieJar.value = tokenA;
   const denied = await markManyReviewedAction([entryB.id]);
   assert.equal(denied.ok, false);
@@ -308,7 +309,7 @@ test("SEC-REMEDIATION — Backup/Restore: normal user 403, admin/owner allowed",
   const fx = await setupFixture();
 
   // Normal user -> 403
-  const { token: tokenA } = await createSession(fx.userA.id);
+  const { token: tokenA } = await createReadySession(fx.userA.id);
   const resUser = await backupApi(
     new Request("http://localhost/api/backup", { headers: { cookie: `pwos_session=${tokenA}` } }),
   );
@@ -330,14 +331,14 @@ test("SEC-REMEDIATION — Backup/Restore: normal user 403, admin/owner allowed",
   assert.equal(resUserRestore.status, 403);
 
   // Admin -> backup allowed
-  const { token: tokenAdmin } = await createSession(fx.adminU.id);
+  const { token: tokenAdmin } = await createReadySession(fx.adminU.id);
   const resAdmin = await backupApi(
     new Request("http://localhost/api/backup", { headers: { cookie: `pwos_session=${tokenAdmin}` } }),
   );
   assert.equal(resAdmin.status, 200);
 
   // Owner -> backup allowed
-  const { token: tokenOwner } = await createSession(fx.ownerU.id);
+  const { token: tokenOwner } = await createReadySession(fx.ownerU.id);
   const resOwner = await backupApi(
     new Request("http://localhost/api/backup", { headers: { cookie: `pwos_session=${tokenOwner}` } }),
   );
@@ -376,7 +377,7 @@ test("SEC-REMEDIATION — Session token stored as hash; raw token never persiste
   await modulesReady;
   await cleanAll();
   const [u] = await db.insert(users).values({ name: "Hash", username: "hashuser", role: "user" } as any).returning();
-  const { token } = await createSession(u.id);
+  const { token } = await createReadySession(u.id);
   const rows = await db.select().from(sessions);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].token, hashSessionToken(token), "DB stores sha256(token)");
@@ -397,7 +398,7 @@ test("SEC-REMEDIATION — Analytics action denies anonymous callers when auth is
   await assert.rejects(() => fetchAnalyticsSummaryAction(), /Unauthorized|login/i);
 
   const [u] = await db.select().from(users).where(eq(users.username as any, "usera_sec")).limit(1);
-  const { token } = await createSession(u.id);
+  const { token } = await createReadySession(u.id);
   cookieJar.value = token;
   const summary = await fetchAnalyticsSummaryAction();
   assert.ok(summary && typeof summary === "object");

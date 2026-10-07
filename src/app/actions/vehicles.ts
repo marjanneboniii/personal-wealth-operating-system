@@ -1,8 +1,8 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getCurrentUser } from "@/lib/auth";
 import type { ActionResult } from "@/app/actions";
 import { addDueDate, cancelDueDate, completeDueDate } from "@/features/vehicles/service";
 
@@ -10,7 +10,7 @@ import { addDueDate, cancelDueDate, completeDueDate } from "@/features/vehicles/
 
 async function signedIn() {
   try {
-    return (await getCurrentUser()) ?? null;
+    return (await getSetupReadyUser()) ?? null;
   } catch {
     return null;
   }

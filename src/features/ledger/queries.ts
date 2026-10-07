@@ -102,6 +102,7 @@ export type AccountBalance = {
   code: string;
   name: string;
   type: AccountType;
+  isActive?:boolean;
   assetId: string | null;
   symbol: string | null;
   assetName: string | null;
@@ -168,6 +169,7 @@ export async function getAccountBalances(userId?: string): Promise<AccountBalanc
            a.code          as "code",
            a.name          as "name",
            a.type          as "type",
+           a.is_active     as "isActive",
            ast.id          as "assetId",
            ast.symbol      as "symbol",
            ast.name        as "assetName",
@@ -190,7 +192,7 @@ export async function getAccountBalances(userId?: string): Promise<AccountBalanc
       left join asset_classes ac on ac.id = ast.class_id
     where a.deleted_at is null
       and (ast.id is null or ast.deleted_at is null) ${u ? sql`and (a.user_id = ${u} or (a.user_id is null and a.code in ('1000','1300','1400','1600','1610','1620','2000','3000','3010','3015','3200','4000','4010','4100','4900','5000','5010','5020','5030','5040','5050','5900','5960')))` : sql``}
-    group by a.id, a.code, a.name, a.type, ast.id, ast.symbol, ast.name, ast.decimals, w.name, w.kind, ac.name, ac.color, ac.code
+    group by a.id, a.code, a.name, a.type, a.is_active, ast.id, ast.symbol, ast.name, ast.decimals, w.name, w.kind, ac.name, ac.color, ac.code
     order by a.code
   `);
 }

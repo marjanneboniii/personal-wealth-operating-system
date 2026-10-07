@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 /**
  * Quick Pay pays from the account the USER chose — «پرداخت از کدام حساب؟».
  *
@@ -69,7 +70,7 @@ async function clean() {
   await db.delete(assetClasses);
   await db.delete(currencies);
   await db.delete(userFxSettings);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
 }
 async function makeUser(name: string, rate: string) {
   const [user] = await db
@@ -152,7 +153,7 @@ test("quick pay from a chosen Toman bank account lowers THAT balance by exactly 
   const user = await makeUser("TomanBankOwner", "220000");
   const { cash: usdCash } = await makeLedgerAccounts(user.id, "B");
   const bank = await makeTomanBank(user.id, "B");
-  const { token } = await createSession(user.id);
+  const { token } = await createReadySession(user.id);
   cookieJar.value = token;
 
   const created = await createDebtAction(null, debtFormData("1818180", "2", "909090"));

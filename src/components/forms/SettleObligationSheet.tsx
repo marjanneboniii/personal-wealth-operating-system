@@ -121,7 +121,7 @@ export default function SettleObligationSheet({
         className={`btn btn-primary !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)] ${buttonClassName ?? ""}`}
         style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
       >
-        {receivable ? "ثبت دریافت" : "پرداخت قسط"}
+        {receivable ? "ثبت دریافت" : "ثبت پرداخت قسط"}
       </button>
 
       {result && (

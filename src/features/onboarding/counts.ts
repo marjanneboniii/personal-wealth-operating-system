@@ -15,7 +15,7 @@
  */
 import { and, eq, gt, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { assetClasses, assets, lots, realEstateProperties, vehicleAssets } from "@/db/schema";
+import { assetClasses, assets, lots, realEstateProperties, vehicleAssets, accounts, wallets } from "@/db/schema";
 import { ASSET_CATEGORIES, type AssetCategory } from "./service";
 
 /**
@@ -31,7 +31,7 @@ const CLASS_CODES: Partial<Record<AssetCategory, string[]>> = {
   crypto: ["crypto", "stable"],
   fund: ["fund", "etf"],
   stock: ["stock", "security"],
-  online_gold: ["gold"],
+
 };
 
 export async function countAssetsByCategory(
@@ -71,5 +71,7 @@ export async function countAssetsByCategory(
     counts[category] = codes.reduce((sum, code) => sum + (byCode.get(code) ?? 0), 0);
   }
 
+  const [onlineGold] = await db.select({n:sql<number>`count(distinct ${lots.accountId})::int`}).from(lots).innerJoin(accounts,eq(accounts.id,lots.accountId)).innerJoin(wallets,eq(wallets.id,accounts.walletId)).where(and(eq(lots.userId,userId),eq(accounts.userId,userId),eq(wallets.userId,userId),eq(wallets.kind,"online_gold"),gt(lots.qtyRemaining,"0")));
+  counts.online_gold = onlineGold?.n ?? 0;
   return counts;
 }

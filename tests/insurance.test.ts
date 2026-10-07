@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * بیمه‌نامه‌ها — metadata over money; premiums are reminders recorded with a tap.
  *
@@ -77,7 +78,7 @@ test("insurance: register, remind, pay once, savings stay in net worth, gaps, re
   const [home] = await db.insert(realEstateProperties).values({ assetId: homeAsset.id, userId: owner.id, area: "سعادت‌آباد", city: "تهران", currentValueToman: "10000000000" } as any).returning();
 
   // Fund the bank so premiums can leave it.
-  cookie = (await createSession(owner.id)).token;
+  cookie = (await createReadySession(owner.id)).token;
   const today = todayIso();
   const fund = new FormData();
   const { listCategoryTree } = await import("../src/features/categories/service");
@@ -169,7 +170,7 @@ test("insurance: register, remind, pay once, savings stay in net worth, gaps, re
   assert.equal((await getReminders(owner.id)).some((r) => r.key.startsWith(`renewal:${health.id}`)), false, "renewed: the reminder is gone");
 
   // Isolation.
-  cookie = (await createSession(other.id)).token;
+  cookie = (await createReadySession(other.id)).token;
   assert.equal((await createPolicyAction(null, form({ kind: "third_party", title: "x", premiumToman: "1", payAccountId: bank.id }))).ok, false, "cannot pay from another tenant's account");
   assert.equal((await createPolicyAction(null, form({ kind: "third_party", title: "x", premiumToman: "1", payAccountId: foreignBank.id, insuredVehicleId: car.id }))).ok, false, "cannot insure another tenant's car");
   assert.equal((await cancelPolicyAction(policy.id)).ok, false);
@@ -200,7 +201,7 @@ test("insurance: paid in cash from a Toman bank only, on a new installment plan,
   const [fund] = await db.insert(accounts).values({ userId: u.id, code: "1011", name: "صندوق درآمد ثابت", type: "asset", assetId: irt.id, walletId: fundWallet.id } as any).returning();
   const [tether] = await db.insert(accounts).values({ userId: u.id, code: "1012", name: "تتر", type: "asset", assetId: usdt.id } as any).returning();
   await db.insert(accounts).values({ userId: u.id, code: "3010", name: "سرمایه", type: "equity", assetId: irt.id } as any);
-  cookie = (await createSession(u.id)).token;
+  cookie = (await createReadySession(u.id)).token;
   const today = todayIso();
   const form = (fields: Record<string, string>) => {
     const fd = new FormData();

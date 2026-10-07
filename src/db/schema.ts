@@ -187,6 +187,7 @@ export const accounts = pgTable(
     code: text("code").notNull(),
     name: text("name").notNull(),
     bankName: text("bank_name"),
+    bankDetailsEncrypted: text("bank_details_encrypted"),
     type: text("type").notNull(), // asset | liability | equity | income | expense
     parentId: uuid("parent_id"),
     // Header/parent CoA rows (1000/2000/3000/4000/5000) are grouping
@@ -288,6 +289,7 @@ export const lots = pgTable(
     qtyOpened: money("qty_opened").notNull(),
     qtyRemaining: money("qty_remaining").notNull(),
     unitCostBase: money("unit_cost_base").notNull(),
+    purchaseFxRate: money("purchase_fx_rate"),
   },
   (t) => [
     index("lots_lookup_idx").on(t.assetId, t.openedAt),
@@ -899,6 +901,7 @@ export const deposits = pgTable(
       .notNull()
       .references(() => accounts.id),
     principalToman: money("principal_toman").notNull(),
+    restrictsAccountBalance: boolean("restricts_account_balance").notNull().default(false),
     /** Annual rate in percent, e.g. 23.5. */
     annualRate: numeric("annual_rate", { precision: 7, scale: 4 }).notNull(),
     startDate: date("start_date").notNull(),
@@ -2100,3 +2103,13 @@ export const bankSmsIdentifiers = pgTable("bank_sms_identifiers", {
  suffix: text("suffix").notNull(),
  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("bank_sms_identifiers_unique_idx").on(t.userId, t.accountId, t.bankName, t.kind, t.suffix), index("bank_sms_identifiers_user_idx").on(t.userId)]);
+
+/** Server-only encrypted setup draft and durable per-item commit receipts. */
+export const setupSessions = pgTable("setup_sessions", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  draftEncrypted: text("draft_encrypted"),
+  progress: jsonb("progress").notNull().default({}),
+  leaseToken: uuid("lease_token"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

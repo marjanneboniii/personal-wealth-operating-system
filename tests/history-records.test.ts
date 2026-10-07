@@ -1,3 +1,4 @@
+import {createReadySession,clearSetupReceipts} from "./support/ready-session";
 /**
  * سوابق پیش از توازن — the story before the app, and ONLY before it.
  *
@@ -75,7 +76,7 @@ test("a history record is saved without touching the ledger", async () => {
   const entriesBefore = await db.select().from(schema.journalEntries);
   const postingsBefore = await db.select().from(schema.postings);
 
-  const { token } = await createSession(user.id);
+  const { token } = await createReadySession(user.id);
   cookieJar.value = token;
   const res = await actions.saveHistoryRecordAction(
     null,
@@ -137,7 +138,7 @@ test("another user can neither see, edit nor delete the records", async () => {
 
   assert.equal((await svc.listHistoryRecords(intruder.id)).length, 0);
 
-  const { token } = await createSession(intruder.id);
+  const { token } = await createReadySession(intruder.id);
   cookieJar.value = token;
   const edit = await actions.saveHistoryRecordAction(
     null,
@@ -154,7 +155,7 @@ test("another user can neither see, edit nor delete the records", async () => {
 test("the owner can edit and delete", async () => {
   await ready;
   const [owner] = await db.select().from(schema.users).where(eq(schema.users.name, "HistOwner"));
-  const { token } = await createSession(owner.id);
+  const { token } = await createReadySession(owner.id);
   cookieJar.value = token;
   const [target] = await svc.listHistoryRecords(owner.id);
   const edit = await actions.saveHistoryRecordAction(

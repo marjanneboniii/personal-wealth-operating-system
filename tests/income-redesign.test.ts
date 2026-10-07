@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * درآمد — sources, units, occupations and monthly reminders.
  *
@@ -109,7 +110,7 @@ async function fixture() {
   const [bank] = await db.insert(accounts).values({ code: "1010", name: "بانک ملت", type: "asset", assetId: irt.id, userId: user.id } as any).returning();
   const [wallet] = await db.insert(accounts).values({ code: "1110", name: "کیف تتر", type: "asset", assetId: usdt.id, userId: user.id } as any).returning();
 
-  const { token } = await createSession(user.id);
+  const { token } = await createReadySession(user.id);
   cookieJar.value = token;
   return { user, bank, wallet };
 }

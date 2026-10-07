@@ -1,4 +1,5 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 /**
  * Server actions for the onboarding checklist.
@@ -12,7 +13,6 @@
  * asset, or touch a balance — asset creation stays in each category's own flow.
  */
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth";
 import {
   dismissReminder,
   evaluateChecklist,
@@ -30,7 +30,7 @@ export async function recordIntentAction(
   category: string,
   answer: string,
 ): Promise<OnboardingResult> {
-  const user = await getCurrentUser();
+  const user = await getSetupReadyUser();
   if (!user) return { ok: false, message: "برای ثبت پاسخ باید وارد شوید." };
   if (!isAssetCategory(category)) return { ok: false, message: "دستهٔ نامعتبر." };
   if (answer !== "yes" && answer !== "no") return { ok: false, message: "پاسخ نامعتبر." };
@@ -47,7 +47,7 @@ export async function recordIntentAction(
 }
 
 export async function dismissReminderAction(category: string): Promise<OnboardingResult> {
-  const user = await getCurrentUser();
+  const user = await getSetupReadyUser();
   if (!user) return { ok: false, message: "برای این کار باید وارد شوید." };
   if (!isAssetCategory(category)) return { ok: false, message: "دستهٔ نامعتبر." };
   await dismissReminder(user.id, category);
@@ -74,7 +74,7 @@ export async function fetchChecklistAction(): Promise<ChecklistView> {
     reminders: [],
     complete: false,
   };
-  const user = await getCurrentUser();
+  const user = await getSetupReadyUser();
   if (!user) return { ...empty, loginRequired: true };
 
   const [intents, counts] = await Promise.all([

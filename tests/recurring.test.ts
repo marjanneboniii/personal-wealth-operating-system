@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * پرداخت‌های تکراری — detected from the ledger, never typed twice.
  *
@@ -99,7 +100,7 @@ test("recurring payments from the ledger, premiums once", async () => {
   const [bank] = await db.insert(accounts).values({ userId: u.id, code: "1010", name: "بانک", type: "asset", assetId: irt.id } as any).returning();
   await db.insert(accounts).values({ userId: u.id, code: "5900", name: "هزینه", type: "expense", assetId: irt.id } as any);
   await db.insert(accounts).values({ userId: u.id, code: "4010", name: "درآمد", type: "income", assetId: irt.id } as any);
-  cookie = (await createSession(u.id)).token;
+  cookie = (await createReadySession(u.id)).token;
   const today = todayIso();
   const sub = (await listCategoryTree(u.id)).flatMap((g) => g.children).find((c) => c.code === "COM-SUB")!;
   const incomeLeaf = (await listCategoryTree(u.id, "income")).flatMap((g) => g.children)[0];

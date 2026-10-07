@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * سپرده‌ها — metadata over money already in the ledger; interest is a monthly reminder.
  *
@@ -87,7 +88,7 @@ test("deposits: register, remind monthly, stop at maturity, close, isolate", asy
 
   // ── Validation ──
   assert.equal((await createDepositAction(null, form({}))).ok, false, "anonymous cannot register");
-  cookieJar.value = (await createSession(owner.id)).token;
+  cookieJar.value = (await createReadySession(owner.id)).token;
   assert.equal((await createDepositAction(null, form({ accountId: foreignAcc.id }))).ok, false, "a foreign account is refused");
   assert.equal((await createDepositAction(null, form({ payoutAccountId: wallet.id }))).ok, false, "interest goes to a Toman account");
   assert.equal((await createDepositAction(null, form({ annualRate: "120" }))).ok, false, "rate is at most 100%");
@@ -158,10 +159,10 @@ test("deposits: register, remind monthly, stop at maturity, close, isolate", asy
   assert.ok(!(await getReminders(other.id, today)).some((r: any) => r.kind === "deposit"), "not another tenant's");
 
   // ── Isolation and closing ──
-  cookieJar.value = (await createSession(other.id)).token;
+  cookieJar.value = (await createReadySession(other.id)).token;
   assert.equal((await closeDepositAction(dep.id)).ok, false, "another user cannot close it");
   assert.equal((await listDeposits(other.id)).length, 0);
-  cookieJar.value = (await createSession(owner.id)).token;
+  cookieJar.value = (await createReadySession(owner.id)).token;
   const closed = await closeDepositAction(dep.id);
   assert.equal(closed.ok, true, closed.message);
   pending = await db.select().from(plannedTransactions).where(and(eq(plannedTransactions.depositId, dep.id), eq(plannedTransactions.status, "pending")));

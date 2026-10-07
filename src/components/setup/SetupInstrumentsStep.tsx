@@ -15,6 +15,8 @@
  * user can enter the purchase later. DRAFTS ONLY until the final confirmation.
  */
 import { useMemo, useState } from "react";
+import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
+import { PurchaseUsd } from "@/components/setup/SetupRealAssetsStep";
 import Icon from "@/components/ui/Icon";
 import AmountInput from "@/components/ui/AmountInput";
 import AssetLogo from "@/components/ui/AssetLogo";
@@ -37,6 +39,7 @@ export type InstrumentDraftRow = {
   logoUrl?: string | null;
   /** Persian label of the والکس family («سهام توکنیزه», «کامودیتی»…). */
   kindLabel?: string;
+  purchaseDate?: string;
   quantity: string;
   unitPrice: string;
   /** Always Toman for a fund or TSE stock. */
@@ -210,6 +213,7 @@ export default function SetupInstrumentsStep({
                     <Icon name="x" size={15} />
                   </button>
                 </div>
+                {row.kind === "wallex" && <><label className="block"><span className="label">تاریخ خرید (اجباری)</span><JalaliDatePicker value={row.purchaseDate || undefined} onChange={(date) => patch(row.key, { purchaseDate: date })} /></label>{row.priceCurrency === "IRT" && <PurchaseUsd currentRate={rate} dateIso={row.purchaseDate || ""} priceToman={value.toString()} />}</>}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="label">تعداد واحد</label>

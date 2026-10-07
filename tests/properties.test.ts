@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * ملک: اجاره و بازده خالص.
  *
@@ -45,7 +46,7 @@ test("rent, costs and yield of a property", async () => {
   await db.insert(accounts).values({ userId: u.id, code: "4010", name: "درآمد", type: "income", assetId: irt.id } as any);
   const [homeAsset] = await db.insert(assets).values({ symbol: `P-${Math.random().toString(36).slice(2, 6)}`, name: "آپارتمان", classId: rwa.id, decimals: 0 } as any).returning();
   const [home] = await db.insert(realEstateProperties).values({ assetId: homeAsset.id, userId: u.id, area: "ونک", city: "تهران", currentValueToman: "10000000000", userSeq: 1 } as any).returning();
-  cookie = (await createSession(u.id)).token;
+  cookie = (await createReadySession(u.id)).token;
   const today = todayIso();
   const tag = (await ensurePropertyTags(u.id)).get(home.id)!;
   assert.equal(tag, "ونک");

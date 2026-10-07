@@ -92,7 +92,7 @@ export default async function DepositsPage() {
       .from(accounts)
       .innerJoin(assets, eq(assets.id, accounts.assetId))
       .leftJoin(wallets, eq(wallets.id, accounts.walletId))
-      .where(and(eq(accounts.userId, userId), eq(accounts.type, "asset"), isNull(accounts.deletedAt)))
+      .where(and(eq(accounts.userId, userId), eq(accounts.type, "asset"), eq(accounts.isActive, true), isNull(assets.deletedAt), isNull(accounts.deletedAt)))
       .orderBy(asc(accounts.code)),
     getAccountBalances(userId).catch(() => []),
   ]);

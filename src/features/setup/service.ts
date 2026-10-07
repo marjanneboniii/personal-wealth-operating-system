@@ -1,7 +1,8 @@
+import { resolveAutomaticPurchaseRate } from "@/features/rwa/vehicle/fx";
 import { normalizeBankText } from "@/features/bankImport/parser";
 import { validateSetupBankAccounts, type SetupBankAccount } from "./bankAccounts";
 import { validateSetupBankIdentifiers, type SetupBankIdentifier } from "./bankConnection";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   accounts,
@@ -98,6 +99,8 @@ const MAX_CRYPTO_WALLETS = 100;
 
 export type SetupInput = {
   userName: string;
+  inputMethod?: "manual" | "file" | "sms";
+  bankPresence?: "yes" | "no";
   /**
    * Kept for API compatibility only. The book currency is USD for every tenant;
    * a different value no longer creates a pseudo «ارز پایه» asset or re-points
@@ -133,6 +136,7 @@ export type SetupInput = {
    * a quantity, a line also gets a posting and a FIFO lot in the opening entry.
    */
   cryptoHoldings?: Array<{
+    purchaseDate?: string;
     symbol: string;
     quantity?: string;
     unitPrice?: string;
@@ -146,6 +150,8 @@ export type SetupInput = {
   cryptoUnitPrice?: string;
   cryptoPriceCurrency?: SetupPriceCurrency;
   /** Physical gold, in grams of 18 karat. */
+  goldPurchaseDate?: string;
+  goldHoldingPlace?: string;
   goldOpeningQty?: string;
   goldUnitPrice?: string;
   goldPriceCurrency?: SetupPriceCurrency;
@@ -157,6 +163,7 @@ export type SetupInput = {
    */
   instruments?: Array<{
     /** «wallex» = a US stock / commodity / index token from the والکس catalogue. */
+    purchaseDate?: string;
     kind: "fund" | "stock" | "wallex";
     symbol: string;
     name?: string;
@@ -286,12 +293,13 @@ export async function getSetupState(userId?: string) {
     .select()
     .from(userSetupState)
     .where(userId ? eq(userSetupState.userId, userId) : sql`1=1`)
+    .orderBy(desc(userSetupState.completed),desc(userSetupState.updatedAt))
     .limit(1);
   if (!rows.length) return { completed: false, currentStep: 1 };
   return { completed: rows[0].completed, currentStep: rows[0].currentStep };
 }
 
-type OpenLot = { accountId: string; assetId: string; quantity: string; costBase: string };
+type OpenLot = { accountId: string; assetId: string; quantity: string; costBase: string; openedAt?: string; purchaseFxRate?: string };
 
 /**
  * Setup Wizard Orchestrator
@@ -306,8 +314,11 @@ export async function completeSetup(
   input: SetupInput,
   /** When supplied, setup is isolated to this existing authenticated tenant. */
   userId?: string,
+  workflow?: { onCoreCommitted: (tx: any) => Promise<void> },
 ): Promise<{ ok: boolean; message: string }> {
-  const listedBanks = input.bankAccounts === undefined ? undefined : validateSetupBankAccounts(input.bankAccounts);
+  const noBank=input.bankPresence === "no";
+  if(noBank && ((input.bankAccounts?.length ?? 0)>0 || (input.bankIdentifiers?.length ?? 0)>0 || D(input.bankOpeningBalance || "0").gt(0))) throw new Error("پاسخ ندارم با حساب‌های بانکی واردشده یکسان نیست.");
+  const listedBanks = noBank || input.bankAccounts === undefined ? undefined : validateSetupBankAccounts(input.bankAccounts);
   if (listedBanks) {
     const primary = listedBanks[0];
     if (input.bankAccountName !== undefined && normalizeBankText(input.bankAccountName) !== primary.name) throw new Error("حساب اصلی با فهرست حساب‌ها یکسان نیست.");
@@ -322,6 +333,10 @@ export async function completeSetup(
     throw new Error("راه‌اندازی اولیه قبلاً انجام شده است.");
   }
 
+  const datedRates = new Map<string, Decimal>();
+  for (const date of new Set([...(input.cryptoHoldings ?? []).map(r => r.purchaseDate), ...(input.instruments ?? []).filter(r => r.kind === "wallex").map(r => r.purchaseDate), input.goldPurchaseDate].filter((d): d is string => !!d))) {
+    datedRates.set(date, date === todayIso() && confirmedRateOf(input.fxRate) ? confirmedRateOf(input.fxRate)! : D((await resolveAutomaticPurchaseRate(date, userId)).rate));
+  }
   const setupResult = await db.transaction(async (tx) => {
     const today = todayIso();
 
@@ -484,6 +499,7 @@ export async function completeSetup(
     // another coin. The same coin twice in the SAME place is refused rather
     // than silently dropping one of the two quantities.
     const cryptoPicks: Array<{
+      purchaseDate?: string;
       chosenCrypto: SupportedCryptoAsset;
       code: string;
       quantity?: string;
@@ -494,23 +510,26 @@ export async function completeSetup(
     const legacyCrypto = input.cryptoSymbol
       ? [{ symbol: input.cryptoSymbol, quantity: input.cryptoOpeningQty, unitPrice: input.cryptoUnitPrice, priceCurrency: input.cryptoPriceCurrency }]
       : [];
-    const holdingSeen = new Set<string>();
+    const holdingSeen = new Map<string,string>();
     for (const holding of [...(input.cryptoHoldings ?? []), ...legacyCrypto]) {
       const chosenCrypto = getSupportedCryptoBySymbol(holding.symbol);
       if (!chosenCrypto || !assetMap[chosenCrypto.symbol]) continue;
       // «metamask» and «متامسک» are one place, stored under its Persian name.
       const walletName = canonicalWalletName("walletName" in holding ? holding.walletName : "");
       const key = holdingKeyOf(chosenCrypto.symbol, walletName);
-      if (holdingSeen.has(key)) {
+      const existingCode=holdingSeen.get(key);
+      if (existingCode && !("purchaseDate" in holding && holding.purchaseDate)) {
         throw new Error(
           `${chosenCrypto.displayName}${walletName ? ` در «${walletName}»` : " بدون محل نگهداری"} دو بار وارد شده است؛ مقدارها را در یک ردیف جمع کنید.`,
         );
       }
-      holdingSeen.add(key);
-      if (cryptoPicks.length >= MAX_CRYPTO_WALLETS) break;
+      if (cryptoPicks.length >= MAX_CRYPTO_WALLETS) throw new Error("تعداد خریدهای رمزارز بیش از سقف ۱۰۰ ردیف است.");
+      const code=existingCode ?? String(CRYPTO_CODE_BASE+holdingSeen.size);
+      holdingSeen.set(key,code);
       cryptoPicks.push({
+        purchaseDate: "purchaseDate" in holding ? holding.purchaseDate : undefined,
         chosenCrypto,
-        code: String(CRYPTO_CODE_BASE + cryptoPicks.length),
+        code,
         quantity: holding.quantity,
         unitPrice: holding.unitPrice,
         priceCurrency: holding.priceCurrency,
@@ -555,9 +574,16 @@ export async function completeSetup(
       walletIdByKey.set(key, created.id);
     }
 
+    let goldWalletId: string | undefined;
+    if (input.goldHoldingPlace && input.goldHoldingPlace !== "نگهداری شخصی") {
+      const existing=ownedWallets.find(w=>walletKeyOf(w.name)===walletKeyOf(input.goldHoldingPlace));
+      if(existing) goldWalletId=existing.id;
+      else {const [wallet]=await tx.insert(wallets).values({userId:user.id,name:input.goldHoldingPlace,kind:"online_gold"}).returning({id:wallets.id});goldWalletId=wallet.id;}
+    }
+
     const acctRows = [
       { code: "1000", name: "دارایی‌ها", type: "asset" },
-      { code: "1010", name: input.bankAccountName?.trim() || "حساب بانکی اصلی", type: "asset", assetId: bankAssetId, bankName: input.bankName?.trim() || null },
+      ...(!noBank ? [{ code: "1010", name: input.bankAccountName?.trim() || "حساب بانکی اصلی", type: "asset", assetId: bankAssetId, bankName: input.bankName?.trim() || null }] : []),
       ...additionalBanks.map((bank, index) => ({ code: String(1011 + index), name: bank.name, type: "asset", assetId: bankAssetId, bankName: bank.bankName })),
       ...(wantsCashWallet
         ? [{ code: "1020", name: input.cashWalletName?.trim() || "صندوق نقد", type: "asset", assetId: cashAssetId }]
@@ -579,7 +605,7 @@ export async function completeSetup(
         assetId: assetMap.IRT,
         walletId: walletIdByKey.get(walletKeyOf(walletName)) ?? null,
       })),
-      { code: "1300", name: "طلای ۱۸ عیار", type: "asset", assetId: assetMap.GOLD18 },
+      { code: "1300", name: input.goldHoldingPlace && input.goldHoldingPlace !== "نگهداری شخصی" ? `طلای آب‌شده - ${input.goldHoldingPlace}` : "طلای ۱۸ عیار", type: "asset", assetId: assetMap.GOLD18, walletId: goldWalletId },
       { code: "2000", name: "بدهی‌ها", type: "liability" },
       { code: "2010", name: "وام / بدهی عمومی", type: "liability", assetId: bookAssetId },
       { code: "3000", name: "سرمایه", type: "equity" },
@@ -651,7 +677,7 @@ export async function completeSetup(
       if (!account || account.userId !== (userId ?? null) || account.name !== declared.name || account.bankName !== declared.bankName || account.assetId !== bankAssetId) throw new Error("حساب بانکی ثبت‌شده با فهرست معرفی‌شده مطابقت ندارد.");
     }
     const acctMap = Object.fromEntries(insertedAccounts.map((a) => [a.code, a.id]));
-    if (!acctMap["3010"] || !acctMap["1010"]) {
+    if (!acctMap["3010"] || (!noBank && !acctMap["1010"])) {
       throw new Error("ایجاد نمودار حساب‌های اولیه کامل نشد.");
     }
 
@@ -659,7 +685,8 @@ export async function completeSetup(
 
     // Physical gold is manually valued. Legacy single-owner setup seeds a first
     // price (in USD, the price table's unit); tenants value it later.
-    const goldPriceUsd = priceToBookUsd(amountOf(input.goldUnitPrice), input.goldPriceCurrency, setupRate);
+    const goldRate = input.goldPurchaseDate ? datedRates.get(input.goldPurchaseDate)! : setupRate;
+    const goldPriceUsd = priceToBookUsd(amountOf(input.goldUnitPrice), input.goldPriceCurrency, goldRate);
     if (!userId && goldPriceUsd.gt(0) && assetMap.GOLD18) {
       await tx
         .insert(prices)
@@ -713,10 +740,11 @@ export async function completeSetup(
       const assetId = assetMap[pick.chosenCrypto.symbol];
       const qty = amountOf(pick.quantity);
       if (!accountId || !assetId || !qty.gt(0)) continue;
-      const value = qty.mul(priceToBookUsd(amountOf(pick.unitPrice), pick.priceCurrency, setupRate));
+      const purchaseRate = pick.purchaseDate ? datedRates.get(pick.purchaseDate)! : setupRate;
+      const value = qty.mul(priceToBookUsd(amountOf(pick.unitPrice), pick.priceCurrency, purchaseRate));
       draftPostings.push({ accountId, assetId, quantity: qty.toString(), baseValue: value.toString(), memo: `موجودی اولیه ${pick.chosenCrypto.displayName}` });
       totalOpeningEquityBase = totalOpeningEquityBase.add(value);
-      lotsToOpen.push({ accountId, assetId, quantity: qty.toString(), costBase: value.toString() });
+      lotsToOpen.push({ accountId, assetId, quantity: qty.toString(), costBase: value.toString(), openedAt: pick.purchaseDate, purchaseFxRate: purchaseRate.toString() });
     }
 
     const goldQty = amountOf(input.goldOpeningQty);
@@ -724,7 +752,7 @@ export async function completeSetup(
       const goldValue = goldQty.mul(goldPriceUsd);
       draftPostings.push({ accountId: acctMap["1300"], assetId: assetMap.GOLD18, quantity: goldQty.toString(), baseValue: goldValue.toString(), memo: "موجودی اولیه طلای ۱۸ عیار" });
       totalOpeningEquityBase = totalOpeningEquityBase.add(goldValue);
-      lotsToOpen.push({ accountId: acctMap["1300"], assetId: assetMap.GOLD18, quantity: goldQty.toString(), costBase: goldValue.toString() });
+      lotsToOpen.push({ accountId: acctMap["1300"], assetId: assetMap.GOLD18, quantity: goldQty.toString(), costBase: goldValue.toString(), openedAt: input.goldPurchaseDate, purchaseFxRate: goldRate.toString() });
     }
 
     /*
@@ -751,10 +779,11 @@ export async function completeSetup(
       const qty = amountOf(instrument.quantity);
       if (!qty.gt(0)) continue;
 
-      const value = qty.mul(priceToBookUsd(amountOf(instrument.unitPrice), instrument.priceCurrency, setupRate));
+      const purchaseRate = instrument.kind === "wallex" && instrument.purchaseDate ? datedRates.get(instrument.purchaseDate)! : setupRate;
+      const value = qty.mul(priceToBookUsd(amountOf(instrument.unitPrice), instrument.priceCurrency, purchaseRate));
       draftPostings.push({ accountId: registered.accountId, assetId: registered.assetId, quantity: qty.toString(), baseValue: value.toString(), memo: `موجودی اولیه ${registered.name}` });
       totalOpeningEquityBase = totalOpeningEquityBase.add(value);
-      lotsToOpen.push({ accountId: registered.accountId, assetId: registered.assetId, quantity: qty.toString(), costBase: value.toString() });
+      lotsToOpen.push({ accountId: registered.accountId, assetId: registered.assetId, quantity: qty.toString(), costBase: value.toString(), openedAt: instrument.purchaseDate, purchaseFxRate: purchaseRate.toString() });
     }
 
     if (draftPostings.length > 0) {
@@ -812,7 +841,9 @@ export async function completeSetup(
       });
       await tx.insert(bankSmsIdentifiers).values(values).onConflictDoNothing();
     }
-    await tx.insert(userSetupState).values({ userId: user.id, completed: true, currentStep: 7 });
+    await tx.insert(userSetupState).values({ userId: user.id, completed: !workflow, currentStep: 9 });
+
+    if (workflow) await workflow.onCoreCommitted(tx);
 
     await tx.insert(auditLog).values({
       action: "complete_setup",

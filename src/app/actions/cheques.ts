@@ -1,7 +1,7 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth";
 import { normalizeNumericInput } from "@/lib/numericInput";
 import type { ActionResult } from "@/app/actions";
 import { createCheque, deleteCheque, setChequeStatus, type ChequeStatus } from "@/features/cheques/service";
@@ -13,7 +13,7 @@ import { createCheque, deleteCheque, setChequeStatus, type ChequeStatus } from "
 
 async function signedIn() {
   try {
-    return (await getCurrentUser()) ?? null;
+    return (await getSetupReadyUser()) ?? null;
   } catch {
     return null;
   }

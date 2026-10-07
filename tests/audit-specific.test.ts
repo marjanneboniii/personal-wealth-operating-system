@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 // Regression tests for the security audit remediations.
 import assert from 'node:assert/strict';
 import { test, mock } from 'node:test';
@@ -19,10 +20,10 @@ test('Audit remediations in disposable memory database', async (t) => {
     {name:'Audit A',username:'audit_a',role:'user'},
     {name:'Audit B',username:'audit_b',role:'user'},
   ]).returning();
-  const sa = await auth.createSession(a.id);
+  const sa = await createReadySession(a.id);
   cookie = sa.token;
   await t.test('Stored session hash cannot authenticate as the victim', async () => {
-    const sb = await auth.createSession(b.id);
+    const sb = await createReadySession(b.id);
     const stolenDatabaseHash = auth.hashSessionToken(sb.token);
     const impersonated = await auth.getSessionUser(stolenDatabaseHash);
     assert.equal(impersonated,null);
@@ -51,7 +52,7 @@ test('Audit remediations in disposable memory database', async (t) => {
   await t.test('Restore preserves authenticated identity rows', async () => {
     await db.delete(s.journalEntries);
     const [owner] = await db.insert(s.users).values({name:'Audit Owner',username:'audit_owner',role:'owner'}).returning();
-    cookie = (await auth.createSession(owner.id)).token;
+    cookie = (await createReadySession(owner.id)).token;
     const {POST} = await import('../src/app/api/restore/route');
     const {RESTORE_TABLES} = await import('../src/features/backup/tables');
     const response = await POST(new Request('http://localhost/api/restore',{

@@ -1,7 +1,7 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth";
 import { normalizeNumericInput } from "@/lib/numericInput";
 import type { ActionResult } from "@/app/actions";
 import { closeDeposit, createDeposit, deleteDeposit } from "@/features/deposits/service";
@@ -13,7 +13,7 @@ import { closeDeposit, createDeposit, deleteDeposit } from "@/features/deposits/
 
 async function signedIn() {
   try {
-    return (await getCurrentUser()) ?? null;
+    return (await getSetupReadyUser()) ?? null;
   } catch {
     return null;
   }
@@ -36,6 +36,7 @@ export async function createDepositAction(_prev: ActionResult | null, fd: FormDa
   try {
     await createDeposit(user.id, {
       kind,
+      restrictsAccountBalance: s(fd, "restrictsAccountBalance") === "on",
       title: s(fd, "title"),
       institution: s(fd, "institution") || null,
       accountId: s(fd, "accountId"),

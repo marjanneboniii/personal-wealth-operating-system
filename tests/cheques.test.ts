@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * دفتر چک — a pending cheque is a plan; it posts only when cleared.
  *
@@ -77,7 +78,7 @@ test("cheques: register, forecast, clear atomically, reverse, remind", async () 
 
   // ── Registering ──
   assert.equal((await cheque({})).ok, false, "anonymous cannot register");
-  cookieJar.value = (await createSession(owner.id)).token;
+  cookieJar.value = (await createReadySession(owner.id)).token;
   assert.equal((await cheque({ accountId: otherBank.id })).ok, false, "a foreign account is refused");
   assert.equal((await cheque({ accountId: "" })).ok, false, "an issued cheque needs its account");
   assert.equal((await cheque({ sayadId: "12345" })).ok, false, "Sayad ID is 16 digits");
@@ -116,13 +117,13 @@ test("cheques: register, forecast, clear atomically, reverse, remind", async () 
   assert.match(wrongWay.message, /چک دریافتی/);
   assert.equal((await db.select().from(journalEntries)).length, 0, "the refused entry was rolled back");
 
-  cookieJar.value = (await createSession(other.id)).token;
+  cookieJar.value = (await createReadySession(other.id)).token;
   const stolen = await clear({ primaryAccountId: otherBank.id });
   assert.equal(stolen.ok, false, "another user cannot clear my cheque");
   assert.match(stolen.message, /چک پیدا نشد/);
   assert.equal((await db.select().from(journalEntries)).length, 0);
 
-  cookieJar.value = (await createSession(owner.id)).token;
+  cookieJar.value = (await createReadySession(owner.id)).token;
   const cleared = await clear({});
   assert.equal(cleared.ok, true, cleared.message);
   let [row] = await db.select().from(cheques).where(eq(cheques.id, rentRow.id));
@@ -150,7 +151,7 @@ test("cheques: register, forecast, clear atomically, reverse, remind", async () 
   assert.equal((await getReminders(other.id, today)).length, 0, "reminders stay inside the tenant");
 
   assert.equal((await deleteChequeAction(heldRow.id)).ok, true, "a bounced cheque never posted and can be deleted");
-  cookieJar.value = (await createSession(other.id)).token;
+  cookieJar.value = (await createReadySession(other.id)).token;
   assert.equal((await deleteChequeAction(rentRow.id)).ok, false, "another user cannot delete it");
 
   const balanced = await db.execute(sql`select coalesce(sum(base_value), 0)::text as s from postings`);

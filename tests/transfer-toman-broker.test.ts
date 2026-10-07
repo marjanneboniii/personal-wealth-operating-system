@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * انتقال تومان — بانک ⇄ تومانِ کارگزاری و تومانِ صرافی، end to end through
  * `createTransactionAction`, the way the transfer form posts it.
@@ -81,7 +82,7 @@ async function fixture() {
       { accountId: equity.id, assetId: irt.id, quantity: "-80000000", baseValue: "-800" },
     ],
   });
-  const { token } = await createSession(user.id);
+  const { token } = await createReadySession(user.id);
   cookieJar.value = token;
   return { user, bank, broker, exchange };
 }

@@ -231,6 +231,7 @@ test("Real Asset sale — 5B → 7.2B Toman books +2.2B realized, 0 unrealized",
   const [typeRow] = await db.select().from(propertyTypes).where(eq(propertyTypes.code, "APT")).limit(1);
   assert.ok(cityRow && hoodRow && typeRow, "master data must be seeded");
 
+  await db.insert(exchangeRates).values({baseCurrency:"USD",quoteCurrency:"IRT",rate:"100000",effectiveDate:"2025-08-11",source:"test"}).onConflictDoNothing();
   const created = await createRealEstateAsset({
     userId: user.id,
     cityId: cityRow.id,

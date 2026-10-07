@@ -75,7 +75,6 @@ export default function RealEstateForm({
   const [valuationIso, setValuationIso] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("");
   const [currentValue, setCurrentValue] = useState("");
-  const [manualPurchaseRate, setManualPurchaseRate] = useState("");
   const [manualValuationRate, setManualValuationRate] = useState("");
 
   const [identity, setIdentity] = useState<{ assetName?: string; label?: string; sequence?: number } | null>(null);
@@ -116,7 +115,7 @@ export default function RealEstateForm({
     const t = setTimeout(async () => {
       setLoadingPurchase(true);
       try {
-        const res = await previewRealEstateUsdAction(cleanPurchase, acquisitionIso, digitsOnly(manualPurchaseRate) || undefined);
+        const res = await previewRealEstateUsdAction(cleanPurchase, acquisitionIso, undefined, true);
         if (!cancelled) setPurchasePreview(res.ok ? res : null);
       } catch {
         /* keep previous preview */
@@ -128,7 +127,7 @@ export default function RealEstateForm({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [canPreviewPurchase, cleanPurchase, acquisitionIso, manualPurchaseRate]);
+  }, [canPreviewPurchase, cleanPurchase, acquisitionIso]);
 
   /* پیش‌نمایش معادل دلاری ارزش فعلی — نرخ تاریخ ارزش‌گذاری */
   const cleanCurrent = digitsOnly(currentValue);
@@ -323,15 +322,6 @@ export default function RealEstateForm({
                 "قیمت خرید و تاریخ تملک را وارد کنید."
               )}
             </div>
-            <AmountInput
-              className="field num mt-2"
-              inputMode="numeric"
-              value={manualPurchaseRate}
-              onChange={(e) => setManualPurchaseRate(e.target.value)}
-              placeholder="نرخ دلار تاریخ خرید (اختیاری)"
-              showWords={false}
-            />
-            <input type="hidden" name="purchaseFxRate" value={digitsOnly(manualPurchaseRate)} />
           </div>
         </div>
 
