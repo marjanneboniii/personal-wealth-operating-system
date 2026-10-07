@@ -4,8 +4,10 @@ The landing page starts with a silent, 20-second square preview (`preview.mp4`,
 900 × 900). Three topic buttons (overview, repayment and investments) seek to their scenes.
 A hero link reaches this section. The signup action follows the outcome on mobile.
 The poster shows a repayment result, distinct from the hero dashboard.
-The optional guide contains two 40-second films: phone/PWA (`pwa.mp4`, 900 ×
-1200) and web (`web.mp4`, 1280 × 800). Detailed chapter controls are collapsed.
+The landing page only renders the 20-second preview in both web and PWA.
+The earlier guide section and its version switches have been removed.
+Source generators retain the two unused 40-second illustrations: phone/PWA (`pwa.mp4`, 900 ×
+1200) and web (`web.mp4`, 1280 × 800). They are not linked or loaded by the landing page.
 
 These are animated illustrations with fictional data, using the actual
 Vazirmatn font, light-theme tokens, BrandMark and Icon components. Closeups keep
@@ -49,14 +51,11 @@ With the local app running on port 3000, verify playback and interaction:
 node scripts/product-films/render.mjs /tmp/tavazon-video-v2 /absolute/path/to/playwright --verify
 ```
 
-This tests widths 360, 390 and 1440 in browser and simulated standalone modes: no MP4 request before user interaction,
-closed optional guides, three topics, keyboard opening, responsive variant
-selection, native media dimensions/duration, chapter seeking, Persian cues,
-mutual playback pausing, signup placement and absence of horizontal overflow/errors.
-Controls and Persian captions are rendered outside the video rectangle, including
-in fullscreen, so financial content stays visible. The native controls and VTT
-track remain as a no-JavaScript fallback. Custom captions use the same timeline
-that generates the VTT; seeking while paused updates the caption immediately.
-Standalone mode selects the phone guide even on wide windows. This checks mode
-logic through browser emulation; it does not certify physical iOS/Android installs.
-This is browser QA, not a real-user comprehension or conversion study.
+This tests widths 360, 390 and 1440 in browser and simulated standalone modes:
+no MP4 request before interaction, exactly one 20-second video, no full guide,
+three topic seeks, all five financial scenes, keyboard seeking, Persian captions,
+fullscreen, signup placement and no horizontal overflow/page errors. Only the
+preview MP4 may be requested. Controls and captions remain outside the video,
+including fullscreen. Native controls and VTT remain a no-JavaScript fallback.
+This is browser QA and mode emulation, not physical iOS/Android installation or
+real-user comprehension/conversion testing.

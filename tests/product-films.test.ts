@@ -5,15 +5,16 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ProductFilms from "../src/components/landing/ProductFilms";
 import { PRODUCT_FILM_CHAPTERS, PRODUCT_FILM_DURATION, PRODUCT_PREVIEW_CHAPTERS, PRODUCT_PREVIEW_DURATION } from "../src/lib/productFilms";
 
-test("public tour renders only short media and defers full guides and chapters", () => {
-  const html = renderToStaticMarkup(createElement(ProductFilms, { setupSteps: [] }));
+test("public tour contains only the 20-second demo", () => {
+  const html = renderToStaticMarkup(createElement(ProductFilms));
   assert.equal((html.match(/<video\b/g) ?? []).length, 1);
   assert.ok(html.includes('/videos/tavazon/preview.mp4'));
   assert.ok(!html.includes('/videos/tavazon/pwa.mp4'));
   assert.ok(!html.includes('/videos/tavazon/web.mp4'));
   assert.ok(!html.includes('aria-label="مرحله‌های راهنمای کامل"'));
-  assert.match(html, /<details[^>]+id="how"[^>]*>/);
-  assert.doesNotMatch(html, /<details[^>]+\bopen\b/);
+  assert.ok(!html.includes("راهنمای کامل گوشی و وب"));
+  assert.ok(!html.includes("۴۰ ثانیه"));
+  assert.doesNotMatch(html, /<details/);
   assert.ok(html.includes('preload="none"'));
   assert.ok(!html.includes('autoPlay'));
   assert.ok(html.includes('href="/register"'));
