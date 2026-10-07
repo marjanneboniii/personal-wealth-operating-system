@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * هشتگ تراکنش — a reporting dimension beside the immutable ledger.
  *
@@ -102,12 +103,12 @@ test("tags ride with the entry, filter the list, total in frozen Toman, and stay
   const f = await fixture();
 
   // Another tenant's tagged expense exists and must never be seen.
-  cookieJar.value = (await createSession(f.other.id)).token;
+  cookieJar.value = (await createReadySession(f.other.id)).token;
   const foreign = await createTransactionAction(null, expense({ bank: f.otherBank, leaf: f.leaf }, { description: "هتل دیگری", irtAmount: "9000000", tags: "#سفر" }));
   assert.equal(foreign.ok, true, foreign.message);
   const foreignEntry = await entryByDescription("هتل دیگری");
 
-  cookieJar.value = (await createSession(f.owner.id)).token;
+  cookieJar.value = (await createReadySession(f.owner.id)).token;
 
   // Too many tags is refused before anything is written.
   const tooMany = Array.from({ length: MAX_TAGS_PER_ENTRY + 1 }, (_, i) => `#t${i}`).join(" ");

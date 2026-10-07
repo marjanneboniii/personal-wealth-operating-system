@@ -1,8 +1,8 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getCurrentUser } from "@/lib/auth";
 import type { ActionResult } from "@/app/actions";
 import { deleteTemplate, saveTemplateFromEntry } from "@/features/templates/service";
 
@@ -10,7 +10,7 @@ import { deleteTemplate, saveTemplateFromEntry } from "@/features/templates/serv
 
 async function signedIn() {
   try {
-    return (await getCurrentUser()) ?? null;
+    return (await getSetupReadyUser()) ?? null;
   } catch {
     return null;
   }

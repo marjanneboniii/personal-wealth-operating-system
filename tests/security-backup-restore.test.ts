@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { POST as restoreApi } from "../src/app/api/restore/route";
@@ -18,7 +19,7 @@ const fullData = (tables: Record<string, unknown[]> = {}) => ({
 async function cleanAuth() {
   await createSchemaIfNotExists();
   await db.delete(sessions);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
   delete process.env.PWOS_AUTH_TOKEN;
 }
 
@@ -35,7 +36,7 @@ test("Section 21 — Backup API: Authenticated User GET /api/backup -> Success a
     .insert(users)
     .values({ name: "Owner", username: "owner1", role: "owner" } as any)
     .returning();
-  const { token } = await createSession(u.id);
+  const { token } = await createReadySession(u.id);
 
   const req = new Request("http://localhost/api/backup", {
     method: "GET",
@@ -68,7 +69,7 @@ test("Section 22 — Restore API: User without Permission POST /api/restore -> 4
     .insert(users)
     .values({ name: "Viewer", username: "viewer1", role: "viewer" } as any)
     .returning();
-  const { token } = await createSession(u.id);
+  const { token } = await createReadySession(u.id);
 
   const req = new Request("http://localhost/api/restore", {
     method: "POST",
@@ -85,7 +86,7 @@ test("Section 22 — Restore API: Authorized Owner/Admin POST /api/restore -> Su
     .insert(users)
     .values({ name: "Admin", username: "admin1", role: "owner" } as any)
     .returning();
-  const { token } = await createSession(u.id);
+  const { token } = await createReadySession(u.id);
 
   const req = new Request("http://localhost/api/restore", {
     method: "POST",
@@ -117,8 +118,8 @@ test("Section 23 — Restore API: Session Invalidation (all existing sessions in
     .insert(users)
     .values({ name: "UserB", username: "userb", role: "viewer" } as any)
     .returning();
-  const { token: tokenA } = await createSession(u1.id);
-  const { token: tokenB } = await createSession(u2.id);
+  const { token: tokenA } = await createReadySession(u1.id);
+  const { token: tokenB } = await createReadySession(u2.id);
 
   // Verify before restore: both valid
   assert.ok(await getSessionUser(tokenA));
@@ -153,7 +154,7 @@ test("Security Hardening — Restore API requires confirmToken", async () => {
     .insert(users)
     .values({ name: "Owner", username: "owner2", role: "owner" } as any)
     .returning();
-  const { token } = await createSession(u.id);
+  const { token } = await createReadySession(u.id);
 
   const reqWithoutToken = new Request("http://localhost/api/restore", {
     method: "POST",
@@ -179,7 +180,7 @@ test("Security Hardening — SQL Injection neutralized in restore payload", asyn
     .insert(users)
     .values({ name: "Owner", username: "owner3", role: "owner" } as any)
     .returning();
-  const { token } = await createSession(u.id);
+  const { token } = await createReadySession(u.id);
 
   const maliciousPayload = {
     app: "PWOS",

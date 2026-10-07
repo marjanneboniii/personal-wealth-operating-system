@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * یادآورها — derived on read, only the seen-marker is stored.
  *
@@ -94,7 +95,7 @@ test("reminders: what is due, what is seen, and whose", async () => {
 
   // Seen-state: only for the signed-in user, and only what they saw.
   assert.equal((await markRemindersReadAction(list.map((r: any) => r.key))).ok, false, "anonymous cannot mark");
-  cookieJar.value = (await createSession(owner.id)).token;
+  cookieJar.value = (await createReadySession(owner.id)).token;
   assert.equal((await markRemindersReadAction(list.map((r: any) => r.key))).ok, true);
   list = await getReminders(owner.id, TODAY);
   assert.ok(list.every((r: any) => r.read));

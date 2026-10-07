@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * خرید و فروش دارایی — end to end through `createTransactionAction`.
  *
@@ -52,7 +53,7 @@ const modulesReady = (async () => {
   ({ TOMAN_ONLY_MESSAGE, MARKET_TOMAN_MESSAGE } = await import("../src/features/trade/rules"));
 })();
 
-const TODAY = "2026-09-14";
+const TODAY = new Date().toISOString().slice(0,10);
 
 function tradeForm(fields: Record<string, string>) {
   const fd = new FormData();
@@ -126,7 +127,7 @@ async function fixture() {
     ],
   });
 
-  const { token } = await createSession(user.id);
+  const { token } = await createReadySession(user.id);
   cookieJar.value = token;
   return { user, bank, cashBox, exchangeToman, brokerToman, usdtWallet, ethAccount, fundAccount, irt };
 }

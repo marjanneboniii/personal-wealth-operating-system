@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * ریز اقلام بودجه — a wedding budget split into ring, dress, hall…
  *
@@ -40,7 +41,7 @@ test("a wedding budget with its lines", async () => {
   await db.insert(accounts).values({ userId: u.id, code: "5900", name: "هزینه", type: "expense", assetId: irtId } as any);
   const food = (await listCategoryTree(u.id)).flatMap((g) => g.children).find((c) => c.code === "FOD-GROCERY-HOME")!;
   const today = todayIso();
-  cookie = (await createSession(u.id)).token;
+  cookie = (await createReadySession(u.id)).token;
 
   const fd = new FormData();
   for (const [k, v] of Object.entries({
@@ -98,12 +99,12 @@ test("a wedding budget with its lines", async () => {
   assert.equal(b.items.find((i: any) => i.title === "حلقه")!.tag, "عروسی_حلقه_۲", "a new line never reuses a tag");
 
   // Another tenant can touch nothing.
-  cookie = (await createSession(other.id)).token;
+  cookie = (await createReadySession(other.id)).token;
   assert.equal((await updateBudgetItemAction(renamed.id, { title: "x", amountToman: "1" })).ok, false);
   assert.equal((await addBudgetItemAction(b.id, { title: "x", amountToman: "1" })).ok, false);
   assert.equal((await deleteBudgetAction(b.id)).ok, false);
 
-  cookie = (await createSession(u.id)).token;
+  cookie = (await createReadySession(u.id)).token;
   assert.equal((await deleteBudgetItemAction(renamed.id)).ok, true);
   [b] = await listBudgets(u.id);
   assert.equal(b.items.length, 3);

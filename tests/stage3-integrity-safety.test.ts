@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { db } from "../src/db";
@@ -51,7 +52,7 @@ async function setupStage3Scenario() {
   await db.delete(assetClasses);
   await db.delete(currencies);
   await db.delete(userFxSettings);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
 
   const [usd] = await db.insert(currencies).values({ code: "USD", name: "US Dollar", symbol: "$", decimals: 2, isFiat: true } as any).returning();
   const [irt] = await db.insert(currencies).values({ code: "IRT", name: "Toman", symbol: "T", decimals: 0, isFiat: true } as any).returning();
@@ -540,7 +541,7 @@ test("STAGE 3 Matrix #15 — Realized P&L Immutability after FX Rate Change", as
 
 test("STAGE 3 Matrix #17, #18 — User Isolation & API Tampering Protection: client-sent realizedPnl/costBasis/historicalUsd ignored", async () => {
   const { cashAcc, incomeAcc, userA, userB } = await setupStage3Scenario();
-  const { token: tokenA } = await createSession(userA.id);
+  const { token: tokenA } = await createReadySession(userA.id);
 
   // 1. API Tampering: send POST /api/transactions with injected realizedPnl, costBasis, historicalUsd
   const tamperedBody = {
@@ -573,7 +574,7 @@ test("STAGE 3 Matrix #17, #18 — User Isolation & API Tampering Protection: cli
   assert.equal(parseFloat(ledger[0].lines[0].baseValue), 1000);
 
   // 2. User Isolation: User B cannot GET User A's transaction
-  const { token: tokenB } = await createSession(userB.id);
+  const { token: tokenB } = await createReadySession(userB.id);
   const reqGet = new Request(`http://localhost/api/transactions?id=${json.id}`, {
     method: "GET",
     headers: { cookie: `pwos_session=${tokenB}` },

@@ -93,7 +93,7 @@ export async function resolveUsdRateForDate(
 }
 
 export const MISSING_DATED_RATE_MESSAGE =
-  "نرخ دلارِ این تاریخ در دسترس نیست و نرخ بازار هم هنوز دریافت نشده است؛ نرخ دلار همان تاریخ را در فرم وارد کنید.";
+  "نرخ معتبر دلار این تاریخ در دسترس نیست؛ ثبت تا تکمیل تاریخچه انجام نمی‌شود.";
 
 /**
  * resolveUsdRateForDate for a WRITE: the value it returns is frozen forever,
@@ -114,4 +114,22 @@ export function tomanToUsd(valueToman: string, usdRate: string): string {
   const rate = D(usdRate);
   if (rate.lte(0)) return "0";
   return D(valueToman).div(rate).toFixed(2);
+}
+
+/** Automatic purchase conversion: never substitute today's dollar for an old acquisition. */
+export async function resolveAutomaticPurchaseRate(dateIso: string, userId?: string | null): Promise<UsdRateResolution> {
+  const date = dateIso.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T00:00:00Z")) || new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date || date > todayIso()) {
+    throw new Error("تاریخ خرید معتبر و غیرآینده الزامی است.");
+  }
+  if(date === todayIso() && userId) {
+    const snap=await getLatestUsdIrtRateForUser(userId);
+    if(snap.source === "user_settings" && D(snap.rate).gt(0)) return {rate:snap.rate,effectiveDate:date,source:"current",isExact:false};
+  }
+  const result = await resolveUsdRateForDateToFreeze(date, userId);
+  const gap = (Date.parse(date) - Date.parse(result.effectiveDate)) / 86400000;
+  if ((date < todayIso() && result.source === "current") || gap < 0 || gap > 16) {
+    throw new Error("نرخ معتبر دلار تاریخ خرید در تاریخچه موجود نیست؛ خرید با نرخ امروز ثبت نمی‌شود.");
+  }
+  return result;
 }

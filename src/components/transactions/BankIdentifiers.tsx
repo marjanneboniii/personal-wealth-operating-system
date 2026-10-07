@@ -9,12 +9,12 @@ import { SETUP_BANKS } from "@/features/setup/bankCatalog";
 import { normalizeBankName } from "@/features/bankImport/matching";
 import SmsChoices from "./SmsChoices";
 
-type Props = { accounts: { id: string; name: string; bankName?: string | null }[]; identifiers: { id: string; accountName: string; bankName: string; kind: string; suffix: string }[] };
+type Props = { profileMode?: boolean; accounts: { id: string; name: string; bankName?: string | null }[]; identifiers: { id: string; accountName: string; bankName: string; kind: string; suffix: string }[] };
 
 const KIND_LABEL: Record<string, string> = { card: "کارت", account: "حساب", iban: "شبا" };
 
 /** Step 1 — which bank account each SMS belongs to, by the last digits it prints. */
-export default function BankIdentifiers({ accounts, identifiers }: Props) {
+export default function BankIdentifiers({ accounts, identifiers, profileMode = false }: Props) {
  const router = useRouter();
  const [message, setMessage] = useState("");
  const [pending, setPending] = useState(false);
@@ -47,17 +47,17 @@ export default function BankIdentifiers({ accounts, identifiers }: Props) {
      setAccountId(id);
      setBankName(normalizeBankName(accounts.find((account) => account.id === id)?.bankName || ""));
    }} />
-   <p className="muted text-[length:var(--fs-xs)]">فقط حساب‌های بانکی تومانی. تومانِ صرافی‌ها، صندوق نقد و حساب‌های تتر پیامک بانکی ندارند.</p>
+   <p className="muted text-[length:var(--fs-xs)]">فقط حساب‌های بانکی تومانی. تومانِ صرافی‌ها، صندوق نقد و {profileMode ? "حساب‌های تتر در مشخصات بانکی قرار نمی‌گیرند." : "حساب‌های تتر پیامک بانکی ندارند."}</p>
   </div>
   <input type="hidden" name="bankName" value={bankName} /><SetupBankPicker value={bankName} onSelect={(bank) => setBankName(bank.value)} />
-  <SmsChoices label="پیامک چه شماره‌ای را نشان می‌دهد؟" value={kind} options={[{ id: "card", name: "کارت" }, { id: "account", name: "حساب" }, { id: "iban", name: "شبا" }]} onChange={setKind} />
-  <label className="block"><span className="label">چند رقم آخرِ همان شماره</span><input name="suffix" className="field num" dir="ltr" required inputMode="numeric" minLength={4} maxLength={8} placeholder="1234" /><span className="muted mt-1 block text-[length:var(--fs-xs)]">۴ تا ۸ رقم کافی است. شمارهٔ کامل، رمز و CVV2 لازم نیست.</span></label>
-  <button className="btn btn-primary w-full" type="submit" disabled={!accountId || !bankName}>ذخیرهٔ شناسه و ادامه</button>
+  <SmsChoices label={profileMode ? "نوع شناسه" : "پیامک چه شماره‌ای را نشان می‌دهد؟"} value={kind} options={[{ id: "card", name: "کارت" }, { id: "account", name: "حساب" }, { id: "iban", name: "شبا" }]} onChange={setKind} />
+  <label className="block"><span className="label">{profileMode ? "شماره کارت، شبا یا حساب (اختیاری)" : "چند رقم آخرِ همان شماره"}</span><input name={profileMode ? "number" : "suffix"} className="field num" dir="ltr" required inputMode={kind === "iban" && profileMode ? "text" : "numeric"} minLength={profileMode ? 5 : 4} maxLength={profileMode ? 32 : 8} placeholder={profileMode ? (kind === "iban" ? "IR…" : "شماره کامل") : "1234"} autoComplete="off" /><span className="muted mt-1 block text-[length:var(--fs-xs)]">{profileMode ? "شماره کامل رمزگذاری می‌شود؛ فقط رقم‌های پایانی نمایش داده می‌شوند. رمز و CVV2 وارد نکنید." : "۴ تا ۸ رقم کافی است. شمارهٔ کامل، رمز و CVV2 لازم نیست."}</span></label>
+  <button className="btn btn-primary w-full" type="submit" disabled={!accountId || !bankName}>{profileMode ? "ذخیرهٔ مشخصات" : "ذخیرهٔ شناسه و ادامه"}</button>
  </fieldset></form>;
 
  return <section id="sms-cards" className="card expense-card scroll-mt-20">
-  <header className="expense-head"><h2 className="sms-step-title"><span className="sms-step-number" aria-hidden="true">۱</span>کارت‌ها و حساب‌های بانکی</h2><span className="expense-sub">{identifiers.length ? "شناسه ثبت شد" : "قدم اول"}</span></header>
-  <p className="text-sm leading-7">هر پیامک بانک چند رقم آخر کارت یا حساب را دارد. آن را یک بار به حساب بانکی‌اش در توازن وصل کنید تا پیام‌ها خودشان حساب درست را پیدا کنند.</p>
+  <header className="expense-head"><h2 className="sms-step-title"><span className="sms-step-number" aria-hidden="true">۱</span>{profileMode ? "مشخصات حساب بانکی" : "کارت‌ها و حساب‌های بانکی"}</h2><span className="expense-sub">{identifiers.length ? "شناسه ثبت شد" : profileMode ? "اختیاری" : "قدم اول"}</span></header>
+  <p className="text-sm leading-7">{profileMode ? "برای تشخیص حساب‌ها می‌توانید کارت، شبا یا شماره حساب را ثبت کنید. ثبت هر سه لازم نیست. اعتبارسنجی محلی، مالکیت یا اتصال بانکی را تأیید نمی‌کند." : "هر پیامک بانک چند رقم آخر کارت یا حساب را دارد. آن را یک بار به حساب بانکی‌اش در توازن وصل کنید تا پیام‌ها خودشان حساب درست را پیدا کنند."}</p>
   {identifiers.length > 0 && <ul className="sms-connected-list">{identifiers.map((i) => <li key={i.id} className="sms-connected-item">
    <span className="flex min-w-0 items-center gap-2"><span className="sms-ok" aria-hidden="true"><Icon name="check" size={12} strokeWidth={3} /></span><span>{i.bankName} · {KIND_LABEL[i.kind] ?? "حساب"} <bdi dir="ltr">…{i.suffix}</bdi> ← {i.accountName}</span></span>
    <button type="button" disabled={pending} className="btn btn-ghost !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]" onClick={() => void remove(i.id)}>حذف</button>

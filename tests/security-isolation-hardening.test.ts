@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 /**
  * Security Isolation Hardening — regression tests for the 2026-08 security
  * remediation mission (H-01, H-02, M-01, M-02 Ledger/Accounts, M-03, M-04 +
@@ -92,7 +93,7 @@ async function cleanAll() {
   await db.delete(backupRuns);
   await db.delete(auditLog);
   await db.delete(sessions);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
 }
 
 async function setupScenario() {
@@ -214,8 +215,8 @@ async function setupScenario() {
     .values({ assetId: propAssetB.id, userId: userB.id, acquisitionDate: "2026-01-02", ownershipPercentage: "50" } as any)
     .returning();
 
-  const { token: tokenA } = await createSession(userA.id);
-  const { token: tokenB } = await createSession(userB.id);
+  const { token: tokenA } = await createReadySession(userA.id);
+  const { token: tokenB } = await createReadySession(userB.id);
 
   return {
     usd,

@@ -226,3 +226,8 @@ function safe(value: string) {
     return null;
   }
 }
+
+/** Only domestic exchange-listed stocks/funds are exempt from dated purchase USD. */
+export function isExchangeListedInstrument(asset:TradeInstrument):boolean {
+ return ["ir_fund","ir_stock"].includes(asset.kind ?? "") || ["fund","stock","mutualfund"].includes((asset.classCode ?? "").toLowerCase());
+}

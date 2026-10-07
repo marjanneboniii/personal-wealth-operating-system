@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * A recurring income reaches the cash-flow forecast in TOMAN.
  *
@@ -47,7 +48,7 @@ test("recurring income: stored and forecast in Toman; legacy USD rows converted 
   const [usdt] = await db.insert(assets).values({ symbol: "USDT", name: "تتر", classId: stable.id, decimals: 6 } as any).returning();
   const [bank] = await db.insert(accounts).values({ code: "1010", name: "بانک", type: "asset", assetId: irt.id, userId: user.id } as any).returning();
   const [wallet] = await db.insert(accounts).values({ code: "1110", name: "کیف تتر", type: "asset", assetId: usdt.id, userId: user.id } as any).returning();
-  cookieJar.value = (await createSession(user.id)).token;
+  cookieJar.value = (await createReadySession(user.id)).token;
   const leaf = async (code: string) =>
     (await listCategoryTree(user.id, "income")).flatMap((g: any) => g.children).find((c: any) => c.code === code).id as string;
 

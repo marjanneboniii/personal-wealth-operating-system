@@ -135,8 +135,8 @@ function rateAt(dateIso: string): Promise<RateAt | null> {
   let request = rateRequests.get(dateIso);
   if (!request) {
     request = getUsdRateForDateAction(dateIso)
-      .then((r) => (r.ok && Number(r.rate) > 0 ? { rate: r.rate, effectiveDate: r.effectiveDate, source: r.source } : null))
-      .catch(() => null);
+      .then((r) => { if (!r.ok || !(Number(r.rate)>0)) {rateRequests.delete(dateIso); return null;} return {rate:r.rate,effectiveDate:r.effectiveDate,source:r.source}; })
+      .catch(() => {rateRequests.delete(dateIso);return null;});
     rateRequests.set(dateIso, request);
   }
   return request;
@@ -236,38 +236,41 @@ function CatalogSearch({
 }
 
 /** «معادل دلاری در زمان خرید» — the free-market dollar of the purchase day. */
-function PurchaseUsd({ dateIso, priceToman }: { dateIso: string; priceToman: string }) {
+export function PurchaseUsd({ dateIso, priceToman, currentRate }: { dateIso: string; priceToman: string; currentRate?:string }) {
+  const [attempt,setAttempt] = useState(0);
   const [found, setFound] = useState<{ date: string; rate: RateAt | null } | null>(null);
 
   useEffect(() => {
-    if (!dateIso) return;
+    if (!dateIso || dateIso > todayIso()) return;
     let alive = true;
+    if(dateIso === todayIso() && currentRate && Number(currentRate)>0) return;
     void rateAt(dateIso).then((rate) => {
       if (alive) setFound({ date: dateIso, rate });
     });
     return () => {
       alive = false;
     };
-  }, [dateIso]);
+  }, [dateIso,currentRate,attempt]);
 
   const box = "soft space-y-1 rounded-[var(--r-md)] p-3";
+  if(dateIso > todayIso()) return <p className={`${box} text-xs`} role="alert">تاریخ خرید نمی‌تواند در آینده باشد؛ تاریخ را اصلاح کنید.</p>;
   if (!dateIso) {
     return <p className={`${box} muted text-[length:var(--fs-xs)]`}>تاریخ خرید را انتخاب کنید تا دلار همان روز پیدا شود.</p>;
   }
-  const current = found?.date === dateIso ? found : null;
+  const current = dateIso === todayIso() && currentRate && Number(currentRate)>0 ? {date:dateIso,rate:{rate:currentRate,effectiveDate:dateIso,source:"setup_confirmed"}} : found?.date === dateIso ? found : null;
   if (!current) return <p className={`${box} muted text-[length:var(--fs-xs)]`}>در حال یافتن نرخ دلار آن روز…</p>;
   if (!current.rate) {
     return (
       <p className={`${box} text-[length:var(--fs-xs)]`} style={{ color: "var(--warning)" }}>
-        نرخ دلار آن روز در دسترس نیست؛ هنگام ثبت دوباره بررسی می‌شود.
+        نرخ معتبر دلار این تاریخ موجود نیست؛ ثبت خرید تا رفع این مورد انجام نمی‌شود. <button type="button" className="btn btn-ghost !min-h-8 !px-2" onClick={()=>setAttempt(n=>n+1)}>تلاش دوباره</button>
       </p>
     );
   }
 
   const { rate, effectiveDate, source } = current.rate;
   const price = amountOf(priceToman);
-  const usd = price.gt(0) ? price.div(D(rate)).toFixed(0) : null;
-  const approximate = source === "current" || source === "fallback";
+  const usd = price.gt(0) ? price.div(D(rate)).toFixed(2) : null;
+  const confirmedToday = dateIso === todayIso() && (source === "current" || source === "setup_confirmed");
 
   return (
     <div className={box}>
@@ -277,12 +280,11 @@ function PurchaseUsd({ dateIso, priceToman }: { dateIso: string; priceToman: str
           {usd ? formatMoney(usd, "USD") : "—"}
         </b>
       </div>
-      <p className="muted text-[length:var(--fs-xs)] leading-5" style={approximate ? { color: "var(--warning)" } : undefined}>
-        {approximate ? "نرخ آن تاریخ پیدا نشد؛ نرخ امروز " : `دلار ${formatDate(effectiveDate)}: `}
+      <p className="muted text-[length:var(--fs-xs)] leading-5">
+        {confirmedToday ? "نرخ تأییدشدهٔ امروز: " : `دلار ${formatDate(effectiveDate)}: `}
         <span className="num money-nowrap" dir="rtl">
           {formatMoney(rate, "IRT")}
         </span>
-        {approximate && " به کار رفت."}
       </p>
     </div>
   );
@@ -318,12 +320,14 @@ function PriceField({ value, onChange }: { value: string; onChange: (next: strin
 export function SetupVehiclesStep({
   rows,
   onChange,
+  currentRate,
   showIntro = true,
 }: {
   rows: VehicleDraftRow[];
   onChange: (next: VehicleDraftRow[]) => void;
   /** Off inside «دارایی‌های واقعی», where the module header already names the step. */
   showIntro?: boolean;
+  currentRate?:string;
 }) {
   const catalogs = useCatalogs();
 
@@ -406,7 +410,7 @@ export function SetupVehiclesStep({
                   <PriceField value={row.purchasePriceToman} onChange={(v) => patch(row.key, { purchasePriceToman: v })} />
                 </div>
 
-                <PurchaseUsd dateIso={row.ownershipDate} priceToman={row.purchasePriceToman} />
+                <PurchaseUsd currentRate={currentRate} dateIso={row.ownershipDate} priceToman={row.purchasePriceToman} />
 
                 <details className="rounded-[var(--r-md)] border p-3" style={{ borderColor: "var(--border)" }}>
                   <summary className="cursor-pointer text-[length:var(--fs-xs)] font-semibold">مشخصات بیشتر (اختیاری)</summary>
@@ -469,12 +473,14 @@ export function SetupVehiclesStep({
 export function SetupPropertiesStep({
   rows,
   onChange,
+  currentRate,
   showIntro = true,
 }: {
   rows: PropertyDraftRow[];
   onChange: (next: PropertyDraftRow[]) => void;
   /** Off inside «دارایی‌های واقعی», where the module header already names the step. */
   showIntro?: boolean;
+  currentRate?:string;
 }) {
   const catalogs = useCatalogs();
   const activeTypes = useMemo(() => (catalogs?.propertyTypes ?? []).filter((p) => p.isActive), [catalogs]);
@@ -587,7 +593,7 @@ export function SetupPropertiesStep({
                   <PriceField value={row.purchasePriceToman} onChange={(v) => patch(row.key, { purchasePriceToman: v })} />
                 </div>
 
-                <PurchaseUsd dateIso={row.acquisitionDate} priceToman={row.purchasePriceToman} />
+                <PurchaseUsd currentRate={currentRate} dateIso={row.acquisitionDate} priceToman={row.purchasePriceToman} />
 
                 <details className="rounded-[var(--r-md)] border p-3" style={{ borderColor: "var(--border)" }}>
                   <summary className="cursor-pointer text-[length:var(--fs-xs)] font-semibold">مشخصات بیشتر (اختیاری)</summary>

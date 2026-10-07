@@ -39,6 +39,7 @@ export async function requireAuthForApi() {
   if (!user) {
     throw new Error("Unauthorized: login required");
   }
+  if (await isSetupRequired(user.id)) throw new Error("SETUP_REQUIRED: ابتدا راه‌اندازی اولیه را تکمیل کنید.");
   return user;
 }
 
@@ -62,6 +63,7 @@ export async function authenticateApi(request: Request) {
   if (!user) {
     return { authenticated: false, user: null };
   }
+  if (await isSetupRequired(user.id)) return { authenticated: false, user: null, setupRequired: true };
   return { authenticated: true, user };
 }
 
@@ -81,3 +83,10 @@ export async function authorizeOwnerOrAdmin(request: Request) {
   return { ok: true, status: 200, user: auth.user };
 }
 
+
+/** Authenticated application actions require the persisted setup receipt. */
+export async function getSetupReadyUser() {
+  const user = await getCurrentUser();
+  if (user && await isSetupRequired(user.id)) throw new Error("SETUP_REQUIRED: ابتدا راه‌اندازی اولیه توازن را تکمیل کنید.");
+  return user;
+}

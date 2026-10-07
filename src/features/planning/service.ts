@@ -1240,7 +1240,7 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
   }
 
   // Opening liquidity: ledger reports USD book; convert once → Toman for the axis.
-  const startingLiquidityToman = rate.gt(0) ? D(nw.liquid).mul(rate) : Decimal.zero();
+  const startingLiquidityToman = D(nw.availableCashToman);
   const netWorthToman = rate.gt(0) ? D(nw.netWorth).mul(rate) : Decimal.zero();
   let cumulative = startingLiquidityToman;
   const points: ProjectionPoint[] = [];
@@ -1272,7 +1272,7 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
     netWorth: netWorthToman.toFixed(0),
     startingLiquidityToman: startingLiquidityToman.toFixed(0),
     netWorthToman: netWorthToman.toFixed(0),
-    startingLiquidityUsd: nw.liquid,
+    startingLiquidityUsd: nw.availableCashUsd,
     netWorthUsd: nw.netWorth,
     points,
     scenario,

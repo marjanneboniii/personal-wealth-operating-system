@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 /**
  * «دارایی واقعی و کالا» (/asset-registry) — «املاک من» render regression.
  *
@@ -90,7 +91,7 @@ async function reset() {
   await db.delete(schema.propertyTypes);
   await db.delete(schema.cities);
   await db.delete(schema.sessions);
-  await db.delete(schema.users);
+  await clearSetupReceipts(); await db.delete(schema.users);
 }
 
 async function seedOwnerWithProperty() {
@@ -101,7 +102,7 @@ async function seedOwnerWithProperty() {
     .insert(schema.users)
     .values({ name: "مالک املاک", username: "amlak-owner", role: "owner" })
     .returning();
-  sessionToken = (await createSession(user.id)).token;
+  sessionToken = (await createReadySession(user.id)).token;
 
   const [city] = await db.select().from(schema.cities).limit(1);
   const [hood] = await db.select().from(schema.neighborhoods).limit(1);

@@ -1,3 +1,5 @@
+import BankIdentifiers from "@/components/transactions/BankIdentifiers";
+import {listSmsBankAccounts,listBankIdentifiers} from "@/features/bankImport/identifiers";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -241,6 +243,7 @@ export default async function AccountsPage() {
     // Largest balance first — the list reads as «where is most of my money».
     .sort((a, b) => Number((rate ? (b.toman ?? b.usd) : b.usd).sub(rate ? (a.toman ?? a.usd) : a.usd).toString()));
 
+  const [bankProfileAccounts, bankProfileIdentifiers] = await Promise.all([listSmsBankAccounts(user.id),listBankIdentifiers(user.id)]);
   return (
     <div className="accounts-page space-y-6">
       <div>
@@ -302,6 +305,7 @@ export default async function AccountsPage() {
         <Metric label="حساب‌ها" value={faCount(moneyAccounts.length)} hint={`${faCount(byWallet.size)} کیف و بانک`} />
       </section>
 
+      <DisclosurePanel anchor="bank-details" label="مشخصات کارت، شبا و حساب بانکی (اختیاری)"><BankIdentifiers profileMode accounts={bankProfileAccounts} identifiers={bankProfileIdentifiers} /></DisclosurePanel>
       <Section
         title="کیف‌ها و بانک‌ها"
         className="accounts-wallet-section"

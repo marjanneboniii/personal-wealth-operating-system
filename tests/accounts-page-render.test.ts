@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 /**
  * «پول → حساب‌ها» (/accounts) render regression.
  *
@@ -84,13 +85,13 @@ test("/accounts renders money accounts without the RSC serialisation crash", asy
   await db.delete(institutions);
   await db.delete(currencies);
   await db.delete(sessions);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
 
   const [user] = await db
     .insert(users)
     .values({ name: "Logo Tester", username: "logo-accounts", role: "owner" })
     .returning();
-  sessionToken = (await createSession(user.id)).token;
+  sessionToken = (await createReadySession(user.id)).token;
 
   const [irt] = await db
     .insert(currencies)
@@ -191,7 +192,7 @@ test("/accounts labels wallets in plain Persian and never repeats «بانک» u
     .where(eq(users.username, "logo-accounts"))
     .limit(1);
   assert.ok(user, "fixture user from the previous test");
-  sessionToken = (await createSession(user.id)).token;
+  sessionToken = (await createReadySession(user.id)).token;
 
   const [irtAsset] = await db.select().from(assets).where(eq(assets.symbol, "IRT")).limit(1);
   const [usdtAsset] = await db.select().from(assets).where(eq(assets.symbol, "USDT")).limit(1);
@@ -252,7 +253,7 @@ test("/accounts localizes a previously stored Global Dollar row to یو اس د�
   await modulesReady;
   const { users, assets, assetClasses, wallets, accounts } = schema;
   const [user] = await db.select().from(users).where(eq(users.username, "logo-accounts"));
-  sessionToken = (await createSession(user.id)).token;
+  sessionToken = (await createReadySession(user.id)).token;
   const [assetClass] = await db.select().from(assetClasses).limit(1);
   const [coin] = await db.insert(assets).values({ symbol: "USDG", name: "Global Dollar", classId: assetClass.id, decimals: 6, coingeckoId: "global-dollar" }).returning();
   const [wallet] = await db.insert(wallets).values({ userId: user.id, name: "ربی والت", kind: "hot" }).returning();

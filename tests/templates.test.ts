@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * تکرار و میان‌بر — record a familiar transaction again, never automatically.
  *
@@ -58,7 +59,7 @@ test("repeat and shortcuts", async () => {
   }
   const leaf = (await listCategoryTree(owner.id)).flatMap((g) => g.children).find((c) => c.code === "FOD-GROCERY-HOME")!;
   const incomeLeaf = (await listCategoryTree(owner.id, "income")).flatMap((g) => g.children)[0];
-  cookie = (await createSession(owner.id)).token;
+  cookie = (await createReadySession(owner.id)).token;
   const today = new Date().toISOString().slice(0, 10);
   const post = async (fields: Record<string, string>) => {
     const fd = new FormData();
@@ -105,10 +106,10 @@ test("repeat and shortcuts", async () => {
   const stream2 = await renderToReadableStream(createElement(NewPage, { searchParams: Promise.resolve({ template: list[0].id }) }));
   assert.match(await new Response(stream2).text(), /نان سنگک/);
 
-  cookie = (await createSession(other.id)).token;
+  cookie = (await createReadySession(other.id)).token;
   assert.equal((await saveTemplateAction(bread, "دزدی", true)).ok, false, "another tenant's entry cannot be saved");
   assert.equal((await deleteTemplateAction(list[0].id)).ok, false, "nor someone else's shortcut deleted");
-  cookie = (await createSession(owner.id)).token;
+  cookie = (await createReadySession(owner.id)).token;
   for (let i = list.length; i < MAX_TEMPLATES; i++) assert.equal((await saveTemplateAction(bread, `نان ${i}`, true)).ok, true);
   assert.equal((await saveTemplateAction(bread, "یکی بیشتر", true)).ok, false, "capped");
   assert.equal((await deleteTemplateAction(list[0].id)).ok, true);

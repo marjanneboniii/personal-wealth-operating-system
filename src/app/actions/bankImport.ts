@@ -1,11 +1,11 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { createHash } from "node:crypto";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { accounts, assets, journalEntries, bankSmsInbox } from "@/db/schema";
-import { getCurrentUser } from "@/lib/auth";
 import { normalizeNumericInput } from "@/lib/numericInput";
 import { todayIso } from "@/lib/format";
 import { getCategoryById } from "@/features/categories/service";
@@ -70,7 +70,7 @@ const schema = z.object({
 export async function confirmBankImportAction(fd: FormData): Promise<BankImportResult> {
   let claimed: { id: string; userId: string; at: Date } | null = null;
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     if (!user) return { ok: false, message: "برای ثبت ابتدا وارد شوید." };
     await requireSmsSetup(user.id);
     const fields = Object.fromEntries(fd);

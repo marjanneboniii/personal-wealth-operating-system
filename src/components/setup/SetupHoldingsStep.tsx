@@ -16,6 +16,8 @@
  * DRAFTS ONLY: nothing is written until the wizard's final confirmation.
  */
 import { useMemo, useState } from "react";
+import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
+import { PurchaseUsd } from "@/components/setup/SetupRealAssetsStep";
 import Icon from "@/components/ui/Icon";
 import AmountInput from "@/components/ui/AmountInput";
 import AssetLogo from "@/components/ui/AssetLogo";
@@ -32,6 +34,7 @@ export type CryptoPlaceDraft = {
   walletName: string;
   quantity: string;
   unitPrice: string;
+  purchaseDate?: string;
 };
 
 export type CryptoDraftRow = {
@@ -53,6 +56,7 @@ export function flattenHoldings(rows: CryptoDraftRow[]) {
       walletName: p.walletName,
       quantity: p.quantity,
       unitPrice: p.unitPrice,
+      purchaseDate: p.purchaseDate,
     })),
   );
 }
@@ -340,6 +344,9 @@ export default function SetupHoldingsStep({
                               />
                             </div>
                           </div>
+                          <button type="button" className="btn btn-ghost text-xs" onClick={() => patch(row.key,{places:[...row.places,{...place,key:newRowKey(),quantity:"",unitPrice:"",purchaseDate:""}]})}>افزودن خرید دیگری در همین محل</button>
+                          <label className="block"><span className="label">تاریخ خرید (اجباری)</span><JalaliDatePicker value={place.purchaseDate || undefined} onChange={(date) => patchPlace(row, place.key, { purchaseDate: date })} /></label>
+                          {row.priceCurrency === "IRT" ? <PurchaseUsd currentRate={rate} dateIso={place.purchaseDate || ""} priceToman={value.toString()} /> : <p className="muted text-xs">بهای خرید تتری: {formatMoney(value.toString(), "USD")} · تاریخ خرید ثبت می‌شود.</p>}
                           {missingPrice && (
                             <p className="text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }}>
                               بدون قیمت خرید، سود و زیان این دارایی قابل محاسبه نیست.

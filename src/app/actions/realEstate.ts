@@ -1,8 +1,9 @@
 "use server";
+import { getCurrentUser } from "@/lib/auth";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { getCurrentUser } from "@/lib/auth";
 import { isAdminOrOwner } from "@/lib/authGuard";
 import { authUsersExistCached } from "@/lib/tenantState";
 import {
@@ -16,7 +17,7 @@ import {
 } from "@/features/rwa/realEstate/service";
 import { formatMoney, toFaDigits } from "@/lib/format";
 import { tomanToUsd } from "@/features/rwa/vehicle/fx";
-import { resolveUsdRateForDate } from "@/features/rwa/vehicle/fx";
+import { resolveAutomaticPurchaseRate, resolveUsdRateForDate } from "@/features/rwa/vehicle/fx";
 import {
   createCity,
   createNeighborhood,
@@ -47,7 +48,7 @@ const refresh = () => {
  */
 async function guardRealEstate(): Promise<string | null> {
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     let hasAuth = false;
     try {
       hasAuth = await authUsersExistCached();
@@ -72,7 +73,7 @@ async function guardRealEstate(): Promise<string | null> {
  */
 async function guardRealEstateAdmin(): Promise<string | null> {
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     let hasAuth = false;
     try {
       hasAuth = await authUsersExistCached();
@@ -259,9 +260,11 @@ export async function previewRealEstateUsdAction(
   amountToman: string,
   dateIso: string,
   manualRate?: string,
+  purchase = false,
 ): Promise<{ ok: boolean; usd: string; rate: string; effectiveDate: string; source: string; isExact: boolean }> {
   const clean = String(amountToman ?? "").replace(/[,٬\s]/g, "");
-  const rateInfo =
+  try {
+  const rateInfo = purchase ? await resolveAutomaticPurchaseRate(dateIso, await currentUserId()) :
     manualRate && Number(manualRate) > 0
       ? { rate: String(manualRate), effectiveDate: dateIso, source: "manual", isExact: true }
       : await resolveUsdRateForDate(dateIso, await currentUserId());
@@ -269,6 +272,7 @@ export async function previewRealEstateUsdAction(
     return { ok: false, usd: "0", ...rateInfo };
   }
   return { ok: true, usd: tomanToUsd(clean, rateInfo.rate), ...rateInfo };
+  } catch { return { ok: false, usd: "0", rate: "0", effectiveDate: dateIso, source: "unavailable", isExact: false }; }
 }
 
 /** ارزش‌گذاری جدید — فقط Current Value را تغییر می‌دهد؛ تاریخچه خرید و دفترکل تغییرناپذیرند. */

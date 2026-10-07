@@ -1,4 +1,5 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { smsConnectionConfig } from "@/features/bankImport/connectionConfig";
 import { and, eq } from "drizzle-orm";
@@ -6,12 +7,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { bankSmsConnections, bankSmsInbox } from "@/db/schema";
-import { getCurrentUser } from "@/lib/auth";
 import { createSmsConnection, getSmsInboxItem, requireSmsSetup, SmsError } from "@/features/bankImport/sms";
 
 export async function createIphoneConnectionAction(input: unknown) {
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     if (!user) return { ok: false as const, message: "ابتدا وارد شوید." };
     const availability = smsConnectionConfig();
     if (availability.unavailableReason) return { ok: false as const, message: availability.unavailableReason };
@@ -28,7 +28,7 @@ export async function createIphoneConnectionAction(input: unknown) {
 
 export async function revokeIphoneConnectionAction(id: string) {
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     if (!user || !z.uuid().safeParse(id).success) return { ok: false, message: "دسترسی مجاز نیست." };
     await requireSmsSetup(user.id);
     const rows = await db.update(bankSmsConnections).set({ revokedAt: new Date() }).where(and(eq(bankSmsConnections.id, id), eq(bankSmsConnections.userId, user.id))).returning({ id: bankSmsConnections.id });
@@ -40,7 +40,7 @@ export async function revokeIphoneConnectionAction(id: string) {
 
 export async function rejectBankSmsAction(id: string) {
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     if (!user || !z.uuid().safeParse(id).success) return { ok: false, message: "دسترسی مجاز نیست." };
     await requireSmsSetup(user.id);
     const row = await getSmsInboxItem(user.id, id);

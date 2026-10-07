@@ -31,6 +31,7 @@ export type DepositInput = {
   institution?: string | null;
   accountId: string;
   payoutAccountId?: string | null;
+  restrictsAccountBalance?: boolean;
   principalToman: string;
   annualRate: string;
   startDate: string;
@@ -47,6 +48,7 @@ export type DepositRow = {
   accountName: string | null;
   payoutAccountId: string;
   payoutAccountName: string | null;
+  restrictsAccountBalance?: boolean;
   principalToman: string;
   annualRate: string;
   monthlyInterestToman: string;
@@ -84,13 +86,13 @@ export function firstPayoutDate(startDate: string, today: string, maturityDate?:
 
 async function ownAccount(userId: string, accountId: string) {
   const [acc] = await db
-    .select({ userId: accounts.userId, type: accounts.type, deletedAt: accounts.deletedAt, symbol: assets.symbol, assetId: accounts.assetId, walletKind: wallets.kind })
+    .select({ userId: accounts.userId, type: accounts.type, deletedAt: accounts.deletedAt, isActive: accounts.isActive, assetDeletedAt: assets.deletedAt, symbol: assets.symbol, assetId: accounts.assetId, walletKind: wallets.kind })
     .from(accounts)
     .leftJoin(assets, eq(assets.id, accounts.assetId))
     .leftJoin(wallets, eq(wallets.id, accounts.walletId))
     .where(eq(accounts.id, accountId))
     .limit(1);
-  if (!acc || acc.userId !== userId || acc.type !== "asset" || acc.deletedAt) throw new Error("حساب انتخاب‌شده متعلق به شما نیست.");
+  if (!acc || acc.userId !== userId || acc.type !== "asset" || acc.deletedAt || !acc.isActive || acc.assetDeletedAt) throw new Error("حساب انتخاب‌شده متعلق به شما نیست.");
   return acc;
 }
 
@@ -143,6 +145,7 @@ export async function createDeposit(userId: string, input: DepositInput, today =
         accountId: input.accountId,
         payoutAccountId: payoutId,
         principalToman: principal.toFixed(0),
+        restrictsAccountBalance: input.restrictsAccountBalance === true,
         annualRate: rate.toString(),
         startDate: input.startDate,
         maturityDate: maturity,

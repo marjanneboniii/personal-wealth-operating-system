@@ -1,5 +1,8 @@
 "use server";
+import {resolveAutomaticPurchaseRate} from "@/features/rwa/vehicle/fx";
 
+import { isSetupRequired } from "@/lib/setupGate";
+import { finishSetup, loadSetupDraft } from "@/features/setup/workflow";
 import { setupBankAccountSchema } from "@/features/setup/bankAccounts";
 import { setupBankIdentifierSchema } from "@/features/setup/bankConnection";
 
@@ -31,6 +34,7 @@ import {
 } from "@/db/schema";
 import {
   isTomanOnlyInstrument,
+  isExchangeListedInstrument,
   registrySaleError,
   settlementUnitOf,
   tradePairError,
@@ -135,7 +139,7 @@ export type ActionResult = { ok: boolean; message: string };
  * FAIL-CLOSED: Any Database/Auth/Session error is DENIED (throws), never
  * converted to anonymous/null and continued.
  */
-async function getAuthContext(): Promise<{ user: any; hasAuth: boolean }> {
+async function getAuthContext(allowIncompleteSetup = false): Promise<{ user: any; hasAuth: boolean }> {
   // getCurrentUser throws on DB/auth error -> fail-closed (propagates as 500/DENY)
   const user = await getCurrentUser();
   let hasAuth = false;
@@ -149,6 +153,7 @@ async function getAuthContext(): Promise<{ user: any; hasAuth: boolean }> {
     // DB error -> DENY, never anonymous
     throw new Error("Authentication/Database error: Access denied");
   }
+  if (user && !allowIncompleteSetup && await isSetupRequired(user.id)) throw new Error("SETUP_REQUIRED: ابتدا راه‌اندازی اولیه را تکمیل کنید.");
   return { user, hasAuth };
 }
 
@@ -188,6 +193,7 @@ async function guardActionAuth(): Promise<{ user: any; hasAuth: boolean } | { er
     if (e?.message === "Unauthorized: login required" || e?.message?.includes("وارد شوید")) {
       return { error: e.message.includes("وارد شوید") ? e.message : loginRequiredMessage() };
     }
+    if (e?.message?.includes("SETUP_REQUIRED")) return { error: "ابتدا راه‌اندازی اولیه را تکمیل کنید." };
     if (e?.message?.includes("Authentication/Database error")) {
       throw e;
     }
@@ -944,7 +950,12 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     }
     // Fetch server-side frozen rate — per-user if logged in, single source of truth, not trusting client
     // A placeholder rate is refused: the entry freezes this rate forever.
-    const fxSnap = authUser
+    let datedPurchase=false;
+    if(input.type === "buy" && input.entryDate < todayIso() && isUuid(input.primaryAccountId)) {
+      const [instrument]=await db.select({classCode:assetClasses.code}).from(accounts).innerJoin(assets,eq(assets.id,accounts.assetId)).innerJoin(assetClasses,eq(assetClasses.id,assets.classId)).where(eq(accounts.id,input.primaryAccountId)).limit(1);
+      datedPurchase=!!instrument && !isExchangeListedInstrument(instrument);
+    }
+    const fxSnap = datedPurchase ? await resolveAutomaticPurchaseRate(input.entryDate,authUser?.id) : authUser
       ? await getWritableUsdIrtRateForUser(authUser.id)
       : assertRealUsdIrtRate(await getLatestUsdIrtRate());
     const serverRate = D(fxSnap.rate);
@@ -1576,7 +1587,7 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
           .from(wallexAssetCatalog)
           .where(eq(wallexAssetCatalog.symbol, "USDT"))
           .limit(1);
-        const usdtToman = usdtQuote?.priceTmn && D(usdtQuote.priceTmn).gt(0) ? D(usdtQuote.priceTmn) : serverRate;
+        const usdtToman = datedPurchase ? serverRate : usdtQuote?.priceTmn && D(usdtQuote.priceTmn).gt(0) ? D(usdtQuote.priceTmn) : serverRate;
 
         // What leaves (buy) or reaches (sell) the settlement account. A Toman
         // settlement is typed in Toman; a Rial account carries ten times that.
@@ -2472,6 +2483,10 @@ export async function sumDecimal(values: string[]) {
 }
 
 const setupSchema = z.object({
+  inputMethod: z.enum(["manual","file","sms"]),
+  bankPresence: z.enum(["yes","no"]),
+  sectionAnswers: z.string(),
+  setupDebts: z.string(),
   userName: z.string().default("مالک خانواده"),
   baseCurrency: z.string().default("USD"),
   displayCurrency: z.string().default("IRT"),
@@ -2493,6 +2508,8 @@ const setupSchema = z.object({
   cryptoSymbol: z.string().optional(),
   cryptoOpeningQty: z.string().optional(),
   cryptoUnitPrice: z.string().optional(),
+  goldPurchaseDate: z.string().optional(),
+  goldHoldingPlace: z.string().trim().max(80).optional(),
   goldOpeningQty: z.string().optional(),
   goldUnitPrice: z.string().optional(),
   /** Currency each opening PRICE was typed in. Absent = USD (original contract). */
@@ -2518,6 +2535,7 @@ const setupSchema = z.object({
 
 /** One صندوق/سهم row from the wizard, after JSON parsing. */
 const setupInstrumentSchema = z.object({
+  purchaseDate: z.string().optional(),
   kind: z.enum(["fund", "stock", "wallex"]),
   symbol: z.string().trim().min(1).max(40),
   name: z.string().trim().max(160).optional(),
@@ -2528,6 +2546,7 @@ const setupInstrumentSchema = z.object({
 
 /** One coin the user holds — price in the currency it was bought with. */
 const setupCryptoSchema = z.object({
+  purchaseDate: z.string().optional(),
   symbol: z.string().trim().min(1).max(20),
   quantity: z.string().optional(),
   unitPrice: z.string().optional(),
@@ -2586,7 +2605,7 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
   // register first (Global System Directive §0).
   let setupUser: any = null;
   try {
-    const ctx = await getAuthContext();
+    const ctx = await getAuthContext(true);
     if (!ctx.user) return { ok: false, message: loginRequiredMessage() };
     setupUser = ctx.user;
   } catch (e: any) {
@@ -2600,6 +2619,9 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
   try {
     const raw = Object.fromEntries(fd) as Record<string, string>;
     const {
+      inputMethod,
+      sectionAnswers: answersJson,
+      setupDebts: debtsJson,
       bankAccounts: bankAccountsJson,
       bankIdentifiers: bankIdentifiersJson,
       instruments: instrumentsJson,
@@ -2620,10 +2642,10 @@ export async function completeSetupAction(_prev: ActionResult | null, fd: FormDa
     const properties = parseSetupList(propertiesJson, setupPropertySchema, "فهرست ملک");
     const tomanPlaces = parseSetupList(tomanPlacesJson, setupTomanPlaceSchema, "فهرست تومان صرافی و کارگزاری");
 
-    const result = await completeSetup(
-      { ...rest, bankAccounts, bankIdentifiers, instruments, cryptoHoldings, tomanPlaces, vehicles, properties },
-      setupUser?.id,
-    );
+    const answers = z.object({ holdings: z.enum(["yes","no"]), instruments: z.enum(["yes","no"]), properties: z.enum(["yes","no"]), vehicles: z.enum(["yes","no"]), debts: z.enum(["yes","no"]) }).strict().parse(JSON.parse(answersJson || "{}"));
+    const drafts = z.array(z.object({ title: z.string(), creditor: z.string().optional(), principalIrt: z.string(), interestRate: z.string().optional(), startDate: z.string(), installmentCount: z.number().optional(), installmentIrt: z.string().optional(), firstDueDate: z.string().optional(), intervalMonths: z.number().optional(), customDueDates: z.array(z.string()).optional() })).max(20).parse(JSON.parse(debtsJson || "[]"));
+    const debtInputs = drafts.map(d => ({...d, userId: setupUser.id, creditor: d.creditor || "", installmentCount: d.installmentCount || 0, installmentIrt: d.installmentIrt || "", firstDueDate: d.firstDueDate || "", intervalMonths: d.intervalMonths || 1, customDueDates: d.customDueDates || []}));
+    const result = await finishSetup(setupUser.id, { ...rest, inputMethod, bankAccounts, bankIdentifiers, instruments, cryptoHoldings, tomanPlaces, vehicles, properties }, answers, debtInputs);
     // Occupations are an optional profile field: a malformed value never fails the setup.
     if (setupUser?.id && typeof raw.occupations === "string" && raw.occupations) {
       try {
@@ -2649,14 +2671,18 @@ export async function fetchSetupStateAction() {
   // SECURITY: LOGIN-GATED — never serve setup state to an anonymous caller;
   // the wizard is part of the app (Global System Directive §0). The client
   // redirects the visitor to /login on the loginRequired marker.
-  const { user } = await getAuthContext();
+  const { user } = await getAuthContext(true);
   if (!user) return { completed: false, loginRequired: true, usdIrtRate: "", rateSource: "" };
   const state = await getSetupState(user.id);
   // The wizard converts every Toman opening amount at this rate, so it tries
   // the live Toman/Tether market first. `source` lets the wizard ask the user
   // to confirm a rate when only the built-in fallback is available.
+  const {setupSessions} = await import("@/db/schema");
+  const [session] = await db.select({progress:setupSessions.progress}).from(setupSessions).where(eq(setupSessions.userId,user.id));
+  const coreProgress=session?.progress as {base?:string;fxRate?:string}|undefined;
   let fx: { rate: string; source: string };
-  if (state.completed) {
+  if(coreProgress?.base && coreProgress.fxRate) {fx={rate:coreProgress.fxRate,source:"setup_confirmed"};}
+  else if (state.completed) {
     fx = await getLatestUsdIrtRateForUser(user.id);
   } else {
     try {
@@ -2666,7 +2692,22 @@ export async function fetchSetupStateAction() {
       fx = await getLatestUsdIrtRateForUser(user.id);
     }
   }
-  return { ...state, usdIrtRate: fx.rate, rateSource: fx.source };
+  const draft = state.completed ? null : await loadSetupDraft(user.id);
+  const existingAccounts = state.completed ? [] : await db.select({id:accounts.id,name:accounts.name}).from(accounts).where(and(eq(accounts.userId,user.id),eq(accounts.type,"asset"),isNull(accounts.deletedAt)));
+  const reviewExisting = !state.completed && existingAccounts.length > 0 && !(session?.progress as {base?:string} | undefined)?.base;
+  let reviewSections: string[][] = [];
+  if (reviewExisting) {
+    const {getAccountBalances} = await import("@/features/ledger/queries");
+    const {realEstateProperties,vehicleAssets,debts} = await import("@/db/schema");
+    const [balances,properties,vehicles,existingDebts] = await Promise.all([getAccountBalances(user.id),db.select().from(realEstateProperties).where(eq(realEstateProperties.userId,user.id)),db.select().from(vehicleAssets).where(eq(vehicleAssets.userId,user.id)),db.select().from(debts).where(and(eq(debts.userId,user.id),isNull(debts.deletedAt)))]);
+    const ids=new Set(existingAccounts.map(a=>a.id));
+    const owned=balances.filter(b=>ids.has(b.accountId));
+    const line=(b:typeof owned[number])=>`${b.name}: ${b.quantity} ${b.symbol ?? "واحد"}`;
+    const holdings=owned.filter(b=>["crypto","stable","gold"].includes(b.classCode ?? "") && D(b.quantity).gt(0));
+    const instruments=owned.filter(b=>!["cash","crypto","stable","gold","realestate","vehicle","rwa"].includes(b.classCode ?? "") && D(b.quantity).gt(0));
+    reviewSections=[[`نام: ${user.name}`,`نرخ امروز دلار: ${fx.rate} تومان`],owned.filter(b=>b.classCode === "cash").map(line),holdings.map(line),instruments.map(line),properties.map(p=>`${p.address || p.city || "ملک"} · خرید ${p.acquisitionDate ?? "ثبت نشده"} · ${p.purchasePriceToman ?? "ثبت نشده"} تومان`),vehicles.map(v=>`${v.brand} ${v.model} · خرید ${v.ownershipDate ?? "ثبت نشده"} · ${v.purchasePriceToman ?? "ثبت نشده"} تومان`),existingDebts.map(d=>`${d.title} · مبلغ ${d.principalToman ?? d.principalBase} ${d.principalToman ? "تومان" : "دلار مبنا"} · ${d.status}`),["روش‌های در دسترس: ثبت دستی، ورود فایل صورت‌حساب و دریافت پیامک اختیاری"],["حساب‌ها و سوابق قبلی حفظ می‌شوند؛ ثبت سرمایه افتتاحیه تکرار نمی‌شود."]];
+  }
+  return { ...state, draft, existingAccounts, coreCommitted:!!coreProgress?.base, reviewSections, reviewExisting, usdIrtRate: fx.rate, rateSource: fx.source };
 }
 
 

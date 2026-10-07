@@ -12,6 +12,7 @@ const STATEMENTS = [
     role text NOT NULL DEFAULT 'user',
     pin_hash text
   );`,
+  `CREATE TABLE IF NOT EXISTS setup_sessions (user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, draft_encrypted text, progress jsonb NOT NULL DEFAULT '{}'::jsonb, lease_token uuid, lease_until timestamptz, updated_at timestamptz NOT NULL DEFAULT now());`,
   `CREATE TABLE IF NOT EXISTS currencies (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -1202,6 +1203,8 @@ const STATEMENTS = [
        END IF;
      END LOOP;
    END $$;`,
+  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS bank_details_encrypted text;`,
+  `ALTER TABLE lots ADD COLUMN IF NOT EXISTS purchase_fx_rate numeric(38,18);`,
 ];
 
 /**
@@ -1287,6 +1290,7 @@ const DEPOSIT_STATEMENTS = [
   );`,
   `CREATE INDEX IF NOT EXISTS deposits_user_idx ON deposits(user_id, status);`,
   `ALTER TABLE planned_transactions ADD COLUMN IF NOT EXISTS deposit_id uuid REFERENCES deposits(id) ON DELETE SET NULL;`,
+  `ALTER TABLE deposits ADD COLUMN IF NOT EXISTS restricts_account_balance boolean NOT NULL DEFAULT false;`,
 ];
 
 /** تطبیق موجودی — see src/db/schema.ts `balanceCheckpoints`; mirrors drizzle/0044. */

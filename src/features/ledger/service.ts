@@ -41,8 +41,8 @@ export type PostEntryInput = {
    */
   categoryId?: string | null;
   /** open a FIFO lot for this asset account (buy / inbound) */
-  openLot?: { accountId: string; assetId: string; quantity: string; costBase: string };
-  openLots?: Array<{ accountId: string; assetId: string; quantity: string; costBase: string }>;
+  openLot?: { accountId: string; assetId: string; quantity: string; costBase: string; openedAt?: string; purchaseFxRate?: string };
+  openLots?: Array<{ accountId: string; assetId: string; quantity: string; costBase: string; openedAt?: string; purchaseFxRate?: string }>;
   /** consume FIFO lots (sell / outbound) */
   closeLot?: { assetId: string; quantity: string; proceedsBase: string };
   userId?: string;
@@ -74,6 +74,8 @@ export function canonicalizePayload(input: PostEntryInput): string {
           assetId: l.assetId,
           quantity: D(l.quantity).toString(),
           costBase: D(l.costBase).toString(),
+          ...(l.openedAt ? { openedAt: l.openedAt } : {}),
+          ...(l.purchaseFxRate ? { purchaseFxRate: D(l.purchaseFxRate).toString() } : {}),
         }))
       : input.openLot
         ? [
@@ -82,6 +84,8 @@ export function canonicalizePayload(input: PostEntryInput): string {
               assetId: input.openLot.assetId,
               quantity: D(input.openLot.quantity).toString(),
               costBase: D(input.openLot.costBase).toString(),
+              ...(input.openLot.openedAt ? { openedAt: input.openLot.openedAt } : {}),
+              ...(input.openLot.purchaseFxRate ? { purchaseFxRate: D(input.openLot.purchaseFxRate).toString() } : {}),
             },
           ]
         : [],
@@ -230,6 +234,13 @@ export async function postEntry(
             from postings p2 join journal_entries je on je.id = p2.entry_id
             where p2.account_id = ${p.accountId} and je.status = 'posted' ${tenantScope}
           `);
+          if (D(p.quantity).isNegative()) {
+            const nativeRes=await tx.execute(sql`select coalesce(sum(p2.quantity),0)::text as bal from postings p2 join journal_entries je on je.id=p2.entry_id where p2.account_id=${p.accountId} and p2.asset_id=${p.assetId} and je.status='posted' ${tenantScope}`);
+            const change=input.postings.filter(line=>line.accountId===p.accountId && line.assetId===p.assetId).reduce((sum,line)=>sum.add(line.quantity),Decimal.zero());
+            if (D((nativeRes.rows[0] as {bal?:string})?.bal ?? "0").add(change).lt(OVERDRAFT_ROUNDING_TOLERANCE)) {
+              const err=Object.assign(new Error("موجودی حساب کافی نیست (Overdraft prevented)"),{code:"INSUFFICIENT_BALANCE",status:400});throw err;
+            }
+          }
           const currentBal = D((balRes.rows[0] as { bal?: string })?.bal ?? "0");
           const newBal = currentBal.add(D(p.baseValue));
           // Dollar values of Toman carry 1/rate rounding: moving a whole balance
@@ -308,13 +319,16 @@ export async function postEntry(
 
     const lotList = input.openLots ?? (input.openLot ? [input.openLot] : []);
     for (const lotInfo of lotList) {
+      if (lotInfo.openedAt && (!/^\d{4}-\d{2}-\d{2}$/.test(lotInfo.openedAt) || !Number.isFinite(Date.parse(lotInfo.openedAt)) || new Date(lotInfo.openedAt).toISOString().slice(0,10)!==lotInfo.openedAt || lotInfo.openedAt>input.entryDate)) throw new Error("تاریخ خرید لات نامعتبر است.");
+      if (lotInfo.purchaseFxRate && !D(lotInfo.purchaseFxRate).gt(0)) throw new Error("نرخ خرید لات نامعتبر است.");
       if (D(lotInfo.quantity).gt(0)) {
         const qty = D(lotInfo.quantity);
         await tx.insert(lots).values({
           accountId: lotInfo.accountId,
           assetId: lotInfo.assetId,
           openEntryId: entry.id,
-          openedAt: input.entryDate,
+          openedAt: lotInfo.openedAt ?? input.entryDate,
+          purchaseFxRate: lotInfo.purchaseFxRate ?? null,
           qtyOpened: qty.toString(),
           qtyRemaining: qty.toString(),
           unitCostBase: D(lotInfo.costBase).div(qty).toString(),

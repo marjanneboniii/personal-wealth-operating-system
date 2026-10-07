@@ -1,3 +1,4 @@
+import { displayAccountName } from "@/lib/assetDisplay";
 /**
  * تطبیق موجودی — does the ledger agree with the bank?
  *
@@ -199,7 +200,7 @@ export async function listReconciliation(userId: string, today = todayIso()): Pr
     const state: ReconcileState = !c ? "unchecked" : isWithinTolerance(difference!, a.symbol) ? "matched" : "mismatch";
     return {
       accountId: a.id,
-      name: a.name,
+      name: displayAccountName(a.name),
       symbol: a.symbol,
       ledgerNow: now.get(a.id) ?? "0",
       checkpoint: c

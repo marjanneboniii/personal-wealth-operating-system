@@ -41,7 +41,7 @@ import {
   createCatalogModel,
   listVehicleBrands,
 } from "./catalog";
-import { resolveUsdRateForDate, resolveUsdRateForDateToFreeze, tomanToUsd } from "./fx";
+import { resolveAutomaticPurchaseRate, resolveUsdRateForDate, resolveUsdRateForDateToFreeze, tomanToUsd } from "./fx";
 import { rateStr, tomanStr, usdStr } from "./num";
 import {
   getEffectiveSnapshots,
@@ -212,6 +212,7 @@ async function ensureRwaAssetClassId(): Promise<string> {
  */
 export async function createUserVehicle(
   input: CreateUserVehicleInput,
+  onCreated?: (tx: any, id: string) => Promise<void>,
 ): Promise<{ id: string; assetId: string; symbol: string; userSeq: number; label: string }> {
   if (!input.catalogId) throw new Error("خودرو باید از فهرست (کاتالوگ) انتخاب شود.");
   const model = await getCatalogModel(input.catalogId);
@@ -227,12 +228,7 @@ export async function createUserVehicle(
   if (purchase.lte(0)) throw new Error("قیمت خرید (تومان) الزامی است و باید بزرگ‌تر از صفر باشد.");
 
   // Historical FX: the rate of the OWNERSHIP DATE, stored forever.
-  let purchaseUsdRate = input.purchaseUsdRate?.trim();
-  if (!purchaseUsdRate) {
-    const resolved = await resolveUsdRateForDateToFreeze(ownershipDate, input.userId ?? null);
-    purchaseUsdRate = resolved.rate;
-  }
-  if (D(purchaseUsdRate).lte(0)) throw new Error("نرخ دلار تاریخ خرید معتبر نیست.");
+  const purchaseUsdRate = (await resolveAutomaticPurchaseRate(ownershipDate, input.userId ?? null)).rate;
   const purchaseValueUsd = tomanToUsd(purchase.toFixed(0), purchaseUsdRate);
 
   const classId = await ensureRwaAssetClassId();
@@ -331,6 +327,7 @@ export async function createUserVehicle(
       });
     }
 
+    if (onCreated) await onCreated(tx, row.id);
     return { asset, row, symbol, userSeq };
   });
 

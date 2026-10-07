@@ -1,7 +1,7 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth";
 import { authUsersExistCached } from "@/lib/tenantState";
 import { formatMoney } from "@/lib/format";
 import { deleteMarketPrice, recordMarketPrice } from "@/features/rwa/realEstate/market/service";
@@ -11,7 +11,7 @@ export type MarketPriceResult = { ok: boolean; message: string };
 /** Signed-in user (or legacy single-tenant mode). Fail-closed on auth errors. */
 async function guardUser(): Promise<{ denied: string } | { userId: string | null }> {
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     let hasAuth = false;
     try {
       hasAuth = await authUsersExistCached();

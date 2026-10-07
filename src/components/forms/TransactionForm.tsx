@@ -1,4 +1,5 @@
 "use client";
+import {getUsdRateForDateAction} from "@/app/actions/registry";
 
 /**
  * ثبت تراکنش — rebuilt around the three questions a person actually answers:
@@ -54,6 +55,7 @@ import { FormStatus } from "@/components/ui/FormStatus";
 import {
   isStablecoin,
   isTomanOnlyInstrument,
+  isExchangeListedInstrument,
   priceUnitFor,
   quoteTrade,
   registrySaleError,
@@ -422,6 +424,9 @@ export default function TransactionForm({
     classCode: assetAccount?.classCode,
     className: assetAccount?.className,
   };
+  const needsHistoricalPurchase=type === "buy" && entryDate < today && !!assetAccount && !isExchangeListedInstrument(assetInstrument);
+  const [datedRate,setDatedRate]=useState<{date:string;rate:string}|null>(null);
+  useEffect(()=>{let alive=true;if(needsHistoricalPurchase) void getUsdRateForDateAction(entryDate).then(r=>{if(alive)setDatedRate(r.ok?{date:entryDate,rate:r.rate}:null);}).catch(()=>{if(alive)setDatedRate(null);});return()=>{alive=false;};},[needsHistoricalPurchase,entryDate]);
   // The money a trade may settle in — the same rule the server enforces:
   // Toman at an Iranian exchange or a stablecoin for crypto and tokenised
   // assets, Toman at a brokerage for Iranian-market assets, and a Toman bank
@@ -547,7 +552,7 @@ export default function TransactionForm({
   /* ── Trade price: in the settlement unit (Toman, or Tether for a stablecoin wallet) ── */
   const priceUnit = priceUnitFor(moneyAccount?.symbol);
   const priceUnitLabel = priceUnit === "IRT" ? "تومان" : "تتر";
-  const usdtToman = market.get("USDT")?.priceTmn ?? effectiveRate ?? null;
+  const usdtToman = needsHistoricalPurchase ? (datedRate?.date === entryDate ? datedRate.rate : null) : market.get("USDT")?.priceTmn ?? effectiveRate ?? null;
   // A coin is moved by its quantity; its Toman value comes from the market price.
   const transferUnitToman = transferIsToman
     ? null
@@ -561,7 +566,7 @@ export default function TransactionForm({
       : priceUnit === "IRT"
         ? (marketRow?.priceTmn ?? null)
         : (marketRow?.priceUsdt ?? null);
-  const usingMarket = priceMode === "market" && !!marketUnitPrice;
+  const usingMarket = !needsHistoricalPurchase && priceMode === "market" && !!marketUnitPrice;
   const unitPrice = usingMarket ? (marketUnitPrice ?? "") : limitPrice;
   const quote = isTrade && hasQuantity && unitPrice ? quoteTrade({ quantity, unitPrice, priceUnit, usdtToman }) : null;
   const overHeld = type === "sell" && hasQuantity && !!heldQty && quantityValue!.gt(heldQty);
@@ -639,7 +644,8 @@ export default function TransactionForm({
     ? "حساب بانکی، تومانِ صرافی داخلی یا تومانِ کارگزاری دیگری ندارید."
     : `«${transferUnitLabel}» در صرافی یا کیف پول دیگری ندارید.`;
 
-  const previewUsd = hasAmount && effectiveRate ? D(postedIrt).div(effectiveRate).toFixed(2) : "";
+  const previewRate=needsHistoricalPurchase ? (datedRate?.date === entryDate ? datedRate.rate : null) : effectiveRate;
+  const previewUsd = hasAmount && previewRate ? D(postedIrt).div(previewRate).toFixed(2) : "";
 
   /* ── Description, filled in from what was chosen ──────────────────── */
   const autoDescription = (() => {
@@ -684,7 +690,7 @@ export default function TransactionForm({
   } else if (!hasAmount) missing.push("مبلغ");
   if (feeExceedsProceeds) missing.push("کارمزد کمتر از مبلغ فروش");
   if (!entryDate) missing.push("تاریخ");
-  const ready = missing.length === 0;
+  const ready = missing.length === 0 && (!needsHistoricalPurchase || (datedRate?.date === entryDate && !!datedRate.rate));
 
   /* ── Handlers ─────────────────────────────────────────────────────── */
   const pickType = (key: TxType) => {
@@ -1043,6 +1049,8 @@ export default function TransactionForm({
           autoDescription={autoDescription}
         />
       ) : isTrade ? (
+        <>
+        {needsHistoricalPurchase && <p className="expense-note" role="status">برای خرید گذشته، قیمت واقعی خرید را وارد کنید؛ معادل دلاری با نرخ تاریخ خرید محاسبه می‌شود. {datedRate?.date === entryDate ? `نرخ: ${formatMoney(datedRate.rate,"IRT")}` : "در حال دریافت نرخ تاریخی؛ تا دریافت نرخ معتبر، ثبت انجام نمی‌شود."}</p>}
         <TradeFields
           type={type}
           asset={assetAccount ?? null}
@@ -1114,6 +1122,7 @@ export default function TransactionForm({
           setDescription={setDescription}
           autoDescription={autoDescription}
         />
+        </>
       ) : (
       <>
       {/* ── ۱. What ── */}

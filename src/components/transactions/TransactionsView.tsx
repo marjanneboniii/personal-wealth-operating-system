@@ -1,4 +1,5 @@
 "use client";
+import { csvTextCell } from "@/lib/csv";
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -182,13 +183,13 @@ export default function TransactionsView({
         const irt = (h.nativeIrt ?? r.fx?.irtAmount ?? "").replace(/[,٬]/g, "");
         return [
           r.entryDate,
-          `"${r.description.replace(/"/g, '""')}"`,
+          csvTextCell(r.description),
           h.typeLabel,
-          `"${h.from ?? ""}"`,
-          `"${h.to ?? ""}"`,
+          csvTextCell(h.from ?? ""),
+          csvTextCell(h.to ?? ""),
           h.amount,
           `"${irt}"`,
-          `"${r.tags.map((t) => `#${t}`).join(" ")}"`,
+          csvTextCell(r.tags.map((t) => `#${t}`).join(" ")),
         ].join(",");
       })
       .join("\n");

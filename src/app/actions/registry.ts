@@ -1,4 +1,6 @@
 "use server";
+import { getCurrentUser } from "@/lib/auth";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
@@ -19,7 +21,7 @@ import {
 } from "@/features/rwa/vehicle/catalog";
 import { recordVehicleValuationSnapshot } from "@/features/rwa/vehicle/valuation";
 import { formatMoney, toFaDigits } from "@/lib/format";
-import { resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
+import { resolveAutomaticPurchaseRate, resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { nextRwaSymbol } from "@/features/rwa/symbol";
 import { createOwnershipRecord } from "@/features/rwa/ownership/service";
 import { createValuationEvent } from "@/features/rwa/valuation/service";
@@ -27,7 +29,6 @@ import { createValuationEvent } from "@/features/rwa/valuation/service";
 // module (`src/app/actions/inflation.ts` + `/inflation`). The registry keeps
 // no commodity write path: groceries are not real assets.
 
-import { getCurrentUser } from "@/lib/auth";
 import { isAdminOrOwner } from "@/lib/authGuard";
 import { authUsersExistCached } from "@/lib/tenantState";
 
@@ -48,7 +49,7 @@ const refresh = () => {
  */
 async function guardRegistry(): Promise<string | null> {
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     let hasAuth = false;
     try {
       hasAuth = await authUsersExistCached();
@@ -72,7 +73,7 @@ async function guardRegistry(): Promise<string | null> {
  */
 async function guardCatalogAdmin(): Promise<string | null> {
   try {
-    const user = await getCurrentUser();
+    const user = await getSetupReadyUser();
     let hasAuth = false;
     try {
       hasAuth = await authUsersExistCached();
@@ -160,7 +161,7 @@ export async function getUsdRateForDateAction(
 ): Promise<{ ok: boolean; rate: string; effectiveDate: string; source: string; isExact: boolean }> {
   try {
     const userId = await currentUserId();
-    const resolved = await resolveUsdRateForDate(dateIso, userId);
+    const resolved = await resolveAutomaticPurchaseRate(dateIso, userId);
     return { ok: true, ...resolved };
   } catch {
     return { ok: false, rate: "0", effectiveDate: dateIso, source: "unavailable", isExact: false };
@@ -174,9 +175,9 @@ export async function previewPurchaseUsdAction(
   manualRate?: string,
 ): Promise<{ ok: boolean; usd: string; rate: string; effectiveDate: string; source: string; isExact: boolean }> {
   const clean = String(amountToman ?? "").replace(/[,٬\s]/g, "");
-  const rateInfo = manualRate && Number(manualRate) > 0
-    ? { rate: String(manualRate), effectiveDate: dateIso, source: "manual", isExact: true }
-    : await resolveUsdRateForDate(dateIso, await currentUserId());
+  let rateInfo;
+  try { rateInfo = await resolveAutomaticPurchaseRate(dateIso, await currentUserId()); }
+  catch { return { ok: false, usd: "0", rate: "0", effectiveDate: dateIso, source: "unavailable", isExact: false }; }
   if (!clean || Number(clean) <= 0 || Number(rateInfo.rate) <= 0) {
     return { ok: false, usd: "0", ...rateInfo };
   }

@@ -386,6 +386,13 @@
       "when": 1789601800002,
       "tag": "0054_budget_items",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1791410475395,
+      "tag": "0055_mandatory_setup_receipts",
+      "breakpoints": true
     }
   ]
 }

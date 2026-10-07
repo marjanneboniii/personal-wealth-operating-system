@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * جستجوی داده — the palette finds the user's own records.
  *
@@ -55,7 +56,7 @@ test("search: own records only, normalised, by amount, tag and Sayad id", async 
   const leaf = (await listCategoryTree(owner.id)).flatMap((g) => g.children).find((c) => c.code === "FOD-GROCERY-HOME")!;
   const today = new Date().toISOString().slice(0, 10);
   const spend = async (userId: string, accountId: string, description: string, amount: string, tags = "") => {
-    cookie = (await createSession(userId)).token;
+    cookie = (await createReadySession(userId)).token;
     const fd = new FormData();
     for (const [k, v] of Object.entries({ type: "expense", primaryAccountId: accountId, categoryId: leaf.id, irtAmount: amount, entryDate: today, description, tags })) fd.set(k, v);
     const r = await createTransactionAction(null, fd);
@@ -68,7 +69,7 @@ test("search: own records only, normalised, by amount, tag and Sayad id", async 
   await db.insert(cheques).values({ userId: other.id, direction: "issued", counterparty: "علی رضایی", amountToman: "42000000", dueDate: today, sayadId: "9999567890123456" } as any);
   await db.insert(deposits).values({ userId: owner.id, kind: "bank", title: "سپرده یک‌ساله", institution: "بانک ملت", accountId: bank.id, payoutAccountId: bank.id, principalToman: "100000000", annualRate: "23", startDate: today } as any);
 
-  cookie = (await createSession(owner.id)).token;
+  cookie = (await createReadySession(owner.id)).token;
   const find = async (q: string) => searchEverythingAction(q);
 
   const rent = await find("مسکن");

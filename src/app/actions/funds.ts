@@ -1,4 +1,6 @@
 "use server";
+import {getCurrentUser} from "@/lib/auth";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 /**
  * Server actions for registering funds and exchange-listed shares.
@@ -10,7 +12,6 @@
  * position, so nothing here can move a balance or fabricate a FIFO lot.
  */
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth";
 import { registerInstrument, type InstrumentKind } from "@/features/funds/service";
 import { searchFunds } from "@/features/funds/search";
 
@@ -36,7 +37,7 @@ export async function registerInstrumentAction(
   symbol: string,
   name?: string,
 ): Promise<RegisterInstrumentResult> {
-  const user = await getCurrentUser();
+  const user = await getSetupReadyUser();
   if (!user) return { ok: false, message: "برای ثبت باید وارد شوید." };
   if (kind !== "fund" && kind !== "stock") {
     return { ok: false, message: "نوع دارایی نامعتبر است." };

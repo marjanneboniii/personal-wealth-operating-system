@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { db } from "../src/db";
@@ -45,7 +46,7 @@ async function setupMultiUserScenario() {
   await db.delete(assetClasses);
   await db.delete(currencies);
   await db.delete(userFxSettings);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
 
   // Setup currencies & asset classes
   const [usd] = await db.insert(currencies).values({ code: "USD", name: "US Dollar", symbol: "$", decimals: 2, isFiat: true } as any).returning();
@@ -321,7 +322,7 @@ test("STAGE 2 (#70-#73) — IDOR Protection: Read, Update, Delete transactions a
     userId: userB.id,
   });
 
-  const { token: tokenA } = await createSession(userA.id);
+  const { token: tokenA } = await createReadySession(userA.id);
 
   // 1. Test IDOR GET /api/transactions?id=USER_B_TX -> 404
   const reqGet = new Request(`http://localhost/api/transactions?id=${buyB.id}`, {
@@ -415,7 +416,7 @@ test("STAGE 2 (#13) — Legacy Data Migration Strategy: safely claims unowned ro
   await db.delete(postings);
   await db.delete(journalEntries);
   await db.delete(accounts);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
 
   // Create single owner
   const [owner] = await db.insert(users).values({ name: "Single Owner", username: "single", role: "owner" } as any).returning();

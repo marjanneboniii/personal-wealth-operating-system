@@ -1,4 +1,5 @@
 "use server";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 /**
  * Recurring income reminders. (Occupations are chosen in the setup wizard.)
@@ -9,7 +10,6 @@
  */
 import { revalidatePath } from "next/cache";
 import { createTransactionAction, type ActionResult } from "@/app/actions";
-import { getCurrentUser } from "@/lib/auth";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { todayIso } from "@/lib/format";
 import { D } from "@/domain/decimal";
@@ -19,7 +19,7 @@ const LOGIN_REQUIRED: ActionResult = { ok: false, message: "برای ادامه 
 
 /** Record a due recurring income with its saved amount — one tap. */
 export async function recordPlannedIncomeAction(planId: string): Promise<ActionResult> {
-  const user = await getCurrentUser();
+  const user = await getSetupReadyUser();
   if (!user) return LOGIN_REQUIRED;
   const plan = await getIncomePlan(planId, user.id);
   if (!plan) return { ok: false, message: "یادآوری درآمد یافت نشد یا قبلاً ثبت شده است." };
@@ -49,7 +49,7 @@ export async function recordPlannedIncomeFormAction(formData: FormData): Promise
 
 /** «این ماه دریافت نشد» — nothing is posted; next month's reminder is scheduled. */
 export async function skipPlannedIncomeFormAction(formData: FormData): Promise<void> {
-  const user = await getCurrentUser();
+  const user = await getSetupReadyUser();
   if (!user) return;
   await closeIncomeOccurrence({ planId: String(formData.get("planId") ?? ""), userId: user.id, entryId: null }).catch(() => undefined);
   revalidatePath("/");
@@ -57,7 +57,7 @@ export async function skipPlannedIncomeFormAction(formData: FormData): Promise<v
 
 /** Stop a recurring income altogether. */
 export async function stopPlannedIncomeFormAction(formData: FormData): Promise<void> {
-  const user = await getCurrentUser();
+  const user = await getSetupReadyUser();
   if (!user) return;
   await stopIncomePlan(String(formData.get("planId") ?? ""), user.id);
   revalidatePath("/");

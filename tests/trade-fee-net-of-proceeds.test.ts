@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * A trade fee moves the settlement account by exactly the fee typed.
  *
@@ -70,7 +71,7 @@ test("trade fees: net proceeds, exact Toman, both directions", async () => {
       { accountId: equity.id, assetId: irt.id, quantity: "-50000000", baseValue: "-1220.36" },
     ],
   });
-  cookieJar.value = (await createSession(user.id)).token;
+  cookieJar.value = (await createReadySession(user.id)).token;
 
   const qty = async (id: string) => D((await getAccountBalances(user.id)).find((b: any) => b.accountId === id)?.quantity ?? "0");
   const trade = (f: Record<string, string>) => {

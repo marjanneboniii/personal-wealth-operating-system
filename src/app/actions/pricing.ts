@@ -1,10 +1,11 @@
 "use server";
+import {getCurrentUser} from "@/lib/auth";
+import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { accounts, assetClasses, assets, coingeckoAssetCatalog } from "@/db/schema";
-import { getCurrentUser } from "@/lib/auth";
 import { authUsersExistCached } from "@/lib/tenantState";
 import {
   getMarketCatalogStatus,
@@ -39,8 +40,8 @@ export type RegisterMarketAssetResult = {
   };
 };
 
-async function requireRegistrationIdentity() {
-  const user = await getCurrentUser();
+async function requireRegistrationIdentity(allowSetupCatalog = false) {
+  const user = allowSetupCatalog ? await getCurrentUser() : await getSetupReadyUser();
   // Cached "any username-bearing user exists" probe — see lib/tenantState.ts.
   const authEnabled = await authUsersExistCached();
   if (authEnabled && !user) throw new Error("برای افزودن دارایی ابتدا وارد شوید.");
@@ -234,7 +235,7 @@ export async function searchMarketCatalogAction(
   query: string,
 ): Promise<SearchMarketCatalogResult> {
   try {
-    await requireRegistrationIdentity();
+    await requireRegistrationIdentity(true);
     const rows = await listPricedCoinGeckoCatalog(query, 100);
     const status = await getMarketCatalogStatus();
     return {
@@ -260,7 +261,7 @@ export async function searchMarketCatalogAction(
  */
 export async function refreshMarketCatalogAction(): Promise<SearchMarketCatalogResult> {
   try {
-    await requireRegistrationIdentity();
+    await requireRegistrationIdentity(true);
     const sync = await refreshCoinGeckoCatalog();
     const status = await getMarketCatalogStatus();
     const rows = await listPricedCoinGeckoCatalog("", 100);
@@ -315,7 +316,7 @@ export type MarketCatalogLoadResult = {
 /** Every active market row, for in-memory search on the client. */
 export async function loadMarketCatalogAction(): Promise<MarketCatalogLoadResult> {
   try {
-    await requireRegistrationIdentity();
+    await requireRegistrationIdentity(true);
     const status = await ensureWallexCatalog();
     // Networks of newly listed coins are picked up without anyone editing a list.
     void ensureCryptoNetworks();
@@ -342,7 +343,7 @@ export async function loadMarketCatalogAction(): Promise<MarketCatalogLoadResult
 /** Manual re-sync, waited for — the user asked for it explicitly. */
 export async function refreshMarketCatalogNowAction(): Promise<MarketCatalogLoadResult> {
   try {
-    await requireRegistrationIdentity();
+    await requireRegistrationIdentity(true);
     const sync = await refreshWallexCatalog();
     await refreshCryptoNetworks().catch(() => undefined);
     const status = await getWallexCatalogStatus();

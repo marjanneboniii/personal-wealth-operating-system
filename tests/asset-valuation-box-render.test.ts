@@ -1,3 +1,4 @@
+import { createReadySession, clearSetupReceipts } from "./support/ready-session";
 /**
  * «همه دارایی‌ها» end-to-end render — the «ارزش‌گذاری دارایی‌ها» box.
  *
@@ -75,7 +76,7 @@ async function resetDb() {
   await db.delete(assetClasses);
   await db.delete(currencies);
   await db.delete(sessions);
-  await db.delete(users);
+  await clearSetupReceipts(); await db.delete(users);
 }
 
 /**
@@ -157,7 +158,7 @@ async function setupEthBook() {
       headers: { "content-type": "application/json" },
     })) as typeof fetch;
 
-  sessionToken = (await createSession(user.id)).token;
+  sessionToken = (await createReadySession(user.id)).token;
   return { user, eth };
 }
 

@@ -76,7 +76,7 @@ test("a property/vehicle value is not frozen at the placeholder either", async (
   // A date the built-in historical table does not cover (it ends in the past),
   // so the resolution falls through to the user's rate — the placeholder.
   const today = new Date().toISOString().slice(0, 10);
-  await assert.rejects(resolveUsdRateForDateToFreeze(today, userId), /نرخ دلار همان تاریخ را در فرم وارد کنید/);
+  await assert.rejects(resolveUsdRateForDateToFreeze(today, userId), /ثبت تا تکمیل تاریخچه انجام نمی‌شود/);
 });
 
 test("an old date still resolves from the built-in historical rates", async () => {

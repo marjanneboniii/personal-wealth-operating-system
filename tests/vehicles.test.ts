@@ -1,3 +1,4 @@
+import { createReadySession } from "./support/ready-session";
 /**
  * خودرو — running costs and due dates.
  *
@@ -60,7 +61,7 @@ test("vehicles: costs by tag and linked premiums, due dates, isolation", async (
     .values({ assetId: carAsset.id, userId: owner.id, brand: "پژو", model: "۲۰۶", year: 1398, userSeq: 1, ownershipDate: ownedSince.toISOString().slice(0, 10), purchasePriceToman: "400000000" } as any)
     .returning();
 
-  cookie = (await createSession(owner.id)).token;
+  cookie = (await createReadySession(owner.id)).token;
   const tags = await ensureVehicleTags(owner.id);
   assert.equal(tags.get(car.id), "پژو_۲۰۶");
   assert.equal((await ensureVehicleTags(owner.id)).get(car.id), "پژو_۲۰۶", "stable");
@@ -102,10 +103,10 @@ test("vehicles: costs by tag and linked premiums, due dates, isolation", async (
   [view] = await listVehicleOverview(owner.id, today);
   const dueId = view.dueDates[0].id;
 
-  cookie = (await createSession(other.id)).token;
+  cookie = (await createReadySession(other.id)).token;
   assert.equal((await completeDueDateAction(dueId)).ok, false, "another tenant cannot complete it");
   assert.equal((await addDueDateAction(null, due)).ok, false, "nor add to someone else's car");
-  cookie = (await createSession(owner.id)).token;
+  cookie = (await createReadySession(owner.id)).token;
 
   assert.equal((await completeDueDateAction(dueId)).ok, true);
   [view] = await listVehicleOverview(owner.id, today);

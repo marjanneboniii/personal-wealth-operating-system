@@ -1,3 +1,4 @@
+import {createReadySession,clearSetupReceipts} from "./support/ready-session";
 /**
  * The first-run tour: once per ACCOUNT (not per device), and every step points
  * at a control that exists on both the phone and the desktop layout.
@@ -33,7 +34,7 @@ test("seen once per account, on any device", async () => {
   assert.equal(await hasSeenTour(a.id), false);
   assert.equal(await hasSeenTour(null), true, "no account → never shown");
   assert.equal((await markTourSeenAction()).ok, false, "signed out cannot mark it");
-  cookie = (await createSession(a.id)).token;
+  cookie = (await createReadySession(a.id)).token;
   assert.equal((await markTourSeenAction()).ok, true);
   assert.equal(await hasSeenTour(a.id), true);
   assert.equal(await hasSeenTour(b.id), false, "another account still gets it");

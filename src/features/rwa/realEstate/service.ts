@@ -39,7 +39,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { postEntry } from "@/features/ledger/service";
 import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
 import { ensureRealizedPnlAccount } from "@/features/accounts/systemAccounts";
-import { resolveUsdRateForDateToFreeze, tomanToUsd } from "@/features/rwa/vehicle/fx";
+import { resolveAutomaticPurchaseRate, resolveUsdRateForDateToFreeze, tomanToUsd } from "@/features/rwa/vehicle/fx";
 import { formatMoney } from "@/lib/format";
 import { buildRwaLabel, buildRwaSymbol, nextRwaSymbol, nextUserRwaSeq } from "@/features/rwa/symbol";
 import { requireTomanBankAccount, tomanToNative, type TomanBankAccount } from "@/features/trade/bankAccount";
@@ -528,7 +528,7 @@ async function recordCurrentPrice(
  *  5. سند افتتاحیه دفترکل با تاریخِ تملکِ واقعی (نه تاریخ ثبت در سیستم)
  *  6. ارزش فعلی واردِ Aggregate می‌شود (جدول prices → سبد و ارزش خالص)
  */
-export async function createRealEstateAsset(input: CreateRealEstateAssetInput): Promise<{
+export async function createRealEstateAsset(input: CreateRealEstateAssetInput, onCreated?: (tx: any, id: string) => Promise<void>): Promise<{
   id: string;
   assetId: string;
   symbol: string;
@@ -562,12 +562,7 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
   if (current.lte(0)) throw new Error("ارزش فعلی (تومان) الزامی است و باید بزرگ‌تر از صفر باشد.");
 
   // Historical FX — the rate of the ACQUISITION date, frozen forever.
-  let purchaseFx: FxRateResolution;
-  if (input.purchaseFxRate && D(input.purchaseFxRate).gt(0)) {
-    purchaseFx = { rate: D(input.purchaseFxRate).toString(), effectiveDate: acquisitionDate, source: "manual", isExact: true };
-  } else {
-    purchaseFx = await resolveUsdRateForDateToFreeze(acquisitionDate, input.userId ?? null);
-  }
+  const purchaseFx = await resolveAutomaticPurchaseRate(acquisitionDate, input.userId ?? null);
   if (D(purchaseFx.rate).lte(0)) throw new Error("نرخ دلار تاریخ تملک در دسترس نیست.");
   const purchaseValueUsd = tomanToUsd(purchase.toFixed(0), purchaseFx.rate);
 
@@ -699,6 +694,7 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput): 
       tx,
     );
 
+    if (onCreated) await onCreated(tx, prop.id);
     return { id: prop.id, assetId: asset.id, ledgerEntryId, symbol, userSeq, label: assetName };
   });
 

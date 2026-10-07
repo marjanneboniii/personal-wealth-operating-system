@@ -53,7 +53,6 @@ export default function VehicleForm({
   const [customModel, setCustomModel] = useState("");
   const [ownershipDate, setOwnershipDate] = useState(today);
   const [price, setPrice] = useState("");
-  const [manualRate, setManualRate] = useState("");
   const [rateInfo, setRateInfo] = useState<RateInfo>(null);
   const [rateLoading, setRateLoading] = useState(false);
   const [withValuation, setWithValuation] = useState(false);
@@ -84,7 +83,7 @@ export default function VehicleForm({
     const t = setTimeout(async () => {
       setRateLoading(true);
       try {
-        const res = await previewPurchaseUsdAction(cleanPrice, ownershipDate, digitsOnly(manualRate) || undefined);
+        const res = await previewPurchaseUsdAction(cleanPrice, ownershipDate);
         if (!cancelled) setRateInfo(res.ok ? res : null);
       } catch {
         if (!cancelled) setRateInfo(null);
@@ -96,7 +95,7 @@ export default function VehicleForm({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [canPreview, cleanPrice, ownershipDate, manualRate]);
+  }, [canPreview, cleanPrice, ownershipDate]);
 
   /** پیش‌نمایش معتبر فقط وقتی ورودی‌های لازم موجود باشند. */
   const preview = canPreview ? rateInfo : null;
@@ -242,21 +241,12 @@ export default function VehicleForm({
                 <>
                   نرخ دلار استفاده‌شده: <span className="num">{formatMoney(preview.rate, "IRT")}</span> ·{" "}
                   {RATE_SOURCE_LABEL[preview.source] ?? preview.source}
-                  {!preview.isExact && " — در صورت نیاز نرخ دقیق آن روز را دستی وارد کنید."}
+                  {!preview.isExact && " — تاریخ مبنای نرخ نمایش داده شده است."}
                 </>
               ) : (
                 null
               )}
             </div>
-            <input type="hidden" name="purchaseUsdRate" value={digitsOnly(manualRate)} />
-            <AmountInput
-              className="field num mt-2"
-              inputMode="numeric"
-              value={manualRate}
-              onChange={(e) => setManualRate(e.target.value)}
-              placeholder="نرخ دلار تاریخ خرید (اختیاری) — مثلاً ۱۹۰٬۰۰۰"
-              showWords={false}
-            />
           </div>
         </div>
       </div>
