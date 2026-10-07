@@ -16,7 +16,8 @@ export function LandingHeader() {
             buttons for the same row. */}
         <nav className="landing-header-links" aria-label="بخش‌های صفحه">
           <Link href="/#modules">امکانات</Link>
-          <Link href="/#how">چطور کار می‌کند</Link>
+          <Link href="/#product-tour">نمایش محصول</Link>
+
           <Link href="/#security">حریم خصوصی</Link>
           <Link href="/#faq">سؤالات</Link>
         </nav>
