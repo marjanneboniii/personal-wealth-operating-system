@@ -135,7 +135,6 @@ export default async function VehiclesPage() {
       <div>
         <PageHeader
           title="خودروها"
-          subtitle={`هزینه‌ی واقعی نگه‌داشتن هر خودرو و سررسیدهایش (یادآوری از ${faCount(VEHICLE_DUE_HORIZON_DAYS)} روز قبل).`}
         />
         <ModuleTabs tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
       </div>

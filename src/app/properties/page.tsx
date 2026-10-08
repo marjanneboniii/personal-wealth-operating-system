@@ -97,7 +97,7 @@ export default async function PropertiesPage() {
   return (
     <div className="space-y-7">
       <div>
-        <PageHeader title="درآمد و هزینه‌ی املاک" subtitle="اجاره، هزینه‌های نگه‌داری و بازده خالص هر ملک در ۱۲ ماه اخیر، نسبت به ارزش روز همان ملک." />
+        <PageHeader title="درآمد و هزینه‌ی املاک" />
         <ModuleTabs tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
       </div>
       {list.length === 0 ? (

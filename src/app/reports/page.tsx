@@ -96,7 +96,6 @@ export default async function ReportsPage() {
           assertions at the monthly table instead. */}
       <PageHeader
         title="گزارش‌های مالی"
-        subtitle="تصویر ماه‌به‌ماه درآمد، هزینه، سود سرمایه‌گذاری و آنچه در راه است."
         action={
           <>
             <RowAction kind="snapshot" label="ثبت اسنپ‌شات" />

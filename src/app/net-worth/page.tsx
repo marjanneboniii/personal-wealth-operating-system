@@ -140,7 +140,6 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
     <div className="space-y-5">
       <PageHeader
         title="ارزش خالص"
-        subtitle="هرچه دارید منهای هرچه بدهکارید — و اینکه چرا این عدد تغییر کرده است."
         action={<RowAction kind="snapshot" label="ثبت اسنپ‌شات امروز" />}
       />
 

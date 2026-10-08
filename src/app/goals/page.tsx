@@ -113,7 +113,7 @@ export default async function GoalsPage() {
     <div className="space-y-5">
       <PageHeader
         title="اهداف و صندوق‌ها"
-        subtitle="مبلغ تومان هدف و صندوق ثابت است؛ معادل دلاری فقط نمایشی است و با نرخ روز تغییر می‌کند."
+        subtitle="مبالغ به تومان ثابت‌اند؛ معادل دلاری فقط برای نمایش است."
         action={<AddGoalButton {...addProps} />}
       />
 

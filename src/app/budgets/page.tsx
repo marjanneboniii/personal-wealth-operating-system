@@ -52,7 +52,6 @@ export default async function BudgetsPage() {
     <div className="space-y-5">
       <PageHeader
         title="بودجه‌ها"
-        subtitle="سقف خرج ماهانه، یا بودجه یک رویداد مثل عقد، عروسی، سفر یا تعویض ماشین با ریز اقلامش."
         action={addButton}
       />
 

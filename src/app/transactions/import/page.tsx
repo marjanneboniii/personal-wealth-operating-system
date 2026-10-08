@@ -38,7 +38,7 @@ export default async function BankImportPage() {
   const { endpoint, unavailableReason } = smsConnectionConfig();
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <PageHeader title="اتصال پیامک" subtitle="پیامک‌های بانک خودشان به تراکنش پیشنهادی تبدیل می‌شوند؛ شما فقط بررسی و تأیید می‌کنید." action={<Link href="/transactions" className="btn btn-ghost">تراکنش‌ها</Link>} />
+      <PageHeader title="اتصال پیامک" action={<Link href="/transactions" className="btn btn-ghost">تراکنش‌ها</Link>} />
       <SmsProgress cards={identifiers.length} iphones={connections.length} received={connections.filter((connection) => connection.lastReceivedAt).length} waiting={smsDrafts.length} />
       <BankIdentifiers accounts={bankAccounts} identifiers={identifiers} />
       <IphoneSmsConnection endpoint={endpoint} unavailableReason={unavailableReason} connections={connections.map((c) => ({ ...c, createdAt: c.createdAt.toISOString(), lastReceivedAt: c.lastReceivedAt?.toISOString() ?? null }))} />

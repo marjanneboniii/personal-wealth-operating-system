@@ -252,7 +252,7 @@ export default async function CashFlowPage() {
   return (
     <div className="finance-page cashflow-page space-y-7">
       <div>
-        <PageHeader title="جریان نقدی" subtitle="ببینید پول از کجا آمده و در کدام بخش‌ها خرج شده است." action={<SectionLink href="/planning" label="پیش‌بینی" />} />
+        <PageHeader title="جریان نقدی" action={<SectionLink href="/planning" label="پیش‌بینی" />} />
         <ModuleTabs tabs={MONEY_TABS} active="/cash-flow" label="بخش‌های پول" />
       </div>
 

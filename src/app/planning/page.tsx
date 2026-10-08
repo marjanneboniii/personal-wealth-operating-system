@@ -147,7 +147,7 @@ export default async function PlanningPage() {
     <div className="space-y-5">
       <PageHeader
         title="پیش‌بینی مالی"
-        subtitle="پیش‌بینی از موجودی قابل خرج بانک و صندوق نقد شروع می‌شود؛ اصل سپردهٔ مسدود با تأیید شما کنار گذاشته می‌شود. مبالغ برنامه‌ریزی به تومان ثابت‌اند."
+        subtitle="از موجودی قابل خرج شروع می‌شود؛ مبالغ به تومان ثابت‌اند."
         action={<AddPlanButton {...addProps} />}
       />
 

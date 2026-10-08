@@ -121,7 +121,6 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
       <div>
         <PageHeader
           title="تراکنش‌ها"
-          subtitle="سوابق پول را مرور کنید، دسته‌ها را ببینید و موارد تازه را بررسی کنید."
           action={
             <div className="flex flex-wrap gap-2">
               <Link href="/transactions/import" className="btn btn-ghost">اتصال پیامک</Link>
