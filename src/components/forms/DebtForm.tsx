@@ -72,10 +72,9 @@ export default function DebtForm({
   const [showPreview, setShowPreview] = useState(false);
 
   const receivable = direction === "receivable";
-  // Every user-facing noun follows the direction: a form that says «بستانکار»
-  // while recording money owed TO the user is simply wrong.
+  // Direction determines debt vs receivable; title and party stay plain text.
   const noun = receivable ? "طلب" : "بدهی";
-  const partyLabel = receivable ? "بدهکار" : "بستانکار";
+  const partyLabel = "نام شخص یا مجموعه";
 
   useEffect(() => {
     if (!state?.ok) return;
@@ -190,7 +189,7 @@ export default function DebtForm({
             )}
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="label">عنوان</label>
+                <label className="label">عنوان {noun}</label>
                 <input
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}

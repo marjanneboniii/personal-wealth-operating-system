@@ -15,9 +15,10 @@
  *
  * DRAFTS ONLY: nothing is written until the wizard's final confirmation.
  */
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import { PurchaseUsd } from "@/components/setup/SetupRealAssetsStep";
+import CatalogPicker from "@/components/ui/CatalogPicker";
 import Icon from "@/components/ui/Icon";
 import AmountInput from "@/components/ui/AmountInput";
 import AssetLogo from "@/components/ui/AssetLogo";
@@ -107,24 +108,11 @@ export default function SetupHoldingsStep({
   /** USD→IRT setup rate, for the Toman equivalent of a Tether price. */
   rate: string;
 }) {
-  const [query, setQuery] = useState("");
   // Coins whose inline place picker is open, and the tab each one shows.
   const [openPickers, setOpenPickers] = useState<Set<string>>(new Set());
   const [tabs, setTabs] = useState<Record<string, PlaceTab>>({});
 
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    const taken = new Set(rows.map((r) => r.symbol));
-    // Meme coins are not offered as an opening holding.
-    return SUPPORTED_CRYPTO_ASSETS.filter((c) => !isMemeSymbol(c.symbol))
-      .filter(
-        (c) =>
-          !taken.has(c.symbol) &&
-          (c.displayName.includes(query.trim()) || c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)),
-      )
-      .slice(0, 6);
-  }, [query, rows]);
+  const availableCoins = SUPPORTED_CRYPTO_ASSETS.filter((c) => !isMemeSymbol(c.symbol)).filter(c => !rows.some(row => row.symbol === c.symbol));
 
   const patch = (key: string, next: Partial<CryptoDraftRow>) =>
     onChange(rows.map((r) => (r.key === key ? { ...r, ...next } : r)));
@@ -144,7 +132,6 @@ export default function SetupHoldingsStep({
     const isTether = coin.symbol === "USDT";
     const key = newRowKey();
     onChange([...rows, { key, symbol: coin.symbol, name: coin.displayName, priceCurrency: isTether ? "IRT" : "USDT", places: [] }]);
-    setQuery("");
     // Where it is held is the very next question — asked right in the card.
     setPickerOpen(key, true);
   };
@@ -171,34 +158,7 @@ export default function SetupHoldingsStep({
     <section className="space-y-5">
       <StepIntro title="رمزارز و طلا" text="هر رمزارز، جایی که نگهداری می‌شود و قیمت خریدش را وارد کنید." />
 
-      <div className="space-y-2">
-        <label className="label" htmlFor="setup-crypto-search">
-          افزودن رمزارز یا استیبل‌کوین
-        </label>
-        <input
-          id="setup-crypto-search"
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="بیت‌کوین، تتر، یو اس دی سی…"
-          className="field"
-          autoComplete="off"
-        />
-        {query.trim().length > 0 && (
-          <ul className="card list-card">
-            {matches.map((coin) => (
-              <li key={coin.symbol}>
-                <button type="button" className="list-row w-full text-right hover:bg-[color:var(--hover)]" onClick={() => add(coin)}>
-                  <AssetLogo symbol={coin.symbol} name={coin.displayName} size={28} />
-                  <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)] font-medium">{coin.displayName}</span>
-                  <Icon name="plus" size={15} />
-                </button>
-              </li>
-            ))}
-            {matches.length === 0 && <li className="muted p-3 text-center text-[length:var(--fs-xs)]">پیدا نشد</li>}
-          </ul>
-        )}
-      </div>
+      <CatalogPicker label="افزودن رمزارز یا استیبل‌کوین" options={availableCoins.map(coin => ({id:coin.symbol,label:coin.displayName,searchText:`${coin.symbol} ${coin.name}`,mark:<AssetLogo symbol={coin.symbol} name={coin.displayName} size={28} />}))} onSelect={symbol => {const coin=availableCoins.find(c=>c.symbol===symbol);if(coin)add(coin);}} />
 
       {rows.length > 0 && (
         <ul className="space-y-3">

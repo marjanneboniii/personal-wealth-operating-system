@@ -16,6 +16,7 @@
  * DRAFTS ONLY: nothing is written until the wizard's final confirmation.
  */
 import { useEffect, useMemo, useState } from "react";
+import CatalogPicker from "@/components/ui/CatalogPicker";
 import Icon from "@/components/ui/Icon";
 import AmountInput from "@/components/ui/AmountInput";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
@@ -162,77 +163,17 @@ function CatalogStatus({ catalogs }: { catalogs: RealAssetCatalogs | null }) {
   if (catalogs.ok) return null;
   return (
     <p className="card p-3 text-[length:var(--fs-xs)] leading-6" role="alert" style={{ color: "var(--negative)" }}>
-      {catalogs.message ?? "فهرست بارگذاری نشد."} می‌توانید این مرحله را رد کنید و بعداً از «دارایی‌های واقعی» ثبت کنید.
+      {catalogs.message ?? "فهرست بارگذاری نشد."} صفحه را دوباره بارگذاری کنید تا بتوانید دارایی خود را انتخاب کنید.
     </p>
   );
 }
 
 type SearchItem = { id: string; title: string; subtitle?: string; haystack: string };
 
-function CatalogSearch({
-  id,
-  kind,
-  label,
-  placeholder,
-  items,
-  emptyText,
-  onAdd,
-}: {
-  id: string;
-  kind: "vehicle" | "property";
-  label: string;
-  placeholder: string;
-  items: SearchItem[];
-  emptyText: string;
-  onAdd: (itemId: string) => void;
+function CatalogSearch({ kind, label, items, emptyText, onAdd }: {
+  kind:"vehicle"|"property"; label:string; items:SearchItem[]; emptyText:string; onAdd:(id:string)=>void;
 }) {
-  const [query, setQuery] = useState("");
-  const matches = useMemo(() => {
-    const tokens = normalize(query).split(" ").filter(Boolean);
-    if (!tokens.length) return [];
-    return items.filter((item) => tokens.every((t) => item.haystack.includes(t))).slice(0, 8);
-  }, [items, query]);
-
-  return (
-    <div className="space-y-2">
-      <label className="label" htmlFor={id}>
-        {label}
-      </label>
-      <input
-        id={id}
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={placeholder}
-        className="field"
-        autoComplete="off"
-      />
-      {query.trim().length > 0 && (
-        <ul className="card list-card">
-          {matches.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className="list-row w-full text-right hover:bg-[color:var(--hover)]"
-                onClick={() => {
-                  onAdd(item.id);
-                  setQuery("");
-                }}
-              >
-                <Plate kind={kind} size={28} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[length:var(--fs-sm)] font-medium">{item.title}</span>
-                  {item.subtitle && <span className="muted block truncate text-[length:var(--fs-xs)]">{item.subtitle}</span>}
-                </span>
-                <Icon name="plus" size={15} />
-              </button>
-            </li>
-          ))}
-          {matches.length === 0 && <li className="muted p-3 text-center text-[length:var(--fs-xs)]">{emptyText}</li>}
-        </ul>
-      )}
-    </div>
-  );
+  return <CatalogPicker label={label} options={items.map(item=>({id:item.id,label:toFaDigits(item.title),detail:item.subtitle ? toFaDigits(item.subtitle) : undefined,searchText:item.haystack,mark:<Plate kind={kind} size={28} />}))} onSelect={onAdd} emptyText={emptyText} />;
 }
 
 /** «معادل دلاری در زمان خرید» — the free-market dollar of the purchase day. */
@@ -330,18 +271,19 @@ export function SetupVehiclesStep({
   currentRate?:string;
 }) {
   const catalogs = useCatalogs();
+  const [selectedBrand,setSelectedBrand] = useState("");
 
   const items = useMemo<SearchItem[]>(
     () =>
       (catalogs?.models ?? [])
-        .filter((m) => m.isActive)
+        .filter((m) => m.isActive && (!selectedBrand || m.brandId === selectedBrand))
         .map((m) => ({
           id: m.id,
           title: `${m.brandName} ${m.modelName}`,
           subtitle: m.category ?? undefined,
           haystack: normalize(`${m.brandName} ${m.brandNameEn ?? ""} ${m.modelName}`),
         })),
-    [catalogs],
+    [catalogs,selectedBrand],
   );
 
   const patch = (key: string, next: Partial<VehicleDraftRow>) =>
@@ -367,21 +309,20 @@ export function SetupVehiclesStep({
   return (
     <section className="space-y-5">
       {showIntro && (
-        <StepIntro title="خودرو" text="خودرو را جست‌وجو کنید و با + اضافه کنید؛ فقط تاریخ و قیمت خرید را وارد کنید." />
+        <StepIntro title="خودرو" text="خودرو را از فهرست انتخاب کنید، سپس اطلاعات خرید را وارد کنید." />
       )}
       <CatalogStatus catalogs={catalogs} />
 
-      {catalogs?.ok && (
+      {catalogs?.ok && <>
+        <CatalogPicker label="شرکت سازنده" value={selectedBrand} options={catalogs.brands.filter(b=>b.isActive).map(b=>({id:b.id,label:toFaDigits(b.name)}))} onSelect={setSelectedBrand} placeholder="همه شرکت‌های سازنده"/>
         <CatalogSearch
-          id="setup-vehicle-search"
           kind="vehicle"
           label="افزودن خودرو"
-          placeholder="پژو ۲۰۶، تیبا، هایما…"
           items={items}
-          emptyText="در فهرست نیست — بعداً از «دارایی‌های واقعی» اضافه کنید."
+          emptyText="خودرویی در فهرست موجود نیست."
           onAdd={add}
         />
-      )}
+      </>}
 
       {rows.length > 0 && (
         <ul className="space-y-3">
@@ -483,19 +424,20 @@ export function SetupPropertiesStep({
   currentRate?:string;
 }) {
   const catalogs = useCatalogs();
+  const [selectedCity,setSelectedCity] = useState("");
   const activeTypes = useMemo(() => (catalogs?.propertyTypes ?? []).filter((p) => p.isActive), [catalogs]);
 
   const items = useMemo<SearchItem[]>(() => {
     const cityName = new Map((catalogs?.cities ?? []).filter((c) => c.isActive).map((c) => [c.id, c.nameFa]));
     return (catalogs?.neighborhoods ?? [])
-      .filter((n) => n.isActive && cityName.has(n.cityId))
+      .filter((n) => n.isActive && cityName.has(n.cityId) && (!selectedCity || n.cityId === selectedCity))
       .map((n) => ({
         id: n.id,
         title: n.nameFa,
         subtitle: cityName.get(n.cityId),
         haystack: normalize(`${n.nameFa} ${n.nameEn} ${cityName.get(n.cityId) ?? ""}`),
       }));
-  }, [catalogs]);
+  }, [catalogs,selectedCity]);
 
   const labelOf = (propertyTypeId: string, neighborhoodId: string) => {
     const type = activeTypes.find((p) => p.id === propertyTypeId);
@@ -529,21 +471,20 @@ export function SetupPropertiesStep({
   return (
     <section className="space-y-5">
       {showIntro && (
-        <StepIntro title="ملک" text="محله را جست‌وجو کنید و با + اضافه کنید؛ فقط تاریخ و قیمت خرید را وارد کنید." />
+        <StepIntro title="ملک" text="شهر و محله را انتخاب کنید، سپس اطلاعات خرید را وارد کنید." />
       )}
       <CatalogStatus catalogs={catalogs} />
 
-      {catalogs?.ok && (
+      {catalogs?.ok && <>
+        <CatalogPicker label="شهر ملک" value={selectedCity} options={catalogs.cities.filter(c=>c.isActive).map(c=>({id:c.id,label:c.nameFa}))} onSelect={setSelectedCity} placeholder="همه شهرها"/>
         <CatalogSearch
-          id="setup-property-search"
           kind="property"
-          label="افزودن ملک"
-          placeholder="گلستان، کیانپارس، امانیه…"
+          label="انتخاب محله ملک"
           items={items}
           emptyText="پیدا نشد"
           onAdd={add}
         />
-      )}
+      </>}
 
       {rows.length > 0 && (
         <ul className="space-y-3">

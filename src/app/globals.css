@@ -7567,3 +7567,38 @@ fieldset.policy-step > .policy-step-title + * {
   .cashflow-income > .stat-tile, .cashflow-expense > .stat-tile { flex: 1; }
   .cashflow-income .cashflow-entry, .cashflow-expense .cashflow-entry { border: 0; margin: 0; padding: 0; gap: 0.5rem; flex-shrink: 0; }
 }
+
+/* Shared selection language: onboarding and everyday registration forms. */
+.choice-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+.choice-card {display:flex;align-items:center;gap:10px;min-width:0;min-height:76px;padding:14px;text-align:start;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);transition:background .15s,border-color .15s;}
+.choice-card b,.catalog-trigger b,.catalog-option b {display:block;font-size:var(--fs-sm);line-height:1.7;overflow-wrap:anywhere;}
+.choice-card small,.catalog-trigger small,.catalog-option small {display:block;color:var(--text-2);font-size:var(--fs-xs);line-height:1.8;}
+.choice-card:hover,.catalog-trigger:hover,.catalog-option:hover {background:var(--hover);}
+.choice-card[data-selected] {border-color:var(--positive);background:var(--positive-soft);}
+.choice-card:disabled,.catalog-trigger:disabled {opacity:.5;cursor:not-allowed;}
+.choice-mark,.catalog-mark {display:flex;align-items:center;justify-content:center;flex-shrink:0;width:36px;height:36px;border-radius:12px;background:var(--action-soft);color:var(--action);}
+.choice-indicator {display:flex;align-items:center;justify-content:center;flex-shrink:0;width:20px;height:20px;border:1px solid var(--border);border-radius:50%;}
+.choice-card[data-selected] .choice-indicator {background:var(--positive);border-color:var(--positive);color:var(--surface);}
+.catalog-control {min-width:0;}
+.catalog-trigger {display:flex;align-items:center;gap:12px;width:100%;min-height:68px;padding:12px;text-align:start;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);}
+.catalog-panel {display:grid;gap:14px;padding:4px;}
+.catalog-search {display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;color:var(--text-2);}
+.catalog-search input {min-width:0;width:100%;outline:none;background:transparent;color:var(--text);font-size:var(--fs-sm);}
+.catalog-options {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.catalog-option {display:flex;align-items:center;gap:10px;text-align:start;min-width:0;min-height:70px;padding:12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);}
+.catalog-option[aria-pressed="true"] {border-color:var(--positive);background:var(--positive-soft);}
+.setup-decision {padding:16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--action-soft);}
+.setup-decision h3 {font-weight:700;font-size:var(--fs-sm);margin-bottom:12px;}
+.setup-review-group {--review-color:var(--action);--review-soft:var(--action-soft);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;}
+.setup-review-group[data-tone="income"] {--review-color:var(--positive);--review-soft:var(--positive-soft);}
+.setup-review-group[data-tone="debt"] {--review-color:var(--warning);--review-soft:var(--warning-soft);}
+.setup-review-group[data-tone="invest"] {--review-color:var(--info);--review-soft:var(--info-soft);}
+.setup-review-head {display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px;background:var(--review-soft);color:var(--review-color);font-size:var(--fs-sm);}
+.setup-review-head b {flex:1;}
+.setup-review-group .list-row {flex-wrap:wrap;}
+.setup-review-group .list-row p {white-space:normal;overflow-wrap:anywhere;}
+.setup-summary {border:1px solid var(--positive);background:var(--positive-soft);border-radius:var(--r-lg);padding:16px;}
+@media(max-width:480px) {.catalog-options {grid-template-columns:1fr;}.choice-card {padding:11px;gap:8px;}.choice-grid .choice-mark {display:none;}}
+
+.setup-review-group[data-tone="invest"] {--review-color:#6d28d9;--review-soft:rgba(109,40,217,.08);}
+.dark .setup-review-group[data-tone="invest"] {--review-color:#c4b5fd;--review-soft:rgba(196,181,253,.12);}

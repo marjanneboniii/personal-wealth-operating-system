@@ -16,6 +16,7 @@ import { validateSetupDebtsAction } from "@/app/actions/setupDebts";
 import { faCount, formatMoney, formatQty } from "@/lib/format";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
+import ChoiceCard from "@/components/ui/ChoiceCard";
 import AssetLogo from "@/components/ui/AssetLogo";
 import { KNOWN_WALLETS } from "@/features/setup/holdingWallets";
 import StepIntro, { CurrencySwitch } from "@/components/setup/StepIntro";
@@ -146,7 +147,7 @@ export default function SetupWizardPage() {
         }
         const draft = "draft" in state ? state.draft as Record<string, any> | null : null;
         if (draft?.version === 1) {
-          const setters: Record<string, (value: any) => void> = { inputMethod:setInputMethod,step:setStep,userName:setUserName,occupations:setOccupations,rateInput:setRateInput,editingRate:setEditingRate,bankPresence:setBankPresence,bankAccountName:setBankAccountName,bankName:setBankName,bankBalance:setBankBalance,extraBanks:setExtraBanks,extraConnections:setExtraConnections,bankConnection:setBankConnection,hasCash:setHasCash,cashName:setCashName,cashCurrency:setCashCurrency,cashBalance:setCashBalance,tomanPlaces:setTomanPlaces,cryptoRows:setCryptoRows,goldGrams:setGoldGrams,goldPrice:setGoldPrice,goldPurchaseDate:setGoldPurchaseDate,goldHoldingPlace:setGoldHoldingPlace,instrumentRows:setInstrumentRows,propertyRows:setPropertyRows,vehicleRows:setVehicleRows,debtRows:setDebtRows,answers:setAnswers };
+          const setters: Record<string, (value: any) => void> = { inputMethod:(value) => setInputMethod(value === "file" ? "" : value),step:setStep,userName:setUserName,occupations:setOccupations,rateInput:setRateInput,editingRate:setEditingRate,bankPresence:setBankPresence,bankAccountName:setBankAccountName,bankName:setBankName,bankBalance:setBankBalance,extraBanks:setExtraBanks,extraConnections:setExtraConnections,bankConnection:setBankConnection,hasCash:setHasCash,cashName:setCashName,cashCurrency:setCashCurrency,cashBalance:setCashBalance,tomanPlaces:setTomanPlaces,cryptoRows:setCryptoRows,goldGrams:setGoldGrams,goldPrice:setGoldPrice,goldPurchaseDate:setGoldPurchaseDate,goldHoldingPlace:setGoldHoldingPlace,instrumentRows:setInstrumentRows,propertyRows:setPropertyRows,vehicleRows:setVehicleRows,debtRows:setDebtRows,answers:setAnswers };
           for (const [key,set] of Object.entries(setters)) if (draft[key] !== undefined) set(draft[key]);
         }
         if ("reviewExisting" in state && state.reviewExisting) {setExistingReview(state.existingAccounts);setExistingSections(state.reviewSections);}
@@ -460,11 +461,18 @@ export default function SetupWizardPage() {
           )}
         />
 
-        {sectionKey && <div className="space-y-2"><p className="label">این دارایی یا تعهد را دارید؟ (پاسخ الزامی)</p><div className="seg" role="group" aria-label="وضعیت دارایی"><button type="button" aria-pressed={answers[sectionKey] === "yes"} onClick={() => setAnswers(a => ({...a,[sectionKey]:"yes"}))}>دارم؛ اطلاعات را ثبت می‌کنم</button><button type="button" disabled={sectionHasRows[sectionKey]} aria-pressed={answers[sectionKey] === "no"} onClick={() => setAnswers(a => ({...a,[sectionKey]:"no"}))}>ندارم</button></div>{sectionHasRows[sectionKey] && <p className="muted text-xs">برای انتخاب «ندارم»، ابتدا ردیف‌های واردشده این بخش را حذف کنید.</p>}</div>}
+        {sectionKey && <section className="setup-decision">
+          <h3>{({holdings:"رمزارز یا طلا در سبد شما هست؟",instruments:"در صندوق یا بازار سهام سرمایه‌گذاری کرده‌اید؟",properties:"ملکی به نام شما هست؟",vehicles:"خودرویی دارید؟",debts:"بدهی یا قسطی برای پرداخت دارید؟"} as const)[sectionKey]}</h3>
+          <div className="choice-grid" role="group" aria-label="وضعیت دارایی">
+            <ChoiceCard selected={answers[sectionKey] === "yes"} title="بله، اضافه می‌کنم" detail="انتخاب و تکمیل اطلاعات" mark={<Icon name="plus" size={20}/>} disabled={coreCommitted && step <= 4} onClick={() => setAnswers(a => ({...a,[sectionKey]:"yes"}))}/>
+            <ChoiceCard selected={answers[sectionKey] === "no"} title="فعلاً موردی ندارم" detail="ادامه به بخش بعد" mark={<Icon name="check" size={20}/>} disabled={sectionHasRows[sectionKey] || (coreCommitted && step <= 4)} onClick={() => setAnswers(a => ({...a,[sectionKey]:"no"}))}/>
+          </div>
+          {sectionHasRows[sectionKey] && <p className="muted mt-2 text-xs">اگر موردی ندارید، ابتدا ردیف‌های اضافه‌شده را حذف کنید.</p>}
+        </section>}
         <fieldset disabled={!hydrated || (coreCommitted && step <= 4)} className="space-y-6">
         {step === 1 && (
           <section className="space-y-5">
-            <StepIntro title="شروع" text="چند دقیقه طول می‌کشد؛ برای بخش‌هایی که ندارید، گزینهٔ «ندارم» را انتخاب کنید." />
+            <StepIntro title="شروع" text="اطلاعات خود را قدم‌به‌قدم تکمیل کنید؛ اگر موردی ندارید، «فعلاً موردی ندارم» را انتخاب کنید." />
 
             <div>
               <label className="label" htmlFor="setup-name">
@@ -474,29 +482,11 @@ export default function SetupWizardPage() {
             </div>
 
             <div>
-              <p className="label">وضعیت شغلی (اختیاری — چند مورد مجاز است)</p>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="وضعیت شغلی">
-                {OCCUPATIONS.map((occupation) => {
-                  const on = occupations.includes(occupation.code);
-                  return (
-                    <button
-                      key={occupation.code}
-                      type="button"
-                      className="chip"
-                      aria-pressed={on}
-                      style={on ? { borderColor: "var(--action)", background: "var(--action-soft)", color: "var(--action)" } : undefined}
-                      onClick={() =>
-                        setOccupations((current) =>
-                          on ? current.filter((code) => code !== occupation.code) : [...current, occupation.code],
-                        )
-                      }
-                    >
-                      {occupation.label}
-                    </button>
-                  );
-                })}
+              <p className="label">وضعیت شغلی شما</p>
+              <p className="muted mb-3 text-xs">می‌توانید چند مورد را انتخاب کنید یا این بخش را خالی بگذارید.</p>
+              <div className="choice-grid" role="group" aria-label="وضعیت شغلی">
+                {OCCUPATIONS.map(occupation => <ChoiceCard key={occupation.code} selected={occupations.includes(occupation.code)} title={occupation.label} detail={({employee_private:"حقوق از شرکت یا مجموعه خصوصی",employee_government:"حقوق از سازمان دولتی",student:"تحصیل و درآمدهای دانشجویی",homemaker:"مدیریت خانه و درآمدهای خانوادگی",freelancer:"پروژه و کار مستقل",employer:"مالک کسب‌وکار و استخدام‌کننده",entrepreneur:"راه‌اندازی یا توسعه کسب‌وکار",retired:"حقوق بازنشستگی",other:"وضعیت دیگری دارم"} as Record<string,string>)[occupation.code]} onClick={() => setOccupations(current => current.includes(occupation.code) ? current.filter(code => code !== occupation.code) : [...current,occupation.code])}/>) }
               </div>
-              <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">منابع درآمد مرتبط با شغل شما در فرم ثبت درآمد زودتر نمایش داده می‌شوند.</p>
             </div>
 
             <div>
@@ -567,7 +557,10 @@ export default function SetupWizardPage() {
         {step === 2 && (
           <section className="space-y-5">
             <StepIntro title="حساب‌ها" text="موجودی امروز حساب‌ها را وارد کنید. کیف پول تتر در مرحلهٔ بعد است." />
-            <div className="flex gap-2"><button type="button" className={bankPresence === "yes" ? "btn btn-primary" : "btn btn-ghost"} aria-pressed={bankPresence === "yes"} onClick={()=>setBankPresence("yes")}>حساب بانکی دارم</button><button type="button" className={bankPresence === "no" ? "btn btn-primary" : "btn btn-ghost"} aria-pressed={bankPresence === "no"} disabled={amountOf(bankBalance).gt(0) || extraBanks.length>0} onClick={()=>{setBankPresence("no");setBankName("");setBankAccountName("");setBankBalance("");setBankConnection(null);if(inputMethod === "sms") setInputMethod("");}}>حساب بانکی ندارم</button></div>
+            <div className="choice-grid" role="group" aria-label="حساب بانکی">
+              <ChoiceCard selected={bankPresence === "yes"} title="حسابم را اضافه می‌کنم" detail="انتخاب بانک و ثبت موجودی" onClick={()=>setBankPresence("yes")}/>
+              <ChoiceCard selected={bankPresence === "no"} title="فعلاً حساب بانکی ندارم" detail="ادامه بدون حساب بانکی" disabled={amountOf(bankBalance).gt(0) || extraBanks.length>0} onClick={()=>{setBankPresence("no");setBankName("");setBankAccountName("");setBankBalance("");setBankConnection(null);if(inputMethod === "sms")setInputMethod("");}}/>
+            </div>
             {bankPresence === "yes" && <>
 
             <div className="card setup-row space-y-3">
@@ -683,28 +676,14 @@ export default function SetupWizardPage() {
                 <b className="min-w-0 flex-1 text-[length:var(--fs-sm)]">تومان در صرافی و کارگزاری</b>
                 <span className="badge badge-neutral">تومان</span>
               </div>
-              <p className="muted text-[length:var(--fs-xs)] leading-6">
-                رمزارز و دارایی توکنیزه با تومانِ صرافی داخلی، و سهام بورسی، صندوق و طلای آنلاین با تومانِ کارگزاری معامله
-                می‌شوند. هر مورد را با یک لمس اضافه کنید.
-              </p>
               {TOMAN_PLACE_GROUPS.map(([title, places]) => (
                 <div key={title} className="space-y-2">
                   <p className="muted text-[length:var(--fs-xs)] font-semibold">{title}</p>
-                  <div className="expense-squares" role="group" aria-label={title}>
+                  <div className="choice-grid" role="group" aria-label={title}>
                     {places.map((w) => {
                       const on = tomanPlaces.some((p) => p.walletName === w.name);
                       return (
-                        <button
-                          key={w.name}
-                          type="button"
-                          className="expense-square"
-                          data-on={on || undefined}
-                          aria-pressed={on}
-                          onClick={() => toggleTomanPlace(w.name)}
-                        >
-                          {w.logo && <AssetLogo userLogoUrl={w.logo} name={w.name} size={22} />}
-                          <span className="expense-square-label">{w.name}</span>
-                        </button>
+                        <ChoiceCard key={w.name} selected={on} title={w.name} detail={on ? "انتخاب شده · موجودی را وارد کنید" : "افزودن موجودی تومان"} mark={w.logo ? <AssetLogo userLogoUrl={w.logo} name={w.name} size={26}/> : <Icon name="wallet" size={20}/>} onClick={() => toggleTomanPlace(w.name)} />
                       );
                     })}
                   </div>
@@ -770,25 +749,38 @@ export default function SetupWizardPage() {
           </div>
         )}
 
-        {step === 8 && <div className="space-y-5"><StepIntro title="روش ورود اطلاعات" text="انتخاب روش الزامی است؛ می‌توانید بعداً روش دیگری هم استفاده کنید." /><div className="flex flex-wrap gap-2">{([{value:"manual",label:"ثبت دستی"},{value:"file",label:"ورود فایل صورت‌حساب"},{value:"sms",label:"دریافت پیامک بانکی"}] as const).map(option => <button key={option.value} type="button" disabled={option.value === "sms" && bankPresence === "no"} aria-pressed={inputMethod === option.value} className={inputMethod === option.value ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setInputMethod(option.value)}>{option.label}</button>)}</div>{inputMethod === "manual" && <p className="expense-note">درآمد، هزینه و ثبت پرداخت را از تراکنش‌ها وارد می‌کنید؛ هیچ اتصال بانکی لازم نیست.</p>}{inputMethod === "file" && <p className="expense-note">پس از راه‌اندازی، فایل صورت‌حساب را در «تراکنش‌ها ← ورود فایل» بررسی و تأیید می‌کنید.</p>}{inputMethod === "sms" && <div className="space-y-5"><StepIntro title="پیامک بانک‌ها" text="اختیاری · حساب‌های دریافت‌کنندهٔ پیام را مشخص کنید. بعد از تأیید نهایی، کلید می‌سازید و با راهنمای کوتاه آیفون، دریافت پیام را فعال می‌کنید." /><div className="expense-note text-sm leading-7">۱ · معرفی کارت یا حساب در همین مرحله<br />۲ · ساخت کلید و تنظیم Shortcuts بعد از ثبت نهایی<br />۳ · بررسی اولین پیام جدید و تأیید تراکنش</div><SetupBankConnectionStep accountName={bankAccountName} bankName={bankName} draft={bankConnection} onChange={setBankConnection} onEditAccount={() => setStep(2)} />{extraBanks.map((bank) => <SetupBankConnectionStep key={bank.id} accountName={bank.name} bankName={bank.bankName} draft={extraConnections.find((row) => row.bankId === bank.id)?.connection ?? null} onChange={(draft) => setExtraConnections((rows) => [...rows.filter((row) => row.bankId !== bank.id), ...(draft ? [{ bankId: bank.id, connection: draft }] : [])])} onEditAccount={() => setStep(2)} />)}{!connectionReady && <p className="expense-note expense-note-warn">اتصال ناقص یا متعلق به حساب تغییرکرده است؛ آن را دوباره بررسی کنید.</p>}<details className="sms-guide"><summary>پیش‌نمایش مراحل اتصال روی آیفون</summary><IphoneSmsGuide preview /></details></div>}</div>}
+        {step === 8 && <section className="space-y-5">
+          <StepIntro title="تراکنش‌ها را چطور ثبت می‌کنید؟" text="روش مناسب خود را انتخاب کنید؛ بعداً هم قابل تغییر است." />
+          <div className="choice-grid" role="group" aria-label="روش ورود اطلاعات">
+            <ChoiceCard selected={inputMethod === "manual"} title="خودم ثبت می‌کنم" detail="ثبت درآمد، هزینه و پرداخت در اپ" mark={<Icon name="plus" size={22}/>} onClick={() => setInputMethod("manual")}/>
+            <ChoiceCard selected={inputMethod === "sms"} title="با پیامک بانک" detail={bankPresence === "no" ? "ابتدا یک حساب بانکی معرفی کنید" : "دریافت پیامک و بررسی تراکنش پیشنهادی"} mark={<Icon name="card" size={22}/>} disabled={bankPresence === "no"} onClick={() => setInputMethod("sms")}/>
+          </div>
+          {inputMethod === "manual" && <p className="expense-note">همه تراکنش‌ها را خودتان ثبت و مدیریت می‌کنید.</p>}
+          {inputMethod === "sms" && <div className="space-y-5"><StepIntro title="حساب‌های دریافت‌کننده پیامک" text="حساب‌ها را معرفی کنید؛ فعال‌سازی دریافت پیامک بعد از تأیید نهایی انجام می‌شود." />
+            <SetupBankConnectionStep accountName={bankAccountName} bankName={bankName} draft={bankConnection} onChange={setBankConnection} onEditAccount={() => setStep(2)} />
+            {extraBanks.map(bank => <SetupBankConnectionStep key={bank.id} accountName={bank.name} bankName={bank.bankName} draft={extraConnections.find(row => row.bankId === bank.id)?.connection ?? null} onChange={draft => setExtraConnections(rows => [...rows.filter(row => row.bankId !== bank.id),...(draft ? [{bankId:bank.id,connection:draft}] : [])])} onEditAccount={() => setStep(2)}/>)}
+            {!connectionReady && <p className="expense-note expense-note-warn">اطلاعات حساب و شناسه پیامک را کامل و تأیید کنید.</p>}
+            <details className="sms-guide"><summary>مراحل اتصال روی آیفون</summary><IphoneSmsGuide preview/></details>
+          </div>}
+        </section>}
 
         {step === LAST_STEP && (
           <section className="space-y-5">
             <StepIntro title="بررسی و تأیید نهایی" text="اطلاعات مالی و روش ورود را بررسی کنید؛ همه پس از تأیید نهایی ثبت می‌شوند." />
-            <p className="expense-note">روش انتخابی: {inputMethod === "manual" ? "ثبت دستی" : inputMethod === "file" ? "ورود فایل صورت‌حساب" : "دریافت پیامک بانکی"}</p>
+            <p className="expense-note">روش انتخابی: {inputMethod === "manual" ? "ثبت توسط خودم" : "پیامک بانک"}</p>
             {inputMethod === "sms" && <div className="card setup-row space-y-2"><h3 className="font-semibold text-sm">اتصال پیامک</h3>{allConnections.length ? <><ul className="space-y-2">{allConnections.map((connection, index) => <li key={index} className="text-sm">بانک {connection.bankName} · شناسهٔ …{connection.suffix} ← {connection.accountName}</li>)}</ul><p className="expense-note">{connectionReady ? "اتصال‌ها با حساب‌های معرفی‌شده مطابقت دارند و تأیید شما دریافت شد." : "اتصال با حساب مطابقت ندارد یا تأیید و شناسه ناقص است؛ مرحلهٔ ۸ را اصلاح کنید."}</p></> : <p className="muted text-sm">فعلاً بدون اتصال؛ بعداً می‌توانید تنظیم کنید.</p>}<button type="button" className="btn btn-ghost" onClick={() => setStep(8)}>بررسی اتصال بانک</button></div>}
 
             {[
-              { title: "حساب‌ها", items: review.money },
-              { title: "سرمایه‌گذاری‌ها (بهای خرید)", items: review.investments },
-              { title: "ملک و خودرو", items: review.real },
-              { title: "بدهی‌ها", items: review.debts },
+              { title: "حساب‌ها و موجودی", items: review.money, tone:"income", step:2 },
+              { title: "سرمایه‌گذاری‌ها · مبلغ خرید", items: review.investments, tone:"invest", step:3 },
+              { title: "ملک و خودرو", items: review.real, tone:"asset", step:5 },
+              { title: "بدهی‌ها و اقساط", items: review.debts, tone:"debt", step:7 },
             ]
               .filter((group) => group.items.length > 0)
               .map((group) => (
-                <div key={group.title} className="space-y-2">
-                  <h3 className="muted text-[length:var(--fs-xs)] font-semibold">{group.title}</h3>
-                  <ul className="card list-card">
+                <div key={group.title} className="setup-review-group" data-tone={group.tone}>
+                  <div className="setup-review-head"><b>{group.title}</b><span>{faCount(group.items.length)} مورد</span><button type="button" className="btn btn-ghost !min-h-9 !px-2" onClick={()=>setStep(group.step)}>{group.step === 3 ? "رمزارز و طلا" : group.step === 5 ? "ملک" : "بازبینی"}</button>{(group.step === 3 || group.step === 5) && <button type="button" className="btn btn-ghost !min-h-9 !px-2" onClick={()=>setStep(group.step+1)}>{group.step === 3 ? "صندوق و سهام" : "خودرو"}</button>}</div>
+                  <ul className="list-card">
                     {group.items.map((item) => (
                       <li key={item.key} className="list-row">
                         <div className="min-w-0 flex-1">
@@ -811,7 +803,7 @@ export default function SetupWizardPage() {
             {review.assetsTotal.isZero() && review.debts.length === 0 ? (
               <p className="card muted text-center text-[length:var(--fs-sm)]">موجودی‌ای وارد نشده؛ با حساب‌های خالی شروع می‌کنید.</p>
             ) : (
-              <div className="card setup-row">
+              <div className="setup-summary">
                 <div className="setup-total">
                   <span className="muted">جمع مبالغ ثبت اولیه دارایی‌ها</span>
                   <span className="num font-semibold money-nowrap" dir="rtl">

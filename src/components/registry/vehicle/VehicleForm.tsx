@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
+import CatalogPicker from "@/components/ui/CatalogPicker";
 import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import { previewPurchaseUsdAction, saveVehicleAction } from "@/app/actions/registry";
 import DualDateInput from "@/components/ui/DualDateInput";
@@ -50,16 +51,13 @@ export default function VehicleForm({
 
   const [brandId, setBrandId] = useState("");
   const [catalogId, setCatalogId] = useState("");
-  const [customModel, setCustomModel] = useState("");
   const [ownershipDate, setOwnershipDate] = useState(today);
   const [price, setPrice] = useState("");
   const [rateInfo, setRateInfo] = useState<RateInfo>(null);
   const [rateLoading, setRateLoading] = useState(false);
   const [withValuation, setWithValuation] = useState(false);
 
-  const brand = brands.find((b) => b.id === brandId) ?? null;
   const brandModels = useMemo(() => models.filter((m) => m.brandId === brandId), [models, brandId]);
-  const allowCustom = !!brand?.allowsCustomModel;
 
   const years = useMemo(() => {
     const jNow = toJalali(today).y;
@@ -103,7 +101,7 @@ export default function VehicleForm({
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="brandId" value={brandId} />
-      <input type="hidden" name="catalogId" value={allowCustom ? "" : catalogId} />
+      <input type="hidden" name="catalogId" value={catalogId} />
 
       <div className="soft flex flex-wrap items-center gap-2 rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)]">
         <span className="muted">مالک:</span>
@@ -111,76 +109,8 @@ export default function VehicleForm({
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <Labeled label="برند / شرکت سازنده" required>
-          <select
-            className="field"
-            value={brandId}
-            onChange={(e) => {
-              setBrandId(e.target.value);
-              setCatalogId("");
-              setCustomModel("");
-            }}
-            required
-          >
-            <option value="">— انتخاب برند —</option>
-            <optgroup label="تولید داخل / مونتاژی">
-              {brands
-                .filter((b) => b.origin === "domestic")
-                .map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                    {b.nameEn ? ` · ${b.nameEn}` : ""}
-                  </option>
-                ))}
-            </optgroup>
-            <optgroup label="وارداتی">
-              {brands
-                .filter((b) => b.origin !== "domestic")
-                .map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                    {b.nameEn ? ` · ${b.nameEn}` : ""}
-                  </option>
-                ))}
-            </optgroup>
-          </select>
-        </Labeled>
-
-        <Labeled
-          label="نام / مدل خودرو"
-          required
-          hint={
-            allowCustom
-              ? "برای این برند، نام مدل را وارد کنید؛ پس از ثبت به کاتالوگ اضافه می‌شود و دفعه بعد از فهرست انتخاب می‌شود."
-              : undefined
-          }
-        >
-          {allowCustom ? (
-            <input
-              className="field"
-              name="customModelName"
-              value={customModel}
-              onChange={(e) => setCustomModel(e.target.value)}
-              placeholder="مثلاً کمری هیبرید 2024"
-              required
-            />
-          ) : (
-            <select
-              className="field"
-              value={catalogId}
-              onChange={(e) => setCatalogId(e.target.value)}
-              disabled={!brandId}
-              required
-            >
-              <option value="">{brandId ? "— انتخاب مدل —" : "ابتدا برند را انتخاب کنید"}</option>
-              {brandModels.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.modelName}
-                </option>
-              ))}
-            </select>
-          )}
-        </Labeled>
+        <CatalogPicker label="شرکت سازنده" value={brandId} options={brands.map(b=>({id:b.id,label:b.name,searchText:b.nameEn ?? ""}))} onSelect={id=>{setBrandId(id);setCatalogId("");}}/>
+        <CatalogPicker label="مدل خودرو" value={catalogId} options={brandModels.map(m=>({id:m.id,label:toFaDigits(m.modelName)}))} disabled={!brandId} placeholder={brandId ? "مدل خودرو را انتخاب کنید" : "ابتدا شرکت سازنده را انتخاب کنید"} emptyText="برای این شرکت هنوز مدلی در فهرست ثبت نشده است." onSelect={setCatalogId}/>
 
         <Labeled label="سال ساخت خودروی شما" required>
           <select className="field num" name="manufacturingYear" defaultValue="" required>
