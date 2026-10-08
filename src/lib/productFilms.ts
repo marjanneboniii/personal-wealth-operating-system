@@ -12,12 +12,13 @@ export const PRODUCT_FILM_CHAPTERS = [
   { at: 36, duration: 4, title: "سبد سرمایه‌گذاری", caption: "ارزش سبد، بهای خرید و سود تحقق‌نیافته را یک‌جا ببینید.", scene: "portfolio" },
 ] as const;
 
+/** Scenes of motion/src/videos/tavazon-preview.ts (same order and timings). */
 export const PRODUCT_PREVIEW_CHAPTERS = [
-  { at: 0, duration: 4, title: "تصویر مالی شما", caption: "۱۲۵ میلیون تومان ارزش خالص؛ حساب‌ها، دارایی‌ها و بدهی‌ها یک‌جا.", scene: "overview" },
-  { at: 4, duration: 4, title: "خرج ماه زیر نظر شما", caption: "برای خرید ماهانه، ۲ میلیون تومان تا سقف بودجه مانده است.", scene: "budget" },
-  { at: 8, duration: 4, title: "ثبت پرداخت قسط", caption: "پرداخت انجام‌شدهٔ قسط ۵ میلیونی را ثبت کنید.", scene: "payment" },
-  { at: 12, duration: 4, title: "نتیجهٔ ثبت پرداخت", caption: "موجودی حساب ۳۰ میلیون و ماندهٔ بدهی ۵۰ میلیون تومان شد.", scene: "paid" },
-  { at: 16, duration: 4, title: "سرمایه‌تان در یک نگاه", caption: "سبد ۱۴۵ میلیونی، با ۱۵ میلیون تومان سود تحقق‌نیافتهٔ نمونه.", scene: "portfolio" },
+  { at: 0, duration: 4, title: "تصویر مالی شما", caption: "ارزش خالص ۱۲۵ میلیون تومان؛ ۱۸۰ میلیون دارایی و ۵۵ میلیون بدهی، یک‌جا.", scene: "overview" },
+  { at: 4, duration: 4, title: "خرج ماه زیر نظر شما", caption: "از بودجهٔ ۸ میلیونی خرید ماهانه، ۶ میلیون خرج شده و ۲ میلیون مانده است.", scene: "budget" },
+  { at: 8, duration: 4, title: "ثبت پرداخت قسط", caption: "پرداخت قسط ۵ میلیونی از حساب روزمره ثبت می‌شود؛ بدون انتقال پول.", scene: "payment" },
+  { at: 12, duration: 4, title: "نتیجهٔ ثبت پرداخت", caption: "موجودی حساب ۳۰ و ماندهٔ بدهی ۵۰ میلیون شد؛ ارزش خالص ثابت ماند.", scene: "paid" },
+  { at: 16, duration: 4, title: "سرمایه‌تان در یک نگاه", caption: "سبد ۱۴۵ میلیونی از طلا، صندوق و رمزارز، با ۱۵ میلیون تومان سود تحقق‌نیافته.", scene: "portfolio" },
 ] as const;
 
 export const PRODUCT_FILM_TOPICS = [
@@ -33,6 +34,6 @@ export const PRODUCT_FILMS = {
   pwa: { label: "گوشی", width: 900, height: 1200, src: "/videos/tavazon/pwa.mp4", poster: "/videos/tavazon/pwa-poster.webp" },
   web: { label: "وب", width: 1280, height: 800, src: "/videos/tavazon/web.mp4", poster: "/videos/tavazon/web-poster.webp" },
 } as const;
-export const PRODUCT_PREVIEW = { label: "نمایش کوتاه توازن", width: 900, height: 900, src: "/videos/tavazon/preview.mp4", poster: "/videos/tavazon/preview-poster.webp" } as const;
+export const PRODUCT_PREVIEW = { label: "نمایش کوتاه توازن", width: 1920, height: 1080, src: "/videos/tavazon/preview.mp4", poster: "/videos/tavazon/preview-poster.webp" } as const;
 export type ProductFilmScene = typeof PRODUCT_FILM_CHAPTERS[number]["scene"];
 export type ProductFilmKind = ProductFilmVariant | "preview";

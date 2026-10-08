@@ -11,7 +11,7 @@
      • On logout/login the client posts {type:"PURGE_CACHES"} → every cache is
        wiped so no residue of the previous tenant survives on the device. */
 
-const VERSION = "pwos-v7"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
+const VERSION = "pwos-v8"; // bump → old versioned caches (incl. legacy page cache) are deleted on activate
 const STATIC_CACHE = VERSION + "-static";
 
 // Brand assets (VEZAN) — immutable, cache-first.
@@ -22,6 +22,8 @@ const BRAND_ASSETS = [
   "/icon-192.png",
   "/icon-512.png",
   "/apple-touch-icon.png",
+  "/icon-maskable-512.png",
+  "/icon-96.png",
   "/manifest.webmanifest",
 ];
 
@@ -77,6 +79,8 @@ self.addEventListener("fetch", (event) => {
     url.pathname === "/icon-192.png" ||
     url.pathname === "/icon-512.png" ||
     url.pathname === "/apple-touch-icon.png" ||
+    url.pathname === "/icon-maskable-512.png" ||
+    url.pathname === "/icon-96.png" ||
     url.pathname === "/manifest.webmanifest"
   ) {
     event.respondWith(

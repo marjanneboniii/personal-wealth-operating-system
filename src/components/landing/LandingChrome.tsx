@@ -15,9 +15,9 @@ export function LandingHeader() {
             parts. Hidden below 1024px, where they would fight the two auth
             buttons for the same row. */}
         <nav className="landing-header-links" aria-label="بخش‌های صفحه">
-          <Link href="/#modules">امکانات</Link>
           <Link href="/#product-tour">نمایش محصول</Link>
-
+          <Link href="/#setup">راه‌اندازی</Link>
+          <Link href="/#modules">امکانات</Link>
           <Link href="/#security">حریم خصوصی</Link>
           <Link href="/#faq">سؤالات</Link>
         </nav>

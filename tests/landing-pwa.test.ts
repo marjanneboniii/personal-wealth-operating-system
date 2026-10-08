@@ -43,10 +43,8 @@ test("Landing — Persian RTL conversion page with primary CTA شروع رایگ
   assert.match(layout, /lang=\"fa\"/);
   assert.match(layout, /dir=\"rtl\"/);
   assert.match(landing, /همهٔ پول و دارایی‌تان، در یک صفحه/);
-  assert.match(
-    landing,
-    /دیگر لازم نیست بین فایل اکسل، اپ بانک و یادداشت‌های پراکنده بگردید/,
-  );
+  // The lede names what people actually hold, in their own words, and ends on the one question.
+  assert.match(landing, /توازن همه را کنار هم می‌گذارد و می‌گوید بعد از کم‌کردن بدهی‌ها، واقعاً چقدر دارید/);
   assert.match(landing, /شروع رایگان/);
   // «ورود» stays visually secondary (ghost) next to the single primary CTA.
   assert.match(landing, /btn-ghost/);
@@ -84,24 +82,35 @@ test("Landing — Persian RTL conversion page with primary CTA شروع رایگ
   }
 });
 
-test("Landing — four primary outcomes, product demo, FAQ, and final CTA copy", () => {
+test("Landing — selection-first setup, product demo, FAQ, and final CTA copy", () => {
   const landing = read("src/components/landing/LandingPage.tsx");
 
-  // The four outcomes are phrased as the QUESTIONS a reader already has, in
-  // everyday words. «نقدینگی» and «ارزش خالص» were the last two finance terms
-  // left in this section and both are gone: nobody should need a glossary to
-  // understand what a money app shows them.
-  assert.match(landing, /چهار چیزی که همیشه باید بدانید/);
-  assert.match(landing, /در مجموع چقدر دارید/);
-  assert.match(landing, /بعد از کم‌کردن بدهی‌ها، ته حساب چقدر می‌ماند/);
-  assert.match(landing, /چه چیزهایی دارید/);
-  assert.match(landing, /از حساب بانکی تا ملک و طلا، همه در یک فهرست/);
-  assert.match(landing, /چقدر بدهکارید/);
-  assert.match(landing, /هیچ قسط یا بدهی‌ای از چشمتان دور نمی‌ماند/);
-  assert.match(landing, /چقدر پول در دسترس دارید/);
+  // The separate «four outcomes» band is gone: it repeated the hero lede and the
+  // film. Its place is taken by HOW setup works, the visitor's real hesitation.
+  assert.doesNotMatch(landing, /چهار چیزی که همیشه باید بدانید/);
+  assert.match(landing, /id="setup"/);
+  assert.match(landing, /به‌جای فرم پر کردن، فقط انتخاب می‌کنید/);
+  assert.match(landing, /بانک‌ها و صرافی‌هایتان/);
+  // No «without a card number» claims anywhere on the landing, by request.
+  assert.doesNotMatch(landing, /کارت بانکی|شمارهٔ کارت|کلیدی از پول/);
+  assert.match(landing, /فقط ثبت می‌کند، پول جابه‌جا نمی‌کند/);
+  assert.match(landing, /سهام بورس و فرابورس/);
+  assert.match(landing, /طلای آب‌شده/);
+  assert.match(landing, /وام‌ها و بدهی‌ها/);
+  // The iPhone SMS bridge is presented as optional, with its honest limits.
+  // Catalogue counts and logos come from the setup pick lists, never typed by hand.
+  assert.match(landing, /SETUP_BANKS\.length/);
+  assert.match(landing, /FUND_CATALOG\.length/);
+  assert.match(landing, /KNOWN_WALLETS\.filter/);
+  assert.match(landing, /به معنای همکاری رسمی نیست/);
+  assert.match(landing, /اختیاری: پیامک‌های بانک، خودکار/);
+  assert.match(landing, /چند رقم آخر کارت یا حساب/);
+  assert.match(landing, /اندروید فعلاً پشتیبانی نمی‌شود/);
+  // The product's word is «رمزارز»; the landing must not use a second name for it.
+  assert.doesNotMatch(landing, /ارز دیجیتال/);
   assert.match(landing, /خصوصی، شفاف، تحت کنترل شما/);
-  assert.match(landing, /همین امروز تصویر مالی‌تان را روشن کنید/);
-  assert.match(landing, /ثبت‌نام ساده است و نیازی به کارت بانکی ندارد/);
+  assert.match(landing, /همین امروز ببینید واقعاً چقدر دارید/);
+  assert.match(landing, /ثبت‌نام رایگان است و راه‌اندازی چند دقیقه طول می‌کشد/);
 
   assert.match(landing, /<ProductFilms \/>/);
   assert.match(landing, /سؤالات متداول/);
@@ -275,6 +284,13 @@ test("PWA — manifest RTL standalone icons shortcuts; SW never caches API or pr
   assert.ok(manifest.icons.some((i: { sizes: string }) => i.sizes === "192x192"));
   assert.ok(manifest.icons.some((i: { sizes: string }) => i.sizes === "512x512"));
   assert.ok(manifest.icons.some((i: { purpose?: string }) => String(i.purpose).includes("maskable")));
+  // The maskable icon is its own full-bleed file (glyph inside the 80% safe zone),
+  // not the rounded "any" icon, which Android would clip at the pans.
+  const maskable = manifest.icons.find((i: { purpose?: string }) => String(i.purpose).includes("maskable"));
+  assert.equal(maskable.src, "/icon-maskable-512.png");
+  // Shortcut icons are raster: Android ignores SVG there.
+  for (const sc of manifest.shortcuts) assert.ok(sc.icons.every((i: { type: string }) => i.type === "image/png"));
+  assert.doesNotMatch(read("public/manifest.webmanifest"), /خودمیزبان/);
   assert.ok(Array.isArray(manifest.shortcuts) && manifest.shortcuts.length >= 3);
 
   const sw = read("public/sw.js");
@@ -465,4 +481,14 @@ test("Application currency system is unchanged — تومان، دلار، تت�
 
   assert.doesNotMatch(landing, /\$184,240/);
   assert.doesNotMatch(landing, /184,240 USD/);
+});
+
+test("PWA — home-screen icons are opaque and full-bleed", () => {
+  // iOS rounds the corners itself and paints transparent pixels black; a
+  // pre-rounded icon with alpha shows dark corners on the home screen.
+  // PNG colour type (byte 25): 2 = RGB without alpha, 6 = RGBA.
+  for (const file of ["public/apple-touch-icon.png", "public/icon-maskable-512.png"]) {
+    const png = fs.readFileSync(path.join(root, file));
+    assert.equal(png[25], 2, `${file} must not carry an alpha channel`);
+  }
 });

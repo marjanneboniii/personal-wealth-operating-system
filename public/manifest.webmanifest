@@ -1,7 +1,7 @@
 {
   "name": "توازن — پول و دارایی‌های شما، یک‌جا",
   "short_name": "توازن",
-  "description": "هسته مالی خصوصی و خودمیزبان برای مدیریت بلندمدت ثروت شخصی و خانوادگی",
+  "description": "حساب بانکی، صرافی، طلا، صندوق، سهام، ملک و بدهی‌ها، کنار هم؛ ببینید واقعاً چقدر دارید.",
   "lang": "fa",
   "dir": "rtl",
   "id": "/",
@@ -39,7 +39,7 @@
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -57,9 +57,9 @@
       "url": "/new?type=expense",
       "icons": [
         {
-          "src": "/icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "/icon-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
         }
       ]
     },
@@ -68,9 +68,9 @@
       "url": "/transactions",
       "icons": [
         {
-          "src": "/icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "/icon-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
         }
       ]
     },
@@ -79,9 +79,9 @@
       "url": "/net-worth",
       "icons": [
         {
-          "src": "/icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "/icon-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
         }
       ]
     }
