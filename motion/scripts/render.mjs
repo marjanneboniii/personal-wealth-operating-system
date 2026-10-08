@@ -8,7 +8,9 @@
 //
 // Quality: frames are captured lossless (PNG) and encoded at CRF 17 with the
 // slow preset. Motion graphics are mostly thin text on dark gradients, which
-// fall apart (ringing, banding, soft coloured text) at low bitrates. With --stills only, renders review frames to out/stills instead.
+// fall apart (ringing, banding, soft coloured text) at low bitrates.
+//
+// With --stills, renders review frames to out/stills instead.
 //
 // Safety: renders with the installed, Google-signed Chrome (never a downloaded
 // browser), in a throwaway profile with extensions disabled (Remotion's
