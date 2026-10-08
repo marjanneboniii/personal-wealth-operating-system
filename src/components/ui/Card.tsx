@@ -221,7 +221,22 @@ export function Metric({
   );
 }
 
-export function Progress({ value, color = "var(--action)", "aria-label": ariaLabel = "پیشرفت" }: { value: number; color?: string; "aria-label"?: string }) {
+/**
+ * `segments` (2–36) draws the bar as that many blocks — one per installment —
+ * so «۶ از ۲۴» is countable at a glance (PaceUI stat bars). Longer schedules
+ * stay a continuous bar, where blocks would be too thin to read.
+ */
+export function Progress({ value, color = "var(--action)", "aria-label": ariaLabel = "پیشرفت", segments }: { value: number; color?: string; "aria-label"?: string; segments?: number }) {
+  if (segments && segments >= 2 && segments <= 36) {
+    const filled = Math.round((Math.max(0, Math.min(100, value)) / 100) * segments);
+    return (
+      <div className="meter-segments" role="progressbar" aria-label={ariaLabel} aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100} style={{ gridTemplateColumns: `repeat(${segments}, minmax(0, 1fr))` }}>
+        {Array.from({ length: segments }, (_, i) => (
+          <i key={i} style={i < filled ? { background: color } : undefined} />
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="meter" role="progressbar" aria-label={ariaLabel} aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}>
       <i style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: color }} />

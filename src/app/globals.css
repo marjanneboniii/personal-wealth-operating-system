@@ -3639,7 +3639,21 @@ body {
    The Toman amount is primary; the USD amount is its quiet second line. */
 .card.valuation-summary {
   padding: 0 !important;
+  overflow: hidden;
 }
+/* Header and lead figure read as one ink panel: the light comes from the top
+   corner of the header, the lead continues the same surface below it. */
+.valuation-summary .valuation-summary-header { position: relative; }
+.valuation-summary .valuation-summary-header::before {
+  content: "";
+  position: absolute;
+  inset-inline: 12%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, #2bd3a8 75%, transparent), transparent);
+}
+.valuation-summary .valuation-group-lead { background: var(--ledger-surface); }
+.valuation-summary .valuation-summary-header + .valuation-grid .valuation-group-lead { padding-top: 0.5rem; }
 
 .valuation-summary-header {
   display: flex;
@@ -3825,6 +3839,10 @@ body {
   border-radius: 2px;
   background: var(--accent-line);
 }
+
+/* Segmented progress: one block per installment. */
+.meter-segments { display: grid; gap: 2px; height: 6px; }
+.meter-segments > i { border-radius: 2px; background: var(--sunken); }
 
 /* A metric's share of its whole: a 3px track under the figure. */
 .metric-share { margin-top: 0.45rem; height: 3px; border-radius: 3px; background: var(--sunken); overflow: hidden; }
@@ -4145,20 +4163,31 @@ details[open] > summary .inst-caret { transform: rotate(180deg); }
   max-width: 55%;
 }
 
+/* A tonal disc per kind of movement, in the landing's category colours: money
+   in is green, a repayment wears the debt tone, a transfer the flow tone, and a
+   plain expense stays neutral — a list of mostly expenses never turns red. */
 .flow-icon {
   display: inline-flex;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-radius: var(--r-md);
+  border-radius: 999px;
   background: var(--sunken);
   color: var(--text-2);
 }
 .flow-icon.is-in {
   background: var(--positive-soft);
   color: var(--positive);
+}
+.flow-icon.is-move {
+  background: var(--lc-flow-soft);
+  color: var(--lc-flow-ink);
+}
+.flow-icon:is([data-type="debt_repayment"], [data-type="installment"]) {
+  background: var(--lc-debt-soft);
+  color: var(--lc-debt-ink);
 }
 
 /* Overview hero — the figure owns its own full-width line and the quick actions
@@ -4174,6 +4203,21 @@ details[open] > summary .inst-caret { transform: rotate(180deg); }
    ink surface, a mint light in one corner and a mint hairline along the top.
    The dark token set is scoped to the card, so every label, delta and muted
    line switches with it. */
+/* «Ink stage»: the dark token set scoped to one block, so its labels, deltas
+   and muted lines switch with it. Shared by every page's headline figure. */
+.ink-stage,
+.overview-hero > :first-child,
+.valuation-summary .valuation-summary-header,
+.valuation-summary .valuation-group-lead {
+  --text: #e6ecf2; --text-2: #a4b2c0; --text-3: #8995a1;
+  --border: rgba(230,236,242,.10); --sunken: rgba(230,236,242,.08);
+  --positive: #34d399; --negative: #f87171; --warning: #fbbf24;
+  --accent-line: #2bd3a8;
+  color: var(--text);
+  background:
+    radial-gradient(70% 140% at 0% 0%, color-mix(in oklab, #2bd3a8 20%, transparent), transparent 62%),
+    var(--ledger-surface);
+}
 .overview-hero > :first-child {
   position: relative;
   overflow: hidden;
@@ -4182,14 +4226,7 @@ details[open] > summary .inst-caret { transform: rotate(180deg); }
   padding: 1.15rem 1.25rem 1.25rem;
   border-radius: calc(var(--r-lg) + 4px);
   border: 1px solid rgba(230,236,242,.10);
-  background:
-    radial-gradient(70% 140% at 0% 0%, color-mix(in oklab, #2bd3a8 20%, transparent), transparent 62%),
-    var(--ledger-surface);
   box-shadow: var(--shadow-md);
-  --text: #e6ecf2; --text-2: #a4b2c0; --text-3: #8995a1;
-  --border: rgba(230,236,242,.10);
-  --positive: #34d399; --negative: #f87171; --warning: #fbbf24;
-  color: var(--text);
 }
 .overview-hero > :first-child::before {
   content: "";
@@ -5177,7 +5214,11 @@ html[data-privacy] svg text {
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --mobile-topbar-h: calc(58px + var(--safe-top));
-  --mobile-bottomnav-h: calc(68px + var(--safe-bottom));
+  /* Space the floating tab bar takes from the bottom: its height, the gap
+     under it (or the home indicator, whichever is taller) and a little air. */
+  --bottomnav-bar-h: 64px;
+  --bottomnav-gap: max(0.55rem, var(--safe-bottom));
+  --mobile-bottomnav-h: calc(var(--bottomnav-bar-h) + var(--bottomnav-gap) + 0.35rem);
   --content-inline: clamp(0.75rem, 3.75vw, 1.5rem);
 }
 
@@ -5294,9 +5335,20 @@ dt,
   transform: translateZ(0);
 }
 
+/* A floating glass bar (SolaceUI phone frames): off the edges, rounded, lifted;
+   it sits above the iPhone home indicator instead of painting under it. */
 .app-bottom-nav {
-  padding-inline: max(0.25rem, var(--safe-right)) max(0.25rem, var(--safe-left));
-  min-height: var(--mobile-bottomnav-h);
+  left: calc(0.55rem + var(--safe-left));
+  right: calc(0.55rem + var(--safe-right));
+  bottom: var(--bottomnav-gap);
+  min-height: var(--bottomnav-bar-h);
+  padding-inline: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 1.4rem;
+  background: color-mix(in oklab, var(--surface) 86%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 12px 32px -14px rgba(13, 23, 38, 0.42), 0 2px 6px rgba(13, 23, 38, 0.06);
   transform: translateZ(0);
 }
 
@@ -5524,7 +5576,7 @@ input {
 @media (max-width: 359px) {
   :root {
     --content-inline: 0.75rem;
-    --mobile-bottomnav-h: calc(62px + var(--safe-bottom));
+    --bottomnav-bar-h: 60px;
   }
 
   .app-topbar {
@@ -5559,7 +5611,7 @@ input {
 @media (max-width: 1023px) and (orientation: landscape) and (max-height: 520px) {
   :root {
     --mobile-topbar-h: calc(48px + var(--safe-top));
-    --mobile-bottomnav-h: calc(56px + var(--safe-bottom));
+    --bottomnav-bar-h: 54px;
   }
 
   .app-topbar {

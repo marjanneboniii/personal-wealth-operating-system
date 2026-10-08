@@ -751,13 +751,7 @@ export default function Shell({
       <nav
         className="app-bottom-nav fixed inset-x-0 bottom-0 z-40 lg:hidden"
         aria-label="ناوبری اصلی موبایل"
-        style={{
-          background: "color-mix(in oklab, var(--surface) 92%, transparent)",
-          backdropFilter: "blur(16px)",
-          borderTop: "1px solid var(--border)",
-          paddingBottom: "max(0.35rem, env(safe-area-inset-bottom))",
-          touchAction: "manipulation",
-        }}
+        style={{ touchAction: "manipulation" }}
       >
         {/* One row, always. The column count follows the real item count
             (tabs + «بیشتر»); a hard-coded 5 made the sixth item wrap onto a
