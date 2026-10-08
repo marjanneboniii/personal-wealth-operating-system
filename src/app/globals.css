@@ -2365,6 +2365,64 @@ button.jdp-title:hover,
   }
 }
 
+/* Phones and the standalone PWA: there is no corner to float over without
+   covering a figure, so the window grows an empty strip at its foot and the
+   cards rise into it — overlapping the frame (they read as floating, like on
+   desktop) while never sitting on a number. Same entrance and idle drift. */
+@media (max-width: 959.98px) {
+  /* Scoped: the base .landing-preview-body rule comes later in this file. */
+  .landing-preview .landing-preview-body {
+    padding-bottom: 4.1rem;
+  }
+  .landing-preview .landing-preview-float {
+    padding: 0.75rem 0.8rem;
+  }
+  .landing-preview-float-head {
+    gap: 0.4rem;
+  }
+  /* One metric per row here, so they can read at a calm, secondary size. */
+  .landing-preview .landing-preview-amount {
+    font-size: 1.05rem;
+  }
+  .landing-preview-floats {
+    position: relative;
+    z-index: 2;
+    margin-top: -2.65rem;
+    padding-inline: 0.55rem;
+  }
+  .landing-preview-float {
+    animation: landing-float-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both, landing-float 7s ease-in-out 0.7s infinite;
+  }
+  .landing-preview-float-budget {
+    animation-delay: 0.35s, 1.05s;
+  }
+  /* Half a phone is too narrow for icon + title + amount in one row: stack them,
+     so «قسط وام شخصی» stays on one line, and pin the dot to the corner. */
+  .landing-preview-float-due {
+    position: relative;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+    animation-delay: 0.55s, 1.25s;
+    animation-duration: 0.7s, 8s;
+  }
+  .landing-preview-float-due .landing-preview-attention-dot {
+    position: absolute;
+    top: 0.95rem;
+    inset-inline-end: 0.9rem;
+  }
+  .landing-preview-float-due .landing-preview-float-title {
+    white-space: nowrap;
+  }
+  /* Amount on its own line, due date under it — never a ragged «روز / دیگر» break. */
+  .landing-preview-float-due .landing-preview-label .num {
+    display: block;
+  }
+  .landing-preview-due-sep {
+    display: none;
+  }
+}
+
 @keyframes landing-float-in {
   from { opacity: 0; transform: translateY(14px) scale(0.96); }
   to { opacity: 1; transform: none; }
@@ -2473,7 +2531,9 @@ button.jdp-title:hover,
   border-inline-start-color: var(--positive);
 }
 
-.landing-preview-amount {
+/* Scoped to .landing-preview so the phone-wide `.display-num` step (6vw, set
+   later in this file) cannot blow these secondary figures up to hero size. */
+.landing-preview .landing-preview-amount {
   margin-top: 0.2rem;
   font-size: clamp(var(--fs-xs), 1.05vw, 0.9rem);
   font-weight: 600;
@@ -7894,6 +7954,13 @@ fieldset.policy-step > .policy-step-title + * {
 /* Quiet by default (a wall of brand colours shouts over the copy); each logo wakes on hover. */
 .landing-logos-row img { width: 2rem; height: 2rem; object-fit: contain; filter: grayscale(1); opacity: .62; transition: filter .2s var(--ease), opacity .2s var(--ease); }
 @media (hover: hover) { .landing-logos-row li:hover img { filter: none; opacity: 1; } }
+/* Touch has no hover: a tap focuses the logo (tabIndex -1), which wakes it until
+   the next tap elsewhere, and holds the strip still so it does not slide away. */
+.landing-logos-row li { -webkit-tap-highlight-color: transparent; outline: none; cursor: pointer; }
+.landing-logos-row li:focus img, .landing-logos-row li:active img { filter: none; opacity: 1; }
+.landing-logos-row li:focus { border-color: var(--border-strong); }
+.landing-logos:focus-within .landing-logos-track { animation-play-state: paused; }
+
 /* RTL: the strip drifts toward the reading start. */
 @keyframes landing-logos { from { transform: translateX(0); } to { transform: translateX(50%); } }
 @media (prefers-reduced-motion: reduce) {
