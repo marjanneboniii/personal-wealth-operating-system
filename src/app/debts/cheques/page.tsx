@@ -186,11 +186,6 @@ export default async function ChequesPage() {
           <ChequeList rows={closed} today={today} />
         </Section>
       )}
-
-      <p className="expense-sub flex items-center gap-1.5">
-        <Icon name="info" size={13} />
-        چک در جریان فقط برنامه است. «ثبت پاس شدن» فرم ثبت تراکنش را با مبلغ و حساب چک باز می‌کند و فقط همان وقت در موجودی حساب اثر می‌گذارد.
-      </p>
     </div>
   );
 }

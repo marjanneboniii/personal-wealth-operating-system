@@ -315,8 +315,10 @@ function NavGroupBlock({
   if (!group.collapsible) {
     return (
       <div role="group" aria-label={group.label} className={moduleClass}>
+        {/* A heading over a single link («خانه» › «نمای کلی») only repeats it; the
+            group keeps its name for assistive tech through aria-label. */}
         {!collapsed ? (
-          <div className="nav-group-label">{group.label}</div>
+          group.items.length > 1 && <div className="nav-group-label">{group.label}</div>
         ) : (
           <div className="mx-4 my-2 border-t" style={{ borderColor: "var(--border)" }} />
         )}

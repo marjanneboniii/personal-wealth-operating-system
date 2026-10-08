@@ -97,7 +97,7 @@ export default async function PropertiesPage() {
   return (
     <div className="space-y-7">
       <div>
-        <PageHeader title="درآمد و هزینه‌ی املاک" subtitle="اجاره، هزینه‌های نگه‌داری و بازده خالص هر ملک در ۱۲ ماه اخیر، نسبت به ارزش روز همان ملک." />
+        <PageHeader title="درآمد و هزینه‌ی املاک" />
         <ModuleTabs tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
       </div>
       {list.length === 0 ? (
@@ -123,7 +123,7 @@ export default async function PropertiesPage() {
       )}
       <p className="expense-sub flex items-center gap-1.5">
         <Icon name="info" size={13} />
-        اجاره و هزینه‌ی هر ملک از تراکنش‌هایی می‌آید که برچسبش را دارند؛ قبض، شارژ، تعمیرات و مالیات ملک را با همین برچسب ثبت کنید. حق بیمه‌ی بیمه‌نامه‌های متصل به ملک خودکار حساب می‌شود.
+        اجاره و هزینه‌ها از تراکنش‌هایی می‌آیند که برچسب همین ملک را دارند.
       </p>
     </div>
   );

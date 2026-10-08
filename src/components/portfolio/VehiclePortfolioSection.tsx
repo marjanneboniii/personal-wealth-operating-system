@@ -94,7 +94,7 @@ export default function VehiclePortfolioSection({
 
           <div className="min-w-0">
             <div className="muted text-[length:var(--fs-xs)] font-medium">سود/زیان تومانی</div>
-            <div className="mt-1 text-lg font-bold tracking-tight">
+            <div className="mt-1 text-lg font-bold">
               <Signed value={summary.totalGainToman} currency="IRT" />
             </div>
             <div className="muted mt-0.5 text-[length:var(--fs-xs)]">
@@ -104,7 +104,7 @@ export default function VehiclePortfolioSection({
 
           <div className="min-w-0">
             <div className="muted text-[length:var(--fs-xs)] font-medium">سود/زیان دلاری</div>
-            <div className="mt-1 text-lg font-bold tracking-tight">
+            <div className="mt-1 text-lg font-bold">
               <Signed value={summary.totalGainUsd} currency="USD" />
             </div>
             <div className="muted mt-0.5 text-[length:var(--fs-xs)]">

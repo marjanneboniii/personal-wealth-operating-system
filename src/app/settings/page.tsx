@@ -38,7 +38,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="تنظیمات" subtitle="حساب کاربری، زبان نمایش، نرخ مرجع و نسخهٔ پشتیبان." />
+      <PageHeader title="تنظیمات" />
 
       {user && (
         <Section title="حساب کاربری">

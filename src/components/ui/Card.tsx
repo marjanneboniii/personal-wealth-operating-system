@@ -23,7 +23,7 @@ export function Card({
     <section className={`card p-3.5 sm:p-4 ${className}`}>
       {(title || action) && (
         <header className="mb-2.5 flex items-center justify-between gap-2">
-          {title && <h2 className="text-[17px] font-semibold tracking-tight sm:text-[18px]">{title}</h2>}
+          {title && <h2 className="text-[17px] font-semibold sm:text-[18px]">{title}</h2>}
           {action}
         </header>
       )}
@@ -57,7 +57,7 @@ export function Section({
       {(title || hint || action) && (
         <header className="mb-2.5 flex items-end justify-between gap-3">
           <div className="min-w-0">
-            {title && <h2 className="text-[17px] font-semibold tracking-tight sm:text-[18px]">{title}</h2>}
+            {title && <h2 className="text-[17px] font-semibold sm:text-[18px]">{title}</h2>}
             {hint && <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">{hint}</p>}
           </div>
           {action && <div className="shrink-0 pb-0.5">{action}</div>}
@@ -364,7 +364,7 @@ export function PageHeader({
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-2.5 pt-1 sm:mb-5 sm:gap-3">
       <div className="min-w-0">
-        <h1 className="text-[22px] font-bold tracking-tight sm:text-[24px]">{title}</h1>
+        <h1 className="text-[22px] font-bold sm:text-[24px]">{title}</h1>
         {subtitle && <p className="muted mt-1.5 max-w-2xl text-[length:var(--fs-sm)] leading-6">{subtitle}</p>}
       </div>
       {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}

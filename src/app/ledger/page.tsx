@@ -103,7 +103,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
         subtitle={
           pro
             ? "اثر مالی هر تراکنش، دقیقاً همان‌طور که در حسابداری دوطرفه ثبت شده است. این صفحه فقط خواندنی است — اصلاح فقط از مسیر تراکنش و سند معکوس انجام می‌شود."
-            : "اثر مالی هر تراکنش شما، به زبان ساده: چه چیزی از کدام حساب خارج و به کدام مقصد رسیده است. این صفحه فقط خواندنی است."
+            : "هر تراکنش از کجا آمده و به کجا رفته است."
         }
         action={
           <Link href="/audit" className="btn btn-soft">
@@ -132,15 +132,14 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
         hint={
           pro
             ? undefined
-            : "«سرمایه افتتاحیه» عددی نیست که خودتان وارد کرده باشید: مجموع موجودی‌های اولیه‌ای است که هنگام ساخت حساب‌ها و ثبت دارایی‌ها اعلام کرده‌اید. هر دارایی که بدون منبع مشخص ثبت می‌شود، در این ردیف جمع می‌شود تا حساب‌ها با هم جور باشند."
+            : "«سرمایه افتتاحیه» مجموع موجودی‌های اولیه‌ای است که هنگام راه‌اندازی وارد کرده‌اید."
         }
       >
         <div className={`card overflow-x-auto ${pro ? "ledger-block" : ""}`}>
-          <table className="table">
+          <table className="table table-stack">
             {pro ? (
               <thead>
                 <tr>
-                  <th scope="col" className="w-14">کد</th>
                   <th scope="col">حساب</th>
                   <th scope="col">نوع</th>
                   <th scope="col" className="td-num">مقدار</th>
@@ -163,32 +162,28 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                 const v = Number(b.baseValue);
                 return (
                   <tr key={b.accountId}>
-                    {pro && (
-                      <td className="num muted" dir="rtl">
-                        {toFaDigits(b.code)}
-                      </td>
-                    )}
                     <td className="font-medium">
+                      {pro && <span className="num muted me-1.5" dir="rtl">{toFaDigits(b.code)}</span>}
                       {b.name}
                       {b.walletName && <span className="muted mr-1.5 text-[length:var(--fs-xs)]">· {b.walletName}</span>}
                     </td>
-                    <td>
+                    <td className="stack-full">
                       <span className="badge badge-neutral">{ACCOUNT_TYPE_LABELS[b.type as AccountType]}</span>
                     </td>
-                    <td className="td-num" dir="rtl">
+                    <td className="td-num" dir="rtl" data-label="مقدار">
                       {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}
                     </td>
                     {pro ? (
                       <>
-                        <td className="td-num font-semibold" dir="rtl">
+                        <td className="td-num font-semibold" dir="rtl" data-label="ورود">
                           {v > 0 ? formatMoney(v) : "—"}
                         </td>
-                        <td className="td-num font-semibold" dir="rtl">
+                        <td className="td-num font-semibold" dir="rtl" data-label="خروج">
                           {v < 0 ? formatMoney(Math.abs(v)) : "—"}
                         </td>
                       </>
                     ) : (
-                      <td className="td-num font-semibold" dir="rtl">
+                      <td className="td-num font-semibold" dir="rtl" data-label="مبلغ">
                         {formatMoney(Math.abs(v))}
                       </td>
                     )}
@@ -197,7 +192,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
               })}
               {pro ? (
                 <tr style={{ background: "var(--sunken)" }}>
-                  <td colSpan={4} className="text-[length:var(--fs-xs)] font-bold">
+                  <td colSpan={3} className="text-[length:var(--fs-xs)] font-bold">
                     جمع تراز آزمایشی
                   </td>
                   <td className="td-num text-[length:var(--fs-xs)] font-bold" dir="rtl">

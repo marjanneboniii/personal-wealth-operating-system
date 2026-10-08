@@ -307,7 +307,7 @@ export function IosInstallGuide({
               <Icon name={copy.icon} size={28} />
             </span>
 
-            <h2 id={titleId} className="text-[length:var(--fs-md)] font-bold tracking-tight">
+            <h2 id={titleId} className="text-[length:var(--fs-md)] font-bold">
               {copy.title}
             </h2>
             <p id={descId} className="sub mx-auto mt-2 max-w-sm text-[length:var(--fs-sm)] leading-7">

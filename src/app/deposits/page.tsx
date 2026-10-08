@@ -111,7 +111,6 @@ export default async function DepositsPage() {
       <div>
         <PageHeader
           title="سپرده‌ها"
-          subtitle="اصل پول، سود ماهانه و سررسیدها در یک نگاه."
           action={
             <Link href="#new" className="btn btn-primary">
               <Icon name="plus" size={16} />

@@ -46,6 +46,12 @@
   --shadow-lg: 0 6px 8px rgba(12,25,39,.05),0 16px 20px rgba(12,25,39,.06),0 50px 60px rgba(12,25,39,.10);
   --z-base: 0; --z-dropdown: 10; --z-sticky: 30; --z-nav: 40; --z-overlay: 80; --z-toast: 90;
   --nav-w: 264px;
+  /* "You are here": a mint wash behind the active item, and an indicator line in
+     the strongest colour that still reads on this surface (ink on light paper,
+     mint on dark ink — mint is too faint for a 2–3px line on paper). */
+  --accent-soft: color-mix(in oklab, var(--signal-mint) 16%, transparent);
+  --accent-line: var(--action);
+  --card-lift: 0 1px 2px rgba(12,25,39,.04), 0 6px 16px -8px rgba(12,25,39,.08);
   --asset-cash: var(--ink-800); --asset-investment: var(--ink-700);
   --asset-crypto: var(--ink-500); --asset-other: var(--ink-400);
 }
@@ -64,6 +70,9 @@
   --info: #a4b2c0; --info-soft: var(--action-soft);
   --data-line: #a4b2c0; --data-point: #2bd3a8; --data-grid: var(--border);
   --signal-voltage: #c8e02d; --signal-mint: #2bd3a8;
+  --accent-soft: color-mix(in oklab, var(--signal-mint) 14%, transparent);
+  --accent-line: var(--signal-mint);
+  --card-lift: none;
   --shadow-sm: 0 1px 3px rgba(7,14,24,.3);
   --shadow-md: 0 6px 8px rgba(7,14,24,.3),0 18px 22px rgba(7,14,24,.45);
   --shadow-lg: 0 6px 8px rgba(7,14,24,.3),0 16px 20px rgba(7,14,24,.4),0 50px 60px rgba(7,14,24,.55);
@@ -257,7 +266,6 @@ input[type="radio"] {
 .type-page-title {
   font-size: var(--fs-xl);
   font-weight: 700;
-  letter-spacing: -0.01em;
   line-height: 1.3;
 }
 .type-section-title {
@@ -326,7 +334,8 @@ input[type="radio"] {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow: none;
+  /* Layered, not flat: a whisper of lift on paper. Dark theme keeps the border only. */
+  box-shadow: var(--card-lift);
   transition: border-color var(--motion-micro) var(--ease), box-shadow var(--motion-micro) var(--ease),
     transform var(--motion-micro) var(--ease);
 }
@@ -354,7 +363,6 @@ input[type="radio"] {
  */
 .brand-wordmark {
   font-weight: 700;
-  letter-spacing: -0.01em;
   font-family: var(--font-sans);
 }
 
@@ -1138,25 +1146,26 @@ button.jdp-title:hover,
   box-shadow: var(--ring);
 }
 .nav-item.nav-active {
-  background: var(--action-soft);
+  background: var(--accent-soft);
   color: var(--action);
   font-weight: 600;
 }
+/* Inside the item, on its leading edge: outside, it sat on the panel border
+   and read as detached from the item it marks. */
 .nav-item.nav-active::before {
   content: "";
   position: absolute;
-  inset-inline-start: -0.5rem;
-  top: 20%;
-  bottom: 20%;
+  inset-inline-start: 0;
+  top: 22%;
+  bottom: 22%;
   width: 3px;
   border-radius: 3px;
-  background: var(--action);
+  background: var(--accent-line);
 }
 
 .nav-group-label {
   font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: 0.02em;
   color: var(--text-3);
   padding: 0.85rem 1.15rem 0.35rem;
   user-select: none;
@@ -1175,7 +1184,6 @@ button.jdp-title:hover,
   border-radius: var(--r-md);
   font-size: var(--fs-xs);
   font-weight: 700;
-  letter-spacing: 0.01em;
   color: var(--text-3);
   background: transparent;
   transition: background 0.14s ease, color 0.14s ease;
@@ -1261,7 +1269,7 @@ button.jdp-title:hover,
 .tab-item.tab-active {
   color: var(--action);
   font-weight: 600;
-  background: var(--action-soft);
+  background: var(--accent-soft);
 }
 .nav-group-toggle.is-active { color: var(--action); }
 .tab-item svg {
@@ -1424,7 +1432,9 @@ button.jdp-title:hover,
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-/* Minimal monochrome mark: black on the light theme, white on the dark one. */
+/* The primary action wears the brand's own ink (paper on the dark theme), not
+   a pure black/white that matched nothing else in the app, with a soft lift
+   and a thin mint ring — the same accent the active tabs use. */
 .tab-record-mark {
   display: inline-flex;
   align-items: center;
@@ -1432,15 +1442,15 @@ button.jdp-title:hover,
   width: 2.5rem;
   height: 2.5rem;
   border-radius: var(--r-pill);
-  background: #0a0a0a;
-  color: #ffffff;
+  background: var(--action);
+  color: var(--on-ink);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 6px 14px -6px rgba(13,23,38,.45);
   transition: transform var(--motion-micro) var(--ease);
 }
-.dark .tab-record-mark { background: #ffffff; color: #0a0a0a; }
 .tab-record:active .tab-record-mark { transform: scale(0.92); }
 .tab-record:focus-visible { outline: none; }
 .tab-record:focus-visible .tab-record-mark,
-.tab-record[data-active] .tab-record-mark { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--text-3); }
+.tab-record[data-active] .tab-record-mark { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent-line); }
 @media (prefers-reduced-motion: reduce) {
   .tab-record-mark { transition: none; }
 }
@@ -3813,7 +3823,7 @@ body {
   bottom: -1px;
   height: 2px;
   border-radius: 2px;
-  background: var(--action);
+  background: var(--accent-line);
 }
 
 /* KPI strip — one bordered surface split by hairlines instead of loose tiles. */
@@ -4156,9 +4166,34 @@ details[open] > summary .inst-caret { transform: rotate(180deg); }
   gap: 1.1rem;
   padding-top: 0.25rem;
 }
+/* The net-worth figure sits on the same ink stage the landing preview uses:
+   ink surface, a mint light in one corner and a mint hairline along the top.
+   The dark token set is scoped to the card, so every label, delta and muted
+   line switches with it. */
 .overview-hero > :first-child {
+  position: relative;
+  overflow: hidden;
   min-width: 0;
   max-width: 100%;
+  padding: 1.15rem 1.25rem 1.25rem;
+  border-radius: calc(var(--r-lg) + 4px);
+  border: 1px solid rgba(230,236,242,.10);
+  background:
+    radial-gradient(70% 140% at 0% 0%, color-mix(in oklab, #2bd3a8 20%, transparent), transparent 62%),
+    var(--ledger-surface);
+  box-shadow: var(--shadow-md);
+  --text: #e6ecf2; --text-2: #a4b2c0; --text-3: #8995a1;
+  --border: rgba(230,236,242,.10);
+  --positive: #34d399; --negative: #f87171; --warning: #fbbf24;
+  color: var(--text);
+}
+.overview-hero > :first-child::before {
+  content: "";
+  position: absolute;
+  inset-inline: 12%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, #2bd3a8 75%, transparent), transparent);
 }
 .overview-hero-value {
   margin-top: 0.3rem;
@@ -5034,6 +5069,7 @@ html[data-privacy] svg text {
 /* Allocation bar + legend */
 .card.alloc {
   padding: 1rem 1.1rem 0.5rem;
+  container-type: inline-size;
 }
 .alloc-bar {
   display: flex;
@@ -5070,7 +5106,10 @@ html[data-privacy] svg text {
   flex-shrink: 0;
   border-radius: 2px;
 }
-@media (min-width: 640px) {
+/* Two columns by the CARD's width, not the screen's: in a half-width dashboard
+   column the screen rule split ~400px into two, and the amounts squeezed the
+   asset names to nothing and spilled past the card edge. */
+@container (min-width: 640px) {
   .alloc-legend {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -5597,7 +5636,8 @@ input {
   .expense-form { gap: 1rem; }
   .expense-card { padding: 1.25rem; }
 }
-.expense-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-height: 1.75rem; }
+.expense-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.35rem 0.75rem; min-height: 1.75rem; }
+.expense-head > h2 { flex: 1 1 8rem; min-width: 0; }
 .expense-head h2 { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
 .expense-sub { font-size: var(--fs-xs); line-height: 1.6; color: var(--text-3); }
 .expense-empty { padding-block: 0.5rem; text-align: center; font-size: var(--fs-xs); line-height: 1.7; color: var(--text-3); }
@@ -5863,9 +5903,14 @@ a.expense-square { text-decoration: none; color: var(--text-2); }
 .plan-row + .plan-queue-row,
 .plan-queue-row + .plan-row { border-top: 1px solid var(--border); }
 .plan-row { display: grid; gap: 0.6rem; padding: 0.875rem 1rem; min-width: 0; }
-.plan-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; min-width: 0; }
+/* Title and amount share a line only while both fit. A long «X از Y تومان» used
+   to squeeze the title to zero width on phones (the goal names vanished); now
+   the amount wraps under the title and keeps to the end side. */
+.plan-row-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.35rem 0.75rem; min-width: 0; }
+.plan-row-head > :last-child:not(:first-child) { margin-inline-start: auto; }
 .plan-row-title {
   display: flex;
+  flex: 1 1 10rem;
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
@@ -5884,6 +5929,11 @@ a.expense-square { text-decoration: none; color: var(--text-2); }
   color: var(--text-3);
 }
 .plan-amount { font-size: var(--fs-sm); font-weight: 700; }
+/* Holdings on a phone: one row per asset, name on the start side, value and P&L on the end side. */
+.holdings-list { padding: 0; list-style: none; }
+.holdings-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.8rem 1rem; min-width: 0; }
+.holdings-row + .holdings-row { border-top: 1px solid var(--border); }
+.holdings-row-money { flex-shrink: 0; text-align: end; }
 .plan-queue-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; min-width: 0; }
 .plan-icon {
   display: flex;
@@ -7016,7 +7066,7 @@ fieldset.policy-step > .policy-step-title + * {
   color: var(--lc-wealth-ink);
   box-shadow: var(--shadow-sm);
 }
-.hist-hero-title { font-size: var(--fs-lg); font-weight: 800; letter-spacing: -0.01em; }
+.hist-hero-title { font-size: var(--fs-lg); font-weight: 800; }
 .hist-hero-sub { margin-top: 0.2rem; color: var(--text-2); font-size: var(--fs-xs); line-height: 1.75; }
 .hist-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem; }
 .hist-stats > div {
@@ -7093,7 +7143,7 @@ fieldset.policy-step > .policy-step-title + * {
 /* ── Timeline ── */
 .hist-timeline { display: grid; gap: 1.25rem; }
 .hist-year { display: grid; gap: 0.85rem; }
-.hist-year-title { display: flex; align-items: center; gap: 0.75rem; font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
+.hist-year-title { display: flex; align-items: center; gap: 0.75rem; font-size: var(--fs-xl); font-weight: 800; color: var(--text); }
 .hist-year-title::after { content: ""; flex: 1; height: 1px; background: linear-gradient(to left, var(--border), transparent); }
 .hist-month { display: grid; gap: 0.45rem; }
 .hist-month-title { display: flex; align-items: center; gap: 0.45rem; padding-inline: 0.25rem; color: var(--text-2); font-size: var(--fs-xs); font-weight: 700; }
@@ -7252,16 +7302,17 @@ fieldset.policy-step > .policy-step-title + * {
   width: 3.4rem;
   height: 3.4rem;
   border-radius: 1.1rem;
-  background: linear-gradient(135deg, var(--lc-wealth-ink), var(--lc-flow-ink));
-  color: #fff;
-  box-shadow: var(--shadow-lg);
+  /* A primary action wears the brand ink like every other one (and the bar's
+     «+»), not the wealth→flow category gradient. The tokens also switch with
+     the app's real dark mode (.dark); the old [data-theme] overrides never did. */
+  background: var(--action);
+  color: var(--on-ink);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-lg);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.15s ease;
 }
 .hist-fab:active { transform: scale(0.94); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hist-fab { color: #0d1726; } }
-:root[data-theme="dark"] .hist-fab { color: #0d1726; }
 @media (min-width: 1024px) { .hist-fab { display: none; } }
 
 /* ── Sheet: kind tiles, unit chips, the reminder ── */
@@ -7524,7 +7575,8 @@ fieldset.policy-step > .policy-step-title + * {
 .accounts-toolbar .section-link { white-space: nowrap; font-size: var(--fs-xs); }
 .accounts-zero-toggle { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-size: var(--fs-xs); line-height: 1.8; }
 .accounts-zero-toggle input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--action); }
-.accounts-summary > :first-child { grid-column: 1 / -1; padding: 20px; background: var(--ledger-surface); color: var(--on-ledger); }
+.accounts-summary > :first-child { position: relative; grid-column: 1 / -1; padding: 20px; background: var(--ledger-surface); color: var(--on-ledger); }
+.accounts-summary > :first-child::before { content: ""; position: absolute; inset-inline: 14%; top: 0; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--signal-mint) 70%, transparent), transparent); }
 .accounts-summary > :first-child .muted, .accounts-summary > :first-child .metric-value { color: var(--on-ledger) !important; }
 .accounts-summary .metric-value { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; white-space: normal !important; font-size: var(--fs-sm); line-height: 1.8; }
 .accounts-summary > :first-child .metric-value { font-size: clamp(18px, 5vw, 26px); }
@@ -7856,3 +7908,73 @@ fieldset.policy-step > .policy-step-title + * {
 
 .setup-review-group[data-tone="invest"] {--review-color:#6d28d9;--review-soft:rgba(109,40,217,.08);}
 .dark .setup-review-group[data-tone="invest"] {--review-color:#c4b5fd;--review-soft:rgba(196,181,253,.12);}
+
+/* ── Installed iPhone app: a readable status bar on the light theme ──
+   The app asks iOS for `black-translucent` (layout.tsx) so content can run
+   under the Dynamic Island. iOS then draws the clock and battery in WHITE,
+   which vanished over the light paper top bar. On the light theme, in the
+   installed app only, the top bar takes the ink surface (the dark token set,
+   scoped to the bar, so logo, icons and text switch together), and every
+   other screen gets an ink strip exactly as tall as the status bar. */
+@media (display-mode: standalone) {
+  html:not(.dark) .app-topbar {
+    --bg: #0d1726; --surface: #142235; --surface-elev: #1b2c42;
+    --hover: rgba(230,236,242,.06); --pressed: rgba(230,236,242,.10);
+    --text: #e6ecf2; --text-2: #a4b2c0; --text-3: #8995a1;
+    --border: rgba(230,236,242,.10); --border-strong: rgba(230,236,242,.20);
+    --action: #e6ecf2; --action-hover: #ffffff; --action-active: #caced2;
+    --on-ink: #0d1726; --action-soft: rgba(230,236,242,.10);
+    --ring: 0 0 0 3px rgba(230,236,242,.30);
+    --signal-mint: #2bd3a8;
+    color: var(--text);
+  }
+  html:not(.dark) body::before {
+    content: "";
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    z-index: 2147483000;
+    height: env(safe-area-inset-top, 0px);
+    background: var(--ink-900);
+    pointer-events: none;
+  }
+}
+
+
+/* ── Stacked tables on phones ──
+   Money tables with three or more amount columns never fit 390px; scrolled
+   sideways they hid amounts past the screen edge. Below 640px each row becomes
+   a small card: the first cell is its title, every other visible cell shows
+   its own label (data-label) above its value, two to a line. */
+@media (max-width: 639px) {
+  .table-stack thead { display: none; }
+  .table-stack tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 1rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-stack tbody tr:last-child { border-bottom: 0; }
+  .table-stack tbody td:not(.hidden) {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    text-align: start;
+    position: static;
+    background: none;
+  }
+  .table-stack tbody td:first-child { grid-column: 1 / -1; font-weight: 600; }
+  /* An unlabelled tag (a type badge) sits on its own line under the title. */
+  .table-stack tbody td.stack-full { grid-column: 1 / -1; margin-top: -0.3rem; }
+  .table-stack tbody td[colspan] { grid-column: 1 / -1; }
+  .table-stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.1rem;
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    color: var(--text-3);
+  }
+}

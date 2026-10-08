@@ -82,7 +82,7 @@ export default async function ReconcilePage() {
   return (
     <div className="space-y-6">
       <div>
-        <PageHeader title="تطبیق با بانک" subtitle="موجودی توازن را با بانک مقایسه کنید." />
+        <PageHeader title="تطبیق با بانک" />
         <ModuleTabs tabs={MONEY_TABS} active="/accounts" label="بخش‌های پول" />
       </div>
 

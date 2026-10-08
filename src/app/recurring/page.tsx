@@ -90,7 +90,7 @@ export default async function RecurringPage() {
   return (
     <div className="space-y-7">
       <div>
-        <PageHeader title="پرداخت‌های تکراری" subtitle="اقساط، حق بیمه‌ها و اشتراک‌ها — ماه‌به‌ماه، همان‌طور که واقعاً سررسید می‌شوند." />
+        <PageHeader title="پرداخت‌های تکراری" />
         <ModuleTabs tabs={MONEY_TABS} active="/recurring" label="بخش‌های پول" />
       </div>
 
