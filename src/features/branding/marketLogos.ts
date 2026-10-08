@@ -124,6 +124,7 @@ const LOGO_SET: ReadonlySet<string> = new Set(SYMBOLS_WITH_LOGO);
 /** Same-origin path of a symbol's logo, or null when the app has none. */
 export function marketLogoFor(symbol: string | null | undefined): string | null {
   const key = (symbol ?? "").trim().toUpperCase();
+  if (key === "CIRBTC") return "/ir-icons/crypto/cirbtc.jpg";
   return LOGO_SET.has(key) ? `/icons/market/${key}.png` : null;
 }
 

@@ -76,7 +76,7 @@ import {
  * classed «استیبل‌کوین», which the portfolio's liquidity filter counts as
  * نقدینگی — dry powder in a wallet reads as liquidity, not crypto exposure.
  */
-const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG", "PYUSD"]);
+const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG", "PYUSD", "DAI", "FDUSD"]);
 
 /** Native units a cash/bank account may hold. Book currency stays USD. */
 export const SETUP_MONEY_SYMBOLS = ["IRT", "USD", "USDT"] as const;

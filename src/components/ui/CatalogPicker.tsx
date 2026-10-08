@@ -9,9 +9,9 @@ import { faCount } from "@/lib/format";
 export type CatalogOption = { id: string; label: string; detail?: string; searchText?: string; mark?: ReactNode };
 
 /** Catalogue selection only. Search narrows existing options; it never creates a name. */
-export default function CatalogPicker({ label, options, value, onSelect, disabled = false, emptyText = "گزینه‌ای در فهرست موجود نیست.", placeholder }: {
+export default function CatalogPicker({ label, options, value, onSelect, disabled = false, emptyText = "گزینه‌ای در فهرست موجود نیست.", placeholder, showAll = false }: {
   label: string; options: CatalogOption[]; value?: string; onSelect: (id: string) => void;
-  disabled?: boolean; emptyText?: string; placeholder?: string;
+  disabled?: boolean; emptyText?: string; placeholder?: string; showAll?: boolean;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -34,14 +34,14 @@ export default function CatalogPicker({ label, options, value, onSelect, disable
         <label className="catalog-search"><Icon name="search" size={18} /><input type="search" value={query} onChange={event => {setQuery(event.target.value);setLimit(24);}} placeholder="جست‌وجو در فهرست (اختیاری)" aria-label={`جست‌وجو در ${label}`} /></label>
         <p className="muted text-xs" role="status">{faCount(matches.length)} گزینه</p>
         <div className="catalog-options" role="group" aria-label={`گزینه‌های ${label}`}>
-          {matches.slice(0, limit).map(option => <button key={option.id} type="button" className="catalog-option" aria-pressed={value === option.id} onClick={() => {onSelect(option.id);setOpen(false);}}>
+          {matches.slice(0, showAll ? undefined : limit).map(option => <button key={option.id} type="button" className="catalog-option" aria-pressed={value === option.id} onClick={() => {onSelect(option.id);setOpen(false);}}>
             {option.mark && <span className="catalog-mark">{option.mark}</span>}
             <span className="catalog-copy"><b>{option.label}</b>{option.detail && <small>{option.detail}</small>}</span>
             <Icon name={value === option.id ? "check" : "plus"} size={16} />
           </button>)}
         </div>
         {!matches.length && <p className="expense-note" role="status">{query ? "گزینه‌ای با این نام پیدا نشد؛ جست‌وجو را تغییر دهید." : emptyText}</p>}
-        {matches.length > limit && <button type="button" className="btn btn-ghost w-full" onClick={() => setLimit(n => n + 24)}>نمایش گزینه‌های بیشتر</button>}
+        {!showAll && matches.length > limit && <button type="button" className="btn btn-ghost w-full" onClick={() => setLimit(n => n + 24)}>نمایش گزینه‌های بیشتر</button>}
       </div>
     </Sheet>
   </div>;
