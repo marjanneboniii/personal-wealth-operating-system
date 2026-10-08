@@ -54,7 +54,14 @@ const browser = { browserExecutable: CHROME, chromeMode: "chrome-for-testing" };
 const root = path.resolve(import.meta.dirname, "..");
 const serveUrl = await bundle({ entryPoint: path.join(root, "src/index.ts"), publicDir: path.join(root, "../public") });
 const composition = await selectComposition({ serveUrl, id, ...browser });
-const scale = Number(flag("--scale") ?? 1);
+// The encoder needs whole, even pixel sizes: snap the scale so the width is
+// an even integer (1.3333 → exactly 4/3 → 2560x1440).
+const requestedScale = Number(flag("--scale") ?? 1);
+const scale = Math.round((composition.width * requestedScale) / 2) * 2 / composition.width;
+if (composition.height * scale % 2 !== 0) {
+  console.error(`--scale ${requestedScale} gives an odd height; try 1.3333 (1440p) or 2 (2160p).`);
+  process.exit(2);
+}
 const frameAt = (s) => Math.min(composition.durationInFrames - 1, Math.round(Number(s) * composition.fps));
 
 const stills = flag("--stills");
