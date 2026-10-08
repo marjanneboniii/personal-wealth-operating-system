@@ -440,7 +440,8 @@ function ProductPreview() {
           <div className="min-w-0">
             <p className="landing-preview-float-title">{PREVIEW_SAMPLE.dueTitle}</p>
             <p className="landing-preview-label">
-              <span className="num" dir="rtl">{PREVIEW_SAMPLE.dueAmount}</span> · {PREVIEW_SAMPLE.dueWhen}
+              <span className="num" dir="rtl">{PREVIEW_SAMPLE.dueAmount}</span>
+              <span className="landing-preview-due-sep"> · </span>{PREVIEW_SAMPLE.dueWhen}
             </p>
           </div>
           <span className="landing-preview-attention-dot" aria-hidden="true" />
@@ -548,13 +549,15 @@ export default function LandingPage() {
             ))}
           </ul>
           {/* Logo wall: drifts on wide screens, a still strip under reduced motion.
-              The second copy only closes the loop, so assistive tech skips it. */}
+              The second copy only closes the loop, so assistive tech skips it.
+              tabIndex -1: a tap focuses a logo (touch has no hover) without
+              adding thirty stops to keyboard navigation. */}
           <div className="landing-logos">
             <div className="landing-logos-track">
               {[0, 1].map((copy) => (
                 <ul key={copy} className="landing-logos-row" aria-hidden={copy === 1 || undefined} aria-label={copy === 0 ? "بانک‌ها، صرافی‌ها و کارگزاری‌های فهرست راه‌اندازی" : undefined}>
                   {CATALOG_LOGOS.map((item) => (
-                    <li key={item.logo + item.name} title={item.name}>
+                    <li key={item.logo + item.name} title={item.name} tabIndex={-1}>
                       <Image src={item.logo} alt={copy === 0 ? item.name : ""} width={36} height={36} loading="lazy" unoptimized />
                     </li>
                   ))}
