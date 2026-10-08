@@ -32,8 +32,18 @@ const PREVIEW_SAMPLE = {
   deltaPct: "۳.۵٪",
   deltaSince: "از ماه گذشته",
   netWorthUsd: "≈ ۱٬۴۵۳ دلار",
-  attention: "قسط وام مسکن، ۳ روز دیگر",
+  // The same month the product film shows: 6 of an 8-million budget spent.
+  budgetTitle: "بودجهٔ خرید ماهانه",
+  budgetSpent: "۶",
+  budgetLimit: "۸ میلیون تومان",
+  budgetLeft: "۲ میلیون تا سقف",
+  dueTitle: "قسط وام شخصی",
+  dueWhen: "۳ روز دیگر",
+  dueAmount: "۵٬۰۰۰٬۰۰۰ تومان",
 } as const;
+
+/** Budget meter as whole-million segments: each block is one million, so the bar is itself the number. */
+const BUDGET_SEGMENTS = { total: 8, spent: 6 } as const;
 
 /**
  * Composition of the demo net worth. The widths are the segments of the
@@ -316,83 +326,124 @@ function PreviewSparkline() {
   );
 }
 
+/**
+ * The hero's product visual, as a layered stage: the net-worth window in the
+ * middle, and two small cards floating over its corners — the month's budget
+ * (as whole-million segments) and the next installment. It shows three
+ * different jobs of the product at a glance, where the old single card stacked
+ * everything in one column. Everything is static demo data (see PREVIEW_SAMPLE).
+ */
 function ProductPreview() {
   return (
     <figure
       className="landing-preview"
-      aria-label="نمونه نمایشی از ارزش خالص، دارایی‌ها، بدهی‌ها و نقدینگی به تومان"
+      aria-label="نمونه نمایشی از ارزش خالص، دارایی‌ها، بدهی‌ها، نقدینگی، بودجهٔ ماه و قسط بعدی به تومان"
     >
-      <div className="landing-preview-chrome">
-        <div className="landing-preview-dots" aria-hidden="true">
-          <span />
-          <span />
-          <span />
+      <div className="landing-preview-window">
+        <div className="landing-preview-chrome">
+          <div className="landing-preview-dots" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <p className="landing-preview-badge">نمونه نمایشی</p>
         </div>
-        <p className="landing-preview-badge">نمونه نمایشی</p>
+        <div className="landing-preview-body">
+          <figcaption className="landing-preview-label landing-preview-caption">نمایی از داشبورد توازن</figcaption>
+          <div className="landing-preview-hero">
+            <div className="landing-preview-hero-text">
+              <p className="landing-preview-label">ارزش خالص</p>
+              <p className="display-num landing-preview-hero-amount">
+                <AnimatedAmount value={PREVIEW_SAMPLE.netWorth} />
+              </p>
+              {/* The delta and the ≈USD reference are what the real dashboard shows
+                  under the hero figure — without them the preview read like a
+                  different product. */}
+              <p className="landing-preview-delta">
+                <span aria-hidden="true">↑</span>
+                <span className="num" dir="rtl">{PREVIEW_SAMPLE.delta}</span>
+                <span className="num" dir="rtl">{PREVIEW_SAMPLE.deltaPct}</span>
+                <span className="landing-preview-label">{PREVIEW_SAMPLE.deltaSince}</span>
+              </p>
+              <p className="landing-preview-label landing-preview-usd">
+                <span className="num" dir="rtl">{PREVIEW_SAMPLE.netWorthUsd}</span>
+              </p>
+            </div>
+            <PreviewSparkline />
+          </div>
+          <div className="landing-preview-metrics">
+            <div className="landing-preview-metric landing-preview-metric-assets">
+              <p className="landing-preview-label">دارایی‌ها</p>
+              <p className="display-num landing-preview-amount">
+                <AnimatedAmount value={PREVIEW_SAMPLE.assets} />
+              </p>
+            </div>
+            <div className="landing-preview-metric landing-preview-metric-debts">
+              <p className="landing-preview-label">بدهی‌ها</p>
+              <p className="display-num landing-preview-amount">
+                <AnimatedAmount value={PREVIEW_SAMPLE.debts} />
+              </p>
+            </div>
+            <div className="landing-preview-metric landing-preview-metric-liquidity">
+              <p className="landing-preview-label">نقدینگی</p>
+              <p className="display-num landing-preview-amount">
+                <AnimatedAmount value={PREVIEW_SAMPLE.liquidity} />
+              </p>
+            </div>
+          </div>
+          <div className="landing-preview-mix">
+            <div className="comp-bar" aria-hidden="true">
+              {PREVIEW_MIX.map((slice) => (
+                <span key={slice.label} style={{ width: `${slice.pct}%`, background: slice.color }} />
+              ))}
+            </div>
+            {/* A legend, because four anonymous stripes say nothing. The same
+                array drives both, so a width can never drift from its label. */}
+            <ul className="landing-preview-legend">
+              {PREVIEW_MIX.map((slice) => (
+                <li key={slice.label}>
+                  <span className="landing-preview-swatch" style={{ background: slice.color }} aria-hidden="true" />
+                  <span>{slice.label}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
-      <div className="landing-preview-body">
-        <figcaption className="landing-preview-label landing-preview-caption">نمایی از داشبورد توازن</figcaption>
-        <div className="landing-preview-hero">
-          <div className="landing-preview-hero-text">
-            <p className="landing-preview-label">ارزش خالص</p>
-            <p className="display-num landing-preview-hero-amount">
-              <AnimatedAmount value={PREVIEW_SAMPLE.netWorth} />
-            </p>
-            {/* The delta and the ≈USD reference are what the real dashboard shows
-                under the hero figure — without them the preview read like a
-                different product. */}
-            <p className="landing-preview-delta">
-              <span aria-hidden="true">↑</span>
-              <span className="num" dir="rtl">{PREVIEW_SAMPLE.delta}</span>
-              <span className="num" dir="rtl">{PREVIEW_SAMPLE.deltaPct}</span>
-              <span className="landing-preview-label">{PREVIEW_SAMPLE.deltaSince}</span>
-            </p>
-            <p className="landing-preview-label landing-preview-usd">
-              <span className="num" dir="rtl">{PREVIEW_SAMPLE.netWorthUsd}</span>
-            </p>
+
+      {/* Floating cards. On wide screens they sit over the window's corners; on a
+          phone they line up under it, so nothing ever covers a figure. */}
+      <div className="landing-preview-floats">
+        <div className="landing-preview-float landing-preview-float-budget">
+          <div className="landing-preview-float-head">
+            <span className="landing-icon" data-tone="budget" aria-hidden="true">
+              <Icon name="budgets" size={15} />
+            </span>
+            <span className="landing-preview-label">{PREVIEW_SAMPLE.budgetTitle}</span>
           </div>
-          <PreviewSparkline />
+          <p className="landing-preview-float-value">
+            <span className="display-num">{PREVIEW_SAMPLE.budgetSpent}</span>
+            <span className="landing-preview-label"> از {PREVIEW_SAMPLE.budgetLimit}</span>
+          </p>
+          <div className="landing-preview-segments" aria-hidden="true">
+            {Array.from({ length: BUDGET_SEGMENTS.total }, (_, i) => (
+              <span key={i} data-on={i < BUDGET_SEGMENTS.spent || undefined} />
+            ))}
+          </div>
+          <p className="landing-preview-float-note">{PREVIEW_SAMPLE.budgetLeft}</p>
         </div>
-        <div className="landing-preview-metrics">
-          <div className="landing-preview-metric landing-preview-metric-assets">
-            <p className="landing-preview-label">دارایی‌ها</p>
-            <p className="display-num landing-preview-amount">
-              <AnimatedAmount value={PREVIEW_SAMPLE.assets} />
+
+        <div className="landing-preview-float landing-preview-float-due" role="note">
+          <span className="landing-icon" data-tone="debt" aria-hidden="true">
+            <Icon name="installments" size={15} />
+          </span>
+          <div className="min-w-0">
+            <p className="landing-preview-float-title">{PREVIEW_SAMPLE.dueTitle}</p>
+            <p className="landing-preview-label">
+              <span className="num" dir="rtl">{PREVIEW_SAMPLE.dueAmount}</span> · {PREVIEW_SAMPLE.dueWhen}
             </p>
           </div>
-          <div className="landing-preview-metric landing-preview-metric-debts">
-            <p className="landing-preview-label">بدهی‌ها</p>
-            <p className="display-num landing-preview-amount">
-              <AnimatedAmount value={PREVIEW_SAMPLE.debts} />
-            </p>
-          </div>
-          <div className="landing-preview-metric landing-preview-metric-liquidity">
-            <p className="landing-preview-label">نقدینگی</p>
-            <p className="display-num landing-preview-amount">
-              <AnimatedAmount value={PREVIEW_SAMPLE.liquidity} />
-            </p>
-          </div>
-        </div>
-        <div className="landing-preview-attention">
           <span className="landing-preview-attention-dot" aria-hidden="true" />
-          <span>{PREVIEW_SAMPLE.attention}</span>
-        </div>
-        <div className="landing-preview-mix">
-          <div className="comp-bar" aria-hidden="true">
-            {PREVIEW_MIX.map((slice) => (
-              <span key={slice.label} style={{ width: `${slice.pct}%`, background: slice.color }} />
-            ))}
-          </div>
-          {/* A legend, because four anonymous stripes say nothing. The same
-              array drives both, so a width can never drift from its label. */}
-          <ul className="landing-preview-legend">
-            {PREVIEW_MIX.map((slice) => (
-              <li key={slice.label}>
-                <span className="landing-preview-swatch" style={{ background: slice.color }} aria-hidden="true" />
-                <span>{slice.label}</span>
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
     </figure>
@@ -429,17 +480,23 @@ export default function LandingPage() {
         <LandingAmbience />
         <section className="landing-wrap landing-hero">
           <div className="landing-hero-copy">
-            <p className="landing-kicker">
-              <span className="landing-kicker-dot" aria-hidden="true" />
-              برای وقتی که پولتان در چند جا پخش است
-            </p>
-            <h1 className="landing-display">همهٔ پول و دارایی‌تان، در یک صفحه.</h1>
+            {/* Announcement pill: says what is new and takes you straight to it. */}
+            <Link href="#setup" className="landing-kicker">
+              <span className="landing-kicker-badge">
+                <span className="landing-kicker-dot" aria-hidden="true" />
+                تازه
+              </span>
+              <span>راه‌اندازی با چند انتخاب</span>
+              <Icon name="arrow-start" size={14} />
+            </Link>
+            <h1 className="landing-display">
+              همهٔ پول و دارایی‌تان، <span className="landing-display-accent">در یک صفحه.</span>
+            </h1>
             <p className="landing-lede">
               حساب بانکی، صرافی و کیف پول رمزارز، طلای آنلاین، صندوق و سهام، ملک و خودرو، و همهٔ وام‌ها و قسط‌ها.
               توازن همه را کنار هم می‌گذارد و می‌گوید بعد از کم‌کردن بدهی‌ها، واقعاً چقدر دارید.
             </p>
             <CtaCluster />
-            <Link href="#product-tour" className="landing-watch-demo">دیدن توازن در ۲۰ ثانیه<Icon name="arrow-start" size={18} /></Link>
             {/* Three claims the visitor can check, not a slogan. */}
             <ul className="landing-hero-proof">
               <li>

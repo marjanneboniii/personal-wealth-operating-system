@@ -18,8 +18,7 @@ export async function verifyLanding(browser, out) {
   await page.goto('http://localhost:3000/',{waitUntil:'networkidle'});
   assert.equal(videos.length,0,'No video download before the preview scrolls into view');
   const tour=page.locator('#product-tour');
-  await page.getByRole('link',{name:'دیدن توازن در ۲۰ ثانیه'}).click();
-  await page.waitForFunction(()=>location.hash==='#product-tour');
+  await page.goto('http://localhost:3000/#product-tour',{waitUntil:'networkidle'});
   await tour.scrollIntoViewIfNeeded();
   assert.equal(await tour.locator('video').count(),1);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'No horizontal overflow');

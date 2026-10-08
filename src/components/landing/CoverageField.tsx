@@ -1,41 +1,46 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import Icon, { type IconName } from "@/components/ui/Icon";
 
 /**
- * The asset kinds توازن can hold, as a band of drifting chips that close the
- * hero.
+ * The asset kinds توازن can hold, as a band of chips that closes the hero.
  *
- * WHY IT IS A BAND OF ITS OWN, and not a field behind the hero copy:
- * the single most important thing on this page is that the headline and the
- * lede stay readable. Anything that could drift across them loses that
- * argument, and "it probably will not overlap" is not a guarantee. Here no text
- * is ever on top of the motion, so the readability risk is zero BY
- * CONSTRUCTION rather than by luck.
+ * It is a band of its own, never a field behind the hero copy, so no motion can
+ * sit under a sentence: readability is safe by construction.
  *
- * HOW THE MOTION IS SPLIT — this is the whole trick:
- *   • The perpetual drift is a CSS animation on the OUTER element. The
- *     compositor runs it, no JavaScript ticks, no battery cost beyond painting,
- *     and it keeps running even while this component's script is idle.
- *   • The pointer reaction is a transform on the INNER element, driven by a
- *     small spring in `requestAnimationFrame`. That loop only exists while
- *     something is actually springing and shuts itself down when everything has
- *     settled, so the steady state is zero JavaScript.
- * Two nested elements because a single one cannot carry both transforms.
- *
- * A physics library was considered and rejected: ~87KB of JavaScript and a
- * permanent rAF loop, on a landing page that is often opened on a mid-range
- * Android over mobile data, to decorate a band. This is ~80 lines and 0 bytes
- * of dependency.
+ * MOTION, in two independent layers:
+ *   • CSS (globals.css, .cf-icon): each icon draws itself in once, then plays a
+ *     gesture that says what it is (a car drives, a coin turns) as a wave along
+ *     the row. Compositor-only, no JavaScript ticks.
+ *   • JS (below): a tapped chip pops and nudges its neighbours on a small spring
+ *     whose rAF loop exists only while something is moving.
+ * `prefers-reduced-motion` stops both.
  *
  * The chips are REAL CONTENT — a labelled list of what the product covers — so
- * nothing here is aria-hidden and the words are read by everyone. The drift and
- * the bounce are decoration layered on top of that, and `prefers-reduced-motion`
- * removes both.
+ * nothing here is aria-hidden.
  */
 
 export type CoverageKind = { icon: IconName; label: string; tone: string };
+
+/**
+ * Each icon's idle gesture says what the thing does: a car drives (toward the
+ * reading start, so left), a coin turns, a house rises, a pie turns, a
+ * calendar flips. One gesture per icon, played as a wave along the row.
+ */
+const GESTURE: Partial<Record<IconName, string>> = {
+  accounts: "lift",
+  wallet: "tilt",
+  crypto: "spin",
+  coins: "spin",
+  pie: "turn",
+  portfolio: "lift",
+  home: "lift",
+  car: "drive",
+  installments: "flip",
+};
+/** One wave crosses the whole row in this time, then the row rests. */
+const WAVE_SECONDS = 9;
 
 /** Spring constants. Stiff enough to feel like a tap, damped enough to settle fast. */
 const STIFFNESS = 0.14;
@@ -68,7 +73,7 @@ export default function CoverageField({ kinds }: { kinds: CoverageKind[] }) {
      * Read LIVE, never once at mount. Someone who turns Reduce Motion on while
      * this page is open is asking for the motion to stop now — and they are
      * often turning it on BECAUSE of something moving in front of them. Checked
-     * once, the CSS drift obeyed (it is a media query) while the tap spring
+     * once, the CSS motion obeyed (it is a media query) while the tap spring
      * carried on, which is the half-obeyed state that makes the setting feel
      * broken.
      */
@@ -160,17 +165,22 @@ export default function CoverageField({ kinds }: { kinds: CoverageKind[] }) {
   return (
     <ul ref={rootRef} className="cf-list" aria-label="دارایی‌ها و بدهی‌هایی که می‌توانید اینجا نگه دارید">
       {kinds.map((kind, i) => (
-        /* Outer = the perpetual CSS drift. Inner = the pointer spring. Each
-           chip gets its own period and phase so the row never pulses in
-           unison — as literal seconds, never calc() (see .cf-chip). */
+        /* Outer = layout. Inner = the pointer spring. The icon inside plays the
+           CSS gestures, offset per chip so they travel as a wave. */
         <li
           key={kind.label}
           className="cf-chip"
           data-tone={kind.tone}
-          style={{ animationDuration: `${(5.2 + i * 0.55).toFixed(2)}s`, animationDelay: `${(-1.35 * i).toFixed(2)}s` }}
         >
           <span className="cf-chip-inner">
-            <Icon name={kind.icon} size={15} />
+            {/* Plain seconds in custom properties, never calc() in a <time> (iOS, see .cf-chip). */}
+            <span
+              className="cf-icon"
+              data-gesture={GESTURE[kind.icon] ?? "lift"}
+              style={{ "--cf-draw-delay": `${(0.15 + i * 0.09).toFixed(2)}s`, "--cf-wave-delay": `${(1.6 + i * 0.7).toFixed(2)}s`, "--cf-wave": `${WAVE_SECONDS}s` } as CSSProperties}
+            >
+              <Icon name={kind.icon} size={15} />
+            </span>
             <span>{kind.label}</span>
           </span>
         </li>

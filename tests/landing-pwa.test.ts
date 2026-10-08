@@ -42,7 +42,8 @@ test("Landing — Persian RTL conversion page with primary CTA شروع رایگ
 
   assert.match(layout, /lang=\"fa\"/);
   assert.match(layout, /dir=\"rtl\"/);
-  assert.match(landing, /همهٔ پول و دارایی‌تان، در یک صفحه/);
+  // The headline's second half is one accent span (gradient text), still one sentence.
+  assert.match(landing, /همهٔ پول و دارایی‌تان، <span className="landing-display-accent">در یک صفحه\.<\/span>/);
   // The lede names what people actually hold, in their own words, and ends on the one question.
   assert.match(landing, /توازن همه را کنار هم می‌گذارد و می‌گوید بعد از کم‌کردن بدهی‌ها، واقعاً چقدر دارید/);
   assert.match(landing, /شروع رایگان/);
@@ -113,6 +114,8 @@ test("Landing — selection-first setup, product demo, FAQ, and final CTA copy",
   assert.match(landing, /ثبت‌نام رایگان است و راه‌اندازی چند دقیقه طول می‌کشد/);
 
   assert.match(landing, /<ProductFilms \/>/);
+  // The hero has one call to action; the «watch in 20 seconds» link was removed by request.
+  assert.doesNotMatch(landing, /دیدن توازن در ۲۰ ثانیه/);
   assert.match(landing, /سؤالات متداول/);
   assert.match(landing, /آیا استفاده از توازن رایگان است؟/);
   assert.match(landing, /آیا باید حساب بانکی‌ام را وصل کنم؟/);
