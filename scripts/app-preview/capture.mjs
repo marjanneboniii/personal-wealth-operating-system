@@ -100,7 +100,8 @@ const auditPage = (isTouch) => {
   if (isTouch) {
     for (const el of document.querySelectorAll("a[href], button, [role='button'], input:not([type='hidden']), select, summary")) {
       const r = el.getBoundingClientRect();
-      if (!r.width || !r.height || getComputedStyle(el).visibility === "hidden") continue;
+      // Skip visually-hidden helpers (the skip link is 1×1 until focused).
+      if (r.width <= 2 || r.height <= 2 || getComputedStyle(el).visibility === "hidden") continue;
       if (r.width < 40 || r.height < 40) small.push(`${describe(el)} ${Math.round(r.width)}×${Math.round(r.height)}`);
     }
   }

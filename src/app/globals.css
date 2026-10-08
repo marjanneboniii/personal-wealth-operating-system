@@ -3847,6 +3847,8 @@ body {
   white-space: nowrap;
   transition: color var(--motion-micro) var(--ease);
 }
+/* Short labels («همه») still get a finger-sized tab. */
+.module-tab { min-width: 44px; justify-content: center; }
 .module-tab:hover {
   color: var(--text);
 }
@@ -8115,4 +8117,17 @@ fieldset.policy-step > .policy-step-title + * {
     font-weight: 500;
     color: var(--text-3);
   }
+}
+
+
+/* ── Finger-sized targets on touch screens ──
+   The device audit (scripts/app-preview) found taps under 44px: compact
+   buttons (!min-h-9), the range/date segments, the top-bar logo and avatar,
+   and inline auth links. Desktop keeps the compact sizes. */
+.tap-link { display: inline-flex; align-items: center; min-height: 2.25rem; }
+@media (pointer: coarse) {
+  .btn { min-height: 44px !important; }
+  .seg button, .seg a { min-height: 40px; }
+  .app-topbar a { min-height: 44px; min-width: 44px; justify-content: center; }
+  .tap-link { min-height: 44px; }
 }

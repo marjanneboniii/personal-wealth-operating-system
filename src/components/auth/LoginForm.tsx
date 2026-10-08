@@ -72,7 +72,7 @@ export default function LoginForm({ claimMode, turnstileSiteKey }: { claimMode?:
         {pending ? "در حال بررسی…" : claimMode ? "تأیید و حفظ داده‌ها" : "ورود"}
       </button>
 
-      <a href="/forgot-password" className="muted block text-center text-[length:var(--fs-xs)] underline underline-offset-4">رمز عبور را فراموش کرده‌اید؟</a>
+      <a href="/forgot-password" className="muted block py-3 text-center text-[length:var(--fs-xs)] underline underline-offset-4">رمز عبور را فراموش کرده‌اید؟</a>
 
       <GoogleAuthButton label="ورود با Google" />
     </form>
