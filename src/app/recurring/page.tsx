@@ -2,10 +2,12 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { listRecurringPayments } from "@/features/recurring/service";
 import { getCashflow } from "@/features/ledger/queries";
-import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
+import { EmptyState, PageHeader, Progress, Section } from "@/components/ui/Card";
+import MoneyHeader from "@/components/money/MoneyHeader";
+import StatCard from "@/components/money/StatCard";
+import FormattedMoney from "@/components/ui/FormattedMoney";
 import CommitmentMonths from "@/components/recurring/CommitmentMonths";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
 import { PREMIUM_FREQUENCY_LABEL } from "@/features/insurance/service";
 import { D } from "@/domain/decimal";
 import { faCount, formatJalaliIso, formatMoney, formatPct, JALALI_MONTHS, todayIso, toJalali } from "@/lib/format";
@@ -24,6 +26,7 @@ function Row({
   amount,
   unit,
   href,
+  progress,
 }: {
   icon: "receipt" | "shield" | "installments";
   title: string;
@@ -32,6 +35,8 @@ function Row({
   amount: string;
   unit: string;
   href?: string;
+  /** Paid share of a loan, drawn as one block per installment. */
+  progress?: { paid: number; total: number };
 }) {
   const body = (
     <>
@@ -43,6 +48,19 @@ function Row({
         <p className="muted truncate text-[length:var(--fs-xs)]" style={metaTone ? { color: metaTone } : undefined}>
           {meta}
         </p>
+        {progress && progress.total > 1 && (
+          <div className="mny-row-progress">
+            <Progress
+              value={(progress.paid / progress.total) * 100}
+              segments={progress.total}
+              color="var(--positive)"
+              aria-label={`${faCount(progress.paid)} از ${faCount(progress.total)} قسط پرداخت شده`}
+            />
+            <span className="num">
+              {faCount(progress.paid)} از {faCount(progress.total)}
+            </span>
+          </div>
+        )}
       </div>
       <div className="acct-amount shrink-0 text-left">
         <p className="num money-nowrap text-[length:var(--fs-sm)] font-semibold" dir="rtl">
@@ -52,7 +70,7 @@ function Row({
       </div>
     </>
   );
-  return <li>{href ? <Link href={href} className="list-row">{body}</Link> : <div className="list-row">{body}</div>}</li>;
+  return <li>{href ? <Link href={href} className="list-row mny-recur-row">{body}</Link> : <div className="list-row mny-recur-row">{body}</div>}</li>;
 }
 
 const monthOf = (iso: string) => {
@@ -88,11 +106,8 @@ export default async function RecurringPage() {
   ].filter(Boolean);
 
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader title="پرداخت‌های تکراری" />
-        <ModuleTabs tabs={MONEY_TABS} active="/recurring" label="بخش‌های پول" />
-      </div>
+    <div className="mny-page">
+      <MoneyHeader title="پرداخت‌های تکراری" active="/recurring" />
 
       {empty ? (
         <div className="card">
@@ -100,29 +115,30 @@ export default async function RecurringPage() {
         </div>
       ) : (
         <>
-          <section className="card commit-hero">
-            <p className="muted text-[length:var(--fs-xs)] font-medium">مانده‌ی پرداخت‌های {thisMonth.label}</p>
-            <p className="commit-hero-value num money-nowrap" dir="rtl">
-              {formatMoney(thisMonth.totalToman, "IRT")}
-            </p>
-            {share && (
-              <p className="text-[length:var(--fs-xs)]" style={{ color: share.gt(50) ? "var(--negative)" : "var(--text-3)" }}>
-                {formatPct(share.toFixed(0), 0)} درآمد ماهانه
-              </p>
-            )}
-            <div className="commit-next">
-              <span className="muted">{nextMonth.label}</span>
-              <b className="num money-nowrap" dir="rtl">
-                {formatMoney(nextMonth.totalToman, "IRT")}
-              </b>
-              {!delta.isZero() && (
-                <span className={`commit-delta ${delta.isNegative() ? "is-down" : "is-up"}`}>
-                  {delta.isNegative() ? "↓" : "↑"} <span className="num money-nowrap">{formatMoney(delta.abs().toFixed(0), "IRT")}</span>
+          <StatCard
+            tone="ink"
+            icon="receipt"
+            label={`مانده‌ی پرداخت‌های ${thisMonth.label}`}
+            period="اقساط، حق بیمه و اشتراک‌ها"
+            value={<FormattedMoney value={formatMoney(thisMonth.totalToman, "IRT")} />}
+            delta={share ? { text: `${formatPct(share.toFixed(0), 0)} درآمد ماهانه`, tone: share.gt(50) ? "down" : "flat" } : null}
+            hint={why.length > 0 ? why.join(" · ") : undefined}
+            footer={
+              <span className="mny-foot-line">
+                <span>{nextMonth.label}</span>
+                <span className="flex items-center gap-2">
+                  <b className="num money-nowrap" dir="rtl">
+                    <FormattedMoney value={formatMoney(nextMonth.totalToman, "IRT")} />
+                  </b>
+                  {!delta.isZero() && (
+                    <span className="mny-delta" data-tone={delta.isNegative() ? "up" : "down"}>
+                      {delta.isNegative() ? "↓" : "↑"} <span className="num money-nowrap">{formatMoney(delta.abs().toFixed(0), "IRT")}</span>
+                    </span>
+                  )}
                 </span>
-              )}
-            </div>
-            {why.length > 0 && <p className="muted text-[length:var(--fs-xs)] leading-5">{why.join(" · ")}</p>}
-          </section>
+              </span>
+            }
+          />
 
           <Section title="ماه‌های پیش رو">
             <div className="card p-3">
@@ -156,6 +172,7 @@ export default async function RecurringPage() {
                       amount={formatMoney(i.nextToman, "IRT")}
                       unit={`قسط ${formatJalaliIso(i.nextDueDate)}`}
                       href="/debts/installments"
+                      progress={{ paid: i.totalCount - i.remainingCount, total: i.totalCount }}
                     />
                   );
                 })}

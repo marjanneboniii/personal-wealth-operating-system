@@ -7,7 +7,10 @@
 import FormattedMoney from "@/components/ui/FormattedMoney";
 import { persianAssetName } from "@/lib/format";
 import AssetLogo from "@/components/ui/AssetLogo";
+import Link from "next/link";
 import DeleteAccountButton from "@/components/accounts/DeleteAccountButton";
+import RowMenu from "@/components/money/RowMenu";
+import Icon from "@/components/ui/Icon";
 
 interface AccountListItemProps {
   accountId: string;
@@ -58,7 +61,7 @@ export default function AccountListItem({
   const secondary = valuationLabel ? balanceLabel : baseValueLabel ? `≈ ${baseValueLabel}` : null;
 
   return (
-    <li className="list-row accounts-balance-row">
+    <li className="mny-acct-row mny-acct-subrow">
       <span className="acct-icon flex shrink-0">
         <AssetLogo
           symbol={symbol ?? "USD"}
@@ -67,22 +70,30 @@ export default function AccountListItem({
           assetClassName={assetClassName}
           brandName={brandName}
           coingeckoId={coingeckoId}
-          size={32}
-          radius={13}
+          size={28}
+          radius={10}
         />
       </span>
-      <p className="acct-title accounts-identity min-w-0 text-sm font-medium">{safeName}</p>
-      <div className="acct-amount accounts-row-amount">
-        <p className="accounts-primary" dir="rtl">
+      <div className="mny-acct-id">
+        <p className="mny-acct-name">{safeName}</p>
+      </div>
+      <div className="mny-acct-amount">
+        <p className="mny-acct-primary" dir="rtl">
           <FormattedMoney value={primary} />
         </p>
         {secondary && (
-          <p className="acct-secondary accounts-secondary" dir="rtl">
+          <p className="mny-acct-secondary" dir="rtl">
             <FormattedMoney value={secondary} />
           </p>
         )}
       </div>
-      {deletable && <DeleteAccountButton accountId={accountId} accountName={accountName?.trim() || safeName} compact />}
+      <RowMenu label={`گزینه‌های ${accountName?.trim() || safeName}`}>
+        <Link href={`/transactions?account=${accountId}`} className="mny-menu-item">
+          <Icon name="transactions" size={15} />
+          تراکنش‌های این حساب
+        </Link>
+        {deletable && <DeleteAccountButton accountId={accountId} accountName={accountName?.trim() || safeName} variant="menu" />}
+      </RowMenu>
     </li>
   );
 }

@@ -194,6 +194,8 @@ export type InstallmentCommitment = {
   nextDueDate: string;
   nextToman: string;
   remainingCount: number;
+  /** Every installment of the loan, paid or not — «۶ از ۲۴» needs the whole. */
+  totalCount: number;
   remainingToman: string;
   lastDueDate: string;
   overdueCount: number;
@@ -259,6 +261,7 @@ export async function listRecurringPayments(userId: string, today = todayIso()):
     // Every outstanding installment the user owes, on its own due date, for what is still left on it.
     db.execute(sql`
       select d.id as "debtId", d.title, d.schedule_interval_months as "intervalMonths", i.due_date::text as "dueDate",
+             (select count(*) from installments i2 where i2.debt_id = d.id)::int as "totalCount",
              (coalesce(i.amount_toman, 0) - coalesce(i.paid_toman, 0))::text as toman
       from installments i join debts d on d.id = i.debt_id
       where d.user_id = ${userId}::uuid and d.deleted_at is null and d.status = 'active'
@@ -291,10 +294,10 @@ export async function listRecurringPayments(userId: string, today = todayIso()):
     });
   }
 
-  const byDebt = new Map<string, { title: string; interval: number | null; rows: { dueDate: string; toman: string }[] }>();
-  for (const r of loans.rows as { debtId: string; title: string; intervalMonths: number | null; dueDate: string; toman: string }[]) {
+  const byDebt = new Map<string, { title: string; interval: number | null; total: number; rows: { dueDate: string; toman: string }[] }>();
+  for (const r of loans.rows as { debtId: string; title: string; intervalMonths: number | null; dueDate: string; toman: string; totalCount: number | string }[]) {
     if (!D(r.toman).gt(0)) continue;
-    const g = byDebt.get(r.debtId) ?? { title: r.title, interval: r.intervalMonths, rows: [] };
+    const g = byDebt.get(r.debtId) ?? { title: r.title, interval: r.intervalMonths, total: Number(r.totalCount) || 0, rows: [] };
     g.rows.push({ dueDate: r.dueDate, toman: r.toman });
     byDebt.set(r.debtId, g);
     occurrences.push({ key: `d:${r.debtId}`, kind: "installment", title: r.title, date: r.dueDate, toman: r.toman });
@@ -315,6 +318,7 @@ export async function listRecurringPayments(userId: string, today = todayIso()):
       nextDueDate: g.rows[0].dueDate,
       nextToman: D(upcoming.toman).toFixed(0),
       remainingCount: g.rows.length,
+      totalCount: Math.max(g.total, g.rows.length),
       remainingToman: Decimal.sum(g.rows.map((r) => r.toman)).toFixed(0),
       lastDueDate: g.rows[g.rows.length - 1].dueDate,
       overdueCount: g.rows.filter((r) => r.dueDate < today).length,

@@ -1,7 +1,7 @@
 "use client";
 
 import { isTomanBankAccount } from "@/features/accounts/classification";
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { createDepositAction } from "@/app/actions/deposits";
 import type { ActionResult } from "@/app/actions";
 import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
@@ -17,11 +17,14 @@ export default function DepositForm({
   accounts: suppliedAccounts,
   balances,
   today,
+  onSaved,
 }: {
   accounts: DepositAccountOption[];
   /** Posted balance per account id, in the account's own unit. */
   balances?: Record<string, string>;
   today: string;
+  /** Called once a deposit is saved — the sheet around the form closes. */
+  onSaved?: () => void;
 }) {
   const accounts = useMemo(() => suppliedAccounts.filter(isTomanBankAccount), [suppliedAccounts]);
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(createDepositAction, null);
@@ -44,6 +47,10 @@ export default function DepositForm({
       setMaturityDate("");
     }
   }
+
+  useEffect(() => {
+    if (state?.ok) onSaved?.();
+  }, [state, onSaved]);
 
   const rateNum = Number(normalizeNumericInput(rate, { decimal: true }));
   const principalNum = Number(principal);

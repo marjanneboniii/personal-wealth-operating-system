@@ -5,9 +5,11 @@ import { ensureAuth } from "@/lib/authGuard";
 import { getCashflow, getFlowByAccount } from "@/features/ledger/queries";
 import { getFlowByCategory, type CategoryFlowRow } from "@/features/categories/service";
 import { MISC_PARENT_CODE } from "@/features/categories/catalog";
-import { EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
-import { BarsChart } from "@/components/charts/Charts";
-import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
+import { EmptyState, Section, SectionLink } from "@/components/ui/Card";
+import MoneyHeader from "@/components/money/MoneyHeader";
+import StatCard, { type StatDelta } from "@/components/money/StatCard";
+import FlowBars from "@/components/money/FlowBars";
+import FormattedMoney from "@/components/ui/FormattedMoney";
 import { D, Decimal } from "@/domain/decimal";
 import { monthToman, windowToman } from "@/lib/cashflowToman";
 import {
@@ -15,10 +17,8 @@ import {
   formatMoney,
   formatPct,
   formatSignedMoney,
-  inflowTone,
-  outflowTone,
   toJalali,
-  trendTone,
+  todayIso,
   usdToIrt,
 } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
@@ -241,6 +241,26 @@ export default async function CashFlowPage() {
   const yearNet = year?.net ?? Decimal.sum(flow.map((f) => f.inflow)).sub(Decimal.sum(flow.map((f) => f.outflow))).toString();
   const savingsRate = D(monthInflow).gt(0) ? D(monthNet).div(monthInflow).mul(100).toFixed(0) : null;
 
+  // Last month, for the change pills. Same Toman/USD basis as this month.
+  const prevRow = flow.at(-2);
+  const prev = monthToman(prevRow, rate);
+  const prevInflow = prev?.inflow ?? prevRow?.inflow ?? null;
+  const prevOutflow = prev?.outflow ?? prevRow?.outflow ?? null;
+  const monthName = FA_MONTHS[toJalali(monthRow?.month ?? todayIso()).m];
+  const prevName = prevRow ? FA_MONTHS[toJalali(prevRow.month).m] : null;
+  const monthEmpty = D(monthInflow).isZero() && D(monthOutflow).isZero();
+  /** «↑ ۱۲٪ نسبت به شهریور». `rising` says whether going up is good news. */
+  const change = (cur: string, before: string | null, rising: "good" | "bad"): StatDelta | null => {
+    if (!before || !prevName || !D(before).gt(0)) return null;
+    const pct = D(cur).sub(before).div(before).mul(100);
+    if (pct.abs().lt("0.5")) return { text: `مثل ${prevName}`, tone: "flat" };
+    const up = pct.gt(0);
+    return {
+      text: `${up ? "↑" : "↓"} ${formatPct(pct.abs().toFixed(0), 0)} نسبت به ${prevName}`,
+      tone: up === (rising === "good") ? "up" : "down",
+    };
+  };
+
   const flowToman = flow.map((f) => monthToman(f, rate));
   const barsInToman = flowToman.length > 0 && flowToman.every((m) => m != null);
 
@@ -250,34 +270,84 @@ export default async function CashFlowPage() {
     flow.length === 0 && expenses.length === 0 && incomes.length === 0 && categoryFlows.length === 0 && incomeCategoryFlows.length === 0;
 
   return (
-    <div className="finance-page cashflow-page space-y-7">
-      <div>
-        <PageHeader title="جریان نقدی" action={<SectionLink href="/planning" label="پیش‌بینی" />} />
-        <ModuleTabs tabs={MONEY_TABS} active="/cash-flow" label="بخش‌های پول" />
-      </div>
+    <div className="finance-page cashflow-page mny-page">
+      <MoneyHeader
+        title="جریان نقدی"
+        active="/cash-flow"
+        actions={<SectionLink href="/planning" label="پیش‌بینی" />}
+      />
 
-      <section className="cashflow-summary" aria-label="خلاصه جریان نقدی">
-        <div className="cashflow-net card">
-          <span className="cashflow-eyebrow">تراز ورودی و خروجی</span>
-        <Metric
-          label="خالص این ماه"
-          value={formatSignedMoney(monthNet, unit)}
-          tone={trendTone(monthNet)}
-          hint={savingsRate != null ? `نرخ پس‌انداز ${formatPct(savingsRate, 0)}` : undefined}
-        />
-        </div>
-        <div className="cashflow-income card">
-        <Metric label="درآمد این ماه" value={formatMoney(monthInflow, unit)} tone={inflowTone(monthInflow)} />
-        <Link href="/new?type=income" className="cashflow-entry">ثبت درآمد <span aria-hidden="true">←</span></Link>
-        </div>
-        <div className="cashflow-expense card">
-        <Metric label="هزینه این ماه" value={formatMoney(monthOutflow, unit)} tone={outflowTone(monthOutflow)} />
-        <Link href="/new?type=expense" className="cashflow-entry">ثبت هزینه <span aria-hidden="true">←</span></Link>
-        </div>
-        <div className="cashflow-year card">
-        <Metric label="خالص ۱۲ ماه" value={formatSignedMoney(yearNet, year ? "IRT" : "USD")} tone={trendTone(yearNet)} />
-        </div>
-      </section>
+      {monthEmpty && !noData ? (
+        // Three «۰ تومان» cards said nothing; the month simply has not started.
+        <section className="mny-stats" style={{ ["--mny-cols" as string]: 2 }} aria-label="خلاصه جریان نقدی">
+          <div className="mny-month-empty mny-stat-wide">
+            <p className="mny-month-empty-title">{monthName} هنوز درآمد یا هزینه‌ای ندارد</p>
+            <p className="mny-month-empty-body">با ثبت اولین درآمد یا هزینهٔ این ماه، خلاصهٔ ماه اینجا می‌آید.</p>
+            <div className="mny-month-empty-actions">
+              <Link href="/new?type=income" className="btn btn-soft">
+                ثبت درآمد
+              </Link>
+              <Link href="/new?type=expense" className="btn btn-soft">
+                ثبت هزینه
+              </Link>
+            </div>
+          </div>
+          <StatCard
+            tone="ink"
+            className="mny-stat-wide"
+            icon="cashflow"
+            label="خالص ۱۲ ماه"
+            period="درآمد منهای هزینه"
+            value={<FormattedMoney value={formatSignedMoney(yearNet, year ? "IRT" : "USD")} />}
+          />
+        </section>
+      ) : (
+        <section className="mny-stats cashflow-stats" style={{ ["--mny-cols" as string]: 4 }} aria-label="خلاصه جریان نقدی">
+          <StatCard
+            tone="ink"
+            className="mny-stat-lead"
+            icon="cashflow"
+            label="خالص این ماه"
+            period={monthName}
+            value={<FormattedMoney value={formatSignedMoney(monthNet, unit)} />}
+            hint={savingsRate != null ? `نرخ پس‌انداز ${formatPct(savingsRate, 0)}` : undefined}
+            footer={
+              <span className="mny-foot-line">
+                خالص ۱۲ ماه
+                <b className="num money-nowrap" dir="rtl">
+                  <FormattedMoney value={formatSignedMoney(yearNet, year ? "IRT" : "USD")} />
+                </b>
+              </span>
+            }
+          />
+          <StatCard
+            tone="positive"
+            icon="arrow-up"
+            label="درآمد این ماه"
+            period={monthName}
+            value={<FormattedMoney value={formatMoney(monthInflow, unit)} />}
+            delta={change(monthInflow, prevInflow, "good")}
+            footer={
+              <Link href="/new?type=income">
+                ثبت درآمد <span aria-hidden="true">←</span>
+              </Link>
+            }
+          />
+          <StatCard
+            tone="negative"
+            icon="arrow-down"
+            label="هزینه این ماه"
+            period={monthName}
+            value={<FormattedMoney value={formatMoney(monthOutflow, unit)} />}
+            delta={change(monthOutflow, prevOutflow, "bad")}
+            footer={
+              <Link href="/new?type=expense">
+                ثبت هزینه <span aria-hidden="true">←</span>
+              </Link>
+            }
+          />
+        </section>
+      )}
 
       {noData ? (
         <div className="card">
@@ -295,15 +365,12 @@ export default async function CashFlowPage() {
         <>
           <Section title="روند درآمد و هزینه" hint="مقایسه ماهانهٔ ورودی و خروجی پول" action={<span className="muted text-[length:var(--fs-xs)]">۱۲ ماه اخیر</span>}>
             <div className="card cashflow-chart p-3 sm:p-4">
-              <BarsChart
-                height={210}
-                positiveLabel="درآمد"
-                negativeLabel="هزینه"
+              <FlowBars
                 currency={barsInToman ? "IRT" : "USD"}
-                data={flow.map((f, i) => ({
+                months={flow.map((f, i) => ({
                   label: FA_MONTHS[toJalali(f.month).m],
-                  positive: Number(barsInToman ? flowToman[i]!.inflow : f.inflow),
-                  negative: Number(barsInToman ? flowToman[i]!.outflow : f.outflow),
+                  inflow: Number(barsInToman ? flowToman[i]!.inflow : f.inflow),
+                  outflow: Number(barsInToman ? flowToman[i]!.outflow : f.outflow),
                 }))}
               />
               {rate && (
