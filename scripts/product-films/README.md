@@ -1,5 +1,10 @@
 # Tavazon product films
 
+> The landing preview (`preview.mp4`, 1920 × 1080 motion graphic, no player
+> controls) is now rendered by the Remotion studio in `motion/` (see
+> `motion/README.md`). This folder only rebuilds the two unused 40-second
+> guides. The notes below about the square preview describe the earlier version.
+
 The landing page starts with a silent, 20-second square preview (`preview.mp4`,
 900 × 900). Three topic buttons (overview, repayment and investments) seek to their scenes.
 A hero link reaches this section. The signup action follows the outcome on mobile.
