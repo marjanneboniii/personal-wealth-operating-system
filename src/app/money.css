@@ -108,6 +108,9 @@
 
 .mny-stat {
   position: relative;
+  /* The figure is sized against the card, not the screen: a card can be a
+     third of a desktop row or half a phone. */
+  container-type: inline-size;
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -172,10 +175,13 @@
 }
 .mny-stat-value {
   display: flex;
-  flex-wrap: wrap;
+  /* «تومان» stays on the figure's line: it dropped under the digits whenever
+     a long amount met a narrow card. The size scales with the card instead. */
+  flex-wrap: nowrap;
   align-items: baseline;
   gap: 0 0.35rem;
-  font-size: clamp(1.15rem, 4.6vw, 1.45rem);
+  white-space: nowrap;
+  font-size: clamp(0.9rem, 7.4cqi, 1.45rem);
   font-weight: 700;
   letter-spacing: -0.015em;
   line-height: 1.35;
@@ -183,7 +189,10 @@
   min-width: 0;
 }
 .mny-stat[data-tone="ink"] .mny-stat-value {
-  font-size: clamp(1.45rem, 6.4vw, 2rem);
+  font-size: clamp(1.1rem, 8.2cqi, 2rem);
+}
+.mny-stat-value .money-unit {
+  flex-shrink: 0;
 }
 .mny-stat-meta {
   display: flex;
@@ -248,9 +257,6 @@
 @media (max-width: 559px) {
   .mny-stats > .mny-stat:not([data-tone="ink"]) {
     padding: 0.85rem 0.9rem;
-  }
-  .mny-stats > .mny-stat:not([data-tone="ink"]) .mny-stat-value {
-    font-size: var(--fs-md);
   }
 }
 @media (min-width: 1024px) {
