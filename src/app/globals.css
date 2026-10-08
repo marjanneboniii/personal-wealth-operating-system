@@ -1870,15 +1870,34 @@ button.jdp-title:hover,
 .landing-kicker {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.28rem 0.75rem;
+  gap: 0.55rem;
+  min-height: 2.25rem;
+  padding-block: 0.22rem;
+  padding-inline: 0.3rem 0.85rem;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--action-soft);
+  border: 1px solid var(--border-strong);
+  background: color-mix(in oklab, var(--surface) 70%, transparent);
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--action);
+  color: var(--text-2);
   line-height: 1.6;
+  text-decoration: none;
+  transition: border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+.landing-kicker svg { transition: transform 0.2s var(--ease); }
+/* Hover only where hover exists: on iPhone a tap leaves :hover stuck on. */
+@media (hover: hover) {
+  .landing-kicker:hover { border-color: color-mix(in oklab, var(--signal-mint) 55%, transparent); color: var(--text); }
+  .landing-kicker:hover svg { transform: translateX(-3px); }
+}
+.landing-kicker-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.12rem 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--signal-mint) 16%, transparent);
+  color: var(--signal-mint);
 }
 
 /* A slow pulse — the only moving thing above the fold, and it is 6px wide. */
@@ -1900,6 +1919,20 @@ button.jdp-title:hover,
   .landing-kicker-dot {
     animation: none;
   }
+}
+
+/* The second half of the headline carries the brand light: paper fading into mint.
+   One background-clipped span — no per-letter boxes, so Persian joins stay intact. */
+.landing-display-accent {
+  background: linear-gradient(270deg, var(--text) 0%, var(--signal-mint) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  /* Safari paints the glyphs from text-fill-color, not color. */
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  /* Safari clips each line box separately; keep the gradient per line. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 .landing-display {
@@ -1972,9 +2005,8 @@ button.jdp-title:hover,
 }
 
 /* ── Coverage band ──
-   The asset kinds, as chips that drift for ever and spring when tapped. See
-   CoverageField.tsx for why the motion is split between CSS and JS: the drift
-   below is the CSS half, and it is the only half that runs continuously.
+   The asset kinds, as chips whose icons draw in and gesture in a travelling
+   wave, and that spring when tapped. See CoverageField.tsx for the CSS/JS split.
 
    Placement is the whole safety argument — this band sits BELOW the hero copy,
    so nothing here can ever move underneath a sentence. */
@@ -1997,41 +2029,19 @@ button.jdp-title:hover,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  /* Wider than the chips need at rest: the drift below moves each chip up to
-     8px vertically and 5px sideways, and neighbours in opposite phases must
-     never touch. Row gap ≥ 2 × 8px, column gap ≥ 2 × 5px. */
-  gap: 1rem 0.75rem;
+  /* Room for the tap spring to nudge neighbours without overlap. */
+  gap: 0.75rem 0.6rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* OUTER: the perpetual float, compositor-only. Each chip gets its own period
-   and phase, so the band moves like a loose group instead of
-   pulsing in unison.
-   It used to be ≤7px over 15–25s — about half a pixel per second, which on a
-   phone (and in the installed app, where most visitors see it) is below what
-   the eye registers: the chips looked coloured but frozen. This is a visible
-   bob of ~8px over 5–9s, still slow enough to read as "alive", not "busy".
-   Duration and delay are set per chip as PLAIN seconds in an inline style
-   (see CoverageField). They used to be `calc(… var(--i) …)` here, and iOS
-   Safari — the installed app on an iPhone — can drop a time value built that
-   way; one invalid part voids the whole `animation` shorthand, so the chips
-   kept their colour and never moved. Longhands, and no calc() in a <time>. */
+/* OUTER: a plain flex item. The icon gestures carry the band's motion now; a
+   whole-chip float on top of them read as busy. Gesture timings are PLAIN
+   seconds in custom properties, never calc() in a <time>: iOS Safari drops such
+   values and one invalid part voids the whole animation shorthand. */
 .cf-chip {
   display: inline-flex;
-  animation-name: cf-drift;
-  animation-duration: 6s;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  will-change: transform;
-}
-
-@keyframes cf-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-  25% { transform: translate3d(4px, -8px, 0) rotate(-1.5deg); }
-  50% { transform: translate3d(-2px, 3px, 0) rotate(0.8deg); }
-  75% { transform: translate3d(-5px, -5px, 0) rotate(-0.6deg); }
 }
 
 /* INNER: what the pointer spring writes to. It carries the chip's look, so the
@@ -2060,10 +2070,46 @@ button.jdp-title:hover,
      already run inside a composited subtree. */
 }
 
-.cf-chip-inner svg {
+/* Icon tile. The icon draws itself in once, then plays its gesture as a wave
+   that travels along the row every few seconds. Both are compositor-cheap
+   (stroke offset and transform on a 15px glyph). */
+.cf-icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
   flex: none;
-  opacity: 0.85;
+  margin-inline-start: -0.35rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tone-ink) 16%, transparent);
+  perspective: 120px;
 }
+.cf-icon svg {
+  flex: none;
+  animation-duration: var(--cf-wave);
+  animation-delay: var(--cf-wave-delay);
+  animation-iteration-count: infinite;
+  animation-timing-function: cubic-bezier(.16, 1, .3, 1);
+}
+.cf-icon svg :is(path, rect, circle, ellipse, line, polyline) {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: cf-draw 1.1s cubic-bezier(.16, 1, .3, 1) var(--cf-draw-delay) forwards;
+}
+@keyframes cf-draw { to { stroke-dashoffset: 0; } }
+/* Gestures occupy the first ~11% of the cycle; the rest is rest. */
+.cf-icon[data-gesture="lift"] svg { animation-name: cf-lift; }
+.cf-icon[data-gesture="spin"] svg { animation-name: cf-spin; }
+.cf-icon[data-gesture="drive"] svg { animation-name: cf-drive; }
+.cf-icon[data-gesture="tilt"] svg { animation-name: cf-tilt; }
+.cf-icon[data-gesture="turn"] svg { animation-name: cf-turn; }
+.cf-icon[data-gesture="flip"] svg { animation-name: cf-flip; }
+@keyframes cf-lift { 0%, 11%, 100% { transform: none; } 4% { transform: translateY(-3px) scale(1.08); } }
+@keyframes cf-spin { 0% { transform: rotateY(0); } 9%, 100% { transform: rotateY(360deg); } }
+@keyframes cf-drive { 0%, 11%, 100% { transform: none; } 3% { transform: translateX(-4px); } 6% { transform: translateX(2px); } }
+@keyframes cf-tilt { 0%, 11%, 100% { transform: none; } 3% { transform: rotate(-14deg); } 7% { transform: rotate(8deg); } }
+@keyframes cf-turn { 0% { transform: rotate(0); } 10%, 100% { transform: rotate(-180deg); } }
+@keyframes cf-flip { 0% { transform: rotateX(0); } 9%, 100% { transform: rotateX(360deg); } }
 
 @media (hover: hover) {
   .cf-chip-inner:hover {
@@ -2074,8 +2120,10 @@ button.jdp-title:hover,
 /* Motion is opt-out at the OS level: both halves stop, and the chips settle
    into an ordinary, perfectly readable row of labels. */
 @media (prefers-reduced-motion: reduce) {
-  .cf-chip {
+  .cf-icon svg,
+  .cf-icon svg :is(path, rect, circle, ellipse, line, polyline) {
     animation: none;
+    stroke-dashoffset: 0;
   }
   .cf-chip-inner {
     cursor: default;
@@ -2120,20 +2168,6 @@ button.jdp-title:hover,
   margin-top: 0.35rem;
 }
 
-.landing-preview-attention {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface-elev);
-  color: var(--text-2);
-  font-size: var(--fs-xs);
-  line-height: 1.6;
-}
-
 .landing-preview-attention-dot {
   inline-size: 7px;
   block-size: 7px;
@@ -2142,19 +2176,176 @@ button.jdp-title:hover,
   background: var(--negative);
 }
 
-/* ───────────────────────── Product preview ───────────────────────── */
+/* ───────────────────────── Product preview ─────────────────────────
+   A layered stage: the dashboard window in the middle, lit from behind by the
+   brand mint, with two small cards floating over its corners on wide screens.
+   On a phone the cards line up under the window instead, so nothing ever
+   covers a figure. */
 
 .landing-preview {
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: none;
-  color: var(--text);
-  overflow: hidden;
+  position: relative;
+  margin: 0;
   max-width: 100%;
   min-width: 0;
+  color: var(--text);
+}
+
+/* The light behind the stage. Decorative, behind everything, never under text. */
+.landing-preview::before {
+  content: "";
+  position: absolute;
+  inset: -8% -6%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 50% at 70% 30%, color-mix(in oklab, var(--signal-mint) 22%, transparent), transparent 70%),
+    radial-gradient(45% 45% at 20% 85%, rgba(96, 165, 250, 0.16), transparent 70%);
+  filter: blur(8px);
+}
+
+.landing-preview-window {
+  position: relative;
+  border: 1px solid var(--border-strong);
+  border-radius: calc(var(--r-lg) + 4px);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Hairline of light along the window's top edge. */
+.landing-preview-window::before {
+  content: "";
+  position: absolute;
+  inset-inline: 12%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--signal-mint) 70%, transparent), transparent);
+}
+
+.landing-preview-floats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.landing-preview-float {
+  min-width: 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: color-mix(in oklab, var(--surface-elev) 92%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-md);
+}
+
+.landing-preview-float-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.landing-preview-float-value {
+  margin-top: 0.45rem;
+  line-height: 1.5;
+}
+
+.landing-preview-float-value .display-num {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.landing-preview-float-title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.landing-preview-float-note {
+  margin-top: 0.4rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--positive);
+}
+
+/* Whole-million segments: the bar is the number. Fills from the start (right). */
+.landing-preview-segments {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 3px;
+  margin-top: 0.55rem;
+}
+
+.landing-preview-segments span {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-strong);
+}
+
+.landing-preview-segments span[data-on] {
+  background: var(--lc-budget-ink);
+}
+
+.landing-preview-float-due {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.landing-preview-float-due .landing-preview-attention-dot {
+  margin-inline-start: auto;
+  animation: landing-pulse 2.8s ease-in-out infinite;
+}
+
+/* Wide screens: the cards leave the flow and float over the window's corners. */
+@media (min-width: 960px) {
+  .landing-preview {
+    padding: 2.25rem 0 2.75rem;
+  }
+  .landing-preview-floats {
+    display: contents;
+  }
+  .landing-preview-float {
+    position: absolute;
+    z-index: 2;
+    animation: landing-float-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both, landing-float 7s ease-in-out 0.7s infinite;
+  }
+  /* Budget over the top corner on the end side (left in RTL). */
+  .landing-preview-float-budget {
+    top: 0;
+    inset-inline-end: -1.75rem;
+    inline-size: 15.5rem;
+    animation-delay: 0.35s, 1.05s;
+  }
+  /* Next installment under the bottom corner on the start side (right in RTL). */
+  .landing-preview-float-due {
+    bottom: 0.25rem;
+    inset-inline-start: -1.5rem;
+    inline-size: 17rem;
+    animation-delay: 0.55s, 1.25s;
+    animation-duration: 0.7s, 8s;
+  }
+}
+
+@keyframes landing-float-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-preview-float,
+  .landing-preview-float-due .landing-preview-attention-dot {
+    animation: none;
+  }
 }
 
 .landing-preview-chrome {
@@ -7505,12 +7696,12 @@ fieldset.policy-step > .policy-step-title + * {
 /* Logo wall. The track holds two identical rows and slides one row-width, so the loop has no seam. */
 .landing-logos { margin-top: 1rem; overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
 .landing-logos-track { display: flex; width: max-content; animation: landing-logos 70s linear infinite; }
-.landing-logos:hover .landing-logos-track { animation-play-state: paused; }
+@media (hover: hover) { .landing-logos:hover .landing-logos-track { animation-play-state: paused; } }
 .landing-logos-row { display: flex; gap: 0.75rem; padding: 0.25rem 0 0.25rem 0.75rem; list-style: none; margin: 0; }
 .landing-logos-row li { display: flex; width: 3.25rem; height: 3.25rem; flex: none; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 14px; background: var(--paper-000); }
 /* Quiet by default (a wall of brand colours shouts over the copy); each logo wakes on hover. */
 .landing-logos-row img { width: 2rem; height: 2rem; object-fit: contain; filter: grayscale(1); opacity: .62; transition: filter .2s var(--ease), opacity .2s var(--ease); }
-.landing-logos-row li:hover img { filter: none; opacity: 1; }
+@media (hover: hover) { .landing-logos-row li:hover img { filter: none; opacity: 1; } }
 /* RTL: the strip drifts toward the reading start. */
 @keyframes landing-logos { from { transform: translateX(0); } to { transform: translateX(50%); } }
 @media (prefers-reduced-motion: reduce) {
@@ -7528,8 +7719,8 @@ fieldset.policy-step > .policy-step-title + * {
 }
 .landing-sms { margin-top: 0.75rem; display: flex; flex-direction: row; gap: 0.9rem; align-items: flex-start; padding: 1.25rem; border: 1px dashed var(--border-strong); border-radius: var(--r-lg); background: var(--surface); }
 
-.landing-watch-demo { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 12px; text-decoration: underline; text-underline-offset: 5px; font-size: var(--fs-sm); }
-#product-tour { scroll-margin-top: 88px; }
+/* In-page anchors land below the sticky header, including the notch in the installed iPhone app. */
+#product-tour, #setup { scroll-margin-top: calc(88px + env(safe-area-inset-top, 0px)); }
 
 /* Financial activity: semantic color pairs retain the app's light/dark tokens. */
 .tx-item { --tx-ink: var(--info); --tx-soft: var(--info-soft); border-inline-start: 3px solid var(--tx-ink); margin-block: 0.35rem; border-radius: var(--r-md); transition: background 150ms ease; }
