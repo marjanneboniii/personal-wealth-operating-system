@@ -5,7 +5,7 @@ import {createReadySession} from "./support/ready-session";
 import {eq, and} from "drizzle-orm";
 import {db} from "../src/db";
 import {createSchemaIfNotExists} from "../src/db/init-schema";
-import {accounts,users,lots,journalEntries,setupSessions,userFxSettings,userSetupState,deposits} from "../src/db/schema";
+import {accounts,assets,users,lots,journalEntries,setupSessions,userFxSettings,userSetupState,deposits} from "../src/db/schema";
 import {finishSetup,loadSetupDraft,saveSetupDraft,validateSetupSelection,type SetupAnswers} from "../src/features/setup/workflow";
 import type {SetupInput} from "../src/features/setup/service";
 import {getSetupState} from "../src/features/setup/service";
@@ -87,6 +87,25 @@ test("multiple dated acquisitions share the holding account but freeze separate 
  const u=await owner();const rows=["2023-08-11","2023-11-12"].map(purchaseDate=>({symbol:"ETH",walletName:"نوبیتکس",quantity:"1",unitPrice:"1000000",priceCurrency:"IRT" as const,purchaseDate}));
  await finishSetup(u.id,{...base,cryptoHoldings:rows},{...none,holdings:"yes"},[]);
  const records=await db.select().from(lots).where(eq(lots.userId,u.id));assert.equal(records.length,2);assert.equal(new Set(records.map(l=>l.accountId)).size,1);assert.equal(new Set(records.map(l=>l.openedAt)).size,2);
+});
+test("expanded crypto selections post dated purchases with their own identities and frozen USD costs", async () => {
+ const u = await owner(), purchaseDate = "2026-09-10";
+ const rate = (await resolveAutomaticPurchaseRate(purchaseDate, u.id)).rate;
+ const symbols = ["CIRBTC", "ADA", "DAI"];
+ await finishSetup(u.id, {...base, cryptoHoldings: symbols.map(symbol => ({symbol, walletName:"نوبیتکس", quantity:"2", unitPrice:"1000000", priceCurrency:"IRT" as const, purchaseDate}))}, {...none, holdings:"yes"}, []);
+ const owned = await db.select({symbol:assets.symbol, identity:assets.coingeckoId, name:assets.name, accountId:accounts.id}).from(accounts).innerJoin(assets, eq(accounts.assetId,assets.id)).where(eq(accounts.userId,u.id));
+ const records = await db.select().from(lots).where(eq(lots.userId,u.id));
+ for (const [symbol, identity] of Object.entries({CIRBTC:"circle-wrapped-btc", ADA:"cardano", DAI:"dai"})) {
+  const coin = owned.find(row => row.symbol === symbol)!;
+  assert.ok(coin, `${symbol} must not be silently omitted`);
+  assert.equal(coin.identity, identity);
+  const lot = records.find(row => row.accountId === coin.accountId)!;
+  assert.ok(lot, `${symbol} must have its own purchase lot`);
+  assert.equal(D(lot.qtyOpened).toString(), "2");
+  assert.ok(D(lot.unitCostBase).sub(D("1000000").div(rate)).abs().lt("0.000001"));
+ }
+ assert.equal(owned.find(row=>row.symbol==="CIRBTC")?.name, "بیت‌کوین رپ‌شدهٔ سیرکل");
+ assert.equal((await getSetupState(u.id)).completed, true);
 });
 test("dated crypto trade uses historical USD automatically and ignores client dollar override",async()=>{
  const u=await owner(),date="2023-08-11";const rate=(await resolveAutomaticPurchaseRate(date,u.id)).rate;

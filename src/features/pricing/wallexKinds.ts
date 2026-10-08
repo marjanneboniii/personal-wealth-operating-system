@@ -113,7 +113,7 @@ export const CRYPTO_GROUPS = {
   major: [
     "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "TRX", "GRAM", "AVAX", "DOT", "LINK", "LTC", "BCH",
     "XLM", "ATOM", "NEAR", "APT", "SUI", "HBAR", "ICP", "FIL", "ETC", "ALGO", "POL", "ARB",
-    "HYPE", "TAO", "KAS", "WBTC", "MNT",
+    "HYPE", "TAO", "KAS", "WBTC", "MNT", "CIRBTC",
   ],
   defi: [
     "UNI", "AAVE", "CRV", "CVX", "SNX", "1INCH", "SUSHI", "YFI", "LRC", "DYDX", "CAKE",

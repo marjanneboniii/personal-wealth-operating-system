@@ -71,6 +71,7 @@ self.addEventListener("fetch", (event) => {
   if (
     url.pathname.startsWith("/_next/static") ||
     url.pathname.startsWith("/fonts/") ||
+    url.pathname === "/ir-icons/crypto/cirbtc.jpg" ||
     url.pathname === "/icon.svg" ||
     url.pathname === "/favicon.svg" ||
     url.pathname === "/icon-192.png" ||
