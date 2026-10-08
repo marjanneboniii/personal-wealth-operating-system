@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 /** Title of one wizard step, with an optional one-line explanation. */
 export default function StepIntro({ title, text }: { title: string; text?: ReactNode }) {
   return (
-    <header>
+    <header className="setup-intro">
       <h2 className="text-[length:var(--fs-md)] font-bold">{title}</h2>
       {text && <p className="muted mt-1 text-[length:var(--fs-xs)] leading-6">{text}</p>}
     </header>
