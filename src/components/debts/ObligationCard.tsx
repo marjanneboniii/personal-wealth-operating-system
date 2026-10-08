@@ -109,6 +109,7 @@ export default function ObligationCard({ d, today, rate }: { d: ObligationCardDa
               value={progress}
               color={settled ? "var(--positive)" : "var(--action)"}
               aria-label="پیشرفت اقساط"
+              segments={d.totalCount}
             />
           </div>
           <span className="muted num shrink-0 text-[length:var(--fs-xs)]">

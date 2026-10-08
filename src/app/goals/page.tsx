@@ -149,7 +149,7 @@ export default async function GoalsPage() {
             <EmptyState
               icon="goals"
               title="هنوز هدفی تعریف نشده است"
-              body="یک هدف یعنی مبلغی مشخص تا تاریخی مشخص — پیشرفت آن از حساب پس‌اندازش خوانده می‌شود."
+              body="مبلغی مشخص تا تاریخی مشخص؛ پیشرفتش خودکار دنبال می‌شود."
               action={<AddGoalButton {...addProps} label="تعریف اولین هدف" variant="soft" />}
             />
           </div>

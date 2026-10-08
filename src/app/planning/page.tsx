@@ -180,7 +180,7 @@ export default async function PlanningPage() {
             <EmptyState
               icon="check-circle"
               title="همه‌چیز مرتب است"
-              body="هیچ قسط، برنامه یا رویداد نزدیکی وجود ندارد. برنامه جدید بسازید تا آینده شکل بگیرد."
+              body="قسط، برنامه یا رویداد نزدیکی نیست."
               action={<AddPlanButton {...addProps} label="ساخت اولین برنامه" variant="soft" />}
             />
           </div>

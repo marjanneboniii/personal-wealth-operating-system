@@ -34,7 +34,7 @@ export default async function LoginPage({
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-7rem)] max-w-md flex-col justify-center px-1 py-6 sm:px-4">
       <p className="mb-4 text-center">
-        <Link href="/" className="muted text-[length:var(--fs-xs)] font-medium hover:underline">
+        <Link href="/" className="tap-link muted text-[length:var(--fs-xs)] font-medium hover:underline">
           بازگشت به معرفی توازن
         </Link>
       </p>
@@ -72,7 +72,7 @@ export default async function LoginPage({
 
         <p className="muted mt-6 text-center text-[length:var(--fs-xs)]">
           حساب ندارید؟{" "}
-          <a href="/register" className="font-semibold underline underline-offset-4" style={{ color: "var(--action)" }}>
+          <a href="/register" className="tap-link font-semibold underline underline-offset-4" style={{ color: "var(--action)" }}>
             ثبت‌نام
           </a>
         </p>

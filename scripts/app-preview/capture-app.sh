@@ -1,9 +1,15 @@
 #!/bin/sh
 # Screenshot every page of the app with fictional demo data, for design review.
 #
-#   sh scripts/app-preview/capture-app.sh [git-ref] [label]
+#   sh scripts/app-preview/capture-app.sh [git-ref] [label] [mode]
 #     git-ref  what to capture (default: origin/main)
 #     label    output folder name (default: the ref's short hash)
+#     mode     core    — every page, in desktop/phone/phone-dark/installed-app (default)
+#              devices — the key pages on every device: 4.7″ to 6.7″ phones,
+#                        Android, landscape, iPad mini/iPad/landscape, Android tablet
+#
+# Every page is also audited (content past the screen edge, small tap
+# targets); the findings land in audit.md next to the screenshots.
 #
 # SAFETY — this never touches your real data:
 #   • It runs a SEPARATE copy of the app (a temporary git worktree with no .env)
@@ -22,6 +28,7 @@ set -u
 TOOL=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$TOOL/../.." && pwd)
 REF=${1:-origin/main}
+MODE=${3:-core}
 PORT=3100
 BASE="http://localhost:$PORT"
 
@@ -64,13 +71,18 @@ for _ in $(seq 1 90); do
   sleep 2
 done
 
-ROUTES=$(cd "$WORK" && find src/app -name page.tsx | sed -E 's#^src/app##; s#/page.tsx$##; s#^$#/#' | grep -v '\[' | sort)
+if [ "$MODE" = "devices" ]; then
+  ROUTES="/login / /accounts /transactions /new /portfolio /assets /crypto /debts /debts/installments /budgets /goals /net-worth /reports /ledger /settings"
+  export VIEWS=all
+else
+  ROUTES=$(cd "$WORK" && find src/app -name page.tsx | sed -E 's#^src/app##; s#/page.tsx$##; s#^$#/#' | grep -v '\[' | sort)
+fi
 echo "Compiling $(echo "$ROUTES" | wc -l | tr -d ' ') pages (first visit is slow in dev)…"
 for route in $ROUTES; do curl -s -o /dev/null --max-time 240 "$BASE$route"; done
 # Compile the preview login route too, so the first sign-in is not cut short.
 curl -s -o /dev/null --max-time 240 "$BASE/api/dev-preview-login"
 
-echo "Capturing desktop, phone, phone-dark and installed-app (PWA) views…"
+echo "Capturing ($MODE)…"
 # shellcheck disable=SC2086
 node "$TOOL/capture.mjs" "$BASE" "$OUT" $ROUTES
 
