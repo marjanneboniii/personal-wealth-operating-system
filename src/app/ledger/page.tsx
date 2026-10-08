@@ -167,7 +167,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
                       {b.name}
                       {b.walletName && <span className="muted mr-1.5 text-[length:var(--fs-xs)]">· {b.walletName}</span>}
                     </td>
-                    <td>
+                    <td className="stack-full">
                       <span className="badge badge-neutral">{ACCOUNT_TYPE_LABELS[b.type as AccountType]}</span>
                     </td>
                     <td className="td-num" dir="rtl" data-label="مقدار">

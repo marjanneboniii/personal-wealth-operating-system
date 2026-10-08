@@ -7966,6 +7966,8 @@ fieldset.policy-step > .policy-step-title + * {
     background: none;
   }
   .table-stack tbody td:first-child { grid-column: 1 / -1; font-weight: 600; }
+  /* An unlabelled tag (a type badge) sits on its own line under the title. */
+  .table-stack tbody td.stack-full { grid-column: 1 / -1; margin-top: -0.3rem; }
   .table-stack tbody td[colspan] { grid-column: 1 / -1; }
   .table-stack td[data-label]::before {
     content: attr(data-label);

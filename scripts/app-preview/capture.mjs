@@ -69,8 +69,13 @@ for (const [name, { standalone, ...options }] of Object.entries(views)) {
     const file = (route === "/" ? "home" : route.slice(1).replaceAll("/", "_")) + ".png";
     try {
       await page.goto(base + route, { waitUntil: "networkidle", timeout: 240_000 });
+      // A dev-server restart drops the in-memory session: sign in again and retry once.
+      if (!PUBLIC.has(route) && new URL(page.url()).pathname === "/login") {
+        await signIn(context);
+        await page.goto(base + route, { waitUntil: "networkidle", timeout: 240_000 });
+      }
       await page.waitForTimeout(400);
-      await page.screenshot({ path: path.join(out, name, file), fullPage: true });
+      await page.screenshot({ path: path.join(out, name, file), fullPage: true, timeout: 90_000 });
       console.log(`${name.padEnd(10)} ${route}`);
     } catch (error) {
       console.log(`${name.padEnd(10)} ${route}  FAILED: ${error.message.split("\n")[0]}`);

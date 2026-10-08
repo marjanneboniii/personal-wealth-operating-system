@@ -54,7 +54,9 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "Starting the app on the in-memory demo database (port $PORT)…"
-( cd "$WORK" && env -u DATABASE_URL DATABASE_URL=memory:// APP_MODE=development \
+# Extra heap: on the default one the dev server restarts itself part-way through
+# ~200 page loads, which wipes the in-memory database and the session with it.
+( cd "$WORK" && env -u DATABASE_URL DATABASE_URL=memory:// APP_MODE=development NODE_OPTIONS=--max-old-space-size=8192 \
     npx next dev --webpack -p "$PORT" >"$OUT/server.log" 2>&1 ) &
 SERVER=$!
 for _ in $(seq 1 90); do
