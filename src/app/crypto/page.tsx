@@ -132,16 +132,6 @@ export default async function CryptoPage() {
             </Section>
           )}
 
-          <p className="muted text-[length:var(--fs-xs)]">
-            مانده‌ها همیشه از تراکنش‌های ثبت‌شده‌ی شما حساب می‌شوند؛ تغییر قیمت‌ها چیزی را در حساب‌ها ثبت نمی‌کند. مانده حساب‌ها:{" "}
-            {balances
-              .filter((b) => b.type === "asset" && b.symbol && cryptoSymbols.has(b.symbol) && Math.abs(Number(b.quantity)) > 0.000001)
-              .map((b) => (
-                <span key={b.accountId} className="num mx-1" dir="rtl">
-                  {formatQty(b.quantity, b.assetDecimals)} {currencyLabel(b.symbol)}
-                </span>
-              ))}
-          </p>
         </>
       )}
     </div>

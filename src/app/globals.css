@@ -7302,16 +7302,17 @@ fieldset.policy-step > .policy-step-title + * {
   width: 3.4rem;
   height: 3.4rem;
   border-radius: 1.1rem;
-  background: linear-gradient(135deg, var(--lc-wealth-ink), var(--lc-flow-ink));
-  color: #fff;
-  box-shadow: var(--shadow-lg);
+  /* A primary action wears the brand ink like every other one (and the bar's
+     «+»), not the wealth→flow category gradient. The tokens also switch with
+     the app's real dark mode (.dark); the old [data-theme] overrides never did. */
+  background: var(--action);
+  color: var(--on-ink);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-lg);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.15s ease;
 }
 .hist-fab:active { transform: scale(0.94); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hist-fab { color: #0d1726; } }
-:root[data-theme="dark"] .hist-fab { color: #0d1726; }
 @media (min-width: 1024px) { .hist-fab { display: none; } }
 
 /* ── Sheet: kind tiles, unit chips, the reminder ── */
@@ -7936,5 +7937,42 @@ fieldset.policy-step > .policy-step-title + * {
     height: env(safe-area-inset-top, 0px);
     background: var(--ink-900);
     pointer-events: none;
+  }
+}
+
+
+/* ── Stacked tables on phones ──
+   Money tables with three or more amount columns never fit 390px; scrolled
+   sideways they hid amounts past the screen edge. Below 640px each row becomes
+   a small card: the first cell is its title, every other visible cell shows
+   its own label (data-label) above its value, two to a line. */
+@media (max-width: 639px) {
+  .table-stack thead { display: none; }
+  .table-stack tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 1rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-stack tbody tr:last-child { border-bottom: 0; }
+  .table-stack tbody td:not(.hidden) {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    text-align: start;
+    position: static;
+    background: none;
+  }
+  .table-stack tbody td:first-child { grid-column: 1 / -1; font-weight: 600; }
+  .table-stack tbody td[colspan] { grid-column: 1 / -1; }
+  .table-stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.1rem;
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    color: var(--text-3);
   }
 }
