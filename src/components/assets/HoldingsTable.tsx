@@ -86,8 +86,10 @@ export default function HoldingsTable({
                 <div className="num money-nowrap text-[length:var(--fs-sm)] font-semibold" dir="rtl">
                   {formatMoney(a.currentValueToman, "IRT")}
                 </div>
-                <div className="num money-nowrap text-[length:var(--fs-xs)] font-medium" dir="rtl" style={{ color: trendColor(pnl.toString()) }}>
-                  {formatSignedMoney(pnl.toString(), "IRT")} · {trendArrow(roi)} {formatPct(D(roi).abs().toString(), 1)}
+                {/* Gap, not «·»: next to Persian digits a middle dot reads as «۰». */}
+                <div className="num money-nowrap flex justify-end gap-2 text-[length:var(--fs-xs)] font-medium" dir="rtl" style={{ color: trendColor(pnl.toString()) }}>
+                  <span>{formatSignedMoney(pnl.toString(), "IRT")}</span>
+                  <span>{trendArrow(roi)} {formatPct(D(roi).abs().toString(), 1)}</span>
                 </div>
               </div>
             </li>
