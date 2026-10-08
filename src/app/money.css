@@ -1419,3 +1419,12 @@
   min-height: 40px;
   padding-block: 0.6rem;
 }
+/* A checkbox's tap area is its whole label row: make that row finger-sized. */
+.mny-page label:has(> input[type="checkbox"]) {
+  min-height: 40px;
+}
+.mny-page label > input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
