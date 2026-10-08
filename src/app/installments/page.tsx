@@ -5,11 +5,14 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, assetClasses, assets, wallets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
-import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
+import { EmptyState, Progress, Section } from "@/components/ui/Card";
+import StatCard from "@/components/money/StatCard";
+import FormattedMoney from "@/components/ui/FormattedMoney";
 import Icon from "@/components/ui/Icon";
 import SettleObligationSheet from "@/components/forms/SettleObligationSheet";
 import RepairPaymentButton from "@/components/forms/RepairPaymentButton";
-import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import {
   INSTALLMENT_PARTIAL,
   isReceivable,
@@ -298,34 +301,46 @@ export default async function InstallmentsPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl min-w-0 space-y-7">
-      <div>
-        <PageHeader
-          title="اقساط"
-          action={
-            <Link href="/debts#new" className="btn btn-primary">
+    <div className="mx-auto w-full max-w-5xl min-w-0 mny-page">
+      <ModuleHeader title="اقساط" tabs={DEBT_TABS} active="/debts/installments" label="بخش‌های تعهدات" actions={<Link href="/debts#new" className="btn btn-primary">
               <Icon name="plus" size={16} />
               افزودن بدهی قسطی
-            </Link>
-          }
-        />
-        <ModuleTabs tabs={DEBT_TABS} active="/debts/installments" label="بخش‌های تعهدات" />
-      </div>
+            </Link>} />
 
-      <section className="metric-strip">
-        <Metric label="معوق" value={faCount(overdueList.length)} tone={overdueList.length ? "down" : "neutral"} />
-        <Metric
-          label={formatDaysWindow(30)}
-          value={faCount(next30.length)}
-          hint={next30.length ? next30Disp.primary : undefined}
-        />
-        <Metric
-          label="مانده اقساط"
-          value={remainingDisp.primary}
-          hint={remainingDisp.usdHint ? `معادل فعلی: ${remainingDisp.usdHint}` : undefined}
-        />
-        <Metric label="پرداخت‌شده" value={faCount(paid.length)} tone={paid.length > 0 ? "up" : "neutral"} hint={`از ${faCount(rows.length)} قسط`} />
-      </section>
+      {rows.length > 0 && (
+        <section className="mny-stats" style={{ ["--mny-cols" as string]: 5 }} aria-label="خلاصهٔ اقساط">
+          <StatCard
+            tone="ink"
+            className="mny-stat-lead"
+            icon="installments"
+            label="ماندهٔ اقساط"
+            period={`${faCount(pending.length)} قسط پرداخت‌نشده`}
+            value={<FormattedMoney value={remainingDisp.primary} />}
+            hint={remainingDisp.usdHint ? `معادل فعلی: ${remainingDisp.usdHint}` : undefined}
+            bar={<Progress value={rows.length ? (paid.length / rows.length) * 100 : 0} color="#2bd3a8" aria-label="سهم اقساط پرداخت‌شده" />}
+          />
+          <StatCard
+            tone={overdueList.length ? "negative" : "plain"}
+            icon="alert"
+            label="معوق"
+            period={overdueList.length ? "سررسید گذشته" : "همه به‌موقع"}
+            value={faCount(overdueList.length)}
+          />
+          <StatCard
+            icon="calendar"
+            label={formatDaysWindow(30)}
+            period={next30.length ? next30Disp.primary : "قسطی سررسید نمی‌شود"}
+            value={faCount(next30.length)}
+          />
+          <StatCard
+            tone={paid.length > 0 ? "positive" : "plain"}
+            icon="check-circle"
+            label="پرداخت‌شده"
+            period={`از ${faCount(rows.length)} قسط`}
+            value={faCount(paid.length)}
+          />
+        </section>
+      )}
 
       <InstallmentViews pendingCount={pending.length} paidCount={paid.length}
         paid={<Section title="اقساط پرداخت‌شده" hint="سوابق پرداخت و مبلغ ثبت‌شده هر قسط">

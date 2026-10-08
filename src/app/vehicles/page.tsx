@@ -4,7 +4,8 @@ import { listVehicleOverview, VEHICLE_DUE_HORIZON_DAYS, type VehicleOverview } f
 import { listPolicies } from "@/features/insurance/service";
 import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import VehicleDueDates from "@/components/vehicles/VehicleDueDates";
 import { D } from "@/domain/decimal";
 import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, formatSignedMoney, todayIso } from "@/lib/format";
@@ -131,13 +132,8 @@ export default async function VehiclesPage() {
   const sold = cars.filter((c) => c.status === "sold");
 
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader
-          title="خودروها"
-        />
-        <ModuleTabs tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
-      </div>
+    <div className="mny-page">
+      <ModuleHeader title="خودروها" tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
 
       {cars.length === 0 ? (
         <div className="card">

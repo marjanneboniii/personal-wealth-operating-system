@@ -13,10 +13,13 @@ import {
 } from "@/features/insurance/service";
 import { listRealEstateAssets } from "@/features/rwa/realEstate/service";
 import { listUserVehicles } from "@/features/rwa/vehicle/service";
-import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
+import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
+import StatCard from "@/components/money/StatCard";
+import FormattedMoney from "@/components/ui/FormattedMoney";
 import DisclosurePanel from "@/components/ui/DisclosurePanel";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import PolicyForm from "@/components/insurance/PolicyForm";
 import PolicyRowActions from "@/components/insurance/PolicyRowActions";
 import { POLICY_KIND_VISUAL, policyKindStyle } from "@/components/insurance/kindVisual";
@@ -154,32 +157,42 @@ export default async function InsurancePage({ searchParams }: { searchParams: Pr
   const yearly = Decimal.sum(active.map((r) => r.annualPremiumToman));
   const nextPremium = active.map((r) => r.nextPremiumDate).filter((d): d is string => !!d).sort()[0] ?? null;
   const expiring = active.filter((r) => r.endDate && daysBetween(today, r.endDate) <= RENEWAL_HORIZON_DAYS);
-  const opened = !!(params.kind || params.vehicle || params.property) || rows.length === 0;
+  // A «ثبت» link from a coverage gap arrives with the kind preselected: open the form for it.
+  const opened = !!(params.kind || params.vehicle || params.property);
   const bankAccounts: PickerAccount[] = accountRows;
   const balances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
 
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader
-          title="بیمه‌نامه‌ها"
-          action={
-            <Link href="#new-policy" className="btn btn-primary">
+    <div className="mny-page">
+      <ModuleHeader title="بیمه‌نامه‌ها" tabs={DEBT_TABS} active="/insurance" label="بخش‌های تعهدات مالی" actions={<Link href="#new-policy" className="btn btn-primary">
               <Icon name="plus" size={16} />
               ثبت بیمه‌نامه
-            </Link>
-          }
-        />
-        <ModuleTabs tabs={DEBT_TABS} active="/insurance" label="بخش‌های تعهدات مالی" />
-      </div>
+            </Link>} />
 
       {/* Figures only once there is something to sum — four zeros are noise, not information. */}
       {active.length > 0 && (
-        <section className="metric-strip">
-          <Metric label="بیمه‌نامه‌ی فعال" value={faCount(active.length)} tone="neutral" />
-          <Metric label="حق بیمه‌ی سالانه" value={formatMoney(yearly.toFixed(0), "IRT")} tone="neutral" />
-          <Metric label="حق بیمه‌ی بعدی" value={nextPremium ? formatJalaliIso(nextPremium) : "—"} tone="neutral" hint={nextPremium ? formatDaysUntil(daysBetween(today, nextPremium)) : undefined} />
-          <Metric label={`تمدید تا ${faCount(RENEWAL_HORIZON_DAYS)} روز`} value={faCount(expiring.length)} tone={expiring.length ? "down" : "neutral"} />
+        <section className="mny-stats" style={{ ["--mny-cols" as string]: 5 }} aria-label="خلاصهٔ بیمه‌نامه‌ها">
+          <StatCard
+            tone="ink"
+            className="mny-stat-lead"
+            icon="shield"
+            label="حق بیمه‌ی سالانه"
+            period={`${faCount(active.length)} بیمه‌نامه‌ی فعال`}
+            value={<FormattedMoney value={formatMoney(yearly.toFixed(0), "IRT")} />}
+          />
+          <StatCard icon="shield" label="بیمه‌نامه‌ی فعال" value={faCount(active.length)} />
+          <StatCard
+            icon="calendar"
+            label="حق بیمه‌ی بعدی"
+            period={nextPremium ? formatDaysUntil(daysBetween(today, nextPremium)) : undefined}
+            value={nextPremium ? formatJalaliIso(nextPremium) : "—"}
+          />
+          <StatCard
+            tone={expiring.length ? "negative" : "plain"}
+            icon="refresh"
+            label={`تمدید تا ${faCount(RENEWAL_HORIZON_DAYS)} روز`}
+            value={faCount(expiring.length)}
+          />
         </section>
       )}
 
@@ -211,7 +224,7 @@ export default async function InsurancePage({ searchParams }: { searchParams: Pr
         </Section>
       )}
 
-      <DisclosurePanel anchor="new-policy" label="ثبت بیمه‌نامه" defaultOpen={opened}>
+      <DisclosurePanel anchor="new-policy" label="ثبت بیمه‌نامه" defaultOpen={opened} sheet>
         <PolicyForm
           key={`${params.kind ?? ""}-${params.vehicle ?? ""}-${params.property ?? ""}`}
           accounts={bankAccounts}
@@ -227,7 +240,16 @@ export default async function InsurancePage({ searchParams }: { searchParams: Pr
       <Section title="بیمه‌نامه‌های فعال" hint={active.length ? `${faCount(active.length)} مورد` : undefined}>
         {active.length === 0 ? (
           <div className="card">
-            <EmptyState icon="shield" title="بیمه‌نامه‌ی فعالی ثبت نشده" body="بیمه‌نامه را ثبت کنید تا حق بیمه و تمدیدش یادآوری شود." />
+            <EmptyState
+              icon="shield"
+              title="بیمه‌نامه‌ی فعالی ثبت نشده"
+              body="بیمه‌نامه را ثبت کنید تا حق بیمه و تمدیدش یادآوری شود."
+              action={
+                <Link href="#new-policy" className="btn btn-soft">
+                  ثبت بیمه‌نامه
+                </Link>
+              }
+            />
           </div>
         ) : (
           <PolicyList rows={active} today={today} bankAccounts={bankAccounts} balances={balances} />

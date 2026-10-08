@@ -5,7 +5,8 @@ import { getPortfolioValuation, listRegisteredWithoutHoldings } from "@/features
 import { getRealizedPnl } from "@/features/ledger/queries";
 import { EmptyState, PageHeader, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import AllocationBar from "@/components/assets/AllocationBar";
 import UnheldRegistrations from "@/components/assets/UnheldRegistrations";
@@ -93,19 +94,11 @@ export default async function FinancialAssetsPage() {
   const realized = Decimal.sum(pnl.bySymbol.filter((p) => financialSymbols.has(p.symbol)).map((p) => p.pnl)).toString();
 
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader
-          title="دارایی‌های مالی"
-          action={
-            <Link href="/new?type=buy" className="btn btn-primary">
+    <div className="mny-page">
+      <ModuleHeader title="دارایی‌های مالی" tabs={ASSET_TABS} active="/assets/financial" label="بخش‌های دارایی" actions={<Link href="/new?type=buy" className="btn btn-primary">
               <Icon name="plus" size={16} />
               ثبت خرید
-            </Link>
-          }
-        />
-        <ModuleTabs tabs={ASSET_TABS} active="/assets/financial" label="بخش‌های دارایی" />
-      </div>
+            </Link>} />
 
       {ordered.length === 0 ? (
         <div className="card">

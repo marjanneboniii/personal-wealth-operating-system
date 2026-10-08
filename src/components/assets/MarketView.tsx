@@ -81,7 +81,7 @@ export default function MarketView({
 
   return (
     <div className="space-y-4" dir="rtl">
-      <div className="seg max-w-full flex-wrap" role="group" aria-label="بخش بازار">
+      <div className="mny-chips mny-market-sections" role="group" aria-label="بخش بازار">
         <button type="button" aria-pressed={section === "all"} className={section === "all" ? "seg-on" : ""} onClick={() => pick("all")}>
           همه <span className="muted num">{toFaDigits(String(catalog.rows.length))}</span>
         </button>
@@ -126,7 +126,7 @@ export default function MarketView({
         </p>
       )}
 
-      <ul className="card divide-y overflow-hidden" style={{ borderColor: "var(--border)" }}>
+      <ul className="card mny-market-list divide-y overflow-hidden" style={{ borderColor: "var(--border)" }}>
         {matches.slice(0, shown).map((row) => {
           const reference = referenceQuotes[`${row.kind}:${row.symbol}`];
           return (
