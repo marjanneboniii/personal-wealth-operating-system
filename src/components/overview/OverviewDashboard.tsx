@@ -8,6 +8,7 @@ import { projectCashflow, upcomingInstallments } from "@/features/planning/servi
 import { getSetupState } from "@/features/setup/service";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { ActionItem, Alert, EmptyState, Metric, Section, SectionLink } from "@/components/ui/Card";
+import FormattedMoney from "@/components/ui/FormattedMoney";
 import { AreaChart, BarsChart } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
 import AllocationBar from "@/components/assets/AllocationBar";
@@ -45,7 +46,7 @@ const QUICK = [
   { href: "/new?type=income", label: "درآمد", icon: "arrow-up" as const },
   { href: "/new?type=transfer", label: "انتقال", icon: "swap" as const },
   { href: "/new?type=buy", label: "خرید دارایی", short: "خرید", icon: "plus" as const },
-  { href: "/new?type=sell", label: "فروش دارایی", short: "فروش", icon: "arrow-down" as const },
+  { href: "/new?type=sell", label: "فروش دارایی", short: "فروش", icon: "coins" as const },
 ];
 
 const FA_MONTHS = ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
@@ -239,18 +240,23 @@ export default async function OverviewDashboard() {
   // and is not part of net worth.
   // Debts carry the negative colour so they never read like an asset figure;
   // a zero debt stays neutral.
-  const tiles: { label: string; toman: string; usd: string; tone?: "up" | "down" }[] = [
+  // Presentation only: each figure's size next to total assets, for a thin bar.
+  const assetsToman = D(nw.totalAssetsToman ?? "0");
+  const shareOfAssets = (toman: string | null | undefined) =>
+    assetsToman.gt(0) ? Number(D(toman ?? "0").abs().div(assetsToman).mul(100).toFixed(1)) : undefined;
+  const tiles: { label: string; toman: string; usd: string; tone?: "up" | "down"; share?: number }[] = [
     { label: "کل دارایی‌ها", toman: nw.totalAssetsToman, usd: nw.totalAssets },
     {
       label: "کل بدهی‌ها",
       toman: nw.totalDebtToman,
       usd: nw.totalDebtUsd,
       tone: D(nw.totalDebtToman ?? "0").isZero() ? undefined : "down",
+      share: shareOfAssets(nw.totalDebtToman),
     },
     ...(hasReceivables
-      ? [{ label: "کل مطالبات", toman: receivableToman, usd: nw.totalReceivableUsd ?? "0", tone: "up" as const }]
+      ? [{ label: "کل مطالبات", toman: receivableToman, usd: nw.totalReceivableUsd ?? "0", tone: "up" as const, share: shareOfAssets(receivableToman) }]
       : []),
-    { label: "نقدشونده", toman: nw.liquidToman, usd: nw.liquid },
+    { label: "نقدشونده", toman: nw.liquidToman, usd: nw.liquid, share: shareOfAssets(nw.liquidToman) },
   ];
 
   // Per-class Toman from the valuation rows (the class aggregate is USD only).
@@ -291,7 +297,7 @@ export default async function OverviewDashboard() {
         <div className="min-w-0">
           <p className="muted text-[length:var(--fs-xs)] font-medium">ارزش خالص</p>
           <p className="overview-hero-value num money-nowrap" dir="rtl">
-            {nw.netWorthToman ? formatMoney(nw.netWorthToman, "IRT") : formatMoney(nw.netWorth)}
+            <FormattedMoney animate value={nw.netWorthToman ? formatMoney(nw.netWorthToman, "IRT") : formatMoney(nw.netWorth)} />
           </p>
           <p className="overview-hero-sub">
             <span className="num money-nowrap" dir="rtl">
@@ -310,7 +316,10 @@ export default async function OverviewDashboard() {
         <nav className="quick-row" aria-label="ثبت سریع">
           {quick.map((q) => (
             <Link key={q.href} href={q.href} className="quick-pill" aria-label={q.label}>
-              <Icon name={q.icon} size={14} />
+              {/* Each action wears the colour of what it does (in, out, move, invest). */}
+              <span className="quick-icon" data-kind={new URLSearchParams(q.href.split("?")[1]).get("type") ?? ""} aria-hidden="true">
+                <Icon name={q.icon} size={15} />
+              </span>
               {"short" in q ? (
                 <>
                   <span className="quick-full">{q.label}</span>
@@ -339,6 +348,7 @@ export default async function OverviewDashboard() {
             label={t.label}
             value={formatMoney(D(t.toman).abs().toString(), "IRT")}
             tone={t.tone ?? "neutral"}
+            share={t.share}
             hint={`≈ ${formatMoney(D(t.usd).abs().toString())}`}
           />
         ))}

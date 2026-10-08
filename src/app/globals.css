@@ -3826,6 +3826,10 @@ body {
   background: var(--accent-line);
 }
 
+/* A metric's share of its whole: a 3px track under the figure. */
+.metric-share { margin-top: 0.45rem; height: 3px; border-radius: 3px; background: var(--sunken); overflow: hidden; }
+.metric-share > i { display: block; height: 100%; border-radius: 3px; }
+
 /* KPI strip — one bordered surface split by hairlines instead of loose tiles. */
 .metric-strip {
   display: grid;
@@ -4235,8 +4239,8 @@ details[open] > summary .inst-caret { transform: rotate(180deg); }
   justify-content: center;
   gap: 0.25rem;
   min-width: 0;
-  min-height: 56px;
-  padding: 0.4rem 0.15rem;
+  min-height: 64px;
+  padding: 0.5rem 0.15rem;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--surface);
@@ -4245,6 +4249,24 @@ details[open] > summary .inst-caret { transform: rotate(180deg); }
   color: var(--text-2);
   white-space: nowrap;
   transition: border-color var(--motion-micro) var(--ease), color var(--motion-micro) var(--ease);
+}
+/* Tonal disc per action: the meaning is in the colour before the label is read. */
+.quick-icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  flex: none;
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--text-2);
+}
+.quick-icon[data-kind="expense"] { background: var(--negative-soft); color: var(--negative); }
+.quick-icon[data-kind="income"] { background: var(--positive-soft); color: var(--positive); }
+.quick-icon[data-kind="transfer"] { background: var(--lc-flow-soft); color: var(--lc-flow-ink); }
+.quick-icon[data-kind="buy"], .quick-icon[data-kind="sell"] { background: var(--lc-invest-soft); color: var(--lc-invest-ink); }
+@media (min-width: 768px) {
+  .quick-icon { inline-size: 1.75rem; block-size: 1.75rem; }
 }
 .quick-pill:hover {
   border-color: var(--border-strong);
@@ -5623,7 +5645,9 @@ input {
 @media (pointer: coarse) { .integrity-bar { min-height: 48px; } }
 
 /* Keep currency labels in Vazirmatn even inside older money utilities. */
-.money-unit { font-family: var(--font-sans); font-feature-settings: "ss01"; font-weight: inherit; }
+/* The figure leads, the unit follows quietly: smaller, lighter, a shade fainter
+   (it keeps the figure's colour, so a red debt stays red). Read faster at a glance. */
+.money-unit { font-family: var(--font-sans); font-feature-settings: "ss01"; font-size: 0.68em; font-weight: 500; opacity: 0.72; margin-inline-start: 0.3em; }
 .table .td-num { font-family: var(--font-num); font-feature-settings: normal; }
 
 /* ─────────────────── Expense entry (/new?type=expense) ───────────────────

@@ -188,17 +188,20 @@ export function Stat({
   );
 }
 
-/** Borderless metric — label above, value below. For dense KPI rows. Compact for PWA. */
+/** Borderless metric — label above, value below. For dense KPI rows. Compact for PWA.
+ *  `share` (0–100) adds a thin bar: how big this figure is next to its whole. */
 export function Metric({
   label,
   value,
   hint,
   tone = "neutral",
+  share,
 }: {
   label: string;
   value: ReactNode;
   hint?: ReactNode;
   tone?: "neutral" | "up" | "down";
+  share?: number;
 }) {
   const color =
     tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : "var(--text)";
@@ -206,8 +209,13 @@ export function Metric({
     <div className="stat-tile min-w-0 overflow-hidden">
       <div className="muted text-[length:var(--fs-xs)] font-medium truncate">{label}</div>
       <div className="metric-value mt-1.5 text-[length:var(--fs-md)] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
-        {value}
+        {typeof value === "string" ? <FormattedMoney value={value} /> : value}
       </div>
+      {share != null && Number.isFinite(share) && (
+        <div className="metric-share" aria-hidden="true">
+          <i style={{ width: `${Math.max(2, Math.min(100, share))}%`, background: tone === "neutral" ? "var(--accent-line)" : color }} />
+        </div>
+      )}
       {hint && <div className="muted mt-1 text-[length:var(--fs-xs)] leading-5 line-clamp-2">{hint}</div>}
     </div>
   );
