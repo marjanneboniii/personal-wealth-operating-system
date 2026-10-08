@@ -10,7 +10,7 @@ export default function NotFound() {
       >
         <Icon name="search" size={26} />
       </span>
-      <h1 className="text-xl font-bold tracking-tight">این صفحه وجود ندارد</h1>
+      <h1 className="text-xl font-bold">این صفحه وجود ندارد</h1>
       <p className="muted mt-2 max-w-sm text-[length:var(--fs-sm)] leading-6">
         آدرس را بررسی کنید یا از مرکز فرمان استفاده کنید — در دسکتاپ <kbd className="kbd">⌘</kbd> <kbd className="kbd">K</kbd> را بزنید.
       </p>

@@ -30,7 +30,7 @@ export default function InflationError({
       >
         <Icon name="alert" size={22} />
       </span>
-      <h2 className="text-[length:var(--fs-md)] font-bold tracking-tight">ردیاب تورم شخصی بارگذاری نشد</h2>
+      <h2 className="text-[length:var(--fs-md)] font-bold">ردیاب تورم شخصی بارگذاری نشد</h2>
       <p className="muted max-w-md text-[length:var(--fs-xs)] leading-6">
         هیچ داده‌ای از بین نرفته است. این ماژول کاملاً مستقل است و هیچ اثری بر ثروت خالص، سبد دارایی یا
         سوابق مالی شما ندارد. لطفاً دوباره تلاش کنید.
