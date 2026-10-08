@@ -1,0 +1,1297 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   «پول» — transactions, accounts, cash flow, deposits, recurring.
+
+   Loaded after globals.css (see layout.tsx), so these rules win over the
+   older page rules at equal specificity. Everything here is scoped to
+   `.mny-page` or to an `mny-` class, and uses only the design tokens.
+
+   Patterns borrowed, and where:
+     • PaceUI «Stat»     → StatCard: icon chip, figure, change pill, bar.
+     • Toolcraft table   → transaction rows: hairlines, no colour bands.
+     • dev.cards Palletline → selection summary bar.
+     • MetalForge picker → «ملت •• ۴۲۴۲» account identity.
+     • Wensity expanding cards → wallets that open into their accounts.
+     • EasyUI segmented control → the module tabs on a phone.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.mny-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+.mny-page > * {
+  min-width: 0;
+}
+@media (min-width: 1024px) {
+  .mny-page {
+    gap: 1.5rem;
+  }
+}
+
+/* ── Page head ─────────────────────────────────────────────────────── */
+
+.mny-head {
+  display: grid;
+  gap: 0.75rem;
+}
+.mny-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 44px;
+  padding-top: 0.25rem;
+}
+.mny-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.mny-head-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+@media (max-width: 639px) {
+  .mny-head-actions .btn {
+    min-height: 40px;
+    padding-inline: 0.8rem;
+    font-size: var(--fs-xs);
+  }
+  .mny-hide-phone {
+    display: none;
+  }
+}
+@media (min-width: 1024px) {
+  .mny-title {
+    font-size: 26px;
+  }
+  /* The sidebar lists the five money pages; a second copy is noise here. */
+  .mny-tabs {
+    display: none;
+  }
+}
+
+/* Module tabs as one segmented pill strip (EasyUI). */
+.mny-tabs .module-tabs {
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--sunken);
+  justify-content: flex-start;
+}
+.mny-tabs .module-tab {
+  flex: 1 0 auto;
+  min-height: 40px;
+  padding-inline: 0.85rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-2);
+  transition: background var(--motion-micro) var(--ease), color var(--motion-micro) var(--ease);
+}
+.mny-tabs .module-tab-on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.mny-tabs .module-tab-on::after {
+  display: none;
+}
+
+/* ── StatCard (PaceUI «Stat») ──────────────────────────────────────── */
+
+.mny-stat {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--r-lg) + 2px);
+  background: var(--surface);
+  box-shadow: var(--card-lift);
+  overflow: hidden;
+}
+.mny-stat[data-tone="ink"] {
+  border-color: rgba(230, 236, 242, 0.1);
+  box-shadow: var(--shadow-md);
+}
+.mny-stat[data-tone="ink"]::before {
+  content: "";
+  position: absolute;
+  inset-inline: 14%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, #2bd3a8 70%, transparent), transparent);
+}
+.mny-stat-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.mny-stat-icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--sunken);
+  color: var(--text-2);
+}
+.mny-stat[data-tone="positive"] .mny-stat-icon {
+  border-color: transparent;
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+.mny-stat[data-tone="negative"] .mny-stat-icon {
+  border-color: transparent;
+  background: var(--negative-soft);
+  color: var(--negative);
+}
+.mny-stat-label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+.mny-stat-period {
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  line-height: 1.5;
+}
+.mny-stat-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.35rem;
+  font-size: clamp(1.15rem, 4.6vw, 1.45rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  color: var(--text);
+  min-width: 0;
+}
+.mny-stat[data-tone="ink"] .mny-stat-value {
+  font-size: clamp(1.45rem, 6.4vw, 2rem);
+}
+.mny-stat-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.mny-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  background: var(--sunken);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.mny-delta[data-tone="up"] {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+.mny-delta[data-tone="down"] {
+  background: var(--negative-soft);
+  color: var(--negative);
+}
+.mny-stat-foot {
+  margin-top: 0.15rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.mny-stat-foot a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  font-weight: 600;
+}
+.mny-stat .meter,
+.mny-stat .meter-segments {
+  margin-top: 0.1rem;
+}
+
+/* A row of stats. Phone: the lead figure on its own row, the rest two by two
+   (a lone last card takes the row). Wide: one row, the lead twice as wide —
+   a 13-digit Toman figure needs it. */
+.mny-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.mny-stats > .mny-stat-lead,
+.mny-stats > .mny-stat-wide,
+.mny-stats > :last-child:nth-child(even) {
+  grid-column: 1 / -1;
+}
+@media (max-width: 559px) {
+  .mny-stats > .mny-stat:not([data-tone="ink"]) {
+    padding: 0.85rem 0.9rem;
+  }
+  .mny-stats > .mny-stat:not([data-tone="ink"]) .mny-stat-value {
+    font-size: var(--fs-md);
+  }
+}
+@media (min-width: 1024px) {
+  .mny-stats {
+    grid-template-columns: repeat(var(--mny-cols, 3), minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .mny-stats > .mny-stat-wide,
+  .mny-stats > :last-child:nth-child(even) {
+    grid-column: auto;
+  }
+  .mny-stats > .mny-stat-lead {
+    grid-column: span 2;
+  }
+}
+
+/* ── SplitBar ──────────────────────────────────────────────────────── */
+
+.mny-split {
+  display: grid;
+  gap: 0.55rem;
+}
+.mny-split-bar {
+  display: flex;
+  gap: 3px;
+  height: 8px;
+}
+.mny-split-bar > i {
+  flex-basis: 0;
+  border-radius: 3px;
+}
+.mny-split-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  list-style: none;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.mny-split-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.mny-split-legend b {
+  color: var(--text);
+  font-weight: 600;
+}
+.mny-split-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+/* ── RowMenu «…» ───────────────────────────────────────────────────── */
+
+.mny-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+.mny-menu-trigger {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: var(--text-3);
+  cursor: pointer;
+  list-style: none;
+  transition: background var(--motion-micro) var(--ease), color var(--motion-micro) var(--ease);
+}
+.mny-menu-trigger::-webkit-details-marker {
+  display: none;
+}
+.mny-menu-trigger:hover,
+.mny-menu[open] > .mny-menu-trigger {
+  background: var(--hover);
+  color: var(--text);
+}
+.mny-menu-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.mny-menu-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 4px);
+  z-index: var(--z-dropdown);
+  display: grid;
+  min-width: 13rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-elev);
+  box-shadow: var(--shadow-lg);
+  animation: mny-pop var(--motion-sheet) var(--ease);
+}
+.mny-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 44px;
+  padding-inline: 0.75rem;
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  text-align: start;
+}
+.mny-menu-item:hover,
+.mny-menu-item:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+.mny-menu-item[data-tone="danger"] {
+  color: var(--negative);
+}
+@keyframes mny-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+/* ── SwipeRow (touch only) ─────────────────────────────────────────── */
+
+.mny-swipe {
+  position: relative;
+  overflow: hidden;
+}
+.mny-swipe-actions {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  display: flex;
+}
+.mny-swipe-face {
+  position: relative;
+  background: var(--surface);
+  touch-action: pan-y;
+  transition: transform var(--motion-sheet) var(--ease);
+}
+.mny-swipe-btn {
+  display: flex;
+  width: 76px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--on-ink);
+  background: var(--action);
+}
+.mny-swipe-btn[data-tone="positive"] {
+  background: var(--positive);
+  color: #fff;
+}
+/* A mouse never swipes: nothing to reveal. */
+@media (hover: hover) and (pointer: fine) {
+  .mny-swipe-actions {
+    display: none;
+  }
+}
+
+/* ── Transactions ──────────────────────────────────────────────────── */
+
+.mny-tx-toolbar {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.mny-tx-toolbar .advanced-filter {
+  border-radius: calc(var(--r-lg) + 2px);
+  box-shadow: var(--card-lift);
+}
+.mny-tx-count {
+  padding-inline: 0.25rem;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* Quick filters: one scrolling row of pills. */
+.mny-page .mny-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  margin: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-block: 2px;
+  -webkit-mask-image: linear-gradient(to left, #000 92%, transparent);
+  mask-image: linear-gradient(to left, #000 92%, transparent);
+}
+.mny-page .mny-chips::-webkit-scrollbar {
+  display: none;
+}
+.mny-page .mny-chips button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 0.9rem;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  white-space: nowrap;
+}
+.mny-page .mny-chips [data-type="review"] {
+  --chip-ink: var(--warning);
+  --chip-soft: var(--warning-soft);
+}
+.mny-chip-count {
+  margin-inline-start: 0.35rem;
+  padding: 0 0.4rem;
+  border-radius: var(--r-pill);
+  background: var(--sunken);
+  font-size: var(--fs-micro);
+  line-height: 1.6;
+}
+
+/* The list: Toolcraft's table — hairlines, no colour bands, the colour lives
+   only in the direction disc and the sign of the amount. */
+.mny-page .card.tx-list {
+  overflow: hidden;
+  border-radius: calc(var(--r-lg) + 2px);
+}
+.mny-page .tx-day {
+  padding: 0.85rem 1rem 0.35rem;
+  border: 0;
+  background: transparent;
+  font-size: var(--fs-xs) !important;
+  font-weight: 700;
+  color: var(--text-3);
+}
+.mny-page .tx-list > section + section {
+  border-top: 1px solid var(--border);
+}
+.mny-page .tx-list > section + section .tx-day {
+  border-top: 0;
+}
+.mny-page .tx-list ul > li + li {
+  border-top: 1px solid var(--border);
+}
+.mny-page .tx-item.mny-tx {
+  gap: 0.25rem;
+  margin: 0;
+  padding-inline: 0.5rem;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+}
+.mny-page .tx-item.mny-tx:hover {
+  background: color-mix(in srgb, var(--hover) 100%, var(--surface));
+}
+.mny-page .mny-tx .mny-tx-main {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 0.75rem;
+  width: 100%;
+  min-height: 62px;
+  padding: 0.55rem 0.35rem;
+  text-align: start;
+}
+.mny-page .mny-tx .mny-tx-main:hover {
+  background: transparent;
+}
+.mny-page .mny-tx .flow-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+.mny-tx-check {
+  display: none;
+}
+@media (min-width: 640px) {
+  .mny-page .mny-tx .mny-tx-check {
+    display: block;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin-inline: 0.35rem 0.1rem;
+    cursor: pointer;
+    accent-color: var(--action);
+  }
+  .mny-page .mny-tx span.mny-tx-check {
+    visibility: hidden;
+  }
+}
+.mny-tx-id {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.mny-tx-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--text);
+}
+.mny-tx-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A phone: a long description gets a second line rather than an ellipsis. */
+@media (max-width: 639px) {
+  .mny-tx-text {
+    display: -webkit-box;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
+  }
+}
+.mny-tx-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.4rem;
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  color: var(--text-3);
+  white-space: nowrap;
+  -webkit-mask-image: linear-gradient(to left, #000 88%, transparent);
+  mask-image: linear-gradient(to left, #000 88%, transparent);
+}
+.mny-tx-meta > * + *::before {
+  content: "·";
+  margin-inline-end: 0.4rem;
+  color: var(--border-strong);
+}
+.mny-tx-kind {
+  font-weight: 600;
+  color: var(--tx-ink, var(--text-2));
+}
+.mny-tx-tags {
+  color: var(--text-2);
+}
+.mny-tx-flow {
+  display: none;
+}
+.mny-tx-amount {
+  justify-self: end;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text);
+}
+.mny-tx-amount[data-sign="1"] {
+  color: var(--positive);
+}
+.mny-run-chev {
+  display: none;
+}
+/* Wide screens: the flow becomes its own column, like a table. */
+@media (min-width: 1024px) {
+  .mny-page .mny-tx .mny-tx-main {
+    grid-template-columns: 36px minmax(0, 1.25fr) minmax(0, 1fr) minmax(9.5rem, auto);
+    min-height: 58px;
+  }
+  .mny-tx-flow {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    font-size: var(--fs-xs);
+    color: var(--text-3);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* globals.css pins `.tx-item-main > :last-child` into a column of the old
+   layout; every cell here takes its place in source order instead. */
+.mny-page .mny-tx .mny-tx-main > * {
+  grid-column: auto;
+  grid-row: auto;
+}
+
+/* A folded installment run and the payments inside it. */
+.mny-page .mny-run .mny-tx-main {
+  grid-template-columns: 36px minmax(0, 1fr) auto 18px;
+}
+@media (min-width: 1024px) {
+  .mny-page .mny-run .mny-tx-main {
+    grid-template-columns: 36px minmax(0, 1.25fr) minmax(0, 1fr) minmax(9.5rem, auto) 20px;
+  }
+}
+.mny-run-chev {
+  display: inline-flex;
+  color: var(--text-3);
+  transition: transform var(--motion-data) var(--ease);
+}
+.mny-run[data-open] .mny-run-chev {
+  transform: rotate(180deg);
+}
+.mny-page .mny-run-rows {
+  border-top: 1px solid var(--border);
+  background: var(--sunken);
+  padding-inline-start: 0.75rem;
+}
+.mny-page .mny-run-rows .tx-item.mny-tx,
+.mny-page .mny-run-rows .mny-swipe-face {
+  background: color-mix(in srgb, var(--sunken) 50%, var(--surface));
+}
+
+/* Search and «فیلترها» share one row; the filter panel drops down over the
+   list instead of pushing it (the sticky bar is its containing block). */
+.mny-tx-toolbar .advanced-filter-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+.mny-tx-toolbar .advanced-filter-search {
+  grid-column: auto;
+  min-width: 0;
+}
+/* `height`, not `min-height`: the `!min-h-9` utility sits in a cascade layer,
+   where !important outranks anything unlayered. */
+.mny-tx-toolbar .advanced-filter-search .field {
+  height: 40px;
+  border-radius: var(--r-pill);
+}
+.mny-tx-toolbar .advanced-filter-details > summary.chip {
+  width: auto !important;
+  min-height: 40px;
+  padding-inline: 0.9rem;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+.mny-tx-toolbar .advanced-filter-row > .btn {
+  width: auto !important;
+}
+.mny-tx-toolbar .advanced-filter-panel {
+  position: absolute;
+  inset-inline: 0.5rem;
+  top: calc(100% + 0.4rem);
+  z-index: var(--z-dropdown);
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-elev);
+  box-shadow: var(--shadow-lg);
+}
+@media (min-width: 640px) {
+  .mny-tx-toolbar .advanced-filter-panel {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.mny-tx-toolbar .advanced-filter-panel > * {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 40px;
+}
+
+/* Selection summary bar. */
+.mny-bulk-summary {
+  display: grid;
+  gap: 0.1rem;
+  font-size: var(--fs-xs);
+}
+.mny-bulk-summary [data-sign="1"] {
+  color: var(--positive);
+}
+.mny-bulk-summary [data-sign="-1"] {
+  color: var(--text-2);
+}
+
+/* «تراکنش‌ها | سوابق گذشته»: a compact switch, not a full-width bar. */
+.mny-page .tx-scope {
+  display: inline-flex;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+}
+.mny-page .tx-scope-tab {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding-inline: 0.9rem;
+  font-size: var(--fs-xs);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mny-swipe-face,
+  .mny-run-chev,
+  .mny-menu-panel {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ── Accounts ──────────────────────────────────────────────────────── */
+
+.mny-page .accounts-toolbar {
+  padding: 0;
+  border-top: 0;
+}
+
+.mny-substats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.mny-substats dt {
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+.mny-substats dd {
+  margin-top: 0.15rem;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text);
+}
+.mny-accounts-summary .mny-stat-foot {
+  border-top-color: var(--border);
+}
+@media (min-width: 1024px) {
+  .mny-accounts-summary .mny-stat {
+    padding: 1.35rem 1.5rem;
+  }
+}
+
+/* One card, hairline rows (Toolcraft), largest balance first. */
+.mny-page .mny-wallets {
+  display: block;
+  padding: 0;
+  list-style: none;
+  overflow: visible;
+  border-radius: calc(var(--r-lg) + 2px);
+}
+.mny-wallet + .mny-wallet {
+  border-top: 1px solid var(--border);
+}
+.mny-acct-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto 40px;
+  align-items: center;
+  gap: 0 0.75rem;
+  min-height: 66px;
+  padding: 0.6rem 0.75rem 0.6rem 0.4rem;
+}
+.mny-acct-row > .acct-icon,
+.mny-acct-row > .flow-icon {
+  justify-self: center;
+}
+.mny-acct-id {
+  min-width: 0;
+}
+.mny-acct-name {
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.6;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mny-acct-sub {
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  color: var(--text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mny-acct-amount {
+  display: grid;
+  justify-items: end;
+  min-width: 0;
+  text-align: end;
+}
+.mny-acct-primary {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.mny-acct-secondary {
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+/* A phone has no room for name and two-line amount side by side when the
+   name is long: the amount drops under the name, aligned with it. */
+@media (max-width: 479px) {
+  .mny-acct-row {
+    grid-template-columns: 36px minmax(0, 1fr) 40px;
+    grid-template-areas: "mark id menu" "mark amount menu";
+    row-gap: 0.15rem;
+  }
+  .mny-acct-row > :first-child {
+    grid-area: mark;
+    align-self: start;
+    margin-top: 0.2rem;
+  }
+  .mny-acct-row > .mny-acct-id {
+    grid-area: id;
+  }
+  .mny-acct-row > .mny-acct-amount {
+    grid-area: amount;
+    justify-items: start;
+    text-align: start;
+  }
+  .mny-acct-row > .mny-menu,
+  .mny-acct-row > .mny-wallet-chev {
+    grid-area: menu;
+  }
+  .mny-acct-amount {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 0.6rem;
+  }
+}
+
+/* Wallet with several accounts: a summary row that opens. */
+.mny-wallet-group > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.mny-wallet-group > summary::-webkit-details-marker {
+  display: none;
+}
+.mny-wallet-group > summary:hover {
+  background: var(--hover);
+}
+.mny-wallet-group > summary:focus-visible {
+  outline: none;
+  box-shadow: inset var(--ring);
+}
+.mny-wallet-chev {
+  display: inline-flex;
+  justify-self: center;
+  color: var(--text-3);
+  transition: transform var(--motion-data) var(--ease);
+}
+.mny-wallet-group[open] .mny-wallet-chev {
+  transform: rotate(180deg);
+}
+.mny-wallet-sub {
+  margin: 0 0.75rem 0.75rem;
+  padding: 0.15rem 0;
+  border-radius: var(--r-lg);
+  background: var(--sunken);
+  list-style: none;
+}
+.mny-wallet-sub > li + li {
+  border-top: 1px solid var(--border);
+}
+.mny-acct-subrow {
+  min-height: 56px;
+  padding-inline: 0.5rem 0.25rem;
+}
+.mny-wallet-group[open] {
+  animation: mny-open var(--motion-sheet) var(--ease);
+}
+@keyframes mny-open {
+  from {
+    opacity: 0.6;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mny-wallet-chev,
+  .mny-wallet-group[open] {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ── Cash flow ─────────────────────────────────────────────────────── */
+
+.mny-foot-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+.mny-foot-line b {
+  font-weight: 700;
+  color: var(--text);
+}
+.mny-stat[data-tone="positive"] .mny-stat-foot a {
+  color: var(--positive);
+}
+.mny-stat[data-tone="negative"] .mny-stat-foot a {
+  color: var(--negative);
+}
+
+/* A month with nothing recorded yet: one quiet card, two ways in. */
+.mny-month-empty {
+  display: grid;
+  align-content: center;
+  gap: 0.4rem;
+  padding: 1.1rem 1.15rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: calc(var(--r-lg) + 2px);
+  background: var(--surface);
+}
+.mny-month-empty-title {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.mny-month-empty-body {
+  font-size: var(--fs-xs);
+  line-height: 1.8;
+  color: var(--text-3);
+}
+.mny-month-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+.mny-month-empty-actions .btn {
+  min-height: 40px;
+}
+
+/* FlowBars */
+.mny-bars {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.mny-bars-read {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.9rem;
+  min-height: 1.75rem;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.mny-bars-read b {
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+.mny-bars-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.mny-bars-key::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--positive);
+}
+.mny-bars-key[data-kind="out"]::before {
+  background: color-mix(in srgb, var(--negative) 55%, var(--surface));
+}
+.mny-bars-key .num,
+.mny-bars-net .num {
+  font-weight: 600;
+  color: var(--text);
+}
+.mny-bars-net[data-sign="1"] .num {
+  color: var(--positive);
+}
+.mny-bars-net[data-sign="-1"] .num {
+  color: var(--negative);
+}
+.mny-bars-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.mny-bars-scroll::-webkit-scrollbar {
+  display: none;
+}
+.mny-bars-plot {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(3.4rem, 1fr);
+  min-width: 100%;
+  width: max-content;
+  background-image: linear-gradient(var(--border), var(--border));
+  background-size: 100% 1px;
+  background-position: 0 calc(100% - 1.6rem);
+  background-repeat: no-repeat;
+}
+@media (min-width: 1024px) {
+  .mny-bars-plot {
+    width: 100%;
+    grid-auto-columns: minmax(0, 1fr);
+  }
+}
+.mny-bars-col {
+  display: grid;
+  grid-template-rows: 11rem 1.6rem;
+  min-width: 0;
+  border-radius: var(--r-md);
+  transition: background var(--motion-micro) var(--ease);
+}
+.mny-bars-col:hover,
+.mny-bars-col[aria-pressed="true"] {
+  background: var(--hover);
+}
+.mny-bars-col:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.mny-bars-pair {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  padding-top: 0.5rem;
+}
+.mny-bars-pair > i {
+  width: min(38%, 14px);
+  min-height: 2px;
+  border-radius: 999px 999px 3px 3px;
+  background: var(--positive);
+  transition: height var(--motion-data) var(--ease), opacity var(--motion-micro) var(--ease);
+}
+.mny-bars-pair > i[data-kind="out"] {
+  background: color-mix(in srgb, var(--negative) 55%, var(--surface));
+}
+.mny-bars-plot[data-picked] .mny-bars-col:not([aria-pressed="true"]) .mny-bars-pair > i {
+  opacity: 0.55;
+}
+.mny-bars-label {
+  align-self: center;
+  overflow: hidden;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  text-align: center;
+  white-space: nowrap;
+}
+.mny-bars-col[aria-pressed="true"] .mny-bars-label {
+  font-weight: 700;
+  color: var(--text);
+}
+.mny-page .cashflow-chart {
+  border-radius: calc(var(--r-lg) + 2px);
+}
+/* Breakdown bars: thin, and spending in the softened red the chart uses. */
+.mny-page .breakdown-row .meter {
+  height: 6px;
+  border-radius: 999px;
+}
+.mny-page .breakdown-row .meter > i {
+  border-radius: 999px;
+}
+.mny-page .breakdown-row .meter > i[style*="--negative"] {
+  background: color-mix(in srgb, var(--negative) 65%, var(--surface)) !important;
+}
+.mny-page .breakdown {
+  border-radius: calc(var(--r-lg) + 2px);
+}
+
+/* ── Deposits ──────────────────────────────────────────────────────── */
+
+.mny-deposits {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  list-style: none;
+}
+@media (min-width: 1024px) {
+  .mny-deposits {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+}
+.mny-page .mny-deposit {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem;
+  border-radius: calc(var(--r-lg) + 2px);
+}
+.mny-deposit-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+.mny-deposit-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  line-height: 1.6;
+}
+.mny-deposit-sub {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.mny-deposit-figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+}
+.mny-deposit-principal {
+  font-size: clamp(1.15rem, 4.6vw, 1.35rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.mny-deposit-term {
+  display: grid;
+  gap: 0.4rem;
+}
+.mny-deposit-term p {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.mny-deposit-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+.mny-deposit-facts dt {
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+.mny-deposit-facts dd {
+  margin-top: 0.15rem;
+  overflow-wrap: anywhere;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+@media (max-width: 379px) {
+  .mny-deposit-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.mny-page .mny-deposit .deposit-actions {
+  justify-content: flex-start;
+}
+.mny-page .mny-deposit .deposit-actions .btn {
+  height: 40px;
+}
+.mny-page .deposit-archive > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* ── Recurring ─────────────────────────────────────────────────────── */
+
+/* Each month's bar stacked by kind; colours from the category palette. */
+.mny-page .commit-bars {
+  height: 150px;
+}
+.mny-page .commit-bar-fill.mny-stack {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  width: min(62%, 26px);
+  border-radius: 7px 7px 3px 3px;
+  background: transparent;
+  overflow: hidden;
+  opacity: 0.45;
+}
+.mny-page .commit-bar.is-on .commit-bar-fill.mny-stack {
+  opacity: 1;
+}
+.mny-stack > i,
+.mny-stack-legend i {
+  display: block;
+  min-height: 3px;
+  flex-basis: 0;
+  background: var(--lc-debt-ink);
+}
+.mny-stack > i[data-kind="premium"],
+.mny-stack-legend i[data-kind="premium"] {
+  background: var(--lc-flow-ink);
+}
+.mny-stack > i[data-kind="subscription"],
+.mny-stack-legend i[data-kind="subscription"] {
+  background: var(--lc-budget-ink);
+}
+.mny-stack-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin-top: 0.75rem;
+  list-style: none;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.mny-stack-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.mny-stack-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.mny-page .commit-detail {
+  border-radius: var(--r-lg);
+}
+
+.mny-recur-row {
+  align-items: flex-start;
+  padding-block: 0.8rem;
+}
+.mny-recur-row > .flow-icon {
+  margin-top: 0.1rem;
+}
+.mny-row-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  max-width: 22rem;
+}
+.mny-row-progress > :first-child {
+  flex: 1;
+}
+.mny-row-progress > span {
+  flex-shrink: 0;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+.mny-page .list-card {
+  border-radius: calc(var(--r-lg) + 2px);
+}

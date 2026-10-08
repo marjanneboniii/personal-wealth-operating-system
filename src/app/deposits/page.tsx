@@ -7,11 +7,12 @@ import { db } from "@/db";
 import { accounts, assets, wallets } from "@/db/schema";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { listDeposits, type DepositRow } from "@/features/deposits/service";
-import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
-import DisclosurePanel from "@/components/ui/DisclosurePanel";
+import { EmptyState, PageHeader, Progress, Section } from "@/components/ui/Card";
+import MoneyHeader from "@/components/money/MoneyHeader";
+import StatCard from "@/components/money/StatCard";
+import FormattedMoney from "@/components/ui/FormattedMoney";
+import DepositComposer from "@/components/deposits/DepositComposer";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
-import DepositForm from "@/components/deposits/DepositForm";
 import DepositRowActions from "@/components/deposits/DepositRowActions";
 import { D, Decimal } from "@/domain/decimal";
 import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, formatPct, todayIso } from "@/lib/format";
@@ -26,40 +27,65 @@ function daysBetween(from: string, to: string) {
 
 function DepositList({ rows, today }: { rows: DepositRow[]; today: string }) {
   return (
-    <ul className="deposit-list">
+    <ul className="mny-deposits">
       {rows.map((d) => {
         const active = d.status === "active";
         const toMaturity = d.maturityDate ? daysBetween(today, d.maturityDate) : null;
+        // How far along the term is — from the start date to maturity.
+        const term = d.maturityDate ? daysBetween(d.startDate, d.maturityDate) : null;
+        const elapsed = term && term > 0 ? Math.max(0, Math.min(100, (daysBetween(d.startDate, today) / term) * 100)) : null;
         return (
-          <li key={d.id} className="card deposit-card">
-            <span className="plan-icon" style={{ background: "var(--info-soft)", color: "var(--info)" }} aria-hidden="true">
-              <Icon name="coins" size={16} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <b className="flex items-center gap-2 text-[length:var(--fs-sm)]">
-                <span className="min-w-0 break-words">{d.title}</span>
-                <span className={`badge ${active ? "badge-brand" : "badge-neutral"} shrink-0`}>
-                  {active ? (d.kind === "fund" ? "صندوق" : "سپرده") : "بسته‌شده"}
-                </span>
-              </b>
-              <span className="expense-sub block">{displayAccountName(d.institution || d.accountName || "—")}</span>
-            </span>
-            {/* Beside the title on wide screens; under it on a phone, so the name is never cut. */}
-            <span className="deposit-value">
-              <span className="num plan-amount money-nowrap" dir="rtl">
-                {formatMoney(D(d.principalToman).toFixed(0), "IRT")}
+          <li key={d.id} className="card mny-deposit" data-status={d.status}>
+            <div className="mny-deposit-head">
+              <span className="mny-stat-icon" aria-hidden="true">
+                <Icon name="coins" size={15} />
               </span>
-              <span className="num text-[length:var(--fs-xs)]" dir="rtl" style={{ color: "var(--positive)" }}>
-                + {formatMoney(d.monthlyInterestToman, "IRT")} در ماه
-              </span>
-            </span>
-            <dl className="deposit-facts">
-              <div><dt>نرخ سالانه</dt><dd className="num">{formatPct(D(d.annualRate).toFixed(2), 2)}</dd></div>
-              <div><dt>سررسید</dt><dd>{d.maturityDate ? formatJalaliIso(d.maturityDate) : "بدون سررسید"}</dd>
-                {active && toMaturity != null && <small style={toMaturity < 0 ? { color: "var(--negative)" } : undefined}>{formatDaysUntil(toMaturity)}</small>}
+              <div className="min-w-0 flex-1">
+                <p className="mny-deposit-title">
+                  <span className="min-w-0 break-words">{d.title}</span>
+                  <span className={`badge ${active ? "badge-brand" : "badge-neutral"} shrink-0`}>
+                    {active ? (d.kind === "fund" ? "صندوق" : "سپرده") : "بسته‌شده"}
+                  </span>
+                </p>
+                <p className="mny-deposit-sub">{displayAccountName(d.institution || d.accountName || "—")}</p>
               </div>
-              <div><dt>سود بعدی</dt><dd>{active && d.nextPayoutDate ? formatJalaliIso(d.nextPayoutDate) : "—"}</dd></div>
-              <div><dt>حساب دریافت سود</dt><dd>{displayAccountName(d.payoutAccountName || d.accountName || "—")}</dd></div>
+            </div>
+            <div className="mny-deposit-figures">
+              <p className="mny-deposit-principal" dir="rtl">
+                <FormattedMoney value={formatMoney(D(d.principalToman).toFixed(0), "IRT")} />
+              </p>
+              <span className="mny-delta" data-tone="up">
+                + <span className="num money-nowrap" dir="rtl">{formatMoney(d.monthlyInterestToman, "IRT")}</span> در ماه
+              </span>
+            </div>
+            {active && elapsed != null && toMaturity != null && (
+              <div className="mny-deposit-term">
+                <Progress value={elapsed} color={toMaturity < 0 ? "var(--negative)" : "var(--positive)"} aria-label="گذشت مدت سپرده تا سررسید" />
+                <p>
+                  <span>سررسید {formatJalaliIso(d.maturityDate!)}</span>
+                  <span style={toMaturity < 0 ? { color: "var(--negative)" } : undefined}>{formatDaysUntil(toMaturity)}</span>
+                </p>
+              </div>
+            )}
+            <dl className="mny-deposit-facts">
+              <div>
+                <dt>نرخ سالانه</dt>
+                <dd className="num">{formatPct(D(d.annualRate).toFixed(2), 2)}</dd>
+              </div>
+              {!(active && elapsed != null) && (
+                <div>
+                  <dt>سررسید</dt>
+                  <dd>{d.maturityDate ? formatJalaliIso(d.maturityDate) : "بدون سررسید"}</dd>
+                </div>
+              )}
+              <div>
+                <dt>سود بعدی</dt>
+                <dd>{active && d.nextPayoutDate ? formatJalaliIso(d.nextPayoutDate) : "—"}</dd>
+              </div>
+              <div>
+                <dt>حساب دریافت سود</dt>
+                <dd>{displayAccountName(d.payoutAccountName || d.accountName || "—")}</dd>
+              </div>
             </dl>
             <DepositRowActions id={d.id} active={active} nextPlanId={d.nextPlanId} />
           </li>
@@ -107,40 +133,61 @@ export default async function DepositsPage() {
   const soon = active.filter((r) => r.maturityDate && daysBetween(today, r.maturityDate) <= 30);
 
   return (
-    <div className="finance-page deposits-page space-y-7">
-      <div>
-        <PageHeader
-          title="سپرده‌ها"
-          action={
-            <Link href="#new" className="btn btn-primary">
-              <Icon name="plus" size={16} />
-              ثبت سپرده
-            </Link>
-          }
-        />
-        <ModuleTabs tabs={MONEY_TABS} active="/deposits" label="بخش‌های پول" />
-      </div>
+    <div className="finance-page deposits-page mny-page">
+      <MoneyHeader
+        title="سپرده‌ها"
+        active="/deposits"
+        actions={<DepositComposer accounts={accountOptions} balances={balances} today={today} listenToHash />}
+      />
 
-      <section className="finance-overview" aria-label="خلاصه سپرده‌ها">
-        <Metric label="اصل سپرده‌های فعال" value={formatMoney(principal.toFixed(0), "IRT")} tone="neutral" />
-        <Metric label="سود ماهانه" value={formatMoney(monthly.toFixed(0), "IRT")} tone={monthly.gt(0) ? "up" : "neutral"} hint="تخمین: اصل × نرخ ÷ ۱۲" />
-        <Metric label="میانگین نرخ سالانه" value={weightedRate ? formatPct(weightedRate.toFixed(2), 2) : "—"} tone="neutral" hint="وزنی بر اساس مبلغ" />
-        <Metric label="سررسیدهای نزدیک و گذشته" value={faCount(soon.length)} tone={soon.length ? "down" : "neutral"} hint="سررسید گذشته یا تا ۳۰ روز آینده" />
-      </section>
+      {active.length > 0 ? (
+        <>
+          <section className="mny-stats" style={{ ["--mny-cols" as string]: 5 }} aria-label="خلاصه سپرده‌ها">
+            <StatCard
+              tone="ink"
+              className="mny-stat-lead"
+              icon="coins"
+              label="اصل سپرده‌های فعال"
+              period={`${faCount(active.length)} سپرده`}
+              value={<FormattedMoney value={formatMoney(principal.toFixed(0), "IRT")} />}
+            />
+            <StatCard
+              tone="positive"
+              icon="trend-up"
+              label="سود ماهانه"
+              period="اصل × نرخ ÷ ۱۲"
+              value={<FormattedMoney value={formatMoney(monthly.toFixed(0), "IRT")} />}
+            />
+            <StatCard
+              icon="pie"
+              label="میانگین نرخ سالانه"
+              period="وزنی بر اساس مبلغ"
+              value={weightedRate ? formatPct(weightedRate.toFixed(2), 2) : "—"}
+            />
+            <StatCard
+              tone={soon.length ? "negative" : "plain"}
+              icon="calendar"
+              label="سررسید نزدیک"
+              period="گذشته یا تا ۳۰ روز آینده"
+              value={faCount(soon.length)}
+            />
+          </section>
 
-      <DisclosurePanel anchor="new" label="ثبت سپرده" defaultOpen={rows.length === 0}>
-        <DepositForm accounts={accountOptions} balances={balances} today={today} />
-      </DisclosurePanel>
-
-      <Section title="سپرده‌های فعال" hint={active.length ? `${faCount(active.length)} مورد` : undefined}>
-        {active.length === 0 ? (
-          <div className="card">
-            <EmptyState icon="coins" title="سپرده‌ی فعالی ندارید" body="سپرده را ثبت کنید تا سود ماهانه‌اش یادآوری شود." />
-          </div>
-        ) : (
-          <DepositList rows={active} today={today} />
-        )}
-      </Section>
+          <Section title="سپرده‌های فعال" hint={`${faCount(active.length)} مورد`}>
+            <DepositList rows={active} today={today} />
+          </Section>
+        </>
+      ) : (
+        // Nothing to total yet: no row of «۰» cards, one clear way in.
+        <div className="card">
+          <EmptyState
+            icon="coins"
+            title="سپرده‌ی فعالی ندارید"
+            body="سپرده‌ی بانکی یا صندوقی که سود ماهانه می‌دهد را ثبت کنید تا سودش هر ماه یادآوری و در پیش‌بینی نقدینگی لحاظ شود."
+            action={<DepositComposer accounts={accountOptions} balances={balances} today={today} className="btn btn-soft" />}
+          />
+        </div>
+      )}
 
       {closed.length > 0 && (
         <details className="deposit-archive">

@@ -9,9 +9,8 @@ import { getEntryFxSnapshots } from "@/features/ledger/fxSnapshots";
 import { listCategoryTree } from "@/features/categories/service";
 import { getTagSummary, listTags } from "@/features/tags/service";
 import { normalizeTag } from "@/features/tags/normalize";
-import { PageHeader } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
+import MoneyHeader from "@/components/money/MoneyHeader";
 import TransactionsView, { type ClientTxRow } from "@/components/transactions/TransactionsView";
 import TxScopeSwitch from "@/components/transactions/TxScopeSwitch";
 import { countHistoryRecords } from "@/features/history/service";
@@ -117,22 +116,23 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   }));
 
   return (
-    <div className="finance-page transactions-page space-y-5">
-      <div>
-        <PageHeader
-          title="تراکنش‌ها"
-          action={
-            <div className="flex flex-wrap gap-2">
-              <Link href="/transactions/import" className="btn btn-ghost">اتصال پیامک</Link>
-              <Link href="/new" className="btn btn-primary">
-                <Icon name="plus" size={16} />
-                ثبت تراکنش
-              </Link>
-            </div>
-          }
-        />
-        <ModuleTabs tabs={MONEY_TABS} active="/transactions" label="بخش‌های پول" />
-      </div>
+    <div className="finance-page transactions-page mny-page">
+      <MoneyHeader
+        title="تراکنش‌ها"
+        active="/transactions"
+        actions={
+          <>
+            <Link href="/transactions/import" className="btn btn-ghost">
+              <Icon name="import" size={16} />
+              <span className="mny-hide-phone">اتصال </span>پیامک
+            </Link>
+            <Link href="/new" className="btn btn-primary">
+              <Icon name="plus" size={16} />
+              ثبت تراکنش
+            </Link>
+          </>
+        }
+      />
       <TxScopeSwitch active="live" historyCount={historyCount} />
       <TransactionsView
         rows={clientRows}

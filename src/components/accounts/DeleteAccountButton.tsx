@@ -50,10 +50,13 @@ export default function DeleteAccountButton({
   accountName,
   /** Compact variant for the indented rows inside a multi-account wallet. */
   compact,
+  /** «menu»: a labelled item inside a row's «…» menu instead of a bare icon. */
+  variant = "icon",
 }: {
   accountId: string;
   accountName: string;
   compact?: boolean;
+  variant?: "icon" | "menu";
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -95,15 +98,22 @@ export default function DeleteAccountButton({
       {/* `icon-btn` keeps the design system's 44px tap target; `-me-2` pulls the
           button into the row's own padding so the account name loses no width
           on a phone. */}
-      <button
-        type="button"
-        className="icon-btn -me-2 shrink-0"
-        aria-label={`حذف حساب ${accountName}`}
-        title="حذف حساب"
-        onClick={openBox}
-      >
-        <Icon name="trash" size={compact ? 15 : 16} />
-      </button>
+      {variant === "menu" ? (
+        <button type="button" className="mny-menu-item" data-tone="danger" aria-label={`حذف حساب ${accountName}`} onClick={openBox}>
+          <Icon name="trash" size={15} />
+          حذف حساب
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="icon-btn -me-2 shrink-0"
+          aria-label={`حذف حساب ${accountName}`}
+          title="حذف حساب"
+          onClick={openBox}
+        >
+          <Icon name="trash" size={compact ? 15 : 16} />
+        </button>
+      )}
 
       <Sheet open={open} onClose={() => setOpen(false)} title="حذف حساب">
         <div className="space-y-3 p-4 text-[length:var(--fs-xs)]">
