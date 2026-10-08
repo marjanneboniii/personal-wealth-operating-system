@@ -264,11 +264,8 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center gap-2 px-4 py-8 text-center sm:px-6 sm:py-10">
-      <span
-        className="mb-1 flex h-10 w-10 items-center justify-center rounded-full sm:h-11 sm:w-11"
-        style={{ background: "var(--action-soft)", color: "var(--action)" }}
-      >
-        <Icon name={icon} size={18} />
+      <span className="empty-mark mb-1" aria-hidden="true">
+        <Icon name={icon} size={20} />
       </span>
       <div className="text-[length:var(--fs-md)] font-semibold">{title}</div>
       {body && <p className="muted max-w-sm text-[length:var(--fs-sm)] leading-6">{body}</p>}

@@ -135,7 +135,7 @@ export default async function DepositsPage() {
       <Section title="سپرده‌های فعال" hint={active.length ? `${faCount(active.length)} مورد` : undefined}>
         {active.length === 0 ? (
           <div className="card">
-            <EmptyState icon="coins" title="سپرده‌ی فعالی ندارید" body="سپرده‌ی بانکی یا صندوقی که سود ماهانه می‌دهد را ثبت کنید تا سودش هر ماه یادآوری و در پیش‌بینی نقدینگی لحاظ شود." />
+            <EmptyState icon="coins" title="سپرده‌ی فعالی ندارید" body="سپرده را ثبت کنید تا سود ماهانه‌اش یادآوری شود." />
           </div>
         ) : (
           <DepositList rows={active} today={today} />

@@ -428,7 +428,7 @@ export default async function OverviewDashboard() {
         <>
           <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
             <Section title="روند ارزش خالص (دلاری)" action={<SectionLink href="/net-worth" label="تحلیل" />}>
-              <div className="card p-3 sm:p-4">
+              <div className="card ink-stage p-3 sm:p-4">
                 <AreaChart data={series} />
               </div>
             </Section>

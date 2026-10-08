@@ -174,7 +174,7 @@ export default async function ChequesPage() {
       <Section title="در جریان و برگشتی" hint={open.length ? `${faCount(open.length)} چک` : undefined}>
         {open.length === 0 ? (
           <div className="card">
-            <EmptyState icon="note" title="چک در جریانی ندارید" body="چک‌هایی را که نوشته‌اید یا گرفته‌اید ثبت کنید تا سررسیدشان یادآوری و در پیش‌بینی نقدینگی لحاظ شود." />
+            <EmptyState icon="note" title="چک در جریانی ندارید" body="چک‌ها را ثبت کنید تا سررسیدشان یادآوری شود." />
           </div>
         ) : (
           <ChequeList rows={open} today={today} />

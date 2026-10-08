@@ -227,7 +227,7 @@ export default async function InsurancePage({ searchParams }: { searchParams: Pr
       <Section title="بیمه‌نامه‌های فعال" hint={active.length ? `${faCount(active.length)} مورد` : undefined}>
         {active.length === 0 ? (
           <div className="card">
-            <EmptyState icon="shield" title="بیمه‌نامه‌ی فعالی ثبت نشده" body="بیمه‌ی ثالث، بدنه، آتش‌سوزی، عمر یا درمان را ثبت کنید تا حق بیمه و تمدید یادآوری شود و در پیش‌بینی نقدینگی بیاید." />
+            <EmptyState icon="shield" title="بیمه‌نامه‌ی فعالی ثبت نشده" body="بیمه‌نامه را ثبت کنید تا حق بیمه و تمدیدش یادآوری شود." />
           </div>
         ) : (
           <PolicyList rows={active} today={today} bankAccounts={bankAccounts} balances={balances} />

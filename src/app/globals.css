@@ -962,6 +962,12 @@ button.jdp-title:hover,
   font-weight: 600;
   box-shadow: none;
 }
+/* On an ink stage the chosen range wears the mint, like every active state. */
+.ink-stage .seg .seg-on,
+.ink-stage .seg [aria-pressed="true"] {
+  background: color-mix(in oklab, #2bd3a8 18%, transparent);
+  color: #2bd3a8;
+}
 
 /* ─────────────────────────── Table ─────────────────────────── */
 
@@ -3840,6 +3846,27 @@ body {
   background: var(--accent-line);
 }
 
+/* Empty state mark: a mint-washed disc whose icon draws itself in once
+   (the landing's asset icons). Reduced motion shows it drawn. */
+.empty-mark {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--action);
+  box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent-soft) 45%, transparent);
+}
+.empty-mark svg :is(path, rect, circle, ellipse, line, polyline) {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: cf-draw 1.2s cubic-bezier(.16, 1, .3, 1) .15s forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-mark svg :is(path, rect, circle, ellipse, line, polyline) { animation: none; stroke-dashoffset: 0; }
+}
+
 /* Segmented progress: one block per installment. */
 .meter-segments { display: grid; gap: 2px; height: 6px; }
 .meter-segments > i { border-radius: 2px; background: var(--sunken); }
@@ -4213,6 +4240,10 @@ details[open] > summary .inst-caret { transform: rotate(180deg); }
   --border: rgba(230,236,242,.10); --sunken: rgba(230,236,242,.08);
   --positive: #34d399; --negative: #f87171; --warning: #fbbf24;
   --accent-line: #2bd3a8;
+  /* Charts and controls drawn on the stage: a mint curve, faint grid, ink chips. */
+  --surface: #142235; --surface-elev: #1b2c42; --border-strong: rgba(230,236,242,.20);
+  --data-line: #2bd3a8; --data-point: #2bd3a8; --data-grid: rgba(230,236,242,.10);
+  --action: #e6ecf2; --on-ink: #0d1726; --hover: rgba(230,236,242,.06);
   color: var(--text);
   background:
     radial-gradient(70% 140% at 0% 0%, color-mix(in oklab, #2bd3a8 20%, transparent), transparent 62%),
