@@ -4,7 +4,8 @@ import { ensureSchemaOnce } from "@/db/init-schema";
 import { loadAssetRegistryData } from "@/features/registry/loadAssetRegistryData";
 import { PageHeader } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import { splitAssetFamilies } from "@/features/portfolio/assetFamilies";
 import AssetValuationSummary, { valuationTotalsOf } from "@/components/assets/AssetValuationSummary";
 import RegistryWorkspace from "@/components/registry/RegistryWorkspace";
@@ -38,12 +39,8 @@ export default async function AssetRegistryPage() {
   const { real: realValuations } = splitAssetFamilies(data.portfolioValuation.assetValuations);
 
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader
-          title="دارایی‌های واقعی"
-          action={
-            data.vehicleDashboard.length > 0 || data.realEstateDashboard.length > 0 ? (
+    <div className="mny-page">
+      <ModuleHeader title="دارایی‌های واقعی" tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" actions={data.vehicleDashboard.length > 0 || data.realEstateDashboard.length > 0 ? (
               <span className="flex flex-wrap gap-2">
                 {data.realEstateDashboard.length > 0 && (
                   <Link href="/properties" className="btn btn-soft">
@@ -58,11 +55,7 @@ export default async function AssetRegistryPage() {
                   </Link>
                 )}
               </span>
-            ) : undefined
-          }
-        />
-        <ModuleTabs tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
-      </div>
+            ) : undefined} />
 
       {realValuations.length > 0 && <AssetValuationSummary totals={valuationTotalsOf(realValuations)} />}
       <RegistryWorkspace

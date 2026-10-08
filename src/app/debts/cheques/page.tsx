@@ -6,10 +6,13 @@ import { accounts, assets, wallets } from "@/db/schema";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { CHEQUE_STATUS_LABEL, listCheques, type ChequeRow } from "@/features/cheques/service";
 import { upcomingInstallments } from "@/features/planning/service";
-import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
+import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
+import StatCard from "@/components/money/StatCard";
+import FormattedMoney from "@/components/ui/FormattedMoney";
 import DisclosurePanel from "@/components/ui/DisclosurePanel";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import ChequeForm from "@/components/debts/ChequeForm";
 import ChequeRowActions from "@/components/debts/ChequeRowActions";
 import { D, Decimal } from "@/domain/decimal";
@@ -141,40 +144,45 @@ export default async function ChequesPage() {
   const bounced = rows.filter((r) => r.status === "bounced").length;
 
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader
-          title="دفتر چک"
-          action={
-            <Link href="#new" className="btn btn-primary">
+    <div className="mny-page">
+      <ModuleHeader title="دفتر چک" tabs={DEBT_TABS} active="/debts/cheques" label="بخش‌های تعهدات" actions={<Link href="#new" className="btn btn-primary">
               <Icon name="plus" size={16} />
               ثبت چک
-            </Link>
-          }
-        />
-        <ModuleTabs tabs={DEBT_TABS} active="/debts/cheques" label="بخش‌های تعهدات" />
-      </div>
+            </Link>} />
 
-      <section className="metric-strip">
-        <Metric label="چک‌های صادره در جریان" value={formatMoney(pendingOf("issued").toFixed(0), "IRT")} tone="neutral" />
-        <Metric label="چک‌های دریافتی در جریان" value={formatMoney(pendingOf("received").toFixed(0), "IRT")} tone="neutral" />
-        <Metric
-          label="خالص ۳۰ روز آینده"
-          value={formatMoney(net30.abs().toFixed(0), "IRT")}
-          tone={net30.isNegative() ? "down" : net30.isZero() ? "neutral" : "up"}
-          hint={in30.length ? `${faCount(in30.length)} چک · ${net30.isNegative() ? "خروج" : "ورود"} خالص` : "چکی در ۳۰ روز آینده نیست"}
-        />
-        <Metric label="چک برگشتی" value={faCount(bounced)} tone={bounced > 0 ? "down" : "neutral"} />
-      </section>
+      {rows.length > 0 && (
+        <section className="mny-stats" style={{ ["--mny-cols" as string]: 5 }} aria-label="خلاصهٔ چک‌ها">
+          <StatCard
+            tone="ink"
+            className="mny-stat-lead"
+            icon="note"
+            label="خالص ۳۰ روز آینده"
+            period={in30.length ? `${faCount(in30.length)} چک · ${net30.isNegative() ? "خروج" : "ورود"} خالص` : "چکی در ۳۰ روز آینده نیست"}
+            value={<FormattedMoney value={formatMoney(net30.abs().toFixed(0), "IRT")} />}
+          />
+          <StatCard icon="arrow-down" label="صادره در جریان" value={<FormattedMoney value={formatMoney(pendingOf("issued").toFixed(0), "IRT")} />} />
+          <StatCard tone="positive" icon="arrow-up" label="دریافتی در جریان" value={<FormattedMoney value={formatMoney(pendingOf("received").toFixed(0), "IRT")} />} />
+          <StatCard tone={bounced > 0 ? "negative" : "plain"} icon="alert" label="چک برگشتی" value={faCount(bounced)} />
+        </section>
+      )}
 
-      <DisclosurePanel anchor="new" label="ثبت چک" defaultOpen={rows.length === 0}>
+      <DisclosurePanel anchor="new" label="ثبت چک" sheet>
         <ChequeForm accounts={moneyAccounts} balances={balances} installments={installmentOptions} today={today} />
       </DisclosurePanel>
 
       <Section title="در جریان و برگشتی" hint={open.length ? `${faCount(open.length)} چک` : undefined}>
         {open.length === 0 ? (
           <div className="card">
-            <EmptyState icon="note" title="چک در جریانی ندارید" body="چک‌ها را ثبت کنید تا سررسیدشان یادآوری شود." />
+            <EmptyState
+              icon="note"
+              title="چک در جریانی ندارید"
+              body="چک‌های صادره و دریافتی را ثبت کنید تا سررسیدشان یادآوری و در پیش‌بینی نقدینگی لحاظ شود."
+              action={
+                <Link href="#new" className="btn btn-soft">
+                  ثبت چک
+                </Link>
+              }
+            />
           </div>
         ) : (
           <ChequeList rows={open} today={today} />

@@ -61,11 +61,11 @@ const obligation = (id: string, dayOffset: number, amountToman: string) => ({
   note: null,
 });
 
-/** Pull the rendered value of a Metric out of the page HTML by its label. */
+/** Pull the rendered value of a stat card out of the page HTML by its label. */
 function metricValue(html: string, label: string): string | null {
-  const anchor = html.indexOf(`>${label}</div>`);
+  const anchor = html.indexOf(`>${label}</p>`);
   if (anchor < 0) return null;
-  const m = html.slice(anchor).match(/metric-value[^>]*>([^<]*)</);
+  const m = html.slice(anchor).match(/mny-stat-value[^>]*>([^<]*)</);
   return m ? m[1] : null;
 }
 

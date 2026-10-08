@@ -68,3 +68,14 @@ test("the «…» menu keeps the labelled delete action in the server HTML", asy
   assert.match(html, /aria-label="حذف حساب بانک سامان"/);
   assert.ok(html.includes("mny-menu-item"));
 });
+
+test("asset and obligation pages share the module head, with «بازار» among the asset tabs", async () => {
+  const ModuleHeader = (await import("../src/components/money/ModuleHeader")).default;
+  const { ASSET_TABS, DEBT_TABS } = await import("../src/components/ui/ModuleTabs");
+  const assets = renderToStaticMarkup(createElement(ModuleHeader, { title: "نمای بازار", tabs: ASSET_TABS, active: "/market", label: "بخش‌های دارایی" }));
+  assert.match(assets, /aria-current="page" href="\/market"/);
+  const debts = renderToStaticMarkup(createElement(ModuleHeader, { title: "بیمه‌نامه‌ها", tabs: DEBT_TABS, active: "/insurance", label: "بخش‌های تعهدات" }));
+  for (const label of ["بدهی و طلب", "وام‌ها", "اقساط", "تعهدات آینده", "چک‌ها", "بیمه"]) assert.ok(debts.includes(label), label);
+  // No tabs given → just the title row (e.g. a signed-out page).
+  assert.ok(!renderToStaticMarkup(createElement(ModuleHeader, { title: "x" })).includes("mny-tabs"));
+});

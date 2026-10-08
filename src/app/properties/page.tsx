@@ -3,7 +3,8 @@ import { ensureAuth } from "@/lib/authGuard";
 import { listPropertyEconomics, type PropertyEconomics } from "@/features/properties/service";
 import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import { D } from "@/domain/decimal";
 import { formatMoney, formatPct, formatSignedMoney, todayIso } from "@/lib/format";
 
@@ -95,11 +96,8 @@ export default async function PropertiesPage() {
   }
   const list = await listPropertyEconomics(userId, todayIso());
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader title="درآمد و هزینه‌ی املاک" />
-        <ModuleTabs tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
-      </div>
+    <div className="mny-page">
+      <ModuleHeader title="درآمد و هزینه‌ی املاک" tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
       {list.length === 0 ? (
         <div className="card">
           <EmptyState

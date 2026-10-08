@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Icon from "@/components/ui/Icon";
+import Sheet from "@/components/ui/Sheet";
 
 /**
  * A form (or any heavy block) folded away until it is asked for.
@@ -14,12 +15,18 @@ export default function DisclosurePanel({
   anchor,
   label,
   defaultOpen = false,
+  sheet = false,
   children,
 }: {
   anchor: string;
   label: string;
   /** Open on arrival — e.g. when the page has nothing else to show yet. */
   defaultOpen?: boolean;
+  /**
+   * Open the form in a sheet (a bottom sheet on a phone, a dialog on a wide
+   * screen) instead of unfolding a long form in the page.
+   */
+  sheet?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -28,7 +35,7 @@ export default function DisclosurePanel({
   useEffect(() => {
     const reveal = () => {
       setOpen(true);
-      requestAnimationFrame(() => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      if (!sheet) requestAnimationFrame(() => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     };
     const openFromHash = () => {
       if (window.location.hash === `#${anchor}`) reveal();
@@ -54,7 +61,7 @@ export default function DisclosurePanel({
       window.removeEventListener("hashchange", openFromHash);
       document.removeEventListener("click", openFromClick, true);
     };
-  }, [anchor]);
+  }, [anchor, sheet]);
 
   const toggle = () => {
     const next = !open;
@@ -75,14 +82,22 @@ export default function DisclosurePanel({
         className="disclosure-toggle"
       >
         <span className="disclosure-icon" aria-hidden="true">
-          <Icon name={open ? "x" : "plus"} size={16} />
+          <Icon name={open && !sheet ? "x" : "plus"} size={16} />
         </span>
         <span className="text-[length:var(--fs-sm)] font-semibold">{label}</span>
       </button>
-      {open && (
-        <div id={`${anchor}-body`} className="disclosure-body">
-          {children}
-        </div>
+      {sheet ? (
+        <Sheet open={open} onClose={toggle} title={label}>
+          <div id={`${anchor}-body`} className="p-4">
+            {children}
+          </div>
+        </Sheet>
+      ) : (
+        open && (
+          <div id={`${anchor}-body`} className="disclosure-body">
+            {children}
+          </div>
+        )
       )}
     </section>
   );

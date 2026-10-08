@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import Icon, { type IconName } from "@/components/ui/Icon";
 import { D, Decimal } from "@/domain/decimal";
 import { formatMoney, formatSignedMoney, trendTone, toneColor } from "@/lib/format";
 import type { AssetValuation } from "@/features/portfolio/types";
@@ -96,10 +97,12 @@ export default function AssetValuationSummary({
   const toneOf = (value: string | number) => toneColor(trendTone(value));
   const groups: {
     name: string;
+    icon: IconName;
     lines: { label: string; value: string; tone?: string }[];
   }[] = [
     {
       name: "ارزش روز سبد",
+      icon: "portfolio",
       lines: [
         { label: "ارزش روز تومانی", value: formatMoney(totals.valueToman, "IRT") },
         { label: "ارزش روز دلاری", value: formatMoney(totals.valueUsd, "USD") },
@@ -107,6 +110,7 @@ export default function AssetValuationSummary({
     },
     {
       name: "بهای تمام‌شده",
+      icon: "coins",
       lines: [
         { label: "بهای تمام‌شده تومانی", value: formatMoney(totals.costToman, "IRT") },
         { label: "بهای تمام‌شده دلاری", value: formatMoney(totals.costUsd, "USD") },
@@ -114,6 +118,7 @@ export default function AssetValuationSummary({
     },
     {
       name: "سود / زیان تحقق‌نیافته",
+      icon: D(totals.pnlToman).isNegative() ? "trend-down" : "trend-up",
       lines: [
         { label: "سود/زیان تحقق‌نیافته تومانی", value: formatSignedMoney(totals.pnlToman, "IRT"), tone: toneOf(totals.pnlToman) },
         { label: "سود/زیان تحقق‌نیافته دلاری", value: formatSignedMoney(totals.pnlUsd, "USD"), tone: toneOf(totals.pnlUsd) },
@@ -127,6 +132,7 @@ export default function AssetValuationSummary({
     const lineTone = (value: string) => (extra.signed ? toneOf(value) : toneOf(0));
     groups.push({
       name: extra.name,
+      icon: "check-circle",
       lines: [
         ...(extra.toman != null ? [{ label: `${extra.name} تومانی`, value: fmt(extra.toman, "IRT"), tone: lineTone(extra.toman) }] : []),
         { label: `${extra.name} دلاری`, value: fmt(extra.usd, "USD"), tone: lineTone(extra.usd) },
@@ -134,19 +140,28 @@ export default function AssetValuationSummary({
     });
   }
 
+  // The page's lead figure on the ink stage, the rest as stat cards beside it
+  // (one shared StatCard look across the money, asset and obligation pages).
   return (
-    <section className={`card valuation-summary ${className}`} aria-label={title}>
-      {showTitle && (
-        <header className="valuation-summary-header">
-          <h2 className="valuation-summary-title">{title}</h2>
-          {hint && <p className="valuation-summary-hint">{hint}</p>}
-        </header>
-      )}
-      <div className={`valuation-grid valuation-grid-${groups.length}`}>
+    <section className={`mny-valuation ${className}`} aria-label={title}>
+      {showTitle && hint && <p className="mny-valuation-hint">{hint}</p>}
+      <div className="mny-stats" style={{ ["--mny-cols" as string]: groups.length + 1 } as CSSProperties}>
         {groups.map((g, i) => (
-          <div key={g.name} className={i === 0 ? "valuation-group valuation-group-lead" : "valuation-group"}>
-            <h3 className="valuation-group-title">{g.name}</h3>
-            <div className="valuation-group-lines">
+          <div
+            key={g.name}
+            className={i === 0 ? "mny-stat ink-stage mny-stat-lead" : "mny-stat"}
+            data-tone={i === 0 ? "ink" : "plain"}
+          >
+            <div className="mny-stat-head">
+              <span className="mny-stat-icon" aria-hidden="true">
+                <Icon name={g.icon} size={15} />
+              </span>
+              <div className="min-w-0">
+                <h3 className="mny-stat-label">{g.name}</h3>
+                {i === 0 && showTitle && <p className="mny-stat-period">{title}</p>}
+              </div>
+            </div>
+            <div className="mny-valuation-lines">
               {g.lines.map((l, j) => (
                 <Measure key={l.label} label={l.label} value={l.value} tone={l.tone} primary={j === 0} />
               ))}

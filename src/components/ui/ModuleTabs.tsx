@@ -7,6 +7,7 @@ export const ASSET_TABS: ModuleTab[] = [
   { href: "/assets", label: "همه" },
   { href: "/assets/financial", label: "مالی" },
   { href: "/asset-registry", label: "واقعی" },
+  { href: "/market", label: "بازار" },
   { href: "/portfolio", label: "سبد" },
 ];
 
