@@ -23,6 +23,7 @@
  * per family, so a round trip per keystroke would be slower and would not
  * survive the unreliable connections this audience actually has.
  */
+import CatalogPicker from "@/components/ui/CatalogPicker";
 import { useMemo, useState, useTransition } from "react";
 import Icon from "@/components/ui/Icon";
 import { registerInstrumentAction } from "@/app/actions/funds";
@@ -116,9 +117,7 @@ export default function InstrumentRegistrar() {
   const [family, setFamily] = useState<Family>("fund");
   const [fundKind, setFundKind] = useState<FundKind | "all">("all");
   const [sector, setSector] = useState<StockSector | "all">("all");
-  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Row | null>(null);
-  const [custom, setCustom] = useState("");
   const [done, setDone] = useState<Registered[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
@@ -129,22 +128,20 @@ export default function InstrumentRegistrar() {
   // preview and the confirm path exist once rather than twice.
   const results = useMemo<Row[]>(() => {
     if (isStock) {
-      return searchStocks(query, {
+      return searchStocks("", {
         sector: sector === "all" ? undefined : sector,
-        limit: 12,
+        limit: 10000,
       }).map((s) => ({ symbol: s.symbol, name: s.name, groupLabel: s.sectorLabel }));
     }
-    return searchFunds(query, {
+    return searchFunds("", {
       kind: fundKind === "all" ? undefined : fundKind,
-      limit: 12,
+      limit: 10000,
     }).map((f) => ({ symbol: f.symbol, name: f.name, groupLabel: f.kindLabel, kind: f.kind }));
-  }, [isStock, query, fundKind, sector]);
+  }, [isStock, fundKind, sector]);
 
   const switchFamily = (next: Family) => {
     setFamily(next);
     setSelected(null);
-    setQuery("");
-    setCustom("");
     setError(null);
   };
 
@@ -158,11 +155,8 @@ export default function InstrumentRegistrar() {
             return;
           }
           setDone((prev) => [{ symbol, name, created: res.created ?? false, family }, ...prev]);
-          // Straight back to an empty search — «افزودن مورد دیگر از همین
-          // دسته» is the default, not a secondary action.
+          // Return to catalogue selection after the confirmed registration.
           setSelected(null);
-          setQuery("");
-          setCustom("");
         })
         .catch(() => setError("ثبت ناموفق بود. دوباره تلاش کنید."));
     });
@@ -300,75 +294,8 @@ export default function InstrumentRegistrar() {
                 ))}
           </div>
 
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={
-              isStock
-                ? "جست‌وجوی نماد یا نام شرکت: فولاد، شستا، وبملت…"
-                : "جست‌وجوی نماد یا نام صندوق: عیار، کهربا، اعتماد…"
-            }
-            className="field"
-            aria-label={isStock ? "جست‌وجوی سهام" : "جست‌وجوی صندوق"}
-          />
+          <CatalogPicker label={isStock ? "انتخاب سهام بورسی" : "انتخاب صندوق"} options={results.map(row=>({id:row.symbol,label:row.name,detail:row.groupLabel,searchText:row.symbol,mark:row.kind ? <FundKindMark kind={row.kind} size={30}/> : <StockMark size={30}/>}))} onSelect={symbol=>{const row=results.find(r=>r.symbol===symbol);if(row)setSelected(row);}}/>
 
-          {/* ── Step 2: select from results ── */}
-          <ul className="space-y-1.5">
-            {results.map((row) => (
-              <li key={row.symbol}>
-                <button
-                  type="button"
-                  className="card flex w-full items-center gap-3 p-3 text-right hover:bg-[color:var(--hover)]"
-                  onClick={() => setSelected(row)}
-                >
-                  {/* For a fund the mark says what it HOLDS — the distinction a
-                      reader actually needs when scanning. No issuer logo
-                      conveys it, and none exists for these funds anyway. */}
-                  {row.kind ? <FundKindMark kind={row.kind} size={30} /> : <StockMark size={30} />}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[length:var(--fs-sm)] font-semibold">
-                      {row.name}
-                    </span>
-                    <span className="muted block text-[length:var(--fs-xs)]">{row.groupLabel}</span>
-                  </span>
-                  <span className="chip shrink-0 text-[length:var(--fs-xs)]">{row.symbol}</span>
-                </button>
-              </li>
-            ))}
-            {results.length === 0 && (
-              <li className="muted card p-4 text-center text-[length:var(--fs-xs)] leading-6">
-                {noun}ی با این نام در فهرست نیست. اگر نماد را می‌دانید، پایین وارد کنید.
-              </li>
-            )}
-          </ul>
-
-          {/* The catalogue is a seed, not an authority — an instrument that is
-              not in it must still be registrable, the way the vehicle catalogue
-              lets a user type a model it does not know. */}
-          <details className="card p-3">
-            <summary className="cursor-pointer text-[length:var(--fs-xs)] font-semibold">
-              نمادم در فهرست نیست
-            </summary>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <input
-                type="text"
-                value={custom}
-                onChange={(e) => setCustom(e.target.value)}
-                placeholder={isStock ? "نماد، مثلاً: وساپا" : "نماد، مثلاً: عیار"}
-                className="field min-w-0 flex-1"
-                aria-label="نماد دلخواه"
-              />
-              <button
-                type="button"
-                className="btn btn-primary !min-h-11"
-                disabled={saving || custom.trim().length === 0}
-                onClick={() => confirm(custom.trim(), custom.trim())}
-              >
-                ثبت نماد
-              </button>
-            </div>
-          </details>
         </>
       )}
     </div>

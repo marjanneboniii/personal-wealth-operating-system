@@ -11,6 +11,9 @@
  * account; foreign exchanges are never offered for Toman. The service checks
  * the same rule (`moneyPlaceError`).
  */
+import ChoiceCard from "@/components/ui/ChoiceCard";
+import CatalogPicker from "@/components/ui/CatalogPicker";
+import SetupBankPicker from "@/components/setup/SetupBankPicker";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createMoneyAccountAction } from "@/app/actions";
@@ -69,6 +72,7 @@ export default function MoneyAccountForm({
   usdIrtRate: string;
 }) {
   const router = useRouter();
+  const [bankName,setBankName] = useState("");
   const [kind, setKind] = useState<Kind>("bank");
   const [assetId, setAssetId] = useState("");
   const [place, setPlace] = useState("");
@@ -89,7 +93,7 @@ export default function MoneyAccountForm({
   const autoName = needsPlace && placeInfo && currency ? holdingAccountName(currencyLabel(currency.symbol), placeInfo.name) : "";
   const accountName = nameTouched ? name : autoName || name;
   const ruleError = currency ? moneyPlaceError(kind, currency.symbol, needsPlace ? place : undefined) : null;
-  const canPreview = accountName.trim().length >= 2 && !!currency && (!needsPlace || !!placeInfo) && !ruleError;
+  const canPreview = accountName.trim().length >= 2 && !!currency && (!needsPlace || !!placeInfo) && !ruleError && (kind !== "bank" || !!bankName);
 
   const kindLabel = KINDS.find(([v]) => v === kind)?.[1];
   const openingUnit =
@@ -144,22 +148,11 @@ export default function MoneyAccountForm({
     <div className="space-y-4 text-xs">
       <div className="space-y-2">
         <span className="label">نوع حساب</span>
-        <div className="expense-squares" role="radiogroup" aria-label="نوع حساب">
-          {KINDS.map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={kind === value}
-              className="expense-square"
-              data-on={kind === value || undefined}
-              onClick={() => pickKind(value)}
-            >
-              <span className="expense-square-label">{label}</span>
-            </button>
-          ))}
+        <div className="choice-grid" role="group" aria-label="نوع حساب">
+          {KINDS.map(([value,label])=><ChoiceCard key={value} selected={kind===value} title={label} onClick={()=>pickKind(value)}/>)}
         </div>
       </div>
+      {kind === "bank" && <SetupBankPicker value={bankName} onSelect={bank=>{setBankName(bank.value);if(!nameTouched)setName(`${bank.name} — حساب من`);setPreview(false);}}/>}
 
       <div className="space-y-2">
         <span className="label">واحد حساب</span>
@@ -173,39 +166,12 @@ export default function MoneyAccountForm({
             );
           })}
         </div>
-        {kind === "broker" && <p className="muted leading-5">سهام بورسی، صندوق‌ها و طلای آنلاین فقط با تومانِ کارگزاری معامله می‌شوند.</p>}
         {kind === "exchange" && currency?.symbol === "IRT" && (
           <p className="muted leading-5">تومان فقط در صرافی داخلی نگهداری می‌شود؛ صرافی‌های خارجی حساب تومانی ندارند.</p>
         )}
       </div>
 
-      {needsPlace && (
-        <div className="space-y-2">
-          <span className="label">{kind === "broker" ? "کارگزاری" : kind === "exchange" ? "صرافی" : "کیف پول"}</span>
-          <div className="expense-squares" role="radiogroup" aria-label="محل نگهداری">
-            {places.map((w) => {
-              const on = place === w.name;
-              return (
-                <button
-                  key={w.name}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  className="expense-square"
-                  data-on={on || undefined}
-                  onClick={() => {
-                    setPlace(w.name);
-                    setPreview(false);
-                  }}
-                >
-                  {w.logo && <AssetLogo userLogoUrl={w.logo} name={w.name} size={24} />}
-                  <span className="expense-square-label">{w.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {needsPlace && <CatalogPicker label={kind === "broker" ? "انتخاب کارگزاری" : kind === "exchange" ? "انتخاب صرافی" : "انتخاب کیف پول"} value={place} options={places.map(w=>({id:w.name,label:w.name,mark:w.logo ? <AssetLogo userLogoUrl={w.logo} name={w.name} size={26}/> : undefined}))} onSelect={value=>{setPlace(value);setPreview(false);}}/>}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1">

@@ -113,7 +113,8 @@ export default function WallexAssetPicker({
     const ranked = rankMarketRows(rows, deferredQuery, { kinds: effective });
     return excluded ? ranked.filter((r) => !excluded.has(r.symbol)) : ranked;
   }, [rows, deferredQuery, activeKind, allowed, exclude]);
-  const visible = matches.slice(0, limit);
+  const [extraPages,setExtraPages] = useState(0);
+  const visible = matches.slice(0, limit * (extraPages + 1));
 
   const refresh = async () => {
     setRefreshing(true);
@@ -157,7 +158,7 @@ export default function WallexAssetPicker({
               type="button"
               aria-pressed={activeKind === tab.key}
               className={activeKind === tab.key ? "seg-on" : ""}
-              onClick={() => setActiveKind(tab.key)}
+              onClick={() => {setActiveKind(tab.key);setExtraPages(0);}}
             >
               {tab.label}
             </button>
@@ -168,10 +169,10 @@ export default function WallexAssetPicker({
       <input
         type="search"
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="جست‌وجو: بیت‌کوین، مونرو، اپل، S&P، نفت، BTC…"
+        onChange={(event) => {setQuery(event.target.value);setExtraPages(0);}}
+        placeholder="جست‌وجو در دارایی‌ها (اختیاری)"
         className="field"
-        aria-label="جست‌وجوی نماد"
+        aria-label="جست‌وجوی دارایی"
         autoComplete="off"
       />
 
@@ -244,7 +245,7 @@ export default function WallexAssetPicker({
         {loading && <li className="muted p-3 text-center text-[length:var(--fs-xs)]">در حال بارگذاری…</li>}
         {matches.length > visible.length && (
           <li className="muted p-2 text-center text-[length:var(--fs-xs)]">
-            {toFaDigits(String(matches.length - visible.length))} نماد دیگر — برای یافتن، نام یا نماد را جست‌وجو کنید.
+            <button type="button" className="btn btn-ghost w-full" onClick={()=>setExtraPages(n=>n+1)}>نمایش دارایی‌های بیشتر · {toFaDigits(String(matches.length - visible.length))} مورد</button>
           </li>
         )}
       </ul>

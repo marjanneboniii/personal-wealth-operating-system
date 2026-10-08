@@ -11,12 +11,13 @@
  * so a fund bought at ۲۵٬۰۰۰ تومان had to be typed in dollars — and a Toman
  * figure typed there was booked as dollars.
  *
- * A row with no quantity is still registered (identity + account), so the
- * user can enter the purchase later. DRAFTS ONLY until the final confirmation.
+ * Every selected row needs its quantity and actual purchase cost.
+ * DRAFTS ONLY until the final confirmation.
  */
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import { PurchaseUsd } from "@/components/setup/SetupRealAssetsStep";
+import CatalogPicker from "@/components/ui/CatalogPicker";
 import Icon from "@/components/ui/Icon";
 import AmountInput from "@/components/ui/AmountInput";
 import AssetLogo from "@/components/ui/AssetLogo";
@@ -84,42 +85,29 @@ export default function SetupInstrumentsStep({
   /** USD→IRT setup rate, for the Toman equivalent of a Tether price. */
   rate: string;
 }) {
-  const [query, setQuery] = useState("");
   const [family, setFamily] = useState<Family>("fund");
 
   const patch = (key: string, next: Partial<InstrumentDraftRow>) =>
     onChange(rows.map((r) => (r.key === key ? { ...r, ...next } : r)));
 
-  const results = useMemo(() => {
-    if (family === "wallex" || !query.trim()) return [];
-    const taken = new Set(rows.map((r) => r.symbol));
-    if (family === "stock") {
-      return searchStocks(query, { limit: 6 })
-        .filter((s) => !taken.has(s.symbol))
-        .map((s) => ({ symbol: s.symbol, name: s.name, label: s.sectorLabel, fundKind: undefined as FundKind | undefined }));
-    }
-    return searchFunds(query, { limit: 6 })
-      .filter((f) => !taken.has(f.symbol))
-      .map((f) => ({ symbol: f.symbol, name: f.name, label: f.kindLabel, fundKind: f.kind as FundKind | undefined }));
-  }, [query, family, rows]);
+  const taken = new Set(rows.map(r => r.symbol));
+  const results = family === "stock"
+    ? searchStocks("", {limit:10000}).filter(s => !taken.has(s.symbol)).map(s => ({symbol:s.symbol,name:s.name,label:s.sectorLabel,fundKind:undefined as FundKind | undefined}))
+    : searchFunds("", {limit:10000}).filter(f => !taken.has(f.symbol)).map(f => ({symbol:f.symbol,name:f.name,label:f.kindLabel,fundKind:f.kind as FundKind | undefined}));
 
   const append = (row: Omit<InstrumentDraftRow, "key" | "quantity" | "unitPrice">) => {
     onChange([...rows, { ...row, key: newRowKey(), quantity: "", unitPrice: "" }]);
-    setQuery("");
   };
 
   return (
     <section className="space-y-5">
-      <StepIntro title="صندوق، سهام و بازار جهانی" text="صندوق و سهام بورس تهران به تومان؛ سهام، شاخص و کامودیتی توکنیزه به تتر یا تومان." />
+      <StepIntro title="صندوق، سهام و بازار جهانی" />
 
       <div className="space-y-2">
         <CurrencySwitch<Family>
           label="نوع دارایی"
           value={family}
-          onChange={(next) => {
-            setFamily(next);
-            setQuery("");
-          }}
+          onChange={setFamily}
           options={[
             { value: "fund", label: "صندوق" },
             { value: "stock", label: "سهام بورسی" },
@@ -146,38 +134,7 @@ export default function SetupInstrumentsStep({
             }
           />
         ) : (
-          <>
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={family === "stock" ? "فولاد، شستا، وبملت…" : "عیار، کهربا، اعتماد…"}
-              className="field"
-              aria-label={family === "stock" ? "جست‌وجوی سهام" : "جست‌وجوی صندوق"}
-              autoComplete="off"
-            />
-            {query.trim().length > 0 && (
-              <ul className="card list-card">
-                {results.map((r) => (
-                  <li key={r.symbol}>
-                    <button
-                      type="button"
-                      onClick={() => append({ kind: family, symbol: r.symbol, name: r.name, fundKind: r.fundKind, priceCurrency: "IRT" })}
-                      className="list-row w-full text-right hover:bg-[color:var(--hover)]"
-                    >
-                      <Mark row={{ kind: family, symbol: r.symbol, name: r.name, fundKind: r.fundKind }} size={28} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[length:var(--fs-sm)] font-medium">{r.name}</span>
-                        <span className="muted block truncate text-[length:var(--fs-xs)]">{r.label}</span>
-                      </span>
-                      <span className="chip shrink-0">{r.symbol}</span>
-                    </button>
-                  </li>
-                ))}
-                {results.length === 0 && <li className="muted p-3 text-center text-[length:var(--fs-xs)]">پیدا نشد — نام یا نماد دیگری را امتحان کنید</li>}
-              </ul>
-            )}
-          </>
+          <CatalogPicker label={family === "stock" ? "انتخاب سهام بورسی" : "انتخاب صندوق"} options={results.map(r => ({id:r.symbol,label:r.name,detail:r.label,searchText:r.symbol,mark:<Mark row={{kind:family,symbol:r.symbol,name:r.name,fundKind:r.fundKind}} size={28} />}))} onSelect={symbol => {const row=results.find(r=>r.symbol===symbol);if(row)append({kind:family,symbol:row.symbol,name:row.name,fundKind:row.fundKind,priceCurrency:"IRT"});}} />
         )}
       </div>
 

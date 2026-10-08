@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
+import CatalogPicker from "@/components/ui/CatalogPicker";
 import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import {
   previewRealEstateIdentityAction,
@@ -57,19 +58,7 @@ export default function RealEstateForm({
   const [neighborhoodId, setNeighborhoodId] = useState("");
   const [propertyTypeId, setPropertyTypeId] = useState("");
 
-  /* جست‌وجو فقط داخل گزینه‌های Master Data — امکان ایجاد متن جدید وجود ندارد */
-  const [hoodFilter, setHoodFilter] = useState("");
-  const cityNeighborhoods = useMemo(
-    () => neighborhoods.filter((n) => n.cityId === cityId && n.isActive),
-    [neighborhoods, cityId],
-  );
-  const filteredNeighborhoods = useMemo(() => {
-    const q = hoodFilter.trim().toLowerCase();
-    if (!q) return cityNeighborhoods;
-    return cityNeighborhoods.filter(
-      (n) => n.nameFa.toLowerCase().includes(q) || n.nameEn.toLowerCase().includes(q) || n.code.toLowerCase().includes(q),
-    );
-  }, [cityNeighborhoods, hoodFilter]);
+  const cityNeighborhoods = useMemo(() => neighborhoods.filter(n => n.cityId === cityId && n.isActive), [neighborhoods,cityId]);
 
   const [acquisitionIso, setAcquisitionIso] = useState("");
   const [valuationIso, setValuationIso] = useState("");
@@ -157,7 +146,6 @@ export default function RealEstateForm({
   const purchaseUsdPreview = canPreviewPurchase ? purchasePreview : null;
   const valuationUsdPreview = canPreviewValuation ? valuationPreview : null;
 
-  const city = activeCities.find((c) => c.id === cityId);
   const ptype = propertyTypes.find((p) => p.id === propertyTypeId && p.isActive);
 
   return (
@@ -165,73 +153,13 @@ export default function RealEstateForm({
       <section className="space-y-3">
         <h3 className="type-section-title">اطلاعات اصلی</h3>
       {/* ── Explorer: دارایی واقعی ← ملک ← شهر ← محله ← نوع ملک ── */}
-      <div className="grid gap-3 md:grid-cols-1 lg:grid-cols-3">
-        <Labeled label="شهر" required>
-          <select
-            className="field"
-            name="cityId"
-            value={cityId}
-            onChange={(e) => {
-              setCityId(e.target.value);
-              setNeighborhoodId("");
-              setHoodFilter("");
-            }}
-            required
-          >
-            {activeCities.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nameFa} / {c.nameEn} ({c.code})
-              </option>
-            ))}
-          </select>
-        </Labeled>
-
-        <div>
-          <Labeled label="منطقه / محله" required>
-            <select
-              className="field"
-              name="neighborhoodId"
-              value={neighborhoodId}
-              onChange={(e) => setNeighborhoodId(e.target.value)}
-              disabled={!cityId}
-              required
-            >
-              <option value="">— انتخاب محله —</option>
-              {filteredNeighborhoods.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {n.nameFa} ({n.code})
-                </option>
-              ))}
-            </select>
-          </Labeled>
-          {cityId && (
-            <input
-              className="field num mt-2 !py-1.5 text-[length:var(--fs-xs)]"
-              value={hoodFilter}
-              onChange={(e) => setHoodFilter(e.target.value)}
-              placeholder={`جست‌وجو در ${toFaDigits(String(cityNeighborhoods.length))} محلهٔ «${city?.nameFa ?? ""}»…`}
-            />
-          )}
-        </div>
-
-        <Labeled label="نوع ملک" required>
-          <select
-            className="field"
-            name="propertyTypeId"
-            value={propertyTypeId}
-            onChange={(e) => setPropertyTypeId(e.target.value)}
-            required
-          >
-            <option value="">— انتخاب نوع ملک —</option>
-            {propertyTypes
-              .filter((p) => p.isActive)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nameFa} ({p.code})
-                </option>
-              ))}
-          </select>
-        </Labeled>
+      <input type="hidden" name="cityId" value={cityId}/>
+      <input type="hidden" name="neighborhoodId" value={neighborhoodId}/>
+      <input type="hidden" name="propertyTypeId" value={propertyTypeId}/>
+      <div className="grid gap-3 lg:grid-cols-3">
+        <CatalogPicker label="شهر" value={cityId} options={activeCities.map(c=>({id:c.id,label:c.nameFa}))} onSelect={id=>{setCityId(id);setNeighborhoodId("");}}/>
+        <CatalogPicker label="محله" value={neighborhoodId} options={cityNeighborhoods.map(n=>({id:n.id,label:n.nameFa}))} disabled={!cityId} onSelect={setNeighborhoodId}/>
+        <CatalogPicker label="نوع ملک" value={propertyTypeId} options={propertyTypes.filter(p=>p.isActive).map(p=>({id:p.id,label:p.nameFa}))} onSelect={setPropertyTypeId}/>
       </div>
 
       </section>
@@ -241,7 +169,7 @@ export default function RealEstateForm({
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="min-w-0">
             <div className="mt-0.5 text-[length:var(--fs-xs)] font-semibold" style={{ color: "var(--action)" }}>
-              شناسه ملک: <span className="num font-bold text-[length:var(--fs-sm)]">{loadingIdentity ? "…" : identityPreview?.label ?? "—"}</span>
+              شناسه ملک: <span className="num font-bold text-[length:var(--fs-sm)]">{loadingIdentity ? "…" : toFaDigits(identityPreview?.label ?? "—")}</span>
             </div>
           </div>
           {identityPreview?.sequence && identityPreview.sequence > 1 && (

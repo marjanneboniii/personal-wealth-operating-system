@@ -130,11 +130,11 @@ export default function SetupDebtsStep({
                   <div className="mt-3 space-y-4 border-t pt-3" style={{ borderColor: "var(--border)" }}>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="label">عنوان</label>
+                        <label className="label">عنوان بدهی</label>
                         <input type="text" value={row.title} onChange={(e) => patch(row.key, { title: e.target.value })} placeholder="وام مسکن" className="field" />
                       </div>
                       <div>
-                        <label className="label">بستانکار</label>
+                        <label className="label">نام شخص یا مجموعه</label>
                         <input type="text" value={row.creditor} onChange={(e) => patch(row.key, { creditor: e.target.value })} placeholder="بانک مسکن" className="field" />
                       </div>
                       <div>
