@@ -4711,11 +4711,23 @@ html[data-privacy] svg text {
 /* ═══════════════════════════════════════════════════════════════════════════
    Setup wizard
    ═══════════════════════════════════════════════════════════════════════════ */
+.setup-page {
+  width: 100%;
+  max-width: 56rem;
+  margin-inline: auto;
+  padding-block: 24px;
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+  letter-spacing: normal;
+  line-height: 1.9;
+}
+.setup-page > header { min-width: 0; }
 .setup-steps {
-  display: flex;
-  gap: 0.15rem;
-  overflow-x: auto;
-  scrollbar-width: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  overflow: visible;
 }
 .setup-steps::-webkit-scrollbar {
   display: none;
@@ -4727,15 +4739,18 @@ html[data-privacy] svg text {
 .setup-step button {
   display: flex;
   width: 100%;
-  min-height: 48px;
-  flex-direction: column;
+  min-height: 52px;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.2rem 0.25rem;
-  font-size: var(--fs-xs);
-  color: var(--text-3);
-  white-space: nowrap;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  text-align: start;
+  font-size: var(--fs-sm);
+  line-height: 1.8;
+  color: var(--text-2);
 }
+.setup-step-label { min-width: 0; overflow-wrap: break-word; }
 .setup-step button:disabled {
   cursor: default;
 }
@@ -4743,6 +4758,7 @@ html[data-privacy] svg text {
   display: inline-flex;
   width: 26px;
   height: 26px;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border-strong);
@@ -4765,13 +4781,18 @@ html[data-privacy] svg text {
   color: var(--text);
 }
 @media (max-width: 639px) {
-  .setup-step:not(.is-current) .setup-step-label {
-    display: none;
-  }
+  .setup-page { padding-block: 16px; gap: 20px; }
+  .setup-steps { grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 3px; }
+  .setup-step button { justify-content: center; min-height: 44px; padding: 4px 0; background: transparent; }
+  .setup-step-label { display: none; }
 }
-.card.setup-card {
-  padding: 1.15rem;
-}
+.card.setup-card { padding: clamp(20px, 3vw, 32px); }
+.setup-form { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.setup-form > input[type="hidden"], .setup-fields:empty { display: none; }
+.setup-fields { display: flex; flex-direction: column; gap: 24px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.setup-form > *, .setup-fields > * { min-width: 0; }
+.setup-intro { display: grid; gap: 8px; }
+.setup-intro p { margin: 0; line-height: 1.9; }
 .card.setup-row {
   padding: 0.85rem 1rem;
 }
@@ -4997,6 +5018,15 @@ dt,
 .app-main-public {
   max-width: none;
   scroll-padding-bottom: max(1rem, var(--safe-bottom));
+}
+
+/* Setup has no fixed app navigation. Keep standalone content clear of the
+   status bar and home indicator without reserving space for hidden chrome.
+   Inline safe areas are already applied by the shell. */
+.shell-root[data-chrome="setup"] .app-main-setup {
+  padding: max(1rem, var(--safe-top)) clamp(0.75rem, 3.75vw, 1.5rem) calc(1.5rem + var(--safe-bottom));
+  scroll-padding-top: calc(var(--safe-top) + 1rem);
+  scroll-padding-bottom: calc(var(--safe-bottom) + 1rem);
 }
 
 .offline-banner {
@@ -7571,8 +7601,9 @@ fieldset.policy-step > .policy-step-title + * {
 /* Shared selection language: onboarding and everyday registration forms. */
 .choice-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
 .choice-card {display:flex;align-items:center;gap:10px;min-width:0;min-height:76px;padding:14px;text-align:start;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);transition:background .15s,border-color .15s;}
-.choice-card b,.catalog-trigger b,.catalog-option b {display:block;font-size:var(--fs-sm);line-height:1.7;overflow-wrap:anywhere;}
-.choice-card small,.catalog-trigger small,.catalog-option small {display:block;color:var(--text-2);font-size:var(--fs-xs);line-height:1.8;}
+.choice-card b,.catalog-trigger b,.catalog-option b {display:block;font-size:var(--fs-sm);line-height:1.7;overflow-wrap:break-word;}
+.choice-copy,.catalog-copy {display:grid;gap:6px;min-width:0;flex:1;text-align:start;white-space:normal;word-break:normal;letter-spacing:normal;}
+.choice-card small,.catalog-trigger small,.catalog-option small {display:block;color:var(--text-2);font-size:var(--fs-xs);line-height:1.9;}
 .choice-card:hover,.catalog-trigger:hover,.catalog-option:hover {background:var(--hover);}
 .choice-card[data-selected] {border-color:var(--positive);background:var(--positive-soft);}
 .choice-card:disabled,.catalog-trigger:disabled {opacity:.5;cursor:not-allowed;}
@@ -7593,12 +7624,23 @@ fieldset.policy-step > .policy-step-title + * {
 .setup-review-group[data-tone="income"] {--review-color:var(--positive);--review-soft:var(--positive-soft);}
 .setup-review-group[data-tone="debt"] {--review-color:var(--warning);--review-soft:var(--warning-soft);}
 .setup-review-group[data-tone="invest"] {--review-color:var(--info);--review-soft:var(--info-soft);}
-.setup-review-head {display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px;background:var(--review-soft);color:var(--review-color);font-size:var(--fs-sm);}
-.setup-review-head b {flex:1;}
-.setup-review-group .list-row {flex-wrap:wrap;}
-.setup-review-group .list-row p {white-space:normal;overflow-wrap:anywhere;}
+.setup-review-head {display:grid;gap:12px;padding:16px;background:var(--review-soft);color:var(--review-color);font-size:var(--fs-sm);}
+.setup-review-heading {display:flex;align-items:baseline;justify-content:space-between;gap:16px;}
+.setup-review-heading b {min-width:0;line-height:1.9;}
+.setup-review-heading > span {flex-shrink:0;}
+.setup-review-actions {display:flex;flex-wrap:wrap;gap:8px;}
+.setup-review-actions .btn {min-height:40px;padding:6px 12px;font-size:var(--fs-xs);}
+.setup-review-group .list-row {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;padding:16px;}
+.setup-review-group .list-row p {white-space:normal;overflow-wrap:break-word;line-height:1.9;}
+.setup-review-detail {margin-top:6px;font-family:var(--font-sans);font-size:var(--fs-xs);letter-spacing:normal;}
+@media(max-width:480px) {.setup-review-group .list-row {grid-template-columns:minmax(0,1fr);gap:8px;}.setup-review-group .list-row > .num {justify-self:start;}}
+@media(min-width:900px) {.setup-occupations,.setup-venues {grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}}
 .setup-summary {border:1px solid var(--positive);background:var(--positive-soft);border-radius:var(--r-lg);padding:16px;}
 @media(max-width:480px) {.catalog-options {grid-template-columns:1fr;}.choice-card {padding:11px;gap:8px;}.choice-grid .choice-mark {display:none;}}
+@media(max-width:359px) {
+  .setup-page .choice-grid { grid-template-columns: minmax(0, 1fr); }
+  .setup-total { flex-direction: column; align-items: flex-start; gap: 6px; }
+}
 
 .setup-review-group[data-tone="invest"] {--review-color:#6d28d9;--review-soft:rgba(109,40,217,.08);}
 .dark .setup-review-group[data-tone="invest"] {--review-color:#c4b5fd;--review-soft:rgba(196,181,253,.12);}

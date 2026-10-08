@@ -341,10 +341,10 @@ export default function SetupWizardPage() {
   const back = () => void move(Math.max(1,step-1));
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 py-4">
+    <div className="setup-page">
       <header className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
-          <h1 className="text-[length:var(--fs-xl)] font-bold tracking-tight">راه‌اندازی توازن</h1>
+          <h1 className="text-[length:var(--fs-xl)] font-bold">راه‌اندازی توازن</h1>
           <span className="flex items-center gap-2">
             <span className="muted num text-[length:var(--fs-xs)]">
               {faCount(step)} از {faCount(STEPS.length)}
@@ -355,7 +355,7 @@ export default function SetupWizardPage() {
           </span>
         </div>
         <p className="muted text-[length:var(--fs-xs)] leading-6">
-          برای شروع استفاده از توازن، ابتدا این مراحل را کامل کنید. برای هر بخش پاسخ «دارم» یا «ندارم» لازم است.
+          برای شروع استفاده از توازن، مراحل زیر را تکمیل کنید و در هر بخش مشخص کنید موردی برای ثبت دارید یا نه.
         </p>
         <ol className="setup-steps" aria-label="مراحل راه‌اندازی">
           {STEPS.map((label, i) => {
@@ -363,7 +363,7 @@ export default function SetupWizardPage() {
             const phase = n === step ? "is-current" : n < step ? "is-done" : "is-todo";
             return (
               <li key={label} className={`setup-step ${phase}`}>
-                <button type="button" disabled={n >= step || pending} onClick={() => setStep(n)} aria-current={n === step ? "step" : undefined}>
+                <button type="button" disabled={n >= step || pending} onClick={() => setStep(n)} aria-label={`مرحله ${faCount(n)}: ${label}`} aria-current={n === step ? "step" : undefined}>
                   <span className="setup-step-dot">{n < step ? <Icon name="check" size={12} /> : faCount(n)}</span>
                   <span className="setup-step-label">{label}</span>
                 </button>
@@ -373,7 +373,7 @@ export default function SetupWizardPage() {
         </ol>
       </header>
 
-      <form action={formAction} className="card setup-card space-y-6">
+      <form action={formAction} className="card setup-card setup-form">
         <p role="status" className="muted text-xs">{draftMessage || "پیش‌نویس پس از تغییر ذخیره می‌شود؛ تا تکمیل راه‌اندازی وارد محیط مالی نمی‌شوید."}</p>
         {coreCommitted && <p className="expense-note">حساب‌ها و موجودی اولیه ثبت شده‌اند؛ فقط ملک، خودرو یا بدهی ثبت‌نشده را اصلاح کنید. برای ویرایش موجودی‌های ثبت‌شده، ابتدا راه‌اندازی را تکمیل کنید.</p>}
         <input type="hidden" name="userName" value={userName} />
@@ -469,7 +469,7 @@ export default function SetupWizardPage() {
           </div>
           {sectionHasRows[sectionKey] && <p className="muted mt-2 text-xs">اگر موردی ندارید، ابتدا ردیف‌های اضافه‌شده را حذف کنید.</p>}
         </section>}
-        <fieldset disabled={!hydrated || (coreCommitted && step <= 4)} className="space-y-6">
+        <fieldset disabled={!hydrated || (coreCommitted && step <= 4)} className="setup-fields">
         {step === 1 && (
           <section className="space-y-5">
             <StepIntro title="شروع" text="اطلاعات خود را قدم‌به‌قدم تکمیل کنید؛ اگر موردی ندارید، «فعلاً موردی ندارم» را انتخاب کنید." />
@@ -484,7 +484,7 @@ export default function SetupWizardPage() {
             <div>
               <p className="label">وضعیت شغلی شما</p>
               <p className="muted mb-3 text-xs">می‌توانید چند مورد را انتخاب کنید یا این بخش را خالی بگذارید.</p>
-              <div className="choice-grid" role="group" aria-label="وضعیت شغلی">
+              <div className="choice-grid setup-occupations" role="group" aria-label="وضعیت شغلی">
                 {OCCUPATIONS.map(occupation => <ChoiceCard key={occupation.code} selected={occupations.includes(occupation.code)} title={occupation.label} detail={({employee_private:"حقوق از شرکت یا مجموعه خصوصی",employee_government:"حقوق از سازمان دولتی",student:"تحصیل و درآمدهای دانشجویی",homemaker:"مدیریت خانه و درآمدهای خانوادگی",freelancer:"پروژه و کار مستقل",employer:"مالک کسب‌وکار و استخدام‌کننده",entrepreneur:"راه‌اندازی یا توسعه کسب‌وکار",retired:"حقوق بازنشستگی",other:"وضعیت دیگری دارم"} as Record<string,string>)[occupation.code]} onClick={() => setOccupations(current => current.includes(occupation.code) ? current.filter(code => code !== occupation.code) : [...current,occupation.code])}/>) }
               </div>
             </div>
@@ -679,7 +679,7 @@ export default function SetupWizardPage() {
               {TOMAN_PLACE_GROUPS.map(([title, places]) => (
                 <div key={title} className="space-y-2">
                   <p className="muted text-[length:var(--fs-xs)] font-semibold">{title}</p>
-                  <div className="choice-grid" role="group" aria-label={title}>
+                  <div className="choice-grid setup-venues" role="group" aria-label={title}>
                     {places.map((w) => {
                       const on = tomanPlaces.some((p) => p.walletName === w.name);
                       return (
@@ -779,14 +779,20 @@ export default function SetupWizardPage() {
               .filter((group) => group.items.length > 0)
               .map((group) => (
                 <div key={group.title} className="setup-review-group" data-tone={group.tone}>
-                  <div className="setup-review-head"><b>{group.title}</b><span>{faCount(group.items.length)} مورد</span><button type="button" className="btn btn-ghost !min-h-9 !px-2" onClick={()=>setStep(group.step)}>{group.step === 3 ? "رمزارز و طلا" : group.step === 5 ? "ملک" : "بازبینی"}</button>{(group.step === 3 || group.step === 5) && <button type="button" className="btn btn-ghost !min-h-9 !px-2" onClick={()=>setStep(group.step+1)}>{group.step === 3 ? "صندوق و سهام" : "خودرو"}</button>}</div>
+                  <div className="setup-review-head">
+                    <div className="setup-review-heading"><b>{group.title}</b><span>{faCount(group.items.length)} مورد</span></div>
+                    <div className="setup-review-actions">
+                      <button type="button" className="btn btn-ghost" onClick={()=>setStep(group.step)}>{group.step === 3 ? "رمزارز و طلا" : group.step === 5 ? "ملک" : "بازبینی"}</button>
+                      {(group.step === 3 || group.step === 5) && <button type="button" className="btn btn-ghost" onClick={()=>setStep(group.step+1)}>{group.step === 3 ? "صندوق و سهام" : "خودرو"}</button>}
+                    </div>
+                  </div>
                   <ul className="list-card">
                     {group.items.map((item) => (
                       <li key={item.key} className="list-row">
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[length:var(--fs-sm)] font-medium">{item.label}</p>
                           {item.detail && (
-                            <p className="muted num truncate text-[length:var(--fs-xs)]" dir="rtl">
+                            <p className="muted setup-review-detail" dir="rtl">
                               {item.detail}
                             </p>
                           )}
