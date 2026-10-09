@@ -1,27 +1,25 @@
 "use client";
 
 /**
- * بازپرداخت بدهی — the same plain cards as «ثبت هزینه»:
+ * بازپرداخت بدهی — tap the instalment, check the amount, tap the account:
  *
  *   کدام بدهی یا قسط؟   the next instalment of every open debt, soonest first
  *                       (late in red, within a week in amber), then every open
- *                       debt for a free payment; a search box once the list grows
+ *                       debt for a free payment — all as tap-to-pick cards
  *   مبلغ                 prefilled from the pick, with «مبلغ قسط» · «کل مانده»
- *   پرداخت از / واریز به the money accounts, as tiles with their balance
- *   تاریخ               today / yesterday / another date, fee and a note
+ *   پرداخت از / واریز به the Toman bank accounts, as logo tiles with balance
+ *   کی؟                 امروز · دیروز · پریروز · تقویم, and an optional fee
  *
  * PRESENTATION ONLY: every value is owned by TransactionForm, which posts the
  * same fields (debtId, installmentId, irtAmount…) to `createTransactionAction`.
  */
-import { useMemo, useState } from "react";
-import { faCount, formatDaysUntil, formatMoney, getDualDate } from "@/lib/format";
+import { useMemo } from "react";
+import { faCount, formatDaysUntil, formatMoney } from "@/lib/format";
 import { D } from "@/domain/decimal";
-import AccountPicker from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
-import DualDateInput from "@/components/ui/DualDateInput";
 import Icon from "@/components/ui/Icon";
 import { isReceivable } from "@/features/planning/obligations";
-import { balanceLabel } from "./TradeFields";
+import { AccountTiles, AmountHero, DateChips, FeeToggle, Presets, TxCard } from "./txKit";
 import type { AccountOption } from "./TransactionForm";
 
 export type DebtOption = {
@@ -53,18 +51,6 @@ export type DebtOption = {
 
 type Installment = DebtOption["installments"][number];
 
-/** Lists longer than this get a search box. */
-const SEARCH_FROM = 6;
-
-const norm = (s: string) =>
-  s.replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/[‌\s]+/g, " ").trim().toLowerCase();
-
-function shiftIso(iso: string, days: number): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
 function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 }
@@ -95,15 +81,9 @@ type Props = {
   entryDate: string;
   setEntryDate: (iso: string) => void;
   today: string;
-  description: string;
-  setDescription: (value: string) => void;
-  autoDescription: string;
 };
 
 export default function DebtRepaymentFields(p: Props) {
-  const [query, setQuery] = useState("");
-  const [pickingDate, setPickingDate] = useState(false);
-
   const open = useMemo(() => p.debts.filter((d) => d.status !== "settled"), [p.debts]);
   const due = useMemo(
     () =>
@@ -118,47 +98,44 @@ export default function DebtRepaymentFields(p: Props) {
     [open],
   );
 
-  const q = norm(query);
-  const matches = (d: DebtOption) => !q || norm(`${d.title} ${d.creditor}`).includes(q);
-  const dueShown = due.filter(({ debt }) => matches(debt));
-  const debtsShown = open.filter(matches);
-
   const debt = p.selectedDebt;
   const receivable = isReceivable(debt?.direction);
   const instAmount = toman(p.selectedInst?.amountToman);
   const outstanding = toman(debt?.outstandingToman);
-  const typed = p.amount ? D(p.amount) : null;
-  const yesterday = shiftIso(p.today, -1);
-  const dateChoice = p.entryDate === p.today ? "today" : p.entryDate === yesterday ? "yesterday" : "other";
+  const presets = [
+    instAmount ? { label: "مبلغ قسط", value: instAmount, key: "inst" } : null,
+    outstanding ? { label: "کل مانده", value: outstanding, key: "all" } : null,
+  ].filter((x): x is { label: string; value: string; key: string } => !!x);
 
   return (
-    <div className="expense-form">
+    <div className="txr-stack">
       {/* ── What is paid ── */}
-      <section className="card expense-card" aria-labelledby="repay-what-title">
-        <header className="expense-head">
-          <h2 id="repay-what-title">کدام بدهی یا قسط؟</h2>
-          {debt && (
-            <button type="button" className="expense-link" onClick={p.onClear}>
+      <TxCard
+        icon="debts"
+        title="کدام بدهی یا قسط؟"
+        aside={
+          debt && (
+            <button type="button" className="txr-link" onClick={p.onClear}>
               تغییر
             </button>
-          )}
-        </header>
-
+          )
+        }
+      >
         {p.debts.length === 0 ? (
-          <p className="expense-empty">
+          <p className="txr-empty">
             هنوز بدهی یا قسطی ثبت نشده است.{" "}
-            <a href="/debts#new" style={{ color: "var(--action)" }}>
+            <a href="/debts#new" className="txr-link">
               ثبت بدهی یا طلب
             </a>
           </p>
         ) : debt ? (
-          <div className="trade-asset" data-on>
-            <span className="flow-icon" aria-hidden="true">
-              <Icon name="debts" size={15} />
+          <div className="txr-picked">
+            <span className="txr-tile-icon" aria-hidden="true">
+              <Icon name="debts" size={18} />
             </span>
-            <span className="trade-asset-text">
+            <span className="txr-picked-text">
               <b>{p.selectedInst ? `قسط ${faCount(p.selectedInst.seq)} — ${debt.title}` : debt.title}</b>
-              <span className="expense-sub">
+              <span className="txr-sub">
                 {debt.creditor}
                 {" · "}
                 {debt.accountId
@@ -168,50 +145,33 @@ export default function DebtRepaymentFields(p: Props) {
                   : "در «پرداخت اقساط» ثبت می‌شود، نه در هزینه‌ها"}
               </span>
             </span>
+            <span className="txr-tick txr-tick-static" aria-hidden="true">
+              <Icon name="check" size={10} strokeWidth={3} />
+            </span>
           </div>
         ) : (
           <>
-            {open.length >= SEARCH_FROM && (
-              <div className="expense-search">
-                <Icon name="search" size={16} />
-                <input
-                  type="search"
-                  className="field"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="جست‌وجو: وام مسکن، بانک…"
-                  aria-label="جست‌وجوی بدهی"
-                />
-              </div>
-            )}
-
-            {dueShown.length > 0 && (
+            {due.length > 0 && (
               <>
-                <p className="expense-sub">قسط‌های پیش‌رو</p>
-                <div className="expense-accounts" role="list" aria-label="قسط‌های پیش‌رو">
-                  {dueShown.map(({ debt: d, inst }) => {
+                <p className="txr-sub">قسط‌های پیش‌رو</p>
+                <div className="txr-debts" role="list" aria-label="قسط‌های پیش‌رو">
+                  {due.map(({ debt: d, inst }) => {
                     const days = daysBetween(p.today, inst.dueDate);
-                    const late = days < 0;
-                    const soon = !late && days <= 7;
+                    const tone = days < 0 ? "late" : days <= 7 ? "soon" : undefined;
                     const amount = toman(inst.amountToman);
                     return (
-                      <button
-                        key={inst.id}
-                        type="button"
-                        role="listitem"
-                        className="expense-acct"
-                        onClick={() => p.onSelectInstallment(d, inst)}
-                      >
-                        <span className="expense-acct-text">
-                          <span className="expense-acct-name">{`قسط ${faCount(inst.seq)} — ${d.title}`}</span>
-                          <span className="expense-acct-bal">
-                            {amount ? <span className="num">{formatMoney(amount, "IRT")}</span> : "—"}
-                            {" · "}
-                            <span style={late ? { color: "var(--negative)" } : soon ? { color: "var(--warning)" } : undefined}>
-                              {formatDaysUntil(days)}
-                            </span>
+                      <button key={inst.id} type="button" role="listitem" className="txr-debt" data-tone={tone} onClick={() => p.onSelectInstallment(d, inst)}>
+                        <span className="txr-debt-seq num" aria-hidden="true">
+                          {faCount(inst.seq)}
+                        </span>
+                        <span className="txr-acct-text">
+                          <span className="txr-acct-name">{d.title}</span>
+                          <span className="txr-acct-sub">
+                            <span className="txr-debt-due">{formatDaysUntil(days)}</span>
+                            {d.creditor ? ` · ${d.creditor}` : ""}
                           </span>
                         </span>
+                        <b className="num txr-debt-amt">{amount ? formatMoney(amount, "IRT") : "—"}</b>
                       </button>
                     );
                   })}
@@ -219,104 +179,63 @@ export default function DebtRepaymentFields(p: Props) {
               </>
             )}
 
-            {debtsShown.length > 0 && (
+            {open.length > 0 && (
               <>
-                <p className="expense-sub">پرداخت آزاد</p>
-                <div className="expense-accounts" role="list" aria-label="بدهی‌ها">
-                  {debtsShown.map((d) => {
+                <p className="txr-sub">پرداخت آزاد</p>
+                <div className="txr-debts" role="list" aria-label="بدهی‌ها">
+                  {open.map((d) => {
                     const left = toman(d.outstandingToman);
                     return (
-                      <button key={d.id} type="button" role="listitem" className="expense-acct" onClick={() => p.onSelectDebt(d)}>
-                        <span className="expense-acct-text">
-                          <span className="expense-acct-name">{d.title}</span>
-                          <span className="expense-acct-bal">
-                            {left ? (
-                              <>
-                                مانده <span className="num">{formatMoney(left, "IRT")}</span>
-                              </>
-                            ) : (
-                              d.creditor
-                            )}
-                          </span>
+                      <button key={d.id} type="button" role="listitem" className="txr-debt" onClick={() => p.onSelectDebt(d)}>
+                        <span className="txr-debt-seq" aria-hidden="true">
+                          <Icon name={isReceivable(d.direction) ? "download" : "debts"} size={15} />
                         </span>
+                        <span className="txr-acct-text">
+                          <span className="txr-acct-name">{d.title}</span>
+                          <span className="txr-acct-sub">{d.creditor || " "}</span>
+                        </span>
+                        {left && (
+                          <span className="txr-debt-amt">
+                            <span className="txr-sub">مانده </span>
+                            <b className="num">{formatMoney(left, "IRT")}</b>
+                          </span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
               </>
             )}
-
-            {q && dueShown.length === 0 && debtsShown.length === 0 && (
-              <p className="expense-empty">موردی با «{query}» پیدا نشد.</p>
-            )}
-            {!q && open.length === 0 && <p className="expense-empty">همهٔ بدهی‌ها تسویه شده‌اند.</p>}
+            {open.length === 0 && <p className="txr-empty">همهٔ بدهی‌ها تسویه شده‌اند.</p>}
           </>
         )}
-      </section>
+      </TxCard>
 
       {debt && (
         <>
           {/* ── Amount ── */}
-          <section className="card expense-card" aria-labelledby="repay-amount-title">
-            <header className="expense-head">
-              <h2 id="repay-amount-title">{receivable ? "مبلغ دریافت" : "مبلغ پرداخت"}</h2>
-              <span className="expense-sub">تومان</span>
-            </header>
-            <AmountInput
-              value={p.amount}
-              onValueChange={p.setAmount}
-              placeholder="۰"
-              className="field num"
-              unit="toman"
-              aria-labelledby="repay-amount-title"
-            />
-            {p.previewUsd && (
-              <p className="expense-sub">
-                ≈ <span className="num">{formatMoney(p.previewUsd, "USD")}</span>
-              </p>
-            )}
-            {(instAmount || outstanding) && (
-              <div className="expense-presets" role="group" aria-label="مبلغ‌های آماده">
-                {(
-                  [
-                    ["مبلغ قسط", instAmount],
-                    ["کل مانده", outstanding],
-                  ] as const
-                )
-                  .filter(([, value]) => value)
-                  .map(([label, value]) => {
-                    const on = !!typed && typed.raw === D(value!).raw;
-                    return (
-                      <button
-                        key={label}
-                        type="button"
-                        className="expense-preset"
-                        data-on={on || undefined}
-                        aria-pressed={on}
-                        onClick={() => p.setAmount(value!)}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-              </div>
-            )}
+          <section className="txr-card">
+            <AmountHero
+              label={receivable ? "مبلغ دریافت" : "مبلغ پرداخت"}
+              unit="تومان"
+              foot={p.previewUsd ? <p className="txr-sub">≈ <span className="num">{formatMoney(p.previewUsd, "USD")}</span></p> : null}
+            >
+              <AmountInput value={p.amount} onValueChange={p.setAmount} placeholder="۰" className="txr-amount num" unit="toman" aria-label={receivable ? "مبلغ دریافت" : "مبلغ پرداخت"} />
+            </AmountHero>
+            <Presets items={presets} current={p.amount} onPick={p.setAmount} label="مبلغ‌های آماده" />
           </section>
 
           {/* ── Account ── */}
-          <section className="card expense-card" aria-labelledby="repay-account-title">
-            <header className="expense-head">
-              <h2 id="repay-account-title">{receivable ? "واریز به" : "پرداخت از"}</h2>
-            </header>
+          <TxCard icon="wallet" title={receivable ? "واریز به" : "پرداخت از"}>
             {p.accounts.length === 0 ? (
-              <p className="expense-empty">
-                هنوز حساب نقد یا بانکی ندارید.{" "}
-                <a href="/accounts" style={{ color: "var(--action)" }}>
+              <p className="txr-empty">
+                هنوز حساب بانکی ندارید.{" "}
+                <a href="/accounts" className="txr-link">
                   افزودن حساب
                 </a>
               </p>
             ) : (
-              <AccountPicker
+              <AccountTiles
                 value={p.accountId}
                 options={p.accounts}
                 balances={p.balances}
@@ -325,82 +244,16 @@ export default function DebtRepaymentFields(p: Props) {
                 sheetTitle={receivable ? "واریز به کدام حساب؟" : "پرداخت از کدام حساب؟"}
               />
             )}
-          </section>
+          </TxCard>
         </>
       )}
 
-      {/* ── Date, fee & note ── */}
-      <section className="card expense-card expense-details">
-        <div className="expense-row">
-          <span className="expense-row-label">تاریخ</span>
-          <div className="expense-seg" role="group" aria-label="تاریخ پرداخت">
-            {(
-              [
-                ["today", "امروز", p.today],
-                ["yesterday", "دیروز", yesterday],
-              ] as const
-            ).map(([key, label, iso]) => {
-              const on = dateChoice === key && !pickingDate;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  data-on={on || undefined}
-                  aria-pressed={on}
-                  onClick={() => {
-                    p.setEntryDate(iso);
-                    setPickingDate(false);
-                  }}
-                >
-                  {label}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              data-on={dateChoice === "other" || pickingDate || undefined}
-              aria-expanded={pickingDate}
-              onClick={() => setPickingDate((v) => !v)}
-            >
-              <Icon name="calendar" size={14} />
-              {dateChoice === "other" && p.entryDate ? getDualDate(p.entryDate).jalali : "تاریخ دیگر"}
-            </button>
-          </div>
-          {pickingDate ? (
-            <DualDateInput name="entryDate" value={p.entryDate} onChange={p.setEntryDate} label="تاریخ پرداخت" required showGregorian={false} />
-          ) : (
-            <input type="hidden" name="entryDate" value={p.entryDate} />
-          )}
-        </div>
-
-        <div className="expense-row">
-          <label htmlFor="repay-fee" className="expense-row-label">
-            کارمزد (اختیاری)
-          </label>
-          <AmountInput
-            id="repay-fee"
-            inputMode={p.feeInToman ? "numeric" : "decimal"}
-            value={p.fee}
-            onValueChange={p.setFee}
-            className="field num"
-            unit={p.feeInToman ? "toman" : p.feeSymbol}
-            placeholder="۰"
-          />
-        </div>
-
-        <div className="expense-row">
-          <label htmlFor="repay-note" className="expense-row-label">
-            یادداشت
-          </label>
-          <input
-            id="repay-note"
-            className="field"
-            value={p.description}
-            onChange={(e) => p.setDescription(e.target.value)}
-            placeholder={p.autoDescription}
-          />
-        </div>
-      </section>
+      {/* ── Date & fee ── */}
+      <TxCard icon="calendar" title="کی؟">
+        <DateChips value={p.entryDate} onChange={p.setEntryDate} today={p.today} label="تاریخ پرداخت" />
+        <input type="hidden" name="entryDate" value={p.entryDate} />
+        <FeeToggle fee={p.fee} setFee={p.setFee} feeInToman={p.feeInToman} feeSymbol={p.feeSymbol} />
+      </TxCard>
     </div>
   );
 }

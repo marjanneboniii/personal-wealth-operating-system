@@ -76,7 +76,7 @@ function groupOf(a: PickerAccount): GroupKey {
 }
 
 /** The place, then the unit — whatever the name does not already say. */
-function subtitleOf(a: PickerAccount): string {
+export function subtitleOf(a: PickerAccount): string {
   const unit = unitOf(a);
   const unitText = unit && !TOMAN.has(unit) ? currencyLabel(unit) : "تومان";
   const parts: string[] = [];
@@ -86,7 +86,7 @@ function subtitleOf(a: PickerAccount): string {
 }
 
 /** A balance in the account's own unit. */
-function balanceText(a: PickerAccount, raw: string | undefined): ReactNode {
+export function balanceText(a: PickerAccount, raw: string | undefined): ReactNode {
   if (raw === undefined) return null;
   const unit = unitOf(a);
   if (TOMAN.has(unit)) {
@@ -104,7 +104,7 @@ function balanceText(a: PickerAccount, raw: string | undefined): ReactNode {
   );
 }
 
-function AccountMark({ account: a, size = 36 }: { account: PickerAccount; size?: number }) {
+export function AccountMark({ account: a, size = 36 }: { account: PickerAccount; size?: number }) {
   const group = groupOf(a);
   const place = a.walletName ?? a.name;
   if (group === "bank") return <AssetLogo assetType="bank" brandName={place} name={place} size={size} />;

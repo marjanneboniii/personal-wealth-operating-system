@@ -32,21 +32,20 @@ import {getUsdRateForDateAction} from "@/app/actions/registry";
  */
 import { displayAccountName } from "@/lib/assetDisplay";
 import { useActionState, useEffect, useRef, useState } from "react";
-import TagInput from "@/components/transactions/TagInput";
 import { parseTags } from "@/features/tags/normalize";
-import { createTransactionAction, createCategoryAction, createTransferDestinationAction, type ActionResult } from "@/app/actions";
+import { createTransactionAction, createTransferDestinationAction, type ActionResult } from "@/app/actions";
 import { KNOWN_WALLETS } from "@/features/setup/holdingWallets";
 import { currencyLabel, faCount, formatMoney, formatQty, getDualDate } from "@/lib/format";
 import { useLatestRate } from "@/components/ui/SmartPreview";
-import DualDateInput from "@/components/ui/DualDateInput";
-import AccountPicker from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
-import Icon, { type IconName } from "@/components/ui/Icon";
+import Icon from "@/components/ui/Icon";
 import { loadMarketCatalog } from "@/components/assets/marketCatalogClient";
 import DebtRepaymentFields, { type DebtOption } from "./DebtRepaymentFields";
 import ExpenseFields from "./ExpenseFields";
 import TradeFields from "./TradeFields";
 import TransferFields from "./TransferFields";
+import NewCategorySheet, { NewCategoryTile } from "./NewCategorySheet";
+import { AccountTiles, AmountHero, DateChips, DayGrid, FALLBACK_LOOK, FeeToggle, INCOME_GROUP_LOOK, TagChips, Tile, TX_KINDS, TxCard } from "./txKit";
 import { D } from "@/domain/decimal";
 import { isLiquidAccount, isTomanBankAccount } from "@/features/accounts/classification";
 import type { MarketRow } from "@/features/pricing/marketSearch";
@@ -115,24 +114,11 @@ export type CategoryGroupOption = {
   children: CategoryChildOption[];
 };
 
-/** Icon per standard income group; user-made groups fall back to «layers». */
-const INCOME_GROUP_ICON = {
-  "INC-SAL": "wallet",
-  "INC-BIZ": "trend-up",
-  "INC-INV": "coins",
-  "INC-PEN": "calendar",
-  "INC-SUP": "home",
-  "INC-OTH": "more",
-} as const;
+/** Income groups by code: an icon and a colour; user-made groups fall back. */
+const incomeLook = (code: string) => INCOME_GROUP_LOOK[code] ?? FALLBACK_LOOK;
 
-const TYPES = [
-  { key: "expense", label: "هزینه", icon: "card" },
-  { key: "income", label: "درآمد", icon: "download" },
-  { key: "transfer", label: "انتقال", icon: "swap" },
-  { key: "buy", label: "خرید دارایی", icon: "plus" },
-  { key: "sell", label: "فروش دارایی", icon: "upload" },
-  { key: "debt_repayment", label: "پرداخت بدهی", icon: "debts" },
-] as const satisfies ReadonlyArray<{ key: string; label: string; icon: IconName }>;
+/** The six types, each with its own colour (see txKit). */
+const TYPES = TX_KINDS;
 
 type TxType = (typeof TYPES)[number]["key"];
 
@@ -216,24 +202,6 @@ type Props = {
   initialInstallmentId?: string;
 };
 
-function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
-  return (
-    <section className="card space-y-3 p-4">
-      <h2 className="flex items-center gap-2 text-[length:var(--fs-sm)] font-bold">
-        <span
-          className="num inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[length:var(--fs-xs)]"
-          style={{ background: "var(--action-soft)", color: "var(--action)" }}
-          aria-hidden="true"
-        >
-          {faCount(n)}
-        </span>
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
-
 export default function TransactionForm({
   accounts,
   balances = {},
@@ -288,7 +256,9 @@ export default function TransactionForm({
   const [toAccountId, setToAccountId] = useState(prefill?.toAccountId ?? "");
   // Income: a SOURCE from the income category tree (never a ledger account), an
   // amount in the receiving account's own unit, and an optional monthly repeat.
+  // Grows when the user adds a source in «منبع جدید».
   const [incomeGroups, setIncomeGroups] = useState<CategoryGroupOption[]>(incomeCategories);
+  const [addingIncome, setAddingIncome] = useState(false);
   const [incomeParentId, setIncomeParentId] = useState(initialIncome?.parentId ?? (defaultType === "income" ? (prefill?.parentId ?? "") : ""));
   const [incomeCategoryId, setIncomeCategoryId] = useState(initialIncome?.categoryId ?? (defaultType === "income" ? (prefill?.categoryId ?? "") : ""));
   const [incomeAmount, setIncomeAmount] = useState(
@@ -298,12 +268,10 @@ export default function TransactionForm({
   const [recurringDay, setRecurringDay] = useState(() => jalaliDayOf(initialEntryDate ?? today));
   const planId = initialIncome?.planId ?? "";
 
+  // Grows when the user adds a category in «دسته جدید».
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroupOption[]>(categories);
   const [categoryParentId, setCategoryParentId] = useState(defaultType === "expense" ? (prefill?.parentId ?? "") : "");
   const [categoryId, setCategoryId] = useState(defaultType === "expense" ? (prefill?.categoryId ?? "") : "");
-  const [showNewCategory, setShowNewCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [categoryMessage, setCategoryMessage] = useState("");
 
   const [selectedDebt, setSelectedDebt] = useState<DebtOption | null>(null);
   const [selectedInst, setSelectedInst] = useState<DebtOption["installments"][number] | null>(null);
@@ -705,34 +673,6 @@ export default function TransactionForm({
     setPickerOpen(false);
   };
 
-  const handleCreateCategory = async () => {
-    const forIncome = type === "income";
-    const parentId = forIncome ? incomeParentId : categoryParentId;
-    if (!parentId || !newCategoryName.trim()) return;
-    const res = await createCategoryAction({ name: newCategoryName.trim(), parentId });
-    if (!res.ok) {
-      setCategoryMessage(res.message);
-      return;
-    }
-    setCategoryMessage("");
-    const created = newCategoryName.trim();
-    setNewCategoryName("");
-    setShowNewCategory(false);
-    const addLeaf = (current: CategoryGroupOption[]) =>
-      current.map((g) =>
-        g.id === parentId && res.id
-          ? { ...g, children: [...g.children, { id: res.id, code: "", name: created, nature: "cash", description: null }] }
-          : g,
-      );
-    if (forIncome) {
-      setIncomeGroups(addLeaf);
-      if (res.id) setIncomeCategoryId(res.id);
-    } else {
-      setCategoryGroups(addLeaf);
-      if (res.id) setCategoryId(res.id);
-    }
-  };
-
   const handleSelectDebt = (d: DebtOption) => {
     setSelectedDebt(d);
     setSelectedInst(null);
@@ -790,9 +730,9 @@ export default function TransactionForm({
   }, [debts, initialDebtId, initialInstallmentId]);
 
   const noMoneyAccounts = (
-    <p className="muted mt-1.5 text-[length:var(--fs-xs)] leading-5">
+    <p className="txr-empty">
       هنوز حساب نقد یا بانکی ندارید.{" "}
-      <a href="/accounts" style={{ color: "var(--action)" }}>
+      <a href="/accounts" className="txr-link">
         افزودن حساب
       </a>
     </p>
@@ -888,17 +828,22 @@ export default function TransactionForm({
   const parsedTags = parseTags(tagsText);
   if (parsedTags.length) summary.push(["برچسب", parsedTags.map((t) => `#${t}`).join(" ")]);
 
-  const stepOneTitle: Record<TxType, string> = {
-    expense: "برای چه خرج کردید؟",
-    income: "این درآمد از کجا آمد؟",
-    transfer: "از کدام حساب به کدام حساب؟",
-    buy: "چه دارایی‌ای خریدید؟",
-    sell: "چه دارایی‌ای فروختید؟",
-    debt_repayment: "کدام بدهی یا قسط را پرداخت کردید؟",
-  };
+  /* ── The headline of the review card: what moves, in its own unit ── */
+  const kind = TYPES.find((t) => t.key === type)!;
+  const headline = !hasAmount
+    ? "—"
+    : isTrade && !isRegistrySale
+      ? settleTotalLabel
+      : type === "income" && !incomeIsToman
+        ? `${formatQty(incomeAmount, 6)} ${currencyLabel(incomeSymbol)}`
+        : isRegistrySale && registryNet
+          ? formatMoney(registryNet.toFixed(0), "IRT")
+          : formatMoney(postedIrt, "IRT");
+  // Money in reads green, money out red, a transfer neutral — a colour, not a sign that RTL detaches.
+  const headlineTone = type === "income" || type === "sell" ? "in" : type === "transfer" ? undefined : "out";
 
   return (
-    <form action={formAction} className="space-y-4" style={{ touchAction: "manipulation" }}>
+    <form action={formAction} className="txr" data-kind={type} style={{ touchAction: "manipulation" }}>
       {/* ── What reaches the server — one place, every field. ── */}
       <input type="hidden" name="type" value={type} />
       <input type="hidden" name="irtAmount" value={postedIrt} />
@@ -937,26 +882,26 @@ export default function TransactionForm({
       <input type="hidden" name="debtId" value={type === "debt_repayment" ? selectedDebt?.id ?? "" : ""} />
       <input type="hidden" name="installmentId" value={type === "debt_repayment" ? selectedInst?.id ?? "" : ""} />
 
-      {/* ── Type ── */}
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6" role="group" aria-label="نوع تراکنش">
+      {/* ── Type: six coloured tiles; the chosen colour runs through the form ── */}
+      <div className="txr-types" role="radiogroup" aria-label="نوع تراکنش">
         {TYPES.map((t) => {
           const on = type === t.key;
           return (
             <button
               key={t.key}
               type="button"
+              role="radio"
+              aria-checked={on}
               onClick={() => pickType(t.key)}
-              aria-pressed={on}
-              className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-[var(--r-md)] border px-1 py-2 text-[length:var(--fs-xs)] font-medium"
-              style={{
-                borderColor: on ? "var(--action)" : "var(--border)",
-                background: on ? "var(--action-soft)" : "var(--surface)",
-                color: on ? "var(--action)" : "inherit",
-                touchAction: "manipulation",
-              }}
+              className="txr-type"
+              data-kind={t.key}
+              data-on={on || undefined}
             >
-              <Icon name={t.icon} size={18} />
-              {t.label}
+              <span className="txr-type-icon" aria-hidden="true">
+                <Icon name={t.icon} size={18} />
+              </span>
+              <span className="txr-type-label">{t.label}</span>
+              <span className="txr-type-hint">{t.hint}</span>
             </button>
           );
         })}
@@ -965,13 +910,15 @@ export default function TransactionForm({
       {type === "expense" ? (
         <ExpenseFields
           groups={categoryGroups}
-          setGroups={setCategoryGroups}
           parentId={categoryParentId}
           categoryId={categoryId}
           onPick={(parentId, leafId) => {
             setCategoryParentId(parentId);
             setCategoryId(leafId);
           }}
+          onCreate={(parentId, leaf) =>
+            setCategoryGroups((current) => current.map((g) => (g.id === parentId ? { ...g, children: [...g.children, leaf] } : g)))
+          }
           recentCategoryIds={expenseRecentCategoryIds}
           amount={irtAmount}
           setAmount={setIrtAmount}
@@ -983,9 +930,6 @@ export default function TransactionForm({
           entryDate={entryDate}
           setEntryDate={setEntryDate}
           today={today}
-          description={description}
-          setDescription={setDescription}
-          autoDescription={autoDescription}
         />
       ) : type === "debt_repayment" ? (
         <DebtRepaymentFields
@@ -1012,9 +956,6 @@ export default function TransactionForm({
           entryDate={entryDate}
           setEntryDate={setEntryDate}
           today={today}
-          description={description}
-          setDescription={setDescription}
-          autoDescription={autoDescription}
         />
       ) : type === "transfer" ? (
         <TransferFields
@@ -1050,13 +991,10 @@ export default function TransactionForm({
           entryDate={entryDate}
           setEntryDate={setEntryDate}
           today={today}
-          description={description}
-          setDescription={setDescription}
-          autoDescription={autoDescription}
         />
       ) : isTrade ? (
         <>
-        {needsHistoricalPurchase && <p className="expense-note" role="status">برای خرید گذشته، قیمت واقعی خرید را وارد کنید؛ معادل دلاری با نرخ تاریخ خرید محاسبه می‌شود. {datedRate?.date === entryDate ? `نرخ: ${formatMoney(datedRate.rate,"IRT")}` : "در حال دریافت نرخ تاریخی؛ تا دریافت نرخ معتبر، ثبت انجام نمی‌شود."}</p>}
+        {needsHistoricalPurchase && <p className="txr-note" role="status">برای خرید گذشته، قیمت واقعی خرید را وارد کنید؛ معادل دلاری با نرخ تاریخ خرید محاسبه می‌شود. {datedRate?.date === entryDate ? `نرخ: ${formatMoney(datedRate.rate,"IRT")}` : "در حال دریافت نرخ تاریخی؛ تا دریافت نرخ معتبر، ثبت انجام نمی‌شود."}</p>}
         <TradeFields
           type={type}
           asset={assetAccount ?? null}
@@ -1124,337 +1062,288 @@ export default function TransactionForm({
           entryDate={entryDate}
           setEntryDate={setEntryDate}
           today={today}
-          description={description}
-          setDescription={setDescription}
-          autoDescription={autoDescription}
         />
         </>
       ) : (
-      <>
-      {/* ── ۱. What ── */}
-      <Step n={1} title={stepOneTitle[type]}>
-        {type === "income" && (
-          <div className="space-y-3">
-            {suggestedIncome.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="muted text-[length:var(--fs-xs)]">پرکاربرد برای شما</p>
-                <div className="flex flex-wrap gap-2">
-                  {suggestedIncome.map((c) => {
-                    const on = incomeCategoryId === c.id;
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className="chip !py-1.5"
-                        aria-pressed={on}
-                        style={on ? { borderColor: "var(--action)", background: "var(--action-soft)", color: "var(--action)" } : undefined}
-                        onClick={() => {
-                          setIncomeParentId(c.parentId);
-                          setIncomeCategoryId(c.id);
-                          setShowNewCategory(false);
-                        }}
-                      >
-                        {c.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Step A — the kind of income, as cards: name, icon and what it covers. */}
-            <div className="space-y-1.5">
-              <p className="muted text-[length:var(--fs-xs)]">نوع درآمد</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="گروه درآمد">
-                {incomeGroups.map((g) => {
-                  const on = incomeParentId === g.id;
-                  return (
-                    <button
-                      key={g.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={on}
-                      onClick={() => {
-                        if (on) return;
-                        setIncomeParentId(g.id);
-                        setIncomeCategoryId("");
-                        setShowNewCategory(false);
-                      }}
-                      className="flex min-h-[4.75rem] flex-col items-start gap-1 rounded-[var(--r-md)] border p-2.5 text-right"
-                      style={{
-                        borderColor: on ? "var(--action)" : "var(--border)",
-                        background: on ? "var(--action-soft)" : "var(--surface)",
-                        touchAction: "manipulation",
-                      }}
-                    >
-                      <span className="flex items-center gap-1.5 text-[length:var(--fs-sm)] font-semibold" style={on ? { color: "var(--action)" } : undefined}>
-                        <Icon name={INCOME_GROUP_ICON[g.code as keyof typeof INCOME_GROUP_ICON] ?? "layers"} size={16} />
-                        {g.name}
-                      </span>
-                      <span className="muted line-clamp-2 text-[length:var(--fs-xs)] leading-5">
-                        {g.children.slice(0, 3).map((c) => c.name).join("، ")}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Step B — the exact source inside the chosen kind. */}
-            {incomeParent && (
-              <div className="soft space-y-2.5 rounded-[var(--r-md)] p-3">
-                <p className="text-[length:var(--fs-xs)] font-semibold">از کدام منبع «{incomeParent.name}»؟</p>
-                {incomeParent.description && (
-                  <p className="muted text-[length:var(--fs-xs)] leading-5">{incomeParent.description}</p>
-                )}
-                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="منبع درآمد">
-                  {incomeParent.children.map((c) => {
-                    const on = incomeCategoryId === c.id;
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={on}
-                        className="chip !py-1.5"
-                        style={on ? { borderColor: "var(--action)", background: "var(--action-soft)", color: "var(--action)" } : undefined}
-                        onClick={() => setIncomeCategoryId(c.id)}
-                      >
-                        {on && <Icon name="check" size={12} />}
-                        {c.name}
-                      </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={() => setShowNewCategory((v) => !v)}
-                    className="chip !py-1.5"
-                    style={{ borderStyle: "dashed" }}
-                  >
-                    {showNewCategory ? "بستن" : "+ منبع دیگر"}
-                  </button>
-                </div>
-                {incomeCategory?.description && (
-                  <p className="muted text-[length:var(--fs-xs)] leading-5">{incomeCategory.description}</p>
-                )}
-                {categoryMessage && <p className="text-[length:var(--fs-xs)]">{categoryMessage}</p>}
-                {showNewCategory && (
-                  <div className="flex gap-2">
-                    <input
-                      className="field"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      placeholder={`نام منبع جدید در «${incomeParent.name}»`}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleCreateCategory}
-                      disabled={!newCategoryName.trim()}
-                      className="btn btn-soft shrink-0 disabled:opacity-40"
-                    >
-                      افزودن
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <details className="text-[length:var(--fs-xs)]">
-              <summary className="muted cursor-pointer">چه چیزی درآمد حساب نمی‌شود؟</summary>
-              <ul className="muted mt-1.5 list-disc space-y-1 pr-5 leading-5">
-                <li>جابه‌جایی پول بین حساب‌های خودتان — از «انتقال» استفاده کنید.</li>
-                <li>وامی که گرفته‌اید یا طلبی که پس گرفته‌اید.</li>
-                <li>سود فروش سهام، طلا، رمزارز، ملک یا خودرو — هنگام «فروش دارایی» خودکار محاسبه می‌شود.</li>
-                <li>پول برگشتی یک خرید — هزینه را کم می‌کند.</li>
-              </ul>
-            </details>
-          </div>
-        )}
-
-      </Step>
-
-      {/* ── ۲. How much ── */}
-      <Step n={2} title="چقدر؟">
-        {type === "income" ? (
-          <div className="space-y-3">
-            <AccountPicker
-              label="واریز به حساب"
-              sheetTitle="واریز به کدام حساب؟"
-              value={moneyId}
-              options={moneyOptions}
-              balances={balances}
-              onChange={setMoneyAccountId}
-              empty={noMoneyAccounts}
-            />
-            <div>
-              <label className="label">
-                {incomeCategory?.code?.startsWith("INC-SAL") ? "خالص دریافتی" : "مبلغ دریافتی"}
-                {moneyAccount ? ` به ${incomeIsToman ? "تومان" : currencyLabel(incomeSymbol)}` : ""}
-              </label>
-              <AmountInput
-                inputMode={incomeIsToman ? "numeric" : "decimal"}
-                maxDecimals={incomeIsToman ? 0 : 6}
-                value={incomeAmount}
-                onValueChange={setIncomeAmount}
-                placeholder={incomeIsToman ? "مثلاً ۴۵٬۰۰۰٬۰۰۰" : "مثلاً ۲۵۰"}
-                className="field num !text-2xl !font-bold"
-                unit={incomeIsToman ? "toman" : incomeSymbol}
-                aria-label="مبلغ دریافتی"
-              />
-              {hasAmount && !incomeIsToman && (
-                <p className="muted mt-1 text-[length:var(--fs-xs)]">
-                  معادل تقریبی <span className="num">{formatMoney(postedIrt, "IRT")}</span>
+      /* ── Income: source tiles → amount → account → when ── */
+      <div className="txr-stack">
+        {/* The amount first, as in every other type. */}
+        <section className="txr-card">
+          <AmountHero
+            label={incomeCategory?.code?.startsWith("INC-SAL") ? "خالص دریافتی" : "مبلغ دریافتی"}
+            unit={incomeIsToman ? "تومان" : currencyLabel(incomeSymbol)}
+            foot={
+              hasAmount && !incomeIsToman ? (
+                <p className="txr-sub">
+                  ≈ <span className="num">{formatMoney(postedIrt, "IRT")}</span>
                 </p>
-              )}
-            </div>
-            {planId ? (
-              <p className="soft rounded-[var(--r-md)] p-2 text-[length:var(--fs-xs)] leading-5" role="note">
-                ثبت یادآوری ماهانه — مبلغ را اگر تغییر کرده اصلاح کنید؛ ماه بعد با همین مبلغ یادآوری می‌شود.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                <label className="flex min-h-11 cursor-pointer items-center gap-2 text-[length:var(--fs-sm)]">
-                  <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
-                  این درآمد هر ماه تکرار می‌شود
-                </label>
-                {recurring && (
-                  <div>
-                    <label className="label">روز واریز در ماه</label>
-                    <select className="field" value={recurringDay} onChange={(e) => setRecurringDay(Number(e.target.value))}>
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                        <option key={day} value={day}>
-                          {faCount(day)}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">
-                      هر ماه در همین روز در «نمای کلی» یادآوری می‌شود تا با یک لمس ثبت کنید. هیچ مبلغی بدون تأیید شما ثبت نمی‌شود.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        {!isRegistrySale && (
-        <details className="rounded-[var(--r-md)] border px-3 py-1" style={{ borderColor: "var(--border)" }}>
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-[length:var(--fs-sm)] font-medium marker:hidden [&::-webkit-details-marker]:hidden">
-            کارمزد (اختیاری)
-            <Icon name="chevronDown" size={15} className="muted" />
-          </summary>
-          <div className="border-t pb-3 pt-3" style={{ borderColor: "var(--border)" }}>
-            <label className="label">{feeInToman ? "کارمزد به تومان" : `کارمزد به ${currencyLabel(feeSymbol)}`}</label>
+              ) : null
+            }
+          >
             <AmountInput
-              inputMode={feeInToman ? "numeric" : "decimal"}
-              value={fee}
-              onValueChange={setFee}
-              className="field num"
-              unit={feeInToman ? "toman" : feeSymbol}
+              inputMode={incomeIsToman ? "numeric" : "decimal"}
+              maxDecimals={incomeIsToman ? 0 : 6}
+              value={incomeAmount}
+              onValueChange={setIncomeAmount}
               placeholder="۰"
+              className="txr-amount num"
+              unit={incomeIsToman ? "toman" : incomeSymbol}
+              aria-label="مبلغ دریافتی"
             />
-          </div>
-        </details>
-        )}
-      </Step>
+          </AmountHero>
+        </section>
 
-      {/* ── ۳. From where, and when ── */}
-      <Step n={3} title="کی؟">
-        <DualDateInput name="entryDate" value={entryDate} onChange={setEntryDate} label="تاریخ" required />
-        <div>
-          <label className="label">شرح (اختیاری)</label>
-          <input
-            className="field"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={autoDescription}
-          />
-        </div>
-      </Step>
-      </>
+        <TxCard
+          icon="download"
+          title="این درآمد از کجا آمد؟"
+          aside={
+            incomeCategory && (
+              <button
+                type="button"
+                className="txr-link"
+                onClick={() => {
+                  setIncomeCategoryId("");
+                }}
+              >
+                تغییر
+              </button>
+            )
+          }
+        >
+          {incomeParent && incomeCategory ? (
+            <div className="txr-picked" style={{ "--tile": incomeLook(incomeParent.code).color } as React.CSSProperties}>
+              <span className="txr-tile-icon" aria-hidden="true">
+                <Icon name={incomeLook(incomeParent.code).icon} size={18} />
+              </span>
+              <span className="txr-picked-text">
+                <b>{incomeCategory.name}</b>
+                <span className="txr-sub">{incomeCategory.description ?? incomeParent.name}</span>
+              </span>
+              <span className="txr-tick txr-tick-static" aria-hidden="true">
+                <Icon name="check" size={10} strokeWidth={3} />
+              </span>
+            </div>
+          ) : (
+            <>
+              {suggestedIncome.length > 0 && (
+                <>
+                  <p className="txr-sub">پرکاربرد برای شما</p>
+                  <div className="txr-tiles" role="radiogroup" aria-label="منبع‌های پرکاربرد">
+                    {suggestedIncome.map((c) => {
+                      const g = incomeGroups.find((x) => x.id === c.parentId);
+                      const look = g ? incomeLook(g.code) : FALLBACK_LOOK;
+                      return (
+                        <Tile
+                          key={c.id}
+                          on={incomeCategoryId === c.id}
+                          onClick={() => {
+                            setIncomeParentId(c.parentId);
+                            setIncomeCategoryId(c.id);
+                          }}
+                          label={c.name}
+                          icon={look.icon}
+                          color={look.color}
+                        />
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {incomeParent ? (
+                /* The exact source inside the chosen kind. */
+                <>
+                  <div className="txr-crumb">
+                    <button type="button" className="txr-link" onClick={() => setIncomeParentId("")}>
+                      <Icon name="arrow-start" size={16} />
+                      همه انواع
+                    </button>
+                    <b className="min-w-0 truncate">{incomeParent.name}</b>
+                  </div>
+                  {incomeParent.description && <p className="txr-sub">{incomeParent.description}</p>}
+                  <div className="txr-tiles" role="radiogroup" aria-label="منبع درآمد">
+                    {incomeParent.children.map((c) => (
+                      <Tile
+                        key={c.id}
+                        on={incomeCategoryId === c.id}
+                        onClick={() => setIncomeCategoryId(c.id)}
+                        label={c.name}
+                        icon={incomeLook(incomeParent.code).icon}
+                        color={incomeLook(incomeParent.code).color}
+                      />
+                    ))}
+                    <NewCategoryTile onClick={() => setAddingIncome(true)} />
+                  </div>
+                  <NewCategorySheet
+                    open={addingIncome}
+                    onClose={() => setAddingIncome(false)}
+                    group={incomeParent}
+                    look={incomeLook(incomeParent.code)}
+                    noun="منبع"
+                    onCreated={(leaf) => {
+                      setIncomeGroups((current) =>
+                        current.map((g) => (g.id === incomeParent.id ? { ...g, children: [...g.children, leaf] } : g)),
+                      );
+                      setIncomeCategoryId(leaf.id);
+                    }}
+                    onPickExisting={setIncomeCategoryId}
+                  />
+                </>
+              ) : (
+                <>
+                  {suggestedIncome.length > 0 && <p className="txr-sub">همه انواع درآمد</p>}
+                  <div className="txr-tiles" role="list" aria-label="نوع درآمد">
+                    {incomeGroups.map((g) => (
+                      <Tile
+                        key={g.id}
+                        role="button"
+                        onClick={() => {
+                          setIncomeParentId(g.id);
+                          setIncomeCategoryId("");
+                        }}
+                        label={g.name}
+                        meta={g.children.slice(0, 2).map((c) => c.name).join("، ")}
+                        icon={incomeLook(g.code).icon}
+                        color={incomeLook(g.code).color}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <details className="txr-more">
+                <summary>چه چیزی درآمد حساب نمی‌شود؟</summary>
+                <ul>
+                  <li>جابه‌جایی پول بین حساب‌های خودتان — از «انتقال» استفاده کنید.</li>
+                  <li>وامی که گرفته‌اید یا طلبی که پس گرفته‌اید.</li>
+                  <li>سود فروش سهام، طلا، رمزارز، ملک یا خودرو — هنگام «فروش دارایی» خودکار محاسبه می‌شود.</li>
+                  <li>پول برگشتی یک خرید — هزینه را کم می‌کند.</li>
+                </ul>
+              </details>
+            </>
+          )}
+        </TxCard>
+
+        <TxCard icon="wallet" title="واریز به">
+          {moneyOptions.length === 0 ? (
+            noMoneyAccounts
+          ) : (
+            <AccountTiles value={moneyId} options={moneyOptions} balances={balances} onChange={setMoneyAccountId} placeholder="انتخاب حساب واریز" sheetTitle="واریز به کدام حساب؟" />
+          )}
+        </TxCard>
+
+        <TxCard icon="calendar" title="کی؟">
+          <DateChips value={entryDate} onChange={setEntryDate} today={today} label="تاریخ دریافت" />
+          <input type="hidden" name="entryDate" value={entryDate} />
+          {planId ? (
+            <p className="txr-note" role="note">
+              ثبت یادآوری ماهانه — مبلغ را اگر تغییر کرده اصلاح کنید؛ ماه بعد با همین مبلغ یادآوری می‌شود.
+            </p>
+          ) : (
+            <>
+              <button type="button" className="txr-switch" role="switch" aria-checked={recurring} onClick={() => setRecurring(!recurring)}>
+                <span className="txr-switch-track" aria-hidden="true" />
+                هر ماه تکرار می‌شود
+              </button>
+              {recurring && (
+                <>
+                  <p className="txr-sub">روز واریز در ماه</p>
+                  <DayGrid value={recurringDay} onChange={setRecurringDay} />
+                  <p className="txr-sub">
+                    هر ماه در همین روز در «نمای کلی» یادآوری می‌شود تا با یک لمس ثبت کنید. هیچ مبلغی بدون تأیید شما ثبت نمی‌شود.
+                  </p>
+                </>
+              )}
+            </>
+          )}
+          <FeeToggle fee={fee} setFee={setFee} feeInToman={feeInToman} feeSymbol={feeSymbol} />
+        </TxCard>
+      </div>
       )}
 
       {/* A car or property expense — or a property's rent: one tap files it under that asset. */}
       {!confirming && chipAssets.length > 0 && (
-        <div className="card flex flex-wrap items-center gap-2 p-3" role="group" aria-label={chipAssets[0].kind === "vehicle" ? "برای کدام خودرو؟" : "برای کدام ملک؟"}>
-          <span className="muted text-[length:var(--fs-xs)]">{chipAssets[0].kind === "vehicle" ? "برای کدام خودرو؟" : "برای کدام ملک؟"}</span>
-          {chipAssets.map((v) => {
-            const token = `#${v.tag}`;
-            const on = tagsText.split(/\s+/).includes(token);
-            return (
-              <button
-                key={v.tag}
-                type="button"
-                className="shortcut-chip"
-                aria-pressed={on}
-                style={on ? { background: "var(--action-soft)", color: "var(--action)" } : undefined}
-                onClick={() =>
-                  setTagsText(on ? tagsText.split(/\s+/).filter((t) => t && t !== token).join(" ") : `${tagsText} ${token}`.trim())
-                }
-              >
-                <Icon name={v.kind === "vehicle" ? "car" : "home"} size={13} />
-                {v.label}
-              </button>
-            );
-          })}
-        </div>
+        <TxCard icon={chipAssets[0].kind === "vehicle" ? "car" : "home"} title={chipAssets[0].kind === "vehicle" ? "برای کدام خودرو؟" : "برای کدام ملک؟"}>
+          <div className="txr-tags" role="group" aria-label={chipAssets[0].kind === "vehicle" ? "برای کدام خودرو؟" : "برای کدام ملک؟"}>
+            {chipAssets.map((v) => {
+              const token = `#${v.tag}`;
+              const on = tagsText.split(/\s+/).includes(token);
+              return (
+                <button
+                  key={v.tag}
+                  type="button"
+                  className="txr-tag"
+                  aria-pressed={on}
+                  data-on={on || undefined}
+                  onClick={() =>
+                    setTagsText(on ? tagsText.split(/\s+/).filter((t) => t && t !== token).join(" ") : `${tagsText} ${token}`.trim())
+                  }
+                >
+                  <Icon name={v.kind === "vehicle" ? "car" : "home"} size={13} />
+                  {v.label}
+                </button>
+              );
+            })}
+          </div>
+        </TxCard>
       )}
 
-      {!confirming && (
-        <details className="card p-4" open={tagsText !== "" || undefined}>
-          <summary className="cursor-pointer text-[length:var(--fs-sm)] font-semibold">برچسب (اختیاری)</summary>
-          <div className="mt-3">
-            <TagInput id="tx-tags" value={tagsText} onChange={setTagsText} suggestions={tagSuggestions} />
-          </div>
-        </details>
+      {/* The user's own hashtags — a tap adds or removes one. */}
+      {!confirming && tagSuggestions.length + parseTags(tagsText).length > 0 && (
+        <TxCard icon="note" title="برچسب" aside="اختیاری">
+          <TagChips suggestions={tagSuggestions} value={tagsText} onChange={setTagsText} />
+        </TxCard>
       )}
 
       {/* ── Review, then confirm. Nothing is written before «تأیید و ثبت». ── */}
       {confirming && ready ? (
-        <section className="card space-y-3 p-4" style={{ borderColor: "var(--action)" }} aria-live="polite">
-          <h2 className="text-[length:var(--fs-sm)] font-bold" style={{ color: "var(--action)" }}>
-            بررسی قبل از ثبت
-          </h2>
+        <section className="txr-receipt" aria-live="polite">
+          <h2 className="txr-receipt-title">بررسی قبل از ثبت</h2>
+          <div className="txr-receipt-hero">
+            <span className="txr-type-icon" aria-hidden="true">
+              <Icon name={kind.icon} size={20} />
+            </span>
+            <span className="txr-sub">{kind.label}</span>
+            <b className="num txr-receipt-amount" data-tone={headlineTone}>
+              {headline}
+            </b>
+            {previewUsd && !isTrade ? <span className="txr-sub num">≈ {formatMoney(previewUsd, "USD")}</span> : null}
+          </div>
           {isTrade && (
-            <p className="muted text-[length:var(--fs-xs)] leading-5">
-              پیش‌نمایش معامله — پس از تأیید، موجودی‌ها مطابق ردیف‌های زیر تغییر می‌کنند و مقدار، قیمت تومانی و تتری در تاریخچه فریز می‌شود.
+            <p className="txr-sub">
+              پس از تأیید، موجودی‌ها مطابق ردیف‌های زیر تغییر می‌کنند و مقدار، قیمت تومانی و تتری در تاریخچه فریز می‌شود.
             </p>
           )}
-          <dl className="divide-y text-[length:var(--fs-sm)]" style={{ borderColor: "var(--border)" }}>
+          <dl className="txr-receipt-rows">
             {summary.map(([label, value]) => (
-              <div key={label} className="flex items-baseline justify-between gap-3 py-2">
-                <dt className="muted shrink-0">{label}</dt>
-                <dd className="min-w-0 text-end">{value}</dd>
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
               </div>
             ))}
           </dl>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setConfirming(false)} className="btn btn-ghost flex-1">
+          <div className="txr-receipt-actions">
+            <button type="button" onClick={() => setConfirming(false)} className="btn btn-ghost">
               ویرایش
             </button>
-            <button type="submit" disabled={pending} className="btn btn-primary flex-1">
+            <button type="submit" disabled={pending} className="txr-cta">
               {pending ? "در حال ثبت…" : "تأیید و ثبت"}
             </button>
           </div>
         </section>
       ) : (
-        <div className="tx-submit-bar space-y-1.5">
-          <button
-            type="button"
-            disabled={!ready}
-            onClick={() => setConfirming(true)}
-            className="btn btn-primary w-full disabled:opacity-40"
-          >
-            {type === "expense" && hasAmount ? (
+        <div className="tx-submit-bar txr-submit">
+          <button type="button" disabled={!ready} onClick={() => setConfirming(true)} className="txr-cta">
+            {hasAmount && headline !== "—" ? (
               <>
-                ثبت هزینه <span className="num">{formatMoney(irtAmount, "IRT")}</span>
+                ثبت {kind.label} <span className="num">{headline}</span>
               </>
             ) : (
               "بررسی و ثبت"
             )}
           </button>
           {!ready && (
-            <p className="muted text-center text-[length:var(--fs-xs)]" role="status">
+            <p className="txr-sub txr-center" role="status">
               باقی مانده: {missing.join("، ")}
             </p>
           )}
