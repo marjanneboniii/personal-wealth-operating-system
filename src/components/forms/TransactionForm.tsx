@@ -448,7 +448,13 @@ export default function TransactionForm({
   const settleOptions = isRegistrySale
     ? moneyOptions.filter((a) => !registrySaleError(a))
     : isTrade && assetAccount
-      ? moneyOptions.filter((a) => !tradePairError(type, assetInstrument, a) && venueAllows(a))
+      ? moneyOptions.filter(
+          (a) =>
+            !tradePairError(type, assetInstrument, a) &&
+            // A stablecoin counts only where it is held («یو اس دی جی - ربی والت»), never bare.
+            (!isStablecoin(a.symbol) || !!a.walletName?.trim()) &&
+            venueAllows(a),
+        )
       : moneyOptions;
   const settleHint = isRegistrySale
     ? "حساب بانکی تومانی ثبت نشده است."
