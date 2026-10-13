@@ -1,6 +1,7 @@
 import { resolveAutomaticPurchaseRate } from "@/features/rwa/vehicle/fx";
 import { normalizeBankText } from "@/features/bankImport/parser";
 import { validateSetupBankAccounts, type SetupBankAccount } from "./bankAccounts";
+import { isForeignSetupBank } from "./bankCatalog";
 import { validateSetupBankIdentifiers, type SetupBankIdentifier } from "./bankConnection";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -180,6 +181,7 @@ export type SetupInput = {
   vehicles?: Array<{
     catalogId: string;
     manufacturingYear: string;
+    mileage?: string;
     ownershipDate: string;
     purchasePriceToman: string;
     currentValueToman?: string;
@@ -488,6 +490,9 @@ export async function completeSetup(
     // is not a holding; a holding's asset is its denomination.
     const bookAssetId = assetMap.USD;
     const bankAssetId = assetMap[resolveMoneyDenomination(input.bankAssetSymbol)] ?? bookAssetId;
+    // A foreign account, card or payment service (PayPal, Visa, …) holds US
+    // dollars; every Iranian bank stays in Toman.
+    const bankAssetIdOf = (bankName?: string | null) => (bankName && isForeignSetupBank(bankName) ? assetMap.USD : bankAssetId);
     const cashAssetId = assetMap[resolveMoneyDenomination(input.cashAssetSymbol)] ?? bookAssetId;
     // Only the bank account is mandatory. A cash box exists only when the user
     // named or funded one.
@@ -584,10 +589,10 @@ export async function completeSetup(
 
     const acctRows = [
       { code: "1000", name: "دارایی‌ها", type: "asset" },
-      ...(!noBank ? [{ code: "1010", name: input.bankAccountName?.trim() || "حساب بانکی اصلی", type: "asset", assetId: bankAssetId, bankName: input.bankName?.trim() || null }] : []),
-      ...additionalBanks.map((bank, index) => ({ code: String(1011 + index), name: bank.name, type: "asset", assetId: bankAssetId, bankName: bank.bankName })),
+      ...(!noBank ? [{ code: "1010", name: input.bankAccountName?.trim() || "حساب بانکی اصلی", type: "asset", assetId: bankAssetIdOf(input.bankName), bankName: input.bankName?.trim() || null }] : []),
+      ...additionalBanks.map((bank, index) => ({ code: String(1011 + index), name: bank.name, type: "asset", assetId: bankAssetIdOf(bank.bankName), bankName: bank.bankName })),
       ...(wantsCashWallet
-        ? [{ code: "1020", name: input.cashWalletName?.trim() || "صندوق نقد", type: "asset", assetId: cashAssetId }]
+        ? [{ code: "1020", name: input.cashWalletName?.trim() || "پول نقد", type: "asset", assetId: cashAssetId }]
         : []),
       // One account per coin per place, named «<ارز> - <محل>» (e.g. «تتر -
       // بیت‌پین») — a coin is not a wallet. The place is also the wallet the
@@ -675,7 +680,7 @@ export async function completeSetup(
     if (listedBanks) for (const [index, declared] of listedBanks.entries()) {
       const code = index === 0 ? "1010" : String(1010 + index);
       const account = insertedAccounts.find((row) => row.code === code);
-      if (!account || account.userId !== (userId ?? null) || account.name !== declared.name || account.bankName !== declared.bankName || account.assetId !== bankAssetId) throw new Error("حساب بانکی ثبت‌شده با فهرست معرفی‌شده مطابقت ندارد.");
+      if (!account || account.userId !== (userId ?? null) || account.name !== declared.name || account.bankName !== declared.bankName || account.assetId !== bankAssetIdOf(declared.bankName)) throw new Error("حساب بانکی ثبت‌شده با فهرست معرفی‌شده مطابقت ندارد.");
     }
     const acctMap = Object.fromEntries(insertedAccounts.map((a) => [a.code, a.id]));
     if (!acctMap["3010"] || (!noBank && !acctMap["1010"])) {
@@ -716,7 +721,7 @@ export async function completeSetup(
     }
 
     if (amountOf(input.cashOpeningBalance).gt(0)) {
-      if (!acctMap["1020"]) throw new Error("حساب صندوق نقد برای ثبت موجودی اولیه ایجاد نشده است.");
+      if (!acctMap["1020"]) throw new Error("حساب پول نقد برای ثبت موجودی اولیه ایجاد نشده است.");
       const cash = await bookUsdFromAccountNative(tx, acctMap["1020"], input.cashOpeningBalance!, setupRate);
       draftPostings.push({ accountId: acctMap["1020"], assetId: cash.assetId, quantity: cash.quantity, baseValue: cash.baseValue, memo: "موجودی اولیه نقد" });
       totalOpeningEquityBase = totalOpeningEquityBase.add(cash.baseValue);
@@ -837,7 +842,7 @@ export async function completeSetup(
       const values = bankIdentifiers.map((identifier) => {
         const target = declared.find((bank) => bank.name === identifier.accountName);
         const bankAccount = insertedAccounts.find((account) => account.code === target?.code);
-        if (!bankAccount || bankAccount.userId !== user.id || bankAccount.name !== identifier.accountName || bankAccount.assetId !== bankAssetId) throw new Error("حساب ثبت‌شده با حساب اتصال یکسان نیست.");
+        if (!bankAccount || bankAccount.userId !== user.id || bankAccount.name !== identifier.accountName || bankAccount.assetId !== bankAssetIdOf(identifier.bankName)) throw new Error("حساب ثبت‌شده با حساب اتصال یکسان نیست.");
         return { userId: user.id, accountId: bankAccount.id, bankName: identifier.bankName, kind: identifier.kind, suffix: identifier.suffix };
       });
       await tx.insert(bankSmsIdentifiers).values(values).onConflictDoNothing();
@@ -885,6 +890,7 @@ export async function completeSetup(
         userId: setupResult.userId,
         catalogId: vehicle.catalogId,
         manufacturingYear: Number(vehicle.manufacturingYear),
+        mileage: vehicle.mileage ? Number(vehicle.mileage) : undefined,
         ownershipDate: vehicle.ownershipDate,
         purchasePriceToman: vehicle.purchasePriceToman,
         initialValuation:

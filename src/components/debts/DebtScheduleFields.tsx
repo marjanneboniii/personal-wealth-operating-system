@@ -21,6 +21,7 @@ import DualDateInput from "@/components/ui/DualDateInput";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
+import { estimateLoan } from "@/features/planning/loanEstimate";
 
 /** How the due dates are produced. `none` carries no schedule at all. */
 export type ScheduleMode = "none" | "recurring" | "custom";
@@ -128,6 +129,7 @@ export default function DebtScheduleFields({
   idPrefix,
   countLabel = "تعداد اقساط",
   firstDueLabel = "اولین سررسید",
+  interestRate,
 }: {
   value: ScheduleValue;
   onChange: (next: ScheduleValue) => void;
@@ -137,9 +139,17 @@ export default function DebtScheduleFields({
   idPrefix: string;
   countLabel?: string;
   firstDueLabel?: string;
+  /** Annual rate (%) of the debt; enables «محاسبهٔ قسط تقریبی». */
+  interestRate?: string;
 }) {
   const patch = (updates: Partial<ScheduleValue>) => onChange({ ...value, ...updates });
   const s = computeSchedule(value, principalIrt, startDate);
+  // Equal payments over the scheduled installments; a period of N months carries N months of interest.
+  const period = value.mode === "recurring" ? Math.max(1, Number(value.intervalMonths) || 1) : 1;
+  let approxInstallment: string | null = null;
+  try {
+    if (interestRate !== undefined && s.dueDates.length > 0) approxInstallment = estimateLoan(principalIrt, D(interestRate || "0").mul(String(period)).toString(), s.dueDates.length).monthly;
+  } catch {}
   const setCustomDate = (index: number, iso: string) =>
     patch({ customDates: value.customDates.map((d, i) => (i === index ? iso : d)) });
 
@@ -271,9 +281,16 @@ export default function DebtScheduleFields({
 
       {value.mode !== "none" && (
         <div>
-          <label className="label" htmlFor={`${idPrefix}-installment`}>
-            مبلغ هر قسط به تومان (اختیاری)
-          </label>
+          <div className="flex items-center justify-between gap-2">
+            <label className="label" htmlFor={`${idPrefix}-installment`}>
+              مبلغ هر قسط به تومان (اختیاری)
+            </label>
+            {interestRate !== undefined && (
+              <button type="button" className="btn btn-ghost !min-h-8 !px-2.5 text-[length:var(--fs-xs)]" disabled={!approxInstallment} onClick={() => approxInstallment && patch({ installmentIrt: approxInstallment })}>
+                محاسبهٔ قسط تقریبی
+              </button>
+            )}
+          </div>
           <AmountInput
             id={`${idPrefix}-installment`}
             value={value.installmentIrt}
@@ -289,6 +306,9 @@ export default function DebtScheduleFields({
             }
             disabled={s.dueDates.length === 0}
           />
+          {interestRate !== undefined && approxInstallment && value.installmentIrt === approxInstallment && (
+            <p className="expense-sub mt-1">تخمینی است؛ مبلغ قرارداد را وارد کنید.</p>
+          )}
           {s.dueDates.length > 0 && s.amounts.length > 0 && (
             <p className="expense-sub mt-1">
               {faCount(s.dueDates.length)} قسط · مجموع{" "}

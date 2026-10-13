@@ -24,6 +24,8 @@
  *     are user-scoped. (This is the isolated interpretation of "don't store the
  *     bank name globally".)
  */
+import { isForeignSetupBank } from "@/features/setup/bankCatalog";
+import { normalizeBankName } from "@/features/bankImport/matching";
 import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -84,6 +86,8 @@ export type RegisterMoneyAccountInput = {
    * catalogue («بیت‌پین», «کارگزاری مفید»). One place is one wallet.
    */
   placeName?: string;
+  /** Bank / card / payment service of a bank account; foreign ones hold dollars, Iranian ones Toman. */
+  bankName?: string;
   /** Opening balance in the selected currency's own unit. */
   openingQty?: string;
   /**
@@ -390,6 +394,14 @@ export async function registerMoneyAccount(
     }
     const placeError = moneyPlaceError(input.kind, asset.symbol, input.placeName);
     if (placeError) throw new Error(placeError);
+    // The institution decides a bank account's currency: never a Toman PayPal or a dollar Iranian bank.
+    const bankName = input.kind === "bank" ? normalizeBankName(input.bankName ?? "") : "";
+    if (input.kind === "bank" && (bankName || asset.symbol !== "IRT")) {
+      const foreign = isForeignSetupBank(bankName);
+      if (!bankName) throw new Error("برای حساب دلاری، کارت یا سرویس پرداخت خارجی را انتخاب کنید.");
+      if (foreign && asset.symbol !== "USD") throw new Error("حساب‌ها و کارت‌های ارزی به دلار ثبت می‌شوند.");
+      if (!foreign && asset.symbol !== "IRT") throw new Error("حساب بانک ایرانی به تومان ثبت می‌شود.");
+    }
 
     // 2. Historical USD value is deterministic and not client-editable:
     // Opening book value: USD/USDT = 1 USD; IRT uses the tenant FX rate.
@@ -487,6 +499,7 @@ export async function registerMoneyAccount(
           type: "asset",
           assetId: input.assetId,
           walletId: wallet.id,
+          bankName: bankName || null,
           isActive: true,
         })
         .onConflictDoNothing()

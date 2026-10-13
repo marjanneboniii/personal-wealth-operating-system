@@ -7,10 +7,11 @@
  */
 
 import { toFaDigits } from "@/lib/format";
-import { NEIGHBORHOODS_SEED, CITIES_SEED, PROPERTY_TYPES_SEED } from "./seedData";
+import { CITY_CATALOG_SEED, CITIES_SEED, PROPERTY_TYPES_SEED } from "./seedData";
 
-// Build lookup maps from seed (which is the source of truth for Persian names)
-const neighborhoodByCode = new Map(NEIGHBORHOODS_SEED.map((n) => [n.code.toUpperCase(), n.nameFa]));
+// Build lookup maps from seed (which is the source of truth for Persian names).
+// Neighbourhood codes are unique only within a city, so they are keyed «CITY:HOOD».
+const neighborhoodByCode = new Map(CITY_CATALOG_SEED.flatMap((c) => c.neighborhoods.map((n) => [`${c.code}:${n.code}`.toUpperCase(), n.nameFa] as const)));
 const cityByCode = new Map(CITIES_SEED.map((c) => [c.code.toUpperCase(), c.nameFa]));
 const typeByCode = new Map(PROPERTY_TYPES_SEED.map((t) => [t.code.toUpperCase(), t.nameFa]));
 
@@ -38,7 +39,7 @@ export function parseRealEstateSymbol(symbol: string): { city: string; neighborh
 export function getRealEstateDisplayNameFromSymbol(symbol: string): string | null {
   const parsed = parseRealEstateSymbol(symbol);
   if (!parsed) return null;
-  const hood = neighborhoodByCode.get(parsed.neighborhood);
+  const hood = neighborhoodByCode.get(`${parsed.city}:${parsed.neighborhood}`);
   if (hood) return hood;
   const city = cityByCode.get(parsed.city);
   if (city) return city;

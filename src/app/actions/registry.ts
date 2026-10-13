@@ -3,10 +3,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { getSetupReadyUser } from "@/lib/authGuard";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { assetClasses, assets } from "@/db/schema";
-import { createRealEstateProperty } from "@/features/rwa/realEstate/service";
 import {
   createUserVehicle,
   ensureVehicleModuleReady,
@@ -22,9 +18,6 @@ import {
 import { recordVehicleValuationSnapshot } from "@/features/rwa/vehicle/valuation";
 import { formatMoney, toFaDigits } from "@/lib/format";
 import { resolveAutomaticPurchaseRate, resolveUsdRateForDate, tomanToUsd } from "@/features/rwa/vehicle/fx";
-import { nextRwaSymbol } from "@/features/rwa/symbol";
-import { createOwnershipRecord } from "@/features/rwa/ownership/service";
-import { createValuationEvent } from "@/features/rwa/valuation/service";
 // NOTE: consumable price tracking moved to the independent «ردیاب تورم شخصی»
 // module (`src/app/actions/inflation.ts` + `/inflation`). The registry keeps
 // no commodity write path: groceries are not real assets.
@@ -104,28 +97,6 @@ const val = (f: FormData, key: string) => String(f.get(key) ?? "").trim();
 const optional = (f: FormData, key: string) => val(f,key) || undefined;
 const numeric = (f: FormData, key: string) => val(f, key).replace(/[,٬\s]/g, "");
 
-async function rwaAsset(form: FormData) {
-  const name = val(form,"name");
-  const kind = val(form,"kind") || "property";
-  if (!name) throw new Error("نام دارایی الزامی است.");
-  let [klass] = await db.select().from(assetClasses).where(eq(assetClasses.code, "RWA")).limit(1);
-  if (!klass) {
-    [klass] = await db.insert(assetClasses).values({ code:"RWA", name:"دارایی واقعی", color:"#12131c", sortOrder:90 }).onConflictDoNothing().returning();
-    if (!klass) [klass] = await db.select().from(assetClasses).where(eq(assetClasses.code, "RWA")).limit(1);
-  }
-  const classId = klass?.id;
-  if (!classId) throw new Error("کلاس دارایی واقعی ایجاد نشد.");
-  const asset = await db.transaction(async (tx) => {
-    const symbol = await nextRwaSymbol(tx, classId);
-    const [created] = await tx
-      .insert(assets)
-      .values({ name, symbol, classId, decimals: 2, priceSource: "manual", pricingMethod: "manual" })
-      .returning();
-    if (!created) throw new Error("ایجاد رکورد دارایی ناموفق بود.");
-    return created;
-  });
-  return { asset, kind };
-}
 
 /**
  * ثبت دارایی واقعی (ملک و سایر دارایی‌ها).
@@ -139,14 +110,8 @@ export async function saveRwaAction(_previous: RegistryResult | null, form: Form
     // خودرو از مسیر اختصاصی ماژول خودرو ثبت می‌شود (کاتالوگ + قیمت خرید + Snapshot)
     return saveVehicleAction(_previous, form);
   }
-  try {
-    const userId = await currentUserId();
-    const { asset } = await rwaAsset(form);
-    await createRealEstateProperty({ assetId:asset.id, userId:userId ?? undefined, propertyType: val(form,"propertyType") as any, city:val(form,"city") || "Ahvaz", area:optional(form,"area"), address:optional(form,"address"), sizeSqm:optional(form,"sizeSqm"), floor: optional(form,"floor") ? Number(val(form,"floor")) : undefined, yearBuilt: optional(form,"yearBuilt") ? Number(val(form,"yearBuilt")) : undefined, deedNumber:optional(form,"deedNumber"), notes:optional(form,"notes") });
-    await createOwnershipRecord({assetId:asset.id, userId:userId ?? undefined, ownershipPercentage:val(form,"ownership") || "100", ownershipType:(val(form,"ownershipType") || "full") as any, acquisitionDate:val(form,"acquisitionDate"), acquisitionPriceIRR:optional(form,"acquisitionPrice"), notes:optional(form,"ownershipNotes")});
-    if (optional(form,"valuation")) await createValuationEvent({assetId:asset.id, userId:userId ?? undefined, valuationDate:val(form,"valuationDate"), priceIRR:val(form,"valuation"), valuationSource:(val(form,"valuationSource") || "manual") as any, appraiser:optional(form,"appraiser"), note:optional(form,"valuationNote")});
-    refresh(); return {ok:true,message:"دارایی واقعی، مالکیت و ارزش‌گذاری با موفقیت ثبت شد."};
-  } catch(e) { return {ok:false,message:e instanceof Error ? e.message : "ثبت دارایی ناموفق بود."}; }
+  // ملک فقط از فرم اختصاصی ملک ثبت می‌شود تا شهر/منطقه، متراژ و اعتبارسنجی قیمت دور زده نشود.
+  return { ok: false, message: "ملک را از فرم «ثبت ملک» در بخش دارایی‌های واقعی ثبت کنید." };
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -206,6 +171,7 @@ export async function saveVehicleAction(_previous: RegistryResult | null, form: 
     if (!catalogId) throw new Error("نام و مدل خودرو باید از فهرست کاتالوگ انتخاب شود.");
 
     const initialValue = numeric(form, "initialValuation");
+    if (!(Number(initialValue) > 0)) throw new Error("ارزش فعلی خودرو (تومان) الزامی است.");
     const result = await createUserVehicle({
       userId,
       catalogId,

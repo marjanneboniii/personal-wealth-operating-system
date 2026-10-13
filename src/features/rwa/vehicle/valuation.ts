@@ -20,6 +20,9 @@ import { resolveUsdRateForDateToFreeze, tomanToUsd } from "./fx";
 import { rateStr, tomanStr, usdStr } from "./num";
 import type { RecordVehicleValuationInput, VehicleValuationSnapshot } from "./types";
 import type { SnapshotPoint } from "./analytics";
+import { getCatalogModel } from "./catalog";
+import { blockingMessage, validateVehiclePrices } from "@/features/rwa/priceValidation";
+import { vehicleReferenceUsd } from "@/features/rwa/priceReference";
 
 function mapSnapshot(row: typeof vehicleValuationSnapshots.$inferSelect): VehicleValuationSnapshot {
   return {
@@ -97,6 +100,26 @@ export async function recordVehicleValuationSnapshot(
       .limit(1);
     if (!owned) {
       throw new Error("خودرو یافت نشد یا متعلق به شما نیست.");
+    }
+  }
+
+  // A user's own valuation is checked against its purchase and the model's market price.
+  if (scopeId) {
+    const [vehicle] = await db
+      .select({ year: vehicleAssets.year, ownershipDate: vehicleAssets.ownershipDate, purchasePriceToman: vehicleAssets.purchasePriceToman, purchaseUsdRate: vehicleAssets.purchaseUsdRate, mileage: vehicleAssets.mileage })
+      .from(vehicleAssets)
+      .where(eq(vehicleAssets.id, scopeId))
+      .limit(1);
+    const model = vehicle ? await getCatalogModel(input.catalogId) : null;
+    if (vehicle && model) {
+      const blocked = blockingMessage(validateVehiclePrices({
+        brandNameEn: model.brandNameEn, modelName: model.modelName, origin: model.brandOrigin,
+        manufacturingYear: vehicle.year, ownershipDate: String(vehicle.ownershipDate ?? ""), valuationDate: snapshotDate,
+        purchaseToman: vehicle.purchasePriceToman, purchaseRate: vehicle.purchaseUsdRate,
+        currentToman: valueToman.toFixed(0), currentRate: usdRate,
+        referenceUsd: await vehicleReferenceUsd(input.catalogId),
+      }), "خودرو");
+      if (blocked) throw new Error(blocked);
     }
   }
 

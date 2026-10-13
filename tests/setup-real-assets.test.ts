@@ -118,7 +118,7 @@ test("a خودرو entered in the wizard lands in the registry, with NO journal 
         catalogId: model.id,
         manufacturingYear: "1400",
         ownershipDate: "2024-06-01",
-        purchasePriceToman: "8500000000",
+        purchasePriceToman: "1500000000",
       },
     ],
   });
@@ -126,7 +126,7 @@ test("a خودرو entered in the wizard lands in the registry, with NO journal 
 
   const vehicles = await listUserVehicles();
   assert.equal(vehicles.length, 1, "the vehicle reached the SAME list «دارایی‌های واقعی» renders");
-  assert.equal(D(vehicles[0].purchasePriceToman ?? "0").toFixed(0), "8500000000");
+  assert.equal(D(vehicles[0].purchasePriceToman ?? "0").toFixed(0), "1500000000");
 
   // The registry's own identity rules applied — the wizard restated none of
   // them. A symbol and an RWA asset row exist because `createUserVehicle`
@@ -156,8 +156,8 @@ test("a ملک entered in the wizard lands in the registry with its own ledger e
         neighborhoodId: hood!.id,
         propertyTypeId: propertyType!.id,
         acquisitionDate: "2023-05-10",
-        purchasePriceToman: "45000000000",
-        currentValueToman: "62000000000",
+        purchasePriceToman: "4500000000",
+        currentValueToman: "15000000000",
         sizeSqm: "120",
       },
     ],
@@ -166,7 +166,7 @@ test("a ملک entered in the wizard lands in the registry with its own ledger e
 
   const properties = await listRealEstateAssets();
   assert.equal(properties.length, 1, "the property reached the registry's own list");
-  assert.equal(D(properties[0].purchasePriceToman ?? "0").toFixed(0), "45000000000");
+  assert.equal(D(properties[0].purchasePriceToman ?? "0").toFixed(0), "4500000000");
 
   // A property DOES post its own entry — that is the registry's behaviour and
   // the wizard neither adds to it nor suppresses it. What matters is that the
@@ -194,7 +194,7 @@ test("real assets do NOT join the opening entry or its equity counterweight", as
         catalogId: model!.id,
         manufacturingYear: "1399",
         ownershipDate: "2024-01-15",
-        purchasePriceToman: "6000000000",
+        purchasePriceToman: "1200000000",
       },
     ],
   });
@@ -230,7 +230,7 @@ test("a bad real-asset row is reported by name and never costs the user their se
         catalogId: "00000000-0000-4000-8000-000000000000",
         manufacturingYear: "1400",
         ownershipDate: "2024-06-01",
-        purchasePriceToman: "8500000000",
+        purchasePriceToman: "1500000000",
       },
     ],
   });
@@ -272,14 +272,15 @@ test("every account numbers its own properties and vehicles from 1, independentl
     neighborhoodId: hood!.id,
     propertyTypeId: propertyType!.id,
     acquisitionDate: "2023-05-10",
-    purchasePriceToman: "45000000000",
-    currentValueToman: "62000000000",
+    purchasePriceToman: "4500000000",
+    currentValueToman: "15000000000",
+    sizeSqm: "120",
   };
   const vehicle = {
     catalogId: model.id,
     manufacturingYear: "1400",
     ownershipDate: "2024-06-01",
-    purchasePriceToman: "8500000000",
+    purchasePriceToman: "1500000000",
   };
 
   const [userA] = await db.insert(users).values({ name: "کاربر الف" }).returning();

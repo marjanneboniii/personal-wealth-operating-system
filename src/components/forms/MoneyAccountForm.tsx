@@ -18,6 +18,7 @@
 import ChoiceCard from "@/components/ui/ChoiceCard";
 import CatalogPicker from "@/components/ui/CatalogPicker";
 import SetupBankPicker from "@/components/setup/SetupBankPicker";
+import { isForeignSetupBank } from "@/features/setup/bankCatalog";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createMoneyAccountAction } from "@/app/actions";
@@ -91,7 +92,9 @@ export default function MoneyAccountForm({
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
 
-  const allowed = currencies.filter((c) => KIND_SYMBOLS[kind].includes(c.symbol));
+  // A bank account's currency follows the institution: foreign → dollar, Iranian → Toman.
+  const bankSymbol = kind === "bank" && bankName ? (isForeignSetupBank(bankName) ? "USD" : "IRT") : null;
+  const allowed = currencies.filter((c) => KIND_SYMBOLS[kind].includes(c.symbol) && (!bankSymbol || c.symbol === bankSymbol));
   const currency = allowed.find((c) => c.id === assetId) ?? (allowed.length === 1 ? allowed[0] : null);
   const needsPlace = PLACE_KINDS.has(kind);
   const places = needsPlace ? placesFor(kind, currency?.symbol) : [];
@@ -132,6 +135,7 @@ export default function MoneyAccountForm({
         kind,
         assetId: currency.id,
         placeName: needsPlace ? place : "",
+        bankName: kind === "bank" ? bankName : "",
         openingQty,
         openingDate,
         purchasePriceToman: askPrice ? purchasePrice : "",
@@ -161,7 +165,7 @@ export default function MoneyAccountForm({
           {KINDS.map(([value,label])=><ChoiceCard key={value} selected={kind===value} title={label} onClick={()=>pickKind(value)}/>)}
         </div>
       </div>
-      {kind === "bank" && <SetupBankPicker value={bankName} onSelect={bank=>{setBankName(bank.value);if(!nameTouched)setName(`${bank.name} — حساب من`);setPreview(false);}}/>}
+      {kind === "bank" && <SetupBankPicker value={bankName} onSelect={bank=>{setBankName(bank.value);setAssetId("");if(!nameTouched)setName(`${bank.name} — حساب من`);setPreview(false);}}/>}
 
       <div className="space-y-2">
         <span className="label">واحد حساب</span>
@@ -175,6 +179,9 @@ export default function MoneyAccountForm({
             );
           })}
         </div>
+        {bankSymbol && (
+          <p className="muted leading-5">{bankSymbol === "USD" ? "حساب‌ها و کارت‌های ارزی به دلار ثبت می‌شوند؛ معادل تومانی آن‌ها نمایش داده می‌شود." : "حساب بانک ایرانی به تومان ثبت می‌شود."}</p>
+        )}
         {kind === "exchange" && currency?.symbol === "IRT" && (
           <p className="muted leading-5">تومان فقط در صرافی داخلی نگهداری می‌شود؛ صرافی‌های خارجی حساب تومانی ندارند.</p>
         )}

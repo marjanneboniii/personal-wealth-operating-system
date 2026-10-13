@@ -1,5 +1,4 @@
 "use client";
-import LoanEstimate from "@/components/debts/LoanEstimate";
 
 /**
  * «بدهی‌ها و اقساط» — obligations the user already carries.
@@ -95,7 +94,6 @@ export default function SetupDebtsStep({
   return (
     <section className="space-y-5">
       <StepIntro title="بدهی‌ها و اقساط" text="وام، بدهی یا خرید قسطی را همان‌طور که امروز هست وارد کنید — مانده و اقساط باقی‌مانده." />
-      <LoanEstimate />
 
       {rows.length > 0 && (
         <ul className="space-y-2">
@@ -177,6 +175,7 @@ export default function SetupDebtsStep({
                         startDate={row.startDate}
                         idPrefix={`setup-debt-${row.key}`}
                         countLabel="اقساط باقی‌مانده"
+                        interestRate={row.interestRate ?? "0"}
                         firstDueLabel="سررسید قسط بعدی"
                       />
                     </div>

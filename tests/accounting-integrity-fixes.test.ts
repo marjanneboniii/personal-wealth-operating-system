@@ -233,7 +233,7 @@ test("Real Asset sale — 5B → 7.2B Toman books +2.2B realized, 0 unrealized",
 
   await db.insert(exchangeRates).values({baseCurrency:"USD",quoteCurrency:"IRT",rate:"100000",effectiveDate:"2025-08-11",source:"test"}).onConflictDoNothing();
   const created = await createRealEstateAsset({
-    userId: user.id,
+    sizeSqm: "100", userId: user.id,
     cityId: cityRow.id,
     neighborhoodId: hoodRow.id,
     propertyTypeId: typeRow.id,

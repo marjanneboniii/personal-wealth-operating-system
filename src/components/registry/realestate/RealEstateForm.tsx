@@ -298,6 +298,10 @@ export default function RealEstateForm({
       </div>
       </section>
 
+      <Labeled label="متراژ (متر مربع، اجباری)">
+        <AmountInput className="field num" name="sizeSqm" inputMode="numeric" placeholder="۰" showWords={false} unit="none" required />
+      </Labeled>
+
       {/* ── مشخصات فیزیکی (اختیاری) ── */}
       <details className="rounded-[var(--r-md)] border p-3" style={{ borderColor: "var(--border)" }}>
         <summary className="type-section-title cursor-pointer list-none marker:hidden [&::-webkit-details-marker]:hidden">
@@ -306,9 +310,6 @@ export default function RealEstateForm({
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <Labeled label="نشانی">
             <input className="field" name="address" placeholder="نشانی دقیق یا پلاک ثبتی" />
-          </Labeled>
-          <Labeled label="متراژ (متر مربع)">
-            <AmountInput className="field num" name="sizeSqm" inputMode="numeric" placeholder="۱۲۰" showWords={false} unit="none" />
           </Labeled>
           <Labeled label="طبقه">
             <AmountInput className="field num" name="floor" inputMode="numeric" placeholder="۳" showWords={false} unit="none" grouping={false} />

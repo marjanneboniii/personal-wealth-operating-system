@@ -1,7 +1,8 @@
 import { normalizeBankName } from "@/features/bankImport/matching";
 import { normalizeBankText } from "@/features/bankImport/parser";
 
-export type SetupBankOption = { name: string; value: string; logo: string };
+/** `foreign`: a foreign account, card or payment service — held in US dollars, shown in Toman. */
+export type SetupBankOption = { name: string; value: string; logo: string; foreign: boolean };
 
 // The institutions in the supplied reference, in display order. Bitcoin is
 // intentionally excluded: it belongs to the separate crypto holdings step.
@@ -44,16 +45,32 @@ const entries = [
   ["فردا بانک", "farda"],
   ["مستر کارت", "mastercard"],
   ["موسسه اعتباری کاسپین", "caspian"],
+  ["ویزا", "visa"],
+  ["پایونیر", "payoneer"],
+  ["وایز", "wise"],
+  ["رولوت", "revolut"],
 ] as const;
 
+// Foreign accounts, cards and payment services: their balance is in US dollars.
+const FOREIGN = new Set(["american-express", "mastercard", "paypal", "visa", "payoneer", "wise", "revolut"]);
+
 const referenceLogos = new Set(["abank", "american-express", "paypal", "tobank", "farda", "mastercard"]);
+const brandLogos = new Set(["visa", "payoneer", "wise", "revolut"]);
 export const SETUP_BANKS: readonly SetupBankOption[] = entries.map(([name, slug]) => ({
   name,
   value: normalizeBankName(name),
+  foreign: FOREIGN.has(slug),
   logo: referenceLogos.has(slug) ? `/icons/banks/${slug}.png`
+    : brandLogos.has(slug) ? `/icons/banks/${slug}.svg`
     : slug === "zarrinpal" ? `/ir-icons/payment-gateways/${slug}.svg`
     : `/ir-icons/banks/${slug}.svg`,
 }));
+
+/** True when the institution is a foreign account/card/payment service (USD balance). */
+export function isForeignSetupBank(bankName: string) {
+  const value = normalizeBankName(bankName);
+  return SETUP_BANKS.some((bank) => bank.foreign && bank.value === value);
+}
 
 export function searchSetupBanks(query: string) {
   const normalized = normalizeBankText(query).replace(/\s/g, "").toLowerCase();

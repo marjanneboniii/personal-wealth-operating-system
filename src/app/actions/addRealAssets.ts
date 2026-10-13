@@ -39,6 +39,7 @@ export type PropertyAddRow = {
 export type VehicleAddRow = {
   key: string;
   catalogId: string;
+  mileage?: string;
   /** Already resolved on the client («همان سال خرید» → the Jalali year). */
   manufacturingYear: string;
   ownershipDate: string;
@@ -95,7 +96,7 @@ export async function addPropertiesAction(input: {
 
   const today = todayIso();
   for (const row of input.rows ?? []) {
-    const hasCurrentValue = positive(row.currentValueToman);
+    if (!positive(row.currentValueToman) || !positive(row.sizeSqm)) { errors.push("متراژ و ارزش فعلی ملک الزامی است."); continue; }
     try {
       await createRealEstateAsset({
         userId: auth.userId,
@@ -103,11 +104,10 @@ export async function addPropertiesAction(input: {
         neighborhoodId: row.neighborhoodId,
         propertyTypeId: row.propertyTypeId,
         acquisitionDate: row.acquisitionDate,
-        // No current value: the purchase price is the valuation of the purchase day.
-        valuationDate: hasCurrentValue ? today : row.acquisitionDate,
+        valuationDate: today,
         purchasePriceToman: row.purchasePriceToman,
-        currentValueToman: hasCurrentValue ? row.currentValueToman : row.purchasePriceToman,
-        sizeSqm: row.sizeSqm || null,
+        currentValueToman: row.currentValueToman,
+        sizeSqm: row.sizeSqm,
         paymentAccountId: input.paymentAccountId || null,
       });
       addedKeys.push(row.key);
@@ -137,6 +137,7 @@ export async function addVehiclesAction(input: {
 
   const today = todayIso();
   for (const row of input.rows ?? []) {
+    if (!positive(row.currentValueToman)) { errors.push("ارزش فعلی خودرو الزامی است."); continue; }
     try {
       await createUserVehicle({
         userId: auth.userId,
@@ -144,6 +145,7 @@ export async function addVehiclesAction(input: {
         manufacturingYear: Number(row.manufacturingYear),
         ownershipDate: row.ownershipDate,
         purchasePriceToman: row.purchasePriceToman,
+        mileage: row.mileage && /^\d{1,7}$/.test(row.mileage) ? Number(row.mileage) : undefined,
         paymentAccountId: input.paymentAccountId || null,
         initialValuation: positive(row.currentValueToman)
           ? { valueToman: row.currentValueToman, snapshotDate: today, note: "اولین ارزش‌گذاری ثبت‌شده" }

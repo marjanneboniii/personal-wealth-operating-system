@@ -1,5 +1,4 @@
 "use client";
-import LoanEstimate from "@/components/debts/LoanEstimate";
 
 import { useActionState, useEffect, useState } from "react";
 import { BNPL_PROVIDERS, BNPL_INSTALLMENTS, bnplPreset } from "@/features/planning/bnpl";
@@ -115,7 +114,6 @@ export default function DebtForm({
       <input type="hidden" name="title" value={title} />
       <input type="hidden" name="creditor" value={creditor} />
       <input type="hidden" name="principalIrt" value={principalIrt} />
-      <LoanEstimate />
       <input type="hidden" name="interestRate" value={interestRate} />
       <input type="hidden" name="startDate" value={startDate} />
       <input type="hidden" name="installmentCount" value={String(submitted.installmentCount)} />
@@ -260,7 +258,7 @@ export default function DebtForm({
             <header className="expense-head">
               <h2 id="debt-schedule-title">{receivable ? "برنامه وصول" : "برنامه بازپرداخت"}</h2>
             </header>
-            <DebtScheduleFields value={schedule} onChange={setSchedule} principalIrt={principalIrt} startDate={startDate} idPrefix="debt" />
+            <DebtScheduleFields value={schedule} onChange={setSchedule} principalIrt={principalIrt} startDate={startDate} idPrefix="debt" interestRate={interestRate} />
           </section>
 
           <div className="space-y-1.5">

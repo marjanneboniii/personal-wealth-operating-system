@@ -100,7 +100,7 @@ export async function finishSetup(userId: string, input: SetupInput, answers: Se
       } });
     }
     for (const [index, row] of (input.vehicles ?? []).entries()) {
-      const id = await item(`vehicle:${index}`, row, save => createUserVehicle({ ...row, manufacturingYear: Number(row.manufacturingYear), userId }, save));
+      const id = await item(`vehicle:${index}`, row, save => createUserVehicle({ ...row, manufacturingYear: Number(row.manufacturingYear), mileage: row.mileage ? Number(row.mileage) : undefined, currentUsdRate: input.fxRate, userId }, save));
       if (row.currentValueToman && D(row.currentValueToman).gt(0)) {
         const prior = await db.select().from(vehicleValuationSnapshots).where(and(eq(vehicleValuationSnapshots.userVehicleId, id), eq(vehicleValuationSnapshots.snapshotDate, todayIso()))).limit(1);
         if (prior.length && !D(prior[0].currentValueToman).sub(row.currentValueToman).isZero()) throw new Error("ارزش‌گذاری ثبت‌شده تغییر کرده است.");

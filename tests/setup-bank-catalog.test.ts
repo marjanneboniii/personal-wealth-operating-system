@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { test } from "node:test";
-import { SETUP_BANKS, isSuggestedBankAccountName, searchSetupBanks, suggestedBankAccountName } from "../src/features/setup/bankCatalog";
+import { SETUP_BANKS, isForeignSetupBank, isSuggestedBankAccountName, searchSetupBanks, suggestedBankAccountName } from "../src/features/setup/bankCatalog";
 import { validateSetupBankAccounts } from "../src/features/setup/bankAccounts";
 
-test("all 38 reference institutions have local logos and valid stored bank names, excluding Bitcoin", () => {
-  assert.equal(SETUP_BANKS.length, 38);
-  assert.equal(new Set(SETUP_BANKS.map((bank) => bank.value)).size, 38);
+test("all 42 reference institutions have local logos and valid stored bank names, excluding Bitcoin", () => {
+  assert.equal(SETUP_BANKS.length, 42);
+  assert.equal(new Set(SETUP_BANKS.map((bank) => bank.value)).size, 42);
   assert.ok(!SETUP_BANKS.some((bank) => /bitcoin|بیت\s*کوین/i.test(bank.name)));
   for (const bank of SETUP_BANKS) {
     assert.ok(existsSync(`public${bank.logo}`), bank.name);
@@ -19,7 +19,7 @@ test("bank search tolerates Persian and Arabic letters, spaces and half spaces",
   assert.equal(searchSetupBanks("قرض الحسنه").length, 2);
   assert.equal(searchSetupBanks("بلو بانک")[0].name, "بلوبانک");
   assert.equal(searchSetupBanks("ناشناخته").length, 0);
-  assert.equal(searchSetupBanks("").length, 38);
+  assert.equal(searchSetupBanks("").length, 42);
 });
 
 test("automatic account names remain unique for multiple accounts at the same bank", () => {
@@ -29,4 +29,11 @@ test("automatic account names remain unique for multiple accounts at the same ba
   assert.equal(isSuggestedBankAccountName("بانک ملت ۲", bank), true);
   assert.equal(isSuggestedBankAccountName("بانک ملت پس‌انداز", bank), false);
   assert.doesNotThrow(() => validateSetupBankAccounts([bank.name, `${bank.name} 2`].map((name) => ({ name, bankName: bank.value, balance: "0" }))));
+});
+
+test("foreign accounts, cards and payment services are dollar accounts; Iranian banks stay Toman", () => {
+  for (const name of ["پی پال", "آمریکن اکسپرس", "مستر کارت", "ویزا", "پایونیر", "وایز", "رولوت"]) assert.equal(isForeignSetupBank(name), true, name);
+  for (const name of ["بانک ملت", "زرین پال", "بلوبانک"]) assert.equal(isForeignSetupBank(name), false, name);
+  assert.doesNotThrow(() => validateSetupBankAccounts([{ name: "پی پال", bankName: "پی پال", balance: "120.50" }]));
+  assert.throws(() => validateSetupBankAccounts([{ name: "بانک ملت", bankName: "ملت", balance: "120.50" }]));
 });
