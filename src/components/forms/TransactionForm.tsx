@@ -252,7 +252,8 @@ export default function TransactionForm({
   // pay an expense is still selected when the user switches to «خرید دارایی».
   const [moneyAccountId, setMoneyAccountId] = useState(initialIncome?.accountId ?? cheque?.accountId ?? initialAccountId ?? "");
   const [assetAccountId, setAssetAccountId] = useState("");
-  const [fromAccountId, setFromAccountId] = useState(prefill?.toAccountId ? (initialAccountId ?? "") : "");
+  // «حذف حساب» → «به حساب دیگری بردم» opens a transfer FROM the account being emptied.
+  const [fromAccountId, setFromAccountId] = useState(prefill?.toAccountId || defaultType === "transfer" ? (initialAccountId ?? "") : "");
   const [toAccountId, setToAccountId] = useState(prefill?.toAccountId ?? "");
   // Income: a SOURCE from the income category tree (never a ledger account), an
   // amount in the receiving account's own unit, and an optional monthly repeat.
@@ -930,6 +931,9 @@ export default function TransactionForm({
           entryDate={entryDate}
           setEntryDate={setEntryDate}
           today={today}
+          description={description}
+          setDescription={setDescription}
+          autoDescription={autoDescription}
         />
       ) : type === "debt_repayment" ? (
         <DebtRepaymentFields

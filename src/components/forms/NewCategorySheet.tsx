@@ -18,6 +18,7 @@
  */
 import { useState, useTransition } from "react";
 import { createCategoryAction } from "@/app/actions";
+import { solidFor } from "@/lib/toneColors";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import Sheet from "@/components/ui/Sheet";
 import { faCount } from "@/lib/format";
@@ -111,9 +112,11 @@ export default function NewCategorySheet({
     });
   };
 
+  const { solid, on } = solidFor(look.color);
+
   return (
     <Sheet open={open} onClose={close} title={`${noun} جدید`}>
-      <div className="ncat" style={{ "--tile": look.color, "--tx": look.color } as React.CSSProperties}>
+      <div className="ncat" style={{ "--tile": look.color, "--tx": look.color, "--tx-solid": solid, "--tx-on": on } as React.CSSProperties}>
         <div className="ncat-group">
           <span className="txr-tile-icon" aria-hidden="true">
             <Icon name={look.icon} size={18} />

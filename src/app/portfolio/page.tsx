@@ -126,14 +126,18 @@ export default async function PortfolioPage() {
           {pnl.bySymbol.length > 0 && (
             <Section title="سود/زیان تحقق‌یافته">
               <div className="card realized-list">
+                {/* Toman first (what was received minus what was paid, each at
+                    its own frozen rate), dollars beside it. The figure is a
+                    result in money — never in units of the asset sold. */}
                 {pnl.bySymbol.map((p) => (
                   <span
                     key={p.symbol}
                     className="num money-nowrap text-[length:var(--fs-sm)] font-medium"
                     dir="rtl"
-                    style={{ color: toneColor(trendTone(p.pnl)) }}
+                    style={{ color: toneColor(trendTone(p.pnlToman)) }}
                   >
-                    {formatSignedMoney(p.pnl, p.symbol)}
+                    {p.symbol}: {formatSignedMoney(p.pnlToman, "IRT")}{" "}
+                    <span className="muted font-normal">({formatSignedMoney(p.pnl, "USD")})</span>
                   </span>
                 ))}
               </div>

@@ -36,10 +36,9 @@ import type {
 const DEFAULT_BASE_URL = "https://api.wallex.ir/v1";
 const DEFAULT_TIMEOUT_MS = 8_000;
 
-/** Coins that are a claim on a fiat unit. Kept in step with setup/service.ts. */
 import { withIssuerTag } from "@/features/pricing/wallexKinds";
+import { STABLECOIN_SYMBOLS } from "@/lib/stablecoins";
 
-const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG", "PYUSD", "DAI", "FDUSD"]);
 /** Tokenised metal, surfaced as gold rather than as a generic coin. */
 const METAL_SYMBOLS = new Set(["XAUT", "PAXG"]);
 

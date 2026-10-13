@@ -13,6 +13,23 @@ import {
 } from "@/features/rwa/orphanFilter";
 import { isMultiTenantCached, readTenantState } from "@/lib/tenantState";
 import { hasSupabaseConfig } from "@/lib/supabase/config";
+import { FEE_EXPENSE_CODE, REALIZED_PNL_CODE } from "@/features/accounts/systemAccounts";
+import { getLatestUsdIrtRateForUser } from "@/lib/fx";
+
+/**
+ * Investment results and trading costs are not the month's income or spending.
+ * The realized result of a sale (4100) and the fee of a buy, sell or swap (5040
+ * on a buy/sell/fx entry) stay in the ledger and in every transaction's own
+ * detail — the user still sees exactly what left the account — but monthly
+ * income, spending, cash flow, savings and tags leave them out: they belong to
+ * «سود و زیان سرمایه‌گذاری». A transfer's bank or network fee is still spending.
+ * `acct` / `entryType` are the SQL aliases of the account row and entry type.
+ */
+export function isInvestmentResultLeg(acct: string, entryType: string) {
+  const a = sql.raw(acct);
+  const t = sql.raw(entryType);
+  return sql`(${a}.code = ${REALIZED_PNL_CODE} or (${a}.code = ${FEE_EXPENSE_CODE} and ${t} in ('buy', 'sell', 'fx')))`;
+}
 
 async function rows<T>(query: ReturnType<typeof sql>): Promise<T[]> {
   const res = await db.execute(query);
@@ -262,6 +279,7 @@ export async function getExpenseIncomeTotals(
       where je.status = 'posted'
         and a.deleted_at is null
         and a.type in ('expense','income')
+        and not ${isInvestmentResultLeg("a", "je.type")}
         -- same presentation-only omissions as getAccountBalances, so the two
         -- views of one chart can never disagree about a total
         and not ${entryReferencesInactiveRwa(sql`p.entry_id`)}
@@ -524,15 +542,44 @@ export async function getOpenLots(assetId?: string, userId?: string): Promise<Lo
   `);
 }
 
-export async function getRealizedPnl(userId?: string): Promise<{ total: string; bySymbol: { symbol: string; pnl: string }[] }> {
+export type RealizedPnl = {
+  /** USD book currency. */
+  total: string;
+  /**
+   * Toman, measured the way an Iranian investor counts it: Toman received at
+   * the sale minus Toman paid at the purchase, each at the rate FROZEN on its
+   * own entry — never the USD result × today's rate (USD and Toman results
+   * diverge with inflation; both are true, they answer different questions).
+   */
+  totalToman: string;
+  bySymbol: { symbol: string; pnl: string; pnlToman: string }[];
+};
+
+export async function getRealizedPnl(userId?: string): Promise<RealizedPnl> {
   const u = await resolveQueryUserId(userId);
   // Fail-closed: never blend tenants' realized P&L.
-  if (!u && (await hasMultipleUsers())) return { total: "0", bySymbol: [] };
-  const data = await rows<{ symbol: string; pnl: string }>(sql`
-    select ast.symbol, sum(lc.realized_pnl)::text as pnl
+  if (!u && (await hasMultipleUsers())) return { total: "0", totalToman: "0", bySymbol: [] };
+  // Toman per consumed lot: proceeds at the sale entry's own Toman/USD ratio
+  // (the Toman actually received, fee included), cost at the lot's purchase
+  // rate or its buy entry's frozen rate. Each falls back to the other side's
+  // rate, so a missing snapshot reads as "no FX effect", never as a fake gain;
+  // an entry with no frozen rate at all (legacy data) reads at today's rate —
+  // an estimate, but never a silent zero.
+  const todayRate = await getLatestUsdIrtRateForUser(u)
+    .then((fx) => fx.rate)
+    .catch(() => "0");
+  const data = await rows<{ symbol: string; pnl: string; pnlToman: string }>(sql`
+    select ast.symbol,
+           sum(lc.realized_pnl)::text as pnl,
+           coalesce(sum(
+             lc.proceeds_base * coalesce(sfx.irt_amount / nullif(sfx.usd_amount, 0), sfx.fx_rate, l.purchase_fx_rate, ofx.fx_rate, ${todayRate}::numeric)
+             - lc.cost_base * coalesce(l.purchase_fx_rate, ofx.fx_rate, sfx.irt_amount / nullif(sfx.usd_amount, 0), sfx.fx_rate, ${todayRate}::numeric)
+           ), 0)::text as "pnlToman"
     from lot_consumptions lc
       join lots l on l.id = lc.lot_id
       join assets ast on ast.id = l.asset_id
+      left join entry_fx_snapshots sfx on sfx.entry_id = lc.entry_id
+      left join entry_fx_snapshots ofx on ofx.entry_id = l.open_entry_id
     where ast.deleted_at is null
       and not ${isOrphanedRwaAsset("ast")}
       ${u ? sql`and l.user_id = ${u}` : sql``}
@@ -546,33 +593,71 @@ export async function getRealizedPnl(userId?: string): Promise<{ total: string; 
   // the two. Sold vehicles keep their realized result in the vehicle registry.
   // Both are folded into `total` so the unified realized P&L metric covers
   // financial (FIFO) AND real assets; `bySymbol` stays the FIFO breakdown.
-  const realAssetRows = await rows<{ pnl: string }>(sql`
-    select coalesce(-sum(p.base_value), 0)::text as pnl
-    from postings p
-      join journal_entries je on je.id = p.entry_id and je.status = 'posted'
-      join accounts a on a.id = p.account_id and a.code = '4100'
-    where je.type = 'sell'
-      and not exists (select 1 from lot_consumptions lc where lc.entry_id = je.id)
-      ${u ? sql`and je.user_id = ${u}` : sql``}
+  // Toman: the sale's frozen Toman minus the frozen Toman of the entry that
+  // acquired the same asset (the property row itself is removed on sale).
+  const realAssetRows = await rows<{ pnl: string; pnlToman: string }>(sql`
+    with sales as (
+      select je.id, -sum(p.base_value) as pnl
+      from postings p
+        join journal_entries je on je.id = p.entry_id and je.status = 'posted'
+        join accounts a on a.id = p.account_id and a.code = '4100'
+      where je.type = 'sell'
+        and not exists (select 1 from lot_consumptions lc where lc.entry_id = je.id)
+        ${u ? sql`and je.user_id = ${u}` : sql``}
+      group by je.id
+    )
+    select coalesce(sum(s.pnl), 0)::text as pnl,
+           coalesce(sum(
+             case when sfx.irt_amount is not null and buy.irt is not null
+                  then sfx.irt_amount - buy.irt
+                  else s.pnl * coalesce(sfx.fx_rate, ${todayRate}::numeric) end
+           ), 0)::text as "pnlToman"
+    from sales s
+      left join entry_fx_snapshots sfx on sfx.entry_id = s.id
+      left join lateral (
+        select coalesce(p.asset_id, a.asset_id) as asset_id
+        from postings p join accounts a on a.id = p.account_id and a.type = 'asset'
+        where p.entry_id = s.id and p.quantity < 0
+        order by p.base_value asc limit 1
+      ) sold on true
+      left join lateral (
+        select bfx.irt_amount as irt
+        from postings bp
+          join accounts ba on ba.id = bp.account_id and ba.type = 'asset'
+          join journal_entries bje on bje.id = bp.entry_id and bje.status = 'posted'
+          join entry_fx_snapshots bfx on bfx.entry_id = bje.id
+        where coalesce(bp.asset_id, ba.asset_id) = sold.asset_id and bp.quantity > 0 and bje.id <> s.id
+        order by bje.entry_date asc, bje.created_at asc limit 1
+      ) buy on true
   `);
   const realEstatePnl = D(realAssetRows[0]?.pnl ?? "0");
+  const realEstateToman = D(realAssetRows[0]?.pnlToman ?? "0");
 
-  const vehicleRows = await rows<{ pnl: string }>(sql`
+  const vehicleRows = await rows<{ pnl: string; pnlToman: string }>(sql`
     select coalesce(sum(
       case
         when va.sale_value_usd is not null and va.purchase_value_usd is not null
           then va.sale_value_usd - va.purchase_value_usd
         else 0
       end
-    ), 0)::text as pnl
+    ), 0)::text as pnl,
+    coalesce(sum(
+      case
+        when va.sale_price_toman is not null and va.purchase_price_toman is not null
+          then va.sale_price_toman - va.purchase_price_toman
+        else 0
+      end
+    ), 0)::text as "pnlToman"
     from vehicle_assets va
     where coalesce(va.status, 'active') = 'sold'
       ${u ? sql`and va.user_id = ${u}` : sql``}
   `);
   const vehiclePnl = D(vehicleRows[0]?.pnl ?? "0");
+  const vehicleToman = D(vehicleRows[0]?.pnlToman ?? "0");
 
   return {
     total: Decimal.sum(data.map((d) => d.pnl)).add(realEstatePnl).add(vehiclePnl).toString(),
+    totalToman: Decimal.sum(data.map((d) => d.pnlToman)).add(realEstateToman).add(vehicleToman).toFixed(0),
     bySymbol: data,
   };
 }
@@ -628,6 +713,7 @@ export async function getCashflow(months = 6, userId?: string) {
         left join expense_categories ec on ec.id = je.category_id
         left join entry_fx_snapshots s on s.entry_id = je.id
       where je.status = 'posted'
+        and not ${isInvestmentResultLeg("a", "je.type")}
         ${u ? sql`and je.user_id = ${u}` : sql``}
         and je.entry_date >= (current_date - (${months} || ' months')::interval)
       group by je.id, je.entry_date, s.irt_amount, s.usd_amount, je.type
@@ -876,6 +962,7 @@ export async function getNetSavingsBetween(from: string, to: string, userId?: st
       join accounts a on a.id = p.account_id
       left join expense_categories ec on ec.id = je.category_id
     where je.status = 'posted' and a.type in ('income', 'expense')
+      and not ${isInvestmentResultLeg("a", "je.type")}
       and je.type not in ('debt_repayment')
       and coalesce(ec.nature, 'cash') = 'cash'
       ${u ? sql`and je.user_id = ${u}` : sql``}

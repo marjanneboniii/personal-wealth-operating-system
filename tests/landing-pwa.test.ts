@@ -473,7 +473,9 @@ test("Application currency system is unchanged — تومان، دلار، تت�
   assert.match(format, /export function irtToUsd/);
   assert.match(format, /export function usdToIrt/);
 
-  assert.match(moneyForm, /\"IRT\" \| \"USD\" \| \"USDT\"/);
+  // Units of account are unchanged; dollar stablecoins are only places' coins.
+  assert.match(moneyForm, /bank: \["IRT", "USD"\]/);
+  assert.match(moneyForm, /STABLES = \["USDT"/);
   assert.match(moneyForm, /تومان/);
   assert.match(moneyForm, /دلار/);
   assert.match(moneyForm, /تتر/);

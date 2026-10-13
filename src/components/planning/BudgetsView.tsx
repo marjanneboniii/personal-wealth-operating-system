@@ -26,6 +26,7 @@ import Sheet from "@/components/ui/Sheet";
 import { budgetTemplate } from "@/features/planning/budgetTemplates";
 import type { listBudgets } from "@/features/planning/service";
 import { faCount, formatJalaliIso, formatMoney } from "@/lib/format";
+import { toneVars } from "@/lib/toneColors";
 
 type Budget = Awaited<ReturnType<typeof listBudgets>>[number];
 type Line = Budget["items"][number];
@@ -204,7 +205,7 @@ function ProjectCard({ b, today, onEdit, onDelete }: { b: Budget; today: string;
   const left = Number(b.remainingToman);
 
   return (
-    <article className="bgt-project" style={{ "--tone": t.tone } as CSSProperties}>
+    <article className="bgt-project" style={toneVars(t.tone) as CSSProperties}>
       <header className="bgt-project-head">
         <span className="bgt-project-icon" aria-hidden="true">
           <Icon name={t.icon} size={20} />

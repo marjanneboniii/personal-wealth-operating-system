@@ -37,6 +37,7 @@ import { rootCauseOf } from "@/db/init-schema";
 import { registerInstrument } from "@/features/funds/service";
 import { registerWallexAsset } from "@/features/pricing/wallexRegistration";
 import { createUserVehicle } from "@/features/rwa/vehicle/service";
+import { STABLECOIN_SYMBOLS } from "@/lib/stablecoins";
 import { createRealEstateAsset } from "@/features/rwa/realEstate/service";
 import {
   SUPPORTED_CRYPTO_ASSETS,
@@ -71,12 +72,12 @@ import {
  *   account already uses, and its market value comes from its price feed.
  */
 
-/**
- * Coins that are a claim on a fiat unit rather than a volatile asset. They are
- * classed «استیبل‌کوین», which the portfolio's liquidity filter counts as
- * نقدینگی — dry powder in a wallet reads as liquidity, not crypto exposure.
+/*
+ * Coins that are a claim on a fiat unit rather than a volatile asset
+ * (STABLECOIN_SYMBOLS, the app's one list) are classed «استیبل‌کوین», which
+ * the portfolio's liquidity filter counts as نقدینگی — dry powder in a wallet
+ * reads as liquidity, not crypto exposure.
  */
-const STABLECOIN_SYMBOLS = new Set(["USDT", "USDC", "USDS", "USDE", "USDG", "PYUSD", "DAI", "FDUSD"]);
 
 /** Native units a cash/bank account may hold. Book currency stays USD. */
 export const SETUP_MONEY_SYMBOLS = ["IRT", "USD", "USDT"] as const;

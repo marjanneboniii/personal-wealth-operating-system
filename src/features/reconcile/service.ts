@@ -32,6 +32,7 @@ import { postEntry } from "@/features/ledger/service";
 import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
 import { getWritableUsdIrtRateForUser } from "@/lib/fx";
 import { todayIso } from "@/lib/format";
+import { reconcileDescription, type ReconcileReason } from "./reasons";
 
 export const RECONCILE_EQUITY_CODE = "3020";
 export const RECONCILE_EQUITY_NAME = "اختلاف تطبیق حساب‌ها";
@@ -225,7 +226,11 @@ export async function reconcileMismatches(userId: string): Promise<AccountReconc
  * already agrees, when a newer checkpoint superseded this one, or when the
  * checkpoint was already adjusted — so a double tap can never post twice.
  */
-export async function adjustToReported(userId: string, checkpointId: string): Promise<{ entryId: string; difference: string }> {
+export async function adjustToReported(
+  userId: string,
+  checkpointId: string,
+  why: { reason?: ReconcileReason | null; note?: string | null } = {},
+): Promise<{ entryId: string; difference: string }> {
   // Ownership first: a foreign or unknown id must not even trigger a rate refresh.
   const [owned] = await db
     .select({ id: balanceCheckpoints.id })
@@ -262,7 +267,7 @@ export async function adjustToReported(userId: string, checkpointId: string): Pr
       {
         entryDate: cp.asOf,
         type: "adjustment",
-        description: `تطبیق موجودی «${account.name}» با بانک`,
+        description: reconcileDescription(account.name, why.reason, why.note),
         source: "manual",
         postings: [
           { accountId: cp.accountId, assetId: acc.assetId!, quantity: diff.toString(), baseValue: baseValue.toString() },

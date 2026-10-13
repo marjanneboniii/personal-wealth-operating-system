@@ -27,6 +27,7 @@ import Icon from "@/components/ui/Icon";
 import { SmartAmountPreview } from "@/components/ui/SmartPreview";
 import { BUDGET_TEMPLATES, budgetTemplate, type BudgetTemplateKey } from "@/features/planning/budgetTemplates";
 import { addMonthsIso, formatJalaliIso, jalaliMonthLength, jalaliToIso, toJalali } from "@/lib/format";
+import { toneVars } from "@/lib/toneColors";
 
 export type AccountOpt = { id: string; code: string; name: string } & Partial<Omit<PickerAccount, "id" | "name">>;
 
@@ -331,7 +332,7 @@ export function BudgetCardForm({
             aria-checked={mode === "category"}
             className="bgt-tpl"
             data-on={mode === "category" || undefined}
-            style={{ "--tone": "#475569" } as CSSProperties}
+            style={toneVars("#475569") as CSSProperties}
             onClick={() => chooseMode("category")}
           >
             <span className="bgt-tpl-icon" aria-hidden="true">
@@ -348,7 +349,7 @@ export function BudgetCardForm({
               aria-checked={mode === t.key}
               className="bgt-tpl"
               data-on={mode === t.key || undefined}
-              style={{ "--tone": t.tone } as CSSProperties}
+              style={toneVars(t.tone) as CSSProperties}
               onClick={() => chooseMode(t.key)}
             >
               <span className="bgt-tpl-icon" aria-hidden="true">
