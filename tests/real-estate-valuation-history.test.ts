@@ -203,7 +203,7 @@ test("به‌روزرسانی‌های پیاپی (۱ماه/۳ماه/۶ماه) �
   await setFxRate(MEHR, "200000");
 
   const created = await createRealEstateAsset({
-    ...ids,
+    sizeSqm: "100", ...ids,
     acquisitionDate: ACQUISITION,
     valuationDate: FARVARDIN,
     purchasePriceToman: SEVEN_B,
@@ -260,7 +260,7 @@ test("ارزش‌گذاری دوم در همان تاریخ رد می‌شود �
   await setFxRate(SHAHRIVAR, "200000");
 
   const created = await createRealEstateAsset({
-    ...ids,
+    sizeSqm: "100", ...ids,
     acquisitionDate: ACQUISITION,
     valuationDate: FARVARDIN,
     purchasePriceToman: SEVEN_B,
@@ -296,7 +296,7 @@ test("نرخ دلار جدید، Snapshotهای قبلی را بازنویسی �
   await setFxRate(FARVARDIN, "130000");
 
   const created = await createRealEstateAsset({
-    ...ids,
+    sizeSqm: "100", ...ids,
     acquisitionDate: ACQUISITION,
     valuationDate: FARVARDIN,
     purchasePriceToman: SEVEN_B,
@@ -366,7 +366,7 @@ test("داشبورد ملک: تاریخچه، بازه‌ها و نقطه خری
   await setFxRate(SHAHRIVAR, "200000");
 
   const created = await createRealEstateAsset({
-    ...ids,
+    sizeSqm: "100", ...ids,
     acquisitionDate: ACQUISITION,
     valuationDate: FARVARDIN,
     purchasePriceToman: SEVEN_B,
@@ -407,7 +407,7 @@ test("Backfill: املاک قدیمی دقیقاً یک Snapshot از آخرین
   await setFxRate(FARVARDIN, "130000");
 
   const created = await createRealEstateAsset({
-    ...ids,
+    sizeSqm: "100", ...ids,
     acquisitionDate: ACQUISITION,
     valuationDate: FARVARDIN,
     purchasePriceToman: SEVEN_B,

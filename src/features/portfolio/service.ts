@@ -25,7 +25,9 @@ import { persianAssetName, todayIso } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { calculateMarketValuation, valueCoinGeckoAssets } from "@/features/valuation/service";
 import { calculateRoi, calculateUnrealizedPnl } from "./valuation";
-import { loadDcaForAssets } from "./dca";
+import { loadDcaForAssets, type AssetDca } from "./dca";
+import { loadStablecoinTomanCost, type StablecoinCost } from "./stablecoinCost";
+import { isStablecoinSymbol } from "@/lib/stablecoins";
 import { calculateAssetAllocation } from "./allocation";
 import type { AssetValuation, PortfolioSummary, ValuationBasis } from "./types";
 import { REAL_ESTATE_LOGO } from "@/features/branding/persianIcons";
@@ -76,6 +78,41 @@ async function resolveValuationUserId(explicitUserId?: string): Promise<string |
     if (error?.message?.includes("Authentication/Database error")) throw error;
     return null;
   }
+}
+
+/**
+ * The DCA card of a stablecoin, from its average Toman cost — never from lots.
+ * Totals are the HELD position (a tether balance turns over constantly, so a
+ * lifetime "invested" sum would only inflate the portfolio's invested figure).
+ */
+function stablecoinDca(
+  assetId: string,
+  quantity: string,
+  costUsd: string,
+  model: StablecoinCost | undefined,
+  fxRate: string,
+): AssetDca {
+  const qty = D(quantity);
+  const avgToman = model && D(model.avgToman).gt(0) ? D(model.avgToman) : null;
+  const costToman = avgToman ? avgToman.mul(qty) : D(costUsd).mul(fxRate);
+  const paid = model ? D(model.tomanPaidQuantity) : Decimal.zero();
+  const tomanQty = paid.lt(qty) ? paid : qty;
+  return {
+    assetId,
+    quantityHeld: qty.toString(),
+    totalCostUsd: D(costUsd).toString(),
+    totalCostToman: costToman.toFixed(0),
+    dcaUnitPriceUsd: qty.gt(0) ? D(costUsd).div(qty).toFixed(2) : "0",
+    dcaUnitPriceToman: qty.gt(0) ? costToman.div(qty).toFixed(0) : "0",
+    quantityBought: qty.toString(),
+    totalInvestedUsd: D(costUsd).toString(),
+    totalInvestedToman: costToman.toFixed(0),
+    tomanDenominatedQuantity: tomanQty.toString(),
+    usdDenominatedQuantity: qty.sub(tomanQty).toString(),
+    hasEstimatedFx: !avgToman || !!model?.estimated,
+    fallbackFxRate: fxRate,
+    lotCount: 0,
+  };
 }
 
 async function historicalTomanCostByAsset(userId: string | null): Promise<Map<string, string>> {
@@ -573,8 +610,31 @@ export async function getPortfolioValuation(
     if (!latestGenericValuation.has(row.assetId)) latestGenericValuation.set(row.assetId, row);
   }
 
+  // Stablecoins are money: their cost never comes from FIFO lots (a swap opens
+  // and consumes none, so a setup lot would linger forever). Dollars: tether
+  // is face value (cost = quantity, P&L 0), other coins their book value.
+  // Toman: the weighted average of what each acquisition actually cost.
+  const stableHoldings = activeHoldings.filter((holding) => isStablecoinSymbol(holding.symbol));
+  const stableCost = await loadStablecoinTomanCost(
+    stableHoldings.map((holding) => holding.assetId),
+    userId,
+    fx.rate,
+  );
+  for (const holding of stableHoldings) {
+    const model = stableCost.get(holding.assetId);
+    if (model && D(model.avgToman).gt(0)) {
+      historicalTomanCosts.set(holding.assetId, D(model.avgToman).mul(D(holding.quantity)).toFixed(0));
+    } else {
+      historicalTomanCosts.delete(holding.assetId);
+    }
+  }
+
   const costBasisByAsset = new Map<string, string>();
   for (const holding of activeHoldings) {
+    if (isStablecoinSymbol(holding.symbol)) {
+      costBasisByAsset.set(holding.assetId, holding.symbol.toUpperCase() === "USDT" ? holding.quantity : holding.costBase);
+      continue;
+    }
     const assetLots = openLots.filter((lot) => lot.assetId === holding.assetId);
     const cost = assetLots.length
       ? assetLots.reduce((sum, lot) => sum.add(D(lot.qtyRemaining).mul(lot.unitCostBase)), Decimal.zero())
@@ -794,6 +854,12 @@ export async function getPortfolioValuation(
   // only: `costBasis`, `unrealizedPnl*` and the headline totals above are
   // untouched, and no lot is opened, consumed or re-costed.
   const dcaByAsset = await loadDcaForAssets(assetIds, userId, fx.rate);
+  for (const holding of stableHoldings) {
+    dcaByAsset.set(
+      holding.assetId,
+      stablecoinDca(holding.assetId, holding.quantity, costBasisByAsset.get(holding.assetId) ?? holding.costBase, stableCost.get(holding.assetId), fx.rate),
+    );
+  }
   let investedUsd = Decimal.zero();
   let investedToman = Decimal.zero();
   for (const valuation of assetValuations) {

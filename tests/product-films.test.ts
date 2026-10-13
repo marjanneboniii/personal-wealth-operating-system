@@ -18,9 +18,17 @@ test("public tour contains only the 20-second demo", () => {
   assert.ok(html.includes('preload="none"'));
   assert.ok(!html.includes('autoPlay'));
   assert.ok(html.includes('href="/register"'));
-  assert.ok(html.includes('preview.fa.vtt'));
+  // A silent looping motion graphic: no custom player controls or captions.
+  assert.match(html, /<video[^>]+muted/);
+  assert.match(html, /<video[^>]+loop/);
+  assert.ok(!html.includes('product-film-controls'));
+  assert.ok(!html.includes('<track'));
+  assert.ok(!html.includes('پخش ویدیو'));
+  assert.match(html, /<video[^>]+width="1920"[^>]+height="1080"/);
   assert.ok(html.includes('نمای کلی'));
-  assert.ok(html.indexOf('product-films-cta')<html.indexOf('product-films-everyday'));
+  // Cinema layout: the film comes first, topics and signup sit beneath it.
+  assert.ok(html.indexOf('<video')<html.indexOf('product-films-topics'));
+  assert.ok(html.indexOf('product-films-topics')<html.indexOf('product-films-cta'));
   assert.match(html, /<video[^>]+controls/); // Native fallback before hydration.
 });
 

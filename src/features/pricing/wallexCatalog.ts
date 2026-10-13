@@ -58,6 +58,7 @@ const REGISTRY_ONLY: ReadonlyArray<{ symbol: string; kind: "stablecoin" | "crypt
   // Lighter — a perp-DEX token no Iranian exchange feed lists (verified
   // 2026-09-14); CAKE and ASTER trade on Wallex and use that market instead.
   { symbol: "LIT", kind: "crypto" },
+  { symbol: "CIRBTC", kind: "crypto" },
 ];
 
 /** USD prices by CoinGecko id — injectable so tests never reach the network. */

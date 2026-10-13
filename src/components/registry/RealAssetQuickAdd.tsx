@@ -65,6 +65,7 @@ export default function RealAssetQuickAdd({
                 key: row.key,
                 catalogId: row.catalogId,
                 manufacturingYear: vehicleYearOf(row),
+                mileage: row.mileage,
                 ownershipDate: row.ownershipDate,
                 purchasePriceToman: row.purchasePriceToman,
                 currentValueToman: row.currentValueToman,

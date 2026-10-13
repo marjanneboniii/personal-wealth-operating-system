@@ -5,7 +5,7 @@ import { getPortfolioValuation } from "@/features/portfolio/service";
 import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoneyFromUsd, toIrtMoney, trendTone } from "@/lib/format";
+import { currencyLabel, formatMoney, formatPct, formatQty, formatSignedMoney, formatSignedMoneyFromUsd, toIrtMoney, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import Link from "next/link";
 
@@ -32,7 +32,9 @@ export default async function CryptoPage() {
   const stableValue = Decimal.sum(stable.map((a) => a.currentValue));
   const cryptoCost = Decimal.sum(crypto.map((a) => a.costBasis));
   const cryptoPnl = cryptoValue.sub(cryptoCost);
-  const realized = Decimal.sum(pnl.bySymbol.filter((p) => cryptoSymbols.has(p.symbol)).map((p) => p.pnl));
+  const cryptoRealized = pnl.bySymbol.filter((p) => cryptoSymbols.has(p.symbol));
+  const realized = Decimal.sum(cryptoRealized.map((p) => p.pnl));
+  const realizedToman = Decimal.sum(cryptoRealized.map((p) => p.pnlToman));
 
   // Where does crypto live? — custody breakdown from account balances
   const custody = new Map<string, number>();
@@ -85,9 +87,9 @@ export default async function CryptoPage() {
             />
             <Metric
               label="سود تحقق‌یافته"
-              value={formatSignedMoneyFromUsd(realized.toString(), fx.rate)}
-              tone={trendTone(realized.toString())}
-              hint={fx.rate ? `≈ ${formatMoney(realized.abs().toString())} · فروش‌های انجام‌شده` : "فروش‌های انجام‌شده"}
+              value={formatSignedMoney(realizedToman.toFixed(0), "IRT")}
+              tone={trendTone(realizedToman.toString())}
+              hint={`${formatSignedMoney(realized.toString(), "USD")} · فروش‌های انجام‌شده`}
             />
           </section>
 

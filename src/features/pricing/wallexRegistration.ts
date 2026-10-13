@@ -22,6 +22,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, assetClasses, assets, wallexAssetCatalog } from "@/db/schema";
+import { getSupportedCryptoBySymbol } from "./supportedAssets";
 
 type ClassSeed = { code: string; name: string; color: string; sortOrder: number };
 
@@ -114,6 +115,8 @@ export async function registerWallexAsset(input: {
       .where(eq(assets.id, asset.id))
       .returning();
   } else {
+    const identity = entry.source === "coingecko" ? getSupportedCryptoBySymbol(entry.symbol) : undefined;
+    if (entry.source === "coingecko" && !identity) throw new Error("شناسه معتبر رمزارز یافت نشد.");
     [asset] = await conn
       .insert(assets)
       .values({
@@ -121,10 +124,11 @@ export async function registerWallexAsset(input: {
         name: entry.displayName,
         classId: assetClass.id,
         decimals: 8,
-        pricingMethod: "manual",
-        // Where the price is read — «wallex» or «abantether».
+        pricingMethod: identity ? "coingecko" : "manual",
+        coingeckoId: identity?.coingeckoId,
+        // Preserve the source and verified identity of registry-only coins.
         priceSource: entry.source,
-        logoUrl: entry.logoUrl,
+        logoUrl: entry.logoUrl || identity?.logoUrl,
       })
       .returning();
   }

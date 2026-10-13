@@ -28,14 +28,16 @@ import Icon, { type IconName } from "@/components/ui/Icon";
 import Sheet from "@/components/ui/Sheet";
 import { JALALI_MONTHS, faCount, formatJalaliIso, formatNumber, formatQty, toFaDigits, toJalali } from "@/lib/format";
 
+// Icons and colours match «ثبت تراکنش» (TX_KINDS, --kind-* in globals.css):
+// colour = domain of money, icon = direction.
 const KIND_META: Record<HistoryKind, { label: string; icon: IconName; sign: -1 | 0 | 1; hint: string }> = {
-  expense: { label: "هزینه", icon: "arrow-down", sign: -1, hint: "خرید روزمره، اجاره، قبض" },
-  income: { label: "درآمد", icon: "arrow-up", sign: 1, hint: "حقوق، پاداش، سود" },
+  expense: { label: "هزینه", icon: "card", sign: -1, hint: "خرید روزمره، اجاره، قبض" },
+  income: { label: "درآمد", icon: "download", sign: 1, hint: "حقوق، پاداش، سود" },
   transfer: { label: "انتقال", icon: "swap", sign: 0, hint: "جابه‌جایی بین حساب‌های خودم" },
-  buy: { label: "خرید دارایی", icon: "bag", sign: -1, hint: "طلا، ارز، سهام، ملک، خودرو" },
-  sell: { label: "فروش دارایی", icon: "coins", sign: 1, hint: "فروش طلا، ارز، سهام…" },
-  borrow: { label: "وام و قرض", icon: "card", sign: 1, hint: "وام گرفتم یا قرض کردم" },
-  repay: { label: "بازپرداخت", icon: "receipt", sign: -1, hint: "قسط یا تسویه بدهی" },
+  buy: { label: "خرید دارایی", icon: "trend-up", sign: -1, hint: "طلا، ارز، سهام، ملک، خودرو" },
+  sell: { label: "فروش دارایی", icon: "trend-down", sign: 1, hint: "فروش طلا، ارز، سهام…" },
+  borrow: { label: "وام و قرض", icon: "wallet", sign: 1, hint: "وام گرفتم یا قرض کردم" },
+  repay: { label: "بازپرداخت", icon: "debts", sign: -1, hint: "قسط یا تسویه بدهی" },
   other: { label: "سایر", icon: "note", sign: 0, hint: "هر رویداد مالی دیگر" },
 };
 const KINDS = Object.keys(KIND_META) as HistoryKind[];

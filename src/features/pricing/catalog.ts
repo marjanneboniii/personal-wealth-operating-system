@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { foldPersian } from "@/features/funds/search";
 import { coingeckoAssetCatalog } from "@/db/schema";
 import { CoinGeckoClient } from "./coingecko";
 import { getCurrentUsdPrices, type CurrentUsdPriceOptions } from "./service";
@@ -209,19 +210,24 @@ export async function listCoinGeckoCatalog(
   limit = 200,
 ): Promise<Array<typeof coingeckoAssetCatalog.$inferSelect>> {
   const q = query.trim();
-  // The allowlist is enforced at read time too, so old DOT/DAI/ADA or other
-  // legacy rows can never reappear even if they still exist for history.
+  // Verify canonical identities at read time too: legacy/unverified tokens
+  // with a familiar symbol must not impersonate the registered coin.
   const filters = [
     eq(coingeckoAssetCatalog.isActive, true),
     eq(coingeckoAssetCatalog.kind, "crypto"),
     inArray(coingeckoAssetCatalog.coingeckoId, SUPPORTED_COINGECKO_IDS),
   ];
   if (q) {
+    const tokens = q.split(/\s+/).map(foldPersian).filter(Boolean);
+    const matchingIds = SUPPORTED_CRYPTO_ASSETS.filter(asset => tokens.every(token =>
+      foldPersian(`${asset.displayName} ${asset.name} ${asset.symbol} ${asset.coingeckoId}`).includes(token),
+    )).map(asset => asset.coingeckoId);
     filters.push(
       or(
         ilike(coingeckoAssetCatalog.symbol, `%${q}%`),
         ilike(coingeckoAssetCatalog.name, `%${q}%`),
         ilike(coingeckoAssetCatalog.coingeckoId, `%${q}%`),
+        matchingIds.length ? inArray(coingeckoAssetCatalog.coingeckoId, matchingIds) : undefined,
       )!,
     );
   }

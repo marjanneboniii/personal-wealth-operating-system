@@ -223,9 +223,9 @@ export default async function ReportsPage() {
             <section className="metric-strip">
               <Metric
                 label="تحقق‌یافته"
-                value={formatSignedMoneyFromUsd(pnl.total, rate)}
-                tone={trendTone(pnl.total)}
-                hint={rate ? formatSignedMoney(pnl.total, "USD") : undefined}
+                value={formatSignedMoney(pnl.totalToman, "IRT")}
+                tone={trendTone(pnl.totalToman)}
+                hint={formatSignedMoney(pnl.total, "USD")}
               />
               <Metric
                 label="تحقق‌نیافته"
@@ -241,8 +241,10 @@ export default async function ReportsPage() {
                     <span className="min-w-0 flex-1 text-[length:var(--fs-sm)] font-bold" dir="rtl">
                       {currencyLabel(s.symbol)}
                     </span>
-                    <span className="num shrink-0" dir="rtl" style={{ color: D(s.pnl).gte(0) ? "var(--positive)" : "var(--negative)" }}>
-                      {formatSignedMoney(s.pnl, s.symbol)}
+                    {/* A result in money — Toman first, dollars beside it — never in units of the asset sold. */}
+                    <span className="num shrink-0 text-end" dir="rtl" style={{ color: D(s.pnlToman).gte(0) ? "var(--positive)" : "var(--negative)" }}>
+                      {formatSignedMoney(s.pnlToman, "IRT")}
+                      <span className="muted block text-[length:var(--fs-xs)] font-normal">{formatSignedMoney(s.pnl, "USD")}</span>
                     </span>
                   </li>
                 ))}

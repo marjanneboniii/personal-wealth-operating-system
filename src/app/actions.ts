@@ -231,8 +231,11 @@ const moneyAccountSchema = z.object({
   assetId: z.string().min(1, "ارز حساب را انتخاب کنید"),
   /** The exchange, brokerage or wallet picked from the catalogue. */
   placeName: z.string().trim().max(80).optional().default(""),
+  bankName: z.string().trim().max(60).optional().default(""),
   openingQty: z.string().optional().default(""),
   openingDate: z.string().optional().default(""),
+  /** Toman paid per unit of a dollar or stablecoin opening (optional). */
+  purchasePriceToman: z.string().trim().regex(/^(\d+(\.\d+)?)?$/, "قیمت خرید معتبر نیست").optional().default(""),
   note: z.string().optional().default(""),
 });
 
@@ -267,8 +270,10 @@ export async function createMoneyAccountAction(input: unknown): Promise<ActionRe
       kind: v.kind,
       assetId: v.assetId,
       placeName: v.placeName || undefined,
+      bankName: v.bankName || undefined,
       openingQty: v.openingQty || undefined,
       openingDate: v.openingDate || undefined,
+      purchasePriceToman: v.purchasePriceToman || undefined,
       note: v.note || undefined,
       // SECURITY: tenant identity comes ONLY from the session, never the client.
       userId: user?.id ?? undefined,
@@ -2569,6 +2574,7 @@ const setupTomanPlaceSchema = z.object({
 const setupVehicleSchema = z.object({
   catalogId: z.string().uuid(),
   manufacturingYear: z.string().trim().min(1),
+  mileage: z.string().regex(/^\d{1,7}$/, "کارکرد خودرو نامعتبر است").optional(),
   ownershipDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاریخ تملک خودرو نامعتبر است"),
   purchasePriceToman: z.string().trim().min(1),
   currentValueToman: z.string().optional(),

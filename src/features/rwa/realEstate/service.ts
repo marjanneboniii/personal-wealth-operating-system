@@ -44,6 +44,8 @@ import { formatMoney } from "@/lib/format";
 import { buildRwaLabel, buildRwaSymbol, nextRwaSymbol, nextUserRwaSeq } from "@/features/rwa/symbol";
 import { requireTomanBankAccount, tomanToNative, type TomanBankAccount } from "@/features/trade/bankAccount";
 import { isOrphanedRwaAsset } from "@/features/rwa/orphanFilter";
+import { blockingMessage, validatePropertyPrices } from "@/features/rwa/priceValidation";
+import { propertyReferencePpsqmUsd } from "@/features/rwa/priceReference";
 import {
   getCity,
   getNeighborhood,
@@ -560,6 +562,7 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput, o
   if (purchase.lte(0)) throw new Error("قیمت خرید (تومان) الزامی است و باید بزرگ‌تر از صفر باشد.");
   const current = D(input.currentValueToman ?? "0");
   if (current.lte(0)) throw new Error("ارزش فعلی (تومان) الزامی است و باید بزرگ‌تر از صفر باشد.");
+  if (!(Number(input.sizeSqm) > 0)) throw new Error("متراژ ملک الزامی است و باید بزرگ‌تر از صفر باشد.");
 
   // Historical FX — the rate of the ACQUISITION date, frozen forever.
   const purchaseFx = await resolveAutomaticPurchaseRate(acquisitionDate, input.userId ?? null);
@@ -575,6 +578,15 @@ export async function createRealEstateAsset(input: CreateRealEstateAssetInput, o
   }
   if (D(valuationFx.rate).lte(0)) throw new Error("نرخ دلار تاریخ ارزش‌گذاری در دسترس نیست.");
   const currentValueUsd = tomanToUsd(current.toFixed(0), valuationFx.rate);
+
+  // Outliers are refused here too, whatever form the request came from.
+  const blocked = blockingMessage(validatePropertyPrices({
+    cityCode: city.code, neighborhoodCode: hood.code, typeCode: ptype.code, sizeSqm: input.sizeSqm,
+    purchaseToman: purchase.toFixed(0), purchaseRate: purchaseFx.rate,
+    currentToman: current.toFixed(0), currentRate: valuationFx.rate,
+    referencePpsqmUsd: await propertyReferencePpsqmUsd(input.userId, hood.id, ptype.id),
+  }), "ملک");
+  if (blocked) throw new Error(blocked);
 
   const sequence = await nextPropertySequence(city.id, hood.id, ptype.id);
   const systemEntryDate = todayIso();
@@ -925,6 +937,17 @@ export async function recordRealEstateValuation(input: RecordRealEstateValuation
   }
   if (D(valuationFx.rate).lte(0)) throw new Error("نرخ دلار تاریخ ارزش‌گذاری در دسترس نیست.");
   const currentValueUsd = tomanToUsd(current.toFixed(0), valuationFx.rate);
+
+  if (prop.cityId && prop.neighborhoodId && prop.propertyTypeId && prop.sizeSqm) {
+    const [city, hood, ptype] = await Promise.all([getCity(prop.cityId), getNeighborhood(prop.neighborhoodId), getPropertyType(prop.propertyTypeId)]);
+    const blocked = blockingMessage(validatePropertyPrices({
+      cityCode: city?.code, neighborhoodCode: hood?.code, typeCode: ptype?.code, sizeSqm: prop.sizeSqm,
+      purchaseToman: prop.purchasePriceToman, purchaseRate: prop.purchaseFxRate,
+      currentToman: current.toFixed(0), currentRate: valuationFx.rate,
+      referencePpsqmUsd: await propertyReferencePpsqmUsd(input.userId, prop.neighborhoodId, prop.propertyTypeId),
+    }), "ملک");
+    if (blocked) throw new Error(blocked);
+  }
 
   const updated = await db.transaction(async (tx) => {
     // 1. Append the IMMUTABLE valuation snapshot FIRST — history is never
@@ -1574,6 +1597,7 @@ export async function createRealEstateProperty(input: {
   deedNumber?: string;
   notes?: string;
 }): Promise<{ id: string }> {
+  if (!input.city?.trim()) throw new Error("شهر/منطقهٔ ملک الزامی است.");
   const [assetRow] = await db.select().from(assets).where(eq(assets.id, input.assetId)).limit(1);
   if (!assetRow) throw new Error(`Asset not found: ${input.assetId}`);
 
@@ -1587,7 +1611,7 @@ export async function createRealEstateProperty(input: {
       userId: input.userId ?? null,
       userSeq,
       propertyType: input.propertyType ?? "apartment",
-      city: input.city ?? "Ahvaz",
+      city: input.city,
       area: input.area ?? null,
       address: input.address ?? null,
       sizeSqm: input.sizeSqm ?? null,
@@ -1601,7 +1625,7 @@ export async function createRealEstateProperty(input: {
       set: {
         userId: input.userId ?? null,
         propertyType: input.propertyType ?? "apartment",
-        city: input.city ?? "Ahvaz",
+        city: input.city,
         area: input.area ?? null,
         address: input.address ?? null,
         sizeSqm: input.sizeSqm ?? null,

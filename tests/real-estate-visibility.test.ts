@@ -76,7 +76,7 @@ async function makeUser(name: string, role = "user") {
 async function makeProperty(userId: string | null) {
   const idsValue = await ids();
   return createRealEstateAsset({
-    userId,
+    sizeSqm: "100", userId,
     cityId: idsValue.cityId,
     neighborhoodId: idsValue.neighborhoodId,
     propertyTypeId: idsValue.propertyTypeId,

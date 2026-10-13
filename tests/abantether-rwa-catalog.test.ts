@@ -204,6 +204,7 @@ test("USDG — no exchange lists it, so its prices are converted from CoinGecko"
     return new Map([
       ["global-dollar", { priceUsd: "1.0006" }],
       ["lighter", { priceUsd: "4.16" }],
+      ["circle-wrapped-btc", { priceUsd: "80000" }],
       ["tether", { priceUsd: "1.0002" }],
     ]);
   };
@@ -230,12 +231,26 @@ test("USDG — no exchange lists it, so its prices are converted from CoinGecko"
   assert.equal(D(lit.priceUsdt).toFixed(6), litUsdt.toFixed(6));
   assert.equal(D(lit.priceTmn).toFixed(0), litUsdt.mul(usdt.priceTmn).toFixed(0));
 
+  const circle = await getWallexAsset("CIRBTC");
+  assert.ok(circle, "Circle wrapped BTC is selectable even without an Iranian exchange listing");
+  assert.equal(circle.displayName, "بیت‌کوین رپ‌شدهٔ سیرکل");
+  assert.equal(circle.kind, "crypto");
+  assert.equal(circle.source, "coingecko");
+  assert.equal(D(circle.priceUsdt).toFixed(6), D("80000").div("1.0002").toFixed(6));
+  const [circleOwner] = await db.insert(users).values({name:"دارنده سیرکل",username:"circle-owner",role:"user"}).returning();
+  const registered = await registerWallexAsset({symbol:"CIRBTC",userId:circleOwner.id});
+  const [circleAsset] = await db.select().from(assets).where(eq(assets.id,registered.assetId));
+  assert.equal(circleAsset.pricingMethod, "coingecko");
+  assert.equal(circleAsset.coingeckoId, "circle-wrapped-btc", "normal registration must keep the same identity as onboarding");
+  assert.equal((await db.select().from(journalEntries)).length, 0, "registration must never post a purchase");
+
   // CoinGecko goes down: the row keeps its last prices instead of blanking.
   await refreshWallexCatalog(wallex(withUsdt), aban(), async () => {
     throw new Error("unreachable");
   });
   const after = await getWallexAsset("USDG");
   assert.equal(D(after.priceTmn).toFixed(0), expectedUsdt.mul(usdt.priceTmn).toFixed(0), "last price kept");
+  assert.equal((await getWallexAsset("CIRBTC"))?.priceUsdt, circle.priceUsdt, "CIRBTC never substitutes BTC or another wrapped token during an outage");
 });
 
 test("a test that injects Wallex never reaches CoinGecko for registry prices", async () => {

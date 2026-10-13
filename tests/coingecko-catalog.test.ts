@@ -97,15 +97,16 @@ test("offline bootstrap covers the full requested crypto list", async () => {
   }
 });
 
-test("unsupported DOT, DAI and ADA stay hidden even if old rows or upstream results contain them", async () => {
+test("DOT, DAI and ADA are selectable while an unverified same-symbol identity stays hidden", async () => {
   await db.insert(coingeckoAssetCatalog).values([
     storedCatalogRow("polkadot", "DOT", "Polkadot", 30, new Date()),
     storedCatalogRow("dai", "DAI", "Dai", 21, new Date()),
     storedCatalogRow("cardano", "ADA", "Cardano", 17, new Date()),
+    storedCatalogRow("fake-bitcoin", "BTC", "Fake Bitcoin", 1, new Date()),
   ]);
 
-  assert.deepEqual(await listCoinGeckoCatalog("", 500), []);
-  assert.equal((await getMarketCatalogStatus()).total, 0);
+  assert.deepEqual((await listCoinGeckoCatalog("", 500)).map(row => row.symbol), ["ADA", "DAI", "DOT"]);
+  assert.equal((await getMarketCatalogStatus()).total, 3);
 
   await refreshCoinGeckoCatalog(
     clientFor({
@@ -114,13 +115,14 @@ test("unsupported DOT, DAI and ADA stay hidden even if old rows or upstream resu
         marketRow("polkadot", "dot", "Polkadot", 30),
         marketRow("dai", "dai", "Dai", 21),
         marketRow("cardano", "ada", "Cardano", 17),
+        marketRow("fake-bitcoin", "btc", "Fake Bitcoin", 1),
       ]),
     }),
   );
 
   const visible = await listCoinGeckoCatalog("", 500);
-  assert.deepEqual(visible.map((row) => row.symbol), ["BTC"]);
-  assert.equal((await getMarketCatalogStatus()).total, 1);
+  assert.deepEqual(visible.map((row) => row.symbol), ["BTC", "ADA", "DAI", "DOT"]);
+  assert.equal((await getMarketCatalogStatus()).total, 4);
 });
 
 test("a failed sync upgrades the legacy four-row catalog to the complete offline floor", async () => {
@@ -208,6 +210,7 @@ test("search reaches assets by symbol, name and CoinGecko id", async () => {
           marketRow("bitcoin", "btc", "Bitcoin", 1),
           marketRow("hyperliquid", "hype", "Hyperliquid", 10),
           marketRow("pax-gold", "paxg", "PAX Gold", 42),
+          marketRow("circle-wrapped-btc", "cirbtc", "Circle Wrapped BTC", null),
         ]),
     }),
   );
@@ -216,6 +219,9 @@ test("search reaches assets by symbol, name and CoinGecko id", async () => {
   assert.equal((await listCoinGeckoCatalog("Hyperliquid"))[0]?.symbol, "HYPE");
   assert.equal((await listCoinGeckoCatalog("pax-gold"))[0]?.symbol, "PAXG");
   assert.equal((await listCoinGeckoCatalog("BTC"))[0]?.symbol, "BTC");
+  assert.equal((await listCoinGeckoCatalog("سیرکل"))[0]?.symbol, "CIRBTC");
+  assert.equal((await listCoinGeckoCatalog("سيركل"))[0]?.symbol, "CIRBTC");
+  assert.equal((await listCoinGeckoCatalog("بیت کوین"))[0]?.symbol, "BTC");
 });
 
 test("priced picker rows expose current USD price and graceful unavailable state", async () => {

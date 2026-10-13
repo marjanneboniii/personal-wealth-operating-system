@@ -13,13 +13,13 @@
  *    for neighborhoods are unique.
  *  - Disabling an entry hides it from users but keeps history intact.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cities, neighborhoods, propertyTypes } from "@/db/schema";
 import { normalizeKey } from "@/features/rwa/vehicle/catalog";
 import type { City, Neighborhood, PropertyType } from "./types";
 
-import { CITIES_SEED, NEIGHBORHOODS_SEED, PROPERTY_TYPES_SEED } from "./seedData";
+import { CITIES_SEED, CITY_CATALOG_SEED, NEIGHBORHOODS_SEED, PROPERTY_TYPES_SEED } from "./seedData";
 
 export { CITIES_SEED, NEIGHBORHOODS_SEED, PROPERTY_TYPES_SEED };
 
@@ -32,29 +32,19 @@ let seedPromise: Promise<void> | null = null;
  * overwritten, so admin edits (rename / deactivate) survive every restart.
  */
 export async function seedRealEstateMasterData(): Promise<void> {
-  for (let i = 0; i < CITIES_SEED.length; i++) {
-    const c = CITIES_SEED[i];
-    await db
-      .insert(cities)
-      .values({ nameFa: c.nameFa, nameEn: c.nameEn, code: c.code, sortOrder: i })
-      .onConflictDoNothing({ target: cities.code });
-  }
+  // Only MISSING rows are added: an admin's rename or deactivation is never undone.
+  await db
+    .insert(cities)
+    .values(CITY_CATALOG_SEED.map((c, i) => ({ nameFa: c.nameFa, nameEn: c.nameEn, code: c.code, sortOrder: i })))
+    .onConflictDoNothing({ target: cities.code });
 
-  const [ahvaz] = await db.select().from(cities).where(eq(cities.code, "AHZ")).limit(1);
-  if (ahvaz) {
-    for (let i = 0; i < NEIGHBORHOODS_SEED.length; i++) {
-      const n = NEIGHBORHOODS_SEED[i];
-      await db
-        .insert(neighborhoods)
-        .values({
-          cityId: ahvaz.id,
-          nameFa: n.nameFa,
-          nameEn: n.nameEn,
-          code: n.code,
-          sortOrder: i,
-        })
-        .onConflictDoNothing({ target: [neighborhoods.cityId, neighborhoods.code] });
-    }
+  const cityIdByCode = new Map((await db.select({ id: cities.id, code: cities.code }).from(cities)).map((c) => [c.code, c.id]));
+  const hoodRows = CITY_CATALOG_SEED.flatMap((c) => {
+    const cityId = cityIdByCode.get(c.code);
+    return cityId ? c.neighborhoods.map((n, i) => ({ cityId, nameFa: n.nameFa, nameEn: n.nameEn, code: n.code, sortOrder: i })) : [];
+  });
+  if (hoodRows.length) {
+    await db.insert(neighborhoods).values(hoodRows).onConflictDoNothing({ target: [neighborhoods.cityId, neighborhoods.code] });
   }
 
   for (let i = 0; i < PROPERTY_TYPES_SEED.length; i++) {
@@ -66,9 +56,12 @@ export async function seedRealEstateMasterData(): Promise<void> {
   }
 }
 
+/** Adds catalogue rows a database does not have yet (new cities/areas reach existing installs). */
 export async function seedRealEstateMasterDataIfEmpty(): Promise<void> {
-  const [existing] = await db.select({ id: cities.id }).from(cities).limit(1);
-  if (!existing) await seedRealEstateMasterData();
+  const [cityCount] = await db.select({ n: sql<number>`count(*)::int` }).from(cities);
+  const [hoodCount] = await db.select({ n: sql<number>`count(*)::int` }).from(neighborhoods);
+  const seededHoods = CITY_CATALOG_SEED.reduce((sum, c) => sum + c.neighborhoods.length, 0);
+  if (Number(cityCount?.n ?? 0) < CITY_CATALOG_SEED.length || Number(hoodCount?.n ?? 0) < seededHoods) await seedRealEstateMasterData();
 }
 
 /* ─────────────────────────── reads ─────────────────────────── */

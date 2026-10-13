@@ -21,7 +21,7 @@ export const EVM_PLATFORM_IDS: ReadonlySet<string> = new Set([
   "polygon-zkevm", "avalanche", "optimistic-ethereum", "linea", "zksync", "scroll", "mantle",
   "blast", "sonic", "fantom", "xdai", "celo", "cronos", "moonbeam", "metis-andromeda",
   "unichain", "berachain", "hyperevm", "sei-v2", "ink", "abstract", "world-chain", "plasma",
-  "kaia", "core", "opbnb", "manta-pacific", "mode", "taiko", "bob-network", "flare-network",
+  "kaia", "core", "opbnb", "manta-pacific", "mode", "taiko", "bob-network", "flare-network", "arc",
 ]);
 
 /** Native coins (no platform entry): the chain they run on. Any other native coin is its own chain. */
@@ -68,7 +68,7 @@ export const BOOTSTRAP_NETWORKS: Readonly<Record<string, readonly string[]>> = {
   TRX: ["tron"],
   ...Object.fromEntries(
     [
-      "ETH", "WBTC", "BNB", "AVAX", "POL", "ARB", "MNT", "ETC",
+      "ETH", "WBTC", "CIRBTC", "BNB", "AVAX", "POL", "ARB", "MNT", "ETC",
       "USDT", "USDC", "USDE", "USDS", "DAI", "PYUSD", "FDUSD", "USDG", "BUSD",
       "LINK", "UNI", "AAVE", "CRV", "CVX", "SNX", "1INCH", "SUSHI", "YFI", "LRC", "DYDX", "CAKE",
       "ENA", "ETHFI", "MORPHO", "ONDO", "ZRX", "BAND", "API3", "SKY", "ASTER", "QNT", "PAXG", "XAUT",

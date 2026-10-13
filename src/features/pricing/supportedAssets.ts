@@ -9,6 +9,8 @@
  * valuation imports. Existing historical assets outside this allowlist remain
  * untouched; they are simply not offered for new crypto registration.
  */
+import { EXPANDED_CRYPTO_ASSETS } from "./expandedAssets";
+
 export type SupportedCryptoAsset = {
   symbol: string;
   name: string;
@@ -211,6 +213,7 @@ export const SUPPORTED_CRYPTO_ASSETS = [
     logoUrl: "https://coin-images.coingecko.com/coins/images/7598/large/WBTCLOGO.png",
     marketCapRank: null,
   },
+  ...EXPANDED_CRYPTO_ASSETS,
 ] as const satisfies readonly SupportedCryptoAsset[];
 
 export type SupportedCryptoSymbol = (typeof SUPPORTED_CRYPTO_ASSETS)[number]["symbol"];

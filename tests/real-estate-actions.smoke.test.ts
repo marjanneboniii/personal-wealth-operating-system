@@ -68,7 +68,7 @@ test("saveRealEstateAction registers the property end-to-end (with Persian dates
   const { cityId, neighborhoodId, propertyTypeId } = await ids();
   const result = await 
 actions.saveRealEstateAction(null, fd({
-    cityId,
+    sizeSqm: "100", cityId,
     neighborhoodId,
     propertyTypeId,
     acquisitionDate: jalaliToIso(1404, 5, 20),
@@ -93,7 +93,7 @@ actions.saveRealEstateAction(null, fd({
   // Second registration gets the next per-user property label.
   const result2 = await 
 actions.saveRealEstateAction(null, fd({
-    cityId,
+    sizeSqm: "100", cityId,
     neighborhoodId,
     propertyTypeId,
     acquisitionDate: jalaliToIso(1404, 5, 20),
@@ -139,7 +139,7 @@ test("recordRealEstateValuationAction revalues without touching the ledger", asy
   const { cityId, neighborhoodId, propertyTypeId } = await ids();
   await 
 actions.saveRealEstateAction(null, fd({
-    cityId,
+    sizeSqm: "100", cityId,
     neighborhoodId,
     propertyTypeId,
     acquisitionDate: jalaliToIso(1404, 5, 20),

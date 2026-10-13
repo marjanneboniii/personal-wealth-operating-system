@@ -27,6 +27,10 @@ import { formatDate, formatMoney, toFaDigits, toJalali, toLatinDigits, todayIso 
 import { getUsdRateForDateAction } from "@/app/actions/registry";
 import { loadRealAssetCatalogsAction, type RealAssetCatalogs } from "@/app/actions/setupRealAssets";
 import { amountOf, newRowKey } from "@/components/setup/setupMoney";
+import { PRICE_FIELD_LABELS, validatePropertyPrices, validateVehiclePrices, type PriceField, type PriceVerdict } from "@/features/rwa/priceValidation";
+
+/** Result of the price checks, kept on the row so «ready» stays synchronous. */
+export type PriceStatus = "pending" | "ok" | "warn" | "block";
 
 export type VehicleDraftRow = {
   key: string;
@@ -38,6 +42,11 @@ export type VehicleDraftRow = {
   ownershipDate: string;
   purchasePriceToman: string;
   currentValueToman: string;
+  /** کارکرد به کیلومتر (اختیاری). */
+  mileage?: string;
+  /** The user confirmed the amounts despite a warning. */
+  priceConfirmed?: boolean;
+  priceStatus?: PriceStatus;
 };
 
 export type PropertyDraftRow = {
@@ -51,6 +60,9 @@ export type PropertyDraftRow = {
   /** "" = the purchase price, as the valuation of the purchase day. */
   currentValueToman: string;
   sizeSqm: string;
+  /** The user confirmed the amounts despite a warning. */
+  priceConfirmed?: boolean;
+  priceStatus?: PriceStatus;
 };
 
 /** سال ساخت — the one picked, else the Jalali year the car was bought in. */
@@ -59,23 +71,38 @@ export function vehicleYearOf(row: VehicleDraftRow): string {
   return row.ownershipDate ? String(toJalali(row.ownershipDate).y) : "";
 }
 
-/** A vehicle row is complete enough to register. */
+/** Prices pass: no warning, or a warning the user confirmed; never a blocked one. */
+const pricesAccepted = (row: { priceStatus?: PriceStatus; priceConfirmed?: boolean }) =>
+  row.priceStatus === "ok" || (row.priceStatus === "warn" && !!row.priceConfirmed);
+
+/** A vehicle row is complete enough to register (mileage is optional). */
 export function vehicleRowReady(row: VehicleDraftRow): boolean {
   return Boolean(
-    row.catalogId && row.ownershipDate && Number(vehicleYearOf(row)) > 0 && amountOf(row.purchasePriceToman).gt(0),
+    row.catalogId &&
+      row.ownershipDate &&
+      Number(row.manufacturingYear) > 0 &&
+      amountOf(row.purchasePriceToman).gt(0) &&
+      amountOf(row.currentValueToman).gt(0) &&
+      pricesAccepted(row),
   );
 }
 
-/** A property row is complete enough to register. */
+/** A property row is complete enough to register: every field is required. */
 export function propertyRowReady(row: PropertyDraftRow): boolean {
   return Boolean(
     row.cityId &&
       row.neighborhoodId &&
       row.propertyTypeId &&
       row.acquisitionDate &&
-      amountOf(row.purchasePriceToman).gt(0),
+      amountOf(row.sizeSqm).gt(0) &&
+      amountOf(row.purchasePriceToman).gt(0) &&
+      amountOf(row.currentValueToman).gt(0) &&
+      pricesAccepted(row),
   );
 }
+
+/** Fields whose change invalidates the user's price confirmation. */
+const PRICE_INPUTS = ["purchasePriceToman", "currentValueToman", "sizeSqm", "manufacturingYear", "ownershipDate", "acquisitionDate", "propertyTypeId", "mileage"];
 
 const TODAY_JY = toJalali(todayIso()).y;
 const JALALI_YEARS = Array.from({ length: TODAY_JY + 2 - 1360 }, (_, i) => TODAY_JY + 1 - i);
@@ -231,6 +258,78 @@ export function PurchaseUsd({ dateIso, priceToman, currentRate }: { dateIso: str
   );
 }
 
+/**
+ * Toman per dollar for each date: today's confirmed rate, else the historical
+ * one. `undefined` = still loading, `null` = no rate for that date.
+ */
+function useRates(dates: string[], currentRate?: string): (dateIso: string) => string | null | undefined {
+  const today = todayIso();
+  const key = [...new Set([...dates, today].filter(Boolean))].sort().join(",");
+  const confirmedToday = currentRate && Number(currentRate) > 0 ? currentRate : "";
+  const [found, setFound] = useState<Record<string, string | null>>({});
+  useEffect(() => {
+    let alive = true;
+    for (const date of key.split(",")) {
+      if (!date || date > today || (date === today && confirmedToday)) continue;
+      void rateAt(date).then((r) => {
+        if (alive) setFound((m) => (m[date] === (r?.rate ?? null) ? m : { ...m, [date]: r?.rate ?? null }));
+      });
+    }
+    return () => { alive = false; };
+  }, [key, today, confirmedToday]);
+  return (date) => {
+    if (!date || date > today) return null;
+    if (date === today && confirmedToday) return confirmedToday;
+    return found[date];
+  };
+}
+
+function statusOf(verdict: PriceVerdict, loading: boolean): PriceStatus {
+  return loading ? "pending" : verdict.level;
+}
+
+/** Keeps every row's `priceStatus` in step with its verdict, in ONE update. */
+function useSyncStatuses<T extends { priceStatus?: PriceStatus }>(rows: T[], statuses: PriceStatus[], onChange: (next: T[]) => void) {
+  const statusKey = statuses.join("|");
+  useEffect(() => {
+    const next = statusKey ? statusKey.split("|") as PriceStatus[] : [];
+    if (next.length !== rows.length || rows.every((r, i) => r.priceStatus === next[i])) return;
+    onChange(rows.map((r, i) => ({ ...r, priceStatus: next[i] })));
+  }, [rows, statusKey, onChange]);
+}
+
+/** Problems with the amounts, each with a one-tap fix when a slipped zero explains it. */
+function PriceIssues({ verdict, confirmed, onFix, onConfirm }: {
+  verdict: PriceVerdict;
+  confirmed: boolean;
+  onFix: (field: PriceField, value: string) => void;
+  onConfirm: (next: boolean) => void;
+}) {
+  if (!verdict.issues.length) return null;
+  return (
+    <div className="space-y-2 text-[length:var(--fs-xs)] leading-6">
+      {verdict.issues.map((issue, index) => (
+        <div key={index} role={issue.level === "block" ? "alert" : undefined} style={{ color: issue.level === "block" ? "var(--negative)" : "var(--warning)" }}>
+          <p>{PRICE_FIELD_LABELS[issue.field]}: {issue.message}</p>
+          {issue.suggestion !== undefined && (
+            <button type="button" className="btn btn-ghost !min-h-8 !px-2.5 text-[length:var(--fs-xs)]" onClick={() => onFix(issue.field, String(issue.suggestion))}>
+              منظورتان {issue.field === "mileage" ? `${toFaDigits(issue.suggestion.toLocaleString("en-US").replace(/,/g, "٬"))} کیلومتر` : formatMoney(String(issue.suggestion), "IRT")} بود؟
+            </button>
+          )}
+        </div>
+      ))}
+      {verdict.level === "warn" && (
+        <label className="flex items-start gap-2">
+          <input type="checkbox" checked={confirmed} onChange={(e) => onConfirm(e.target.checked)} />
+          مبلغ‌ها را بررسی کردم و درست است.
+        </label>
+      )}
+    </div>
+  );
+}
+
+const FIX_FIELD: Record<PriceField, string | null> = { purchase: "purchasePriceToman", current: "currentValueToman", mileage: "mileage", size: null, date: null };
+
 function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button type="button" className="icon-btn !min-h-9 !min-w-9" onClick={onClick} aria-label={`حذف ${label}`}>
@@ -239,10 +338,10 @@ function RemoveButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 
-function PriceField({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+function PriceField({ value, onChange, label = "قیمت خرید (تومان)" }: { value: string; onChange: (next: string) => void; label?: string }) {
   return (
     <div>
-      <label className="label">قیمت خرید (تومان)</label>
+      <label className="label">{label}</label>
       <AmountInput
         className="field num"
         dir="ltr"
@@ -258,6 +357,69 @@ function PriceField({ value, onChange }: { value: string; onChange: (next: strin
 
 /* ── خودرو ─────────────────────────────────────────────────────────────── */
 
+function VehicleCard({ row, model, verdict, currentRate, patch, onRemove }: {
+  row: VehicleDraftRow;
+  model: RealAssetCatalogs["models"][number] | undefined;
+  verdict: PriceVerdict;
+  currentRate?: string;
+  patch: (next: Partial<VehicleDraftRow>) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <li className="card setup-row space-y-3">
+      <div className="flex items-center gap-2.5">
+        <Plate kind="vehicle" />
+        <span className="min-w-0 flex-1">
+          <b className="block truncate text-[length:var(--fs-sm)]">{model ? toFaDigits(model.modelName) : row.label}</b>
+          {model && <span className="muted block truncate text-[length:var(--fs-xs)]">برند: {toFaDigits(model.brandName)}</span>}
+        </span>
+        <RemoveButton label={row.label} onClick={onRemove} />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="label">سال ساخت</label>
+          <select className="field num" value={row.manufacturingYear} onChange={(event) => patch({ manufacturingYear: event.target.value })}>
+            <option value="">انتخاب کنید</option>
+            <optgroup label="شمسی">
+              {JALALI_YEARS.map((y) => <option key={`j${y}`} value={y}>{toFaDigits(String(y))}</option>)}
+            </optgroup>
+            <optgroup label="میلادی">
+              {GREGORIAN_YEARS.map((y) => <option key={`g${y}`} value={y}>{y}</option>)}
+            </optgroup>
+          </select>
+        </div>
+        <div>
+          <label className="label">کارکرد (کیلومتر، اختیاری)</label>
+          <AmountInput className="field num" dir="ltr" inputMode="numeric" unit="none" showWords={false} placeholder="۰" value={row.mileage ?? ""} onChange={(event) => patch({ mileage: digitsOnly(event.target.value) })} />
+        </div>
+        <div>
+          <label className="label">تاریخ خرید</label>
+          <JalaliDatePicker value={row.ownershipDate || undefined} onChange={(iso) => patch({ ownershipDate: iso })} showGregorian={false} yearTo={TODAY_JY} ariaLabel={`تاریخ خرید ${row.label}`} />
+        </div>
+        <PriceField value={row.purchasePriceToman} onChange={(v) => patch({ purchasePriceToman: v })} />
+        <div className="sm:col-span-2">
+          <PriceField label="ارزش فعلی (تومان)" value={row.currentValueToman} onChange={(v) => patch({ currentValueToman: v })} />
+        </div>
+      </div>
+
+      <PurchaseUsd currentRate={currentRate} dateIso={row.ownershipDate} priceToman={row.purchasePriceToman} />
+      <PriceIssues
+        verdict={verdict}
+        confirmed={!!row.priceConfirmed}
+        onFix={(field, value) => { const key = FIX_FIELD[field]; if (key) patch({ [key]: value } as Partial<VehicleDraftRow>); }}
+        onConfirm={(priceConfirmed) => patch({ priceConfirmed })}
+      />
+
+      {!vehicleRowReady(row) && row.priceStatus !== "block" && (
+        <p className="text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }}>
+          {row.priceStatus === "warn" ? "برای ثبت، مبلغ‌ها را تأیید کنید." : "برای ثبت، سال ساخت، تاریخ و قیمت خرید و ارزش فعلی لازم است."}
+        </p>
+      )}
+    </li>
+  );
+}
+
 export function SetupVehiclesStep({
   rows,
   onChange,
@@ -272,22 +434,41 @@ export function SetupVehiclesStep({
 }) {
   const catalogs = useCatalogs();
   const [selectedBrand,setSelectedBrand] = useState("");
+  const rateOf = useRates(rows.map((r) => r.ownershipDate), currentRate);
+  const today = todayIso();
 
   const items = useMemo<SearchItem[]>(
     () =>
       (catalogs?.models ?? [])
-        .filter((m) => m.isActive && (!selectedBrand || m.brandId === selectedBrand))
+        .filter((m) => m.isActive && m.brandId === selectedBrand)
         .map((m) => ({
           id: m.id,
-          title: `${m.brandName} ${m.modelName}`,
+          title: m.modelName,
           subtitle: m.category ?? undefined,
           haystack: normalize(`${m.brandName} ${m.brandNameEn ?? ""} ${m.modelName}`),
         })),
     [catalogs,selectedBrand],
   );
 
+  const checks = rows.map((row) => {
+    const model = catalogs?.models.find((m) => m.id === row.catalogId);
+    const purchaseRate = rateOf(row.ownershipDate);
+    const todayRate = rateOf(today);
+    const verdict: PriceVerdict = model
+      ? validateVehiclePrices({
+          brandNameEn: model.brandNameEn, modelName: model.modelName, origin: model.brandOrigin,
+          manufacturingYear: row.manufacturingYear, ownershipDate: row.ownershipDate, valuationDate: today, mileage: row.mileage,
+          purchaseToman: row.purchasePriceToman, purchaseRate, currentToman: row.currentValueToman, currentRate: todayRate,
+          referenceUsd: catalogs?.vehicleRefUsd?.[row.catalogId] ?? null,
+        })
+      : { level: "ok", issues: [] };
+    const loading = !model || (!!row.ownershipDate && purchaseRate === undefined) || todayRate === undefined;
+    return { model, verdict, status: statusOf(verdict, loading) };
+  });
+  useSyncStatuses(rows, checks.map((c) => c.status), onChange);
+
   const patch = (key: string, next: Partial<VehicleDraftRow>) =>
-    onChange(rows.map((r) => (r.key === key ? { ...r, ...next } : r)));
+    onChange(rows.map((r) => (r.key === key ? { ...r, ...next, ...(Object.keys(next).some((k) => PRICE_INPUTS.includes(k)) ? { priceConfirmed: false } : {}) } : r)));
 
   const add = (catalogId: string) => {
     const model = catalogs?.models.find((m) => m.id === catalogId);
@@ -302,6 +483,8 @@ export function SetupVehiclesStep({
         ownershipDate: "",
         purchasePriceToman: "",
         currentValueToman: "",
+        mileage: "",
+        priceConfirmed: false,
       },
     ]);
   };
@@ -309,100 +492,34 @@ export function SetupVehiclesStep({
   return (
     <section className="space-y-5">
       {showIntro && (
-        <StepIntro title="خودرو" text="خودرو را از فهرست انتخاب کنید، سپس اطلاعات خرید را وارد کنید." />
+        <StepIntro title="خودرو" text="برند و مدل را انتخاب کنید، سپس سال ساخت، قیمت خرید و ارزش فعلی را وارد کنید." />
       )}
       <CatalogStatus catalogs={catalogs} />
 
       {catalogs?.ok && <>
-        <CatalogPicker label="شرکت سازنده" value={selectedBrand} options={catalogs.brands.filter(b=>b.isActive).map(b=>({id:b.id,label:toFaDigits(b.name)}))} onSelect={setSelectedBrand} placeholder="همه شرکت‌های سازنده"/>
-        <CatalogSearch
+        <CatalogPicker label="برند" value={selectedBrand} options={catalogs.brands.filter(b=>b.isActive).map(b=>({id:b.id,label:toFaDigits(b.name)}))} onSelect={setSelectedBrand} placeholder="ابتدا برند را انتخاب کنید"/>
+        {selectedBrand && <CatalogSearch
           kind="vehicle"
-          label="افزودن خودرو"
+          label="مدل"
           items={items}
-          emptyText="خودرویی در فهرست موجود نیست."
+          emptyText="مدلی برای این برند در فهرست نیست."
           onAdd={add}
-        />
+        />}
       </>}
 
       {rows.length > 0 && (
         <ul className="space-y-3">
-          {rows.map((row) => {
-            const year = vehicleYearOf(row);
-            return (
-              <li key={row.key} className="card setup-row space-y-3">
-                <div className="flex items-center gap-2.5">
-                  <Plate kind="vehicle" />
-                  <b className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)]">{row.label}</b>
-                  {year && <span className="badge badge-neutral num">{toFaDigits(year)}</span>}
-                  <RemoveButton label={row.label} onClick={() => onChange(rows.filter((r) => r.key !== row.key))} />
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="label">تاریخ خرید</label>
-                    <JalaliDatePicker
-                      value={row.ownershipDate || undefined}
-                      onChange={(iso) => patch(row.key, { ownershipDate: iso })}
-                      showGregorian={false}
-                      yearTo={TODAY_JY}
-                      ariaLabel={`تاریخ خرید ${row.label}`}
-                    />
-                  </div>
-                  <PriceField value={row.purchasePriceToman} onChange={(v) => patch(row.key, { purchasePriceToman: v })} />
-                </div>
-
-                <PurchaseUsd currentRate={currentRate} dateIso={row.ownershipDate} priceToman={row.purchasePriceToman} />
-
-                <details className="rounded-[var(--r-md)] border p-3" style={{ borderColor: "var(--border)" }}>
-                  <summary className="cursor-pointer text-[length:var(--fs-xs)] font-semibold">مشخصات بیشتر (اختیاری)</summary>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="label">سال ساخت</label>
-                      <select
-                        className="field num"
-                        value={year}
-                        onChange={(event) => patch(row.key, { manufacturingYear: event.target.value })}
-                      >
-                        <option value="">همان سال خرید</option>
-                        <optgroup label="شمسی">
-                          {JALALI_YEARS.map((y) => (
-                            <option key={`j${y}`} value={y}>
-                              {toFaDigits(String(y))}
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="میلادی">
-                          {GREGORIAN_YEARS.map((y) => (
-                            <option key={`g${y}`} value={y}>
-                              {y}
-                            </option>
-                          ))}
-                        </optgroup>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label">ارزش فعلی (تومان)</label>
-                      <AmountInput
-                        className="field num"
-                        dir="ltr"
-                        inputMode="numeric"
-                        unit="toman"
-                        placeholder="۰"
-                        value={row.currentValueToman}
-                        onChange={(event) => patch(row.key, { currentValueToman: digitsOnly(event.target.value) })}
-                      />
-                    </div>
-                  </div>
-                </details>
-
-                {!vehicleRowReady(row) && (
-                  <p className="text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }}>
-                    برای ثبت، تاریخ خرید و قیمت خرید لازم است.
-                  </p>
-                )}
-              </li>
-            );
-          })}
+          {rows.map((row, index) => (
+            <VehicleCard
+              key={row.key}
+              row={row}
+              model={checks[index].model}
+              verdict={checks[index].verdict}
+              currentRate={currentRate}
+              patch={(next) => patch(row.key, next)}
+              onRemove={() => onChange(rows.filter((r) => r.key !== row.key))}
+            />
+          ))}
         </ul>
       )}
     </section>
@@ -410,6 +527,78 @@ export function SetupVehiclesStep({
 }
 
 /* ── ملک ───────────────────────────────────────────────────────────────── */
+
+const perSqmText = (toman: string, sqm: string) => {
+  const area = amountOf(sqm);
+  const value = amountOf(toman);
+  return area.gt(0) && value.gt(0) ? formatMoney(value.div(area).toFixed(0), "IRT") : null;
+};
+
+function PropertyCard({ row, activeTypes, area, verdict, currentRate, patch, onRemove, labelOf }: {
+  row: PropertyDraftRow;
+  activeTypes: RealAssetCatalogs["propertyTypes"];
+  area?: string;
+  verdict: PriceVerdict;
+  currentRate?: string;
+  patch: (next: Partial<PropertyDraftRow>) => void;
+  onRemove: () => void;
+  labelOf: (propertyTypeId: string, neighborhoodId: string) => string;
+}) {
+  const currentPerSqm = perSqmText(row.currentValueToman, row.sizeSqm);
+  const purchasePerSqm = perSqmText(row.purchasePriceToman, row.sizeSqm);
+  return (
+    <li className="card setup-row space-y-3">
+      <div className="flex items-center gap-2.5">
+        <Plate kind="property" />
+        <b className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)]">{row.label || "ملک"}</b>
+        <RemoveButton label={row.label || "ملک"} onClick={onRemove} />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label className="label">نوع ملک</label>
+          <select className="field" value={row.propertyTypeId} onChange={(event) => patch({ propertyTypeId: event.target.value, label: labelOf(event.target.value, row.neighborhoodId) })}>
+            {activeTypes.map((p) => <option key={p.id} value={p.id}>{p.nameFa}</option>)}
+          </select>
+        </div>
+        <div className="sm:col-span-2">
+          <span className="label">شهر/منطقه</span>
+          <p className="field flex items-center">{area ?? "—"}</p>
+        </div>
+        <div>
+          <label className="label">متراژ (متر مربع)</label>
+          <AmountInput className="field num" inputMode="decimal" placeholder="۰" value={row.sizeSqm} onChange={(event) => patch({ sizeSqm: event.target.value })} showWords={false} unit="none" />
+        </div>
+        <div>
+          <PriceField label="ارزش فعلی (تومان)" value={row.currentValueToman} onChange={(v) => patch({ currentValueToman: v })} />
+          {currentPerSqm && <p className="muted text-[length:var(--fs-xs)]">هر متر: <span className="num money-nowrap" dir="rtl">{currentPerSqm}</span></p>}
+        </div>
+        <div>
+          <label className="label">تاریخ خرید</label>
+          <JalaliDatePicker value={row.acquisitionDate || undefined} onChange={(iso) => patch({ acquisitionDate: iso })} showGregorian={false} yearTo={TODAY_JY} ariaLabel="تاریخ خرید ملک" />
+        </div>
+        <div>
+          <PriceField value={row.purchasePriceToman} onChange={(v) => patch({ purchasePriceToman: v })} />
+          {purchasePerSqm && <p className="muted text-[length:var(--fs-xs)]">هر متر: <span className="num money-nowrap" dir="rtl">{purchasePerSqm}</span></p>}
+        </div>
+      </div>
+
+      <PurchaseUsd currentRate={currentRate} dateIso={row.acquisitionDate} priceToman={row.purchasePriceToman} />
+      <PriceIssues
+        verdict={verdict}
+        confirmed={!!row.priceConfirmed}
+        onFix={(field, value) => { const key = FIX_FIELD[field]; if (key) patch({ [key]: value } as Partial<PropertyDraftRow>); }}
+        onConfirm={(priceConfirmed) => patch({ priceConfirmed })}
+      />
+
+      {!propertyRowReady(row) && row.priceStatus !== "block" && (
+        <p className="text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }}>
+          {row.priceStatus === "warn" ? "برای ثبت، مبلغ‌ها را تأیید کنید." : "برای ثبت، متراژ، ارزش فعلی، تاریخ و قیمت خرید لازم است."}
+        </p>
+      )}
+    </li>
+  );
+}
 
 export function SetupPropertiesStep({
   rows,
@@ -426,6 +615,8 @@ export function SetupPropertiesStep({
   const catalogs = useCatalogs();
   const [selectedCity,setSelectedCity] = useState("");
   const activeTypes = useMemo(() => (catalogs?.propertyTypes ?? []).filter((p) => p.isActive), [catalogs]);
+  const rateOf = useRates(rows.map((r) => r.acquisitionDate), currentRate);
+  const today = todayIso();
 
   const items = useMemo<SearchItem[]>(() => {
     const cityName = new Map((catalogs?.cities ?? []).filter((c) => c.isActive).map((c) => [c.id, c.nameFa]));
@@ -445,8 +636,24 @@ export function SetupPropertiesStep({
     return [type?.nameFa, hood?.nameFa].filter(Boolean).join(" — ");
   };
 
+  const checks = rows.map((row) => {
+    const city = catalogs?.cities.find((c) => c.id === row.cityId);
+    const hood = catalogs?.neighborhoods.find((n) => n.id === row.neighborhoodId);
+    const type = activeTypes.find((p) => p.id === row.propertyTypeId);
+    const purchaseRate = rateOf(row.acquisitionDate);
+    const todayRate = rateOf(today);
+    const verdict = validatePropertyPrices({
+      cityCode: city?.code, neighborhoodCode: hood?.code, typeCode: type?.code, sizeSqm: row.sizeSqm,
+      purchaseToman: row.purchasePriceToman, purchaseRate, currentToman: row.currentValueToman, currentRate: todayRate,
+      referencePpsqmUsd: catalogs?.propertyRefPpsqmUsd?.[`${row.neighborhoodId}:${row.propertyTypeId}`] ?? null,
+    });
+    const loading = !catalogs?.ok || (!!row.acquisitionDate && purchaseRate === undefined) || todayRate === undefined;
+    return { verdict, status: statusOf(verdict, loading) };
+  });
+  useSyncStatuses(rows, checks.map((c) => c.status), onChange);
+
   const patch = (key: string, next: Partial<PropertyDraftRow>) =>
-    onChange(rows.map((r) => (r.key === key ? { ...r, ...next } : r)));
+    onChange(rows.map((r) => (r.key === key ? { ...r, ...next, ...(Object.keys(next).some((k) => PRICE_INPUTS.includes(k)) ? { priceConfirmed: false } : {}) } : r)));
 
   const add = (neighborhoodId: string) => {
     const hood = catalogs?.neighborhoods.find((n) => n.id === neighborhoodId);
@@ -464,6 +671,7 @@ export function SetupPropertiesStep({
         purchasePriceToman: "",
         currentValueToman: "",
         sizeSqm: "",
+        priceConfirmed: false,
       },
     ]);
   };
@@ -471,15 +679,15 @@ export function SetupPropertiesStep({
   return (
     <section className="space-y-5">
       {showIntro && (
-        <StepIntro title="ملک" text="شهر و محله را انتخاب کنید، سپس اطلاعات خرید را وارد کنید." />
+        <StepIntro title="ملک" text="شهر/منطقه را انتخاب کنید، سپس متراژ، ارزش فعلی و اطلاعات خرید را وارد کنید." />
       )}
       <CatalogStatus catalogs={catalogs} />
 
       {catalogs?.ok && <>
-        <CatalogPicker label="شهر ملک" value={selectedCity} options={catalogs.cities.filter(c=>c.isActive).map(c=>({id:c.id,label:c.nameFa}))} onSelect={setSelectedCity} placeholder="همه شهرها"/>
+        <CatalogPicker label="شهر/منطقه" value={selectedCity} options={catalogs.cities.filter(c=>c.isActive).map(c=>({id:c.id,label:c.nameFa}))} onSelect={setSelectedCity} placeholder="همه"/>
         <CatalogSearch
           kind="property"
-          label="انتخاب محله ملک"
+          label="انتخاب محدودهٔ ملک"
           items={items}
           emptyText="پیدا نشد"
           onAdd={add}
@@ -488,93 +696,20 @@ export function SetupPropertiesStep({
 
       {rows.length > 0 && (
         <ul className="space-y-3">
-          {rows.map((row) => {
+          {rows.map((row, index) => {
             const hood = items.find((i) => i.id === row.neighborhoodId);
             return (
-              <li key={row.key} className="card setup-row space-y-3">
-                <div className="flex items-center gap-2.5">
-                  <Plate kind="property" />
-                  <span className="min-w-0 flex-1">
-                    <b className="block truncate text-[length:var(--fs-sm)]">{row.label || "ملک"}</b>
-                    {hood?.subtitle && <span className="muted block truncate text-[length:var(--fs-xs)]">{hood.subtitle}</span>}
-                  </span>
-                  <RemoveButton label={row.label || "ملک"} onClick={() => onChange(rows.filter((r) => r.key !== row.key))} />
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <label className="label">نوع ملک</label>
-                    <select
-                      className="field"
-                      value={row.propertyTypeId}
-                      onChange={(event) =>
-                        patch(row.key, {
-                          propertyTypeId: event.target.value,
-                          label: labelOf(event.target.value, row.neighborhoodId),
-                        })
-                      }
-                    >
-                      {activeTypes.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nameFa}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">تاریخ خرید</label>
-                    <JalaliDatePicker
-                      value={row.acquisitionDate || undefined}
-                      onChange={(iso) => patch(row.key, { acquisitionDate: iso })}
-                      showGregorian={false}
-                      yearTo={TODAY_JY}
-                      ariaLabel="تاریخ خرید ملک"
-                    />
-                  </div>
-                  <PriceField value={row.purchasePriceToman} onChange={(v) => patch(row.key, { purchasePriceToman: v })} />
-                </div>
-
-                <PurchaseUsd currentRate={currentRate} dateIso={row.acquisitionDate} priceToman={row.purchasePriceToman} />
-
-                <details className="rounded-[var(--r-md)] border p-3" style={{ borderColor: "var(--border)" }}>
-                  <summary className="cursor-pointer text-[length:var(--fs-xs)] font-semibold">مشخصات بیشتر (اختیاری)</summary>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="label">متراژ</label>
-                      <AmountInput
-                        className="field num"
-                        inputMode="decimal"
-                        placeholder="۱۲۰"
-                        value={row.sizeSqm}
-                        onChange={(event) => patch(row.key, { sizeSqm: event.target.value })}
-                        showWords={false}
-                        unit="none"
-                      />
-                    </div>
-                    <div>
-                      <label className="label">ارزش فعلی (تومان)</label>
-                      <AmountInput
-                        className="field num"
-                        dir="ltr"
-                        inputMode="numeric"
-                        unit="toman"
-                        placeholder="۰"
-                        value={row.currentValueToman}
-                        onChange={(event) => patch(row.key, { currentValueToman: digitsOnly(event.target.value) })}
-                      />
-                      <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">
-                        خالی بماند: قیمت خرید به‌عنوان ارزش همان تاریخ خرید ثبت می‌شود.
-                      </p>
-                    </div>
-                  </div>
-                </details>
-
-                {!propertyRowReady(row) && (
-                  <p className="text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }}>
-                    برای ثبت، تاریخ خرید و قیمت خرید لازم است.
-                  </p>
-                )}
-              </li>
+              <PropertyCard
+                key={row.key}
+                row={row}
+                activeTypes={activeTypes}
+                area={hood ? [hood.subtitle, hood.title].filter(Boolean).join(" / ") : undefined}
+                verdict={checks[index].verdict}
+                currentRate={currentRate}
+                patch={(next) => patch(row.key, next)}
+                onRemove={() => onChange(rows.filter((r) => r.key !== row.key))}
+                labelOf={labelOf}
+              />
             );
           })}
         </ul>

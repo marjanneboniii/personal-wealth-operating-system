@@ -1,0 +1,9 @@
+{
+  "name": "tavazon-app-preview",
+  "private": true,
+  "type": "module",
+  "description": "Screenshots every app page on the in-memory demo database for design review.",
+  "dependencies": {
+    "playwright-core": "1.64.0"
+  }
+}

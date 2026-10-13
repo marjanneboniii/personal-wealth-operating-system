@@ -11,7 +11,8 @@ const globals = readFileSync("src/app/globals.css", "utf8");
 const tokens = globals.slice(globals.indexOf("@font-face"), globals.indexOf(".dark, .landing-ink")).replace(/@theme\s*\{[^}]*\}/g, "");
 const css = readFileSync("scripts/product-films/film.css", "utf8");
 const stamp = (s: number) => `00:00:${String(s).padStart(2, "0")}.000`;
-for (const kind of ["preview", "pwa", "web"] as ProductFilmKind[]) {
+// The landing preview is now rendered by motion/ (Remotion); only the unused 40s guides remain here.
+for (const kind of ["pwa", "web"] as ProductFilmKind[]) {
   const chapters = kind === "preview" ? PRODUCT_PREVIEW_CHAPTERS : PRODUCT_FILM_CHAPTERS;
   const film = kind === "preview" ? PRODUCT_PREVIEW : PRODUCT_FILMS[kind];
   const duration = chapters.at(-1)!.at + chapters.at(-1)!.duration;

@@ -1870,16 +1870,34 @@ button.jdp-title:hover,
 .landing-kicker {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.28rem 0.75rem;
+  gap: 0.55rem;
+  min-height: 2.25rem;
+  padding-block: 0.22rem;
+  padding-inline: 0.3rem 0.85rem;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--action-soft);
+  border: 1px solid var(--border-strong);
+  background: color-mix(in oklab, var(--surface) 70%, transparent);
   font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--action);
+  color: var(--text-2);
   line-height: 1.6;
+  text-decoration: none;
+  transition: border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+.landing-kicker svg { transition: transform 0.2s var(--ease); }
+/* Hover only where hover exists: on iPhone a tap leaves :hover stuck on. */
+@media (hover: hover) {
+  .landing-kicker:hover { border-color: color-mix(in oklab, var(--signal-mint) 55%, transparent); color: var(--text); }
+  .landing-kicker:hover svg { transform: translateX(-3px); }
+}
+.landing-kicker-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.12rem 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--signal-mint) 16%, transparent);
+  color: var(--signal-mint);
 }
 
 /* A slow pulse — the only moving thing above the fold, and it is 6px wide. */
@@ -1903,11 +1921,24 @@ button.jdp-title:hover,
   }
 }
 
+/* The second half of the headline carries the brand light: paper fading into mint.
+   One background-clipped span — no per-letter boxes, so Persian joins stay intact. */
+.landing-display-accent {
+  background: linear-gradient(270deg, var(--text) 0%, var(--signal-mint) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  /* Safari paints the glyphs from text-fill-color, not color. */
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  /* Safari clips each line box separately; keep the gradient per line. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
 .landing-display {
   margin-top: 1rem;
   font-size: clamp(1.75rem, 5.8vw, 3.35rem);
   font-weight: 700;
-  letter-spacing: -0.02em;
   line-height: 1.28;
   text-wrap: balance;
   color: var(--text);
@@ -1974,9 +2005,8 @@ button.jdp-title:hover,
 }
 
 /* ── Coverage band ──
-   The asset kinds, as chips that drift for ever and spring when tapped. See
-   CoverageField.tsx for why the motion is split between CSS and JS: the drift
-   below is the CSS half, and it is the only half that runs continuously.
+   The asset kinds, as chips whose icons draw in and gesture in a travelling
+   wave, and that spring when tapped. See CoverageField.tsx for the CSS/JS split.
 
    Placement is the whole safety argument — this band sits BELOW the hero copy,
    so nothing here can ever move underneath a sentence. */
@@ -1999,41 +2029,19 @@ button.jdp-title:hover,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  /* Wider than the chips need at rest: the drift below moves each chip up to
-     8px vertically and 5px sideways, and neighbours in opposite phases must
-     never touch. Row gap ≥ 2 × 8px, column gap ≥ 2 × 5px. */
-  gap: 1rem 0.75rem;
+  /* Room for the tap spring to nudge neighbours without overlap. */
+  gap: 0.75rem 0.6rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* OUTER: the perpetual float, compositor-only. Each chip gets its own period
-   and phase, so the band moves like a loose group instead of
-   pulsing in unison.
-   It used to be ≤7px over 15–25s — about half a pixel per second, which on a
-   phone (and in the installed app, where most visitors see it) is below what
-   the eye registers: the chips looked coloured but frozen. This is a visible
-   bob of ~8px over 5–9s, still slow enough to read as "alive", not "busy".
-   Duration and delay are set per chip as PLAIN seconds in an inline style
-   (see CoverageField). They used to be `calc(… var(--i) …)` here, and iOS
-   Safari — the installed app on an iPhone — can drop a time value built that
-   way; one invalid part voids the whole `animation` shorthand, so the chips
-   kept their colour and never moved. Longhands, and no calc() in a <time>. */
+/* OUTER: a plain flex item. The icon gestures carry the band's motion now; a
+   whole-chip float on top of them read as busy. Gesture timings are PLAIN
+   seconds in custom properties, never calc() in a <time>: iOS Safari drops such
+   values and one invalid part voids the whole animation shorthand. */
 .cf-chip {
   display: inline-flex;
-  animation-name: cf-drift;
-  animation-duration: 6s;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  will-change: transform;
-}
-
-@keyframes cf-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-  25% { transform: translate3d(4px, -8px, 0) rotate(-1.5deg); }
-  50% { transform: translate3d(-2px, 3px, 0) rotate(0.8deg); }
-  75% { transform: translate3d(-5px, -5px, 0) rotate(-0.6deg); }
 }
 
 /* INNER: what the pointer spring writes to. It carries the chip's look, so the
@@ -2062,10 +2070,46 @@ button.jdp-title:hover,
      already run inside a composited subtree. */
 }
 
-.cf-chip-inner svg {
+/* Icon tile. The icon draws itself in once, then plays its gesture as a wave
+   that travels along the row every few seconds. Both are compositor-cheap
+   (stroke offset and transform on a 15px glyph). */
+.cf-icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
   flex: none;
-  opacity: 0.85;
+  margin-inline-start: -0.35rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tone-ink) 16%, transparent);
+  perspective: 120px;
 }
+.cf-icon svg {
+  flex: none;
+  animation-duration: var(--cf-wave);
+  animation-delay: var(--cf-wave-delay);
+  animation-iteration-count: infinite;
+  animation-timing-function: cubic-bezier(.16, 1, .3, 1);
+}
+.cf-icon svg :is(path, rect, circle, ellipse, line, polyline) {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: cf-draw 1.1s cubic-bezier(.16, 1, .3, 1) var(--cf-draw-delay) forwards;
+}
+@keyframes cf-draw { to { stroke-dashoffset: 0; } }
+/* Gestures occupy the first ~11% of the cycle; the rest is rest. */
+.cf-icon[data-gesture="lift"] svg { animation-name: cf-lift; }
+.cf-icon[data-gesture="spin"] svg { animation-name: cf-spin; }
+.cf-icon[data-gesture="drive"] svg { animation-name: cf-drive; }
+.cf-icon[data-gesture="tilt"] svg { animation-name: cf-tilt; }
+.cf-icon[data-gesture="turn"] svg { animation-name: cf-turn; }
+.cf-icon[data-gesture="flip"] svg { animation-name: cf-flip; }
+@keyframes cf-lift { 0%, 11%, 100% { transform: none; } 4% { transform: translateY(-3px) scale(1.08); } }
+@keyframes cf-spin { 0% { transform: rotateY(0); } 9%, 100% { transform: rotateY(360deg); } }
+@keyframes cf-drive { 0%, 11%, 100% { transform: none; } 3% { transform: translateX(-4px); } 6% { transform: translateX(2px); } }
+@keyframes cf-tilt { 0%, 11%, 100% { transform: none; } 3% { transform: rotate(-14deg); } 7% { transform: rotate(8deg); } }
+@keyframes cf-turn { 0% { transform: rotate(0); } 10%, 100% { transform: rotate(-180deg); } }
+@keyframes cf-flip { 0% { transform: rotateX(0); } 9%, 100% { transform: rotateX(360deg); } }
 
 @media (hover: hover) {
   .cf-chip-inner:hover {
@@ -2076,8 +2120,10 @@ button.jdp-title:hover,
 /* Motion is opt-out at the OS level: both halves stop, and the chips settle
    into an ordinary, perfectly readable row of labels. */
 @media (prefers-reduced-motion: reduce) {
-  .cf-chip {
+  .cf-icon svg,
+  .cf-icon svg :is(path, rect, circle, ellipse, line, polyline) {
     animation: none;
+    stroke-dashoffset: 0;
   }
   .cf-chip-inner {
     cursor: default;
@@ -2122,20 +2168,6 @@ button.jdp-title:hover,
   margin-top: 0.35rem;
 }
 
-.landing-preview-attention {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface-elev);
-  color: var(--text-2);
-  font-size: var(--fs-xs);
-  line-height: 1.6;
-}
-
 .landing-preview-attention-dot {
   inline-size: 7px;
   block-size: 7px;
@@ -2144,19 +2176,234 @@ button.jdp-title:hover,
   background: var(--negative);
 }
 
-/* ───────────────────────── Product preview ───────────────────────── */
+/* ───────────────────────── Product preview ─────────────────────────
+   A layered stage: the dashboard window in the middle, lit from behind by the
+   brand mint, with two small cards floating over its corners on wide screens.
+   On a phone the cards line up under the window instead, so nothing ever
+   covers a figure. */
 
 .landing-preview {
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: none;
-  color: var(--text);
-  overflow: hidden;
+  position: relative;
+  margin: 0;
   max-width: 100%;
   min-width: 0;
+  color: var(--text);
+}
+
+/* The light behind the stage. Decorative, behind everything, never under text. */
+.landing-preview::before {
+  content: "";
+  position: absolute;
+  inset: -8% -6%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 50% at 70% 30%, color-mix(in oklab, var(--signal-mint) 22%, transparent), transparent 70%),
+    radial-gradient(45% 45% at 20% 85%, rgba(96, 165, 250, 0.16), transparent 70%);
+  filter: blur(8px);
+}
+
+.landing-preview-window {
+  position: relative;
+  border: 1px solid var(--border-strong);
+  border-radius: calc(var(--r-lg) + 4px);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Hairline of light along the window's top edge. */
+.landing-preview-window::before {
+  content: "";
+  position: absolute;
+  inset-inline: 12%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--signal-mint) 70%, transparent), transparent);
+}
+
+.landing-preview-floats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.landing-preview-float {
+  min-width: 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: color-mix(in oklab, var(--surface-elev) 92%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-md);
+}
+
+.landing-preview-float-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.landing-preview-float-value {
+  margin-top: 0.45rem;
+  line-height: 1.5;
+}
+
+.landing-preview-float-value .display-num {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.landing-preview-float-title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.landing-preview-float-note {
+  margin-top: 0.4rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--positive);
+}
+
+/* Whole-million segments: the bar is the number. Fills from the start (right). */
+.landing-preview-segments {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 3px;
+  margin-top: 0.55rem;
+}
+
+.landing-preview-segments span {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-strong);
+}
+
+.landing-preview-segments span[data-on] {
+  background: var(--lc-budget-ink);
+}
+
+.landing-preview-float-due {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.landing-preview-float-due .landing-preview-attention-dot {
+  margin-inline-start: auto;
+  animation: landing-pulse 2.8s ease-in-out infinite;
+}
+
+/* Wide screens: the cards leave the flow and float over the window's corners. */
+@media (min-width: 960px) {
+  .landing-preview {
+    padding: 2.25rem 0 2.75rem;
+  }
+  .landing-preview-floats {
+    display: contents;
+  }
+  .landing-preview-float {
+    position: absolute;
+    z-index: 2;
+    animation: landing-float-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both, landing-float 7s ease-in-out 0.7s infinite;
+  }
+  /* Budget over the top corner on the end side (left in RTL). */
+  .landing-preview-float-budget {
+    top: 0;
+    inset-inline-end: -1.75rem;
+    inline-size: 15.5rem;
+    animation-delay: 0.35s, 1.05s;
+  }
+  /* Next installment under the bottom corner on the start side (right in RTL). */
+  .landing-preview-float-due {
+    bottom: 0.25rem;
+    inset-inline-start: -1.5rem;
+    inline-size: 17rem;
+    animation-delay: 0.55s, 1.25s;
+    animation-duration: 0.7s, 8s;
+  }
+}
+
+/* Phones and the standalone PWA: there is no corner to float over without
+   covering a figure, so the window grows an empty strip at its foot and the
+   cards rise into it — overlapping the frame (they read as floating, like on
+   desktop) while never sitting on a number. Same entrance and idle drift. */
+@media (max-width: 959.98px) {
+  /* Scoped: the base .landing-preview-body rule comes later in this file. */
+  .landing-preview .landing-preview-body {
+    padding-bottom: 4.1rem;
+  }
+  .landing-preview .landing-preview-float {
+    padding: 0.75rem 0.8rem;
+  }
+  .landing-preview-float-head {
+    gap: 0.4rem;
+  }
+  /* One metric per row here, so they can read at a calm, secondary size. */
+  .landing-preview .landing-preview-amount {
+    font-size: 1.05rem;
+  }
+  .landing-preview-floats {
+    position: relative;
+    z-index: 2;
+    margin-top: -2.65rem;
+    padding-inline: 0.55rem;
+  }
+  .landing-preview-float {
+    animation: landing-float-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both, landing-float 7s ease-in-out 0.7s infinite;
+  }
+  .landing-preview-float-budget {
+    animation-delay: 0.35s, 1.05s;
+  }
+  /* Half a phone is too narrow for icon + title + amount in one row: stack them,
+     so «قسط وام شخصی» stays on one line, and pin the dot to the corner. */
+  .landing-preview-float-due {
+    position: relative;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+    animation-delay: 0.55s, 1.25s;
+    animation-duration: 0.7s, 8s;
+  }
+  .landing-preview-float-due .landing-preview-attention-dot {
+    position: absolute;
+    top: 0.95rem;
+    inset-inline-end: 0.9rem;
+  }
+  .landing-preview-float-due .landing-preview-float-title {
+    white-space: nowrap;
+  }
+  /* Amount on its own line, due date under it — never a ragged «روز / دیگر» break. */
+  .landing-preview-float-due .landing-preview-label .num {
+    display: block;
+  }
+  .landing-preview-due-sep {
+    display: none;
+  }
+}
+
+@keyframes landing-float-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-preview-float,
+  .landing-preview-float-due .landing-preview-attention-dot {
+    animation: none;
+  }
 }
 
 .landing-preview-chrome {
@@ -2202,7 +2449,6 @@ button.jdp-title:hover,
   color: var(--text-3);
   font-size: var(--fs-xs);
   font-weight: 500;
-  letter-spacing: 0.01em;
 }
 
 .landing-preview-hero-amount {
@@ -2251,7 +2497,9 @@ button.jdp-title:hover,
   border-inline-start-color: var(--positive);
 }
 
-.landing-preview-amount {
+/* Scoped to .landing-preview so the phone-wide `.display-num` step (6vw, set
+   later in this file) cannot blow these secondary figures up to hero size. */
+.landing-preview .landing-preview-amount {
   margin-top: 0.2rem;
   font-size: clamp(var(--fs-xs), 1.05vw, 0.9rem);
   font-weight: 600;
@@ -2356,7 +2604,6 @@ button.jdp-title:hover,
   margin-bottom: 0.6rem;
   font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: 0.02em;
   color: var(--text-3);
 }
 
@@ -2368,14 +2615,17 @@ button.jdp-title:hover,
   background: var(--border-strong);
 }
 
+/* No letter-spacing: Chrome ignores it inside Persian words and it breaks joins elsewhere. */
 .landing-h2 {
   font-size: clamp(1.25rem, 2.8vw, 1.95rem);
   font-weight: 700;
-  letter-spacing: -0.015em;
   line-height: 1.45;
   text-wrap: balance;
   color: var(--text);
 }
+
+/* Two-tone heading: the claim in full ink, its explanation quieter, in one sentence flow. */
+.landing-h2-quiet { color: var(--text-3); font-weight: 600; }
 
 .landing-support {
   margin-top: 0.75rem;
@@ -2406,20 +2656,7 @@ button.jdp-title:hover,
   text-underline-offset: 3px;
 }
 
-/* ─────────────────── Outcome cards ─────────────────── */
-
-.landing-outcomes {
-  margin-top: 1.75rem;
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-}
-
-@media (min-width: 1280px) {
-  .landing-outcomes-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
+/* ─────────────────── Benefit text (trust, setup) ─────────────────── */
 
 .landing-benefit {
   display: flex;
@@ -2689,7 +2926,6 @@ button.jdp-title:hover,
   font-size: 1rem;
   font-weight: 700;
   line-height: 1.6;
-  letter-spacing: -0.01em;
   color: var(--text);
 }
 
@@ -2830,6 +3066,16 @@ button.jdp-title:hover,
   .landing-faq-chevron {
     transition: none;
   }
+}
+
+/* Smooth unfold (progressive enhancement: browsers without ::details-content just snap open). */
+@supports selector(::details-content) {
+  .landing-faq { interpolate-size: allow-keywords; }
+  .landing-faq-item::details-content { block-size: 0; overflow: clip; transition: block-size 0.28s var(--ease), content-visibility 0.28s allow-discrete; }
+  .landing-faq-item[open]::details-content { block-size: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-faq-item::details-content { transition: none; }
 }
 
 .landing-faq-answer {
@@ -3718,8 +3964,15 @@ body {
 .obl-amount { font-size: var(--fs-sm); font-weight: 700; }
 .obl-when { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
 
-/* ثبت تعهد — direction tiles side by side, custom due-date rows. */
-.debt-direction { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* ثبت تعهد — direction tiles side by side, custom due-date rows.
+   The tile grids keep a fixed column count at every width: the generic
+   .expense-squares grid widens to 6 columns on desktop, which squeezed two
+   or three tiles into a sixth of the card each. Two classes outrank it. */
+.expense-squares.debt-direction { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.expense-squares.debt-modes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Short hints («یا هر چند ماه», «تاریخ‌های دلخواه») wrap instead of being cut on a phone. */
+.debt-direction > .expense-square, .debt-modes > .expense-square { padding-inline: 0.5rem; }
+.debt-direction .expense-square-meta, .debt-modes .expense-square-meta { white-space: normal; line-height: 1.5; }
 .debt-dates { display: grid; gap: 0.5rem; list-style: none; }
 .debt-date-row { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
 .debt-date-seq { flex-shrink: 0; min-width: 3.25rem; font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); }
@@ -4583,6 +4836,18 @@ html[data-privacy] svg text {
   border-radius: var(--r-md);
   background: var(--warning-soft);
 }
+/* «چه شد؟» — why a difference is closed, written into the entry's description. */
+.recon-why { display: grid; gap: 0.5rem; padding-top: 0.25rem; }
+.recon-why-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+.recon-why-chip {
+  display: grid; gap: 0.15rem; min-width: 0; min-height: 2.75rem; padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface);
+  text-align: start; color: var(--text-2); touch-action: manipulation;
+}
+.recon-why-chip b { font-size: var(--fs-xs); color: var(--text); }
+.recon-why-chip span { font-size: var(--fs-micro); line-height: 1.5; color: var(--text-3); }
+.recon-why-chip[data-on] { border-color: var(--action); box-shadow: inset 0 0 0 1px var(--action); }
+.recon-why-chip:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
 .recon-sms {
   display: flex;
   align-items: center;
@@ -4711,11 +4976,23 @@ html[data-privacy] svg text {
 /* ═══════════════════════════════════════════════════════════════════════════
    Setup wizard
    ═══════════════════════════════════════════════════════════════════════════ */
+.setup-page {
+  width: 100%;
+  max-width: 56rem;
+  margin-inline: auto;
+  padding-block: 24px;
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+  letter-spacing: normal;
+  line-height: 1.9;
+}
+.setup-page > header { min-width: 0; }
 .setup-steps {
-  display: flex;
-  gap: 0.15rem;
-  overflow-x: auto;
-  scrollbar-width: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  overflow: visible;
 }
 .setup-steps::-webkit-scrollbar {
   display: none;
@@ -4727,15 +5004,18 @@ html[data-privacy] svg text {
 .setup-step button {
   display: flex;
   width: 100%;
-  min-height: 48px;
-  flex-direction: column;
+  min-height: 52px;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.2rem 0.25rem;
-  font-size: var(--fs-xs);
-  color: var(--text-3);
-  white-space: nowrap;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  text-align: start;
+  font-size: var(--fs-sm);
+  line-height: 1.8;
+  color: var(--text-2);
 }
+.setup-step-label { min-width: 0; overflow-wrap: break-word; }
 .setup-step button:disabled {
   cursor: default;
 }
@@ -4743,6 +5023,7 @@ html[data-privacy] svg text {
   display: inline-flex;
   width: 26px;
   height: 26px;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border-strong);
@@ -4765,13 +5046,18 @@ html[data-privacy] svg text {
   color: var(--text);
 }
 @media (max-width: 639px) {
-  .setup-step:not(.is-current) .setup-step-label {
-    display: none;
-  }
+  .setup-page { padding-block: 16px; gap: 20px; }
+  .setup-steps { grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 3px; }
+  .setup-step button { justify-content: center; min-height: 44px; padding: 4px 0; background: transparent; }
+  .setup-step-label { display: none; }
 }
-.card.setup-card {
-  padding: 1.15rem;
-}
+.card.setup-card { padding: clamp(20px, 3vw, 32px); }
+.setup-form { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.setup-form > input[type="hidden"], .setup-fields:empty { display: none; }
+.setup-fields { display: flex; flex-direction: column; gap: 24px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.setup-form > *, .setup-fields > * { min-width: 0; }
+.setup-intro { display: grid; gap: 8px; }
+.setup-intro p { margin: 0; line-height: 1.9; }
 .card.setup-row {
   padding: 0.85rem 1rem;
 }
@@ -4997,6 +5283,15 @@ dt,
 .app-main-public {
   max-width: none;
   scroll-padding-bottom: max(1rem, var(--safe-bottom));
+}
+
+/* Setup has no fixed app navigation. Keep standalone content clear of the
+   status bar and home indicator without reserving space for hidden chrome.
+   Inline safe areas are already applied by the shell. */
+.shell-root[data-chrome="setup"] .app-main-setup {
+  padding: max(1rem, var(--safe-top)) clamp(0.75rem, 3.75vw, 1.5rem) calc(1.5rem + var(--safe-bottom));
+  scroll-padding-top: calc(var(--safe-top) + 1rem);
+  scroll-padding-bottom: calc(var(--safe-bottom) + 1rem);
 }
 
 .offline-banner {
@@ -6746,14 +7041,20 @@ fieldset.policy-step > .policy-step-title + * {
 }
 
 /* Kind → colour pair. One map for discs, chips, filters and the mix bar. */
-[data-kind] { --tone-soft: var(--lc-report-soft); --tone-ink: var(--lc-report-ink); }
-[data-kind="expense"] { --tone-soft: var(--lc-debt-soft); --tone-ink: var(--lc-debt-ink); }
-[data-kind="income"] { --tone-soft: var(--lc-cash-soft); --tone-ink: var(--lc-cash-ink); }
-[data-kind="transfer"] { --tone-soft: var(--lc-flow-soft); --tone-ink: var(--lc-flow-ink); }
-[data-kind="buy"] { --tone-soft: var(--lc-stock-soft); --tone-ink: var(--lc-stock-ink); }
-[data-kind="sell"] { --tone-soft: var(--lc-property-soft); --tone-ink: var(--lc-property-ink); }
-[data-kind="borrow"] { --tone-soft: var(--lc-wealth-soft); --tone-ink: var(--lc-wealth-ink); }
-[data-kind="repay"] { --tone-soft: var(--lc-gold-soft); --tone-ink: var(--lc-gold-ink); }
+/* Kind → the SAME domain colour as «ثبت تراکنش» (--kind-*, light and dark),
+   with the same AA mixes for the tint and the coloured text. Scoped to this
+   page's own elements: a bare [data-kind] used to restyle any element anywhere
+   that carried the attribute, the transaction form included. */
+:is(.hist-filter, .hist-item, .hist-mix > span, .hist-disc, .hist-kind)[data-kind] {
+  --tone: var(--kind-other);
+  --tone-soft: color-mix(in srgb, var(--tone) 11%, var(--surface));
+  --tone-ink: color-mix(in srgb, var(--tone) 65%, var(--text));
+}
+:is(.hist-filter, .hist-item, .hist-mix > span, .hist-disc, .hist-kind)[data-kind="expense"] { --tone: var(--kind-expense); }
+:is(.hist-filter, .hist-item, .hist-mix > span, .hist-disc, .hist-kind)[data-kind="income"] { --tone: var(--kind-income); }
+:is(.hist-filter, .hist-item, .hist-mix > span, .hist-disc, .hist-kind)[data-kind="transfer"] { --tone: var(--kind-transfer); }
+:is(.hist-filter, .hist-item, .hist-mix > span, .hist-disc, .hist-kind):is([data-kind="buy"], [data-kind="sell"]) { --tone: var(--kind-invest); }
+:is(.hist-filter, .hist-item, .hist-mix > span, .hist-disc, .hist-kind):is([data-kind="borrow"], [data-kind="repay"]) { --tone: var(--kind-debt); }
 
 .hist-disc {
   display: inline-flex;
@@ -7044,8 +7345,7 @@ fieldset.policy-step > .policy-step-title + * {
   transition: transform 0.15s ease;
 }
 .hist-fab:active { transform: scale(0.94); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hist-fab { color: #0d1726; } }
-:root[data-theme="dark"] .hist-fab { color: #0d1726; }
+.dark .hist-fab { color: #0d1726; }
 @media (min-width: 1024px) { .hist-fab { display: none; } }
 
 /* ── Sheet: kind tiles, unit chips, the reminder ── */
@@ -7144,7 +7444,7 @@ fieldset.policy-step > .policy-step-title + * {
 @media (min-width: 900px) { .bgt-project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .bgt-project {
   --tone-soft: color-mix(in srgb, var(--tone) 12%, var(--surface));
-  --tone-ink: color-mix(in srgb, var(--tone) 78%, var(--text));
+  --tone-ink: color-mix(in srgb, var(--tone) 65%, var(--text));
   display: grid; gap: 0.9rem; min-width: 0;
   padding: 1rem;
   border-radius: var(--r-lg);
@@ -7195,7 +7495,7 @@ fieldset.policy-step > .policy-step-title + * {
   border-radius: var(--r-md); font-size: var(--fs-xs); font-weight: 600;
   color: var(--tone-ink); border: 1px dashed color-mix(in srgb, var(--tone) 45%, var(--border));
 }
-.bgt-foot-primary { color: #fff; border: none; background: var(--tone); }
+.bgt-foot-primary { color: var(--tone-on, #fff); border: none; background: var(--tone-solid, var(--tone)); }
 
 /* Monthly category rows. */
 .bgt-cat-list { display: grid; padding: 0.25rem 0; }
@@ -7225,13 +7525,13 @@ fieldset.policy-step > .policy-step-title + * {
   display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: 0.65rem;
   color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent);
 }
-.bgt-tpl[data-on] .bgt-tpl-icon { color: #fff; background: var(--tone); }
+.bgt-tpl[data-on] .bgt-tpl-icon { color: var(--tone-on, #fff); background: var(--tone-solid, var(--tone)); }
 .bgt-tpl-title { font-size: var(--fs-sm); font-weight: 700; }
 .bgt-tpl-hint { font-size: var(--fs-micro); color: var(--text-2); line-height: 1.4; }
 .bgt-callout {
   display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.7rem 0.85rem; border-radius: var(--r-md);
   font-size: var(--fs-xs); line-height: 1.7;
-  color: color-mix(in srgb, var(--tone) 70%, var(--text));
+  color: color-mix(in srgb, var(--tone) 65%, var(--text));
   background: color-mix(in srgb, var(--tone) 10%, var(--surface));
 }
 .bgt-callout > svg { flex: none; margin-top: 0.2rem; }
@@ -7440,45 +7740,77 @@ fieldset.policy-step > .policy-step-title + * {
   .inflation-page .infl-chevron { grid-column: 2; grid-row: 1; }
 }
 
-/* One 20-second demo shared by web and standalone PWA. */
-.product-films-layout { display: grid; grid-template-columns: minmax(270px, .8fr) minmax(0, 1.2fr); gap: clamp(24px, 5vw, 64px); align-items: center; margin-top: 32px; }
-.product-films-topics { display: flex; flex-wrap: wrap; gap: 8px; }
+/* One 20-second 16:9 motion graphic shared by web and standalone PWA (rendered by motion/).
+   Cinema width: the film spans the content column; topics and signup sit beneath it. */
+.product-films-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 32px; }
+.product-films-story { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 32px; align-items: center; }
+.product-films-topics { grid-column: 1; display: flex; flex-wrap: wrap; gap: 8px; }
 .product-films-topics button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 10px 14px; border: 1px solid var(--border-strong); border-radius: var(--r-md); font-size: var(--fs-sm); color: var(--text-2); background: var(--surface); cursor: pointer; }
 .product-films-topics button[aria-pressed="true"] { background: var(--action); color: var(--on-ink); border-color: var(--action); }
-.product-films-description { min-height: 3.8em; margin-top: 24px; font-size: var(--fs-lg); line-height: 1.9; color: var(--text); }
-.product-films-everyday { margin-top: 12px; font-size: var(--fs-sm); line-height: 1.9; color: var(--text-2); }
-.product-films-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 24px; }
+.product-films-description { grid-column: 1; min-height: 3.8em; font-size: var(--fs-lg); line-height: 1.9; color: var(--text); }
+.product-films-cta { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .product-films-cta>span { font-size: var(--fs-xs); color: var(--text-2); }
-.product-films-note { margin-top: 20px; color: var(--text-2); font-size: var(--fs-xs); line-height: 1.9; }
-.product-films-player { margin: 0; min-width: 0; width: 100%; max-width: 520px; justify-self: center; }
-.product-films-player video { display: block; width: 100%; height: auto; border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--bg); box-shadow: var(--shadow-sm); }
-.product-films-player figcaption { margin-top: 10px; color: var(--text-2); font-size: var(--fs-xs); text-align: center; }
+.product-films-note { grid-column: 1 / -1; color: var(--text-2); font-size: var(--fs-xs); line-height: 1.9; }
+/* The film sits on a stage: an ink frame lit by the brand mint, so it reads as a showcase, not an embed. */
+.product-films-player { margin: 0; min-width: 0; width: 100%; padding: clamp(8px, 2.2vw, 28px); border-radius: calc(var(--r-lg) + 12px); background: radial-gradient(70% 90% at 15% 0%, rgba(49,242,191,.22), transparent 60%), radial-gradient(60% 80% at 100% 100%, rgba(96,165,250,.18), transparent 60%), #0a121e; box-shadow: var(--shadow-lg); }
+.product-films-player video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border: 1px solid rgba(230,236,242,.14); border-radius: var(--r-lg); background: #0d1726; }
 .product-films-error { margin-top: 12px; font-size: var(--fs-sm); color: var(--negative); }
 @media (max-width: 767px) {
-  .product-films-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .product-films-layout { gap: 20px; }
   .product-films-story { display: contents; }
+  .product-films-story > * { grid-column: 1; }
   .product-films-topics { grid-row: 1; }
   .product-films-topics button { flex: 1; padding-inline: 8px; gap: 6px; }
-  .product-films-layout>.product-films-player { grid-row: 2; max-width: 440px; }
+  .product-films-layout>.product-films-player { grid-row: 2; }
   .product-films-description { grid-row: 3; margin: 0; min-height: 0; font-size: var(--fs-md); }
-  .product-films-everyday { grid-row: 5; margin: -12px 0 0; }
   .product-films-cta { grid-row: 4; margin: 0; }
-  .product-films-note { grid-row: 6; margin: -12px 0 0; }
+  .product-films-note { grid-row: 5; margin: -8px 0 0; }
 }
 
-.landing-watch-demo { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 12px; text-decoration: underline; text-underline-offset: 5px; font-size: var(--fs-sm); }
-#product-tour { scroll-margin-top: 88px; }
-.product-film-controls { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
-.product-film-controls button { min-width: 44px; min-height: 44px; border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); color: var(--text); cursor: pointer; font-size: var(--fs-xs); }
-.product-film-controls button[aria-pressed="true"] { background: var(--action); color: var(--on-ink); }
-.product-film-controls input { min-width: 0; flex: 1; height: 44px; accent-color: var(--action); cursor: pointer; }
-.product-film-controls>span { font-size: var(--fs-xs); white-space: nowrap; color: var(--text-2); }
-.product-film-caption { padding: 10px 12px; background: var(--surface); border-radius: var(--r-md); color: var(--text); font-size: var(--fs-sm); line-height: 1.8; }
-.product-films-player:fullscreen { max-width: none; padding: 16px; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: auto; }
-.product-films-player:fullscreen video { width: auto; max-width: 100%; max-height: calc(100dvh - 180px); }
-.product-films-player:fullscreen .product-film-controls { width: min(100%, 900px); }
+/* ─────────────────── Setup steps ─────────────────── */
+.landing-steps { margin-top: 1.75rem; display: grid; gap: 0.75rem; grid-template-columns: minmax(0, 1fr); list-style: none; padding: 0; }
+@media (min-width: 900px) { .landing-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.landing-step-head { display: flex; align-items: center; justify-content: space-between; }
+.landing-step-num { font-size: var(--fs-2xl); font-weight: 700; line-height: 1; color: var(--border-strong); }
+/* Catalogue proof: counts read from the setup pick lists. */
+.landing-stats { margin-top: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 0.75rem; list-style: none; padding: 0; }
+.landing-stat { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.9rem 1rem; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+.landing-stat-value { font-size: var(--fs-2xl); font-weight: 700; line-height: 1.3; color: var(--text); font-variant-numeric: tabular-nums; }
+.landing-stat-label { font-size: var(--fs-sm); color: var(--text-2); line-height: 1.7; }
+/* Logo wall. The track holds two identical rows and slides one row-width, so the loop has no seam. */
+.landing-logos { margin-top: 1rem; overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.landing-logos-track { display: flex; width: max-content; animation: landing-logos 70s linear infinite; }
+@media (hover: hover) { .landing-logos:hover .landing-logos-track { animation-play-state: paused; } }
+.landing-logos-row { display: flex; gap: 0.75rem; padding: 0.25rem 0 0.25rem 0.75rem; list-style: none; margin: 0; }
+.landing-logos-row li { display: flex; width: 3.25rem; height: 3.25rem; flex: none; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 14px; background: var(--paper-000); }
+/* Quiet by default (a wall of brand colours shouts over the copy); each logo wakes on hover. */
+.landing-logos-row img { width: 2rem; height: 2rem; object-fit: contain; filter: grayscale(1); opacity: .62; transition: filter .2s var(--ease), opacity .2s var(--ease); }
+@media (hover: hover) { .landing-logos-row li:hover img { filter: none; opacity: 1; } }
+/* Touch has no hover: a tap focuses the logo (tabIndex -1), which wakes it until
+   the next tap elsewhere, and holds the strip still so it does not slide away. */
+.landing-logos-row li { -webkit-tap-highlight-color: transparent; outline: none; cursor: pointer; }
+.landing-logos-row li:focus img, .landing-logos-row li:active img { filter: none; opacity: 1; }
+.landing-logos-row li:focus { border-color: var(--border-strong); }
+.landing-logos:focus-within .landing-logos-track { animation-play-state: paused; }
+/* RTL: the strip drifts toward the reading start. */
+@keyframes landing-logos { from { transform: translateX(0); } to { transform: translateX(50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .landing-logos { mask-image: none; -webkit-mask-image: none; }
+  .landing-logos-track { animation: none; width: auto; }
+  .landing-logos-row { flex-wrap: wrap; padding: 0; }
+  .landing-logos-row[aria-hidden="true"] { display: none; }
+}
+.landing-logos-note { margin-top: 0.5rem; font-size: var(--fs-xs); color: var(--text-2); }
+/* Steps read as one path: a hairline joins the numbered cards on wide screens. */
+.landing-steps { position: relative; }
+@media (min-width: 900px) {
+  .landing-steps::before { content: ""; position: absolute; top: 2.45rem; inset-inline: 2.5rem; height: 1px; background: linear-gradient(90deg, var(--border-strong), var(--border), var(--border-strong)); z-index: 0; }
+  .landing-steps > li { position: relative; z-index: 1; }
+}
+.landing-sms { margin-top: 0.75rem; display: flex; flex-direction: row; gap: 0.9rem; align-items: flex-start; padding: 1.25rem; border: 1px dashed var(--border-strong); border-radius: var(--r-lg); background: var(--surface); }
 
-.product-films-error a { text-decoration: underline; text-underline-offset: 4px; }
+/* In-page anchors land below the sticky header, including the notch in the installed iPhone app. */
+#product-tour, #setup { scroll-margin-top: calc(88px + env(safe-area-inset-top, 0px)); }
 
 /* Financial activity: semantic color pairs retain the app's light/dark tokens. */
 .tx-item { --tx-ink: var(--info); --tx-soft: var(--info-soft); border-inline-start: 3px solid var(--tx-ink); margin-block: 0.35rem; border-radius: var(--r-md); transition: background 150ms ease; }
@@ -7571,8 +7903,9 @@ fieldset.policy-step > .policy-step-title + * {
 /* Shared selection language: onboarding and everyday registration forms. */
 .choice-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
 .choice-card {display:flex;align-items:center;gap:10px;min-width:0;min-height:76px;padding:14px;text-align:start;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);transition:background .15s,border-color .15s;}
-.choice-card b,.catalog-trigger b,.catalog-option b {display:block;font-size:var(--fs-sm);line-height:1.7;overflow-wrap:anywhere;}
-.choice-card small,.catalog-trigger small,.catalog-option small {display:block;color:var(--text-2);font-size:var(--fs-xs);line-height:1.8;}
+.choice-card b,.catalog-trigger b,.catalog-option b {display:block;font-size:var(--fs-sm);line-height:1.7;overflow-wrap:break-word;}
+.choice-copy,.catalog-copy {display:grid;gap:6px;min-width:0;flex:1;text-align:start;white-space:normal;word-break:normal;letter-spacing:normal;}
+.choice-card small,.catalog-trigger small,.catalog-option small {display:block;color:var(--text-2);font-size:var(--fs-xs);line-height:1.9;}
 .choice-card:hover,.catalog-trigger:hover,.catalog-option:hover {background:var(--hover);}
 .choice-card[data-selected] {border-color:var(--positive);background:var(--positive-soft);}
 .choice-card:disabled,.catalog-trigger:disabled {opacity:.5;cursor:not-allowed;}
@@ -7593,12 +7926,23 @@ fieldset.policy-step > .policy-step-title + * {
 .setup-review-group[data-tone="income"] {--review-color:var(--positive);--review-soft:var(--positive-soft);}
 .setup-review-group[data-tone="debt"] {--review-color:var(--warning);--review-soft:var(--warning-soft);}
 .setup-review-group[data-tone="invest"] {--review-color:var(--info);--review-soft:var(--info-soft);}
-.setup-review-head {display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px;background:var(--review-soft);color:var(--review-color);font-size:var(--fs-sm);}
-.setup-review-head b {flex:1;}
-.setup-review-group .list-row {flex-wrap:wrap;}
-.setup-review-group .list-row p {white-space:normal;overflow-wrap:anywhere;}
+.setup-review-head {display:grid;gap:12px;padding:16px;background:var(--review-soft);color:var(--review-color);font-size:var(--fs-sm);}
+.setup-review-heading {display:flex;align-items:baseline;justify-content:space-between;gap:16px;}
+.setup-review-heading b {min-width:0;line-height:1.9;}
+.setup-review-heading > span {flex-shrink:0;}
+.setup-review-actions {display:flex;flex-wrap:wrap;gap:8px;}
+.setup-review-actions .btn {min-height:40px;padding:6px 12px;font-size:var(--fs-xs);}
+.setup-review-group .list-row {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;padding:16px;}
+.setup-review-group .list-row p {white-space:normal;overflow-wrap:break-word;line-height:1.9;}
+.setup-review-detail {margin-top:6px;font-family:var(--font-sans);font-size:var(--fs-xs);letter-spacing:normal;}
+@media(max-width:480px) {.setup-review-group .list-row {grid-template-columns:minmax(0,1fr);gap:8px;}.setup-review-group .list-row > .num {justify-self:start;}}
+@media(min-width:900px) {.setup-occupations,.setup-venues {grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}}
 .setup-summary {border:1px solid var(--positive);background:var(--positive-soft);border-radius:var(--r-lg);padding:16px;}
 @media(max-width:480px) {.catalog-options {grid-template-columns:1fr;}.choice-card {padding:11px;gap:8px;}.choice-grid .choice-mark {display:none;}}
+@media(max-width:359px) {
+  .setup-page .choice-grid { grid-template-columns: minmax(0, 1fr); }
+  .setup-total { flex-direction: column; align-items: flex-start; gap: 6px; }
+}
 
 .setup-review-group[data-tone="invest"] {--review-color:#6d28d9;--review-soft:rgba(109,40,217,.08);}
 .dark .setup-review-group[data-tone="invest"] {--review-color:#c4b5fd;--review-soft:rgba(196,181,253,.12);}
@@ -7608,22 +7952,39 @@ fieldset.policy-step > .policy-step-title + * {
    button take it from the form root. Only the amount is typed: tiles, chips
    and switches carry every other choice. One spacing scale — 0.5rem between
    tiles, 1rem card padding (1.25rem from 640px), 0.75rem between cards. */
-.txr {
-  --tx: #e5484d;
+.txr { display: grid; gap: 0.75rem; min-width: 0; }
+/* ONE colour per DOMAIN of money, shared by «ثبت تراکنش» and «سوابق گذشته»:
+   colour = domain, icon = direction. Buy and sell are both investment
+   (purple, arrows tell them apart); debt repayment, repayment and borrowing
+   are all debt (pink, own icons). Orange/amber stays the warning colour only;
+   green/red on AMOUNTS stays the direction of money. */
+:root {
+  --kind-expense: #e5484d; --kind-income: #12a594; --kind-transfer: #3e63dd;
+  --kind-invest: #8e4ec6; --kind-debt: #d6409f; --kind-other: #8b8d98;
+}
+.dark {
+  --kind-expense: #ff6369; --kind-income: #0bd8b6; --kind-transfer: #849dff;
+  --kind-invest: #bf7af0; --kind-debt: #ff8dcc; --kind-other: #b0b4ba;
+}
+/* Three tokens per hue (see src/lib/toneColors.ts):
+     --tx        the vivid hue: icons, tiles, borders, tints — never under text
+     --tx-solid  the fill behind text (CTA, chosen chip), --tx-on its text —
+                 red and pink are deepened a touch, bright hues keep their
+                 fill and take navy text; every pair clears AA (4.5:1)
+     --tx-ink    coloured text on a tint, mixed far enough toward --text to
+                 clear AA on --tx-soft
+   Declared on .txr-type too: each type tile carries its own hue. */
+.txr, .txr-type {
+  --tx: var(--kind-expense); --tx-solid: #d04246; --tx-on: #fff;
   --tx-soft: color-mix(in srgb, var(--tx) 11%, var(--surface));
   --tx-line: color-mix(in srgb, var(--tx) 38%, var(--border));
-  --tx-ink: color-mix(in srgb, var(--tx) 82%, var(--text));
-  display: grid;
-  gap: 0.75rem;
-  min-width: 0;
+  --tx-ink: color-mix(in srgb, var(--tx) 65%, var(--text));
 }
-.txr[data-kind="income"], .txr-type[data-kind="income"] { --tx: #12a594; }
-.txr[data-kind="transfer"], .txr-type[data-kind="transfer"] { --tx: #3e63dd; }
-.txr[data-kind="buy"], .txr-type[data-kind="buy"] { --tx: #8e4ec6; }
-.txr[data-kind="sell"], .txr-type[data-kind="sell"] { --tx: #f76b15; }
-.txr[data-kind="debt_repayment"], .txr-type[data-kind="debt_repayment"] { --tx: #d6409f; }
-.txr-type[data-kind="expense"] { --tx: #e5484d; }
-.txr-type { --tx-soft: color-mix(in srgb, var(--tx) 11%, var(--surface)); --tx-ink: color-mix(in srgb, var(--tx) 82%, var(--text)); }
+.txr[data-kind="income"], .txr-type[data-kind="income"] { --tx: var(--kind-income); --tx-solid: #12a594; --tx-on: #0d1726; }
+.txr[data-kind="transfer"], .txr-type[data-kind="transfer"] { --tx: var(--kind-transfer); --tx-solid: #3e63dd; --tx-on: #fff; }
+.txr[data-kind="buy"], .txr-type[data-kind="buy"] { --tx: var(--kind-invest); --tx-solid: #8e4ec6; --tx-on: #fff; }
+.txr[data-kind="sell"], .txr-type[data-kind="sell"] { --tx: var(--kind-invest); --tx-solid: #8e4ec6; --tx-on: #fff; }
+.txr[data-kind="debt_repayment"], .txr-type[data-kind="debt_repayment"] { --tx: var(--kind-debt); --tx-solid: #c93c95; --tx-on: #fff; }
 @media (min-width: 640px) { .txr { gap: 1rem; } }
 .txr-stack { display: grid; gap: 0.75rem; min-width: 0; }
 @media (min-width: 640px) { .txr-stack { gap: 1rem; } }
@@ -7653,7 +8014,7 @@ fieldset.policy-step > .policy-step-title + * {
   border-color: var(--tx); background: var(--tx-soft);
   box-shadow: 0 6px 18px -10px var(--tx), inset 0 0 0 1px var(--tx);
 }
-.txr-type[data-on] .txr-type-icon { background: var(--tx); color: #fff; }
+.txr-type[data-on] .txr-type-icon { background: var(--tx-solid); color: var(--tx-on); }
 .txr-type[data-on] .txr-type-label { color: var(--tx-ink); font-weight: 700; }
 
 /* Cards */
@@ -7713,7 +8074,7 @@ fieldset.policy-step > .policy-step-title + * {
   touch-action: manipulation; transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .txr-preset:hover { border-color: var(--tx-line); color: var(--text); }
-.txr-preset[data-on] { border-color: var(--tx); background: var(--tx); color: #fff; font-weight: 700; }
+.txr-preset[data-on] { border-color: var(--tx-solid); background: var(--tx-solid); color: var(--tx-on); font-weight: 700; }
 
 /* Tiles — categories, sources, assets, places. Each may carry its own --tile hue. */
 .txr-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
@@ -7751,7 +8112,7 @@ fieldset.policy-step > .policy-step-title + * {
   position: absolute; top: 0.375rem; inset-inline-end: 0.375rem;
   display: inline-flex; align-items: center; justify-content: center;
   width: 1.125rem; height: 1.125rem; border-radius: var(--r-pill);
-  background: var(--tile, var(--tx)); color: #fff;
+  background: color-mix(in srgb, var(--tile, var(--tx)) 65%, var(--text)); color: var(--surface);
 }
 .txr-tick-static { position: static; flex-shrink: 0; }
 
@@ -7787,7 +8148,7 @@ fieldset.policy-step > .policy-step-title + * {
   border: 1.5px solid var(--border-strong); border-radius: var(--r-pill);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.txr-acct[data-on] .txr-radio { border-color: var(--tx); background: var(--tx); box-shadow: inset 0 0 0 3px var(--surface); }
+.txr-acct[data-on] .txr-radio { border-color: var(--tx-ink); background: var(--tx-ink); box-shadow: inset 0 0 0 3px var(--surface); }
 
 /* Debts and instalments */
 .txr-debts { display: grid; gap: 0.5rem; }
@@ -7814,7 +8175,7 @@ fieldset.policy-step > .policy-step-title + * {
   touch-action: manipulation; transition: background 0.15s ease, color 0.15s ease;
 }
 .txr-seg > button:hover { color: var(--text); }
-.txr-seg > button[data-on] { background: var(--tx); color: #fff; font-weight: 600; box-shadow: var(--shadow-sm); }
+.txr-seg > button[data-on] { background: var(--tx-solid); color: var(--tx-on); font-weight: 600; box-shadow: var(--shadow-sm); }
 .txr-seg > button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Switch — fee, monthly repeat. */
@@ -7833,7 +8194,7 @@ fieldset.policy-step > .policy-step-title + * {
   width: 1.125rem; height: 1.125rem; border-radius: var(--r-pill); background: #fff;
   box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: inset-inline-start 0.18s ease;
 }
-.txr-switch[aria-checked="true"] .txr-switch-track { background: var(--tx); }
+.txr-switch[aria-checked="true"] .txr-switch-track { background: var(--tx-solid); }
 .txr-switch[aria-checked="true"] .txr-switch-track::after { inset-inline-start: 1.1875rem; }
 
 /* Day of month */
@@ -7842,7 +8203,7 @@ fieldset.policy-step > .policy-step-title + * {
   min-height: 2.25rem; border-radius: var(--r-sm); background: var(--sunken);
   font-size: var(--fs-xs); color: var(--text-2); touch-action: manipulation;
 }
-.txr-days > button[data-on] { background: var(--tx); color: #fff; font-weight: 700; }
+.txr-days > button[data-on] { background: var(--tx-solid); color: var(--tx-on); font-weight: 700; }
 
 /* Tags */
 .txr-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; }
@@ -7872,7 +8233,7 @@ fieldset.policy-step > .policy-step-title + * {
 }
 .txr-receipt-title { font-size: var(--fs-sm); font-weight: 700; color: var(--tx-ink); text-align: center; }
 .txr-receipt-hero { display: grid; justify-items: center; gap: 0.25rem; }
-.txr-receipt-hero .txr-type-icon { background: var(--tx); color: #fff; }
+.txr-receipt-hero .txr-type-icon { background: var(--tx-solid); color: var(--tx-on); }
 .txr-receipt-amount { font-size: clamp(1.5rem, 6vw, 2rem); line-height: 1.3; color: var(--text); }
 .txr-receipt-rows { display: grid; font-size: var(--fs-sm); border-top: 1px dashed var(--border-strong); }
 .txr-receipt-rows > div { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; padding-block: 0.5rem; border-bottom: 1px solid var(--border); }
@@ -7885,7 +8246,7 @@ fieldset.policy-step > .policy-step-title + * {
 .txr-cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; width: 100%;
   min-height: 3rem; padding-inline: 1rem; border-radius: var(--r-md);
-  background: var(--tx); color: #fff; font-size: var(--fs-sm); font-weight: 700;
+  background: var(--tx-solid); color: var(--tx-on); font-size: var(--fs-sm); font-weight: 700;
   box-shadow: 0 8px 20px -10px var(--tx);
   touch-action: manipulation; transition: filter 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
 }
@@ -7894,21 +8255,9 @@ fieldset.policy-step > .policy-step-title + * {
 .txr-cta:disabled { opacity: 0.4; box-shadow: none; cursor: not-allowed; }
 .txr-cta:focus-visible, .txr-tile:focus-visible, .txr-type:focus-visible, .txr-acct:focus-visible, .txr-debt:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--tx) 40%, transparent); }
 
-/* Dark: lift the hues so they read on navy surfaces. */
-.dark .txr { --tx: #ff6369; }
-.dark .txr[data-kind="income"], .dark .txr-type[data-kind="income"] { --tx: #0bd8b6; }
-.dark .txr[data-kind="transfer"], .dark .txr-type[data-kind="transfer"] { --tx: #849dff; }
-.dark .txr[data-kind="buy"], .dark .txr-type[data-kind="buy"] { --tx: #bf7af0; }
-.dark .txr[data-kind="sell"], .dark .txr-type[data-kind="sell"] { --tx: #ff8b3e; }
-.dark .txr[data-kind="debt_repayment"], .dark .txr-type[data-kind="debt_repayment"] { --tx: #ff8dcc; }
-.dark .txr-type[data-kind="expense"] { --tx: #ff6369; }
-.dark .txr-type[data-on] .txr-type-icon,
-.dark .txr-seg > button[data-on],
-.dark .txr-preset[data-on],
-.dark .txr-days > button[data-on],
-.dark .txr-cta,
-.dark .txr-receipt-hero .txr-type-icon,
-.dark .txr-tick { color: #0d1726; }
+/* Dark: the --kind-* hues are lifted on .dark (top of this section). */
+/* The lifted hues are bright on navy: every fill keeps its hue, text is navy. */
+.dark .txr, .dark .txr-type { --tx-solid: var(--tx); --tx-on: #0d1726; }
 .dark .txr-acct[data-on] .txr-radio { box-shadow: inset 0 0 0 3px var(--surface); }
 @media (prefers-reduced-motion: reduce) {
   .txr-type, .txr-tile, .txr-cta, .txr-switch-track, .txr-switch-track::after { transition: none; }
@@ -7924,9 +8273,10 @@ fieldset.policy-step > .policy-step-title + * {
 .txr-tile-new .txr-tile-label { color: var(--text-2); font-weight: 600; }
 .txr-tile-new:hover .txr-tile-icon { background: color-mix(in srgb, var(--tx) 14%, var(--surface)); color: var(--tx); }
 .ncat {
+  /* --tx, --tx-solid and --tx-on come from the group's colour (inline style). */
   --tx-soft: color-mix(in srgb, var(--tx) 11%, var(--surface));
   --tx-line: color-mix(in srgb, var(--tx) 38%, var(--border));
-  --tx-ink: color-mix(in srgb, var(--tx) 82%, var(--text));
+  --tx-ink: color-mix(in srgb, var(--tx) 65%, var(--text));
   display: grid; gap: 1rem; padding: 0.25rem 1rem 1rem;
 }
 .ncat-group { display: flex; align-items: center; gap: 0.625rem; padding: 0.625rem 0.75rem; border-radius: var(--r-lg); background: var(--tx-soft); }
@@ -7941,4 +8291,3 @@ fieldset.policy-step > .policy-step-title + * {
 .ncat-ideas { display: grid; gap: 0.5rem; }
 .ncat-exists { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .ncat-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 0.5rem; }
-.dark .ncat-save { color: #0d1726; }

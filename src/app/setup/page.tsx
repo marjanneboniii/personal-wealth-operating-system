@@ -3,7 +3,7 @@
 import { validateSetupBankAccounts } from "@/features/setup/bankAccounts";
 import IphoneSmsGuide from "@/components/transactions/IphoneSmsGuide";
 import SetupBankPicker from "@/components/setup/SetupBankPicker";
-import { SETUP_BANKS, isSuggestedBankAccountName, suggestedBankAccountName } from "@/features/setup/bankCatalog";
+import { SETUP_BANKS, isForeignSetupBank, isSuggestedBankAccountName, suggestedBankAccountName } from "@/features/setup/bankCatalog";
 import SetupBankConnectionStep from "@/components/setup/SetupBankConnectionStep";
 import { validateSetupBankIdentifiers, type SetupBankIdentifier } from "@/features/setup/bankConnection";
 
@@ -47,7 +47,7 @@ import { OCCUPATIONS } from "@/features/income/occupations";
  * confirmed USD→IRT rate converts them. The book currency (USD) is internal.
  */
 
-const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "صندوق و سهام", "ملک", "خودرو", "بدهی‌ها", "روش ورود اطلاعات", "بررسی و تأیید"] as const;
+const STEPS = ["شروع", "حساب‌ها", "رمزارز و طلا", "بورسی و توکنایز", "ملک", "خودرو", "بدهی‌ها", "روش ورود اطلاعات", "بررسی و تأیید"] as const;
 const LAST_STEP = STEPS.length;
 
 /** Places that hold Toman: Iranian exchanges (crypto) and brokerages (Tehran market). */
@@ -105,11 +105,12 @@ export default function SetupWizardPage() {
   const [bankConnection, setBankConnection] = useState<SetupBankIdentifier | null>(null);
   const [bankBalance, setBankBalance] = useState("");
   const [hasCash, setHasCash] = useState(false);
-  const [cashName, setCashName] = useState("صندوق خانگی");
+  const [cashName, setCashName] = useState("پول نقد");
   const [cashCurrency, setCashCurrency] = useState<"IRT" | "USD">("IRT");
   const [cashBalance, setCashBalance] = useState("");
   // Toman held at an Iranian exchange or a brokerage — «تومان - نوبیتکس».
   const [tomanPlaces, setTomanPlaces] = useState<Array<{ walletName: string; balance: string }>>([]);
+  const [tomanPresence, setTomanPresence] = useState<"" | "yes" | "no">("");
   const toggleTomanPlace = (walletName: string) =>
     setTomanPlaces((rows) =>
       rows.some((r) => r.walletName === walletName) ? rows.filter((r) => r.walletName !== walletName) : [...rows, { walletName, balance: "" }],
@@ -147,8 +148,9 @@ export default function SetupWizardPage() {
         }
         const draft = "draft" in state ? state.draft as Record<string, any> | null : null;
         if (draft?.version === 1) {
-          const setters: Record<string, (value: any) => void> = { inputMethod:(value) => setInputMethod(value === "file" ? "" : value),step:setStep,userName:setUserName,occupations:setOccupations,rateInput:setRateInput,editingRate:setEditingRate,bankPresence:setBankPresence,bankAccountName:setBankAccountName,bankName:setBankName,bankBalance:setBankBalance,extraBanks:setExtraBanks,extraConnections:setExtraConnections,bankConnection:setBankConnection,hasCash:setHasCash,cashName:setCashName,cashCurrency:setCashCurrency,cashBalance:setCashBalance,tomanPlaces:setTomanPlaces,cryptoRows:setCryptoRows,goldGrams:setGoldGrams,goldPrice:setGoldPrice,goldPurchaseDate:setGoldPurchaseDate,goldHoldingPlace:setGoldHoldingPlace,instrumentRows:setInstrumentRows,propertyRows:setPropertyRows,vehicleRows:setVehicleRows,debtRows:setDebtRows,answers:setAnswers };
+          const setters: Record<string, (value: any) => void> = { inputMethod:(value) => setInputMethod(value === "file" ? "" : value),step:setStep,userName:setUserName,occupations:setOccupations,rateInput:setRateInput,editingRate:setEditingRate,bankPresence:setBankPresence,bankAccountName:setBankAccountName,bankName:setBankName,bankBalance:setBankBalance,extraBanks:setExtraBanks,extraConnections:setExtraConnections,bankConnection:setBankConnection,hasCash:setHasCash,cashName:setCashName,cashCurrency:setCashCurrency,cashBalance:setCashBalance,tomanPlaces:setTomanPlaces,tomanPresence:setTomanPresence,cryptoRows:setCryptoRows,goldGrams:setGoldGrams,goldPrice:setGoldPrice,goldPurchaseDate:setGoldPurchaseDate,goldHoldingPlace:setGoldHoldingPlace,instrumentRows:setInstrumentRows,propertyRows:setPropertyRows,vehicleRows:setVehicleRows,debtRows:setDebtRows,answers:setAnswers };
           for (const [key,set] of Object.entries(setters)) if (draft[key] !== undefined) set(draft[key]);
+          if (draft.tomanPresence === undefined && Array.isArray(draft.tomanPlaces) && draft.tomanPlaces.length) setTomanPresence("yes");
         }
         if ("reviewExisting" in state && state.reviewExisting) {setExistingReview(state.existingAccounts);setExistingSections(state.reviewSections);}
         if("coreCommitted" in state) setCoreCommitted(state.coreCommitted);
@@ -165,7 +167,7 @@ export default function SetupWizardPage() {
     };
   }, [router]);
 
-  const draftSnapshot = JSON.stringify({version:1,inputMethod,step,userName,occupations,rateInput,editingRate,bankPresence,bankAccountName,bankName,bankBalance,extraBanks,extraConnections,bankConnection,hasCash,cashName,cashCurrency,cashBalance,tomanPlaces,cryptoRows,goldGrams,goldPrice,goldPurchaseDate,goldHoldingPlace,instrumentRows,propertyRows,vehicleRows,debtRows,answers});
+  const draftSnapshot = JSON.stringify({version:1,inputMethod,step,userName,occupations,rateInput,editingRate,bankPresence,bankAccountName,bankName,bankBalance,extraBanks,extraConnections,bankConnection,hasCash,cashName,cashCurrency,cashBalance,tomanPlaces,tomanPresence,cryptoRows,goldGrams,goldPrice,goldPurchaseDate,goldHoldingPlace,instrumentRows,propertyRows,vehicleRows,debtRows,answers});
   useEffect(() => {
     if (!hydrated || status !== "pending") return;
     let alive = true;
@@ -215,14 +217,16 @@ export default function SetupWizardPage() {
   /** Everything the user entered, in Toman, grouped the way the app shows it. */
   const review = useMemo(() => {
     const money: ReviewItem[] = [];
-    for (const bank of bankPresence === "no" ? [] : extraBanks) money.push({ key: bank.id, label: bank.name || "حساب بانکی اضافه", detail: bank.bankName, toman: amountOf(bank.balance) });
-    if(bankPresence !== "no") {
-      money.push({ key: "bank", label: bankAccountName.trim() || "حساب بانکی اصلی", detail: bankName, toman: amountOf(bankBalance) });
-    }
+    // A foreign account/card holds dollars; it is reviewed in Toman like everything else.
+    const accountItem = (key: string, label: string, bank: string, balance: string): ReviewItem => isForeignSetupBank(bank)
+      ? { key, label, detail: `${bank} · ${formatMoney(balance || "0", "USD")}`, toman: toToman(amountOf(balance), "USD", rate) }
+      : { key, label, detail: bank, toman: amountOf(balance) };
+    if(bankPresence !== "no") money.push(accountItem("bank", bankAccountName.trim() || "حساب", bankName, bankBalance));
+    for (const bank of bankPresence === "no" ? [] : extraBanks) money.push(accountItem(bank.id, bank.name || "حساب", bank.bankName, bank.balance));
     if (hasCash && amountOf(cashBalance).gt(0)) {
       money.push({
         key: "cash",
-        label: cashName.trim() || "صندوق نقد",
+        label: cashName.trim() || "پول نقد",
         detail: cashCurrency === "USD" ? formatMoney(cashBalance, "USD") : undefined,
         toman: toToman(amountOf(cashBalance), cashCurrency, rate),
       });
@@ -235,7 +239,7 @@ export default function SetupWizardPage() {
     }
 
     const investments: ReviewItem[] = [];
-    let usesRate = cashCurrency === "USD" && hasCash && amountOf(cashBalance).gt(0);
+    let usesRate = (cashCurrency === "USD" && hasCash && amountOf(cashBalance).gt(0)) || (bankPresence !== "no" && [{ bankName, balance: bankBalance }, ...extraBanks].some((b) => isForeignSetupBank(b.bankName) && amountOf(b.balance).gt(0)));
     for (const row of flattenHoldings(cryptoRows)) {
       if (!amountOf(row.quantity).gt(0)) continue;
       const cost = lineValue(row.quantity, row.unitPrice);
@@ -279,6 +283,9 @@ export default function SetupWizardPage() {
 
   // Every coin needs at least one picked place before the wizard moves on.
   const holdingsPlaced = cryptoRows.every((r) => r.places.length > 0);
+  const primaryForeign = isForeignSetupBank(bankName);
+  const smsBanks = extraBanks.filter((bank) => !isForeignSetupBank(bank.bankName));
+  const hasIranianBank = bankPresence === "yes" && ((!!bankName && !primaryForeign) || smsBanks.length > 0);
   const allConnections = [...(bankConnection ? [bankConnection] : []), ...extraConnections.map((row) => row.connection)];
   const bankRows = bankPresence === "no" ? [] : [{ name: bankAccountName, bankName, balance: bankBalance || "0" }, ...extraBanks.map(({ name, bankName, balance }) => ({ name, bankName, balance: balance || "0" }))];
   let banksReady = bankPresence === "no";
@@ -290,7 +297,7 @@ export default function SetupWizardPage() {
   const sectionDataReady = ({holdings: flattenHoldings(cryptoRows).every(r => amountOf(r.quantity).gt(0) && amountOf(r.unitPrice).gt(0) && !!r.purchaseDate) && (!amountOf(goldGrams).gt(0) || (amountOf(goldPrice).gt(0) && !!goldPurchaseDate && !!goldHoldingPlace)), instruments: instrumentRows.every(r => amountOf(r.quantity).gt(0) && amountOf(r.unitPrice).gt(0) && (r.kind !== "wallex" || !!r.purchaseDate)), properties: propertyRows.every(propertyRowReady), vehicles: vehicleRows.every(vehicleRowReady), debts: debtRows.every(r => amountOf(r.principalIrt).gt(0))} as Record<string,boolean>);
   const sectionReady = !sectionKey || (answers[sectionKey] === "no" ? !sectionHasRows[sectionKey] : answers[sectionKey] === "yes" && sectionHasRows[sectionKey] && sectionDataReady[sectionKey]);
   const allSectionsReady = Object.keys(sectionHasRows).every(k => answers[k] === "no" ? !sectionHasRows[k] : answers[k] === "yes" && sectionHasRows[k] && sectionDataReady[k]);
-  const canContinue = hydrated && sectionReady && ( step === 8 ? (!!inputMethod && (inputMethod !== "sms" || connectionReady)) : step === 1 ? (userName.trim().length >= 2 && rateReady) : step === 2 ? banksReady : step === 3 ? holdingsPlaced : true);
+  const canContinue = hydrated && sectionReady && ( step === 8 ? (!!inputMethod && (inputMethod !== "sms" || connectionReady)) : step === 1 ? (userName.trim().length >= 2 && rateReady) : step === 2 ? (banksReady && !!tomanPresence) : step === 3 ? holdingsPlaced : true);
 
   if (status === "loading") {
     return (
@@ -341,10 +348,10 @@ export default function SetupWizardPage() {
   const back = () => void move(Math.max(1,step-1));
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 py-4">
+    <div className="setup-page">
       <header className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
-          <h1 className="text-[length:var(--fs-xl)] font-bold tracking-tight">راه‌اندازی توازن</h1>
+          <h1 className="text-[length:var(--fs-xl)] font-bold">راه‌اندازی توازن</h1>
           <span className="flex items-center gap-2">
             <span className="muted num text-[length:var(--fs-xs)]">
               {faCount(step)} از {faCount(STEPS.length)}
@@ -355,7 +362,7 @@ export default function SetupWizardPage() {
           </span>
         </div>
         <p className="muted text-[length:var(--fs-xs)] leading-6">
-          برای شروع استفاده از توازن، ابتدا این مراحل را کامل کنید. برای هر بخش پاسخ «دارم» یا «ندارم» لازم است.
+          برای شروع استفاده از توازن، مراحل زیر را تکمیل کنید و در هر بخش مشخص کنید موردی برای ثبت دارید یا نه.
         </p>
         <ol className="setup-steps" aria-label="مراحل راه‌اندازی">
           {STEPS.map((label, i) => {
@@ -363,7 +370,7 @@ export default function SetupWizardPage() {
             const phase = n === step ? "is-current" : n < step ? "is-done" : "is-todo";
             return (
               <li key={label} className={`setup-step ${phase}`}>
-                <button type="button" disabled={n >= step || pending} onClick={() => setStep(n)} aria-current={n === step ? "step" : undefined}>
+                <button type="button" disabled={n >= step || pending} onClick={() => setStep(n)} aria-label={`مرحله ${faCount(n)}: ${label}`} aria-current={n === step ? "step" : undefined}>
                   <span className="setup-step-dot">{n < step ? <Icon name="check" size={12} /> : faCount(n)}</span>
                   <span className="setup-step-label">{label}</span>
                 </button>
@@ -373,7 +380,7 @@ export default function SetupWizardPage() {
         </ol>
       </header>
 
-      <form action={formAction} className="card setup-card space-y-6">
+      <form action={formAction} className="card setup-card setup-form">
         <p role="status" className="muted text-xs">{draftMessage || "پیش‌نویس پس از تغییر ذخیره می‌شود؛ تا تکمیل راه‌اندازی وارد محیط مالی نمی‌شوید."}</p>
         {coreCommitted && <p className="expense-note">حساب‌ها و موجودی اولیه ثبت شده‌اند؛ فقط ملک، خودرو یا بدهی ثبت‌نشده را اصلاح کنید. برای ویرایش موجودی‌های ثبت‌شده، ابتدا راه‌اندازی را تکمیل کنید.</p>}
         <input type="hidden" name="userName" value={userName} />
@@ -439,6 +446,7 @@ export default function SetupWizardPage() {
             readyVehicles.map((r) => ({
               catalogId: r.catalogId,
               manufacturingYear: vehicleYearOf(r),
+              mileage: r.mileage,
               ownershipDate: r.ownershipDate,
               purchasePriceToman: r.purchasePriceToman,
               currentValueToman: r.currentValueToman,
@@ -462,14 +470,14 @@ export default function SetupWizardPage() {
         />
 
         {sectionKey && <section className="setup-decision">
-          <h3>{({holdings:"رمزارز یا طلا در سبد شما هست؟",instruments:"در صندوق یا بازار سهام سرمایه‌گذاری کرده‌اید؟",properties:"ملکی به نام شما هست؟",vehicles:"خودرویی دارید؟",debts:"بدهی یا قسطی برای پرداخت دارید؟"} as const)[sectionKey]}</h3>
+          <h3>{({holdings:"رمزارز یا طلا در سبد شما هست؟",instruments:"سهام یا صندوق بورسی، یا دارایی توکنایز (سهام، شاخص، کامودیتی) دارید؟",properties:"ملکی به نام شما هست؟",vehicles:"خودرویی دارید؟",debts:"بدهی یا قسطی برای پرداخت دارید؟"} as const)[sectionKey]}</h3>
           <div className="choice-grid" role="group" aria-label="وضعیت دارایی">
             <ChoiceCard selected={answers[sectionKey] === "yes"} title="بله، اضافه می‌کنم" detail="انتخاب و تکمیل اطلاعات" mark={<Icon name="plus" size={20}/>} disabled={coreCommitted && step <= 4} onClick={() => setAnswers(a => ({...a,[sectionKey]:"yes"}))}/>
             <ChoiceCard selected={answers[sectionKey] === "no"} title="فعلاً موردی ندارم" detail="ادامه به بخش بعد" mark={<Icon name="check" size={20}/>} disabled={sectionHasRows[sectionKey] || (coreCommitted && step <= 4)} onClick={() => setAnswers(a => ({...a,[sectionKey]:"no"}))}/>
           </div>
           {sectionHasRows[sectionKey] && <p className="muted mt-2 text-xs">اگر موردی ندارید، ابتدا ردیف‌های اضافه‌شده را حذف کنید.</p>}
         </section>}
-        <fieldset disabled={!hydrated || (coreCommitted && step <= 4)} className="space-y-6">
+        <fieldset disabled={!hydrated || (coreCommitted && step <= 4)} className="setup-fields">
         {step === 1 && (
           <section className="space-y-5">
             <StepIntro title="شروع" text="اطلاعات خود را قدم‌به‌قدم تکمیل کنید؛ اگر موردی ندارید، «فعلاً موردی ندارم» را انتخاب کنید." />
@@ -484,7 +492,7 @@ export default function SetupWizardPage() {
             <div>
               <p className="label">وضعیت شغلی شما</p>
               <p className="muted mb-3 text-xs">می‌توانید چند مورد را انتخاب کنید یا این بخش را خالی بگذارید.</p>
-              <div className="choice-grid" role="group" aria-label="وضعیت شغلی">
+              <div className="choice-grid setup-occupations" role="group" aria-label="وضعیت شغلی">
                 {OCCUPATIONS.map(occupation => <ChoiceCard key={occupation.code} selected={occupations.includes(occupation.code)} title={occupation.label} detail={({employee_private:"حقوق از شرکت یا مجموعه خصوصی",employee_government:"حقوق از سازمان دولتی",student:"تحصیل و درآمدهای دانشجویی",homemaker:"مدیریت خانه و درآمدهای خانوادگی",freelancer:"پروژه و کار مستقل",employer:"مالک کسب‌وکار و استخدام‌کننده",entrepreneur:"راه‌اندازی یا توسعه کسب‌وکار",retired:"حقوق بازنشستگی",other:"وضعیت دیگری دارم"} as Record<string,string>)[occupation.code]} onClick={() => setOccupations(current => current.includes(occupation.code) ? current.filter(code => code !== occupation.code) : [...current,occupation.code])}/>) }
               </div>
             </div>
@@ -494,14 +502,18 @@ export default function SetupWizardPage() {
               <ul className="setup-units">
                 <li>
                   <span className="setup-unit">تومان</span>
-                  <span className="muted text-[length:var(--fs-xs)] leading-6">حساب بانکی، بدهی و اقساط، ملک، خودرو، طلای آب‌شده، صندوق‌ها و سهام بورس</span>
+                  <span className="muted text-[length:var(--fs-xs)] leading-6">حساب بانک ایرانی، بدهی و اقساط، ملک، خودرو، طلای آب‌شده، صندوق‌ها و سهام بورسی</span>
                 </li>
                 <li>
                   <span className="setup-unit">تتر یا تومان</span>
-                  <span className="muted text-[length:var(--fs-xs)] leading-6">رمزارز، سهام، شاخص و کامودیتی توکنیزه</span>
+                  <span className="muted text-[length:var(--fs-xs)] leading-6">رمزارز، و سهام، شاخص و کامودیتی توکنایز</span>
                 </li>
                 <li>
                   <span className="setup-unit">دلار</span>
+                  <span className="muted text-[length:var(--fs-xs)] leading-6">حساب، کارت و سرویس پرداخت خارجی (پی‌پال، ویزا، مستر کارت…)؛ معادل تومانی آن نمایش داده می‌شود</span>
+                </li>
+                <li>
+                  <span className="setup-unit">دلار (داخلی)</span>
                   <span className="muted text-[length:var(--fs-xs)] leading-6">فقط مبنای داخلی سنجش سود و زیان؛ همه‌جا به تومان نمایش داده می‌شود</span>
                 </li>
               </ul>
@@ -556,10 +568,10 @@ export default function SetupWizardPage() {
 
         {step === 2 && (
           <section className="space-y-5">
-            <StepIntro title="حساب‌ها" text="موجودی امروز حساب‌ها را وارد کنید. کیف پول تتر در مرحلهٔ بعد است." />
-            <div className="choice-grid" role="group" aria-label="حساب بانکی">
-              <ChoiceCard selected={bankPresence === "yes"} title="حسابم را اضافه می‌کنم" detail="انتخاب بانک و ثبت موجودی" onClick={()=>setBankPresence("yes")}/>
-              <ChoiceCard selected={bankPresence === "no"} title="فعلاً حساب بانکی ندارم" detail="ادامه بدون حساب بانکی" disabled={amountOf(bankBalance).gt(0) || extraBanks.length>0} onClick={()=>{setBankPresence("no");setBankName("");setBankAccountName("");setBankBalance("");setBankConnection(null);if(inputMethod === "sms")setInputMethod("");}}/>
+            <StepIntro title="حساب‌ها، کارت‌ها و سرویس‌های پرداخت" text="موجودی امروز را وارد کنید؛ حساب بانک ایرانی به تومان و حساب، کارت یا سرویس پرداخت خارجی به دلار. کیف پول تتر در مرحلهٔ بعد است." />
+            <div className="choice-grid" role="group" aria-label="حساب‌ها، کارت‌ها و سرویس‌های پرداخت">
+              <ChoiceCard selected={bankPresence === "yes"} title="حسابم را اضافه می‌کنم" detail="انتخاب بانک، کارت یا سرویس پرداخت و ثبت موجودی" onClick={()=>setBankPresence("yes")}/>
+              <ChoiceCard selected={bankPresence === "no"} title="فعلاً حسابی ندارم" detail="ادامه بدون حساب" disabled={amountOf(bankBalance).gt(0) || extraBanks.length>0} onClick={()=>{setBankPresence("no");setBankName("");setBankAccountName("");setBankBalance("");setBankConnection(null);if(inputMethod === "sms")setInputMethod("");}}/>
             </div>
             {bankPresence === "yes" && <>
 
@@ -568,8 +580,8 @@ export default function SetupWizardPage() {
                 <span className="flow-icon" aria-hidden="true">
                   <Icon name="card" size={15} />
                 </span>
-                <b className="min-w-0 flex-1 text-[length:var(--fs-sm)]">حساب بانکی اصلی</b>
-                <span className="badge badge-neutral">تومان</span>
+                <b className="min-w-0 flex-1 text-[length:var(--fs-sm)]">حساب {faCount(1)}</b>
+                <span className="badge badge-neutral">{primaryForeign ? "دلار" : "تومان"}</span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-3">
@@ -587,16 +599,18 @@ export default function SetupWizardPage() {
                   </label>
                 </div>
                 <div>
-                  <label className="label">موجودی (تومان)</label>
+                  <label className="label">موجودی ({primaryForeign ? "دلار" : "تومان"})</label>
                   <AmountInput
-                    inputMode="numeric"
+                    inputMode={primaryForeign ? "decimal" : "numeric"}
+                    maxDecimals={2}
                     value={bankBalance}
-                    onChange={(e) => setBankBalance(e.target.value.replace(/[^\d]/g, ""))}
+                    onChange={(e) => setBankBalance(e.target.value.replace(primaryForeign ? /[^\d.]/g : /[^\d]/g, ""))}
                     placeholder="۰"
                     className="field num"
                     dir="ltr"
-                    unit="toman"
+                    unit={primaryForeign ? "usd" : "toman"}
                   />
+                  {primaryForeign && rateReady && amountOf(bankBalance).gt(0) && <p className="muted mt-1 text-[length:var(--fs-xs)]">≈ {formatMoney(toToman(amountOf(bankBalance), "USD", rate).toFixed(0), "IRT")}</p>}
                 </div>
               </div>
             </div>
@@ -604,7 +618,7 @@ export default function SetupWizardPage() {
             {extraBanks.map((bank, index) => (
               <div key={bank.id} className="card setup-row space-y-3">
                 <div className="flex items-center justify-between">
-                  <b className="text-sm">حساب بانکی {faCount(index + 2)}</b>
+                  <b className="text-sm">حساب {faCount(index + 2)} <span className="badge badge-neutral">{isForeignSetupBank(bank.bankName) ? "دلار" : "تومان"}</span></b>
                   <button type="button" className="btn btn-ghost" onClick={() => {
                     setExtraBanks((rows) => rows.filter((row) => row.id !== bank.id));
                     setExtraConnections((rows) => rows.filter((row) => row.bankId !== bank.id));
@@ -619,41 +633,57 @@ export default function SetupWizardPage() {
                 }} />
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label><span className="label">نام حساب <span className="muted">· قابل ویرایش</span></span><input className="field" value={bank.name} maxLength={200} placeholder="با انتخاب بانک، خودکار تکمیل می‌شود" onChange={(event) => setExtraBanks((rows) => rows.map((row) => row.id === bank.id ? { ...row, name: event.target.value } : row))} /></label>
-                  <label><span className="label">موجودی این حساب (تومان)</span><AmountInput className="field num" value={bank.balance} unit="toman" onValueChange={(balance) => setExtraBanks((rows) => rows.map((row) => row.id === bank.id ? { ...row, balance } : row))} /></label>
+                  <label><span className="label">موجودی این حساب ({isForeignSetupBank(bank.bankName) ? "دلار" : "تومان"})</span><AmountInput className="field num" value={bank.balance} inputMode={isForeignSetupBank(bank.bankName) ? "decimal" : "numeric"} maxDecimals={2} unit={isForeignSetupBank(bank.bankName) ? "usd" : "toman"} onValueChange={(balance) => setExtraBanks((rows) => rows.map((row) => row.id === bank.id ? { ...row, balance } : row))} />{isForeignSetupBank(bank.bankName) && rateReady && amountOf(bank.balance).gt(0) && <span className="muted mt-1 block text-[length:var(--fs-xs)]">≈ {formatMoney(toToman(amountOf(bank.balance), "USD", rate).toFixed(0), "IRT")}</span>}</label>
                 </div>
               </div>
             ))}
-            <button type="button" className="btn btn-ghost w-full" disabled={extraBanks.length >= 9} onClick={() => setExtraBanks((rows) => [...rows, { id: crypto.randomUUID(), name: "", bankName: "", balance: "" }])}>+ افزودن حساب بانکی دیگر</button>
-            {!banksReady && <p className="expense-note expense-note-warn">بانک را انتخاب کنید؛ نام هر حساب باید متفاوت باشد و موجودی به تومان صحیح و صفر یا مثبت باشد. حداکثر ۱۰ حساب.</p>}
+            <button type="button" className="btn btn-ghost w-full" disabled={extraBanks.length >= 9} onClick={() => setExtraBanks((rows) => [...rows, { id: crypto.randomUUID(), name: "", bankName: "", balance: "" }])}>+ افزودن حساب یا کارت دیگر</button>
+            {!banksReady && <p className="expense-note expense-note-warn">بانک یا سرویس را انتخاب کنید؛ نام هر حساب باید متفاوت باشد و موجودی صفر یا مثبت باشد (تومان بدون اعشار). حداکثر ۱۰ حساب.</p>}
             </>}
 
-            <div className="card list-card">
-              <label className="setup-toggle">
-                <input type="checkbox" checked={hasCash} onChange={(e) => setHasCash(e.target.checked)} />
-                صندوق نقد یا دلار نقد دارم
-              </label>
+            {/* Optional and neutral: cash is sensitive, so nothing asks where it is kept
+                and skipping it never blocks the wizard. */}
+            <div className="card setup-row space-y-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flow-icon" aria-hidden="true">
+                  <Icon name="wallet" size={15} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <b className="block text-[length:var(--fs-sm)]">پول نقد (تومان یا دلار)</b>
+                  <span className="muted block text-[length:var(--fs-xs)] leading-5">اختیاری است؛ فقط اگر می‌خواهید در دارایی خالص حساب شود.</span>
+                </span>
+                {hasCash ? (
+                  <button type="button" className="btn btn-ghost !min-h-8 !px-2.5 text-[length:var(--fs-xs)]" onClick={() => { setHasCash(false); setCashBalance(""); }}>
+                    حذف
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-ghost !min-h-8 !px-2.5 text-[length:var(--fs-xs)]" onClick={() => setHasCash(true)}>
+                    + افزودن
+                  </button>
+                )}
+              </div>
               {hasCash && (
-                <div className="space-y-3 p-4">
+                <div className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="label">نام دلخواه <span className="muted">· فقط برای شما</span></span>
+                      <input type="text" value={cashName} onChange={(e) => setCashName(e.target.value)} placeholder="مثلاً پس‌انداز" className="field" autoComplete="off" maxLength={80} />
+                    </label>
                     <div>
-                      <label className="label">نام</label>
-                      <input type="text" value={cashName} onChange={(e) => setCashName(e.target.value)} className="field" autoComplete="off" />
-                    </div>
-                    <div>
-                      <label className="label">واحد</label>
+                      <span className="label">واحد</span>
                       <CurrencySwitch
-                        label="واحد صندوق نقد"
+                        label="واحد پول نقد"
                         value={cashCurrency}
                         onChange={setCashCurrency}
                         options={[
                           { value: "IRT", label: "تومان" },
-                          { value: "USD", label: "دلار نقد" },
+                          { value: "USD", label: "دلار" },
                         ]}
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="label">موجودی ({cashCurrency === "IRT" ? "تومان" : "دلار"})</label>
+                    <label className="label">مبلغ ({cashCurrency === "IRT" ? "تومان" : "دلار"})</label>
                     <AmountInput
                       inputMode="decimal"
                       value={cashBalance}
@@ -663,7 +693,12 @@ export default function SetupWizardPage() {
                       dir="ltr"
                       unit={cashCurrency === "IRT" ? "toman" : "usd"}
                     />
+                    {cashCurrency === "USD" && rateReady && amountOf(cashBalance).gt(0) && <p className="muted mt-1 text-[length:var(--fs-xs)]">≈ {formatMoney(toToman(amountOf(cashBalance), "USD", rate).toFixed(0), "IRT")}</p>}
                   </div>
+                  <p className="muted flex items-center gap-1.5 text-[length:var(--fs-xs)] leading-5">
+                    <Icon name="eye-off" size={13} />
+                    با دکمهٔ چشم در بالای اپ، همهٔ مبالغ از دید دیگران پنهان می‌شوند.
+                  </p>
                 </div>
               )}
             </div>
@@ -676,10 +711,16 @@ export default function SetupWizardPage() {
                 <b className="min-w-0 flex-1 text-[length:var(--fs-sm)]">تومان در صرافی و کارگزاری</b>
                 <span className="badge badge-neutral">تومان</span>
               </div>
+              <p className="text-[length:var(--fs-sm)]">در صرافی یا کارگزاری تومان دارید؟</p>
+              <div className="choice-grid" role="group" aria-label="تومان در صرافی یا کارگزاری">
+                <ChoiceCard selected={tomanPresence === "yes"} title="دارم" detail="انتخاب صرافی یا کارگزاری و ثبت مبلغ" onClick={() => setTomanPresence("yes")} />
+                <ChoiceCard selected={tomanPresence === "no"} title="ندارم" detail="ادامه بدون تومان در صرافی" onClick={() => { setTomanPresence("no"); setTomanPlaces([]); }} />
+              </div>
+              {tomanPresence === "yes" && <>
               {TOMAN_PLACE_GROUPS.map(([title, places]) => (
                 <div key={title} className="space-y-2">
                   <p className="muted text-[length:var(--fs-xs)] font-semibold">{title}</p>
-                  <div className="choice-grid" role="group" aria-label={title}>
+                  <div className="choice-grid setup-venues" role="group" aria-label={title}>
                     {places.map((w) => {
                       const on = tomanPlaces.some((p) => p.walletName === w.name);
                       return (
@@ -707,6 +748,7 @@ export default function SetupWizardPage() {
                   />
                 </div>
               ))}
+              </>}
             </div>
           </section>
         )}
@@ -753,12 +795,12 @@ export default function SetupWizardPage() {
           <StepIntro title="تراکنش‌ها را چطور ثبت می‌کنید؟" text="روش مناسب خود را انتخاب کنید؛ بعداً هم قابل تغییر است." />
           <div className="choice-grid" role="group" aria-label="روش ورود اطلاعات">
             <ChoiceCard selected={inputMethod === "manual"} title="خودم ثبت می‌کنم" detail="ثبت درآمد، هزینه و پرداخت در اپ" mark={<Icon name="plus" size={22}/>} onClick={() => setInputMethod("manual")}/>
-            <ChoiceCard selected={inputMethod === "sms"} title="با پیامک بانک" detail={bankPresence === "no" ? "ابتدا یک حساب بانکی معرفی کنید" : "دریافت پیامک و بررسی تراکنش پیشنهادی"} mark={<Icon name="card" size={22}/>} disabled={bankPresence === "no"} onClick={() => setInputMethod("sms")}/>
+            <ChoiceCard selected={inputMethod === "sms"} title="با پیامک بانک" detail={!hasIranianBank ? "ابتدا یک حساب بانک ایرانی معرفی کنید" : "دریافت پیامک و بررسی تراکنش پیشنهادی"} mark={<Icon name="card" size={22}/>} disabled={!hasIranianBank} onClick={() => setInputMethod("sms")}/>
           </div>
           {inputMethod === "manual" && <p className="expense-note">همه تراکنش‌ها را خودتان ثبت و مدیریت می‌کنید.</p>}
           {inputMethod === "sms" && <div className="space-y-5"><StepIntro title="حساب‌های دریافت‌کننده پیامک" text="حساب‌ها را معرفی کنید؛ فعال‌سازی دریافت پیامک بعد از تأیید نهایی انجام می‌شود." />
-            <SetupBankConnectionStep accountName={bankAccountName} bankName={bankName} draft={bankConnection} onChange={setBankConnection} onEditAccount={() => setStep(2)} />
-            {extraBanks.map(bank => <SetupBankConnectionStep key={bank.id} accountName={bank.name} bankName={bank.bankName} draft={extraConnections.find(row => row.bankId === bank.id)?.connection ?? null} onChange={draft => setExtraConnections(rows => [...rows.filter(row => row.bankId !== bank.id),...(draft ? [{bankId:bank.id,connection:draft}] : [])])} onEditAccount={() => setStep(2)}/>)}
+            {!primaryForeign && <SetupBankConnectionStep accountName={bankAccountName} bankName={bankName} draft={bankConnection} onChange={setBankConnection} onEditAccount={() => setStep(2)} />}
+            {smsBanks.map(bank => <SetupBankConnectionStep key={bank.id} accountName={bank.name} bankName={bank.bankName} draft={extraConnections.find(row => row.bankId === bank.id)?.connection ?? null} onChange={draft => setExtraConnections(rows => [...rows.filter(row => row.bankId !== bank.id),...(draft ? [{bankId:bank.id,connection:draft}] : [])])} onEditAccount={() => setStep(2)}/>)}
             {!connectionReady && <p className="expense-note expense-note-warn">اطلاعات حساب و شناسه پیامک را کامل و تأیید کنید.</p>}
             <details className="sms-guide"><summary>مراحل اتصال روی آیفون</summary><IphoneSmsGuide preview/></details>
           </div>}
@@ -779,14 +821,20 @@ export default function SetupWizardPage() {
               .filter((group) => group.items.length > 0)
               .map((group) => (
                 <div key={group.title} className="setup-review-group" data-tone={group.tone}>
-                  <div className="setup-review-head"><b>{group.title}</b><span>{faCount(group.items.length)} مورد</span><button type="button" className="btn btn-ghost !min-h-9 !px-2" onClick={()=>setStep(group.step)}>{group.step === 3 ? "رمزارز و طلا" : group.step === 5 ? "ملک" : "بازبینی"}</button>{(group.step === 3 || group.step === 5) && <button type="button" className="btn btn-ghost !min-h-9 !px-2" onClick={()=>setStep(group.step+1)}>{group.step === 3 ? "صندوق و سهام" : "خودرو"}</button>}</div>
+                  <div className="setup-review-head">
+                    <div className="setup-review-heading"><b>{group.title}</b><span>{faCount(group.items.length)} مورد</span></div>
+                    <div className="setup-review-actions">
+                      <button type="button" className="btn btn-ghost" onClick={()=>setStep(group.step)}>{group.step === 3 ? "رمزارز و طلا" : group.step === 5 ? "ملک" : "بازبینی"}</button>
+                      {(group.step === 3 || group.step === 5) && <button type="button" className="btn btn-ghost" onClick={()=>setStep(group.step+1)}>{group.step === 3 ? "بورسی و توکنایز" : "خودرو"}</button>}
+                    </div>
+                  </div>
                   <ul className="list-card">
                     {group.items.map((item) => (
                       <li key={item.key} className="list-row">
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[length:var(--fs-sm)] font-medium">{item.label}</p>
                           {item.detail && (
-                            <p className="muted num truncate text-[length:var(--fs-xs)]" dir="rtl">
+                            <p className="muted setup-review-detail" dir="rtl">
                               {item.detail}
                             </p>
                           )}

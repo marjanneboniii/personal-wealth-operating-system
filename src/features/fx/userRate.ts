@@ -1,5 +1,6 @@
 import { db } from "@/db";
-import { userFxSettings } from "@/db/schema";
+import { exchangeRates, userFxSettings } from "@/db/schema";
+import { todayIso } from "@/lib/format";
 import { eq } from "drizzle-orm";
 import { fetchLiveUsdtRate } from "@/features/fx/liveRate";
 import { D } from "@/domain/decimal";
@@ -168,6 +169,18 @@ export async function refreshUserFxRateFromMarket(
       });
   } catch {
     return current;
+  }
+
+  // Keep a dated history of the market rate: a purchase dated today becomes a
+  // past purchase tomorrow and needs this day's rate (the bundled history ends
+  // at its last build). First quote of the day wins; never overwritten.
+  try {
+    await db
+      .insert(exchangeRates)
+      .values({ baseCurrency: "USD", quoteCurrency: "IRT", rate: quote.rate, source: "market_daily", effectiveDate: todayIso() })
+      .onConflictDoNothing();
+  } catch {
+    // history is best-effort; the user's rate is already saved
   }
 
   invalidateUserFxRateCache(userId);

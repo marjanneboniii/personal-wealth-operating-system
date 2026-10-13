@@ -1,5 +1,6 @@
 "use server";
 
+import { listPropertyReferencePpsqmUsd, listVehicleReferenceUsd } from "@/features/rwa/priceReference";
 import { getCurrentUser } from "@/lib/auth";
 import { authUsersExistCached } from "@/lib/tenantState";
 import {
@@ -42,6 +43,9 @@ export type RealAssetCatalogs = {
   propertyTypes: PropertyType[];
   /** Vehicles this tenant already registered, so the step can say so. */
   existingVehicleCount: number;
+  /** Market references for the price checks (USD): model value, area per-m² price. */
+  vehicleRefUsd?: Record<string, number>;
+  propertyRefPpsqmUsd?: Record<string, number>;
   message?: string;
 };
 
@@ -68,13 +72,15 @@ export async function loadRealAssetCatalogsAction(): Promise<RealAssetCatalogs> 
     await ensureVehicleModuleReady();
     await ensureRealEstateModuleReady();
 
-    const [brands, models, cities, neighborhoods, propertyTypes, vehicles] = await Promise.all([
+    const [brands, models, cities, neighborhoods, propertyTypes, vehicles, vehicleRefUsd, propertyRefPpsqmUsd] = await Promise.all([
       listVehicleBrands(),
       listVehicleCatalogModels(),
       listCities(),
       listNeighborhoods(),
       listPropertyTypes(),
       listUserVehicles(user?.id ?? null),
+      listVehicleReferenceUsd().catch(() => ({})),
+      listPropertyReferencePpsqmUsd(user?.id ?? null).catch(() => ({})),
     ]);
 
     return {
@@ -85,6 +91,8 @@ export async function loadRealAssetCatalogsAction(): Promise<RealAssetCatalogs> 
       neighborhoods,
       propertyTypes,
       existingVehicleCount: vehicles.length,
+      vehicleRefUsd,
+      propertyRefPpsqmUsd,
     };
   } catch (error) {
     return {

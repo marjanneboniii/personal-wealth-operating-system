@@ -471,7 +471,7 @@ test("a vehicle bought now is paid from a Toman bank account — never a cash bo
       paymentAccountId,
     });
 
-  await assert.rejects(() => buy(f.cashBox.id, "10000000"), /حساب بانکی تومانی/);
+  await assert.rejects(() => buy(f.cashBox.id, "150000000"), /حساب بانکی تومانی/);
 
   await buy(f.bank.id, "150000000");
   assert.equal((await qtyOf(f.user.id, f.bank.id)).toString(), "50000000", "the price left the bank in Toman");
@@ -481,7 +481,7 @@ test("a vehicle bought now is paid from a Toman bank account — never a cash bo
   assert.equal(frozen.trade?.tradeSymbol, "خودرو ۱");
   assert.equal(D(frozen.trade!.settleQuantity!).toFixed(0), "150000000");
 
-  await assert.rejects(() => buy(f.bank.id, "100000000"), /موجودی حساب کافی نیست/);
+  await assert.rejects(() => buy(f.bank.id, "150000000"), /موجودی حساب کافی نیست/);
   assert.equal((await qtyOf(f.user.id, f.bank.id)).toString(), "50000000", "a refused purchase moves nothing");
 });
 

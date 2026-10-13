@@ -55,7 +55,8 @@ export default function VehicleForm({
   const [price, setPrice] = useState("");
   const [rateInfo, setRateInfo] = useState<RateInfo>(null);
   const [rateLoading, setRateLoading] = useState(false);
-  const [withValuation, setWithValuation] = useState(false);
+  // «ارزش فعلی» is required: without it the car would show a fake zero gain.
+  const withValuation = true;
 
   const brandModels = useMemo(() => models.filter((m) => m.brandId === brandId), [models, brandId]);
 
@@ -208,14 +209,11 @@ export default function VehicleForm({
       </div>
 
       <div className="rounded-[var(--r-lg)] border p-3" style={{ borderColor: "var(--border)" }}>
-        <label className="flex cursor-pointer items-center gap-2 text-[length:var(--fs-xs)] font-medium">
-          <input type="checkbox" checked={withValuation} onChange={(e) => setWithValuation(e.target.checked)} />
-          ثبت «ارزش فعلی» به‌عنوان اولین Snapshot ارزش‌گذاری (اختیاری)
-        </label>
+        <p className="text-[length:var(--fs-xs)] font-medium">ارزش فعلی (اجباری)</p>
         {withValuation && (
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             <Labeled label="ارزش فعلی (تومان)">
-              <AmountInput className="field num" name="initialValuation" inputMode="numeric" dir="ltr" placeholder="4200000000" unit="toman" />
+              <AmountInput className="field num" name="initialValuation" inputMode="numeric" dir="ltr" placeholder="۰" unit="toman" required />
             </Labeled>
             <Labeled label="تاریخ ارزش‌گذاری">
               <JalaliDatePicker

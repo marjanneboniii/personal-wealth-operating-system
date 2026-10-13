@@ -67,21 +67,24 @@ test("setup: ملک and خودرو are separate steps, filled in by search + «+
   assert.match(step, /معادل دلاری در زمان خرید/);
 });
 
-test("setup rows need only the purchase date and price", () => {
+test("setup rows need year, purchase, current value and passing price checks; mileage is optional", () => {
   const vehicle: VehicleDraftRow = {
     key: "v",
     catalogId: "c",
     label: "پژو ۲۰۶",
-    manufacturingYear: "",
+    manufacturingYear: "1398",
     ownershipDate: jalaliToIso(1401, 9, 15),
     purchasePriceToman: "300000000",
-    currentValueToman: "",
+    currentValueToman: "900000000",
+    priceStatus: "ok",
   };
-  assert.equal(vehicleRowReady(vehicle), true);
-  assert.equal(vehicleYearOf(vehicle), "1401", "no year picked → the year it was bought");
-  assert.equal(vehicleYearOf({ ...vehicle, manufacturingYear: "1398" }), "1398");
-  assert.equal(vehicleRowReady({ ...vehicle, purchasePriceToman: "" }), false);
-  assert.equal(vehicleRowReady({ ...vehicle, ownershipDate: "" }), false);
+  assert.equal(vehicleRowReady(vehicle), true, "mileage is optional");
+  assert.equal(vehicleYearOf(vehicle), "1398");
+  assert.equal(vehicleRowReady({ ...vehicle, currentValueToman: "" }), false, "current value is required");
+  assert.equal(vehicleRowReady({ ...vehicle, priceStatus: "block" }), false, "a blocked price never registers");
+  assert.equal(vehicleRowReady({ ...vehicle, priceStatus: "warn" }), false, "a warning needs the user's confirmation");
+  assert.equal(vehicleRowReady({ ...vehicle, priceStatus: "warn", priceConfirmed: true }), true);
+  assert.equal(vehicleRowReady({ ...vehicle, priceStatus: "pending" }), false);
 
   const property: PropertyDraftRow = {
     key: "p",
@@ -91,13 +94,12 @@ test("setup rows need only the purchase date and price", () => {
     label: "آپارتمان — گلستان",
     acquisitionDate: jalaliToIso(1401, 9, 15),
     purchasePriceToman: "4000000000",
-    currentValueToman: "",
-    sizeSqm: "",
+    currentValueToman: "12000000000",
+    sizeSqm: "100",
+    priceStatus: "ok",
   };
-  assert.equal(propertyRowReady(property), true, "current value is optional");
+  assert.equal(propertyRowReady(property), true);
+  assert.equal(propertyRowReady({ ...property, sizeSqm: "" }), false, "size is required");
+  assert.equal(propertyRowReady({ ...property, currentValueToman: "" }), false, "current value is required");
   assert.equal(propertyRowReady({ ...property, acquisitionDate: "" }), false);
-
-  const service = src("src/features/setup/service.ts");
-  assert.match(service, /valuationDate: hasCurrentValue \? setupResult\.today : property\.acquisitionDate/,
-    "a missing current value is the purchase price, dated the purchase day");
 });

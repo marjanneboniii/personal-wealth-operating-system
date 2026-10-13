@@ -24,6 +24,8 @@
  *     are user-scoped. (This is the isolated interpretation of "don't store the
  *     bank name globally".)
  */
+import { isForeignSetupBank } from "@/features/setup/bankCatalog";
+import { normalizeBankName } from "@/features/bankImport/matching";
 import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -31,6 +33,7 @@ import {
   assetClasses,
   assets,
   currencies,
+  entryFxSnapshots,
   funds,
   goals,
   journalEntries,
@@ -56,10 +59,19 @@ export type WalletKind = (typeof WALLET_KINDS)[number];
  * their dedicated modules / transaction asset picker, never as the currency
  * denomination of a bank account or cash box.
  */
-export const MONEY_ACCOUNT_CURRENCY_SYMBOLS = ["IRT", "USD", "USDT"] as const;
+export const MONEY_ACCOUNT_CURRENCY_SYMBOLS = ["IRT", "USD", "USDT", "USDC", "USDE", "USDS", "USDG", "PYUSD"] as const;
 export type MoneyAccountCurrencySymbol = (typeof MONEY_ACCOUNT_CURRENCY_SYMBOLS)[number];
 const MONEY_ACCOUNT_USDT = requireSupportedCryptoBySymbol("USDT");
 const MONEY_ACCOUNT_CURRENCY_SET = new Set<string>(MONEY_ACCOUNT_CURRENCY_SYMBOLS);
+/**
+ * Dollar stablecoins other than tether. A YT reward, a staking payout or a swap
+ * often lands in one of these, so an exchange or a wallet can hold them; a bank
+ * account, a cash box or a brokerage never does.
+ */
+const OTHER_STABLECOINS = MONEY_ACCOUNT_CURRENCY_SYMBOLS.filter((s) => s !== "IRT" && s !== "USD" && s !== "USDT").map(
+  (symbol) => requireSupportedCryptoBySymbol(symbol),
+);
+const PLACE_ONLY_STABLECOINS = new Set<string>(OTHER_STABLECOINS.map((c) => c.symbol));
 
 /** Account code of the opening-equity account that balances opening entries. */
 export const OPENING_EQUITY_CODE = "3010";
@@ -74,8 +86,16 @@ export type RegisterMoneyAccountInput = {
    * catalogue («بیت‌پین», «کارگزاری مفید»). One place is one wallet.
    */
   placeName?: string;
+  /** Bank / card / payment service of a bank account; foreign ones hold dollars, Iranian ones Toman. */
+  bankName?: string;
   /** Opening balance in the selected currency's own unit. */
   openingQty?: string;
+  /**
+   * What one unit cost in Toman (optional, stablecoins). Frozen on the opening
+   * entry so the average Toman cost of the coin starts from the real price;
+   * without it, today's rate is frozen instead.
+   */
+  purchasePriceToman?: string;
   /** ISO date of the opening entry; defaults to today. */
   openingDate?: string;
   note?: string;
@@ -186,6 +206,29 @@ export async function ensureMoneyAccountCurrencyCatalog(txClient?: any): Promise
           logoUrl: sql`coalesce(excluded.logo_url, ${assets.logoUrl})`,
         },
       });
+    // The other dollar stablecoins: added when missing, never rewritten — a row
+    // a tenant already holds (setup, a trade, a legacy English name) is theirs.
+    for (const coin of OTHER_STABLECOINS) {
+      const [existing] = await tx
+        .select({ id: assets.id })
+        .from(assets)
+        .where(and(eq(assets.symbol, coin.symbol), isNull(assets.deletedAt)))
+        .limit(1);
+      if (existing) continue;
+      await tx
+        .insert(assets)
+        .values({
+          symbol: coin.symbol,
+          name: coin.displayName,
+          classId: classByCode.stable,
+          decimals: 6,
+          pricingMethod: "coingecko",
+          priceSource: "coingecko",
+          coingeckoId: coin.coingeckoId,
+          logoUrl: coin.logoUrl,
+        })
+        .onConflictDoNothing();
+    }
   };
 
   if (txClient) return run(txClient);
@@ -205,19 +248,20 @@ export async function listMoneyAccountCurrencies(): Promise<MoneyAccountCurrency
         eq(assets.isActive, true),
       ),
     )
-    .orderBy(sql`case ${assets.symbol} when 'IRT' then 1 when 'USD' then 2 when 'USDT' then 3 else 4 end`);
-  if (rows.length !== MONEY_ACCOUNT_CURRENCY_SYMBOLS.length) {
+    .orderBy(sql`case ${assets.symbol} when 'IRT' then 1 when 'USD' then 2 when 'USDT' then 3 else 4 end`, assets.symbol);
+  if (!["IRT", "USD", "USDT"].every((symbol) => rows.some((row) => row.symbol === symbol))) {
     throw new Error("فهرست ارزهای حساب باید شامل تومان، دلار و تتر باشد.");
   }
-  const displayNames: Record<MoneyAccountCurrencySymbol, string> = {
+  const displayNames: Record<string, string> = {
     IRT: "تومان",
     USD: "دلار آمریکا",
     USDT: "تتر",
+    ...Object.fromEntries(OTHER_STABLECOINS.map((c) => [c.symbol, c.displayName])),
   };
   return rows.map((row) => ({
     ...row,
     symbol: row.symbol as MoneyAccountCurrencySymbol,
-    name: displayNames[row.symbol as MoneyAccountCurrencySymbol],
+    name: displayNames[row.symbol] ?? row.name,
   }));
 }
 
@@ -343,23 +387,51 @@ export async function registerMoneyAccount(
       .where(and(eq(assets.id, input.assetId), isNull(assets.deletedAt), eq(assets.isActive, true)))
       .limit(1);
     if (!asset || !MONEY_ACCOUNT_CURRENCY_SET.has(asset.symbol)) {
-      throw new Error("ارز حساب فقط می‌تواند تومان (IRT)، دلار (USD) یا تتر (USDT) باشد.");
+      throw new Error("ارز حساب فقط می‌تواند تومان، دلار، تتر یا یک استیبل‌کوین دلاری باشد.");
+    }
+    if (PLACE_ONLY_STABLECOINS.has(asset.symbol) && !["exchange", "hot", "cold"].includes(input.kind)) {
+      throw new Error(`${asset.name} فقط در صرافی یا کیف پول نگهداری می‌شود.`);
     }
     const placeError = moneyPlaceError(input.kind, asset.symbol, input.placeName);
     if (placeError) throw new Error(placeError);
+    // The institution decides a bank account's currency: never a Toman PayPal or a dollar Iranian bank.
+    const bankName = input.kind === "bank" ? normalizeBankName(input.bankName ?? "") : "";
+    if (input.kind === "bank" && (bankName || asset.symbol !== "IRT")) {
+      const foreign = isForeignSetupBank(bankName);
+      if (!bankName) throw new Error("برای حساب دلاری، کارت یا سرویس پرداخت خارجی را انتخاب کنید.");
+      if (foreign && asset.symbol !== "USD") throw new Error("حساب‌ها و کارت‌های ارزی به دلار ثبت می‌شوند.");
+      if (!foreign && asset.symbol !== "IRT") throw new Error("حساب بانک ایرانی به تومان ثبت می‌شود.");
+    }
 
     // 2. Historical USD value is deterministic and not client-editable:
     // Opening book value: USD/USDT = 1 USD; IRT uses the tenant FX rate.
     // This accounting input does not replace USDT's live CoinGecko valuation.
     let unitPriceUsd = D("1");
     const hasOpening = !!input.openingQty && !D(input.openingQty).isZero();
-    if (asset.symbol === "IRT" && hasOpening) {
+    // The Toman side of the opening, frozen next to the entry (entry_fx_snapshots):
+    // without it a coin opened here had no Toman cost at all.
+    let openingFx: { rate: string; source: string; effectiveDate: string } | null = null;
+    if (hasOpening && asset.symbol === "IRT") {
       // The opening balance freezes this rate: never the placeholder. An
       // account opened at zero freezes nothing and needs no rate.
       const fx = assertRealUsdIrtRate(await getLatestUsdIrtRateForUser(input.userId, tx));
       const usdIrtRate = D(fx.rate);
       if (usdIrtRate.lte(0)) throw new Error("نرخ تبدیل دلار به تومان معتبر نیست.");
       unitPriceUsd = D("1").div(usdIrtRate);
+      openingFx = { rate: fx.rate, source: fx.source, effectiveDate: fx.effectiveDate };
+    } else if (hasOpening) {
+      // A dollar or stablecoin opening is booked at face and needs no rate;
+      // the rate is frozen only when one is available (Toman cost, display).
+      try {
+        const fx = assertRealUsdIrtRate(await getLatestUsdIrtRateForUser(input.userId, tx));
+        if (D(fx.rate).gt(0)) openingFx = { rate: fx.rate, source: fx.source, effectiveDate: fx.effectiveDate };
+      } catch {
+        openingFx = null;
+      }
+    }
+    const price = input.purchasePriceToman ? D(input.purchasePriceToman) : null;
+    if (price && (price.lte(0) || asset.symbol === "IRT")) {
+      throw new Error("قیمت خرید فقط برای دلار و استیبل‌کوین و بزرگ‌تر از صفر وارد می‌شود.");
     }
 
     // 3. Opening quantity (optional → zero-balance account, no opening entry).
@@ -427,6 +499,7 @@ export async function registerMoneyAccount(
           type: "asset",
           assetId: input.assetId,
           walletId: wallet.id,
+          bankName: bankName || null,
           isActive: true,
         })
         .onConflictDoNothing()
@@ -475,6 +548,23 @@ export async function registerMoneyAccount(
         tx,
       );
       entryId = result.id;
+      if (openingFx) {
+        // A stated purchase price is the Toman actually paid per unit; else the
+        // rate of the day. IRT is its own Toman.
+        const irt =
+          asset.symbol === "IRT" ? openingQty : price ? openingQty.mul(price) : baseValue.mul(openingFx.rate);
+        await tx
+          .insert(entryFxSnapshots)
+          .values({
+            entryId: result.id,
+            irtAmount: irt.toFixed(0),
+            usdAmount: baseStr,
+            fxRate: price && baseValue.gt(0) ? irt.div(baseValue).toString() : openingFx.rate,
+            rateSource: price ? "manual" : openingFx.source,
+            rateDate: input.openingDate || openingFx.effectiveDate,
+          })
+          .onConflictDoNothing();
+      }
     }
 
     await recordAuditEvent(
@@ -788,7 +878,7 @@ export async function previewMoneyAccountDeletion(input: {
       ? `این حساب هنوز موجودی دارد (${formatMoney(
           balance.toFixed(account.symbol === "IRT" ? 0 : Math.min(account.assetDecimals, 8)),
           account.symbol ?? "USD",
-        )}). ابتدا موجودی را به حساب دیگری منتقل کنید، سپس حساب را حذف کنید.`
+        )}). ابتدا موجودی را صفر کنید — با انتقال به حساب دیگر یا با اصلاح موجودی — سپس حساب را حذف کنید.`
       : null;
 
   return {
@@ -844,7 +934,7 @@ export async function deleteMoneyAccount(
         `این حساب هنوز موجودی دارد (${formatMoney(
           balance.toFixed(account.symbol === "IRT" ? 0 : Math.min(account.assetDecimals, 8)),
           account.symbol ?? "USD",
-        )}). ابتدا موجودی را به حساب دیگری منتقل کنید، سپس حساب را حذف کنید.`,
+        )}). ابتدا موجودی را صفر کنید — با انتقال به حساب دیگر یا با اصلاح موجودی — سپس حساب را حذف کنید.`,
       );
     }
 

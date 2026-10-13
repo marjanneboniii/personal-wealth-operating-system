@@ -108,6 +108,9 @@ export type CreateUserVehicleInput = {
   plate?: string;
   mileage?: number;
   notes?: string;
+  /** فقط برای اعتبارسنجی — ارزش فعلی‌ای که جداگانه (پس از ثبت) Snapshot می‌شود. */
+  currentValueToman?: string;
+  currentUsdRate?: string;
   /** اختیاری — ثبت اولین Snapshot ارزش فعلی همراه با ثبت خودرو */
   initialValuation?: {
     valueToman: string;

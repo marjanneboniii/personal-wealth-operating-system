@@ -1,69 +1,51 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import Icon from "@/components/ui/Icon";
 import { PRODUCT_PREVIEW_CHAPTERS, PRODUCT_FILM_TOPICS, PRODUCT_PREVIEW } from "@/lib/productFilms";
 
-type Film = { label: string; src: string; poster: string; width: number; height: number };
 const subscribe = () => () => {};
 const clientSnapshot = () => true;
 const serverSnapshot = () => false;
-const fa = (value: number) => String(value).replace(/\d/g, d => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
+const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** Data Saver (Android Chrome, PWA on mobile data): never start a multi-megabyte download unasked. */
+const savesData = () => typeof navigator !== "undefined" && Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData);
 
-function FilmPlayer({ film, videoRef, pendingRef, captions, chapters, onTime, onPlay }: {
-  film: Film; videoRef: RefObject<HTMLVideoElement | null>; pendingRef: RefObject<number | null>; captions: string; chapters: readonly { at: number; caption: string }[]; onTime: (time: number) => void; onPlay: () => void;
+/**
+ * The preview is a silent motion graphic (rendered by motion/), not a film to
+ * operate: no player controls. It loops while on screen and pauses off screen.
+ * Reduced-motion and Data Saver visitors see the poster; topic buttons still play a scene.
+ * Before hydration the native controls remain as a no-JavaScript fallback.
+ */
+function MotionPreview({ videoRef, pendingRef, onTime }: {
+  videoRef: RefObject<HTMLVideoElement | null>; pendingRef: RefObject<number | null>; onTime: (time: number) => void;
 }) {
   const [failed, setFailed] = useState(false);
   const enhanced = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
-  const [playing, setPlaying] = useState(false);
-  const [time, setTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [captionsOn, setCaptionsOn] = useState(false);
-  const captionText = chapters[Math.max(0, chapters.findLastIndex(item => time >= item.at))]?.caption ?? "";
-  const playerRef = useRef<HTMLElement>(null);
-  const stamp = (seconds: number) => `${fa(Math.floor(seconds / 60))}:${fa(Math.floor(seconds % 60)).padStart(2, "۰")}`;
-  return <figure className="product-films-player" ref={playerRef}>
-    <video ref={videoRef} controls={!enhanced} playsInline preload="none" poster={film.poster} width={film.width} height={film.height}
-      aria-label={film.label} onPlay={() => { setPlaying(true); onPlay(); }} onPause={event => { setPlaying(false); setTime(event.currentTarget.currentTime); }} onEnded={event => { setPlaying(false); setTime(event.currentTarget.currentTime); }}
-      onSeeked={event => setTime(event.currentTarget.currentTime)}
-      onTimeUpdate={event => { setTime(event.currentTarget.currentTime); onTime(event.currentTarget.currentTime); }}
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || prefersReducedMotion() || savesData()) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) void video.play().catch(() => { /* Autoplay can be refused; the poster stays. */ });
+      else video.pause();
+    }, { threshold: .35 });
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [videoRef]);
+
+  return <figure className="product-films-player">
+    <video ref={videoRef} controls={!enhanced} muted loop playsInline preload="none" poster={PRODUCT_PREVIEW.poster}
+      width={PRODUCT_PREVIEW.width} height={PRODUCT_PREVIEW.height}
+      aria-label={`${PRODUCT_PREVIEW.label}: ${PRODUCT_PREVIEW_CHAPTERS.map(c => c.caption).join(" ")}`}
+      onTimeUpdate={event => onTime(event.currentTarget.currentTime)}
       onLoadedMetadata={event => {
-        setDuration(event.currentTarget.duration);
-        if (enhanced && event.currentTarget.textTracks[0]) event.currentTarget.textTracks[0].mode = "hidden";
         if (pendingRef.current !== null) { event.currentTarget.currentTime = pendingRef.current; pendingRef.current = null; }
       }} onError={() => setFailed(true)}>
-      <source src={film.src} type="video/mp4" />
-      <track kind="captions" src={captions} srcLang="fa" label="زیرنویس فارسی" />
-      مرورگر شما پخش ویدیو را پشتیبانی نمی‌کند. <a href={film.src}>دریافت ویدیو</a>
+      <source src={PRODUCT_PREVIEW.src} type="video/mp4" />
     </video>
-    {enhanced && <>
-      <div className="product-film-controls" role="group" aria-label={`کنترل پخش ${film.label}`}>
-        <button type="button" aria-label={playing ? "توقف ویدیو" : "پخش ویدیو"} onClick={() => {
-          const video = videoRef.current;
-          if (!video) return;
-          if (video.paused) void video.play().catch(() => setFailed(true)); else video.pause();
-        }}>{playing ? "توقف" : "پخش"}</button>
-        <input type="range" aria-label="زمان ویدیو" dir="ltr" min={0} max={duration || 1} step={.1} value={time}
-          disabled={!duration} aria-valuetext={`${stamp(time)} از ${stamp(duration)}`} onChange={event => {
-            const next = Number(event.currentTarget.value);
-            setTime(next);
-            if (videoRef.current) videoRef.current.currentTime = next;
-          }} />
-        <span dir="ltr">{stamp(time)} / {stamp(duration)}</span>
-        <button type="button" aria-label="زیرنویس فارسی" aria-pressed={captionsOn} onClick={() => {
-          if (videoRef.current?.textTracks[0]) videoRef.current.textTracks[0].mode = "hidden";
-          setCaptionsOn(!captionsOn);
-        }}>CC</button>
-        <button type="button" aria-label="نمایش تمام‌صفحه" onClick={() => {
-          if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-          else void playerRef.current?.requestFullscreen?.().catch(() => {});
-        }}>⛶</button>
-      </div>
-      {captionsOn && <p className="product-film-caption" dir="rtl">{captionText || "زیرنویس فارسی روشن است."}</p>}
-    </>}
-    <figcaption>نمایش محصول با داده‌های فرضی</figcaption>
-    {failed && <p className="product-films-error" role="status">ویدیو بارگذاری نشد. <a href={film.src} download>دریافت فایل ویدیو</a></p>}
+    {failed && <p className="product-films-error" role="status">نمایش بارگذاری نشد.</p>}
   </figure>;
 }
 
@@ -72,41 +54,41 @@ export default function ProductFilms() {
   const previewRef = useRef<HTMLVideoElement>(null);
   const previewSeekRef = useRef<number | null>(null);
 
-  const seek = (ref: RefObject<HTMLVideoElement | null>, pendingRef: RefObject<number | null>, at: number) => {
-    const video = ref.current;
+  const seek = (at: number) => {
+    const video = previewRef.current;
     if (!video) return;
-    // Seek into a readable frame, after the brief scene transition.
-    const time = at + .3;
+    // Land just after the camera move, so the scene builds in front of the viewer.
+    const time = at + .4;
     if (video.readyState >= 1) video.currentTime = time;
-    else { pendingRef.current = time; video.load(); }
-    void video.play().catch(() => { /* Playback can also be started through the player controls. */ });
+    else { previewSeekRef.current = time; video.load(); }
+    if (!prefersReducedMotion()) void video.play().catch(() => {});
   };
 
   return <section className="landing-band-surface" id="product-tour" aria-labelledby="product-films-title">
     <div className="landing-wrap landing-section">
       <p className="landing-eyebrow">توازن در عمل</p>
-      <h2 id="product-films-title" className="landing-h2">پول، قسط و سرمایه‌تان؛ روشن و یک‌جا.</h2>
-      <p className="landing-support">در ۲۰ ثانیه ببینید توازن چه چیزی را برای شما روشن می‌کند.</p>
+      <h2 id="product-films-title" className="landing-h2">ببینید هر عدد از کجا می‌آید. <span className="landing-h2-quiet">ارزش خالص، خرج ماه، قسط و سرمایه، در ۲۰ ثانیه.</span></h2>
+      <p className="landing-support">نمایش با داده‌های فرضی.</p>
+      {/* Cinema width: the film spans the content column (not the viewport), so its
+          text stays legible and the page keeps its rhythm. Topics sit under it. */}
       <div className="product-films-layout">
+        <MotionPreview videoRef={previewRef} pendingRef={previewSeekRef}
+          onTime={time => setTopic(Math.max(0, PRODUCT_FILM_TOPICS.findLastIndex(item => time >= item.previewAt)))} />
         <div className="product-films-story">
           <div className="product-films-topics" role="group" aria-label="موضوع نمایش کوتاه">
             {PRODUCT_FILM_TOPICS.map((item, index) => <button type="button" key={item.title} aria-pressed={topic === index}
-              onClick={() => { setTopic(index); seek(previewRef, previewSeekRef, item.previewAt); }}>
+              onClick={() => { setTopic(index); seek(item.previewAt); }}>
               <Icon name={item.icon} size={20} /><span>{item.title}</span>
             </button>)}
           </div>
           <p className="product-films-description">{PRODUCT_FILM_TOPICS[topic].description}</p>
           <div className="product-films-cta">
             <Link href="/register" className="btn btn-primary">شروع رایگان<Icon name="arrow-start" size={18} /></Link>
-            <span>بدون نیاز به کارت بانکی</span>
+            <span>رایگان، روی گوشی و کامپیوتر</span>
           </div>
-          <p className="product-films-everyday">دخل‌وخرج ماه و فاصله تا سقف بودجه را هم می‌بینید.</p>
           <p className="product-films-note">توازن پرداخت انجام‌شده را ثبت می‌کند و پولی جابه‌جا نمی‌کند.</p>
         </div>
-        <FilmPlayer key="preview" film={PRODUCT_PREVIEW} videoRef={previewRef} pendingRef={previewSeekRef} captions="/videos/tavazon/preview.fa.vtt" chapters={PRODUCT_PREVIEW_CHAPTERS} onPlay={() => {}}
-          onTime={time => setTopic(Math.max(0, PRODUCT_FILM_TOPICS.findLastIndex(item => time >= item.previewAt)))} />
       </div>
-
     </div>
   </section>;
 }

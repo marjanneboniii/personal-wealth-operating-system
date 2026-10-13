@@ -158,7 +158,7 @@ export default function SetupHoldingsStep({
     <section className="space-y-5">
       <StepIntro title="رمزارز و طلا" text="هر رمزارز، جایی که نگهداری می‌شود و قیمت خریدش را وارد کنید." />
 
-      <CatalogPicker label="افزودن رمزارز یا استیبل‌کوین" options={availableCoins.map(coin => ({id:coin.symbol,label:coin.displayName,searchText:`${coin.symbol} ${coin.name}`,mark:<AssetLogo symbol={coin.symbol} name={coin.displayName} size={28} />}))} onSelect={symbol => {const coin=availableCoins.find(c=>c.symbol===symbol);if(coin)add(coin);}} />
+      <CatalogPicker showAll label="افزودن رمزارز یا استیبل‌کوین" options={availableCoins.map(coin => ({id:coin.symbol,label:coin.displayName,detail:coin.symbol,searchText:`${coin.symbol} ${coin.name}`,mark:<AssetLogo symbol={coin.symbol} coingeckoId={coin.coingeckoId} logoUrl={coin.logoUrl} name={coin.displayName} size={28} />}))} onSelect={symbol => {const coin=availableCoins.find(c=>c.symbol===symbol);if(coin)add(coin);}} />
 
       {rows.length > 0 && (
         <ul className="space-y-3">

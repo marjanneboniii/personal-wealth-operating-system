@@ -568,13 +568,14 @@ export default function Shell({
   const isMarketing = MARKETING_PATHS.has(pathname);
   const isLanding = pathname === "/" && publicHome;
   const isPublicChrome = isAuthRoute || isMarketing || isLanding;
+  const isSetupRoute = pathname === "/setup" || pathname.startsWith("/setup/");
   // Initial setup is mandatory and focused: no app navigation while on it.
-  const hideAppNav = isPublicChrome || pathname === "/setup" || pathname.startsWith("/setup/");
+  const hideAppNav = isPublicChrome || isSetupRoute;
 
   return (
     <div
       className="shell-root min-h-dvh"
-      data-chrome={isPublicChrome ? "public" : "app"}
+      data-chrome={isPublicChrome ? "public" : isSetupRoute ? "setup" : "app"}
       style={{ ["--nav-w" as never]: hideAppNav ? "0px" : collapsed ? "76px" : "264px" }}
     >
       {/* Offline banner — trust first: never lose context */}
@@ -724,13 +725,15 @@ export default function Shell({
         className={
           isLanding || isMarketing
             ? "app-main app-main-public w-full max-w-none p-0"
+            : isSetupRoute
+            ? "app-main app-main-setup mx-auto w-full"
             : `app-main mx-auto w-full max-w-[1180px] px-4 pt-4 transition-[padding] duration-200 sm:px-6 ${
                 isAuthRoute ? "pb-8 lg:pb-10 lg:px-6 lg:pt-8" : "pb-28 lg:pb-16 lg:pl-10 lg:pr-[var(--nav-w)] lg:pt-7"
               }`
         }
       >
         {children}
-        {pwa.show && !isAuthRoute && !isMarketing && (isLanding ? pwa.canPrompt : !isPublicChrome) && (
+        {pwa.show && !isSetupRoute && !isAuthRoute && !isMarketing && (isLanding ? pwa.canPrompt : !isPublicChrome) && (
           <InstallPromotion
             ios={pwa.ios}
             canPrompt={pwa.canPrompt}

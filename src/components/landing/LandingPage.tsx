@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import ProductFilms from "@/components/landing/ProductFilms";
 import AnimatedAmount from "@/components/landing/AnimatedAmount";
@@ -6,6 +7,10 @@ import LandingAmbience from "@/components/landing/LandingAmbience";
 import CoverageField, { type CoverageKind } from "@/components/landing/CoverageField";
 import { LandingFooter, LandingHeader } from "@/components/landing/LandingChrome";
 import Icon, { type IconName } from "@/components/ui/Icon";
+import { SETUP_BANKS } from "@/features/setup/bankCatalog";
+import { KNOWN_WALLETS } from "@/features/setup/holdingWallets";
+import { FUND_CATALOG } from "@/features/funds/catalogData";
+import { faCount } from "@/lib/format";
 
 /**
  * DEMO DATA — ONLY for the public landing page preview.
@@ -27,8 +32,18 @@ const PREVIEW_SAMPLE = {
   deltaPct: "۳.۵٪",
   deltaSince: "از ماه گذشته",
   netWorthUsd: "≈ ۱٬۴۵۳ دلار",
-  attention: "قسط وام مسکن، ۳ روز دیگر",
+  // The same month the product film shows: 6 of an 8-million budget spent.
+  budgetTitle: "بودجهٔ خرید ماهانه",
+  budgetSpent: "۶",
+  budgetLimit: "۸ میلیون تومان",
+  budgetLeft: "۲ میلیون تا سقف",
+  dueTitle: "قسط وام شخصی",
+  dueWhen: "۳ روز دیگر",
+  dueAmount: "۵٬۰۰۰٬۰۰۰ تومان",
 } as const;
+
+/** Budget meter as whole-million segments: each block is one million, so the bar is itself the number. */
+const BUDGET_SEGMENTS = { total: 8, spent: 6 } as const;
 
 /**
  * Composition of the demo net worth. The widths are the segments of the
@@ -47,20 +62,53 @@ const PREVIEW_MIX: { label: string; pct: number; color: string }[] = [
   { label: "ملک", pct: 42, color: "var(--lc-property-ink)" },
   { label: "نقد و سپرده", pct: 28, color: "var(--lc-cash-ink)" },
   { label: "طلا", pct: 18, color: "var(--lc-gold-ink)" },
-  { label: "ارز دیجیتال", pct: 12, color: "var(--lc-crypto-ink)" },
+  { label: "رمزارز", pct: 12, color: "var(--lc-crypto-ink)" },
 ];
 
 /**
- * `tone` names a colour in the landing's category palette, the same one the
- * module tiles and the chips in the hero band use. It is presentation only and
- * carries no financial meaning — it is here so a reader meets one colour
- * system on this page instead of three.
+ * How setup actually works — selection first. The visitor's real worry is
+ * "how much typing is this?", and the honest answer is: pick your banks,
+ * exchanges and holdings from lists the product already knows, then type
+ * today's balance. `tone` is the landing's category palette (presentation only).
  */
-const OUTCOMES: { icon: IconName; title: string; body: string; tone: string }[] = [
-  { icon: "networth", title: "در مجموع چقدر دارید", body: "بعد از کم‌کردن بدهی‌ها، ته حساب چقدر می‌ماند.", tone: "wealth" },
-  { icon: "portfolio", title: "چه چیزهایی دارید", body: "از حساب بانکی تا ملک و طلا، همه در یک فهرست.", tone: "stock" },
-  { icon: "debts", title: "چقدر بدهکارید", body: "هیچ قسط یا بدهی‌ای از چشمتان دور نمی‌ماند.", tone: "debt" },
-  { icon: "wallet", title: "چقدر پول در دسترس دارید", body: "همین امروز، بدون حساب‌وکتاب ذهنی.", tone: "cash" },
+const SETUP_STEPS: { icon: IconName; title: string; body: string; tone: string }[] = [
+  {
+    icon: "accounts",
+    title: "بانک‌ها و صرافی‌هایتان",
+    body: "بانک‌هایی که در آن‌ها حساب دارید، صرافی‌های داخلی و خارجی و کیف پول‌های رمزارز را از فهرست انتخاب کنید و موجودی امروز هر کدام را بنویسید.",
+    tone: "bank",
+  },
+  {
+    icon: "portfolio",
+    title: "سرمایه‌گذاری‌ها و دارایی‌ها",
+    body: "طلای آب‌شدهٔ آنلاین، صندوق‌های طلا، درآمد ثابت و سهامی، سهام بورس و فرابورس، ملک و خودرو؛ هر کدام را دارید علامت بزنید.",
+    tone: "invest",
+  },
+  {
+    icon: "installments",
+    title: "وام‌ها و بدهی‌ها",
+    body: "وام بانکی، قرض یا خرید قسطی را با مانده و برنامهٔ اقساطش اضافه کنید. از همان روز اول، تصویر واقعی را می‌بینید.",
+    tone: "debt",
+  },
+];
+
+/**
+ * What setup already knows, counted from the very lists the setup wizard
+ * offers — never typed by hand, so the landing can't overstate the catalogue
+ * as it grows or shrinks.
+ */
+const CATALOG_STATS: { value: number; label: string }[] = [
+  { value: SETUP_BANKS.length, label: "بانک و مؤسسهٔ مالی" },
+  { value: KNOWN_WALLETS.filter((w) => w.kind === "exchange").length, label: "صرافی داخلی و خارجی" },
+  { value: KNOWN_WALLETS.filter((w) => w.kind === "broker").length, label: "کارگزاری بورس" },
+  { value: KNOWN_WALLETS.filter((w) => w.kind === "hot" || w.kind === "cold").length, label: "کیف پول رمزارز" },
+  { value: FUND_CATALOG.length, label: "صندوق سرمایه‌گذاری" },
+];
+
+/** The same institutions, as the logos the setup pick lists show. */
+const CATALOG_LOGOS: { name: string; logo: string }[] = [
+  ...SETUP_BANKS.map(({ name, logo }) => ({ name, logo })),
+  ...KNOWN_WALLETS.filter((w) => w.kind !== "hot" && w.kind !== "cold" && w.logo).map((w) => ({ name: w.name, logo: w.logo! })),
 ];
 
 /**
@@ -128,9 +176,9 @@ const DIFFERENTIATORS: { icon: IconName; title: string; body: string; tone: stri
 /** The promises made in the trust band — short enough to read in one pass. */
 const TRUST_POINTS: { icon: IconName; title: string; body: string }[] = [
   {
-    icon: "lock",
-    title: "هیچ کلیدی از پول شما نمی‌گیریم",
-    body: "توازن رمز بانک، شمارهٔ کارت یا دسترسی به حسابتان نمی‌خواهد و هیچ پولی جابه‌جا نمی‌کند. چیزی که ندارد را هم نمی‌تواند از دست بدهد.",
+    icon: "ledger",
+    title: "فقط ثبت می‌کند، پول جابه‌جا نمی‌کند",
+    body: "توازن دفتر حساب شماست، نه درگاه پرداخت. هر عددی که می‌بینید را خودتان ثبت یا تأیید کرده‌اید و هیچ تراکنشی بدون تأیید شما ثبت نمی‌شود.",
   },
   {
     icon: "shield",
@@ -157,17 +205,17 @@ const FAQ_ITEMS: { question: string; answer: ReactNode }[] = [
   {
     question: "آیا استفاده از توازن رایگان است؟",
     answer:
-      "بله. برای شروع فقط یک حساب کاربری لازم است — بدون کارت بانکی، بدون دورهٔ آزمایشی و بدون قفل‌شدن امکانات بعد از چند روز.",
+      "بله. برای شروع فقط یک حساب کاربری لازم است — بدون دورهٔ آزمایشی و بدون قفل‌شدن امکانات بعد از چند روز.",
   },
   {
     question: "شروع کار چقدر طول می‌کشد؟",
     answer:
-      "برای دیدن اولین عدد، چند دقیقه. کافی است موجودی حساب‌ها و یکی دو دارایی اصلی را وارد کنید؛ بقیه را می‌توانید در طول زمان و هر وقت فرصت داشتید کامل کنید.",
+      "چند دقیقه. بانک‌ها، صرافی‌ها و دارایی‌هایتان را از فهرست انتخاب می‌کنید و موجودی امروز هر کدام را می‌نویسید. هر چه جا ماند را بعداً هم می‌توانید اضافه کنید.",
   },
   {
     question: "آیا باید حساب بانکی‌ام را وصل کنم؟",
     answer:
-      "اطلاعات را خودتان وارد می‌کنید و همین باعث می‌شود دقیقاً بدانید هر عدد از کجا آمده است — از جمله دارایی‌هایی مثل ملک، طلا یا وام که هیچ حسابی آن‌ها را به شما گزارش نمی‌کند.",
+      "نه. توازن به بانک وصل نمی‌شود و رمز یا دسترسی نمی‌خواهد؛ بانک را فقط از فهرست انتخاب می‌کنید. اگر بخواهید ثبت خرج‌ها سریع‌تر شود، روی آیفون می‌توانید پیامک‌های بانک را با یک میان‌بُر به توازن بفرستید. هر پیامک به یک تراکنش پیشنهادی تبدیل می‌شود و تا تأییدش نکنید، چیزی ثبت نمی‌شود.",
   },
   {
     question: "ثبت اطلاعات چقدر کار می‌برد؟",
@@ -186,11 +234,11 @@ const FAQ_ITEMS: { question: string; answer: ReactNode }[] = [
     ),
   },
   {
-    question: "آیا می‌توانم انواع دارایی را کنار هم داشته باشم — ملک، طلا، ارز دیجیتال؟",
+    question: "آیا می‌توانم انواع دارایی را کنار هم داشته باشم — ملک، طلا، رمزارز؟",
     answer: (
       <>
-        بله. حساب بانکی و کیف پول، ملک، خودرو، طلا، سرمایه‌گذاری و ارز دیجیتال، همه در یک‌جا ثبت و
-        ارزش‌گذاری می‌شوند و در یک ارزش خالص جمع می‌آیند. قیمت کالاهای مصرفی جدا در «ردیاب تورم شخصی»
+        بله. حساب‌های بانکی، تومان و رمزارزِ صرافی‌ها و کیف پول‌ها، طلای آب‌شده، صندوق‌ها، سهام بورس و
+        فرابورس، ملک و خودرو همه کنار هم ثبت می‌شوند و بعد از کم‌شدن بدهی‌ها، در یک عدد جمع می‌آیند. قیمت کالاهای مصرفی جدا در «ردیاب تورم شخصی»
         دنبال می‌شود و جزو دارایی‌ها حساب نمی‌شود.
       </>
     ),
@@ -221,13 +269,14 @@ const FAQ_ITEMS: { question: string; answer: ReactNode }[] = [
  */
 const COVERAGE: CoverageKind[] = [
   { icon: "accounts", label: "حساب بانکی", tone: "bank" },
-  { icon: "wallet", label: "نقد و ارز", tone: "cash" },
+  { icon: "wallet", label: "صرافی و کیف پول", tone: "cash" },
+  { icon: "crypto", label: "رمزارز", tone: "crypto" },
+  { icon: "coins", label: "طلای آب‌شده", tone: "gold" },
+  { icon: "pie", label: "صندوق سرمایه‌گذاری", tone: "invest" },
+  { icon: "portfolio", label: "سهام بورس و فرابورس", tone: "stock" },
   { icon: "home", label: "ملک", tone: "property" },
-  { icon: "coins", label: "طلا و سکه", tone: "gold" },
-  { icon: "portfolio", label: "سهام و صندوق", tone: "stock" },
-  { icon: "crypto", label: "ارز دیجیتال", tone: "crypto" },
   { icon: "car", label: "خودرو", tone: "vehicle" },
-  { icon: "installments", label: "وام و اقساط", tone: "debt" },
+  { icon: "installments", label: "وام و قسط", tone: "debt" },
 ];
 
 function CtaCluster({ align = "start" }: { align?: "start" | "center" }) {
@@ -277,83 +326,125 @@ function PreviewSparkline() {
   );
 }
 
+/**
+ * The hero's product visual, as a layered stage: the net-worth window in the
+ * middle, and two small cards floating over its corners — the month's budget
+ * (as whole-million segments) and the next installment. It shows three
+ * different jobs of the product at a glance, where the old single card stacked
+ * everything in one column. Everything is static demo data (see PREVIEW_SAMPLE).
+ */
 function ProductPreview() {
   return (
     <figure
       className="landing-preview"
-      aria-label="نمونه نمایشی از ارزش خالص، دارایی‌ها، بدهی‌ها و نقدینگی به تومان"
+      aria-label="نمونه نمایشی از ارزش خالص، دارایی‌ها، بدهی‌ها، نقدینگی، بودجهٔ ماه و قسط بعدی به تومان"
     >
-      <div className="landing-preview-chrome">
-        <div className="landing-preview-dots" aria-hidden="true">
-          <span />
-          <span />
-          <span />
+      <div className="landing-preview-window">
+        <div className="landing-preview-chrome">
+          <div className="landing-preview-dots" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <p className="landing-preview-badge">نمونه نمایشی</p>
         </div>
-        <p className="landing-preview-badge">نمونه نمایشی</p>
+        <div className="landing-preview-body">
+          <figcaption className="landing-preview-label landing-preview-caption">نمایی از داشبورد توازن</figcaption>
+          <div className="landing-preview-hero">
+            <div className="landing-preview-hero-text">
+              <p className="landing-preview-label">ارزش خالص</p>
+              <p className="display-num landing-preview-hero-amount">
+                <AnimatedAmount value={PREVIEW_SAMPLE.netWorth} />
+              </p>
+              {/* The delta and the ≈USD reference are what the real dashboard shows
+                  under the hero figure — without them the preview read like a
+                  different product. */}
+              <p className="landing-preview-delta">
+                <span aria-hidden="true">↑</span>
+                <span className="num" dir="rtl">{PREVIEW_SAMPLE.delta}</span>
+                <span className="num" dir="rtl">{PREVIEW_SAMPLE.deltaPct}</span>
+                <span className="landing-preview-label">{PREVIEW_SAMPLE.deltaSince}</span>
+              </p>
+              <p className="landing-preview-label landing-preview-usd">
+                <span className="num" dir="rtl">{PREVIEW_SAMPLE.netWorthUsd}</span>
+              </p>
+            </div>
+            <PreviewSparkline />
+          </div>
+          <div className="landing-preview-metrics">
+            <div className="landing-preview-metric landing-preview-metric-assets">
+              <p className="landing-preview-label">دارایی‌ها</p>
+              <p className="display-num landing-preview-amount">
+                <AnimatedAmount value={PREVIEW_SAMPLE.assets} />
+              </p>
+            </div>
+            <div className="landing-preview-metric landing-preview-metric-debts">
+              <p className="landing-preview-label">بدهی‌ها</p>
+              <p className="display-num landing-preview-amount">
+                <AnimatedAmount value={PREVIEW_SAMPLE.debts} />
+              </p>
+            </div>
+            <div className="landing-preview-metric landing-preview-metric-liquidity">
+              <p className="landing-preview-label">نقدینگی</p>
+              <p className="display-num landing-preview-amount">
+                <AnimatedAmount value={PREVIEW_SAMPLE.liquidity} />
+              </p>
+            </div>
+          </div>
+          <div className="landing-preview-mix">
+            <div className="comp-bar" aria-hidden="true">
+              {PREVIEW_MIX.map((slice) => (
+                <span key={slice.label} style={{ width: `${slice.pct}%`, background: slice.color }} />
+              ))}
+            </div>
+            {/* A legend, because four anonymous stripes say nothing. The same
+                array drives both, so a width can never drift from its label. */}
+            <ul className="landing-preview-legend">
+              {PREVIEW_MIX.map((slice) => (
+                <li key={slice.label}>
+                  <span className="landing-preview-swatch" style={{ background: slice.color }} aria-hidden="true" />
+                  <span>{slice.label}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
-      <div className="landing-preview-body">
-        <figcaption className="landing-preview-label landing-preview-caption">نمایی از داشبورد توازن</figcaption>
-        <div className="landing-preview-hero">
-          <div className="landing-preview-hero-text">
-            <p className="landing-preview-label">ارزش خالص</p>
-            <p className="display-num landing-preview-hero-amount">
-              <AnimatedAmount value={PREVIEW_SAMPLE.netWorth} />
-            </p>
-            {/* The delta and the ≈USD reference are what the real dashboard shows
-                under the hero figure — without them the preview read like a
-                different product. */}
-            <p className="landing-preview-delta">
-              <span aria-hidden="true">↑</span>
-              <span className="num" dir="rtl">{PREVIEW_SAMPLE.delta}</span>
-              <span className="num" dir="rtl">{PREVIEW_SAMPLE.deltaPct}</span>
-              <span className="landing-preview-label">{PREVIEW_SAMPLE.deltaSince}</span>
-            </p>
-            <p className="landing-preview-label landing-preview-usd">
-              <span className="num" dir="rtl">{PREVIEW_SAMPLE.netWorthUsd}</span>
-            </p>
+
+      {/* Floating cards. On wide screens they sit over the window's corners; on a
+          phone they line up under it, so nothing ever covers a figure. */}
+      <div className="landing-preview-floats">
+        <div className="landing-preview-float landing-preview-float-budget">
+          <div className="landing-preview-float-head">
+            <span className="landing-icon" data-tone="budget" aria-hidden="true">
+              <Icon name="budgets" size={15} />
+            </span>
+            <span className="landing-preview-label">{PREVIEW_SAMPLE.budgetTitle}</span>
           </div>
-          <PreviewSparkline />
+          <p className="landing-preview-float-value">
+            <span className="display-num">{PREVIEW_SAMPLE.budgetSpent}</span>
+            <span className="landing-preview-label"> از {PREVIEW_SAMPLE.budgetLimit}</span>
+          </p>
+          <div className="landing-preview-segments" aria-hidden="true">
+            {Array.from({ length: BUDGET_SEGMENTS.total }, (_, i) => (
+              <span key={i} data-on={i < BUDGET_SEGMENTS.spent || undefined} />
+            ))}
+          </div>
+          <p className="landing-preview-float-note">{PREVIEW_SAMPLE.budgetLeft}</p>
         </div>
-        <div className="landing-preview-metrics">
-          <div className="landing-preview-metric landing-preview-metric-assets">
-            <p className="landing-preview-label">دارایی‌ها</p>
-            <p className="display-num landing-preview-amount">
-              <AnimatedAmount value={PREVIEW_SAMPLE.assets} />
+
+        <div className="landing-preview-float landing-preview-float-due" role="note">
+          <span className="landing-icon" data-tone="debt" aria-hidden="true">
+            <Icon name="installments" size={15} />
+          </span>
+          <div className="min-w-0">
+            <p className="landing-preview-float-title">{PREVIEW_SAMPLE.dueTitle}</p>
+            <p className="landing-preview-label">
+              <span className="num" dir="rtl">{PREVIEW_SAMPLE.dueAmount}</span>
+              <span className="landing-preview-due-sep"> · </span>{PREVIEW_SAMPLE.dueWhen}
             </p>
           </div>
-          <div className="landing-preview-metric landing-preview-metric-debts">
-            <p className="landing-preview-label">بدهی‌ها</p>
-            <p className="display-num landing-preview-amount">
-              <AnimatedAmount value={PREVIEW_SAMPLE.debts} />
-            </p>
-          </div>
-          <div className="landing-preview-metric landing-preview-metric-liquidity">
-            <p className="landing-preview-label">نقدینگی</p>
-            <p className="display-num landing-preview-amount">
-              <AnimatedAmount value={PREVIEW_SAMPLE.liquidity} />
-            </p>
-          </div>
-        </div>
-        <div className="landing-preview-attention">
           <span className="landing-preview-attention-dot" aria-hidden="true" />
-          <span>{PREVIEW_SAMPLE.attention}</span>
-        </div>
-        <div className="landing-preview-mix">
-          <div className="comp-bar" aria-hidden="true">
-            {PREVIEW_MIX.map((slice) => (
-              <span key={slice.label} style={{ width: `${slice.pct}%`, background: slice.color }} />
-            ))}
-          </div>
-          {/* A legend, because four anonymous stripes say nothing. The same
-              array drives both, so a width can never drift from its label. */}
-          <ul className="landing-preview-legend">
-            {PREVIEW_MIX.map((slice) => (
-              <li key={slice.label}>
-                <span className="landing-preview-swatch" style={{ background: slice.color }} aria-hidden="true" />
-                <span>{slice.label}</span>
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
     </figure>
@@ -390,17 +481,23 @@ export default function LandingPage() {
         <LandingAmbience />
         <section className="landing-wrap landing-hero">
           <div className="landing-hero-copy">
-            <p className="landing-kicker">
-              <span className="landing-kicker-dot" aria-hidden="true" />
-              پول و دارایی‌های شما، یک‌جا
-            </p>
-            <h1 className="landing-display">همهٔ پول و دارایی‌تان، در یک صفحه.</h1>
+            {/* Announcement pill: says what is new and takes you straight to it. */}
+            <Link href="#setup" className="landing-kicker">
+              <span className="landing-kicker-badge">
+                <span className="landing-kicker-dot" aria-hidden="true" />
+                تازه
+              </span>
+              <span>راه‌اندازی با چند انتخاب</span>
+              <Icon name="arrow-start" size={14} />
+            </Link>
+            <h1 className="landing-display">
+              همهٔ پول و دارایی‌تان، <span className="landing-display-accent">در یک صفحه.</span>
+            </h1>
             <p className="landing-lede">
-              دیگر لازم نیست بین فایل اکسل، اپ بانک و یادداشت‌های پراکنده بگردید. توازن همه را کنار هم می‌گذارد و
-              با یک نگاه می‌گوید چه دارید، چقدر بدهکارید و چقدر پول در دسترستان است.
+              حساب بانکی، صرافی و کیف پول رمزارز، طلای آنلاین، صندوق و سهام، ملک و خودرو، و همهٔ وام‌ها و قسط‌ها.
+              توازن همه را کنار هم می‌گذارد و می‌گوید بعد از کم‌کردن بدهی‌ها، واقعاً چقدر دارید.
             </p>
             <CtaCluster />
-            <Link href="#product-tour" className="landing-watch-demo">دیدن توازن در ۲۰ ثانیه<Icon name="arrow-start" size={18} /></Link>
             {/* Three claims the visitor can check, not a slogan. */}
             <ul className="landing-hero-proof">
               <li>
@@ -409,7 +506,7 @@ export default function LandingPage() {
               </li>
               <li>
                 <Icon name="check" size={14} />
-                در چند دقیقه راه می‌افتد
+                راه‌اندازی با چند انتخاب
               </li>
               <li>
                 <Icon name="check" size={14} />
@@ -433,35 +530,81 @@ export default function LandingPage() {
         </div>
       </div>
 
-      <section className="landing-band-surface">
-        <div className="landing-wrap landing-section" aria-labelledby="outcomes-title">
-          <p className="landing-eyebrow">چرا اهمیت دارد</p>
-          <h2 id="outcomes-title" className="landing-h2">
-            چهار چیزی که همیشه باید بدانید.
+      <ProductFilms />
+
+      <section className="landing-band" id="setup">
+        <div className="landing-wrap landing-section" aria-labelledby="setup-title">
+          <p className="landing-eyebrow">راه‌اندازی</p>
+          <h2 id="setup-title" className="landing-h2">
+            به‌جای فرم پر کردن، فقط انتخاب می‌کنید.{" "}
+            <span className="landing-h2-quiet">بانک، صرافی، کارگزاری و صندوق را توازن از قبل می‌شناسد.</span>
           </h2>
-          <div className="landing-outcomes landing-outcomes-4">
-            {OUTCOMES.map((item) => (
-              <article key={item.title} className="landing-benefit landing-reveal">
-                <span className="landing-icon" data-tone={item.tone} aria-hidden="true">
-                  <Icon name={item.icon} size={18} />
-                </span>
-                <div className="min-w-0">
-                  <h3 className="landing-benefit-title">{item.title}</h3>
-                  <p className="landing-benefit-body">{item.body}</p>
-                </div>
-              </article>
+          <p className="landing-support">علامت می‌زنید چه دارید و موجودی امروزش را می‌نویسید؛ همین.</p>
+          <ul className="landing-stats" aria-label="آنچه توازن از قبل می‌شناسد">
+            {CATALOG_STATS.map((stat) => (
+              <li key={stat.label} className="landing-stat">
+                <span className="landing-stat-value">{faCount(stat.value)}</span>
+                <span className="landing-stat-label">{stat.label}</span>
+              </li>
             ))}
+          </ul>
+          {/* Logo wall: drifts on wide screens, a still strip under reduced motion.
+              The second copy only closes the loop, so assistive tech skips it.
+              tabIndex -1: a tap focuses a logo (touch has no hover) without
+              adding thirty stops to keyboard navigation. */}
+          <div className="landing-logos">
+            <div className="landing-logos-track">
+              {[0, 1].map((copy) => (
+                <ul key={copy} className="landing-logos-row" aria-hidden={copy === 1 || undefined} aria-label={copy === 0 ? "بانک‌ها، صرافی‌ها و کارگزاری‌های فهرست راه‌اندازی" : undefined}>
+                  {CATALOG_LOGOS.map((item) => (
+                    <li key={item.logo + item.name} title={item.name} tabIndex={-1}>
+                      <Image src={item.logo} alt={copy === 0 ? item.name : ""} width={36} height={36} loading="lazy" unoptimized />
+                    </li>
+                  ))}
+                </ul>
+              ))}
+            </div>
           </div>
+          <p className="landing-logos-note">نام‌ها و نشان‌ها متعلق به صاحبانشان است و به معنای همکاری رسمی نیست.</p>
+          <ol className="landing-steps">
+            {SETUP_STEPS.map((item, index) => (
+              <li key={item.title} className="landing-diff landing-reveal" data-tone={item.tone}>
+                <div className="landing-step-head">
+                  <span className="landing-diff-icon" aria-hidden="true">
+                    <Icon name={item.icon} size={18} />
+                  </span>
+                  <span className="landing-step-num" aria-hidden="true">{"۱۲۳"[index]}</span>
+                </div>
+                <h3 className="landing-diff-title">{item.title}</h3>
+                <p className="landing-benefit-body">{item.body}</p>
+              </li>
+            ))}
+          </ol>
+          {/* Optional, and said so: the SMS bridge is an iPhone-only extra, never a requirement. */}
+          <aside className="landing-diff landing-sms landing-reveal" data-tone="flow" aria-labelledby="sms-title">
+            <span className="landing-diff-icon" aria-hidden="true">
+              <Icon name="phone" size={18} />
+            </span>
+            <div className="min-w-0">
+              <h3 id="sms-title" className="landing-diff-title">
+                اختیاری: پیامک‌های بانک، خودکار
+              </h3>
+              <p className="landing-benefit-body">
+                روی آیفون، با یک میان‌بُر در برنامهٔ <bdi>Shortcuts</bdi>، پیامک‌های بانک به توازن می‌رسند و تراکنش
+                پیشنهادی می‌سازند. فقط چند رقم آخر کارت یا حساب لازم است تا هر پیام به حساب درستش برسد، و تا خودتان
+                تأیید نکنید هیچ موجودی‌ای تغییر نمی‌کند. اندروید فعلاً پشتیبانی نمی‌شود.
+              </p>
+            </div>
+          </aside>
         </div>
       </section>
 
-      <ProductFilms />
-
       <section className="landing-band" id="modules">
         <div className="landing-wrap landing-section" aria-labelledby="modules-title">
-          <p className="landing-eyebrow">داخل محصول</p>
+          <p className="landing-eyebrow">امکانات</p>
           <h2 id="modules-title" className="landing-h2">
-            همه‌چیز یک‌جا، به‌جای چند فایل پراکنده.
+            بعد از راه‌اندازی، هر روز به کارتان می‌آید.{" "}
+            <span className="landing-h2-quiet">خرج ماه، قسط، هدف و سرمایه، کنار هم.</span>
           </h2>
           <div className="landing-bento">
             {MODULES.map((item) => (
@@ -485,7 +628,8 @@ export default function LandingPage() {
         <div className="landing-wrap landing-section" aria-labelledby="why-title">
           <p className="landing-eyebrow">تفاوت توازن</p>
           <h2 id="why-title" className="landing-h2">
-            چهار چیزی که یک فایل اکسل به شما نمی‌دهد.
+            چهار چیزی که یک فایل اکسل به شما نمی‌دهد.{" "}
+            <span className="landing-h2-quiet">و هر چهار تا را داخل محصول می‌توانید وارسی کنید.</span>
           </h2>
           <div className="landing-diffs">
             {DIFFERENTIATORS.map((item) => (
@@ -550,9 +694,9 @@ export default function LandingPage() {
         <div className="landing-wrap landing-section" aria-labelledby="final-cta-title">
           <div className="landing-cta-final landing-ink">
             <h2 id="final-cta-title" className="landing-h2">
-              همین امروز تصویر مالی‌تان را روشن کنید.
+              همین امروز ببینید واقعاً چقدر دارید.
             </h2>
-            <p className="landing-support mx-auto">ثبت‌نام ساده است و نیازی به کارت بانکی ندارد.</p>
+            <p className="landing-support mx-auto">ثبت‌نام رایگان است و راه‌اندازی چند دقیقه طول می‌کشد.</p>
             <CtaCluster align="center" />
           </div>
         </div>

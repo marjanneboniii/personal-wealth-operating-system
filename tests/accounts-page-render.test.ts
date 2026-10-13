@@ -255,7 +255,11 @@ test("/accounts localizes a previously stored Global Dollar row to یو اس د�
   const [user] = await db.select().from(users).where(eq(users.username, "logo-accounts"));
   sessionToken = (await createReadySession(user.id)).token;
   const [assetClass] = await db.select().from(assetClasses).limit(1);
-  const [coin] = await db.insert(assets).values({ symbol: "USDG", name: "Global Dollar", classId: assetClass.id, decimals: 6, coingeckoId: "global-dollar" }).returning();
+  // The account catalogue may already hold USDG; a legacy row kept the English name.
+  const [stored] = await db.select().from(assets).where(eq(assets.symbol, "USDG"));
+  const [coin] = stored
+    ? await db.update(assets).set({ name: "Global Dollar" }).where(eq(assets.id, stored.id)).returning()
+    : await db.insert(assets).values({ symbol: "USDG", name: "Global Dollar", classId: assetClass.id, decimals: 6, coingeckoId: "global-dollar" }).returning();
   const [wallet] = await db.insert(wallets).values({ userId: user.id, name: "ربی والت", kind: "hot" }).returning();
   await db.insert(accounts).values({ userId: user.id, code: "1120", name: "Global Dollar", type: "asset", assetId: coin.id, walletId: wallet.id });
   const html = await renderAccounts();

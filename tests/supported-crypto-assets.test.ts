@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { CRYPTO_GROUPS } from "../src/features/pricing/wallexKinds";
+import { existsSync, readFileSync } from "node:fs";
+import { marketLogoFor } from "../src/features/branding/marketLogos";
 import {
   getSupportedCryptoByCoinGeckoId,
   getSupportedCryptoBySymbol,
@@ -33,15 +36,13 @@ const EXPECTED_MAPPING: Record<string, string> = {
   BTC: "bitcoin",
 };
 
-test("supported crypto registry is the exact 24-asset product allowlist", () => {
-  assert.equal(SUPPORTED_CRYPTO_ASSETS.length, 24);
-  assert.deepEqual(
-    Object.fromEntries(SUPPORTED_CRYPTO_ASSETS.map((asset) => [asset.symbol, asset.coingeckoId])),
-    EXPECTED_MAPPING,
-  );
+test("supported crypto registry preserves existing identities and covers every market group", () => {
+  for (const [symbol, id] of Object.entries(EXPECTED_MAPPING)) assert.equal(getSupportedCryptoBySymbol(symbol)?.coingeckoId, id);
+  for (const symbol of Object.values(CRYPTO_GROUPS).flat()) assert.ok(getSupportedCryptoBySymbol(symbol), `${symbol} in market must be selectable in setup`);
+  assert.ok(SUPPORTED_CRYPTO_ASSETS.length > 24);
 
-  assert.equal(new Set(SUPPORTED_CRYPTO_ASSETS.map((asset) => asset.symbol)).size, 24);
-  assert.equal(new Set(SUPPORTED_CRYPTO_ASSETS.map((asset) => asset.coingeckoId)).size, 24);
+  assert.equal(new Set(SUPPORTED_CRYPTO_ASSETS.map((asset) => asset.symbol)).size, SUPPORTED_CRYPTO_ASSETS.length);
+  assert.equal(new Set(SUPPORTED_CRYPTO_ASSETS.map((asset) => asset.coingeckoId)).size, SUPPORTED_CRYPTO_ASSETS.length);
   assert.ok(SUPPORTED_CRYPTO_ASSETS.every((asset) => asset.displayName && /^https:\/\//.test(asset.logoUrl)));
 });
 
@@ -52,11 +53,19 @@ test("symbol and CoinGecko-id lookups resolve the same fixed identity", () => {
   }
 });
 
-test("DOT, DAI and ADA are not supported for new registration", () => {
-  for (const symbol of ["DOT", "DAI", "ADA"]) {
-    assert.equal(getSupportedCryptoBySymbol(symbol), undefined);
+test("previously missing market coins have canonical identities, not same-symbol bridged tokens", () => {
+  for (const [symbol, id] of Object.entries({ DOT: "polkadot", DAI: "dai", ADA: "cardano", DYDX: "dydx-chain", JUP: "jupiter-exchange-solana", MORPHO: "morpho" })) {
+    assert.equal(getSupportedCryptoBySymbol(symbol)?.coingeckoId, id);
   }
-  for (const coingeckoId of ["polkadot", "dai", "cardano"]) {
-    assert.equal(getSupportedCryptoByCoinGeckoId(coingeckoId), undefined);
-  }
+});
+
+test("CIRBTC is distinct from Coinbase wrapped BTC and has its official local artwork", () => {
+  const circle = getSupportedCryptoBySymbol("cirbtc")!;
+  assert.equal(circle.coingeckoId, "circle-wrapped-btc");
+  assert.equal(circle.displayName, "بیت‌کوین رپ‌شدهٔ سیرکل");
+  assert.notEqual(circle.coingeckoId, getSupportedCryptoBySymbol("CBBTC")?.coingeckoId);
+  const path = marketLogoFor("cirbtc")!;
+  const file = new URL(`../public${path}`, import.meta.url);
+  assert.ok(existsSync(file));
+  assert.equal(readFileSync(file).subarray(0, 3).toString("hex"), "ffd8ff");
 });

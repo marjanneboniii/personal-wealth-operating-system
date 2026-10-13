@@ -43,6 +43,8 @@ import {
 } from "./catalog";
 import { resolveAutomaticPurchaseRate, resolveUsdRateForDate, resolveUsdRateForDateToFreeze, tomanToUsd } from "./fx";
 import { rateStr, tomanStr, usdStr } from "./num";
+import { blockingMessage, validateVehiclePrices } from "@/features/rwa/priceValidation";
+import { vehicleReferenceUsd } from "@/features/rwa/priceReference";
 import {
   getEffectiveSnapshots,
   latestSnapshot,
@@ -230,6 +232,19 @@ export async function createUserVehicle(
   // Historical FX: the rate of the OWNERSHIP DATE, stored forever.
   const purchaseUsdRate = (await resolveAutomaticPurchaseRate(ownershipDate, input.userId ?? null)).rate;
   const purchaseValueUsd = tomanToUsd(purchase.toFixed(0), purchaseUsdRate);
+
+  // Outliers are refused BEFORE anything is written, whatever form sent them.
+  const currentToman = input.initialValuation?.valueToman || input.currentValueToman || "";
+  const valuationDate = input.initialValuation?.snapshotDate || todayIso();
+  let currentRate = input.initialValuation?.usdRate || input.currentUsdRate || "";
+  if (D(currentToman || "0").gt(0) && !D(currentRate || "0").gt(0)) currentRate = (await resolveUsdRateForDateToFreeze(valuationDate, input.userId ?? null)).rate;
+  const blocked = blockingMessage(validateVehiclePrices({
+    brandNameEn: model.brandNameEn, modelName: model.modelName, origin: model.brandOrigin,
+    manufacturingYear: year, ownershipDate, valuationDate, mileage: input.mileage ?? "",
+    purchaseToman: purchase.toFixed(0), purchaseRate: purchaseUsdRate,
+    currentToman, currentRate, referenceUsd: await vehicleReferenceUsd(model.id),
+  }), "خودرو");
+  if (blocked) throw new Error(blocked);
 
   const classId = await ensureRwaAssetClassId();
   const name = `${model.brandName} ${model.modelName} (${year})`;

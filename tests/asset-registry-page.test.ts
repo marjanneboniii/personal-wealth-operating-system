@@ -109,7 +109,7 @@ async function seedOwnerWithProperty() {
   const [type] = await db.select().from(schema.propertyTypes).limit(1);
 
   const property = await createRealEstateAsset({
-    userId: user.id,
+    sizeSqm: "100", userId: user.id,
     cityId: city.id,
     neighborhoodId: hood.id,
     propertyTypeId: type.id,

@@ -85,7 +85,7 @@ export default function SetupInstrumentsStep({
   /** USD→IRT setup rate, for the Toman equivalent of a Tether price. */
   rate: string;
 }) {
-  const [family, setFamily] = useState<Family>("fund");
+  const [family, setFamily] = useState<Family>("stock");
 
   const patch = (key: string, next: Partial<InstrumentDraftRow>) =>
     onChange(rows.map((r) => (r.key === key ? { ...r, ...next } : r)));
@@ -101,7 +101,7 @@ export default function SetupInstrumentsStep({
 
   return (
     <section className="space-y-5">
-      <StepIntro title="صندوق، سهام و بازار جهانی" />
+      <StepIntro title="بورس ایران و دارایی‌های توکنایز" text="بورسی: سهام و صندوق‌های بورس ایران، به تومان. توکنایز: سهام، شاخص و کامودیتی جهانی به‌صورت توکن، با تتر یا تومان." />
 
       <div className="space-y-2">
         <CurrencySwitch<Family>
@@ -109,11 +109,16 @@ export default function SetupInstrumentsStep({
           value={family}
           onChange={setFamily}
           options={[
-            { value: "fund", label: "صندوق" },
             { value: "stock", label: "سهام بورسی" },
-            { value: "wallex", label: "سهام، شاخص و کامودیتی" },
+            { value: "fund", label: "صندوق بورسی" },
+            { value: "wallex", label: "توکنایز" },
           ]}
         />
+        <p className="muted text-[length:var(--fs-xs)] leading-6">
+          {family === "stock" ? "سهام شرکت‌های بورس و فرابورس ایران · تومان"
+            : family === "fund" ? "صندوق‌های بورسی: طلا، کالایی، اهرمی، سهامی و درآمد ثابت · تومان"
+            : "سهام، شاخص و کامودیتی توکنایز: نسخهٔ توکنی دارایی‌های جهانی (مثل اپل، S&P 500، نقره) · تتر یا تومان"}
+        </p>
 
         {family === "wallex" ? (
           <WallexAssetPicker
@@ -134,7 +139,7 @@ export default function SetupInstrumentsStep({
             }
           />
         ) : (
-          <CatalogPicker label={family === "stock" ? "انتخاب سهام بورسی" : "انتخاب صندوق"} options={results.map(r => ({id:r.symbol,label:r.name,detail:r.label,searchText:r.symbol,mark:<Mark row={{kind:family,symbol:r.symbol,name:r.name,fundKind:r.fundKind}} size={28} />}))} onSelect={symbol => {const row=results.find(r=>r.symbol===symbol);if(row)append({kind:family,symbol:row.symbol,name:row.name,fundKind:row.fundKind,priceCurrency:"IRT"});}} />
+          <CatalogPicker label={family === "stock" ? "انتخاب سهام بورسی" : "انتخاب صندوق بورسی"} options={results.map(r => ({id:r.symbol,label:r.name,detail:r.label,searchText:r.symbol,mark:<Mark row={{kind:family,symbol:r.symbol,name:r.name,fundKind:r.fundKind}} size={28} />}))} onSelect={symbol => {const row=results.find(r=>r.symbol===symbol);if(row)append({kind:family,symbol:row.symbol,name:row.name,fundKind:row.fundKind,priceCurrency:"IRT"});}} />
         )}
       </div>
 

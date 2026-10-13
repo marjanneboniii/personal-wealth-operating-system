@@ -117,15 +117,19 @@ async function ledgerEntryOf(propertyId: string) {
 
 /* ─────────────────────────── master data ─────────────────────────── */
 
-test("master data seeds Ahvaz, its 16 neighborhoods and 12 property types", async () => {
+test("master data seeds every provincial capital with its areas, Ahvaz's legacy 16 intact, and 12 property types", async () => {
   await reset();
   const cityRows = await db.select().from(cities);
-  assert.equal(cityRows.length, 1);
-  assert.equal(cityRows[0]!.code, "AHZ");
-  assert.equal(cityRows[0]!.nameFa, "اهواز");
+  assert.equal(cityRows.length, 31);
+  const ahvaz = cityRows.find((c) => c.code === "AHZ")!;
+  assert.equal(ahvaz.nameFa, "اهواز");
+  for (const city of cityRows) {
+    const areas = await listNeighborhoods(city.id);
+    assert.ok(areas.some((h) => h.code === "OTHER"), `${city.code} offers «سایر مناطق»`);
+  }
 
-  const hoods = await listNeighborhoods(cityRows[0]!.id);
-  assert.equal(hoods.length, 16, "all 16 Ahvaz neighborhoods must be seeded");
+  const hoods = await listNeighborhoods(ahvaz.id);
+  assert.ok(hoods.length >= 16, "all 16 legacy Ahvaz neighborhoods must be seeded");
   const hoodCodes = hoods.map((h) => h.code);
   for (const code of ["GOL", "SAD", "FAR", "BAG", "AMA", "KUR", "KNO", "KPE", "KPW", "SDU", "ZKA", "KAE", "KAW", "PAD", "ARS", "MHR"]) {
     assert.ok(hoodCodes.includes(code), `neighborhood ${code} missing`);
@@ -162,7 +166,7 @@ test("name and compact symbol are generated from the shared numeric RWA sequence
   await setFxRate(VALUATION, "100000");
 
   const first = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -178,7 +182,7 @@ test("name and compact symbol are generated from the shared numeric RWA sequence
 
   // Same area + same type → sequential suffix and next symbol.
   const second = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -231,7 +235,7 @@ test("a property bought now is paid from a Toman bank account instead of opening
     ],
   });
 
-  const input = {
+  const input = { sizeSqm: "100",
     cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
@@ -240,9 +244,9 @@ test("a property bought now is paid from a Toman bank account instead of opening
     purchasePriceToman: PURCHASE_TOMAN,
     currentValueToman: CURRENT_TOMAN,
   };
-  await assert.rejects(() => createRealEstateAsset({ ...input, paymentAccountId: cashBox.id }), /حساب بانکی تومانی/);
+  await assert.rejects(() => createRealEstateAsset({ ...input, sizeSqm: "100", paymentAccountId: cashBox.id }), /حساب بانکی تومانی/);
 
-  const bought = await createRealEstateAsset({ ...input, paymentAccountId: bank.id });
+  const bought = await createRealEstateAsset({ ...input, sizeSqm: "100", paymentAccountId: bank.id });
   const [entry] = await db.select().from(journalEntries).where(eq(journalEntries.id, bought.ledgerEntryId));
   assert.equal(entry.type, "buy");
   const lines = await db.select().from(postings).where(eq(postings.entryId, entry.id));
@@ -257,7 +261,7 @@ test("users cannot supply a name or symbol — the service ignores/derives them"
   await setFxRate(ACQUISITION, "100000");
   await setFxRate(VALUATION, "100000");
   const result = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -282,7 +286,7 @@ test("purchase USD uses the ACQUISITION-date rate; current USD uses the VALUATIO
   await setFxRate("2026-08-11", "999999");
 
   const result = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -322,7 +326,7 @@ test("rates are frozen: a later FX change never rewrites stored values", async (
   await setFxRate(VALUATION, "80000");
 
   const result = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -350,7 +354,7 @@ test("Persian dates are converted to Gregorian/ISO and both are stored", async (
   await setFxRate(ACQUISITION, "100000");
   await setFxRate(VALUATION, "100000");
   const result = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -387,7 +391,7 @@ test("prior-period acquisition posts an OPENING entry dated at the acquisition d
   await setFxRate(VALUATION, "90000");
 
   const result = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -445,7 +449,7 @@ test("recent activity shows the frozen purchase Toman for a historical acquisiti
   await setFxRate("2026-08-11", "999999");
 
   const result = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -486,7 +490,7 @@ test("a stale/incorrect entry_fx_snapshots row never overrides the real-estate p
   await setFxRate(VALUATION, "90000");
 
   const result = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -520,7 +524,7 @@ test("backfill freezes a Toman snapshot for historical acquisitions created befo
   await setFxRate(VALUATION, "90000");
 
   const result = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -557,7 +561,7 @@ test("similar properties in one area get unique symbols and their own ledger ent
   const ids = await pickAhvazKianparsEastApartment();
   await setFxRate(ACQUISITION, "100000");
   await setFxRate(VALUATION, "100000");
-  const input = {
+  const input = { sizeSqm: "100",
     cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
@@ -593,7 +597,7 @@ test("a new valuation updates only the current value — the ledger entry stays 
   await setFxRate(VALUATION, "100000");
 
   const result = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -645,7 +649,7 @@ test("current value enters the real-asset totals AND total net worth (USD at val
   await setFxRate(VALUATION, "100000");
 
   const result = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -687,7 +691,7 @@ test("inactive master data cannot be used to register a property", async () => {
   await assert.rejects(
     () =>
       createRealEstateAsset({
-        cityId: ids.cityId,
+        sizeSqm: "100", cityId: ids.cityId,
         neighborhoodId: ids.neighborhoodId,
         propertyTypeId: ids.propertyTypeId,
         acquisitionDate: ACQUISITION,
@@ -708,7 +712,7 @@ test("missing or non-positive amounts are rejected", async () => {
   await assert.rejects(
     () =>
       createRealEstateAsset({
-        cityId: ids.cityId,
+        sizeSqm: "100", cityId: ids.cityId,
         neighborhoodId: ids.neighborhoodId,
         propertyTypeId: ids.propertyTypeId,
         acquisitionDate: ACQUISITION,
@@ -729,7 +733,7 @@ test("deleting a property hides it from holdings, activity, metrics and reclaims
   await setFxRate(VALUATION, "100000");
 
   const created = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -773,7 +777,7 @@ test("deleting a property hides it from holdings, activity, metrics and reclaims
   assert.equal(preview?.label, "ملک ۱", "deleting the only property frees its per-user number");
 
   const again = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -793,7 +797,7 @@ test("repairOrphanedRealEstate hides leftover legacy RE-* symbols from accounts"
   await setFxRate(VALUATION, "100000");
 
   const created = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -823,7 +827,7 @@ test("repairOrphanedRealEstate soft-deletes leftover RWA assets after a property
   await setFxRate(VALUATION, "100000");
 
   const created = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
@@ -889,7 +893,7 @@ test("orphaned property does not distort wealth metrics via historical snapshots
   await setFxRate(VALUATION, "100000");
 
   const created = await createRealEstateAsset({
-    cityId: ids.cityId,
+    sizeSqm: "100", cityId: ids.cityId,
     neighborhoodId: ids.neighborhoodId,
     propertyTypeId: ids.propertyTypeId,
     acquisitionDate: ACQUISITION,
