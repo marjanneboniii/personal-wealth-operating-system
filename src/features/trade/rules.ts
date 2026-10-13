@@ -22,10 +22,9 @@
  */
 import { D } from "@/domain/decimal";
 import { isBrokerage, isIranianExchange } from "@/features/setup/holdingWallets";
+import { STABLECOIN_SYMBOLS } from "@/lib/stablecoins";
 
-export const STABLECOIN_SYMBOLS: ReadonlySet<string> = new Set([
-  "USDT", "USDC", "USDG", "USDE", "USDS", "PYUSD", "BUSD", "DAI", "USDD", "FDUSD",
-]);
+export { STABLECOIN_SYMBOLS };
 
 const TOMAN_SYMBOLS: ReadonlySet<string> = new Set(["IRT", "IRR"]);
 

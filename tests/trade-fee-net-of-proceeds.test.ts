@@ -92,7 +92,9 @@ test("trade fees: net proceeds, exact Toman, both directions", async () => {
   assert.equal(feeLeg?.assetId, irt.id, "a Toman fee is booked as Toman");
   assert.equal(D(feeLeg!.quantity).toString(), "138110");
   const flow = await getCashflow(1, user.id);
-  assert.equal(Decimal.sum(flow.map((m: any) => m.outflowToman ?? "0")).toFixed(0), "138110", "the report reads back the fee typed — not 139,262");
+  // A swap's fee is an investment cost, not the month's spending: it stays on
+  // the entry (above, exactly as typed) but never reaches cash flow.
+  assert.equal(Decimal.sum(flow.map((m: any) => m.outflowToman ?? "0")).toFixed(0), "0", "a trade fee is not monthly spending");
   assert.ok(await balanced());
 
   // ── A purchase withdraws value + fee ──
@@ -101,7 +103,7 @@ test("trade fees: net proceeds, exact Toman, both directions", async () => {
   assert.equal((await qty(toman.id)).toString(), "51871000", "74,800,000 − 22,879,000 − 50,000");
   assert.equal((await qty(tether.id)).toString(), "991");
   const flow2 = await getCashflow(1, user.id);
-  assert.equal(Decimal.sum(flow2.map((m: any) => m.outflowToman ?? "0")).toFixed(0), "188110", "138,110 + 50,000");
+  assert.equal(Decimal.sum(flow2.map((m: any) => m.outflowToman ?? "0")).toFixed(0), "0", "neither swap fee is monthly spending");
   assert.ok(await balanced());
 
   // ── A fee as large as the proceeds is refused, and nothing is written ──

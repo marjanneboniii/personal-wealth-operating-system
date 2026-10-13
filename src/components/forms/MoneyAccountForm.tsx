@@ -3,9 +3,13 @@
 /**
  * افزودن حساب — a bank account, a cash box, or money held at a place:
  *
- *   صرافی      Toman (Iranian exchanges only) or Tether — «تومان - نوبیتکس»
+ *   صرافی      Toman (Iranian exchanges only), Tether or another dollar
+ *              stablecoin — «تومان - نوبیتکس», «USDC - بایننس»
  *   کارگزاری   Toman only — «تومان - کارگزاری مفید»
- *   کیف پول    Tether only — «تتر - ربی والت»
+ *   کیف پول    Tether or another dollar stablecoin — «تتر - ربی والت»
+ *
+ * A dollar or stablecoin opening may carry the Toman price paid per unit, so
+ * the coin's average Toman cost starts from what was really paid.
  *
  * The place is picked from the catalogue, with its logo, and names the
  * account; foreign exchanges are never offered for Toman. The service checks
@@ -27,7 +31,7 @@ import { holdingAccountName, isIranianExchange, KNOWN_WALLETS, moneyPlaceError }
 
 export type MoneyCurrencyOption = {
   id: string;
-  symbol: "IRT" | "USD" | "USDT";
+  symbol: string;
   name: string;
   decimals: number;
 };
@@ -44,13 +48,14 @@ const KINDS: Array<[Kind, string]> = [
 ];
 
 /** The units each kind of container holds. */
+const STABLES = ["USDT", "USDC", "USDE", "USDS", "USDG", "PYUSD"];
 const KIND_SYMBOLS: Record<Kind, ReadonlyArray<string>> = {
   bank: ["IRT", "USD"],
   cash: ["IRT", "USD"],
-  exchange: ["IRT", "USDT"],
+  exchange: ["IRT", ...STABLES],
   broker: ["IRT"],
-  hot: ["USDT"],
-  cold: ["USDT"],
+  hot: STABLES,
+  cold: STABLES,
 };
 
 const PLACE_KINDS = new Set<Kind>(["exchange", "broker", "hot", "cold"]);
@@ -80,6 +85,7 @@ export default function MoneyAccountForm({
   const [nameTouched, setNameTouched] = useState(false);
   const [openingQty, setOpeningQty] = useState("");
   const [openingDate, setOpeningDate] = useState("");
+  const [purchasePrice, setPurchasePrice] = useState("");
   const [note, setNote] = useState("");
   const [preview, setPreview] = useState(false);
   const [message, setMessage] = useState("");
@@ -97,7 +103,8 @@ export default function MoneyAccountForm({
 
   const kindLabel = KINDS.find(([v]) => v === kind)?.[1];
   const openingUnit =
-    currency?.symbol === "IRT" ? "toman" : currency?.symbol === "USD" ? "usd" : currency?.symbol === "USDT" ? "usdt" : "none";
+    currency?.symbol === "IRT" ? "toman" : currency?.symbol === "USD" ? "usd" : currency?.symbol === "USDT" ? "usdt" : (currency?.symbol ?? "none");
+  const askPrice = !!currency && currency.symbol !== "IRT";
   const qty = openingQty ? D(openingQty) : D("0");
   const rate = D(usdIrtRate || "0");
   const previewBaseUsd = currency?.symbol === "IRT" ? (rate.gt(0) && qty.gt(0) ? qty.div(rate) : D("0")) : qty;
@@ -127,6 +134,7 @@ export default function MoneyAccountForm({
         placeName: needsPlace ? place : "",
         openingQty,
         openingDate,
+        purchasePriceToman: askPrice ? purchasePrice : "",
         note,
       });
       setMessage(result.message);
@@ -136,6 +144,7 @@ export default function MoneyAccountForm({
         setPlace("");
         setOpeningQty("");
         setOpeningDate("");
+        setPurchasePrice("");
         setNote("");
         setAssetId("");
         setPreview(false);
@@ -199,6 +208,23 @@ export default function MoneyAccountForm({
           />
         </label>
       </div>
+
+      {askPrice && qty.gt(0) && (
+        <label className="block space-y-1">
+          <span className="label">قیمت خرید هر واحد به تومان (اختیاری)</span>
+          <AmountInput
+            className="field num"
+            inputMode="numeric"
+            value={purchasePrice}
+            onValueChange={setPurchasePrice}
+            unit="toman"
+            placeholder={rate.gt(0) ? formatMoney(rate.toFixed(0), "IRT") : "۰"}
+          />
+          <span className="muted block leading-5">
+            برای میانگین خرید تومانی. اگر خالی بماند، نرخ امروز در نظر گرفته می‌شود.
+          </span>
+        </label>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">

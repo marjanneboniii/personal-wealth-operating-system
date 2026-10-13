@@ -16,6 +16,7 @@
  * transaction posted while it was open) can never push a deletion through.
  */
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -181,6 +182,32 @@ export default function DeleteAccountButton({
                   role="alert"
                 >
                   {preview.blockedReason}
+                </div>
+              )}
+
+              {/* A balance blocks deletion; these are the three honest ways to
+                  empty it — each lands on a form, nothing is posted from here. */}
+              {preview.blockedReason && (
+                <div className="space-y-1.5">
+                  <p className="font-semibold">موجودی این حساب کجا رفته؟</p>
+                  <div className="grid gap-1.5">
+                    <Link className="btn btn-soft justify-start" href={`/new?${new URLSearchParams({ type: "transfer", accountId })}`}>
+                      به حساب دیگری بردم
+                    </Link>
+                    <Link
+                      className="btn btn-soft justify-start"
+                      href={`/accounts/reconcile?${new URLSearchParams({ account: accountId, balance: "0", reason: "elsewhere" })}#acc-${accountId}`}
+                    >
+                      جای دیگری گذاشتم یا از دست رفت
+                    </Link>
+                    <Link
+                      className="btn btn-soft justify-start"
+                      href={`/accounts/reconcile?${new URLSearchParams({ account: accountId })}#acc-${accountId}`}
+                    >
+                      نمی‌دانم؛ موجودی واقعی را وارد می‌کنم
+                    </Link>
+                  </div>
+                  <p className="muted leading-6">بعد از صفر شدن موجودی، می‌توانید حساب را حذف کنید.</p>
                 </div>
               )}
             </>

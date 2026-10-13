@@ -233,6 +233,8 @@ const moneyAccountSchema = z.object({
   placeName: z.string().trim().max(80).optional().default(""),
   openingQty: z.string().optional().default(""),
   openingDate: z.string().optional().default(""),
+  /** Toman paid per unit of a dollar or stablecoin opening (optional). */
+  purchasePriceToman: z.string().trim().regex(/^(\d+(\.\d+)?)?$/, "قیمت خرید معتبر نیست").optional().default(""),
   note: z.string().optional().default(""),
 });
 
@@ -269,6 +271,7 @@ export async function createMoneyAccountAction(input: unknown): Promise<ActionRe
       placeName: v.placeName || undefined,
       openingQty: v.openingQty || undefined,
       openingDate: v.openingDate || undefined,
+      purchasePriceToman: v.purchasePriceToman || undefined,
       note: v.note || undefined,
       // SECURITY: tenant identity comes ONLY from the session, never the client.
       userId: user?.id ?? undefined,

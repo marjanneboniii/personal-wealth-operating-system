@@ -10,7 +10,7 @@
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { entryTags } from "@/db/schema";
-import { hasMultipleUsers, resolveQueryUserId } from "@/features/ledger/queries";
+import { hasMultipleUsers, isInvestmentResultLeg, resolveQueryUserId } from "@/features/ledger/queries";
 import { MAX_TAGS_PER_ENTRY, normalizeTag, parseTags } from "./normalize";
 
 export type TagCount = { tag: string; entries: number };
@@ -112,8 +112,8 @@ export async function getTagSummary(rawTag: string, userId?: string): Promise<Ta
     ),
     per_entry as (
       select tg.id,
-             coalesce(sum(p.base_value) filter (where a.type = 'expense'), 0) as exp_usd,
-             coalesce(sum(-p.base_value) filter (where a.type = 'income'), 0) as inc_usd,
+             coalesce(sum(p.base_value) filter (where a.type = 'expense' and not ${isInvestmentResultLeg("a", "tg.type")}), 0) as exp_usd,
+             coalesce(sum(-p.base_value) filter (where a.type = 'income' and not ${isInvestmentResultLeg("a", "tg.type")}), 0) as inc_usd,
              (select s.irt_amount::numeric from entry_fx_snapshots s where s.entry_id = tg.id limit 1) as irt
       from tagged tg
         left join postings p on p.entry_id = tg.id

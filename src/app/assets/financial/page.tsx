@@ -91,7 +91,9 @@ export default async function FinancialAssetsPage() {
   });
 
   const financialSymbols = new Set(financial.map((a) => a.symbol));
-  const realized = Decimal.sum(pnl.bySymbol.filter((p) => financialSymbols.has(p.symbol)).map((p) => p.pnl)).toString();
+  const financialRealized = pnl.bySymbol.filter((p) => financialSymbols.has(p.symbol));
+  const realized = Decimal.sum(financialRealized.map((p) => p.pnl)).toString();
+  const realizedToman = Decimal.sum(financialRealized.map((p) => p.pnlToman)).toFixed(0);
 
   return (
     <div className="mny-page">
@@ -118,7 +120,7 @@ export default async function FinancialAssetsPage() {
             totals={totals}
             extra={{
               name: "سود/زیان تحقق‌یافته",
-              toman: fx.rate ? usdToIrt(realized, fx.rate) : null,
+              toman: realizedToman,
               usd: realized,
               signed: true,
             }}

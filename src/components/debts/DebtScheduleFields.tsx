@@ -145,7 +145,7 @@ export default function DebtScheduleFields({
 
   return (
     <div className="space-y-3">
-      <div className="expense-squares" role="radiogroup" aria-label="برنامه بازپرداخت">
+      <div className="expense-squares debt-modes" role="radiogroup" aria-label="برنامه بازپرداخت">
         {TILES.map(([mode, label, meta]) => {
           const on = value.mode === mode;
           return (

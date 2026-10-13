@@ -9,6 +9,8 @@
  *               The last tile, «+ دسته جدید», opens NewCategorySheet.
  *   پرداخت از   the Toman bank and cash accounts, as logo tiles with balance
  *   کی؟         امروز · دیروز · پریروز · تقویم
+ *   شرح هزینه   optional; left empty, the description is filled in from the
+ *               chosen category
  *
  * Only Toman bank and cash accounts are offered to pay: stablecoin wallets,
  * funds and exchanges are investment or savings places, not where daily
@@ -61,6 +63,9 @@ type Props = {
   entryDate: string;
   setEntryDate: (iso: string) => void;
   today: string;
+  description: string;
+  setDescription: (value: string) => void;
+  autoDescription: string;
 };
 
 export default function ExpenseFields({
@@ -80,6 +85,9 @@ export default function ExpenseFields({
   entryDate,
   setEntryDate,
   today,
+  description,
+  setDescription,
+  autoDescription,
 }: Props) {
   const [browsing, setBrowsing] = useState(!categoryId);
   const [openGroupId, setOpenGroupId] = useState(parentId);
@@ -246,6 +254,19 @@ export default function ExpenseFields({
       <TxCard icon="calendar" title="کی؟">
         <DateChips value={entryDate} onChange={setEntryDate} today={today} label="تاریخ هزینه" />
         <input type="hidden" name="entryDate" value={entryDate} />
+      </TxCard>
+
+      {/* ── Description ── */}
+      <TxCard icon="note" title="شرح هزینه" id="expense-note-title" aside="اختیاری">
+        <input
+          id="expense-note"
+          className="field"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder={autoDescription}
+          maxLength={200}
+          aria-labelledby="expense-note-title"
+        />
       </TxCard>
     </div>
   );

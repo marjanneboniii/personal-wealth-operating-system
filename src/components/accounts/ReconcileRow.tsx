@@ -8,6 +8,7 @@ import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 import { FormStatus } from "@/components/ui/FormStatus";
 import Icon from "@/components/ui/Icon";
+import { NOTE_MAX, RECONCILE_REASONS, type ReconcileReason } from "@/features/reconcile/reasons";
 
 const SMALL = "btn !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]";
 
@@ -30,6 +31,9 @@ export type ReconcileRowView = {
   today: string;
 };
 
+/** Arriving from «حذف حساب» with a balance and a reason already chosen. */
+export type ReconcileFocus = { balance?: string; reason?: ReconcileReason };
+
 const STATE = {
   matched: { label: "یکی با بانک", icon: "check", c: "var(--positive)", bg: "var(--positive-soft)" },
   mismatch: { label: "اختلاف", icon: "alert", c: "var(--warning)", bg: "var(--warning-soft)" },
@@ -40,10 +44,13 @@ const STATE = {
  * One account, one line: name, balance in توازن, state — and a single «تطبیق».
  * The figures and the two fixes appear only when there is a difference.
  */
-export default function ReconcileRow({ row }: { row: ReconcileRowView }) {
-  const [open, setOpen] = useState(false);
+export default function ReconcileRow({ row, focus }: { row: ReconcileRowView; focus?: ReconcileFocus }) {
+  const [open, setOpen] = useState(!!focus);
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(recordBankBalanceAction, null);
-  const [balance, setBalance] = useState("");
+  const [balance, setBalance] = useState(focus?.balance ?? "");
+  const [choosing, setChoosing] = useState(!!focus?.reason);
+  const [reason, setReason] = useState<ReconcileReason>(focus?.reason ?? "unknown");
+  const [note, setNote] = useState("");
   const [negative, setNegative] = useState(false);
   const [asOf, setAsOf] = useState(row.today);
   const [adjusting, startAdjust] = useTransition();
@@ -61,8 +68,11 @@ export default function ReconcileRow({ row }: { row: ReconcileRowView }) {
   const s = STATE[row.state];
   const adjust = () => {
     if (!row.checkpointId) return;
-    if (!window.confirm("اختلاف با یک سند اصلاحی صاف شود؟ هزینه یا درآمد حساب نمی‌شود و بعداً قابل ابطال است.")) return;
-    startAdjust(async () => setAdjustResult(await adjustToBankAction(row.checkpointId!)));
+    startAdjust(async () => {
+      const result = await adjustToBankAction(row.checkpointId!, reason, note);
+      setAdjustResult(result);
+      if (result.ok) setChoosing(false);
+    });
   };
   const mismatch = row.state === "mismatch";
 
@@ -124,12 +134,57 @@ export default function ReconcileRow({ row }: { row: ReconcileRowView }) {
                     ثبت تراکنش جاافتاده
                   </Link>
                 )}
-                {row.checkpointId && (
-                  <button type="button" className={`${SMALL} btn-ghost`} disabled={adjusting} onClick={adjust}>
-                    {adjusting ? "در حال ثبت…" : "اصلاح موجودی"}
+                {row.checkpointId && !choosing && (
+                  <button type="button" className={`${SMALL} btn-ghost`} onClick={() => setChoosing(true)}>
+                    اصلاح موجودی
                   </button>
                 )}
               </div>
+              {row.checkpointId && choosing && (
+                <div className="recon-why">
+                  <p className="text-[length:var(--fs-xs)] font-semibold">چه شد؟</p>
+                  <div className="recon-why-chips" role="radiogroup" aria-label="دلیل اصلاح موجودی">
+                    {RECONCILE_REASONS.map((r) => (
+                      <button
+                        key={r.key}
+                        type="button"
+                        role="radio"
+                        aria-checked={reason === r.key}
+                        data-on={reason === r.key || undefined}
+                        className="recon-why-chip"
+                        onClick={() => setReason(r.key)}
+                      >
+                        <b>{r.label}</b>
+                        <span>{r.hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    className="field"
+                    value={note}
+                    maxLength={NOTE_MAX}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="یادداشت (اختیاری) — مثلاً «YT در Pendle»"
+                    aria-label="یادداشت اصلاح موجودی"
+                  />
+                  {reason === "elsewhere" && (
+                    <p className="muted text-[length:var(--fs-xs)] leading-6">
+                      اگر بعداً سودی از این پول گرفتید، آن را با «درآمد ← سود استیکینگ و سپردهٔ رمزارز» در همان کیف پول ثبت کنید.
+                    </p>
+                  )}
+                  <p className="muted text-[length:var(--fs-xs)] leading-6">
+                    یک سند اصلاحی ثبت می‌شود؛ هزینه یا درآمد ماه حساب نمی‌شود و بعداً قابل ابطال است.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className={`${SMALL} btn-primary`} disabled={adjusting} onClick={adjust}>
+                      {adjusting ? "در حال ثبت…" : "ثبت اصلاح"}
+                    </button>
+                    <button type="button" className={`${SMALL} btn-ghost`} disabled={adjusting} onClick={() => setChoosing(false)}>
+                      انصراف
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <FormStatus state={adjustResult} />

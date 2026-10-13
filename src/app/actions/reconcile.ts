@@ -7,6 +7,7 @@ import { normalizeNumericInput } from "@/lib/numericInput";
 import { todayIso } from "@/lib/format";
 import type { ActionResult } from "@/app/actions";
 import { adjustToReported, recordBalanceCheckpoint } from "@/features/reconcile/service";
+import { isReconcileReason } from "@/features/reconcile/reasons";
 
 /**
  * تطبیق موجودی — recording what the bank says writes no ledger row; closing a
@@ -43,12 +44,15 @@ export async function recordBankBalanceAction(_prev: ActionResult | null, fd: Fo
   }
 }
 
-export async function adjustToBankAction(checkpointId: string): Promise<ActionResult> {
+export async function adjustToBankAction(checkpointId: string, reason?: string, note?: string): Promise<ActionResult> {
   const user = await signedIn();
   if (!user?.id) return { ok: false, message: "وارد شوید." };
   if (!z.uuid().safeParse(checkpointId).success) return { ok: false, message: "درخواست معتبر نیست." };
   try {
-    await adjustToReported(user.id, checkpointId);
+    await adjustToReported(user.id, checkpointId, {
+      reason: isReconcileReason(reason) ? reason : null,
+      note: typeof note === "string" ? note : null,
+    });
     refresh();
     return { ok: true, message: "سند اصلاحی ثبت شد و حساب با بانک یکی شد." };
   } catch (e) {

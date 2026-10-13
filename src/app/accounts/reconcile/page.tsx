@@ -7,7 +7,8 @@ import { EmptyState, PageHeader } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import { listSmsConnections } from "@/features/bankImport/sms";
 import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
-import ReconcileRow, { type ReconcileRowView } from "@/components/accounts/ReconcileRow";
+import ReconcileRow, { type ReconcileFocus, type ReconcileRowView } from "@/components/accounts/ReconcileRow";
+import { isReconcileReason } from "@/features/reconcile/reasons";
 import { D } from "@/domain/decimal";
 import { faCount, formatJalaliIso, formatMoney, todayIso } from "@/lib/format";
 
@@ -56,7 +57,16 @@ function view(r: AccountReconciliation, today: string): ReconcileRowView {
   };
 }
 
-export default async function ReconcilePage() {
+/**
+ * `?account=<id>&balance=0&reason=elsewhere` — the «حذف حساب» box sends the user
+ * here with the real balance and the reason already chosen; the matching row
+ * opens on them. Nothing is posted until the user confirms on the row.
+ */
+type SearchParams = Promise<{ account?: string; balance?: string; reason?: string }>;
+
+export default async function ReconcilePage(props: { searchParams?: SearchParams }) {
+  // `props` may be absent when the page is rendered directly (tests).
+  const sp = (await props?.searchParams) ?? {};
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id ?? null;
   const today = todayIso();
@@ -72,6 +82,11 @@ export default async function ReconcilePage() {
           .catch(() => false),
       ])
     : [[], 0, false];
+
+  const focus: ReconcileFocus = {
+    balance: sp.balance && /^\d+(\.\d+)?$/.test(sp.balance) ? sp.balance : undefined,
+    reason: isReconcileReason(sp.reason) ? sp.reason : undefined,
+  };
 
   const mismatched = list.filter((r) => r.state === "mismatch");
   const matched = list.filter((r) => r.state === "matched");
@@ -129,7 +144,7 @@ export default async function ReconcilePage() {
           </p>
           <ul className="card list-card" role="list">
             {ordered.map((r) => (
-              <ReconcileRow key={r.accountId} row={view(r, today)} />
+              <ReconcileRow key={r.accountId} row={view(r, today)} focus={r.accountId === sp.account ? focus : undefined} />
             ))}
           </ul>
         </section>
