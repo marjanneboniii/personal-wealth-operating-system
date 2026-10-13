@@ -4,7 +4,8 @@ import { seedIfEmpty } from "@/db/seed";
 import { getPortfolioValuation } from "@/features/portfolio/service";
 import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import HoldingsTable from "@/components/assets/HoldingsTable";
 import AllocationBar from "@/components/assets/AllocationBar";
 import AssetValuationSummary, { valuationTotalsOf } from "@/components/assets/AssetValuationSummary";
@@ -61,19 +62,11 @@ export default async function AssetsPage() {
   const priceIssues = valuation.priceStatus.stale + valuation.priceStatus.unavailable;
 
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader
-          title="دارایی‌ها"
-          action={
-            <Link href="/new?type=buy" className="btn btn-primary">
+    <div className="mny-page">
+      <ModuleHeader title="دارایی‌ها" tabs={ASSET_TABS} active="/assets" label="بخش‌های دارایی" actions={<Link href="/new?type=buy" className="btn btn-primary">
               <Icon name="plus" size={16} />
               ثبت خرید
-            </Link>
-          }
-        />
-        <ModuleTabs tabs={ASSET_TABS} active="/assets" label="بخش‌های دارایی" />
-      </div>
+            </Link>} />
 
       {all.length === 0 ? (
         <div className="card">

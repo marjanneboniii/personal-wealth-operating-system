@@ -53,7 +53,8 @@ test("text on a type fill never hard-codes white", () => {
 
 test("the history «+» button follows the app's own dark class, not the OS setting", () => {
   assert.doesNotMatch(CSS, /prefers-color-scheme: dark\) \{ :root:not\(\[data-theme="light"\]\) \.hist-fab/);
-  assert.match(CSS, /\.dark \.hist-fab \{ color: #0d1726; \}/);
+  // The fab wears the action tokens, which switch with .dark by themselves.
+  assert.match(CSS, /\.hist-fab \{[^}]*background: var\(--action\);[^}]*color: var\(--on-ink\);/);
 });
 
 test("one colour per domain of money, the same in «ثبت تراکنش» and «سوابق گذشته»", () => {

@@ -7,6 +7,7 @@ import Icon from "@/components/ui/Icon";
 import RowAction from "@/components/RowAction";
 import AdvancedFilter from "@/components/ui/AdvancedFilter";
 import FlowIcon from "@/components/transactions/FlowIcon";
+import SwipeRow from "@/components/money/SwipeRow";
 import { markManyReviewedAction, markReviewedAction, setEntryTagsAction, tagEntriesAction } from "@/app/actions";
 import { saveTemplateAction } from "@/app/actions/templates";
 import TagInput from "@/components/transactions/TagInput";
@@ -20,6 +21,7 @@ import {
   formatJalaliIso,
   formatMoney,
   formatQty,
+  formatMoneyWithSign,
   formatShortDate,
   toFaDigits,
   toJalali,
@@ -74,6 +76,38 @@ function dayLabel(iso: string) {
   return y === CURRENT_JALALI_YEAR ? formatShortDate(iso) : `${formatShortDate(iso)} ${toFaDigits(String(y))}`;
 }
 
+
+type Run = { kind: "run"; key: string; title: string; rows: ClientTxRow[] };
+type ListItem = { kind: "row"; row: ClientTxRow } | Run;
+
+/**
+ * Folds one day's installment payments of the same loan into one row. Paying
+ * six months of «وام مسکن» at once used to fill the whole first screen with
+ * six identical lines; now it is «۶ قسط — وام مسکن», opened on demand.
+ * Order is kept: the run sits where its first payment was.
+ */
+function foldRuns(dayKey: string, rows: ClientTxRow[]): ListItem[] {
+  const counts = new Map<string, number>();
+  for (const r of rows) if (r.linkedInstallment) counts.set(r.linkedInstallment.title, (counts.get(r.linkedInstallment.title) ?? 0) + 1);
+  const out: ListItem[] = [];
+  const runs = new Map<string, Run>();
+  for (const r of rows) {
+    const title = r.linkedInstallment?.title;
+    if (!title || (counts.get(title) ?? 0) < 2) {
+      out.push({ kind: "row", row: r });
+      continue;
+    }
+    const run = runs.get(title);
+    if (run) run.rows.push(r);
+    else {
+      const fresh: Run = { kind: "run", key: `${dayKey}:${title}`, title, rows: [r] };
+      runs.set(title, fresh);
+      out.push(fresh);
+    }
+  }
+  return out;
+}
+
 export default function TransactionsView({
   rows,
   accountGroups,
@@ -101,6 +135,8 @@ export default function TransactionsView({
   // Historical FX freeze lines are ledger-grade detail → PRO-only (Directive §2).
   const pro = useProMode();
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Installment runs folded into one row («۶ قسط وام مسکن»), opened by key.
+  const [openRuns, setOpenRuns] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -158,6 +194,19 @@ export default function TransactionsView({
   };
 
   const selectedRows = useMemo(() => rows.filter((r) => selected.has(r.id)), [rows, selected]);
+  // Net Toman of the selection (Palletline's summary bar): in minus out, from
+  // each entry's own frozen Toman. Shown only when every selected entry has
+  // one — a partial sum would be a wrong number, not a smaller one.
+  const selectedNet = useMemo(() => {
+    let sum = D(0);
+    for (const r of selectedRows) {
+      const h = humanizeEntry(r);
+      const t = h.nativeIrt ?? r.fx?.irtAmount ?? null;
+      if (t == null) return null;
+      sum = h.sign < 0 ? sum.sub(D(t)) : h.sign > 0 ? sum.add(D(t)) : sum;
+    }
+    return sum;
+  }, [selectedRows]);
   const unreviewedCount = useMemo(() => rows.filter((r) => !r.reviewed).length, [rows]);
 
   // Day headers only make sense for a date order; «بیشترین مبلغ» is one list.
@@ -225,55 +274,74 @@ export default function TransactionsView({
 
     return (
       <li key={e.id} className={isVoid ? "opacity-55" : ""}>
-        <div className="tx-item" data-type={e.type}>
-          <input
-            type="checkbox"
-            checked={selected.has(e.id)}
-            onChange={() => toggleSelect(e.id)}
-            aria-label={`انتخاب «${e.description}»`}
-            className="hidden h-4 w-4 shrink-0 cursor-pointer sm:block"
-            style={{ accentColor: "var(--action)" }}
-          />
-          <button
-            type="button"
-            onClick={() => setExpanded(open ? null : e.id)}
-            aria-expanded={open}
-            className="tx-item-main"
-          >
-            <FlowIcon sign={h.sign} type={e.type} />
-            <span className="tx-identity min-w-0 flex-1">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className={`min-w-0 truncate text-[length:var(--fs-sm)] font-medium ${isVoid ? "line-through" : ""}`}>
-                  {e.description}
-                </span>
-                {!e.reviewed && (
-                  <span className="tx-unreviewed-dot" title="بررسی‌نشده">
-                    <span className="sr-only">بررسی‌نشده</span>
-                  </span>
-                )}
-                {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
-              </span>
-              <span className="tx-row-meta">
-                <span className="tx-kind">{h.typeLabel}</span>
-                {!byDay && <span>{formatShortDate(e.entryDate)}</span>}
-                {category && <span>{category}</span>}
-                {tradeQty && <span className="num">{tradeQty}</span>}
-              </span>
-              {flow && <span className="tx-flow muted">{flow}</span>}
-              {tagLine && <span className="tx-tags muted">{tagLine}</span>}
-            </span>
-            <span
-              className="tx-row-amount num shrink-0 text-[length:var(--fs-sm)] font-semibold money-nowrap"
-              dir="rtl"
-              style={h.sign > 0 ? { color: "var(--positive)" } : undefined}
+        <SwipeRow
+          actions={
+            <>
+              <button
+                type="button"
+                className="mny-swipe-btn"
+                data-tone={e.reviewed ? "neutral" : "positive"}
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    await markReviewedAction(e.id, !e.reviewed);
+                  })
+                }
+              >
+                <Icon name={e.reviewed ? "undo" : "check"} size={16} />
+                {e.reviewed ? "بررسی‌نشده" : "تأیید"}
+              </button>
+              {!isVoid && REPEATABLE.has(e.type) && (
+                <a href={`/new?repeat=${e.id}`} className="mny-swipe-btn" data-tone="neutral">
+                  <Icon name="refresh" size={16} />
+                  تکرار
+                </a>
+              )}
+            </>
+          }
+        >
+          <div className="tx-item mny-tx" data-type={e.type} data-open={open || undefined}>
+            <input
+              type="checkbox"
+              checked={selected.has(e.id)}
+              onChange={() => toggleSelect(e.id)}
+              aria-label={`انتخاب «${e.description}»`}
+              className="mny-tx-check"
+            />
+            <button
+              type="button"
+              onClick={() => setExpanded(open ? null : e.id)}
+              aria-expanded={open}
+              className="tx-item-main mny-tx-main"
             >
-              {amount}
-            </span>
-            <span className={`muted shrink-0 transition-transform ${open ? "rotate-180" : ""}`}>
-              <Icon name="chevronDown" size={15} />
-            </span>
-          </button>
-        </div>
+              <FlowIcon sign={h.sign} type={e.type} />
+              <span className="mny-tx-id">
+                <span className="mny-tx-title">
+                  <span className={`mny-tx-text${isVoid ? " line-through" : ""}`}>{e.description}</span>
+                  {!e.reviewed && (
+                    <span className="tx-unreviewed-dot" title="بررسی‌نشده">
+                      <span className="sr-only">بررسی‌نشده</span>
+                    </span>
+                  )}
+                  {isVoid && <span className="badge badge-neg shrink-0">ابطال‌شده</span>}
+                </span>
+                <span className="mny-tx-meta">
+                  <span className="mny-tx-kind">{h.typeLabel}</span>
+                  {!byDay && <span>{formatShortDate(e.entryDate)}</span>}
+                  {category && <span>{category}</span>}
+                  {tradeQty && <span className="num">{tradeQty}</span>}
+                  {tagLine && <span className="mny-tx-tags">{tagLine}</span>}
+                </span>
+              </span>
+              {/* Its own column on a wide screen; on a phone the flow is in the
+                  row's detail, so each row stays two lines. */}
+              {flow && <span className="mny-tx-flow">{flow}</span>}
+              <span className="mny-tx-amount num money-nowrap" dir="rtl" data-sign={h.sign}>
+                {amount}
+              </span>
+            </button>
+          </div>
+        </SwipeRow>
 
         {open && (
           <div className="tx-detail fade-in">
@@ -515,19 +583,71 @@ export default function TransactionsView({
     );
   };
 
-  return (
-    <div className="transactions-content space-y-3">
-      <section className="card tx-filter-panel" aria-label="جستجو و بررسی تراکنش‌ها">
-        <div className="tx-filter-heading">
-          <div><h2>سوابق تراکنش‌ها</h2><p className="muted">{faCount(rows.length)} مورد در فهرست فعلی</p></div>
-          <button type="button" className="btn btn-soft" aria-pressed={filters.review === "unreviewed"}
-            onClick={() => apply({ review: filters.review === "unreviewed" ? "" : "unreviewed" })}>
-            بررسی‌نشده <span className="badge badge-neutral">{faCount(unreviewedCount)}</span>
+
+  const renderRun = (run: Run) => {
+    const open = openRuns.has(run.key);
+    const first = humanizeEntry(run.rows[0]);
+    // The run total is shown only when every payment carries its own frozen
+    // Toman — a partial sum would understate what left the account.
+    const tomans = run.rows.map((r) => humanizeEntry(r).nativeIrt ?? r.fx?.irtAmount ?? null);
+    const total = tomans.every((t): t is string => t != null)
+      ? formatMoneyWithSign(first.sign < 0 ? "−" : first.sign > 0 ? "+" : "", tomans.reduce((sum, t) => sum.add(D(t)), D(0)).toFixed(0), "IRT")
+      : null;
+    const seqs = run.rows.map((r) => r.linkedInstallment?.seq ?? 0).filter(Boolean).sort((a, b) => a - b);
+    const unreviewed = run.rows.some((r) => !r.reviewed);
+    return (
+      <li key={run.key} className="mny-run" data-open={open || undefined}>
+        <div className="tx-item mny-tx" data-type={run.rows[0].type}>
+          <span className="mny-tx-check" aria-hidden="true" />
+          <button
+            type="button"
+            className="tx-item-main mny-tx-main"
+            aria-expanded={open}
+            onClick={() =>
+              setOpenRuns((prev) => {
+                const next = new Set(prev);
+                if (next.has(run.key)) next.delete(run.key);
+                else next.add(run.key);
+                return next;
+              })
+            }
+          >
+            <FlowIcon sign={first.sign} type={run.rows[0].type} />
+            <span className="mny-tx-id">
+              <span className="mny-tx-title">
+                <span className="mny-tx-text">{run.title}</span>
+                {unreviewed && (
+                  <span className="tx-unreviewed-dot" title="بررسی‌نشده">
+                    <span className="sr-only">بررسی‌نشده</span>
+                  </span>
+                )}
+              </span>
+              <span className="mny-tx-meta">
+                <span className="mny-tx-kind">{faCount(run.rows.length)} قسط</span>
+                {seqs.length > 1 && (
+                  <span>
+                    {faCount(seqs[0])} تا {faCount(seqs[seqs.length - 1])}
+                  </span>
+                )}
+              </span>
+            </span>
+            {first.from && <span className="mny-tx-flow">{moneyFlowLabel(first.from, first.to)}</span>}
+            <span className="mny-tx-amount num money-nowrap" dir="rtl" data-sign={first.sign}>
+              {total}
+            </span>
+            <span className="mny-run-chev" aria-hidden="true">
+              <Icon name="chevronDown" size={15} />
+            </span>
           </button>
         </div>
-      <div className="tx-type-strip" aria-label="فیلتر سریع نوع تراکنش">
-        {[{ key: "", label: "همه" }, { key: "expense", label: "هزینه" }, { key: "income", label: "درآمد" }, { key: "debt_repayment", label: "پرداخت بدهی" }, { key: "fx", label: "تبدیل ارز" }].map((type) => <button key={type.key} type="button" data-type={type.key} aria-pressed={filters.type === type.key} onClick={() => apply({ type: type.key })}>{type.label}</button>)}
-      </div>
+        {open && <ul className="mny-run-rows">{run.rows.map(renderRow)}</ul>}
+      </li>
+    );
+  };
+
+  return (
+    <div className="transactions-content space-y-3">
+      <section className="mny-tx-toolbar" aria-label="جستجو و بررسی تراکنش‌ها">
       <AdvancedFilter
         searchRef={searchRef}
         search={{
@@ -614,6 +734,24 @@ export default function TransactionsView({
         isFiltered={!!isFiltered}
         onClear={() => router.replace("/transactions")}
       />
+        {/* One row of quick filters; it scrolls sideways on a phone instead of
+            wrapping into a second line. */}
+        <div className="tx-type-strip mny-chips" aria-label="فیلتر سریع نوع تراکنش">
+          {[{ key: "", label: "همه" }, { key: "expense", label: "هزینه" }, { key: "income", label: "درآمد" }, { key: "debt_repayment", label: "پرداخت بدهی" }, { key: "fx", label: "تبدیل ارز" }].map((type) => (
+            <button key={type.key} type="button" data-type={type.key} aria-pressed={filters.type === type.key} onClick={() => apply({ type: type.key })}>
+              {type.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            data-type="review"
+            aria-pressed={filters.review === "unreviewed"}
+            onClick={() => apply({ review: filters.review === "unreviewed" ? "" : "unreviewed" })}
+          >
+            بررسی‌نشده <span className="num mny-chip-count">{faCount(unreviewedCount)}</span>
+          </button>
+        </div>
+        <p className="mny-tx-count">{faCount(rows.length)} مورد در فهرست فعلی</p>
       </section>
 
       {tagSummary && tagSummary.entries > 0 && (
@@ -687,7 +825,7 @@ export default function TransactionsView({
             {groups.map((g) => (
               <section key={g.key} aria-label={g.label ?? undefined}>
                 {g.label && <h3 className="tx-day">{g.label}</h3>}
-                <ul>{g.rows.map(renderRow)}</ul>
+                <ul>{foldRuns(g.key, g.rows).map((item) => (item.kind === "row" ? renderRow(item.row) : renderRun(item)))}</ul>
               </section>
             ))}
           </div>
@@ -732,7 +870,14 @@ export default function TransactionsView({
             </form>
           ) : (
           <>
-          <span className="text-[length:var(--fs-xs)] font-semibold">{faCount(selectedRows.length)} مورد انتخاب شده</span>
+          <span className="mny-bulk-summary">
+            <b>{faCount(selectedRows.length)} مورد انتخاب شده</b>
+            {selectedNet && !selectedNet.isZero() && (
+              <span className="num money-nowrap" dir="rtl" data-sign={selectedNet.isNegative() ? -1 : 1}>
+                {formatMoneyWithSign(selectedNet.isNegative() ? "−" : "+", selectedNet.abs().toFixed(0), "IRT")}
+              </span>
+            )}
+          </span>
           <div className="flex items-center gap-1.5">
             <button type="button" className="btn !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]" onClick={() => { setTagMsg(null); setBulkTag(""); }}>
               #

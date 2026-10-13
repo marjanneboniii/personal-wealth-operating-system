@@ -94,7 +94,7 @@ export default function OnboardingChecklist() {
   return (
     <div className="mx-auto max-w-2xl space-y-5 py-6">
       <header className="space-y-2">
-        <h1 className="text-[length:var(--fs-lg)] font-bold tracking-tight">
+        <h1 className="text-[length:var(--fs-lg)] font-bold">
           چه دارایی‌هایی دارید؟
         </h1>
         <p className="muted text-[length:var(--fs-sm)] leading-7">

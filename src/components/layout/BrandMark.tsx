@@ -96,7 +96,7 @@ export function BrandLockup({
   const color = onDark ? "var(--text)" : "var(--action)";
   const word = (
     <span className="leading-tight">
-      <BrandWordmark className="block text-[length:var(--fs-md)] tracking-tight" />
+      <BrandWordmark className="block text-[length:var(--fs-md)]" />
       {subtitle && (
         <span className={`block text-[length:var(--fs-xs)] ${onDark ? "landing-on-primary-muted" : "muted"}`}>{subtitle}</span>
       )}

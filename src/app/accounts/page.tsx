@@ -12,12 +12,15 @@ import { seedIfEmpty } from "@/db/seed";
 import { listMoneyAccountCurrencies } from "@/features/accounts/service";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { classifyAccountFamily, isLiquidAccount } from "@/features/accounts/classification";
-import { Alert, EmptyState, Metric, PageHeader, Section, SectionLink } from "@/components/ui/Card";
+import { Alert, EmptyState, Section, SectionLink } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
 import FormattedMoney from "@/components/ui/FormattedMoney";
 import AssetLogo from "@/components/ui/AssetLogo";
 import DisclosurePanel from "@/components/ui/DisclosurePanel";
-import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
+import MoneyHeader from "@/components/money/MoneyHeader";
+import StatCard from "@/components/money/StatCard";
+import SplitBar from "@/components/money/SplitBar";
+import RowMenu from "@/components/money/RowMenu";
 import { resolveAssetLogoDetailed } from "@/features/branding/assetLogo";
 import MoneyAccountForm from "@/components/forms/MoneyAccountForm";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/domain/accounting";
@@ -201,8 +204,6 @@ export default async function AccountsPage() {
   const fxAccounts = moneyAccounts.filter((b) => !isIrt(b));
   const irtToman = tomanTotal(irtAccounts) ?? Decimal.zero();
   const fxToman = tomanTotal(fxAccounts);
-  const shareOfTotal = (part: Decimal | null) =>
-    totalToman && part && totalToman.gt(0) ? `${formatPct(part.div(totalToman).mul(100).toFixed(0), 0)} از کل` : undefined;
 
   const walletIdByAccount = new Map(walletRows.filter((w) => w.accountId).map((w) => [w.accountId as string, w.id]));
   const byWallet = new Map<string, Balance[]>();
@@ -244,20 +245,25 @@ export default async function AccountsPage() {
     .sort((a, b) => Number((rate ? (b.toman ?? b.usd) : b.usd).sub(rate ? (a.toman ?? a.usd) : a.usd).toString()));
 
   const [bankProfileAccounts, bankProfileIdentifiers] = await Promise.all([listSmsBankAccounts(user.id),listBankIdentifiers(user.id)]);
+  // «•• ۴۲۴۲» (MetalForge's card picker): the last four digits of the card the
+  // user saved for an account — only ever the stored suffix, never a number.
+  const cardTail = new Map<string, string>();
+  for (const i of bankProfileIdentifiers) {
+    if (i.kind === "card" && i.suffix && !cardTail.has(i.accountId)) cardTail.set(i.accountId, `•• ${toFaDigits(i.suffix.slice(-4))}`);
+  }
+  const irtShare = totalToman && totalToman.gt(0) ? irtToman.div(totalToman).mul(100).toNumber() : null;
   return (
-    <div className="accounts-page space-y-6">
-      <div>
-        <PageHeader
-          title="حساب‌ها"
-          action={
-            <Link href="#new-account" className="btn btn-primary">
-              <Icon name="plus" size={16} />
-              افزودن حساب
-            </Link>
-          }
-        />
-        <ModuleTabs tabs={MONEY_TABS} active="/accounts" label="بخش‌های پول" />
-      </div>
+    <div className="accounts-page mny-page">
+      <MoneyHeader
+        title="حساب‌ها"
+        active="/accounts"
+        actions={
+          <Link href="#new-account" className="btn btn-primary">
+            <Icon name="plus" size={16} />
+            افزودن حساب
+          </Link>
+        }
+      />
 
       {!ledgerBalanced && (
         <Alert
@@ -288,21 +294,44 @@ export default async function AccountsPage() {
         />
       )}
 
-      <section className="metric-strip accounts-summary" aria-label="خلاصهٔ موجودی حساب‌ها">
-        <Metric
+      <section className="mny-accounts-summary" aria-label="خلاصهٔ موجودی حساب‌ها">
+        <StatCard
+          tone="ink"
+          icon="wallet"
           label="موجودی کل"
+          period={`${faCount(moneyAccounts.length)} حساب در ${faCount(byWallet.size)} کیف و بانک`}
           value={<FormattedMoney value={totalToman ? formatMoney(totalToman.toFixed(0), "IRT") : formatMoney(totalUsd.toString())} />}
           hint={totalToman ? `≈ ${formatMoney(totalUsd.toString())}` : undefined}
+          bar={
+            irtShare != null && fxAccounts.length > 0 ? (
+              <SplitBar
+                label={`تومانی ${formatPct(Math.round(irtShare), 0)}، ارزی ${formatPct(100 - Math.round(irtShare), 0)}`}
+                parts={[
+                  { key: "irt", label: "تومانی", share: irtShare, color: "#e6ecf2" },
+                  { key: "fx", label: "ارزی", share: 100 - irtShare, color: "#2bd3a8" },
+                ]}
+              />
+            ) : undefined
+          }
+          footer={
+            <dl className="mny-substats">
+              <div>
+                <dt>تومانی</dt>
+                <dd dir="rtl">
+                  <FormattedMoney value={formatMoney(irtToman.toFixed(0), "IRT")} />
+                </dd>
+              </div>
+              {fxAccounts.length > 0 && (
+                <div>
+                  <dt>ارزی</dt>
+                  <dd dir="rtl">
+                    <FormattedMoney value={fxToman ? formatMoney(fxToman.toFixed(0), "IRT") : formatMoney(usdTotal(fxAccounts).toString())} />
+                  </dd>
+                </div>
+              )}
+            </dl>
+          }
         />
-        <Metric label="تومانی" value={<FormattedMoney value={formatMoney(irtToman.toFixed(0), "IRT")} />} hint={shareOfTotal(irtToman)} />
-        {fxAccounts.length > 0 && (
-          <Metric
-            label="ارزی"
-            value={<FormattedMoney value={fxToman ? formatMoney(fxToman.toFixed(0), "IRT") : formatMoney(usdTotal(fxAccounts).toString())} />}
-            hint={fxToman ? `≈ ${formatMoney(usdTotal(fxAccounts).toString())}` : undefined}
-          />
-        )}
-        <Metric label="حساب‌ها" value={faCount(moneyAccounts.length)} hint={`${faCount(byWallet.size)} کیف و بانک`} />
       </section>
 
       <DisclosurePanel anchor="bank-details" label="مشخصات کارت، شبا و حساب بانکی (اختیاری)"><BankIdentifiers profileMode accounts={bankProfileAccounts} identifiers={bankProfileIdentifiers} /></DisclosurePanel>
@@ -335,7 +364,7 @@ export default async function AccountsPage() {
             />
           </div>
         ) : (
-          <ul className="accounts-wallet-list" role="list">
+          <ul className="mny-wallets card" role="list">
             {walletViews.map((w) => {
               const single = w.rows.length === 1;
               const first = w.rows[0];
@@ -364,98 +393,121 @@ export default async function AccountsPage() {
                 secondary = w.toman && !w.rows.every(isIrt) ? `≈ ${formatMoney(w.usd.toString())}` : null;
               }
 
-              return (
-                <li key={w.key} className="card list-card accounts-wallet-card">
-                  <div className="list-row accounts-balance-row accounts-wallet-head">
+              const tail = single ? cardTail.get(first.accountId) : null;
+              const subtitle = [w.subtitle, tail, single ? null : `${faCount(w.rows.length)} حساب`].filter(Boolean).join(" · ");
+              const head = (
+                <>
                     {useWalletMark ? (
-                      <span className="acct-icon flex shrink-0 items-center">
-                        <AssetLogo
-                          assetType={logoType}
-                          brandName={brandName}
-                          name={w.name}
-                          userLogoUrl={walletLogo ?? undefined}
-                          size={34}
-                          radius={17}
-                        />
-                        {showAssetBadge && (
-                          <span className="wallet-badge">
-                            <AssetLogo
-                              symbol={first.symbol}
-                              name={first.name ?? w.name}
-                              logoUrl={firstMeta?.logoUrl ?? null}
-                              assetClassName={first.className}
-                              coingeckoId={firstMeta?.coingeckoId ?? null}
-                              size={18}
-                              radius={9}
-                            />
-                          </span>
-                        )}
-                      </span>
-                    ) : single && (firstMeta?.logoUrl || firstMeta?.coingeckoId || first.symbol) ? (
-                      <span className="acct-icon flex shrink-0">
-                        <AssetLogo
-                          symbol={first.symbol}
-                          name={first.name ?? w.name}
-                          logoUrl={firstMeta?.logoUrl ?? null}
-                          assetClassName={first.className}
-                          coingeckoId={firstMeta?.coingeckoId ?? null}
-                          size={34}
-                          radius={17}
-                        />
-                      </span>
-                    ) : (
-                      <span className="flow-icon" aria-hidden="true">
-                        <Icon name="wallet" size={15} />
-                      </span>
-                    )}
-                    <div className="accounts-identity min-w-0">
-                      <p className="acct-title text-[length:var(--fs-sm)] font-semibold">{w.name}</p>
-                      {w.subtitle && <p className="acct-subtitle muted text-[length:var(--fs-xs)]">{w.subtitle}</p>}
-                    </div>
-                    <div className="acct-amount accounts-row-amount">
-                      <p className="accounts-primary" dir="rtl">
-                        <FormattedMoney value={primary} />
-                      </p>
-                      {secondary && (
-                        <p className="acct-secondary accounts-secondary" dir="rtl">
-                          <FormattedMoney value={secondary} />
-                        </p>
-                      )}
-                    </div>
-                    {/* One account in this wallet → the row IS the account, so
-                        «حذف» here removes it (and the now-empty wallet with it).
-                        A multi-account wallet is deleted one account at a time
-                        from the sub-rows below. */}
-                    {single && <DeleteAccountButton accountId={first.accountId} accountName={w.name} />}
-                  </div>
-                  {!single && (
-                    <ul className="wallet-sub">
-                      {w.rows.map((b) => {
-                        // Money is formatted on the SERVER; only strings cross
-                        // into the client component.
-                        const meta = b.assetId ? assetMeta.get(b.assetId) : undefined;
-                        return (
-                          <AccountListItem
-                            key={b.accountId}
-                            accountId={b.accountId}
-                            accountName={cleanDisplayName(b.name ?? b.assetName ?? "بدون نام")}
-                            // Inside its wallet «تتر - بیت‌پین» reads as «تتر».
-                            name={persianAssetName(b.symbol, b.name?.endsWith(` - ${w.name}`) ? b.name.slice(0, -` - ${w.name}`.length) : b.name ?? b.assetName ?? "بدون نام")}
-                            symbol={b.symbol}
-                            quantity={b.quantity}
-                            assetDecimals={b.assetDecimals}
-                            balanceLabel={canonicalBalance(b)}
-                            valuationLabel={valuationToman(b)}
-                            baseValueLabel={formatMoney(D(b.baseValue).toString())}
-                            walletName={b.walletName}
-                            logoUrl={meta?.logoUrl ?? null}
-                            assetClassName={b.className}
-                            coingeckoId={meta?.coingeckoId ?? null}
-                            deletable
+                    <span className="acct-icon flex shrink-0 items-center">
+                      <AssetLogo
+                        assetType={logoType}
+                        brandName={brandName}
+                        name={w.name}
+                        userLogoUrl={walletLogo ?? undefined}
+                        size={34}
+                        radius={17}
+                      />
+                      {showAssetBadge && (
+                        <span className="wallet-badge">
+                          <AssetLogo
+                            symbol={first.symbol}
+                            name={first.name ?? w.name}
+                            logoUrl={firstMeta?.logoUrl ?? null}
+                            assetClassName={first.className}
+                            coingeckoId={firstMeta?.coingeckoId ?? null}
+                            size={18}
+                            radius={9}
                           />
-                        );
-                      })}
-                    </ul>
+                        </span>
+                      )}
+                    </span>
+                  ) : single && (firstMeta?.logoUrl || firstMeta?.coingeckoId || first.symbol) ? (
+                    <span className="acct-icon flex shrink-0">
+                      <AssetLogo
+                        symbol={first.symbol}
+                        name={first.name ?? w.name}
+                        logoUrl={firstMeta?.logoUrl ?? null}
+                        assetClassName={first.className}
+                        coingeckoId={firstMeta?.coingeckoId ?? null}
+                        size={34}
+                        radius={17}
+                      />
+                    </span>
+                  ) : (
+                    <span className="flow-icon" aria-hidden="true">
+                      <Icon name="wallet" size={15} />
+                    </span>
+                  )}
+                  <div className="mny-acct-id">
+                    <p className="mny-acct-name">{w.name}</p>
+                    {subtitle && <p className="mny-acct-sub">{subtitle}</p>}
+                  </div>
+                  <div className="mny-acct-amount">
+                    <p className="mny-acct-primary" dir="rtl">
+                      <FormattedMoney value={primary} />
+                    </p>
+                    {secondary && (
+                      <p className="mny-acct-secondary" dir="rtl">
+                        <FormattedMoney value={secondary} />
+                      </p>
+                    )}
+                  </div>
+                </>
+              );
+
+              return (
+                <li key={w.key} className="mny-wallet">
+                  {single ? (
+                    <div className="mny-acct-row">
+                      {head}
+                      {/* One account in this wallet → the row IS the account, so
+                          «حذف» here removes it (and the now-empty wallet with it). */}
+                      <RowMenu label={`گزینه‌های ${w.name}`}>
+                        <Link href={`/transactions?account=${first.accountId}`} className="mny-menu-item">
+                          <Icon name="transactions" size={15} />
+                          تراکنش‌های این حساب
+                        </Link>
+                        <DeleteAccountButton accountId={first.accountId} accountName={w.name} variant="menu" />
+                      </RowMenu>
+                    </div>
+                  ) : (
+                    // A wallet with several accounts opens into them (Wensity's
+                    // expanding card); each account is deleted from its own row.
+                    <details className="mny-wallet-group">
+                      <summary className="mny-acct-row">
+                        {head}
+                        <span className="mny-wallet-chev" aria-hidden="true">
+                          <Icon name="chevronDown" size={16} />
+                        </span>
+                      </summary>
+                      <ul className="mny-wallet-sub">
+                        {w.rows.map((b) => {
+                          // Money is formatted on the SERVER; only strings cross
+                          // into the client component.
+                          const meta = b.assetId ? assetMeta.get(b.assetId) : undefined;
+                          return (
+                            <AccountListItem
+                              key={b.accountId}
+                              accountId={b.accountId}
+                              accountName={cleanDisplayName(b.name ?? b.assetName ?? "بدون نام")}
+                              // Inside its wallet «تتر - بیت‌پین» reads as «تتر».
+                              name={persianAssetName(b.symbol, b.name?.endsWith(` - ${w.name}`) ? b.name.slice(0, -` - ${w.name}`.length) : b.name ?? b.assetName ?? "بدون نام")}
+                              symbol={b.symbol}
+                              quantity={b.quantity}
+                              assetDecimals={b.assetDecimals}
+                              balanceLabel={canonicalBalance(b)}
+                              valuationLabel={valuationToman(b)}
+                              baseValueLabel={formatMoney(D(b.baseValue).toString())}
+                              walletName={b.walletName}
+                              logoUrl={meta?.logoUrl ?? null}
+                              assetClassName={b.className}
+                              coingeckoId={meta?.coingeckoId ?? null}
+                              deletable
+                            />
+                          );
+                        })}
+                      </ul>
+                    </details>
                   )}
                 </li>
               );

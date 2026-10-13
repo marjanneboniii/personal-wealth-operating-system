@@ -66,8 +66,15 @@ async function renderOverview(): Promise<string> {
   return html;
 }
 
+/** Metric values render the figure and its unit as two spans (FormattedMoney);
+ *  join them back so an amount reads as the single string formatMoney returns. */
+const joinMoneyUnit = (s: string) =>
+  s.replace(/<span class="num-mono ltr-isolate" dir="ltr">([^<]*)<\/span><span class="money-unit">([^<]*)<\/span>/g, "$1\u00a0$2");
+const noBidi = (s: string) => s.replace(/[\u2066-\u2069]/g, "");
+
 /** Everything from the label «کل بدهی‌ها» to the next tile. */
-function debtTile(html: string): string {
+function debtTile(raw: string): string {
+  const html = joinMoneyUnit(noBidi(raw));
   const start = html.indexOf("کل بدهی‌ها");
   assert.ok(start >= 0, "the overview must render the «کل بدهی‌ها» tile");
   const rest = html.slice(start);
@@ -137,10 +144,11 @@ test("overview shows the debt of a planning-only debt instead of ۰", async () =
   const html = await renderOverview();
   const tile = debtTile(html);
 
-  assert.ok(tile.includes(formatMoney("4800000000", "IRT")), `tile must render the Toman debt, got: ${tile.slice(0, 300)}`);
-  assert.ok(!tile.includes(formatMoney("0", "IRT")), "the tile must never read ۰ تومان while a debt is outstanding");
+  assert.ok(tile.includes(noBidi(formatMoney("4800000000", "IRT"))), `tile must render the Toman debt, got: ${tile.slice(0, 300)}`);
+  // A whole «۰ تومان», not the tail of «…۰۰۰ تومان».
+  assert.ok(!/(^|[^۰-۹٬])۰\u00a0تومان/.test(tile), "the tile must never read ۰ تومان while a debt is outstanding");
   // …and the USD sub-line is a positive display equivalent.
-  assert.ok(tile.includes(formatMoney(D("4800000000").div(RATE).toFixed(2))), "tile shows the USD equivalent");
+  assert.ok(tile.includes(noBidi(formatMoney(D("4800000000").div(RATE).toFixed(2)))), "tile shows the USD equivalent");
   assert.ok(!tile.includes("−"), "the debt sub-line is never a negative amount");
 
   sessionToken = null;
@@ -160,7 +168,7 @@ test("overview stays consistent when nothing is owed", async () => {
 
   const html = await renderOverview();
   const tile = debtTile(html);
-  assert.ok(tile.includes(formatMoney("0", "IRT")), "an empty debt book honestly reads ۰");
+  assert.ok(tile.includes(noBidi(formatMoney("0", "IRT"))), "an empty debt book honestly reads ۰");
 
   sessionToken = null;
 });

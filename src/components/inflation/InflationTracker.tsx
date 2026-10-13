@@ -739,7 +739,7 @@ export default function InflationTracker({ items, histories, dashboard, categori
     <div className="finance-page inflation-page space-y-5">
       <PageHeader
         title="ردیاب تورم شخصی"
-        subtitle="تورم سبد خودتان را بسنجید. این کالاها دارایی نیستند و در ارزش خالص اثری ندارند."
+        subtitle="این کالاها در ارزش خالص حساب نمی‌شوند."
         action={
           <button type="button" className="btn btn-primary" onClick={() => addPrice()} aria-haspopup="dialog">
             <Icon name="plus" size={16} strokeWidth={2.2} />
@@ -913,7 +913,6 @@ export default function InflationTracker({ items, histories, dashboard, categori
         ))}
       </datalist>
 
-      <p className="expense-sub">این ماژول صرفاً تحلیلی است: دارایی محسوب نمی‌شود و وارد سبد دارایی، ثروت خالص و سوابق مالی نمی‌شود.</p>
 
       <NewPriceSheet
         open={sheet.open}

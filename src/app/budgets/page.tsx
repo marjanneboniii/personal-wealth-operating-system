@@ -52,7 +52,6 @@ export default async function BudgetsPage() {
     <div className="space-y-5">
       <PageHeader
         title="بودجه‌ها"
-        subtitle="سقف خرج ماهانه، یا بودجه یک رویداد مثل عقد، عروسی، سفر یا تعویض ماشین با ریز اقلامش."
         action={addButton}
       />
 
@@ -61,7 +60,7 @@ export default async function BudgetsPage() {
           <EmptyState
             icon="budgets"
             title="هنوز بودجه‌ای تعریف نشده است"
-            body="برای هزینه‌های ماهانه سقف بگذارید، یا برای یک رویداد مثل عقد، عروسی، سفر یا تعویض ماشین بودجه با ریز اقلام (حلقه، لباس، تالار…) بسازید. خرج واقعی خودکار با آن سنجیده می‌شود."
+            body="سقف خرج ماهانه یا بودجهٔ یک رویداد بسازید؛ خرج واقعی خودکار با آن سنجیده می‌شود."
             action={
               <AddBudgetButton
                 accounts={expenseAccounts}

@@ -24,7 +24,7 @@ export default async function SetupMessagesPage() {
  ]);
   const { endpoint, unavailableReason } = smsConnectionConfig();
  return <div className="mx-auto max-w-2xl space-y-5 py-4">
-  <header className="space-y-3"><h1 className="text-[length:var(--fs-xl)] font-bold tracking-tight">تکمیل اتصال پیامک</h1><p className="muted text-sm">راه‌اندازی اولیه ثبت شده؛ اکنون دریافت پیام روی آیفون را تنظیم کنید.</p></header>
+  <header className="space-y-3"><h1 className="text-[length:var(--fs-xl)] font-bold">تکمیل اتصال پیامک</h1><p className="muted text-sm">راه‌اندازی اولیه ثبت شده؛ اکنون دریافت پیام روی آیفون را تنظیم کنید.</p></header>
   <div className="card setup-card space-y-4"><StepIntro title="اتصال پیامک" text="پیامک‌های بانک خودشان به تراکنش پیشنهادی تبدیل می‌شوند؛ شما فقط بررسی و تأیید می‌کنید. این مرحله اختیاری است و بعداً هم از «تراکنش‌ها» در دسترس است." />
    <SmsProgress cards={identifiers.length} iphones={connections.length} received={connections.filter((connection) => connection.lastReceivedAt).length} waiting={0} />
    <details className="sms-guide"><summary>روی چه دستگاه‌هایی کار می‌کند؟</summary><p className="mt-3 muted text-sm leading-6">ارسال پیامک فقط از آیفون (برنامهٔ Shortcuts). دیدن و تأیید پیام‌ها در وب و نسخهٔ نصبی (PWA) با همین حساب. اندروید هنوز پشتیبانی نمی‌شود.</p></details>

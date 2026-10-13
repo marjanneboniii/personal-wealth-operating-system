@@ -1,6 +1,6 @@
 import { ensureAuth } from "@/lib/authGuard";
-import { EmptyState, PageHeader } from "@/components/ui/Card";
-import ModuleTabs, { MONEY_TABS } from "@/components/ui/ModuleTabs";
+import { EmptyState } from "@/components/ui/Card";
+import MoneyHeader from "@/components/money/MoneyHeader";
 import TxScopeSwitch from "@/components/transactions/TxScopeSwitch";
 import HistoryView from "@/components/transactions/HistoryView";
 import {
@@ -23,11 +23,8 @@ const dayBefore = (iso: string) => {
 
 function Frame({ children, count }: { children: React.ReactNode; count?: number }) {
   return (
-    <div className="mx-auto w-full max-w-5xl min-w-0 space-y-5">
-      <div>
-        <PageHeader title="تراکنش‌ها" />
-        <ModuleTabs tabs={MONEY_TABS} active="/transactions" label="بخش‌های پول" />
-      </div>
+    <div className="mny-page mx-auto w-full max-w-5xl min-w-0">
+      <MoneyHeader title="تراکنش‌ها" active="/transactions" />
       <TxScopeSwitch active="history" historyCount={count} />
       {children}
     </div>

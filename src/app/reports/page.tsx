@@ -96,7 +96,6 @@ export default async function ReportsPage() {
           assertions at the monthly table instead. */}
       <PageHeader
         title="گزارش‌های مالی"
-        subtitle="تصویر ماه‌به‌ماه درآمد، هزینه، سود سرمایه‌گذاری و آنچه در راه است."
         action={
           <>
             <RowAction kind="snapshot" label="ثبت اسنپ‌شات" />
@@ -154,7 +153,7 @@ export default async function ReportsPage() {
           </div>
 
           <div className="card overflow-x-auto">
-            <table className="table">
+            <table className="table table-stack">
               <thead>
                 <tr>
                   <th scope="col">ماه</th>
@@ -171,7 +170,7 @@ export default async function ReportsPage() {
                   return (
                     <tr key={m.month}>
                       <td className="font-medium">{m.jalaliLabel}</td>
-                      <td className="td-num" dir="rtl" style={{ color: "var(--positive)" }}>
+                      <td className="td-num" dir="rtl" data-label="درآمد" style={{ color: "var(--positive)" }}>
                         <div>
                           {m.inflowFrozen && m.inflowToman != null && D(m.inflowToman).gt(0)
                             ? formatMoney(m.inflowToman, "IRT")
@@ -179,7 +178,7 @@ export default async function ReportsPage() {
                         </div>
                         {rate && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(m.inflow)}</div>}
                       </td>
-                      <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
+                      <td className="td-num" dir="rtl" data-label="هزینه" style={{ color: "var(--negative)" }}>
                         <div>
                           {m.outflowFrozen && m.outflowToman != null && D(m.outflowToman).gt(0)
                             ? formatMoney(m.outflowToman, "IRT")
@@ -189,7 +188,7 @@ export default async function ReportsPage() {
                         </div>
                         {rate && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(m.outflow)}</div>}
                       </td>
-                      <td className="td-num font-bold" dir="rtl" style={{ color: D(m.net).gte(0) ? "var(--positive)" : "var(--negative)" }}>
+                      <td className="td-num font-bold" dir="rtl" data-label="خالص" style={{ color: D(m.net).gte(0) ? "var(--positive)" : "var(--negative)" }}>
                         <div>
                           {m.inflowFrozen && m.outflowFrozen
                             ? formatSignedMoney(D(m.inflowToman ?? "0").sub(D(m.outflowToman ?? "0")).toString(), "IRT")

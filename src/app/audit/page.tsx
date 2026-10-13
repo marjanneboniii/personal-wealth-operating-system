@@ -54,7 +54,7 @@ export default async function AuditPage() {
         role="status"
         aria-live="polite"
       >
-        <p className="text-[length:var(--fs-xs)] font-semibold tracking-wide" style={{ color: "var(--text-2)" }}>
+        <p className="text-[length:var(--fs-xs)] font-semibold" style={{ color: "var(--text-2)" }}>
           یکپارچگی مالی
         </p>
         <div className="mt-2 flex items-center gap-3">
@@ -65,7 +65,7 @@ export default async function AuditPage() {
             <Icon name={allOk ? "check-circle" : fails ? "xcircle" : "alert"} size={22} />
           </span>
           <div>
-            <p className="text-[length:var(--fs-md)] font-bold tracking-tight">
+            <p className="text-[length:var(--fs-md)] font-bold">
               {allOk ? null : fails ? `${faCount(fails)} مشکل جدی نیاز به اقدام دارد` : "قابل اعتماد، با چند نکته"}
             </p>
             <p className="sub text-[length:var(--fs-xs)]">
@@ -106,7 +106,7 @@ export default async function AuditPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-[length:var(--fs-sm)] font-semibold tracking-tight">{c.title}</h3>
+                      <h3 className="text-[length:var(--fs-sm)] font-semibold">{c.title}</h3>
                       <span className="badge" style={{ background: ui.bg, color: ui.color }}>
                         {c.severityLabel}
                       </span>

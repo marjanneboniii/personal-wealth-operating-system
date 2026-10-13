@@ -2,8 +2,11 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import { isRealLoanDebt, listDebts } from "@/features/planning/service";
-import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
-import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import { EmptyState, Progress, Section } from "@/components/ui/Card";
+import StatCard from "@/components/money/StatCard";
+import FormattedMoney from "@/components/ui/FormattedMoney";
+import { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import ObligationCard from "@/components/debts/ObligationCard";
 import { faCount, formatTomanPrimary, sumToman, todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
@@ -40,25 +43,39 @@ export default async function LoansPage() {
   const sorted = [...loans].sort((a, b) => Number(b.outstandingToman ?? 0) - Number(a.outstandingToman ?? 0));
 
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader title="وام‌ها" />
-        <ModuleTabs tabs={DEBT_TABS} active="/debts/loans" label="بخش‌های تعهدات" />
-      </div>
+    <div className="mny-page">
+      <ModuleHeader title="وام‌ها" tabs={DEBT_TABS} active="/debts/loans" label="بخش‌های تعهدات" />
 
-      <section className="metric-strip">
-        <Metric
-          label="مانده وام‌ها"
-          value={outDisp.primary}
-          hint={outDisp.usdHint ? `≈ ${outDisp.usdHint}` : `${faCount(active.length)} وام فعال`}
-        />
-        <Metric label="اصل تسهیلات" value={prinDisp.primary} hint={prinDisp.usdHint ? `≈ ${prinDisp.usdHint}` : undefined} />
-        <Metric
-          label="اقساط پرداخت‌شده"
-          value={`${faCount(totalPaid)} از ${faCount(totalInstallments)}`}
-          tone={totalInstallments > 0 && totalPaid === totalInstallments ? "up" : "neutral"}
-        />
-      </section>
+      {loans.length > 0 && (
+        <section className="mny-stats" style={{ ["--mny-cols" as string]: 4 }} aria-label="خلاصهٔ وام‌ها">
+          <StatCard
+            tone="ink"
+            className="mny-stat-lead"
+            icon="debts"
+            label="ماندهٔ وام‌ها"
+            period={`${faCount(active.length)} وام فعال`}
+            value={<FormattedMoney value={outDisp.primary} />}
+            hint={outDisp.usdHint ? `≈ ${outDisp.usdHint}` : undefined}
+          />
+          <StatCard
+            icon="coins"
+            label="اصل تسهیلات"
+            value={<FormattedMoney value={prinDisp.primary} />}
+            hint={prinDisp.usdHint ? `≈ ${prinDisp.usdHint}` : undefined}
+          />
+          <StatCard
+            tone={totalInstallments > 0 && totalPaid === totalInstallments ? "positive" : "plain"}
+            icon="installments"
+            label="اقساط پرداخت‌شده"
+            value={`${faCount(totalPaid)} از ${faCount(totalInstallments)}`}
+            bar={
+              totalInstallments > 0 ? (
+                <Progress value={(totalPaid / totalInstallments) * 100} color="var(--positive)" aria-label="سهم اقساط پرداخت‌شده" />
+              ) : undefined
+            }
+          />
+        </section>
+      )}
 
       <Section title="وام‌های من" action={<span className="muted num text-[length:var(--fs-xs)]">{faCount(loans.length)}</span>}>
         {loans.length === 0 ? (

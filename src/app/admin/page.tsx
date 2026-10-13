@@ -84,7 +84,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   ];
 
   return <div className="space-y-6">
-    <PageHeader title="مدیریت کاربران" subtitle="وضعیت حساب‌ها بدون نمایش مبالغ یا اطلاعات مالی کاربران · هر تغییر در گزارش حسابرسی ثبت می‌شود" />
+    <PageHeader title="مدیریت کاربران" subtitle="اطلاعات مالی کاربران اینجا نمایش داده نمی‌شود." />
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {stats.map((s) => <div key={s.label} className="card p-3">
         <div className="muted text-[length:var(--fs-xs)]">{s.label}</div>

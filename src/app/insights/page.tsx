@@ -284,7 +284,6 @@ export default async function InsightsPage() {
     <div className="space-y-5">
       <PageHeader
         title="بینش‌ها"
-        subtitle="آنچه داده‌هایتان می‌گوید."
       />
 
       {/* ── سلامت مالی ── */}

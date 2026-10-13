@@ -23,7 +23,7 @@ export function Card({
     <section className={`card p-3.5 sm:p-4 ${className}`}>
       {(title || action) && (
         <header className="mb-2.5 flex items-center justify-between gap-2">
-          {title && <h2 className="text-[17px] font-semibold tracking-tight sm:text-[18px]">{title}</h2>}
+          {title && <h2 className="text-[17px] font-semibold sm:text-[18px]">{title}</h2>}
           {action}
         </header>
       )}
@@ -57,7 +57,7 @@ export function Section({
       {(title || hint || action) && (
         <header className="mb-2.5 flex items-end justify-between gap-3">
           <div className="min-w-0">
-            {title && <h2 className="text-[17px] font-semibold tracking-tight sm:text-[18px]">{title}</h2>}
+            {title && <h2 className="text-[17px] font-semibold sm:text-[18px]">{title}</h2>}
             {hint && <p className="muted mt-1 text-[length:var(--fs-xs)] leading-5">{hint}</p>}
           </div>
           {action && <div className="shrink-0 pb-0.5">{action}</div>}
@@ -188,17 +188,20 @@ export function Stat({
   );
 }
 
-/** Borderless metric — label above, value below. For dense KPI rows. Compact for PWA. */
+/** Borderless metric — label above, value below. For dense KPI rows. Compact for PWA.
+ *  `share` (0–100) adds a thin bar: how big this figure is next to its whole. */
 export function Metric({
   label,
   value,
   hint,
   tone = "neutral",
+  share,
 }: {
   label: string;
   value: ReactNode;
   hint?: ReactNode;
   tone?: "neutral" | "up" | "down";
+  share?: number;
 }) {
   const color =
     tone === "up" ? "var(--positive)" : tone === "down" ? "var(--negative)" : "var(--text)";
@@ -206,14 +209,34 @@ export function Metric({
     <div className="stat-tile min-w-0 overflow-hidden">
       <div className="muted text-[length:var(--fs-xs)] font-medium truncate">{label}</div>
       <div className="metric-value mt-1.5 text-[length:var(--fs-md)] font-bold tracking-tight money-nowrap" style={{ color }} dir="rtl">
-        {value}
+        {typeof value === "string" ? <FormattedMoney value={value} /> : value}
       </div>
+      {share != null && Number.isFinite(share) && (
+        <div className="metric-share" aria-hidden="true">
+          <i style={{ width: `${Math.max(2, Math.min(100, share))}%`, background: tone === "neutral" ? "var(--accent-line)" : color }} />
+        </div>
+      )}
       {hint && <div className="muted mt-1 text-[length:var(--fs-xs)] leading-5 line-clamp-2">{hint}</div>}
     </div>
   );
 }
 
-export function Progress({ value, color = "var(--action)", "aria-label": ariaLabel = "پیشرفت" }: { value: number; color?: string; "aria-label"?: string }) {
+/**
+ * `segments` (2–36) draws the bar as that many blocks — one per installment —
+ * so «۶ از ۲۴» is countable at a glance (PaceUI stat bars). Longer schedules
+ * stay a continuous bar, where blocks would be too thin to read.
+ */
+export function Progress({ value, color = "var(--action)", "aria-label": ariaLabel = "پیشرفت", segments }: { value: number; color?: string; "aria-label"?: string; segments?: number }) {
+  if (segments && segments >= 2 && segments <= 36) {
+    const filled = Math.round((Math.max(0, Math.min(100, value)) / 100) * segments);
+    return (
+      <div className="meter-segments" role="progressbar" aria-label={ariaLabel} aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100} style={{ gridTemplateColumns: `repeat(${segments}, minmax(0, 1fr))` }}>
+        {Array.from({ length: segments }, (_, i) => (
+          <i key={i} style={i < filled ? { background: color } : undefined} />
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="meter" role="progressbar" aria-label={ariaLabel} aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}>
       <i style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: color }} />
@@ -241,11 +264,8 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center gap-2 px-4 py-8 text-center sm:px-6 sm:py-10">
-      <span
-        className="mb-1 flex h-10 w-10 items-center justify-center rounded-full sm:h-11 sm:w-11"
-        style={{ background: "var(--action-soft)", color: "var(--action)" }}
-      >
-        <Icon name={icon} size={18} />
+      <span className="empty-mark mb-1" aria-hidden="true">
+        <Icon name={icon} size={20} />
       </span>
       <div className="text-[length:var(--fs-md)] font-semibold">{title}</div>
       {body && <p className="muted max-w-sm text-[length:var(--fs-sm)] leading-6">{body}</p>}
@@ -364,7 +384,7 @@ export function PageHeader({
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-2.5 pt-1 sm:mb-5 sm:gap-3">
       <div className="min-w-0">
-        <h1 className="text-[22px] font-bold tracking-tight sm:text-[24px]">{title}</h1>
+        <h1 className="text-[22px] font-bold sm:text-[24px]">{title}</h1>
         {subtitle && <p className="muted mt-1.5 max-w-2xl text-[length:var(--fs-sm)] leading-6">{subtitle}</p>}
       </div>
       {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}

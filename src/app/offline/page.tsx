@@ -12,8 +12,8 @@ export default function OfflinePage() {
       >
         <Icon name="info" size={26} />
       </span>
-      <p className="brand-wordmark text-[length:var(--fs-md)] tracking-tight">توازن</p>
-      <h1 className="mt-3 text-xl font-bold tracking-tight">اتصال اینترنت برقرار نیست.</h1>
+      <p className="brand-wordmark text-[length:var(--fs-md)]">توازن</p>
+      <h1 className="mt-3 text-xl font-bold">اتصال اینترنت برقرار نیست.</h1>
       <p className="muted mt-3 max-w-sm text-[length:var(--fs-sm)] leading-7">
         اطلاعات مالی شما عمداً در حافظه آفلاین ذخیره نشده است.
       </p>

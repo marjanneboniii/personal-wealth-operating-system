@@ -302,7 +302,8 @@ export function BarsChart({
           </span>
         )}
       </div>
-      <div className="flex items-end gap-1.5 overflow-x-auto rounded-md pb-1" style={{ height: height + 26, background: "var(--sunken)" }} dir="ltr">
+      {/* A baseline instead of a filled grey panel: the bars carry the colour. */}
+      <div className="flex items-end gap-1.5 overflow-x-auto pb-1" style={{ height: height + 26, backgroundImage: "linear-gradient(var(--border-strong), var(--border-strong))", backgroundSize: "100% 1px", backgroundPosition: "0 calc(100% - 22px)", backgroundRepeat: "no-repeat" }} dir="ltr">
         {data.map((d, i) => (
           <button
             key={`${d.label}-${i}`}
@@ -337,7 +338,9 @@ export function BarsChart({
                 }}
               />
             </div>
-            <span className="muted whitespace-nowrap text-[length:var(--fs-xs)]" dir="rtl">
+            {/* Stays inside its own column: long month names (اردیبهشت) used to run into
+                the next one on phones. The full name is in the button's aria-label. */}
+            <span className="muted block w-full truncate text-center text-[10px] sm:text-[length:var(--fs-xs)]" dir="rtl" title={d.label}>
               {d.label}
             </span>
           </button>

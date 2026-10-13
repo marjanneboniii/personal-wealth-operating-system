@@ -128,6 +128,10 @@ const NBSP = "\u00A0";
  * of what the user sees, so strip them before matching rendered markup.
  */
 const stripBidi = (s: string) => s.replace(/[\u2066\u2067\u2068\u2069]/g, "");
+/** Metric values render the figure and its unit as two spans (FormattedMoney);
+ *  join them back so an amount reads as the single string formatMoney returns. */
+const joinMoneyUnit = (s: string) =>
+  s.replace(/<span class="num-mono ltr-isolate" dir="ltr">([^<]*)<\/span><span class="money-unit">([^<]*)<\/span>/g, "$1\u00a0$2");
 
 
 function section(html: string, heading: string) {
@@ -148,7 +152,7 @@ test("installment payments leave «کل هزینه ثبت‌شده» and the sav
     repaymentsTomanEntries: 13,
   };
   const { default: ReportsPage } = await import("../src/app/reports/page");
-  const html = stripBidi(renderToStaticMarkup(await (ReportsPage as any)()));
+  const html = joinMoneyUnit(stripBidi(renderToStaticMarkup(await (ReportsPage as any)())));
   const kpi = section(html, "کل هزینه ثبت‌شده");
 
   // The real expense only: 100 USD at 200,000 = ۲۰٬۰۰۰٬۰۰۰ تومان, with the

@@ -2,8 +2,11 @@ import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import { listEvents, listObligations, upcomingInstallments } from "@/features/planning/service";
-import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
-import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import { EmptyState, Section } from "@/components/ui/Card";
+import StatCard from "@/components/money/StatCard";
+import FormattedMoney from "@/components/ui/FormattedMoney";
+import { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import Icon from "@/components/ui/Icon";
 import { formatDaysUntil, formatJalaliIso, todayIso, faCount, formatTomanPrimary, sumToman } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
@@ -90,30 +93,34 @@ export default async function ObligationsPage() {
   const n90Disp = formatTomanPrimary(sumToman(next90.map((r) => r.amountToman)), fx.rate);
 
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader
-          title="تعهدات آینده"
-          action={
-            <Link href="/goals" className="btn btn-primary">
+    <div className="mny-page">
+      <ModuleHeader title="تعهدات آینده" tabs={DEBT_TABS} active="/debts/obligations" label="بخش‌های تعهدات" actions={<Link href="/goals" className="btn btn-primary">
               <Icon name="plus" size={16} />
               افزودن رویداد آینده
-            </Link>
-          }
-        />
-        <ModuleTabs tabs={DEBT_TABS} active="/debts/obligations" label="بخش‌های تعهدات" />
-      </div>
+            </Link>} />
 
-      <section className="metric-strip">
-        <Metric label="سررسید گذشته" value={faCount(overdue.length)} tone={overdue.length ? "down" : "neutral"} />
-        <Metric label="۳۰ روز آینده" value={faCount(next30.length)} hint={next30.length ? n30Disp.primary : undefined} />
-        <Metric label="۹۰ روز آینده" value={faCount(next90.length)} hint={next90.length ? n90Disp.primary : undefined} />
-        <Metric
-          label="مجموع پیش‌رو"
-          value={totalDisp.primary}
-          hint={totalDisp.usdHint ? `≈ ${totalDisp.usdHint}` : undefined}
-        />
-      </section>
+      {rows.length > 0 && (
+        <section className="mny-stats" style={{ ["--mny-cols" as string]: 5 }} aria-label="خلاصهٔ تعهدات آینده">
+          <StatCard
+            tone="ink"
+            className="mny-stat-lead"
+            icon="calendar"
+            label="مجموع پیش‌رو"
+            period={`${faCount(rows.length - overdue.length)} قسط، تعهد و رویداد`}
+            value={<FormattedMoney value={totalDisp.primary} />}
+            hint={totalDisp.usdHint ? `≈ ${totalDisp.usdHint}` : undefined}
+          />
+          <StatCard
+            tone={overdue.length ? "negative" : "plain"}
+            icon="alert"
+            label="سررسید گذشته"
+            period={overdue.length ? "هنوز تسویه نشده" : "موردی نیست"}
+            value={faCount(overdue.length)}
+          />
+          <StatCard icon="clock" label="۳۰ روز آینده" period={next30.length ? n30Disp.primary : "موردی نیست"} value={faCount(next30.length)} />
+          <StatCard icon="calendar" label="۹۰ روز آینده" period={next90.length ? n90Disp.primary : "موردی نیست"} value={faCount(next90.length)} />
+        </section>
+      )}
 
       <Section title="زمان‌بندی تعهدات">
         {rows.length === 0 ? (

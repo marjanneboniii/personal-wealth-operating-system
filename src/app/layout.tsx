@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { DISPLAY_BOOT_SCRIPT } from "@/lib/displayPrefs";
 import type { ReactNode } from "react";
 import "./globals.css";
+// After globals: the money module's rules win at equal specificity.
+import "./money.css";
 import Shell from "@/components/layout/Shell";
 import { ProModeProvider } from "@/components/layout/ProModeProvider";
 import { getCurrentUser } from "@/lib/auth";

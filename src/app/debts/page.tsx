@@ -3,10 +3,13 @@ import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import { listDebts } from "@/features/planning/service";
 import { isReceivable } from "@/features/planning/obligations";
-import { EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
+import { EmptyState, Section } from "@/components/ui/Card";
+import StatCard from "@/components/money/StatCard";
+import FormattedMoney from "@/components/ui/FormattedMoney";
 import DebtForm from "@/components/forms/DebtForm";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import { DEBT_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import ObligationCard, { daysUntil } from "@/components/debts/ObligationCard";
 import NewObligationPanel from "@/components/debts/NewObligationPanel";
 import { faCount, formatDaysUntil, formatTomanPrimary, sumToman, todayIso } from "@/lib/format";
@@ -42,48 +45,62 @@ export default async function DebtsPage() {
     nextPayment?.amountToman != null ? formatTomanPrimary(String(nextPayment.amountToman), fx.rate) : null;
 
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader
-          title="تعهدات مالی"
-          action={
-            <Link href="#new" className="btn btn-primary">
+    <div className="mny-page">
+      <ModuleHeader title="تعهدات مالی" tabs={DEBT_TABS} active="/debts" label="بخش‌های تعهدات" actions={<Link href="#new" className="btn btn-primary">
               <Icon name="plus" size={16} />
               ثبت بدهی یا طلب
-            </Link>
-          }
-        />
-        <ModuleTabs tabs={DEBT_TABS} active="/debts" label="بخش‌های تعهدات" />
-      </div>
+            </Link>} />
 
-      <section className="metric-strip">
-        <Metric
-          label="کل بدهی‌ها"
-          value={debtDisp.primary}
-          tone={Number(totalDebtToman) > 0 ? "down" : "neutral"}
-          hint={debtDisp.usdHint ? `≈ ${debtDisp.usdHint}` : undefined}
-        />
-        {/* Shown only when the user actually has a receivable. */}
-        {receivables.length > 0 && (
-          <Metric
-            label="کل مطالبات"
-            value={receivableDisp.primary}
-            tone="up"
-            hint={receivableDisp.usdHint ? `≈ ${receivableDisp.usdHint}` : undefined}
+      {all.length > 0 && (
+        <section className="mny-stats" style={{ ["--mny-cols" as string]: receivables.length > 0 ? 5 : 4 }} aria-label="خلاصهٔ تعهدات">
+          <StatCard
+            tone="ink"
+            className="mny-stat-lead"
+            icon="debts"
+            label="کل بدهی‌ها"
+            period={`${faCount(debts.length)} بدهی`}
+            value={<FormattedMoney value={debtDisp.primary} />}
+            hint={debtDisp.usdHint ? `≈ ${debtDisp.usdHint}` : undefined}
           />
-        )}
-        <Metric
-          label="قسط بعدی"
-          value={nextDisp?.primary ?? "—"}
-          hint={nextPayment ? `${nextPayment.title} · ${formatDaysUntil(daysUntil(nextPayment.dueDate))}` : undefined}
-        />
-        <Metric label="اقساط معوق" value={faCount(overdueCount)} tone={overdueCount ? "down" : "neutral"} />
-      </section>
+          {/* Shown only when the user actually has a receivable. */}
+          {receivables.length > 0 && (
+            <StatCard
+              tone="positive"
+              icon="arrow-up"
+              label="کل مطالبات"
+              period={`${faCount(receivables.length)} طلب`}
+              value={<FormattedMoney value={receivableDisp.primary} />}
+              hint={receivableDisp.usdHint ? `≈ ${receivableDisp.usdHint}` : undefined}
+            />
+          )}
+          <StatCard
+            icon="calendar"
+            label="قسط بعدی"
+            period={nextPayment ? `${nextPayment.title} · ${formatDaysUntil(daysUntil(nextPayment.dueDate))}` : undefined}
+            value={nextDisp ? <FormattedMoney value={nextDisp.primary} /> : "—"}
+          />
+          <StatCard
+            tone={overdueCount ? "negative" : "plain"}
+            icon="alert"
+            label="اقساط معوق"
+            period={overdueCount ? "سررسید گذشته و پرداخت‌نشده" : "همه به‌موقع"}
+            value={faCount(overdueCount)}
+          />
+        </section>
+      )}
 
       {all.length === 0 ? (
         <div className="card">
-          {/* No second button: the form below is already open. */}
-          <EmptyState icon="debts" title="بدهی یا طلبی ثبت نشده است" body="وام، خرید قسطی یا پولی که از کسی طلب دارید را در فرم زیر ثبت کنید." />
+          <EmptyState
+            icon="debts"
+            title="بدهی یا طلبی ثبت نشده است"
+            body="وام، خرید قسطی یا پولی که از کسی طلب دارید را ثبت کنید تا اقساط و سررسیدها اینجا بیاید."
+            action={
+              <Link href="#new" className="btn btn-soft">
+                ثبت بدهی یا طلب
+              </Link>
+            }
+          />
         </div>
       ) : (
         <>
@@ -117,7 +134,7 @@ export default async function DebtsPage() {
         </>
       )}
 
-      <NewObligationPanel defaultOpen={all.length === 0}>
+      <NewObligationPanel>
         <DebtForm
           today={today}
           initialRate={fx.rate}

@@ -140,12 +140,11 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
     <div className="space-y-5">
       <PageHeader
         title="ارزش خالص"
-        subtitle="هرچه دارید منهای هرچه بدهکارید — و اینکه چرا این عدد تغییر کرده است."
         action={<RowAction kind="snapshot" label="ثبت اسنپ‌شات امروز" />}
       />
 
       {/* ── Hero: the figure, its change, the range and the curve ── */}
-      <section className="card expense-card">
+      <section className="card expense-card ink-stage">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="expense-sub">ارزش خالص فعلی</p>

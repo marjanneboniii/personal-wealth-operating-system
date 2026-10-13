@@ -1,3 +1,5 @@
+import ModuleHeader from "@/components/money/ModuleHeader";
+import { ASSET_TABS } from "@/components/ui/ModuleTabs";
 import { ensureAuth } from "@/lib/authGuard";
 import { ensureWallexCatalog, listMarketRows } from "@/features/pricing/wallexCatalog";
 import MarketView from "@/components/assets/MarketView";
@@ -48,13 +50,8 @@ export default async function MarketPage() {
   const referenceQuotes = referenceViewsFor(supplementalRows, quotes, sources, new Date());
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5 py-6">
-      <header className="space-y-1">
-        <h1 className="text-[length:var(--fs-lg)] font-bold tracking-tight">نمای بازار</h1>
-        <p className="muted text-[length:var(--fs-sm)] leading-7">
-          طلا، سکه، ارز و نفت؛ بورس و فرابورس؛ رمزارزها، سهام و شاخص‌های توکنیزه.
-        </p>
-      </header>
+    <div className="mny-page market-page">
+      <ModuleHeader title="نمای بازار" tabs={ASSET_TABS} active="/market" label="بخش‌های دارایی" />
       <MarketView
         initial={{
           ok: true,

@@ -4,7 +4,8 @@ import { listVehicleOverview, VEHICLE_DUE_HORIZON_DAYS, type VehicleOverview } f
 import { listPolicies } from "@/features/insurance/service";
 import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
-import ModuleTabs, { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import { ASSET_TABS } from "@/components/ui/ModuleTabs";
+import ModuleHeader from "@/components/money/ModuleHeader";
 import VehicleDueDates from "@/components/vehicles/VehicleDueDates";
 import { D } from "@/domain/decimal";
 import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, formatSignedMoney, todayIso } from "@/lib/format";
@@ -131,14 +132,8 @@ export default async function VehiclesPage() {
   const sold = cars.filter((c) => c.status === "sold");
 
   return (
-    <div className="space-y-7">
-      <div>
-        <PageHeader
-          title="خودروها"
-          subtitle={`هزینه‌ی واقعی نگه‌داشتن هر خودرو و سررسیدهایش (یادآوری از ${faCount(VEHICLE_DUE_HORIZON_DAYS)} روز قبل).`}
-        />
-        <ModuleTabs tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
-      </div>
+    <div className="mny-page">
+      <ModuleHeader title="خودروها" tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
 
       {cars.length === 0 ? (
         <div className="card">
@@ -175,7 +170,7 @@ export default async function VehiclesPage() {
 
       <p className="expense-sub flex items-center gap-1.5">
         <Icon name="info" size={13} />
-        هزینه‌ی هر خودرو از تراکنش‌هایی می‌آید که برچسبش را دارند؛ هزینه‌های قبلی را هم می‌توانید در «تراکنش‌ها» با همین برچسب علامت بزنید. حق بیمه‌ی بیمه‌نامه‌های متصل به خودرو خودکار حساب می‌شود.
+        هزینه‌ها از تراکنش‌هایی می‌آیند که برچسب همین خودرو را دارند.
       </p>
     </div>
   );

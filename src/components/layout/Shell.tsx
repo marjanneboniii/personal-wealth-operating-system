@@ -315,8 +315,10 @@ function NavGroupBlock({
   if (!group.collapsible) {
     return (
       <div role="group" aria-label={group.label} className={moduleClass}>
+        {/* A heading over a single link («خانه» › «نمای کلی») only repeats it; the
+            group keeps its name for assistive tech through aria-label. */}
         {!collapsed ? (
-          <div className="nav-group-label">{group.label}</div>
+          group.items.length > 1 && <div className="nav-group-label">{group.label}</div>
         ) : (
           <div className="mx-4 my-2 border-t" style={{ borderColor: "var(--border)" }} />
         )}
@@ -749,13 +751,7 @@ export default function Shell({
       <nav
         className="app-bottom-nav fixed inset-x-0 bottom-0 z-40 lg:hidden"
         aria-label="ناوبری اصلی موبایل"
-        style={{
-          background: "color-mix(in oklab, var(--surface) 92%, transparent)",
-          backdropFilter: "blur(16px)",
-          borderTop: "1px solid var(--border)",
-          paddingBottom: "max(0.35rem, env(safe-area-inset-bottom))",
-          touchAction: "manipulation",
-        }}
+        style={{ touchAction: "manipulation" }}
       >
         {/* One row, always. The column count follows the real item count
             (tabs + «بیشتر»); a hard-coded 5 made the sixth item wrap onto a

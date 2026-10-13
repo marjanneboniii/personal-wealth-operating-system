@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/ui/Card";
 import Link from "next/link";
 import AssetRegistrarTabs from "@/components/funds/AssetRegistrarTabs";
 import { ensureAuth } from "@/lib/authGuard";
@@ -25,22 +26,16 @@ export default async function FundsPage() {
   await ensureAuth();
   return (
     <div className="mx-auto max-w-2xl space-y-5 py-6">
-      <header className="space-y-2">
-        <h1 className="text-[length:var(--fs-lg)] font-bold tracking-tight">ثبت دارایی</h1>
-        <p className="muted text-[length:var(--fs-sm)] leading-7">
-          صندوق سرمایه‌گذاری، سهام بورسی، رمزارز یا فلز توکنیزه را جست‌وجو کنید و ثبت کنید.
-          می‌توانید هر تعداد مورد اضافه کنید.
-        </p>
-      </header>
+      <PageHeader title="ثبت دارایی" />
 
       <AssetRegistrarTabs />
 
       <p className="muted text-[length:var(--fs-xs)] leading-6">
-        بعد از ثبت، خرید را از{" "}
+        بعد از ثبت،{" "}
         <Link href="/new?type=buy" className="font-medium">
-          بخش تراکنش‌ها
+          خرید را ثبت کنید
         </Link>{" "}
-        با تاریخ و مبلغ واقعی وارد کنید تا در ارزش خالص لحاظ شود.
+        تا در ارزش خالص حساب شود.
       </p>
     </div>
   );

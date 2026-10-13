@@ -24,7 +24,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       >
         <Icon name="alert" size={26} />
       </span>
-      <h1 className="text-xl font-bold tracking-tight">
+      <h1 className="text-xl font-bold">
         {isDb ? "نمی‌توانیم اطلاعات مالی را بخوانیم" : "مشکلی در نمایش این صفحه پیش آمد"}
       </h1>
       <p className="sub mt-2 max-w-md text-[length:var(--fs-sm)] leading-6">
