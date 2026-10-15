@@ -238,8 +238,8 @@ export default async function InsightsPage() {
     insights.push({
       tone: "neg",
       icon: "shield",
-      title: uninsuredCars.length === 1 ? uninsuredCars[0].title : `${faCount(uninsuredCars.length)} خودرو بیمه‌ی شخص ثالث فعال ندارد`,
-      body: "رانندگی بدون ثالث جریمه دارد و خسارت طرف مقابل با شماست.",
+      title: uninsuredCars.length === 1 ? `${uninsuredCars[0].subject}: ${uninsuredCars[0].title}` : `بیمه‌ی شخص ثالث ${faCount(uninsuredCars.length)} خودرو فعال نیست`,
+      body: "رانندگی بدون بیمه‌ی شخص ثالث جریمه دارد و خسارت طرف مقابل با شماست.",
       // Straight into the form, already set to third-party for that car.
       href: uninsuredCars.length === 1 ? gapHref(uninsuredCars[0]) : "/insurance",
       action: "ثبت بیمه",
@@ -250,7 +250,12 @@ export default async function InsightsPage() {
     insights.push({
       tone: "warn",
       icon: "shield",
-      title: homeGaps.length === 1 ? homeGaps[0].title : `${faCount(homeGaps.length)} ملک بیمه‌ی کافی ندارد`,
+      title:
+        homeGaps.length === 1
+          ? `${homeGaps[0].subject}: ${homeGaps[0].title}`
+          : homeGaps.every((g) => g.kind === "property_uninsured")
+            ? `${faCount(homeGaps.length)} ملک بیمه‌ی آتش‌سوزی ندارد`
+            : `بیمه‌ی ${faCount(homeGaps.length)} ملک کافی نیست`,
       body: homeGaps[0].kind === "property_underinsured" ? "هنگام تمدید، سرمایه‌ی بیمه را به ارزش روز برسانید." : "حق بیمه‌ی آتش‌سوزی کسر کوچکی از ارزش ملک است.",
       href: homeGaps.length === 1 ? gapHref(homeGaps[0]) : "/insurance",
       action: homeGaps[0].kind === "property_underinsured" ? "بیمه‌نامه‌ها" : "ثبت بیمه",

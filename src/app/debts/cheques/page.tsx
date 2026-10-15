@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, notInArray, or } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
 import { db } from "@/db";
 import { accounts, assets, wallets } from "@/db/schema";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { CHEQUE_STATUS_LABEL, listCheques, type ChequeRow } from "@/features/cheques/service";
-import { upcomingInstallments } from "@/features/planning/service";
+import { listEvents, upcomingInstallments } from "@/features/planning/service";
 import { EmptyState, PageHeader, Section } from "@/components/ui/Card";
 import StatCard from "@/components/money/StatCard";
 import FormattedMoney from "@/components/ui/FormattedMoney";
@@ -42,6 +42,8 @@ function clearHref(c: ChequeRow) {
     q.set("installmentId", c.installmentId);
   } else {
     q.set("type", c.direction === "issued" ? "expense" : "income");
+    // Toward an event: the expense carries the event budget's tag, so it counts as spent.
+    if (c.eventTag) q.set("tags", c.eventTag);
   }
   return `/new?${q.toString()}`;
 }
@@ -110,17 +112,27 @@ export default async function ChequesPage() {
     );
   }
 
-  const [rows, moneyAccounts, insts, balanceRows] = await Promise.all([
+  const [rows, moneyAccounts, insts, eventRows, balanceRows] = await Promise.all([
     listCheques(userId),
-    // Cheques are Toman: the user's own Toman / Rial accounts.
+    // Cheques are Toman: the user's own Toman / Rial accounts — at a bank or in
+    // cash, never Toman held at an exchange or broker (no cheque book there).
     db
       .select({ id: accounts.id, name: accounts.name, symbol: assets.symbol, walletName: wallets.name, walletKind: wallets.kind })
       .from(accounts)
       .innerJoin(assets, eq(assets.id, accounts.assetId))
       .leftJoin(wallets, eq(wallets.id, accounts.walletId))
-      .where(and(eq(accounts.userId, userId), eq(accounts.type, "asset"), isNull(accounts.deletedAt), inArray(assets.symbol, ["IRT", "IRR"])))
+      .where(
+        and(
+          eq(accounts.userId, userId),
+          eq(accounts.type, "asset"),
+          isNull(accounts.deletedAt),
+          inArray(assets.symbol, ["IRT", "IRR"]),
+          or(isNull(wallets.kind), notInArray(wallets.kind, ["exchange", "broker"])),
+        ),
+      )
       .orderBy(asc(accounts.code)),
     upcomingInstallments(60, userId),
+    listEvents(userId).catch(() => []),
     getAccountBalances(userId).catch(() => []),
   ]);
   const balances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
@@ -131,6 +143,8 @@ export default async function ChequesPage() {
     .map((i) => ({
       id: i.id,
       label: `قسط ${faCount(i.seq)} «${i.debtTitle}» — ${formatJalaliIso(i.dueDate)}`,
+      debtTitle: i.debtTitle,
+      seq: i.seq,
       amountToman: i.dueToman,
       dueDate: i.dueDate,
     }));
@@ -167,7 +181,13 @@ export default async function ChequesPage() {
       )}
 
       <DisclosurePanel anchor="new" label="ثبت چک" sheet>
-        <ChequeForm accounts={moneyAccounts} balances={balances} installments={installmentOptions} today={today} />
+        <ChequeForm
+          accounts={moneyAccounts}
+          balances={balances}
+          installments={installmentOptions}
+          events={eventRows.filter((e) => e.status === "planned").map((e) => ({ id: e.id, name: e.name, date: e.eventDate }))}
+          today={today}
+        />
       </DisclosurePanel>
 
       <Section title="در جریان و برگشتی" hint={open.length ? `${faCount(open.length)} چک` : undefined}>

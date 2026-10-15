@@ -8568,3 +8568,305 @@ fieldset.policy-step > .policy-step-title + * {
 .ncat-ideas { display: grid; gap: 0.5rem; }
 .ncat-exists { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .ncat-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 0.5rem; }
+
+/* بیمه‌نامه‌ها › بدون بیمه — one warning card per uninsured car or home:
+   icon, what it is, the gap in one sentence, and a direct «ثبت بیمه‌نامه». */
+.uninsured-list {
+  display: grid;
+  gap: 0.6rem;
+}
+.uninsured-card {
+  --tone: var(--warning);
+  --tone-soft: var(--warning-soft);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--tone) 28%, var(--border));
+  border-inline-start: 4px solid var(--tone);
+  border-radius: var(--r-lg);
+  background: linear-gradient(to left, var(--tone-soft), transparent 70%), var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.uninsured-card[data-tone="neg"] {
+  --tone: var(--negative);
+  --tone-soft: var(--negative-soft);
+}
+.uninsured-icon {
+  display: inline-flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--tone-soft);
+  color: var(--tone);
+}
+.uninsured-body {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.uninsured-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tone);
+}
+.uninsured-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+.uninsured-title {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.uninsured-detail {
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  color: var(--text-3);
+}
+.uninsured-cta {
+  min-height: 2.5rem;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .uninsured-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .uninsured-cta {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+/* دفتر چک › ثبت چک — the policy form's steps, with cheque-specific tiles. */
+.cheque-tile {
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--motion-micro) var(--ease), background var(--motion-micro) var(--ease), box-shadow var(--motion-micro) var(--ease),
+    transform var(--motion-micro) var(--ease);
+}
+.cheque-tile:hover {
+  box-shadow: var(--shadow-md);
+}
+.cheque-tile:active {
+  transform: scale(0.97);
+}
+.cheque-tile[data-on] .policy-kind-icon,
+.cheque-tile[data-on] .cheque-dir-icon {
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 4px var(--action);
+}
+.cheque-dir {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.cheque-dir .policy-mode-card {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.6rem;
+}
+.cheque-dir-icon {
+  display: inline-flex;
+  grid-row: span 2;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+.cheque-purposes {
+  grid-template-columns: repeat(auto-fill, minmax(4.75rem, 1fr));
+}
+.cheque-two {
+  display: grid;
+  gap: 0.75rem;
+}
+@media (min-width: 560px) {
+  .cheque-two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* Status preview: green = in good time, amber = due within a week, red = past due. */
+.cheque-status {
+  --tone: var(--positive);
+  --tone-soft: var(--positive-soft);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--tone) 30%, var(--border));
+  border-radius: var(--r-md);
+  background: var(--tone-soft);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.cheque-status[data-tone="warn"] {
+  --tone: var(--warning);
+  --tone-soft: var(--warning-soft);
+}
+.cheque-status[data-tone="neg"] {
+  --tone: var(--negative);
+  --tone-soft: var(--negative-soft);
+}
+.cheque-status > svg {
+  flex-shrink: 0;
+  color: var(--tone);
+}
+.cheque-status b {
+  color: var(--tone);
+  font-weight: 700;
+}
+.cheque-insts {
+  display: grid;
+  gap: 0.5rem;
+}
+.cheque-inst {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: start;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.cheque-inst:hover {
+  border-color: var(--border-strong);
+}
+.cheque-inst[data-on] {
+  border-color: var(--action);
+  background: var(--action-soft);
+  box-shadow: inset 0 0 0 1px var(--action);
+}
+.cheque-inst-seq {
+  display: inline-flex;
+  min-width: 2.1rem;
+  height: 2.1rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--action);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+.cheque-inst-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.cheque-inst-date {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.cheque-inst-amount {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+/* Planning row «⋯» menu — a quiet icon button, one sheet behind it. */
+.plan-menu-btn {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin-inline-end: -0.6rem;
+  border-radius: 999px;
+  color: var(--text-3);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--motion-micro) var(--ease), color var(--motion-micro) var(--ease);
+}
+.plan-menu-btn:hover,
+.plan-menu-btn:focus-visible {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.plan-menu-btn:disabled {
+  opacity: 0.4;
+}
+.plan-menu {
+  display: grid;
+  gap: 0.9rem;
+  padding: 0.25rem 0.75rem 1rem;
+}
+.plan-menu-form {
+  display: grid;
+  gap: 0.6rem;
+}
+.plan-menu-edit {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.plan-menu-edit > summary {
+  display: flex;
+  min-height: 2.75rem;
+  cursor: pointer;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.85rem;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  list-style: none;
+}
+.plan-menu-edit > summary::-webkit-details-marker {
+  display: none;
+}
+.plan-menu-edit[open] > .plan-menu-form {
+  padding: 0 0.85rem 0.85rem;
+}
+.plan-menu-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.plan-menu-actions .btn {
+  min-height: 2.75rem;
+  flex: 1 1 8rem;
+}
+.plan-menu-del {
+  color: var(--negative);
+}
+.plan-row[data-muted] {
+  opacity: 0.55;
+}
+.undated-units {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+  gap: 0.4rem;
+}
+.undated-units .policy-opt {
+  min-height: 2.75rem;
+}
+.nw-after-all {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.nw-after-all b {
+  font-size: var(--fs-sm);
+  color: var(--text);
+}

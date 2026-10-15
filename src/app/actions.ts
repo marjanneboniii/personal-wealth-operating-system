@@ -67,6 +67,7 @@ import { closePremiumOccurrence } from "@/features/insurance/service";
 import { jalaliDayOf } from "@/features/income/recurring";
 import { addTagToEntries, setEntryTags } from "@/features/tags/service";
 import { MAX_TAGS_PER_ENTRY, normalizeTag, parseTags } from "@/features/tags/normalize";
+import { createEventWithBudget } from "@/features/planning/planItems";
 import { clearChequeInTx, revertClearedChequeInTx } from "@/features/cheques/service";
 import { setUserOccupations } from "@/features/preferences/service";
 import {
@@ -2326,15 +2327,16 @@ export async function createEventAction(_p: ActionResult | null, fd: FormData): 
 
   try {
     const v = eventSchema.parse(Object.fromEntries(fd) as Record<string, string>);
-    await db.insert(events).values({
+    // The event and its own tag budget, together.
+    await createEventWithBudget(user?.id ?? null, {
       name: v.name,
       eventDate: v.eventDate,
-      budgetBase: D(v.budgetBase).toString(),
+      budgetToman: D(v.budgetBase).toString(),
       category: v.category,
-      userId: user?.id ?? null,
-    } as any);
+      today: todayIso(),
+    });
     refreshAll();
-    return { ok: true, message: "رویداد ثبت شد (بدون اثر روی موجودی حساب‌ها)." };
+    return { ok: true, message: "رویداد ثبت شد." };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "خطا" };
   }

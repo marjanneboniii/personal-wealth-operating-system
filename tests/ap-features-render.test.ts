@@ -77,14 +77,14 @@ test("reconcile, insurance and insights pages render with real data", async () =
   const { default: InsurancePage } = await import("../src/app/insurance/page");
   const insurance = await render(InsurancePage, { searchParams: Promise.resolve({}) });
   assert.match(insurance, /آتش‌سوزی منزل/);
-  assert.match(insurance, /پراید بیمه‌ی شخص ثالث فعال ندارد/, "the coverage gap is shown");
+  assert.match(insurance, /بیمه‌ی شخص ثالث این خودرو فعال نیست/, "the coverage gap is shown");
   assert.match(insurance, /پرداخت حق بیمه/);
   assert.match(insurance, /planId=/, "the premium is paid from its reminder");
 
   const { default: InsightsPage } = await import("../src/app/insights/page");
   const insights = await render(InsightsPage);
   assert.match(insights, /با بانک یکی نیست/);
-  assert.match(insights, /بیمه‌ی شخص ثالث فعال ندارد/);
+  assert.match(insights, /بیمه‌ی شخص ثالث این خودرو فعال نیست/);
   assert.match(insights, /\/insurance\?kind=third_party&amp;vehicle=/, "the alert opens the insurance form already set for that car");
   assert.match(insights, /«آتش‌سوزی منزل»/, "a policy ending soon is an insight too — in sync with «بیمه‌نامه‌ها»");
   assert.match(insights, /ثبت بیمه/, "the missing cover is part of «پوشش داده»");

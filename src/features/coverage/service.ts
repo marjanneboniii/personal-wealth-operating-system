@@ -133,7 +133,7 @@ export async function dataCoverage(userId: string, opts: { stalePrices?: number 
       key: "insurance",
       label: "خودرو و ملک بیمه دارند",
       ok: insuranceGaps.length === 0,
-      detail: !first ? null : insuranceGaps.length === 1 ? first.title : `${fa(insuranceGaps.length)} مورد بیمه‌ی لازم را ندارد`,
+      detail: !first ? null : insuranceGaps.length === 1 ? `${first.subject}: ${first.title}` : `${fa(insuranceGaps.length)} مورد بیمه‌ی لازم را ندارد`,
       href: first ? gapHref(first) : "/insurance",
       action: "ثبت بیمه",
       icon: "shield",

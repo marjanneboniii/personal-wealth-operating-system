@@ -550,6 +550,8 @@ export const goals = pgTable(
     priority: integer("priority").notNull().default(2),
     status: text("status").notNull().default("active"), // active | reached | archived
     fundAccountId: uuid("fund_account_id").references(() => accounts.id),
+    /** goal | emergency | reserve | family_support — the last three are «صندوق‌ها» (was the funds table). */
+    kind: text("kind").notNull().default("goal"),
   },
   (t) => [index("goals_user_idx").on(t.userId)],
 );
@@ -606,6 +608,8 @@ export const budgets = pgTable(
     amountBase: money("amount_base").notNull(),
     /** A tag budget made from a template (wedding | engagement | car | house | trip | renovation | custom) — look only. */
     template: text("template"),
+    /** The event this budget tracks: the forecast counts the event's amount minus what this budget has spent. */
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
   },
   (t) => [index("budgets_user_idx").on(t.userId)],
 );
@@ -827,6 +831,8 @@ export const cheques = pgTable(
     bankName: text("bank_name"),
     /** Issued for a scheduled installment: the forecast counts the installment, not the cheque. */
     installmentId: uuid("installment_id").references(() => installments.id, { onDelete: "set null" }),
+    /** Paid toward an event: counted itself, and taken off what is left of the event. */
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
     note: text("note"),
     status: text("status").notNull().default("pending"), // pending | cleared | bounced | cancelled
     statusChangedAt: timestamp("status_changed_at", { withTimezone: true }),
@@ -1047,35 +1053,30 @@ export const balanceCheckpoints = pgTable(
   (t) => [index("balance_checkpoints_account_idx").on(t.userId, t.accountId, t.asOf, t.observedAt)],
 );
 
-export const obligations = pgTable(
-  "obligations",
+/**
+ * بدهی یا طلب بدون سررسید — owed on demand, with no date (e.g. coins promised
+ * in a marriage contract). Never in the cash forecast and never in the
+ * headline net worth: shown on its own line, valued at today's coin price.
+ */
+export const undatedObligations = pgTable(
+  "undated_obligations",
   {
     ...base,
     userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    direction: text("direction").notNull().default("payable"), // payable | receivable
     title: text("title").notNull(),
-    amountBase: money("amount_base").notNull(),
-    dueDate: date("due_date").notNull(),
-    recurrence: text("recurrence").notNull().default("none"),
-    status: text("status").notNull().default("pending"),
+    /** toman | EMAMI | BAHAR | NIM | ROB */
+    unit: text("unit").notNull(),
+    quantity: money("quantity").notNull(),
     note: text("note"),
+    /** Toman only: from when, and the yearly inflation the user assumes — an estimate, shown as one. */
+    startDate: date("start_date"),
+    inflationPct: numeric("inflation_pct", { precision: 6, scale: 2 }),
   },
-  (t) => [index("obligations_user_idx").on(t.userId)],
+  (t) => [index("undated_obligations_user_idx").on(t.userId)],
 );
 
-export const funds = pgTable(
-  "funds",
-  {
-    ...base,
-    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    kind: text("kind").notNull(), // emergency | reserve | family_support
-    targetBase: money("target_base").notNull(),
-    accountId: uuid("account_id").references(() => accounts.id),
-    note: text("note"),
-  },
-  (t) => [index("funds_user_idx").on(t.userId)],
-);
-
+/* ------------------------------------------------------------------ */
 /* Asset Registry Extension — Hierarchy + Multi-Chain                    */
 /* ------------------------------------------------------------------ */
 // parentId self reference logical, no DB FK to avoid circular init issues, but level tracks depth

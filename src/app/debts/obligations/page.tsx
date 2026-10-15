@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
-import { listEvents, listObligations, upcomingInstallments } from "@/features/planning/service";
+import { listBudgets, listEvents, listPlanned, upcomingInstallments } from "@/features/planning/service";
+import { eventBudgetLinks } from "@/features/planning/planItems";
+import { pendingChequesByEvent } from "@/features/cheques/service";
 import { EmptyState, Section } from "@/components/ui/Card";
 import StatCard from "@/components/money/StatCard";
 import FormattedMoney from "@/components/ui/FormattedMoney";
@@ -32,17 +34,28 @@ const RECURRENCE_LABEL: Record<string, string> = {
  * USD is a live display equivalent and never rewrites the Toman figure.
  */
 export default async function ObligationsPage() {
-  await ensureAuth();
+  const user = await ensureAuth();
+  const userId = (user as { id?: string } | null)?.id ?? null;
   await seedIfEmpty();
 
-  const [obligations, events, insts, fx] = await Promise.all([
-    listObligations(),
+  const [events, planned, budgetRows, links, eventCheques, insts, fx] = await Promise.all([
     listEvents(),
+    listPlanned().catch(() => []),
+    listBudgets().catch(() => []),
+    eventBudgetLinks(userId),
+    pendingChequesByEvent(userId),
     upcomingInstallments(100),
     getLatestUsdIrtRate(),
   ]);
 
   const today = todayIso();
+  const spentByBudget = new Map(budgetRows.map((b) => [b.id, b.spentToman]));
+  const eventLeft = (id: string, amount: string) => {
+    const link = links.get(id);
+    // Cheques toward it are listed with the cheques; they come off here too.
+    const left = Number(amount) - Number(link ? (spentByBudget.get(link.budgetId) ?? 0) : 0) - Number(eventCheques.get(id) ?? 0);
+    return String(Math.max(0, left));
+  };
 
   type Row = {
     id: string;
@@ -59,19 +72,20 @@ export default async function ObligationsPage() {
       id: `inst-${i.id}`,
       title: `قسط ${i.seq} — ${i.debtTitle}`,
       date: i.dueDate,
-      amountToman: i.amountToman != null ? String(i.amountToman) : "0",
+      amountToman: i.dueToman ?? (i.amountToman != null ? String(i.amountToman) : "0"),
       kind: "قسط",
       detail: i.creditor,
     })),
-    ...obligations
-      .filter((o) => o.status === "pending")
-      .map((o) => ({
-        id: `obl-${o.id}`,
-        title: o.title,
-        date: o.dueDate,
-        amountToman: o.amountToman ?? String(o.amountBase),
-        kind: RECURRENCE_LABEL[o.recurrence] ?? "تعهد",
-        detail: o.note ?? null,
+    // Rent, tuition, a monthly transfer — every planned payment still to come.
+    ...planned
+      .filter((p) => p.status === "pending" && p.direction === "outflow")
+      .map((p) => ({
+        id: `pln-${p.id}`,
+        title: p.title,
+        date: p.plannedDate,
+        amountToman: String(p.amountBase),
+        kind: RECURRENCE_LABEL[p.recurrence] ?? "پرداخت",
+        detail: p.note ?? null,
       })),
     ...events
       .filter((e) => e.status === "planned")
@@ -79,7 +93,8 @@ export default async function ObligationsPage() {
         id: `evt-${e.id}`,
         title: e.name,
         date: e.eventDate,
-        amountToman: e.budgetToman ?? String(e.budgetBase),
+        // What is left of its budget — the spent part already left the accounts.
+        amountToman: eventLeft(e.id, e.budgetToman ?? String(e.budgetBase)),
         kind: "رویداد",
         detail: e.note ?? null,
       })),

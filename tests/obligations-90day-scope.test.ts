@@ -39,11 +39,14 @@ mock.module("@/lib/fx", {
 
 /** Obligation rows the page will render, injected per test. */
 let obligationsFixture: any[] = [];
+mock.module("@/features/planning/planItems", { namedExports: { eventBudgetLinks: async () => new Map() } });
 mock.module("@/features/planning/service", {
   namedExports: {
-    listObligations: async () => obligationsFixture,
     listEvents: async () => [],
     upcomingInstallments: async () => [],
+    // Commitments are planned outflows since the obligations table was merged.
+    listPlanned: async () => obligationsFixture,
+    listBudgets: async () => [],
   },
 });
 
@@ -55,7 +58,8 @@ const obligation = (id: string, dayOffset: number, amountToman: string) => ({
   title: `تعهد ${id}`,
   amountBase: amountToman,
   amountToman,
-  dueDate: iso(dayOffset),
+  plannedDate: iso(dayOffset),
+  direction: "outflow",
   recurrence: "none",
   status: "pending",
   note: null,

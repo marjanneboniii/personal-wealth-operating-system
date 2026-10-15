@@ -20,7 +20,7 @@ async function signedIn() {
 }
 
 function refresh() {
-  for (const p of ["/debts/cheques", "/planning", "/notifications", "/"]) revalidatePath(p);
+  for (const p of ["/debts/cheques", "/planning", "/notifications", "/goals", "/debts/obligations", "/"]) revalidatePath(p);
 }
 
 const s = (fd: FormData, k: string) => {
@@ -44,6 +44,7 @@ export async function createChequeAction(_prev: ActionResult | null, fd: FormDat
       serial: s(fd, "serial") || null,
       bankName: s(fd, "bankName") || null,
       installmentId: s(fd, "installmentId") || null,
+      eventId: s(fd, "eventId") || null,
       note: s(fd, "note") || null,
     });
     refresh();

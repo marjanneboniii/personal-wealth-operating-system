@@ -30,7 +30,6 @@ import {
   auditLog,
   currencies,
   exchangeRates,
-  funds,
   goals,
   journalEntries,
   lotConsumptions,
@@ -60,7 +59,6 @@ async function setup() {
   await db.delete(journalEntries);
   await db.delete(plannedTransactions);
   await db.delete(goals);
-  await db.delete(funds);
   await db.delete(accounts);
   await db.delete(wallets);
   await db.delete(prices);
@@ -334,9 +332,10 @@ test("planning links attached to the account are detached, and pending plans can
     .insert(goals)
     .values({ userId: fx.user.id, name: "سفر", targetBase: "1000", fundAccountId: created.accountId } as any)
     .returning();
+  // A fund is a goal of kind emergency | reserve | family_support.
   const [fund] = await db
-    .insert(funds)
-    .values({ userId: fx.user.id, name: "اضطراری", kind: "emergency", targetBase: "500", accountId: created.accountId } as any)
+    .insert(goals)
+    .values({ userId: fx.user.id, name: "اضطراری", kind: "emergency", targetBase: "500", fundAccountId: created.accountId } as any)
     .returning();
   const [plan] = await db
     .insert(plannedTransactions)
@@ -358,7 +357,7 @@ test("planning links attached to the account are detached, and pending plans can
   await deleteMoneyAccount({ accountId: created.accountId!, userId: fx.user.id });
 
   assert.equal((await db.select().from(goals).where(eq(goals.id, goal.id)))[0].fundAccountId, null);
-  assert.equal((await db.select().from(funds).where(eq(funds.id, fund.id)))[0].accountId, null);
+  assert.equal((await db.select().from(goals).where(eq(goals.id, fund.id)))[0].fundAccountId, null);
   assert.equal(
     (await db.select().from(plannedTransactions).where(eq(plannedTransactions.id, plan.id)))[0].status,
     "cancelled",

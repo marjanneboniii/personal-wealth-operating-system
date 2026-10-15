@@ -13,7 +13,7 @@
  */
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, cheques, debts, installments } from "@/db/schema";
+import { accounts, cheques, debts, events, installments } from "@/db/schema";
 import { D } from "@/domain/decimal";
 import { resolveDirection } from "@/features/planning/obligations";
 
@@ -51,6 +51,8 @@ export type ChequeInput = {
   serial?: string | null;
   bankName?: string | null;
   installmentId?: string | null;
+  /** Issued toward a planned event (not with an installment). */
+  eventId?: string | null;
   note?: string | null;
 };
 
@@ -69,6 +71,10 @@ export type ChequeRow = {
   installmentSeq: number | null;
   debtTitle: string | null;
   debtId: string | null;
+  eventId: string | null;
+  eventName: string | null;
+  /** The event budget's hashtag — the cleared expense carries it, so it counts as spent. */
+  eventTag: string | null;
   note: string | null;
   status: ChequeStatus;
   statusChangedAt: string | null;
@@ -133,6 +139,15 @@ export async function createCheque(userId: string, input: ChequeInput): Promise<
   if (accountId) await assertOwnMoneyAccount(userId, accountId);
   const installmentId = input.direction === "issued" ? clean(input.installmentId) : null;
   if (installmentId) await assertOwnPayableInstallment(userId, installmentId);
+  const eventId = input.direction === "issued" && !installmentId ? clean(input.eventId) : null;
+  if (eventId) {
+    const [ev] = await db
+      .select({ id: events.id })
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.userId, userId), sql`${events.deletedAt} is null`, eq(events.status, "planned")))
+      .limit(1);
+    if (!ev) throw new Error("رویداد پیدا نشد.");
+  }
 
   try {
     const [row] = await db
@@ -148,6 +163,7 @@ export async function createCheque(userId: string, input: ChequeInput): Promise<
         serial: clean(input.serial)?.slice(0, 40) ?? null,
         bankName: input.direction === "received" ? (clean(input.bankName)?.slice(0, 60) ?? null) : null,
         installmentId,
+        eventId,
         note: clean(input.note)?.slice(0, 500) ?? null,
       })
       .returning({ id: cheques.id });
@@ -167,13 +183,16 @@ export async function listCheques(userId: string): Promise<ChequeRow[]> {
            c.sayad_id as "sayadId", c.serial, c.bank_name as "bankName",
            c.installment_id as "installmentId",
            i.seq as "installmentSeq", d.title as "debtTitle",
-           d.id as "debtId",
+           case when d.deleted_at is null and d.status <> 'cancelled' then d.id end as "debtId",
+           c.event_id as "eventId", ev.name as "eventName", eb.tag as "eventTag",
            c.note, c.status, c.status_changed_at::text as "statusChangedAt",
            c.cleared_entry_id as "clearedEntryId", je.entry_date::text as "clearedDate"
     from cheques c
       left join accounts a on a.id = c.account_id
       left join installments i on i.id = c.installment_id
       left join debts d on d.id = i.debt_id
+      left join events ev on ev.id = c.event_id and ev.deleted_at is null
+      left join budgets eb on eb.event_id = c.event_id and eb.deleted_at is null
       left join journal_entries je on je.id = c.cleared_entry_id
     where c.user_id = ${userId}
     order by (c.status = 'pending' or c.status = 'bounced') desc, c.due_date asc, c.created_at asc
@@ -259,7 +278,19 @@ export async function pendingChequesForForecast(userId: string) {
   return db
     .select({ direction: cheques.direction, amountToman: cheques.amountToman, dueDate: cheques.dueDate })
     .from(cheques)
-    .where(and(eq(cheques.userId, userId), eq(cheques.status, "pending"), sql`${cheques.installmentId} is null`))
+    // One tied to an installment the forecast still counts is left to it; a
+    // cheque whose installment's debt was deleted or cancelled counts itself.
+    .where(
+      and(
+        eq(cheques.userId, userId),
+        eq(cheques.status, "pending"),
+        sql`not exists (
+          select 1 from installments i join debts d on d.id = i.debt_id
+          where i.id = ${cheques.installmentId} and i.status <> 'paid'
+            and d.deleted_at is null and d.status <> 'cancelled'
+        )`,
+      ),
+    )
     .orderBy(asc(cheques.dueDate));
 }
 
@@ -283,4 +314,19 @@ export async function chequesNeedingAttention(userId: string, until: string) {
       ),
     )
     .orderBy(asc(cheques.dueDate));
+}
+
+/** Pending cheques written toward each event — taken off what is left of it. */
+export async function pendingChequesByEvent(userId: string | null): Promise<Map<string, string>> {
+  if (!userId) return new Map();
+  try {
+    const rows = await db
+      .select({ eventId: cheques.eventId, total: sql<string>`sum(${cheques.amountToman})::text` })
+      .from(cheques)
+      .where(and(eq(cheques.userId, userId), eq(cheques.status, "pending"), sql`${cheques.eventId} is not null`))
+      .groupBy(cheques.eventId);
+    return new Map(rows.map((r) => [r.eventId!, r.total]));
+  } catch {
+    return new Map();
+  }
 }

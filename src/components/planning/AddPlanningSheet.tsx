@@ -23,6 +23,7 @@ import {
   type AccountOpt,
   type RateProps,
 } from "./PlanningForms";
+import { FundCardForm, UndatedForm } from "./PlanExtraForms";
 
 type LauncherProps = {
   /** Header button caption — the empty states pass their own wording. */
@@ -95,24 +96,23 @@ export function AddBudgetButton({ accounts, tags, today, label, variant, ...rate
 
 /** اهداف و صندوق‌ها — a goal or a future event. */
 export function AddGoalButton({ accounts, balances, today, label, variant, ...rate }: FormProps & LauncherProps) {
-  const [kind, setKind] = useState<"goal" | "event">("goal");
+  const [kind, setKind] = useState<"goal" | "fund" | "event">("goal");
   return (
-    <Launcher title="افزودن" label={label ?? "هدف یا رویداد"} variant={variant}>
+    <Launcher title="افزودن" label={label ?? "افزودن"} variant={variant}>
       {(close) => (
         <>
           <KindSeg
             value={kind}
             onChange={setKind}
             options={[
-              ["goal", "هدف مالی"],
-              ["event", "رویداد آینده"],
+              ["goal", "هدف"],
+              ["fund", "صندوق"],
+              ["event", "رویداد"],
             ]}
           />
-          {kind === "goal" ? (
-            <GoalCardForm accounts={accounts} balances={balances} today={today} onDone={close} {...rate} />
-          ) : (
-            <EventCardForm today={today} onDone={close} {...rate} />
-          )}
+          {kind === "goal" && <GoalCardForm accounts={accounts} balances={balances} today={today} onDone={close} {...rate} />}
+          {kind === "fund" && <FundCardForm accounts={accounts} balances={balances} onDone={close} />}
+          {kind === "event" && <EventCardForm today={today} onDone={close} {...rate} />}
         </>
       )}
     </Launcher>
@@ -140,6 +140,15 @@ export function AddPlanButton({ accounts, balances, today, label, variant, ...ra
           {kind === "event" && <EventCardForm today={today} onDone={close} {...rate} />}
         </>
       )}
+    </Launcher>
+  );
+}
+
+/** بدهی یا طلب بدون سررسید. */
+export function AddUndatedButton({ label, variant }: LauncherProps) {
+  return (
+    <Launcher title="بدون سررسید" label={label ?? "بدون سررسید"} variant={variant}>
+      {(close) => <UndatedForm onDone={close} />}
     </Launcher>
   );
 }

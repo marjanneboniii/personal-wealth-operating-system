@@ -8,12 +8,10 @@ import {
   currencies,
   debts,
   events,
-  funds,
   goals,
   installments,
   institutions,
   networks,
-  obligations,
   plannedTransactions,
   prices,
   settings,
@@ -486,10 +484,11 @@ export async function runSeed(): Promise<void> {
     { name: "تحصیل فرزند", description: "صندوق آموزش", targetBase: "4750000000", targetDate: m(60), priority: 3, fundAccountId: C["1510"] },
   ]);
 
-  await db.insert(funds).values([
-    { name: "صندوق اضطراری", kind: "emergency", targetBase: "2280000000", accountId: C["1500"], note: "معادل ۶ ماه هزینه" },
-    { name: "صندوق حمایت خانواده", kind: "family_support", targetBase: "1140000000", accountId: C["1510"] },
-    { name: "ذخیره فرصت سرمایه‌گذاری", kind: "reserve", targetBase: "1900000000", accountId: C["1110"] },
+  // Funds are goals of another kind.
+  await db.insert(goals).values([
+    { name: "صندوق اضطراری", kind: "emergency", targetBase: "2280000000", fundAccountId: C["1500"], description: "معادل ۶ ماه هزینه" },
+    { name: "صندوق حمایت خانواده", kind: "family_support", targetBase: "1140000000", fundAccountId: C["1510"] },
+    { name: "ذخیره فرصت سرمایه‌گذاری", kind: "reserve", targetBase: "1900000000", fundAccountId: C["1110"] },
   ]);
 
   await db.insert(events).values([
@@ -506,10 +505,11 @@ export async function runSeed(): Promise<void> {
     { title: "بیمه عمر", plannedDate: m(2), direction: "outflow", amountBase: "85500000", fromAccountId: C["1010"], toAccountId: C["5900"], recurrence: "yearly" },
   ]);
 
-  await db.insert(obligations).values([
-    { title: "اجاره ماهانه", amountBase: "171000000", dueDate: m(1), recurrence: "monthly" },
-    { title: "شهریه مدرسه", amountBase: "266000000", dueDate: m(6), recurrence: "yearly" },
-    { title: "بیمه خودرو", amountBase: "60800000", dueDate: m(2), recurrence: "yearly" },
+  // Commitments are planned outflows.
+  await db.insert(plannedTransactions).values([
+    { title: "اجاره ماهانه", direction: "outflow", amountBase: "171000000", plannedDate: m(1), recurrence: "monthly" },
+    { title: "شهریه مدرسه", direction: "outflow", amountBase: "266000000", plannedDate: m(6), recurrence: "yearly" },
+    { title: "بیمه خودرو", direction: "outflow", amountBase: "60800000", plannedDate: m(2), recurrence: "yearly" },
   ]);
 
   await db.insert(budgets).values([
