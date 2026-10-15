@@ -30,11 +30,11 @@ mock.module("next/cache", {
 
 let db: any, createSchemaIfNotExists: any;
 let debts: any, installments: any, users: any, userFxSettings: any;
-let goals: any, budgets: any, obligations: any, events: any, plannedTransactions: any, funds: any;
+let goals: any, budgets: any, events: any, plannedTransactions: any;
 let createSession: any;
 let createDebtAction: any, createGoalAction: any, createBudgetAction: any;
 let createEventAction: any, createPlannedAction: any;
-let listDebts: any, listGoals: any, listBudgets: any, listObligations: any;
+let listDebts: any, listGoals: any, listBudgets: any;
 let listEvents: any, listPlanned: any, listFunds: any, upcomingInstallments: any;
 let projectCashflow: any;
 let format: typeof import("../src/lib/format");
@@ -49,10 +49,8 @@ async function loadModules() {
     userFxSettings,
     goals,
     budgets,
-    obligations,
     events,
     plannedTransactions,
-    funds,
   } = await import("../src/db/schema"));
   ({ createSession } = await import("../src/lib/auth"));
   ({
@@ -66,7 +64,6 @@ async function loadModules() {
     listDebts,
     listGoals,
     listBudgets,
-    listObligations,
     listEvents,
     listPlanned,
     listFunds,
@@ -82,10 +79,8 @@ async function clean() {
   await db.delete(installments);
   await db.delete(debts);
   await db.delete(plannedTransactions);
-  await db.delete(obligations);
   await db.delete(events);
   await db.delete(goals);
-  await db.delete(funds);
   await db.delete(budgets);
   await db.delete(userFxSettings);
   await clearSetupReceipts(); await db.delete(users);
@@ -212,12 +207,13 @@ test("Planning module (goal/event/plan/obligation): Toman fixed across FX change
     const r = await createPlannedAction(null, fd);
     assert.equal(r.ok, true, r.message);
   }
-  // Obligation (direct insert — no dedicated action)
-  await db.insert(obligations).values({
+  // A commitment is a planned outflow (the obligations table was merged into it).
+  await db.insert(plannedTransactions).values({
     userId: user.id,
     title: "اجاره",
     amountBase: "15000000",
-    dueDate: "2026-09-01",
+    plannedDate: "2026-09-01",
+    direction: "outflow",
     recurrence: "monthly",
     status: "pending",
   } as any);
@@ -226,8 +222,9 @@ test("Planning module (goal/event/plan/obligation): Toman fixed across FX change
 
   const g1 = await listGoals(user.id);
   const e1 = await listEvents(user.id);
-  const p1 = await listPlanned(user.id);
-  const o1 = await listObligations(user.id);
+  const all1 = await listPlanned(user.id);
+  const p1 = all1.filter((p: any) => p.title !== "اجاره");
+  const o1 = all1.filter((p: any) => p.title === "اجاره");
 
   assert.ok(D(g1[0].targetToman).sub("1200000000").isZero());
   assert.ok(D(e1[0].budgetToman).sub("30000000").isZero());
@@ -241,8 +238,9 @@ test("Planning module (goal/event/plan/obligation): Toman fixed across FX change
 
   const g2 = await listGoals(user.id);
   const e2 = await listEvents(user.id);
-  const p2 = await listPlanned(user.id);
-  const o2 = await listObligations(user.id);
+  const all2 = await listPlanned(user.id);
+  const p2 = all2.filter((p: any) => p.title !== "اجاره");
+  const o2 = all2.filter((p: any) => p.title === "اجاره");
 
   // Toman unchanged
   assert.ok(D(g2[0].targetToman).sub("1200000000").isZero());

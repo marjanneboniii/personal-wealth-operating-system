@@ -1,6 +1,7 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
-import { pendingChequesForForecast } from "@/features/cheques/service";
+import { pendingChequesByEvent, pendingChequesForForecast } from "@/features/cheques/service";
 import { db } from "@/db";
+import { contributionTotals, earmarkedToman, eventBudgetLinks } from "@/features/planning/planItems";
 import {
   accounts,
   assets,
@@ -8,10 +9,8 @@ import {
   budgets,
   debts,
   events,
-  funds,
   goals,
   installments,
-  obligations,
   plannedTransactions,
 } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
@@ -102,14 +101,18 @@ export async function listGoals(userId?: string) {
   const rows = await db
     .select()
     .from(goals)
-    .where(and(sql`${goals.deletedAt} is null`, u ? eq(goals.userId, u) : sql`1=1`))
+    .where(and(sql`${goals.deletedAt} is null`, eq(goals.kind, "goal"), u ? eq(goals.userId, u) : sql`1=1`))
     .orderBy(asc(goals.priority), asc(goals.targetDate));
 
+  const setAside = await contributionTotals(rows.map((g) => g.id)).catch(() => new Map<string, string>());
   return rows.map((g) => {
     const bal = balances.find((b) => b.accountId === g.fundAccountId);
     // targetBase stores the contractual Toman amount entered by the user.
     const targetToman = D(g.targetBase);
-    const savedToman = balanceAsToman(bal, rate);
+    // Once money is set aside for it, a goal's progress is that money — not
+    // the whole balance of an account other goals and spending may share.
+    const earmarked = setAside.get(g.id);
+    const savedToman = earmarked != null ? D(earmarked) : balanceAsToman(bal, rate);
     const progress = targetToman.isZero() ? Decimal.zero() : savedToman.div(targetToman).mul(100);
     const remainingToman = targetToman.sub(savedToman);
     // USD equivalents are display-only and move with the live rate.
@@ -128,6 +131,7 @@ export async function listGoals(userId?: string) {
       savedUsd,
       remainingUsd,
       progress: Math.max(0, Math.min(100, progress.toNumber())),
+      earmarked: earmarked != null,
     };
   });
 }
@@ -142,10 +146,13 @@ export async function listFunds(userId?: string) {
     getLatestUsdIrtRateForUser(u ?? null),
   ]);
   const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("0");
-  const rows = await db
-    .select()
-    .from(funds)
-    .where(and(sql`${funds.deletedAt} is null`, u ? eq(funds.userId, u) : sql`1=1`));
+  // A fund is a goal of kind emergency | reserve | family_support.
+  const rows = (
+    await db
+      .select()
+      .from(goals)
+      .where(and(sql`${goals.deletedAt} is null`, sql`${goals.kind} <> 'goal'`, u ? eq(goals.userId, u) : sql`1=1`))
+  ).map((g) => ({ ...g, accountId: g.fundAccountId, note: g.description }));
   return rows.map((f) => {
     const bal = balances.find((b) => b.accountId === f.accountId);
     const targetToman = D(f.targetBase);
@@ -564,7 +571,15 @@ export async function upcomingInstallments(limit = 8, userId?: string) {
     // `<> 'paid'` rather than `= 'pending'`: a PARTIAL installment is still
     // owed, and leaving it out of «قسط بعدی» would hide the very row the user
     // is part-way through settling.
-    .where(and(sql`${installments.status} <> 'paid'`, u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`))
+    // A deleted or cancelled debt is not going to be paid: its open rows are not «upcoming».
+    .where(
+      and(
+        sql`${installments.status} <> 'paid'`,
+        sql`${debts.deletedAt} is null`,
+        sql`${debts.status} <> 'cancelled'`,
+        u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`,
+      ),
+    )
     .orderBy(asc(installments.dueDate))
     .limit(limit);
 
@@ -1132,7 +1147,7 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
       unit: "IRT" as const,
     };
   }
-  const [nw, planned, insts, obls, evs, fx] = await Promise.all([
+  const [nw, planned, insts, evs, fx] = await Promise.all([
     getCurrentNetWorth(userId),
     listPlanned(userId),
     db
@@ -1151,14 +1166,11 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
         and(
           sql`${installments.status} <> 'paid'`,
           sql`${debts.deletedAt} is null`,
+          sql`${debts.status} <> 'cancelled'`,
           u ? sql`(${debts.userId} = ${u} or ${debts.userId} is null)` : sql`1=1`,
         ),
       )
       .then((rows) => rows.map((r) => ({ ...r.inst, direction: r.direction }))),
-    db
-      .select()
-      .from(obligations)
-      .where(and(sql`${obligations.deletedAt} is null`, u ? eq(obligations.userId, u) : sql`1=1`)),
     db
       .select()
       .from(events)
@@ -1197,7 +1209,16 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
   for (const p of planned) {
     if (p.status !== "pending") continue;
     // amountBase on planned transactions stores the user-entered Toman amount.
-    push(p.plannedDate, D(p.amountBase), p.direction === "inflow" ? "inflow" : "outflow");
+    // A plain monthly payment (rent, tuition — what «تعهدات» used to hold)
+    // recurs in every Jalali month from its date. Income, premiums and deposit
+    // interest carry their own next occurrence and are counted once.
+    const plainMonthly =
+      p.direction === "outflow" && p.recurrence === "monthly" && !p.categoryId && !p.insurancePolicyId && !p.depositId;
+    if (plainMonthly) {
+      for (const { iso } of jalaliMonthStarts(months, p.plannedDate)) push(iso, D(p.amountBase), "outflow");
+    } else {
+      push(p.plannedDate, D(p.amountBase), p.direction === "inflow" ? "inflow" : "outflow");
+    }
   }
   for (const i of insts) {
     // Prefer contractual amount_toman; legacy USD installments convert once.
@@ -1217,21 +1238,23 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
     if (!toman.gt(0)) continue;
     push(i.dueDate, toman, isReceivable(i.direction) ? "inflow" : "outflow");
   }
-  for (const o of obls) {
-    if (o.status !== "pending") continue;
-    // amountBase stores contractual Toman.
-    if (o.recurrence === "monthly") {
-      // Recurrence follows JALALI calendar months of the obligation (same
-      // month-arithmetic as the buckets — never Gregorian month shifting).
-      for (const { iso } of jalaliMonthStarts(months, o.dueDate)) push(iso, D(o.amountBase), "outflow");
-    } else {
-      push(o.dueDate, D(o.amountBase), "outflow");
-    }
-  }
+  // An event with its own budget: what is already spent left the cash above,
+  // so only the rest is still to come.
+  // A cheque written toward the event is counted on its own date (below), so
+  // it comes off the event's remainder too.
+  const [eventLinks, budgetRows, eventCheques] = await Promise.all([
+    eventBudgetLinks(u ?? null),
+    listBudgets(u).catch(() => []),
+    pendingChequesByEvent(u ?? null),
+  ]);
+  const spentByBudget = new Map(budgetRows.map((b) => [b.id, D(b.spentToman)]));
   for (const e of evs) {
     if (e.status !== "planned") continue;
     // budgetBase stores contractual Toman.
-    push(e.eventDate, D(e.budgetBase), "outflow");
+    const link = eventLinks.get(e.id);
+    const spent = link ? (spentByBudget.get(link.budgetId) ?? Decimal.zero()) : Decimal.zero();
+    const left = D(e.budgetBase).sub(spent).sub(eventCheques.get(e.id) ?? "0");
+    if (left.gt(0)) push(e.eventDate, left, "outflow");
   }
   // Pending cheques: a written cheque leaves on its due date, a held one
   // arrives. One tied to an installment is already counted above.
@@ -1240,7 +1263,10 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
   }
 
   // Opening liquidity: ledger reports USD book; convert once → Toman for the axis.
-  const startingLiquidityToman = D(nw.availableCashToman);
+  // Money set aside for goals is spoken for: not free to meet these flows.
+  const earmarked = D(await earmarkedToman(u ?? null));
+  const freeCash = D(nw.availableCashToman).sub(earmarked);
+  const startingLiquidityToman = freeCash.isNegative() ? Decimal.zero() : freeCash;
   const netWorthToman = rate.gt(0) ? D(nw.netWorth).mul(rate) : Decimal.zero();
   let cumulative = startingLiquidityToman;
   const points: ProjectionPoint[] = [];
@@ -1295,24 +1321,6 @@ export async function listEvents(userId?: string) {
     ...e,
     budgetToman: D(e.budgetBase).toFixed(0),
     budgetUsd: rate.gt(0) ? D(e.budgetBase).div(rate).toString() : "0",
-  }));
-}
-
-export async function listObligations(userId?: string) {
-  const u = await resolvePlanningUserId(userId);
-  if (!u && (await hasMultipleUsers())) return [];
-  const fx = await getLatestUsdIrtRateForUser(u ?? null);
-  const rate = D(fx.rate).gt(0) ? D(fx.rate) : D("0");
-  const rows = await db
-    .select()
-    .from(obligations)
-    .where(and(sql`${obligations.deletedAt} is null`, u ? eq(obligations.userId, u) : sql`1=1`))
-    .orderBy(asc(obligations.dueDate));
-  // amountBase is contractual Toman; attach a live USD preview only.
-  return rows.map((o) => ({
-    ...o,
-    amountToman: D(o.amountBase).toFixed(0),
-    amountUsd: rate.gt(0) ? D(o.amountBase).div(rate).toString() : "0",
   }));
 }
 

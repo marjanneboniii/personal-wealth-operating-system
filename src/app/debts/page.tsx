@@ -12,7 +12,12 @@ import { DEBT_TABS } from "@/components/ui/ModuleTabs";
 import ModuleHeader from "@/components/money/ModuleHeader";
 import ObligationCard, { daysUntil } from "@/components/debts/ObligationCard";
 import NewObligationPanel from "@/components/debts/NewObligationPanel";
-import { faCount, formatDaysUntil, formatTomanPrimary, sumToman, todayIso } from "@/lib/format";
+import { faCount, formatDaysUntil, formatNumber, formatTomanPrimary, sumToman, todayIso } from "@/lib/format";
+import { listUndated } from "@/features/planning/planItems";
+import { AddUndatedButton } from "@/components/planning/AddPlanningSheet";
+import { UndatedDeleteButton } from "@/components/planning/PlanExtraForms";
+
+const UNDATED_UNIT_LABEL: Record<string, string> = { EMAMI: "سکه تمام", BAHAR: "بهار آزادی", NIM: "نیم سکه", ROB: "ربع سکه", toman: "تومان" };
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -20,9 +25,9 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "تعهدات مالی" };
 
 export default async function DebtsPage() {
-  await ensureAuth();
+  const user = await ensureAuth();
   await seedIfEmpty();
-  const [all, fx] = await Promise.all([listDebts(), getLatestUsdIrtRate()]);
+  const [all, fx, undated] = await Promise.all([listDebts(), getLatestUsdIrtRate(), listUndated((user as { id?: string } | null)?.id ?? null)]);
 
   const today = todayIso();
   // DIRECTION SPLIT. The two sides are never summed together: netting a
@@ -133,6 +138,43 @@ export default async function DebtsPage() {
           )}
         </>
       )}
+
+      <Section title="بدون سررسید" action={<AddUndatedButton variant="soft" label="افزودن" />}>
+        {undated.length === 0 ? (
+          <p className="card muted text-center text-[length:var(--fs-sm)]">موردی ندارید</p>
+        ) : (
+          <ul className="card plan-list">
+            {undated.map((u) => (
+              <li key={u.id} className="plan-row">
+                <div className="plan-row-head">
+                  <span className="plan-row-title">
+                    <b className="truncate">{u.title}</b>
+                    <span className={u.direction === "receivable" ? "badge badge-pos" : "badge badge-neutral"}>{u.direction === "receivable" ? "طلب" : "بدهی"}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <span className="text-left">
+                      <b className="plan-amount num block money-nowrap" dir="rtl">
+                        {u.valueToman != null ? formatTomanPrimary(u.valueToman, fx.rate).primary : "—"}
+                      </b>
+                      {u.unit !== "toman" && (
+                        <span className="muted num block text-[length:var(--fs-xs)]">
+                          {formatNumber(u.quantity)} {UNDATED_UNIT_LABEL[u.unit]}
+                        </span>
+                      )}
+                      {u.nominalToman && (
+                        <span className="muted num block text-[length:var(--fs-xs)]" dir="rtl">
+                          تخمین با تورم {formatNumber(u.inflationPct ?? "0")}٪ · اسمی {formatTomanPrimary(u.nominalToman, fx.rate).primary}
+                        </span>
+                      )}
+                    </span>
+                    <UndatedDeleteButton id={u.id} title={u.title} />
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
 
       <NewObligationPanel>
         <DebtForm

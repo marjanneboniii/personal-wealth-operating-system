@@ -146,15 +146,19 @@ const obligationFixture = [
     title: "اجاره خانه",
     amountBase: "30000000",
     amountToman: "30000000",
-    dueDate: DUE_A,
+    plannedDate: DUE_A,
+    direction: "outflow",
     recurrence: "monthly",
     status: "pending",
     note: null,
   },
 ];
 
+mock.module("@/features/planning/planItems", { namedExports: { eventBudgetLinks: async () => new Map(), listUndated: async () => [] } });
 mock.module("@/features/planning/service", {
   namedExports: {
+    listPlanned: async () => obligationFixture,
+    listBudgets: async () => [],
     listInstallmentSchedule: async () => ({
       rows: scheduleRows,
       rate: "190000",
@@ -162,7 +166,6 @@ mock.module("@/features/planning/service", {
     }),
     listDebts: async () => [debtFixture],
     isRealLoanDebt: (d: any) => Number(d.interestRate ?? 0) > 0 || Boolean(d.accountId),
-    listObligations: async () => obligationFixture,
     listEvents: async () => [],
     upcomingInstallments: async () => [
       {

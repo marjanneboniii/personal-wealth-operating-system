@@ -32,7 +32,7 @@
  */
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, assets, debts, expenseCategories, insurancePolicies, plannedTransactions, realEstateProperties, vehicleAssets, wallets } from "@/db/schema";
+import { accounts, assets, cities, debts, expenseCategories, neighborhoods, insurancePolicies, plannedTransactions, realEstateProperties, vehicleAssets, wallets } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import { registerMoneyAccount } from "@/features/accounts/service";
 import { addJalaliMonths } from "@/features/income/recurring";
@@ -698,6 +698,8 @@ export async function listPolicies(userId: string): Promise<PolicyRow[]> {
 
 export type CoverageGap = {
   kind: "vehicle_no_third_party" | "property_uninsured" | "property_underinsured";
+  /** The car or home, as the user knows it — «سایپا کوییک GXL»، «شهرک دانشگاه، اهواز». */
+  subject: string;
   title: string;
   detail: string;
   /** Pre-fills the new-policy form. */
@@ -712,6 +714,38 @@ export function gapHref(g: Pick<CoverageGap, "suggestKind" | "vehicleId" | "prop
   return `/insurance?${q.toString()}#new-policy`;
 }
 
+/** «Saipa  Saipa Quick GXL» → «Saipa Quick GXL»: one space, the brand once. */
+export function vehicleLabel(brand: string | null, model: string | null): string {
+  const b = (brand ?? "").replace(/\s+/g, " ").trim();
+  let m = (model ?? "").replace(/\s+/g, " ").trim();
+  if (b && m.toLowerCase().startsWith(b.toLowerCase())) m = m.slice(b.length).trim();
+  return [b, m].filter(Boolean).join(" ") || "خودرو";
+}
+
+/**
+ * Legacy homes keep the city and area as free text, often in Latin
+ * («Shahrak Daneshgah», «Ahvaz»). Show them by the Persian name from the
+ * cities / neighborhoods master data; a name it does not know stays as typed.
+ */
+async function placeNamesFa(): Promise<(name: string | null) => string | null> {
+  const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const map = new Map<string, string>();
+  try {
+    const [cs, ns] = await Promise.all([
+      db.select({ en: cities.nameEn, fa: cities.nameFa }).from(cities),
+      db.select({ en: neighborhoods.nameEn, fa: neighborhoods.nameFa }).from(neighborhoods),
+    ]);
+    for (const r of [...cs, ...ns]) if (r.en) map.set(key(r.en), r.fa);
+  } catch {
+    /* master data unavailable — names stay as typed */
+  }
+  return (name) => {
+    const n = name?.trim();
+    if (!n) return null;
+    return map.get(key(n)) ?? n;
+  };
+}
+
 /**
  * What the user owns that is not covered. Third-party cover is compulsory for
  * a car on the road in Iran; fire cover is not, so an uninsured home is a
@@ -719,17 +753,27 @@ export function gapHref(g: Pick<CoverageGap, "suggestKind" | "vehicleId" | "prop
  * the ratio — the gap is what the owner would carry after a loss.
  */
 export async function coverageGaps(userId: string, today = todayIso()): Promise<CoverageGap[]> {
-  const [vehicles, properties, active] = await Promise.all([
+  const [vehicles, properties, placeFa, active] = await Promise.all([
     db
       .select({ id: vehicleAssets.id, brand: vehicleAssets.brand, model: vehicleAssets.model, year: vehicleAssets.year })
       .from(vehicleAssets)
       .innerJoin(assets, eq(assets.id, vehicleAssets.assetId))
       .where(and(eq(vehicleAssets.userId, userId), sql`${vehicleAssets.status} <> 'sold'`, isNull(assets.deletedAt))),
     db
-      .select({ id: realEstateProperties.id, area: realEstateProperties.area, city: realEstateProperties.city, value: realEstateProperties.currentValueToman })
+      .select({
+        id: realEstateProperties.id,
+        area: realEstateProperties.area,
+        city: realEstateProperties.city,
+        areaFa: neighborhoods.nameFa,
+        cityFa: cities.nameFa,
+        value: realEstateProperties.currentValueToman,
+      })
       .from(realEstateProperties)
       .innerJoin(assets, eq(assets.id, realEstateProperties.assetId))
+      .leftJoin(neighborhoods, eq(neighborhoods.id, realEstateProperties.neighborhoodId))
+      .leftJoin(cities, eq(cities.id, realEstateProperties.cityId))
       .where(and(eq(realEstateProperties.userId, userId), isNull(assets.deletedAt))),
+    placeNamesFa(),
     db
       .select({ kind: insurancePolicies.kind, vehicleId: insurancePolicies.insuredVehicleId, propertyId: insurancePolicies.insuredPropertyId, coverage: insurancePolicies.coverageToman, endDate: insurancePolicies.endDate })
       .from(insurancePolicies)
@@ -741,18 +785,26 @@ export async function coverageGaps(userId: string, today = todayIso()): Promise<
     if (!live.some((p) => p.kind === "third_party" && p.vehicleId === v.id)) {
       gaps.push({
         kind: "vehicle_no_third_party",
-        title: `${v.brand} ${v.model} بیمه‌ی شخص ثالث فعال ندارد`,
-        detail: "رانندگی بدون بیمه‌ی ثالث جریمه دارد و خسارت طرف مقابل از جیب شما پرداخت می‌شود.",
+        subject: vehicleLabel(v.brand, v.model),
+        title: "بیمه‌ی شخص ثالث این خودرو فعال نیست",
+        detail: "رانندگی بدون بیمه‌ی شخص ثالث جریمه دارد و خسارت طرف مقابل از جیب شما پرداخت می‌شود.",
         suggestKind: "third_party",
         vehicleId: v.id,
       });
     }
   }
   for (const p of properties) {
-    const label = [p.area, p.city].filter(Boolean).join("، ") || "ملک";
+    const label = [p.areaFa ?? placeFa(p.area), p.cityFa ?? placeFa(p.city)].filter(Boolean).join("، ") || "ملک";
     const cover = live.filter((x) => x.kind === "fire" && x.propertyId === p.id);
     if (!cover.length) {
-      gaps.push({ kind: "property_uninsured", title: `${label} بیمه‌ی آتش‌سوزی ندارد`, detail: "حق بیمه‌ی آتش‌سوزی و زلزله معمولاً کسر کوچکی از ارزش ملک است.", suggestKind: "fire", propertyId: p.id });
+      gaps.push({
+        kind: "property_uninsured",
+        subject: label,
+        title: "این ملک بیمه‌ی آتش‌سوزی ندارد",
+        detail: "حق بیمه‌ی آتش‌سوزی و زلزله معمولاً کسر کوچکی از ارزش ملک است.",
+        suggestKind: "fire",
+        propertyId: p.id,
+      });
       continue;
     }
     const sum = Decimal.sum(cover.map((c) => c.coverage ?? "0"));
@@ -760,7 +812,8 @@ export async function coverageGaps(userId: string, today = todayIso()): Promise<
       const pct = sum.mul(100).div(p.value).toFixed(0);
       gaps.push({
         kind: "property_underinsured",
-        title: `${label} فقط ${Number(pct).toLocaleString("fa-IR")}٪ ارزش روزش بیمه شده است`,
+        subject: label,
+        title: `فقط ${Number(pct).toLocaleString("fa-IR")}٪ ارزش روز این ملک بیمه شده است`,
         detail: "در خسارت، بیمه‌گر معمولاً به نسبت سرمایه‌ی بیمه‌شده به ارزش واقعی پرداخت می‌کند؛ هنگام تمدید سرمایه را به‌روز کنید.",
         suggestKind: "fire",
         propertyId: p.id,

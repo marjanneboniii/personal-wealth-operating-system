@@ -311,17 +311,19 @@ test("Test 7 — an independent Obligation is NOT debt (separate domain entity)"
     principalToman: "30000000",
     installments: [{ seq: 1, dueDayOffset: 25, amountToman: "30000000" }],
   });
-  await db.insert(schema.obligations).values({
+  // A commitment is a planned outflow (the obligations table was merged into it).
+  await db.insert(schema.plannedTransactions).values({
     userId: u.id,
     title: "بیمه عمر",
     amountBase: "12000000",
-    dueDate: iso(20),
+    plannedDate: iso(20),
+    direction: "outflow",
     recurrence: "yearly",
     status: "pending",
   } as any);
 
   const debts = await svc.listDebts(u.id);
-  const obligations = await svc.listObligations(u.id);
+  const obligations = (await svc.listPlanned(u.id)).filter((p: any) => p.title === "بیمه عمر");
 
   assert.equal(totalDebtToman(debts), "30000000", "obligation must not inflate Total Debt");
   assert.equal(obligations.length, 1);

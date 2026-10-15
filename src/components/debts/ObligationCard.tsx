@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { OBLIGATION_STATE_LABELS, isReceivable, type ObligationState } from "@/features/planning/obligations";
 import { Progress } from "@/components/ui/Card";
+import PlanRowMenu from "@/components/planning/PlanRowMenu";
 import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, formatPct, formatTomanPrimary } from "@/lib/format";
 
 export function daysUntil(iso: string) {
@@ -86,7 +87,8 @@ export default function ObligationCard({ d, today, rate }: { d: ObligationCardDa
             )}
           </p>
         </div>
-        <div className="shrink-0 text-left">
+        <div className="flex shrink-0 items-start gap-1 text-left">
+        <div>
           <p
             className="num text-[length:var(--fs-md)] font-bold leading-6 money-nowrap"
             dir="rtl"
@@ -99,6 +101,12 @@ export default function ObligationCard({ d, today, rate }: { d: ObligationCardDa
               اصل {formatMoney(d.principalToman, "IRT")}
             </p>
           )}
+        </div>
+        <PlanRowMenu
+          kind="debt"
+          item={{ id: d.id, name: d.title, creditor: d.creditor, status: d.status ?? "active", hasPayments: d.paidCount > 0 }}
+          today={today}
+        />
         </div>
       </div>
 

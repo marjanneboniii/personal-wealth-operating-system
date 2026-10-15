@@ -34,7 +34,6 @@ import {
   assets,
   currencies,
   entryFxSnapshots,
-  funds,
   goals,
   journalEntries,
   plannedTransactions,
@@ -834,8 +833,9 @@ async function summarizeAccountLinks(
           or(eq(plannedTransactions.fromAccountId, accountId), eq(plannedTransactions.toAccountId, accountId)),
         ),
       ),
-    tx.select({ id: goals.id }).from(goals).where(and(eq(goals.fundAccountId, accountId), isNull(goals.deletedAt))),
-    tx.select({ id: funds.id }).from(funds).where(and(eq(funds.accountId, accountId), isNull(funds.deletedAt))),
+    // Funds are goals of another kind: counted apart, detached the same way.
+    tx.select({ id: goals.id }).from(goals).where(and(eq(goals.fundAccountId, accountId), eq(goals.kind, "goal"), isNull(goals.deletedAt))),
+    tx.select({ id: goals.id }).from(goals).where(and(eq(goals.fundAccountId, accountId), sql`${goals.kind} <> 'goal'`, isNull(goals.deletedAt))),
   ]);
   return { plannedTransactions: planned.length, linkedGoals: goalRows.length, linkedFunds: fundRows.length };
 }
@@ -952,7 +952,7 @@ export async function deleteMoneyAccount(
       await tx.update(goals).set({ fundAccountId: null, updatedAt: new Date() }).where(eq(goals.fundAccountId, account.id));
     }
     if (links.linkedFunds > 0) {
-      await tx.update(funds).set({ accountId: null, updatedAt: new Date() }).where(eq(funds.accountId, account.id));
+      await tx.update(goals).set({ fundAccountId: null, updatedAt: new Date() }).where(eq(goals.fundAccountId, account.id));
     }
     if (links.plannedTransactions > 0) {
       await tx

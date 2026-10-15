@@ -440,29 +440,6 @@ const STATEMENTS = [
     paid_entry_id uuid REFERENCES journal_entries(id),
     paid_at date
   );`,
-  `CREATE TABLE IF NOT EXISTS obligations (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    deleted_at timestamptz,
-    title text NOT NULL,
-    amount_base numeric(38,18) NOT NULL,
-    due_date date NOT NULL,
-    recurrence text NOT NULL DEFAULT 'none',
-    status text NOT NULL DEFAULT 'pending',
-    note text
-  );`,
-  `CREATE TABLE IF NOT EXISTS funds (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    deleted_at timestamptz,
-    name text NOT NULL,
-    kind text NOT NULL,
-    target_base numeric(38,18) NOT NULL,
-    account_id uuid REFERENCES accounts(id),
-    note text
-  );`,
   `CREATE TABLE IF NOT EXISTS settings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -1059,8 +1036,6 @@ const STATEMENTS = [
       AND EXISTS (SELECT 1 FROM installments i WHERE i.debt_id = d.id);`,
   `CREATE INDEX IF NOT EXISTS debts_user_direction_idx ON debts(user_id, direction);`,
   `CREATE INDEX IF NOT EXISTS installments_debt_seq_idx ON installments(debt_id, seq);`,
-  `ALTER TABLE obligations ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
-  `ALTER TABLE funds ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
   `ALTER TABLE snapshots ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;`,
 
   // Convert leftover global UNIQUE(code) to per-tenant UNIQUE(user_id, code).
@@ -1090,8 +1065,6 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS budgets_user_idx ON budgets(user_id);`,
   `CREATE INDEX IF NOT EXISTS planned_user_idx ON planned_transactions(user_id);`,
   `CREATE INDEX IF NOT EXISTS debts_user_idx ON debts(user_id);`,
-  `CREATE INDEX IF NOT EXISTS obligations_user_idx ON obligations(user_id);`,
-  `CREATE INDEX IF NOT EXISTS funds_user_idx ON funds(user_id);`,
   `CREATE INDEX IF NOT EXISTS snapshots_user_idx ON snapshots(user_id);`,
 
   // ───────────── STAGE 3: Idempotency & Concurrency Safety ─────────────
@@ -1445,6 +1418,60 @@ const BUDGET_ITEM_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS budget_items_budget_idx ON budget_items(budget_id, sort);`,
 ];
 
+/** funds → goals, obligations → planned_transactions — mirrors drizzle/0057. */
+const MERGE_PLANNING_STATEMENTS = [
+  `ALTER TABLE public.goals ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'goal';`,
+  `DO $$ BEGIN
+ IF to_regclass('public.funds') IS NOT NULL THEN
+  INSERT INTO public.goals (id, created_at, updated_at, deleted_at, user_id, name, description, target_base, fund_account_id, kind)
+  SELECT id, created_at, updated_at, deleted_at, user_id, name, note, target_base, account_id,
+         CASE WHEN kind IN ('emergency','reserve','family_support') THEN kind ELSE 'reserve' END
+  FROM public.funds
+  ON CONFLICT (id) DO NOTHING;
+  DROP TABLE public.funds;
+ END IF;
+END $$;`,
+  `DO $$ BEGIN
+ IF to_regclass('public.obligations') IS NOT NULL THEN
+  INSERT INTO public.planned_transactions (id, created_at, updated_at, deleted_at, user_id, title, planned_date, direction, amount_base, recurrence, status, note)
+  SELECT id, created_at, updated_at, deleted_at, user_id, title, due_date, 'outflow', amount_base,
+         CASE WHEN recurrence IN ('monthly','yearly') THEN recurrence ELSE 'none' END,
+         CASE WHEN status = 'pending' THEN 'pending' WHEN status = 'cancelled' THEN 'cancelled' ELSE 'executed' END,
+         note
+  FROM public.obligations
+  ON CONFLICT (id) DO NOTHING;
+  DROP TABLE public.obligations;
+ END IF;
+END $$;`,
+];
+
+/** Cheque → event, undated inflation — mirrors drizzle/0058. */
+const CHEQUE_EVENT_STATEMENTS = [
+  `ALTER TABLE cheques ADD COLUMN IF NOT EXISTS event_id uuid REFERENCES events(id) ON DELETE SET NULL;`,
+  `CREATE INDEX IF NOT EXISTS cheques_event_idx ON cheques(event_id) WHERE event_id IS NOT NULL;`,
+  `ALTER TABLE undated_obligations ADD COLUMN IF NOT EXISTS start_date date;`,
+  `ALTER TABLE undated_obligations ADD COLUMN IF NOT EXISTS inflation_pct numeric(6,2) CHECK (inflation_pct IS NULL OR (inflation_pct >= 0 AND inflation_pct <= 200));`,
+];
+
+/** Planning links — see drizzle/0056. */
+const PLANNING_LINK_STATEMENTS = [
+  `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS event_id uuid REFERENCES events(id) ON DELETE SET NULL;`,
+  `CREATE INDEX IF NOT EXISTS budgets_event_idx ON budgets(event_id) WHERE event_id IS NOT NULL;`,
+  `CREATE TABLE IF NOT EXISTS undated_obligations (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   updated_at timestamptz,
+   deleted_at timestamptz,
+   user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+   direction text NOT NULL DEFAULT 'payable' CHECK (direction IN ('payable','receivable')),
+   title text NOT NULL CHECK (char_length(title) BETWEEN 1 AND 80),
+   unit text NOT NULL CHECK (unit IN ('toman','EMAMI','BAHAR','NIM','ROB')),
+   quantity numeric(38,18) NOT NULL CHECK (quantity > 0),
+   note text CHECK (char_length(note) <= 300)
+  );`,
+  `CREATE INDEX IF NOT EXISTS undated_obligations_user_idx ON undated_obligations(user_id);`,
+];
+
 /**
  * Best-effort hardening statements. They are applied when the database
  * supports them and silently skipped otherwise — never fatal for boot.
@@ -1494,7 +1521,6 @@ const PARITY_INDEX_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS entries_date_idx ON public.journal_entries USING btree (entry_date);`,
   `CREATE INDEX IF NOT EXISTS entries_type_idx ON public.journal_entries USING btree (type);`,
   `CREATE INDEX IF NOT EXISTS event_items_event_id_fk_idx ON public.event_items USING btree (event_id);`,
-  `CREATE INDEX IF NOT EXISTS funds_account_id_fk_idx ON public.funds USING btree (account_id);`,
   `CREATE INDEX IF NOT EXISTS goal_contributions_entry_id_fk_idx ON public.goal_contributions USING btree (entry_id);`,
   `CREATE INDEX IF NOT EXISTS goal_contributions_goal_id_fk_idx ON public.goal_contributions USING btree (goal_id);`,
   `CREATE INDEX IF NOT EXISTS goals_fund_account_id_fk_idx ON public.goals USING btree (fund_account_id);`,
@@ -1580,6 +1606,9 @@ export async function createSchemaIfNotExists() {
     ...CHEQUE_STATEMENTS,
     ...HISTORY_RECORD_STATEMENTS,
     ...BUDGET_ITEM_STATEMENTS,
+    ...PLANNING_LINK_STATEMENTS,
+    ...MERGE_PLANNING_STATEMENTS,
+    ...CHEQUE_EVENT_STATEMENTS,
     ...DEPOSIT_STATEMENTS,
     ...BALANCE_CHECKPOINT_STATEMENTS,
     ...INSURANCE_STATEMENTS,

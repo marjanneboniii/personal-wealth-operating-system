@@ -198,28 +198,30 @@ export default async function InsurancePage({ searchParams }: { searchParams: Pr
 
       {gaps.length > 0 && (
         <Section title="بدون بیمه">
-          <ul className="card list-card" role="list">
-            {gaps.map((g) => (
-              <li key={`${g.kind}-${g.vehicleId ?? g.propertyId}`} className="list-row gap-row">
-                <span
-                  className="flow-icon"
-                  aria-hidden="true"
-                  style={g.kind === "vehicle_no_third_party" ? { background: "var(--negative-soft)", color: "var(--negative)" } : { background: "var(--warning-soft)", color: "var(--warning)" }}
-                >
-                  <Icon name={g.kind === "vehicle_no_third_party" ? "alert" : "shield"} size={15} />
-                </span>
-                <p className="min-w-0 flex-1 text-[length:var(--fs-sm)] font-medium leading-6" title={g.detail}>
-                  {g.title}
-                </p>
-                <Link
-                  href={gapHref(g)}
-                  className="btn btn-soft !min-h-9 shrink-0 !px-3 text-[length:var(--fs-xs)]"
-                  aria-label={`ثبت بیمه برای ${g.title}`}
-                >
-                  ثبت
-                </Link>
-              </li>
-            ))}
+          <ul className="uninsured-list" role="list">
+            {gaps.map((g) => {
+              const critical = g.kind === "vehicle_no_third_party";
+              return (
+                <li key={`${g.kind}-${g.vehicleId ?? g.propertyId}`} className="uninsured-card" data-tone={critical ? "neg" : "warn"}>
+                  <span className="uninsured-icon" aria-hidden="true">
+                    <Icon name="alert" size={18} />
+                  </span>
+                  <div className="uninsured-body">
+                    <span className="uninsured-tag">
+                      <Icon name={critical ? "car" : "home"} size={12} />
+                      {critical ? "خودرو · اجباری" : "ملک · توصیه‌شده"}
+                    </span>
+                    <b className="uninsured-subject">{g.subject}</b>
+                    <p className="uninsured-title">{g.title}</p>
+                    <p className="uninsured-detail">{g.detail}</p>
+                  </div>
+                  <Link href={gapHref(g)} className="btn btn-primary uninsured-cta" aria-label={`ثبت بیمه‌نامه برای ${g.subject}`}>
+                    <Icon name="plus" size={15} />
+                    ثبت بیمه‌نامه
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </Section>
       )}

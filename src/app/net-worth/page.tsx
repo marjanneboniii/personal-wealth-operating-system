@@ -9,6 +9,7 @@ import {
   getSnapshotSeries,
 } from "@/features/ledger/queries";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
+import { listUndated } from "@/features/planning/planItems";
 import { getAnalyticsSummary } from "@/features/analytics/service";
 import { Alert, Delta, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import NetWorthChart from "@/components/charts/NetWorthChart";
@@ -105,7 +106,12 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
 
   const baseline =
     (await getSnapshotAsOf(from, userId)) ?? (await getFirstSnapshotAfter(from, userId)) ?? null;
-  const liabilitiesNow = await getLiabilitiesTotal(userId);
+  const [liabilitiesNow, undated] = await Promise.all([getLiabilitiesTotal(userId), listUndated(userId ?? null)]);
+  // The headline counts only what has moved. This line also takes off what is
+  // scheduled or owed on demand (and adds what is owed to the user), at today's prices.
+  const undatedNet = undated.reduce((sum, u) => (u.valueToman == null ? sum : u.direction === "receivable" ? sum.add(u.valueToman) : sum.sub(u.valueToman)), D("0"));
+  const afterAllD = D(nw.netWorthToman).sub(nw.futureObligationsToman ?? "0").add(nw.totalReceivableToman ?? "0").add(undatedNet);
+  const afterAll = fx.rate && afterAllD.cmp(nw.netWorthToman) !== 0 ? afterAllD.toFixed(0) : null;
 
   const nwNow = D(nw.netWorth);
   const deltaAbs = baseline ? nwNow.sub(baseline.netWorth) : D("0");
@@ -170,6 +176,14 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
                 {formatMoney(D(nw.totalLiabilities).neg().toString())}
               </span>
             </p>
+            {afterAll && (
+              <p className="nw-after-all">
+                <span>پس از همه‌ی تعهدات</span>
+                <b className="num money-nowrap" dir="rtl">
+                  {formatMoney(afterAll, "IRT")}
+                </b>
+              </p>
+            )}
           </div>
 
           <div className="seg shrink-0 self-start" role="group" aria-label="بازه زمانی">
