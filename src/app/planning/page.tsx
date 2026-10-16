@@ -52,32 +52,16 @@ export default async function PlanningPage() {
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id;
   await seedIfEmpty();
-  const [planned, insts, debts, events, projection, accountRows, fx, balanceRows, savingsAccounts] = await Promise.all([
+  const [planned, insts, debts, events, projection, accountRows, fx, balanceRows] = await Promise.all([
     listPlanned(),
     upcomingInstallments(6),
     listDebts(),
     listEvents(),
     projectCashflow(12),
-    db
-      .select({
-        id: accounts.id,
-        code: accounts.code,
-        name: accounts.name,
-        symbol: assets.symbol,
-        decimals: assets.decimals,
-        logoUrl: assets.logoUrl,
-        walletName: wallets.name,
-        walletKind: wallets.kind,
-      })
-      .from(accounts)
-      .leftJoin(assets, eq(assets.id, accounts.assetId))
-      .leftJoin(wallets, eq(wallets.id, accounts.walletId))
-      // Only this user's accounts — never another tenant's.
-      .where(sql`${accounts.deletedAt} is null and ${accounts.type} = 'asset' and ${accounts.assetId} is not null${userId ? sql` and ${accounts.userId} = ${userId}` : sql``}`)
-      .orderBy(asc(accounts.code)),
+    // Bank accounts and wallet-held stablecoins — where planning money lives.
+    listSavingsAccounts(userId).catch(() => []),
     getLatestUsdIrtRate(),
     getAccountBalances(userId).catch(() => []),
-    listSavingsAccounts(userId).catch(() => []),
   ]);
   const balances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
 
@@ -138,7 +122,6 @@ export default async function PlanningPage() {
 
   const addProps = {
     accounts: accountRows,
-    savingsAccounts,
     balances,
     today: todayIso(),
     rate: fx.rate,

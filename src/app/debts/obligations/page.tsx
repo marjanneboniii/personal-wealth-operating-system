@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { asc, eq, sql } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
-import { db } from "@/db";
-import { accounts, assets, wallets } from "@/db/schema";
 import { getAccountBalances } from "@/features/ledger/queries";
+import { listSavingsAccounts } from "@/features/planning/savingsAccounts";
 import { seedIfEmpty } from "@/db/seed";
 import {
   listBudgets,
@@ -75,29 +73,7 @@ export default async function ObligationsPage() {
     upcomingInstallments(100),
     getLatestUsdIrtRate(),
     // The account picker is optional in the add sheet — never fail the page for it.
-    Promise.resolve()
-      .then(() =>
-        db
-          .select({
-            id: accounts.id,
-            code: accounts.code,
-            name: accounts.name,
-            symbol: assets.symbol,
-            decimals: assets.decimals,
-            logoUrl: assets.logoUrl,
-            walletName: wallets.name,
-            walletKind: wallets.kind,
-          })
-          .from(accounts)
-          .leftJoin(assets, eq(assets.id, accounts.assetId))
-          .leftJoin(wallets, eq(wallets.id, accounts.walletId))
-          // Only this user's accounts — never another tenant's.
-          .where(
-            sql`${accounts.deletedAt} is null and ${accounts.type} = 'asset' and ${accounts.assetId} is not null${userId ? sql` and ${accounts.userId} = ${userId}` : sql``}`,
-          )
-          .orderBy(asc(accounts.code)),
-      )
-      .catch(() => []),
+    listSavingsAccounts(userId).catch(() => []),
     getAccountBalances(userId ?? undefined).catch(() => []),
   ]);
   const addProps = {

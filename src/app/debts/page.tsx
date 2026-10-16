@@ -142,7 +142,6 @@ export default async function DebtsPage() {
       <Section title="بدهی بدون سررسید" action={undated.length > 0 ? <AddUndatedButton variant="soft" label="افزودن" /> : undefined}>
         {undated.length === 0 ? (
           <div className="card undated-empty">
-            <p>بدهی‌ای که تاریخ پرداخت ندارد — به سکه یا تومان. ارزش روزش را می‌بینید، ولی در دارایی خالص حساب نمی‌شود.</p>
             <AddUndatedButton variant="soft" label="ثبت بدهی بدون سررسید" />
           </div>
         ) : (
