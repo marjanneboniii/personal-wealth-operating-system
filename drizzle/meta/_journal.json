@@ -414,6 +414,13 @@
       "when": 1791410475398,
       "tag": "0058_cheque_event_undated_inflation",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1791410475399,
+      "tag": "0059_account_spend_from",
+      "breakpoints": true
     }
   ]
 }

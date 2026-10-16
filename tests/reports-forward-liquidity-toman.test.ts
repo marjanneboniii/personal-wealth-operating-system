@@ -139,18 +139,17 @@ test("forward liquidity renders Toman AS-IS — no second FX multiplication", as
   assert.ok(!html.includes("نقدینگی تجمعی"), "the نقدینگی تجمیعی column must be gone from the UI");
   assert.ok(!html.includes(`۴٬۹۲۲٬۳۷۱٬۳۹۴${NBSP}تومان`), "cumulative figures must not be rendered as a column");
 
-  // The USD hint is the Toman amount ÷ rate (909,090 ÷ 200,000 = 4.55 USD)…
-  assert.ok(html.includes(`۴.۵۵${NBSP}دلار`), "USD hint must be the ÷-rate equivalent (≈ ۴.۵۵ دلار)");
-  // …never the Toman figure mislabeled as dollars (the old «≈ ۹۰۹٬۰۹۰ دلار»).
+  // Inflow and outflow are Toman only — no dollar line under them, and never
+  // the Toman figure mislabeled as dollars (the old «≈ ۹۰۹٬۰۹۰ دلار»).
+  assert.ok(!html.includes("دلار"), "forward liquidity is Toman only");
   assert.ok(!html.includes(`۹۰۹٬۰۹۰${NBSP}دلار`), "Toman figure must never be labeled as USD");
   assert.ok(!html.includes(`۴٬۹۲۲٬۳۷۱٬۳۹۴${NBSP}دلار`), "Toman figure must never be labeled as USD");
 });
 
-test("forward liquidity USD hints follow the rate (display-only, Toman stays fixed)", async () => {
+test("forward liquidity is Toman only — no dollar hints, no cumulative column", async () => {
   const { default: ReportsPage } = await import("../src/app/reports/page");
   const html = stripBidi(forwardLiquiditySection(renderToStaticMarkup(await (ReportsPage as any)())));
-  // The monthly outflow hint is 909,090 ÷ 200,000 = 4.55 USD.
-  assert.ok(html.includes(`۴.۵۵${NBSP}دلار`), "outflow USD hint must be the ÷-rate equivalent");
+  assert.ok(!html.includes("۴.۵۵"), "no ÷-rate dollar hint under the Toman figures");
   // The removed cumulative column must not reappear with any stale hints.
   assert.ok(!html.includes("نقدینگی تجمعی"), "نقدینگی تجمیعی must not be rendered");
   assert.ok(!html.includes("۲۴٬۶۱۱.۸۶"), "cumulative USD hint must be gone with the column");

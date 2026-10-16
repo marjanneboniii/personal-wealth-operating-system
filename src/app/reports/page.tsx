@@ -8,13 +8,15 @@ import {
 } from "@/features/ledger/queries";
 import { listDebts, projectCashflow } from "@/features/planning/service";
 import { isReceivable } from "@/features/planning/obligations";
-import { Metric, PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
+import { PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
+import StatCard from "@/components/money/StatCard";
+import FormattedMoney from "@/components/ui/FormattedMoney";
 import { BarsChart } from "@/components/charts/Charts";
 import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import Icon from "@/components/ui/Icon";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, faCount, formatJalaliIso, formatMoney, formatPct, formatPercent, formatSignedMoney, formatSignedMoneyFromUsd, inflowTone, jalaliMonthKey, jalaliMonthLabel, outflowTone, toIrtMoney, trendTone } from "@/lib/format";
+import { currencyLabel, faCount, formatJalaliIso, formatMoney, formatNumber, formatPct, formatSignedMoney, formatSignedMoneyFromUsd, jalaliMonthKey, jalaliMonthLabel, toIrtMoney, toneColor, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -74,26 +76,31 @@ export default async function ReportsPage() {
       ? D(totalExpense).mul(rate).toString()
       : totalExpense.toString();
 
-  const monthly = flow.map((f) => ({
-    month: f.month,
-    jalaliLabel: jalaliMonthLabel(jalaliMonthKey(f.month)),
-    inflow: f.inflow,
-    outflow: f.outflow,
-    inflowToman: f.inflowToman,
-    outflowToman: f.outflowToman,
-    // Frozen Toman for the month is valid only under full snapshot coverage —
-    // a dollar rate change can never move a fully covered month.
-    inflowFrozen: f.inflowEntries === f.inflowEntriesSnap,
-    outflowFrozen: f.outflowEntries === f.outflowEntriesSnap,
-    net: D(f.inflow).sub(f.outflow).toString(),
-  }));
+  // Toman per month: the frozen entry figure when every entry of the month has
+  // its snapshot, else the dollar book at today's rate (legacy rows only).
+  const tomanOf = (frozen: boolean, toman: string | null | undefined, usd: string) =>
+    frozen && toman != null && D(toman).gt(0) ? D(toman) : rate ? D(usd).mul(rate) : D(usd);
+  const monthly = flow.map((f) => {
+    const inT = tomanOf(f.inflowEntries === f.inflowEntriesSnap, f.inflowToman, f.inflow);
+    const outT = tomanOf(f.outflowEntries === f.outflowEntriesSnap, f.outflowToman, f.outflow);
+    return {
+      month: f.month,
+      label: jalaliMonthLabel(jalaliMonthKey(f.month)),
+      inT,
+      outT,
+      netT: inT.sub(outT),
+    };
+  });
+  const incomeToman = rate ? totalIncome.mul(rate) : totalIncome;
+  const savedToman = incomeToman.sub(expenseToman);
+  const avgExpenseToman = monthly.length ? D(expenseToman).div(monthly.length) : D("0");
+  const toman = (v: Decimal | string | number) => formatMoney(D(v).toFixed(0), "IRT");
+  // A small dollar line under the headline totals only — never in the month
+  // rows or the forward table, where a second figure per cell is clutter.
+  const usd = (v: Decimal | string | number) => (rate ? `≈ ${formatMoney(D(v).toString())}` : undefined);
 
   return (
-    <div className="space-y-5">
-      {/* The subtitle must not repeat a section heading verbatim: the forward
-          liquidity regression slices the markup from «نقدینگی پیش‌رو» to the
-          next </table>, so an earlier copy of that phrase would point the
-          assertions at the monthly table instead. */}
+    <div className="mny-page rpt-page">
       <PageHeader
         title="گزارش‌های مالی"
         action={
@@ -104,135 +111,120 @@ export default async function ReportsPage() {
         }
       />
 
-      {/* KPI strip — one <section>: «کل هزینه ثبت‌شده» and «نرخ پس‌انداز» are
-          read together by the repayment-exclusion regression test. */}
-      <section className="metric-strip">
-        <Metric label="ارزش خالص" value={formatMoney(nw.netWorthToman, "IRT")} hint={formatMoney(nw.netWorth)} />
-        <Metric
+      {/* The year at a glance — one <section>: «کل هزینه ثبت‌شده» and
+          «نرخ پس‌انداز» are read together by the repayment-exclusion test. */}
+      <section className="mny-stats" style={{ ["--mny-cols" as string]: 4 }} aria-label="خلاصهٔ ۱۲ ماه">
+        <StatCard
+          tone="ink"
+          className="mny-stat-lead"
+          icon="arrow-down"
           label="کل درآمد ثبت‌شده"
-          value={toIrt(totalIncome.toString()) ?? formatMoney(totalIncome.toString())}
-          tone={inflowTone(totalIncome.toString())}
-          hint={rate ? formatMoney(totalIncome.toString()) : undefined}
+          period="۱۲ ماه اخیر"
+          value={<FormattedMoney value={toman(incomeToman)} />}
+          hint={usd(totalIncome)}
         />
-        <Metric
-          label="کل هزینه ثبت‌شده"
-          value={rate ? formatMoney(expenseToman, "IRT") : formatMoney(totalExpense.toString())}
-          tone={outflowTone(totalExpense.toString())}
-          hint={rate ? formatMoney(totalExpense.toString()) : undefined}
+        <StatCard icon="arrow-up" label="کل هزینه ثبت‌شده" period="بدون اقساط بدهی" value={<FormattedMoney value={toman(expenseToman)} />} hint={usd(totalExpense)} />
+        <StatCard
+          tone={savedToman.isNegative() ? "negative" : "positive"}
+          icon="trend-up"
+          label="نرخ پس‌انداز"
+          period={`${savedToman.isNegative() ? "کسری" : "پس‌انداز"} ${toman(savedToman.abs())}`}
+          value={formatPct(savingsRate, 1)}
         />
-        <Metric label="نرخ پس‌انداز" value={formatPct(savingsRate, 1)} tone={trendTone(savingsRate)} />
       </section>
 
       {/* Monthly report — printable (PdfButton reads #monthly-report). */}
-      <Section title="گزارش ماهانه" hint="۱۲ ماه اخیر — شمسی">
+      <Section title="گزارش ماهانه" hint="۱۲ ماه اخیر · تومان">
         <div id="monthly-report" className="space-y-3">
-          <section className="metric-strip">
-            <Metric label="دارایی" value={formatMoney(nw.totalAssetsToman, "IRT")} hint={formatMoney(nw.totalAssets)} />
-            <Metric label="بدهی" value={formatMoney(nw.totalLiabilitiesToman, "IRT")} hint={formatMoney(nw.totalLiabilities)} />
-            <Metric label="نقدشونده" value={formatMoney(nw.liquidToman, "IRT")} hint={formatMoney(nw.liquid)} />
-            <Metric
-              label="میانگین هزینه ماهانه"
-              value={
-                rate
-                  ? formatMoney(monthly.length ? D(expenseToman).div(monthly.length).toString() : "0", "IRT")
-                  : formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0")
-              }
-              hint={rate ? formatMoney(monthly.length ? D(totalExpense.toString()).div(monthly.length).toString() : "0") : undefined}
-            />
-          </section>
-
           <div className="card p-3 sm:p-4">
             <BarsChart
-              height={140}
-              data={monthly.map((m) => ({
-                label: m.jalaliLabel,
-                positive: Number(m.inflow),
-                negative: Number(m.outflow),
-              }))}
+              height={150}
+              currency="IRT"
+              positiveLabel="درآمد"
+              negativeLabel="هزینه"
+              data={monthly.map((m) => ({ label: m.label, positive: Number(m.inT), negative: Number(m.outT) }))}
             />
           </div>
 
-          <div className="card overflow-x-auto">
-            <table className="table table-stack">
-              <thead>
-                <tr>
-                  <th scope="col">ماه</th>
-                  <th scope="col" className="td-num">درآمد</th>
-                  <th scope="col" className="td-num">هزینه</th>
-                  <th scope="col" className="td-num">خالص</th>
-                  <th scope="col" className="td-num hidden sm:table-cell">نسبت به ماه قبل</th>
-                </tr>
-              </thead>
-              <tbody>
-                {monthly.map((m, idx) => {
-                  const prev = idx > 0 ? monthly[idx - 1] : null;
-                  const diff = prev && D(prev.outflow).gt(0) ? D(m.outflow).sub(prev.outflow).div(prev.outflow).mul(100) : null;
-                  return (
-                    <tr key={m.month}>
-                      <td className="font-medium">{m.jalaliLabel}</td>
-                      <td className="td-num" dir="rtl" data-label="درآمد" style={{ color: "var(--positive)" }}>
-                        <div>
-                          {m.inflowFrozen && m.inflowToman != null && D(m.inflowToman).gt(0)
-                            ? formatMoney(m.inflowToman, "IRT")
-                            : toIrt(m.inflow) ?? formatMoney(m.inflow)}
-                        </div>
-                        {rate && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(m.inflow)}</div>}
-                      </td>
-                      <td className="td-num" dir="rtl" data-label="هزینه" style={{ color: "var(--negative)" }}>
-                        <div>
-                          {m.outflowFrozen && m.outflowToman != null && D(m.outflowToman).gt(0)
-                            ? formatMoney(m.outflowToman, "IRT")
-                            : rate
-                              ? formatMoney(D(m.outflow).mul(rate).toString(), "IRT")
-                              : formatMoney(m.outflow)}
-                        </div>
-                        {rate && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(m.outflow)}</div>}
-                      </td>
-                      <td className="td-num font-bold" dir="rtl" data-label="خالص" style={{ color: D(m.net).gte(0) ? "var(--positive)" : "var(--negative)" }}>
-                        <div>
-                          {m.inflowFrozen && m.outflowFrozen
-                            ? formatSignedMoney(D(m.inflowToman ?? "0").sub(D(m.outflowToman ?? "0")).toString(), "IRT")
-                            : formatSignedMoneyFromUsd(m.net, rate)}
-                        </div>
-                        {rate && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(D(m.net).abs().toString())}</div>}
-                      </td>
-                      <td className="td-num hidden sm:table-cell num" dir="rtl" style={{ color: diff && diff.gt(0) ? "var(--negative)" : "var(--positive)" }}>
-                        {diff ? formatPercent(diff.toString()) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!monthly.length && (
-                  <tr>
-                    <td colSpan={5} className="muted py-8 text-center">
-                      داده‌ای در ۱۲ ماه اخیر نیست.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {monthly.length ? (
+            <ul className="card rpt-months" aria-label="درآمد و هزینهٔ هر ماه">
+              <li className="rpt-month rpt-month-head" aria-hidden="true">
+                <span>ماه</span>
+                <span>درآمد</span>
+                <span>هزینه</span>
+                <span>خالص</span>
+              </li>
+              {[...monthly].reverse().map((m) => (
+                <li key={m.month} className="rpt-month">
+                  <span className="rpt-month-name">{m.label}</span>
+                  <span className="rpt-cell" data-k="in" title={toman(m.inT)}>
+                    <small>درآمد</small>
+                    <b className="num">{compactToman(m.inT)}</b>
+                  </span>
+                  <span className="rpt-cell" data-k="out" title={toman(m.outT)}>
+                    <small>هزینه</small>
+                    <b className="num">{compactToman(m.outT)}</b>
+                  </span>
+                  <span className="rpt-cell" data-k="net" data-neg={m.netT.isNegative() || undefined} title={formatSignedMoney(m.netT.toFixed(0), "IRT")}>
+                    <small>خالص</small>
+                    <b className="num">{compactToman(m.netT)}</b>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="card expense-empty">داده‌ای در ۱۲ ماه اخیر نیست.</p>
+          )}
+
+          <section className="card rpt-today" aria-label="وضعیت امروز">
+            {(
+              [
+                ["ارزش خالص", nw.netWorthToman, nw.netWorth],
+                ["دارایی", nw.totalAssetsToman, nw.totalAssets],
+                ["بدهی", nw.totalLiabilitiesToman, nw.totalLiabilities],
+                ["نقدشونده", nw.liquidToman, nw.liquid],
+                ["میانگین هزینه ماهانه", avgExpenseToman, monthly.length ? totalExpense.div(monthly.length) : D("0")],
+              ] as const
+            ).map(([label, v, dollars]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <span className="rpt-today-fig">
+                  <b className="num money-nowrap" dir="rtl">
+                    {toman(v)}
+                  </b>
+                  {usd(dollars) && (
+                    <small className="num money-nowrap" dir="rtl">
+                      {usd(dollars)}
+                    </small>
+                  )}
+                </span>
+              </div>
+            ))}
+          </section>
         </div>
       </Section>
 
       <div className="grid items-start gap-5 lg:grid-cols-2">
-        {/* Investment P&L */}
+        {/* Investment results — Toman first, the dollar result beside it (they
+            can differ in sign: nominal vs real). */}
         <Section title="سود و زیان سرمایه‌گذاری" action={<SectionLink href="/portfolio" label="جزئیات سبد" />}>
           <div className="space-y-3">
-            <section className="metric-strip">
-              <Metric
-                label="تحقق‌یافته"
-                value={formatSignedMoney(pnl.totalToman, "IRT")}
-                tone={trendTone(pnl.totalToman)}
-                hint={formatSignedMoney(pnl.total, "USD")}
-              />
-              <Metric
-                label="تحقق‌نیافته"
-                value={unrealizedToman ? formatSignedMoney(unrealizedToman, "IRT") : formatSignedMoneyFromUsd(unrealized.toString(), rate)}
-                tone={trendTone(unrealized.toString())}
-                hint={rate ? formatSignedMoney(unrealized.toString(), "USD") : undefined}
-              />
-            </section>
+            <div className="card rpt-pair">
+              <div>
+                <span className="expense-sub">تحقق‌یافته</span>
+                <b className="num money-nowrap" dir="rtl" style={{ color: toneColor(trendTone(pnl.totalToman)) }}>
+                  {formatSignedMoney(pnl.totalToman, "IRT")}
+                </b>
+                <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">{formatSignedMoney(pnl.total, "USD")}</span>
+              </div>
+              <div>
+                <span className="expense-sub">تحقق‌نیافته</span>
+                <b className="num money-nowrap" dir="rtl" style={{ color: toneColor(trendTone(unrealizedToman ?? unrealized.toString())) }}>
+                  {unrealizedToman ? formatSignedMoney(unrealizedToman, "IRT") : formatSignedMoneyFromUsd(unrealized.toString(), rate)}
+                </b>
+                {rate && <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">{formatSignedMoney(unrealized.toString(), "USD")}</span>}
+              </div>
+            </div>
             {pnl.bySymbol.length > 0 ? (
               <ul className="card plan-list">
                 {pnl.bySymbol.map((s) => (
@@ -254,13 +246,8 @@ export default async function ReportsPage() {
           </div>
         </Section>
 
-        {/* Debt report — PAYABLES ONLY.
-            `listDebts()` returns both directions of the obligation model, so
-            this section filters. A receivable rendered here would be reported
-            as money the user owes, in the negative hue, under a heading that
-            says «بدهی و بازپرداخت» — the exact mis-statement the direction
-            field exists to prevent. Receivables have their own section on
-            «تعهدات مالی». */}
+        {/* Debt report — PAYABLES ONLY (receivables have their own section on
+            «تعهدات مالی»; listing one here would report it as money owed). */}
         <Section title="بدهی و بازپرداخت" action={<SectionLink href="/debts" label="مدیریت بدهی‌ها" />}>
           {payableDebts.length > 0 ? (
             <ul className="card plan-list">
@@ -300,39 +287,43 @@ export default async function ReportsPage() {
 
       {/* Forward liquidity — projection figures are ALREADY Toman (see
           projectCashflow: "Projection unit = Toman"). Never pass them through
-          toIrt/usd→irt: that multiplies by the live rate a second time and
-          mislabels the Toman figure as "≈ USD". */}
-      <Section title="نقدینگی پیش‌رو" hint="۱۲ ماه آینده — برنامه‌ها، اقساط و تعهدات — مبالغ به تومان">
+          toIrt/usd→irt: that multiplies by the live rate a second time. */}
+      <Section title="نقدینگی پیش‌رو" hint="۱۲ ماه آینده · برنامه‌ها، اقساط و تعهدات">
         <div className="card overflow-x-auto">
-          <table className="table">
+          <table className="table rpt-forward">
             <thead>
               <tr>
                 <th scope="col">ماه</th>
                 <th scope="col" className="td-num">ورودی</th>
                 <th scope="col" className="td-num">خروجی</th>
+                <th scope="col" className="td-num hidden sm:table-cell">خالص</th>
               </tr>
             </thead>
             <tbody>
-              {projection.points.map((p) => (
-                <tr key={p.month}>
-                  <td>{jalaliMonthLabel(jalaliMonthKey(p.month))}</td>
-                  <td className="td-num" dir="rtl" style={{ color: "var(--positive)" }}>
-                    <div>{formatMoney(p.inflow, "IRT")}</div>
-                    {rate && p.inflowUsd != null && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(p.inflowUsd)}</div>}
-                  </td>
-                  <td className="td-num" dir="rtl" style={{ color: "var(--negative)" }}>
-                    <div>{formatMoney(p.outflow, "IRT")}</div>
-                    {rate && p.outflowUsd != null && <div className="muted num text-[length:var(--fs-xs)]">≈ {formatMoney(p.outflowUsd)}</div>}
-                  </td>
-                </tr>
-              ))}
+              {projection.points.map((p) => {
+                const net = D(p.inflow).sub(p.outflow);
+                return (
+                  <tr key={p.month}>
+                    <td>{jalaliMonthLabel(jalaliMonthKey(p.month))}</td>
+                    <td className="td-num money-nowrap" dir="rtl" style={{ color: D(p.inflow).gt(0) ? "var(--positive)" : "var(--text-3)" }}>
+                      {formatMoney(p.inflow, "IRT")}
+                    </td>
+                    <td className="td-num money-nowrap" dir="rtl" style={{ color: D(p.outflow).gt(0) ? "var(--negative)" : "var(--text-3)" }}>
+                      {formatMoney(p.outflow, "IRT")}
+                    </td>
+                    <td className="td-num money-nowrap font-semibold hidden sm:table-cell" dir="rtl" style={{ color: net.isZero() ? "var(--text-3)" : net.isNegative() ? "var(--negative)" : "var(--positive)" }}>
+                      {formatSignedMoney(net.toFixed(0), "IRT")}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </Section>
 
       {/* Recovery & exports */}
-      <section className="card flex flex-wrap items-center justify-between gap-3 p-4">
+      <section className="card rpt-backup">
         <span className="min-w-0">
           <b className="block text-[length:var(--fs-sm)]">پشتیبان و درون‌ریزی</b>
           <span className="expense-sub block">یک نسخه از داده‌ها بگیرید، یا سوابق بیرونی را وارد کنید.</span>
@@ -350,4 +341,17 @@ export default async function ReportsPage() {
       </section>
     </div>
   );
+}
+
+/** «۱۲.۳ میلیون» — a month row reads at a glance; the exact Toman is its title. */
+function compactToman(v: Decimal): string {
+  const raw = Number(v.toFixed(0));
+  const n = Math.abs(raw);
+  const sign = raw < 0 ? -1 : 1;
+  // The sign rides inside the number so a bidi isolate never splits it off.
+  const fmt = (x: number) => formatNumber(String(sign * Number(x.toFixed(x >= 100 ? 0 : 1))), { decimals: x >= 100 || Number.isInteger(Number(x.toFixed(1))) ? 0 : 1 });
+  if (n >= 1e9) return `${fmt(n / 1e9)} میلیارد`;
+  if (n >= 1e6) return `${fmt(n / 1e6)} میلیون`;
+  if (n >= 1e3) return `${fmt(n / 1e3)} هزار`;
+  return formatNumber(String(raw), { decimals: 0 });
 }

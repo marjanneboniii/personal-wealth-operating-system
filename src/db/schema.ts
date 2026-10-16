@@ -196,6 +196,11 @@ export const accounts = pgTable(
     assetId: uuid("asset_id").references(() => assets.id),
     walletId: uuid("wallet_id").references(() => wallets.id),
     isActive: boolean("is_active").notNull().default(true),
+    /**
+     * Stablecoin / exchange-Toman the user lives on («از این پول خرج می‌کنم»):
+     * counted in the forecast's opening cash. Bank Toman is always counted.
+     */
+    spendFrom: boolean("spend_from").notNull().default(false),
   },
   (t) => [
     uniqueIndex("accounts_user_code_uq").on(t.userId, t.code),

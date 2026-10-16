@@ -2,6 +2,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { pendingChequesByEvent, pendingChequesForForecast } from "@/features/cheques/service";
 import { db } from "@/db";
 import { contributionTotals, earmarkedToman, eventBudgetLinks } from "@/features/planning/planItems";
+import { listSpendSources, spendableToman } from "@/features/planning/spendSources";
 import {
   accounts,
   assets,
@@ -1265,7 +1266,9 @@ export async function projectCashflow(months = 12, scenario: "base" | "optimisti
   // Opening liquidity: ledger reports USD book; convert once → Toman for the axis.
   // Money set aside for goals is spoken for: not free to meet these flows.
   const earmarked = D(await earmarkedToman(u ?? null));
-  const freeCash = D(nw.availableCashToman).sub(earmarked);
+  // Stablecoin / exchange Toman the user spends from («از این پول خرج می‌کنم»).
+  const spendable = D(spendableToman(await listSpendSources(u ?? null, fx.rate).catch(() => [])));
+  const freeCash = D(nw.availableCashToman).add(spendable).sub(earmarked);
   const startingLiquidityToman = freeCash.isNegative() ? Decimal.zero() : freeCash;
   const netWorthToman = rate.gt(0) ? D(nw.netWorth).mul(rate) : Decimal.zero();
   let cumulative = startingLiquidityToman;

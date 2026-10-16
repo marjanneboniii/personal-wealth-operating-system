@@ -12,7 +12,7 @@ import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, formatSignedMon
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "خودروها" };
+export const metadata = { title: "هزینه و سررسید خودرو" };
 
 function daysBetween(from: string, to: string) {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
@@ -29,48 +29,75 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: "
   );
 }
 
+/**
+ * One car: value and what it really costs, its insurance, its due dates and
+ * the actions that fit. Costs come from the transactions linked to the car;
+ * the link stays out of sight («ثبت هزینه‌ی این خودرو» attaches it).
+ */
 function VehicleCard({ v, today, cover }: { v: VehicleOverview; today: string; cover: { thirdParty: string | null; body: string | null } }) {
   const change = v.valueChangeToman ? D(v.valueChangeToman) : null;
   const addCost = `/new?${new URLSearchParams({ type: "expense", tags: `#${v.tag}` }).toString()}`;
+  const sold = v.status === "sold";
   return (
-    <li id={`vehicle-${v.id}`} className="reconcile-row card p-4">
-      <div className="flex items-start gap-3">
-        <span className="plan-icon" style={{ background: "var(--sunken)", color: "var(--text-2)" }} aria-hidden="true">
-          <Icon name="car" size={16} />
+    <li id={`vehicle-${v.id}`} className="card rwa-card" data-muted={sold || undefined}>
+      <header className="rwa-card-head">
+        <span className="rwa-card-icon" aria-hidden="true">
+          <Icon name="car" size={18} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[length:var(--fs-sm)] font-semibold">
+          <h3 className="rwa-card-title">
             {v.label}
-            {v.status === "sold" && <span className="badge badge-neutral ms-2">فروخته‌شده</span>}
-          </p>
-          <p className="muted text-[length:var(--fs-xs)]">
-            {v.ownershipDate ? `از ${formatJalaliIso(v.ownershipDate)}` : "تاریخ تملک ثبت نشده"} · هزینه‌ها با برچسب <span dir="auto">{`#${v.tag}`}</span>
-          </p>
+            {sold && <span className="badge badge-neutral ms-2">فروخته‌شده</span>}
+          </h3>
+          {v.ownershipDate && <p className="rwa-card-sub">از {formatJalaliIso(v.ownershipDate)}</p>}
         </div>
-      </div>
+        {v.monthlyCostToman && (
+          <div className="rwa-yield" data-neg={D(v.monthlyCostToman).gt(0) || undefined}>
+            <b className="num money-nowrap" dir="rtl">{formatMoney(v.monthlyCostToman, "IRT")}</b>
+            <span>هزینه‌ی واقعی ماهانه</span>
+          </div>
+        )}
+      </header>
 
-      <dl className="reconcile-figures mt-3">
-        {v.currentToman && <Figure label={v.status === "sold" ? "قیمت فروش" : "ارزش روز"} value={formatMoney(v.currentToman, "IRT")} />}
+      <dl className="rwa-figs">
+        {v.currentToman && <Figure label={sold ? "قیمت فروش" : "ارزش روز"} value={formatMoney(v.currentToman, "IRT")} />}
         {change && <Figure label="تغییر ارزش از خرید" value={formatSignedMoney(change.toFixed(0), "IRT")} tone={change.isNegative() ? "neg" : "pos"} />}
-        <Figure label="هزینه‌های نگه‌داری" value={formatMoney(v.costs.total, "IRT")} />
+        <Figure label="هزینه‌ی نگه‌داری" value={formatMoney(v.costs.total, "IRT")} />
         <Figure label="۱۲ ماه اخیر" value={formatMoney(v.costs.last12Months, "IRT")} />
-        {v.monthlyCostToman && <Figure label="هزینه‌ی واقعی ماهانه" value={formatMoney(v.monthlyCostToman, "IRT")} tone={D(v.monthlyCostToman).gt(0) ? "neg" : "pos"} />}
       </dl>
+
       {v.costs.topCategories.length > 0 && (
-        <p className="muted mt-2 text-[length:var(--fs-xs)]">
-          بیشترین: {v.costs.topCategories.map((c) => `${c.name} ${formatMoney(c.toman, "IRT")}`).join(" · ")}
-        </p>
-      )}
-      {v.status === "active" && (
-        <p className="mt-2 text-[length:var(--fs-xs)]">
-          <span className="muted">بیمه: </span>
-          <span style={{ color: cover.thirdParty ? undefined : "var(--negative)" }}>{cover.thirdParty ? `ثالث تا ${cover.thirdParty}` : "ثالث ثبت نشده"}</span>
-          {cover.body && <span className="muted"> · بدنه تا {cover.body}</span>}
-        </p>
+        <div className="rwa-chips" aria-label="بیشترین هزینه‌ها">
+          {v.costs.topCategories.map((c) => (
+            <span key={c.name} className="rwa-chip">
+              {c.name}
+              <b className="num money-nowrap" dir="rtl">{formatMoney(c.toman, "IRT")}</b>
+            </span>
+          ))}
+        </div>
       )}
 
-      {v.status === "active" && (
-        <div className="mt-3 grid gap-3">
+      {!sold && (
+        <>
+          <div className="rwa-cover">
+            <span className="rwa-cover-pill" data-tone={cover.thirdParty ? "ok" : "neg"}>
+              <Icon name="shield" size={13} />
+              {cover.thirdParty ? `ثالث تا ${cover.thirdParty}` : "بیمه ثالث ثبت نشده"}
+            </span>
+            {cover.body && (
+              <span className="rwa-cover-pill" data-tone="ok">
+                <Icon name="shield" size={13} />
+                بدنه تا {cover.body}
+              </span>
+            )}
+            {!cover.thirdParty && (
+              <Link href={`/insurance?kind=third_party&vehicle=${v.id}#new-policy`} className="expense-link">
+                ثبت بیمه ثالث
+                <Icon name="arrow-start" size={13} />
+              </Link>
+            )}
+          </div>
+
           <VehicleDueDates
             vehicleId={v.id}
             today={today}
@@ -85,21 +112,18 @@ function VehicleCard({ v, today, cover }: { v: VehicleOverview; today: string; c
               };
             })}
           />
-          <div className="flex flex-wrap justify-end gap-2">
-            <Link href={addCost} className="btn btn-soft !min-h-9 !px-3 text-[length:var(--fs-xs)]">
-              <Icon name="plus" size={13} />
+
+          <footer className="rwa-actions">
+            <Link href={addCost} className="btn btn-soft">
+              <Icon name="plus" size={14} />
               ثبت هزینه‌ی این خودرو
             </Link>
-            <Link href={`/transactions?${new URLSearchParams({ tag: v.tag, range: "all" }).toString()}`} className="btn btn-ghost !min-h-9 !px-3 text-[length:var(--fs-xs)]">
+            <Link href={`/transactions?${new URLSearchParams({ tag: v.tag, range: "all" }).toString()}`} className="expense-link rwa-more">
               همه‌ی هزینه‌ها
+              <Icon name="arrow-start" size={13} />
             </Link>
-            {!cover.thirdParty && (
-              <Link href={`/insurance?kind=third_party&vehicle=${v.id}#new-policy`} className="btn btn-ghost !min-h-9 !px-3 text-[length:var(--fs-xs)]">
-                ثبت بیمه ثالث
-              </Link>
-            )}
-          </div>
-        </div>
+          </footer>
+        </>
       )}
     </li>
   );
@@ -133,7 +157,7 @@ export default async function VehiclesPage() {
 
   return (
     <div className="mny-page">
-      <ModuleHeader title="خودروها" tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
+      <ModuleHeader title="هزینه و سررسید خودرو" tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
 
       {cars.length === 0 ? (
         <div className="card">
@@ -150,7 +174,7 @@ export default async function VehiclesPage() {
       ) : (
         <>
           <Section title="خودروهای فعلی">
-            <ul className="grid gap-3">
+            <ul className="rwa-list">
               {active.map((v) => (
                 <VehicleCard key={v.id} v={v} today={today} cover={coverOf(v.id)} />
               ))}
@@ -158,7 +182,7 @@ export default async function VehiclesPage() {
           </Section>
           {sold.length > 0 && (
             <Section title="فروخته‌شده">
-              <ul className="grid gap-3">
+              <ul className="rwa-list">
                 {sold.map((v) => (
                   <VehicleCard key={v.id} v={v} today={today} cover={coverOf(v.id)} />
                 ))}
@@ -168,10 +192,6 @@ export default async function VehiclesPage() {
         </>
       )}
 
-      <p className="expense-sub flex items-center gap-1.5">
-        <Icon name="info" size={13} />
-        هزینه‌ها از تراکنش‌هایی می‌آیند که برچسب همین خودرو را دارند.
-      </p>
     </div>
   );
 }
