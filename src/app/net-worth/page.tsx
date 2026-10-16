@@ -9,13 +9,14 @@ import {
   getSnapshotSeries,
 } from "@/features/ledger/queries";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
-import { listUndated } from "@/features/planning/planItems";
 import { getAnalyticsSummary } from "@/features/analytics/service";
 import { Alert, Delta, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
+import Icon from "@/components/ui/Icon";
+import { resolveUsdRateForDate } from "@/features/rwa/vehicle/fx";
 import NetWorthChart from "@/components/charts/NetWorthChart";
 import RowAction from "@/components/RowAction";
 import { D } from "@/domain/decimal";
-import { formatJalaliIso, formatMoney, formatPct, formatPercent, formatSignedMoneyFromUsd, todayIso, toIrtMoney, trendColor, trendTone } from "@/lib/format";
+import { faCount, formatJalaliIso, formatMoney, formatPct, formatPercent, formatSignedMoney, formatSignedMoneyFromUsd, jalaliToIso, todayIso, toIrtMoney, toJalali, trendColor, trendTone } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,8 @@ function fromDateFor(range: string, today: string): string {
   const r = RANGES.find((x) => x.key === range);
   if (!r) return today;
   if (r.key === "ALL") return "1970-01-01";
-  if (r.key === "YTD") return `${today.slice(0, 4)}-01-01`;
+  // «امسال» is the Jalali year — from ۱ فروردین, not 1 January.
+  if (r.key === "YTD") return jalaliToIso(toJalali(today).y, 1, 1);
   const d = new Date(today + "T00:00:00Z");
   d.setUTCMonth(d.getUTCMonth() - (r as { months?: number }).months!);
   return d.toISOString().slice(0, 10);
@@ -104,13 +106,14 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
   ]);
   const toIrt = (usd: string | number) => toIrtMoney(usd, fx.rate);
 
-  const baseline =
-    (await getSnapshotAsOf(from, userId)) ?? (await getFirstSnapshotAfter(from, userId)) ?? null;
-  const [liabilitiesNow, undated] = await Promise.all([getLiabilitiesTotal(userId), listUndated(userId ?? null)]);
+  // A snapshot taken today is no baseline: a zero-day window explains nothing.
+  const baselineRow = (await getSnapshotAsOf(from, userId)) ?? (await getFirstSnapshotAfter(from, userId)) ?? null;
+  const baseline = baselineRow && baselineRow.asOf < today ? baselineRow : null;
+  const liabilitiesNow = await getLiabilitiesTotal(userId);
   // The headline counts only what has moved. This line also takes off what is
-  // scheduled or owed on demand (and adds what is owed to the user), at today's prices.
-  const undatedNet = undated.reduce((sum, u) => (u.valueToman == null ? sum : u.direction === "receivable" ? sum.add(u.valueToman) : sum.sub(u.valueToman)), D("0"));
-  const afterAllD = D(nw.netWorthToman).sub(nw.futureObligationsToman ?? "0").add(nw.totalReceivableToman ?? "0").add(undatedNet);
+  // scheduled (and adds what is owed to the user). Debts with no due date stay
+  // out of every net-worth figure — they are never a dated cash flow.
+  const afterAllD = D(nw.netWorthToman).sub(nw.futureObligationsToman ?? "0").add(nw.totalReceivableToman ?? "0");
   const afterAll = fx.rate && afterAllD.cmp(nw.netWorthToman) !== 0 ? afterAllD.toFixed(0) : null;
 
   const nwNow = D(nw.netWorth);
@@ -127,9 +130,24 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
   }
   series.push({ date: today, value: Number(nw.netWorth) });
 
-  const savings = baseline ? D(await getNetSavingsBetween(baseline.asOf, today, userId)) : D("0");
-  const debtReduction = baseline ? D(baseline.totalLiabilities).sub(liabilitiesNow) : D("0");
-  const marketAndRevaluation = deltaAbs.sub(savings).sub(debtReduction);
+  // The snapshot closes its day, so the window opens the day after it —
+  // that day's income and spending are already inside the baseline figure.
+  const windowStart = baseline ? new Date(Date.parse(baseline.asOf + "T00:00:00Z") + 86_400_000).toISOString().slice(0, 10) : today;
+  const windowDays = baseline ? Math.round((Date.parse(today) - Date.parse(baseline.asOf)) / 86_400_000) : 0;
+  const savings = baseline ? D(await getNetSavingsBetween(windowStart, today, userId)) : D("0");
+  // Repaying principal lowers cash and debt by the same amount: net worth does
+  // not move. It is shown beside the change, never as a part of it.
+  const debtPaid = baseline ? D(baseline.totalLiabilities).sub(liabilitiesNow) : D("0");
+  const marketAndRevaluation = deltaAbs.sub(savings);
+
+  // Nominal Toman change: today's Toman figure against the baseline valued at
+  // the dollar rate OF ITS DAY. It carries inflation, so it is shown beside the
+  // real (USD) change, never in place of it. Hidden without a historical rate.
+  const baseRate = baseline ? await resolveUsdRateForDate(baseline.asOf, userId).catch(() => null) : null;
+  const nominalDelta =
+    baseline && fx.rate && baseRate && !["current", "fallback"].includes(baseRate.source)
+      ? D(nw.netWorthToman).sub(D(baseline.netWorth).mul(baseRate.rate)).toFixed(0)
+      : null;
 
   const buckets = bucketize(nw.byClass);
   const totalAssets = buckets.reduce((s, b) => s + b.value, 0) || 1;
@@ -137,10 +155,9 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
   const { risk, growth } = analytics;
   const attrRows = [
     { name: "پس‌انداز", desc: "درآمد منهای هزینه", value: savings.toString() },
-    { name: "کاهش بدهی", desc: "اصل بدهی که در این بازه پرداخت شد", value: debtReduction.toString() },
-    { name: "بازده بازار", desc: "تغییر قیمت دارایی‌ها، سود فروش و اثر نرخ ارز", value: marketAndRevaluation.toString() },
+    { name: "بازده بازار و سایر", desc: "قیمت دارایی‌ها، نرخ ارز، سود فروش و موجودی‌های اولیه", value: marketAndRevaluation.toString() },
   ];
-  const maxMag = Math.max(...attrRows.map((r) => Math.abs(Number(r.value))), Math.abs(Number(deltaAbs.toString())), 1);
+  const maxMag = Math.max(...attrRows.map((r) => Math.abs(Number(r.value))), 1);
 
   return (
     <div className="space-y-5">
@@ -213,71 +230,82 @@ export default async function NetWorthPage({ searchParams }: { searchParams: Sea
       <Section
         id="wealth-growth"
         title="چرا ارزش خالص شما تغییر کرد؟"
-        hint={
-          baseline
-            ? `از ${formatJalaliIso(baseline.asOf)} تا امروز — برآیند اجزاء با تغییر واقعی برابر است`
-            : "برای تحلیل تغییر، به حداقل دو اسنپ‌شات نیاز است"
-        }
+        hint={baseline ? `از ${formatJalaliIso(baseline.asOf)} تا امروز · ${faCount(windowDays)} روز` : undefined}
       >
         {baseline ? (
-          <ul className="card plan-list">
-            {attrRows.map((r) => {
-              const n = Number(r.value);
-              const pos = n > 0;
-              const neg = n < 0;
-              return (
-                <li key={r.name} className="plan-row">
-                  <div className="plan-row-head">
+          <div className="card attr-card">
+            <div className="attr-total">
+              <span className="expense-sub">مجموع تغییر</span>
+              <b className="num money-nowrap" dir="rtl" style={{ color: trendColor(deltaAbs.toString()) }}>
+                {formatSignedMoneyFromUsd(deltaAbs.toString(), fx.rate)}
+              </b>
+              {fx.rate && (
+                <span className="muted num money-nowrap text-[length:var(--fs-xs)]" dir="rtl">
+                  ≈ {formatSignedMoney(deltaAbs.toString(), "USD")}
+                </span>
+              )}
+              {nominalDelta && baseRate && (
+                <p className="attr-nominal">
+                  <span>تغییر اسمی تومانی</span>
+                  <b className="num money-nowrap" dir="rtl" style={{ color: trendColor(nominalDelta) }}>
+                    {formatSignedMoney(nominalDelta, "IRT")}
+                  </b>
+                  <span className="expense-sub basis-full">
+                    با دلار {formatMoney(baseRate.rate, "IRT")} در {formatJalaliIso(baseRate.effectiveDate)}؛ تورم تومان را هم در خود دارد.
+                  </span>
+                </p>
+              )}
+            </div>
+            <ul className="attr-rows">
+              {attrRows.map((r) => {
+                const n = Number(r.value);
+                const tone = n > 0 ? "var(--positive)" : n < 0 ? "var(--negative)" : "var(--text-3)";
+                const width = `${Math.min(100, (Math.abs(n) / maxMag) * 100)}%`;
+                return (
+                  <li key={r.name} className="attr-row">
                     <span className="min-w-0">
                       <b className="block text-[length:var(--fs-sm)]">{r.name}</b>
                       <span className="expense-sub block">{r.desc}</span>
                     </span>
-                    <span
-                      className="shrink-0 text-left"
-                      dir="rtl"
-                      style={{ color: pos ? "var(--positive)" : neg ? "var(--negative)" : "var(--text-2)" }}
-                    >
-                      <span className="num plan-amount block money-nowrap">{formatSignedMoneyFromUsd(r.value, fx.rate)}</span>
+                    <span className="shrink-0 text-left" dir="rtl">
+                      <span className="num plan-amount block money-nowrap" style={{ color: tone }}>
+                        {formatSignedMoneyFromUsd(r.value, fx.rate)}
+                      </span>
                       {fx.rate && (
-                        <span className="muted num block text-[length:var(--fs-xs)] money-nowrap">
-                          ≈ {formatMoney(D(r.value).abs().toString())}
-                        </span>
+                        <span className="muted num block text-[length:var(--fs-xs)] money-nowrap">≈ {formatSignedMoney(r.value, "USD")}</span>
                       )}
                     </span>
-                  </div>
-                  <div className="attr-meter" aria-hidden="true">
-                    <i
-                      style={{
-                        width: `${Math.min(100, (Math.abs(n) / maxMag) * 100)}%`,
-                        background: pos ? "var(--positive)" : neg ? "var(--negative)" : "var(--text-3)",
-                      }}
-                    />
-                  </div>
-                </li>
-              );
-            })}
-            <li className="plan-row">
-              <div className="plan-row-head">
-                <b className="text-[length:var(--fs-sm)]">مجموع تغییر</b>
-                <span className="shrink-0 text-left" dir="rtl" style={{ color: trendColor(deltaAbs.toString()) }}>
-                  <span className="num plan-amount block money-nowrap">
-                    {formatSignedMoneyFromUsd(deltaAbs.toString(), fx.rate)}
-                  </span>
-                  {fx.rate && (
-                    <span className="muted num block text-[length:var(--fs-xs)] money-nowrap">
-                      ≈ {formatMoney(deltaAbs.abs().toString())}
+                    {/* Diverging bar: a loss grows one way from the centre, a gain the other. */}
+                    <span className="attr-div" aria-hidden="true">
+                      <span>{n < 0 && <i style={{ width, background: tone }} />}</span>
+                      <span>{n > 0 && <i style={{ width, background: tone }} />}</span>
                     </span>
-                  )}
+                  </li>
+                );
+              })}
+            </ul>
+            {!debtPaid.isZero() && (
+              <p className="expense-note flex items-start gap-1.5">
+                <Icon name="info" size={13} />
+                <span>
+                  {debtPaid.gt(0) ? "در این بازه " : "در این بازه بدهی تازه‌ای به اندازه‌ی "}
+                  <b className="num money-nowrap" dir="rtl">{(() => {
+                      const irt = toIrt(debtPaid.abs().toString());
+                      return irt ? formatMoney(irt, "IRT") : formatMoney(debtPaid.abs().toString());
+                    })()}</b>
+                  {debtPaid.gt(0)
+                    ? " از اصل بدهی پرداخت شد. این ارزش خالص را تغییر نمی‌دهد؛ نقد و بدهی هر دو به یک اندازه کم شدند."
+                    : " گرفته شد. این ارزش خالص را تغییر نمی‌دهد؛ نقد و بدهی هر دو به یک اندازه زیاد شدند."}
                 </span>
-              </div>
-            </li>
-          </ul>
+              </p>
+            )}
+          </div>
         ) : (
           <div className="card">
             <EmptyState
               icon="snapshot"
-              title="تاریخچه کافی برای تحلیل نیست"
-              body="با «ثبت اسنپ‌شات امروز» و ادامه ثبت روزانه، تحلیل علت تغییر ثروت ساخته می‌شود."
+              title="هنوز چیزی برای مقایسه نیست"
+              body="تحلیل تغییر به یک اسنپ‌شات از روزهای قبل نیاز دارد. اسنپ‌شات امروز را ثبت کنید؛ از فردا علت تغییر ثروت اینجا دیده می‌شود."
               action={<RowAction kind="snapshot" label="ثبت اولین اسنپ‌شات" primary />}
             />
           </div>

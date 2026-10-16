@@ -1,11 +1,9 @@
-import { asc, eq, sql } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
-import { db } from "@/db";
-import { accounts, assets, wallets } from "@/db/schema";
 import { getAccountBalances } from "@/features/ledger/queries";
 import { seedIfEmpty } from "@/db/seed";
 import { listBudgets, listEvents, listFunds, listGoals } from "@/features/planning/service";
 import { eventBudgetLinks } from "@/features/planning/planItems";
+import { listSavingsAccounts } from "@/features/planning/savingsAccounts";
 import PlanRowMenu from "@/components/planning/PlanRowMenu";
 import { EmptyState, PageHeader, Progress, Section } from "@/components/ui/Card";
 import Icon from "@/components/ui/Icon";
@@ -49,23 +47,8 @@ export default async function GoalsPage() {
     listEvents(),
     listBudgets().catch(() => []),
     eventBudgetLinks(userId ?? null),
-    db
-      .select({
-        id: accounts.id,
-        code: accounts.code,
-        name: accounts.name,
-        symbol: assets.symbol,
-        decimals: assets.decimals,
-        logoUrl: assets.logoUrl,
-        walletName: wallets.name,
-        walletKind: wallets.kind,
-      })
-      .from(accounts)
-      .leftJoin(assets, eq(assets.id, accounts.assetId))
-      .leftJoin(wallets, eq(wallets.id, accounts.walletId))
-      // Only this user's accounts — never another tenant's.
-      .where(sql`${accounts.deletedAt} is null and ${accounts.assetId} is not null${userId ? sql` and ${accounts.userId} = ${userId}` : sql``}`)
-      .orderBy(asc(accounts.code)),
+    // Bank accounts and stablecoins held in a wallet — nothing else saves a goal.
+    listSavingsAccounts(userId),
     getLatestUsdIrtRate(),
     getAccountBalances(userId).catch(() => []),
   ]);

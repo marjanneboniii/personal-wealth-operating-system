@@ -1,7 +1,16 @@
 import Link from "next/link";
+import { asc, eq, sql } from "drizzle-orm";
 import { ensureAuth } from "@/lib/authGuard";
+import { db } from "@/db";
+import { accounts, assets, wallets } from "@/db/schema";
+import { getAccountBalances } from "@/features/ledger/queries";
 import { seedIfEmpty } from "@/db/seed";
-import { listBudgets, listEvents, listPlanned, upcomingInstallments } from "@/features/planning/service";
+import {
+  listBudgets,
+  listEvents,
+  listPlanned,
+  upcomingInstallments,
+} from "@/features/planning/service";
 import { eventBudgetLinks } from "@/features/planning/planItems";
 import { pendingChequesByEvent } from "@/features/cheques/service";
 import { EmptyState, Section } from "@/components/ui/Card";
@@ -9,8 +18,15 @@ import StatCard from "@/components/money/StatCard";
 import FormattedMoney from "@/components/ui/FormattedMoney";
 import { DEBT_TABS } from "@/components/ui/ModuleTabs";
 import ModuleHeader from "@/components/money/ModuleHeader";
-import Icon from "@/components/ui/Icon";
-import { formatDaysUntil, formatJalaliIso, todayIso, faCount, formatTomanPrimary, sumToman } from "@/lib/format";
+import { AddCommitmentButton } from "@/components/planning/AddPlanningSheet";
+import {
+  formatDaysUntil,
+  formatJalaliIso,
+  todayIso,
+  faCount,
+  formatTomanPrimary,
+  sumToman,
+} from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +34,9 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "تعهدات آینده" };
 
 function daysUntil(iso: string) {
-  return Math.ceil((new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
+  return Math.ceil(
+    (new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000,
+  );
 }
 
 const RECURRENCE_LABEL: Record<string, string> = {
@@ -38,7 +56,17 @@ export default async function ObligationsPage() {
   const userId = (user as { id?: string } | null)?.id ?? null;
   await seedIfEmpty();
 
-  const [events, planned, budgetRows, links, eventCheques, insts, fx] = await Promise.all([
+  const [
+    events,
+    planned,
+    budgetRows,
+    links,
+    eventCheques,
+    insts,
+    fx,
+    accountRows,
+    balanceRows,
+  ] = await Promise.all([
     listEvents(),
     listPlanned().catch(() => []),
     listBudgets().catch(() => []),
@@ -46,14 +74,52 @@ export default async function ObligationsPage() {
     pendingChequesByEvent(userId),
     upcomingInstallments(100),
     getLatestUsdIrtRate(),
+    // The account picker is optional in the add sheet — never fail the page for it.
+    Promise.resolve()
+      .then(() =>
+        db
+          .select({
+            id: accounts.id,
+            code: accounts.code,
+            name: accounts.name,
+            symbol: assets.symbol,
+            decimals: assets.decimals,
+            logoUrl: assets.logoUrl,
+            walletName: wallets.name,
+            walletKind: wallets.kind,
+          })
+          .from(accounts)
+          .leftJoin(assets, eq(assets.id, accounts.assetId))
+          .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+          // Only this user's accounts — never another tenant's.
+          .where(
+            sql`${accounts.deletedAt} is null and ${accounts.type} = 'asset' and ${accounts.assetId} is not null${userId ? sql` and ${accounts.userId} = ${userId}` : sql``}`,
+          )
+          .orderBy(asc(accounts.code)),
+      )
+      .catch(() => []),
+    getAccountBalances(userId ?? undefined).catch(() => []),
   ]);
+  const addProps = {
+    accounts: accountRows,
+    balances: Object.fromEntries(
+      balanceRows.map((b) => [b.accountId, b.quantity]),
+    ),
+    today: todayIso(),
+    rate: fx.rate,
+    rateDate: fx.effectiveDate,
+    rateSource: fx.source,
+  };
 
   const today = todayIso();
   const spentByBudget = new Map(budgetRows.map((b) => [b.id, b.spentToman]));
   const eventLeft = (id: string, amount: string) => {
     const link = links.get(id);
     // Cheques toward it are listed with the cheques; they come off here too.
-    const left = Number(amount) - Number(link ? (spentByBudget.get(link.budgetId) ?? 0) : 0) - Number(eventCheques.get(id) ?? 0);
+    const left =
+      Number(amount) -
+      Number(link ? (spentByBudget.get(link.budgetId) ?? 0) : 0) -
+      Number(eventCheques.get(id) ?? 0);
     return String(Math.max(0, left));
   };
 
@@ -72,7 +138,8 @@ export default async function ObligationsPage() {
       id: `inst-${i.id}`,
       title: `قسط ${i.seq} — ${i.debtTitle}`,
       date: i.dueDate,
-      amountToman: i.dueToman ?? (i.amountToman != null ? String(i.amountToman) : "0"),
+      amountToman:
+        i.dueToman ?? (i.amountToman != null ? String(i.amountToman) : "0"),
       kind: "قسط",
       detail: i.creditor,
     })),
@@ -103,19 +170,35 @@ export default async function ObligationsPage() {
   const overdue = rows.filter((r) => r.date < today);
   const next30 = rows.filter((r) => r.date >= today && daysUntil(r.date) <= 30);
   const next90 = rows.filter((r) => r.date >= today && daysUntil(r.date) <= 90);
-  const totalDisp = formatTomanPrimary(sumToman(rows.filter((r) => r.date >= today).map((r) => r.amountToman)), fx.rate);
-  const n30Disp = formatTomanPrimary(sumToman(next30.map((r) => r.amountToman)), fx.rate);
-  const n90Disp = formatTomanPrimary(sumToman(next90.map((r) => r.amountToman)), fx.rate);
+  const totalDisp = formatTomanPrimary(
+    sumToman(rows.filter((r) => r.date >= today).map((r) => r.amountToman)),
+    fx.rate,
+  );
+  const n30Disp = formatTomanPrimary(
+    sumToman(next30.map((r) => r.amountToman)),
+    fx.rate,
+  );
+  const n90Disp = formatTomanPrimary(
+    sumToman(next90.map((r) => r.amountToman)),
+    fx.rate,
+  );
 
   return (
     <div className="mny-page">
-      <ModuleHeader title="تعهدات آینده" tabs={DEBT_TABS} active="/debts/obligations" label="بخش‌های تعهدات" actions={<Link href="/goals" className="btn btn-primary">
-              <Icon name="plus" size={16} />
-              افزودن رویداد آینده
-            </Link>} />
+      <ModuleHeader
+        title="تعهدات آینده"
+        tabs={DEBT_TABS}
+        active="/debts/obligations"
+        label="بخش‌های تعهدات"
+        actions={<AddCommitmentButton {...addProps} />}
+      />
 
       {rows.length > 0 && (
-        <section className="mny-stats" style={{ ["--mny-cols" as string]: 5 }} aria-label="خلاصهٔ تعهدات آینده">
+        <section
+          className="mny-stats"
+          style={{ ["--mny-cols" as string]: 5 }}
+          aria-label="خلاصهٔ تعهدات آینده"
+        >
           <StatCard
             tone="ink"
             className="mny-stat-lead"
@@ -132,8 +215,18 @@ export default async function ObligationsPage() {
             period={overdue.length ? "هنوز تسویه نشده" : "موردی نیست"}
             value={faCount(overdue.length)}
           />
-          <StatCard icon="clock" label="۳۰ روز آینده" period={next30.length ? n30Disp.primary : "موردی نیست"} value={faCount(next30.length)} />
-          <StatCard icon="calendar" label="۹۰ روز آینده" period={next90.length ? n90Disp.primary : "موردی نیست"} value={faCount(next90.length)} />
+          <StatCard
+            icon="clock"
+            label="۳۰ روز آینده"
+            period={next30.length ? n30Disp.primary : "موردی نیست"}
+            value={faCount(next30.length)}
+          />
+          <StatCard
+            icon="calendar"
+            label="۹۰ روز آینده"
+            period={next90.length ? n90Disp.primary : "موردی نیست"}
+            value={faCount(next90.length)}
+          />
         </section>
       )}
 
@@ -143,7 +236,15 @@ export default async function ObligationsPage() {
             <EmptyState
               icon="calendar"
               title="تعهد آینده‌ای ثبت نشده است"
-              body="اقساط بدهی‌ها از «ثبت بدهی یا طلب» و رویدادهای آینده از دکمهٔ بالا اینجا می‌آیند."
+              body="اجاره، شهریه یا هر پرداخت برنامه‌ریزی‌شده و رویدادهای آینده را از «ثبت تعهد» اضافه کنید. اقساط بدهی‌ها خودکار از «ثبت بدهی یا طلب» می‌آیند."
+              action={
+                <span className="flex flex-wrap justify-center gap-2">
+                  <AddCommitmentButton {...addProps} variant="soft" />
+                  <Link href="/debts#new" className="btn btn-ghost">
+                    ثبت بدهی یا طلب
+                  </Link>
+                </span>
+              }
             />
           </div>
         ) : (
@@ -155,7 +256,11 @@ export default async function ObligationsPage() {
               const disp = formatTomanPrimary(r.amountToman, fx.rate);
               return (
                 <li key={r.id} className="obl-row">
-                  <span className="obl-dot" data-tone={late ? "late" : soon ? "soon" : undefined} aria-hidden="true" />
+                  <span
+                    className="obl-dot"
+                    data-tone={late ? "late" : soon ? "soon" : undefined}
+                    aria-hidden="true"
+                  />
                   <div className="obl-main">
                     <span className="obl-title">{r.title}</span>
                     <span className="obl-meta">
@@ -172,7 +277,13 @@ export default async function ObligationsPage() {
                       <span aria-hidden="true"> · </span>
                       <span
                         className="whitespace-nowrap"
-                        style={{ color: late ? "var(--negative)" : soon ? "var(--warning)" : "var(--text-3)" }}
+                        style={{
+                          color: late
+                            ? "var(--negative)"
+                            : soon
+                              ? "var(--warning)"
+                              : "var(--text-3)",
+                        }}
                       >
                         {formatDaysUntil(d)}
                       </span>

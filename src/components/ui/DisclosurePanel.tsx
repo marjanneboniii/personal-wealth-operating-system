@@ -16,6 +16,7 @@ export default function DisclosurePanel({
   label,
   defaultOpen = false,
   sheet = false,
+  toggle: showToggle = true,
   children,
 }: {
   anchor: string;
@@ -27,6 +28,11 @@ export default function DisclosurePanel({
    * screen) instead of unfolding a long form in the page.
    */
   sheet?: boolean;
+  /**
+   * Render the in-page toggle. A sheet opened only from a header button (or an
+   * empty state) passes false, so the page shows ONE way in, not two.
+   */
+  toggle?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -71,6 +77,16 @@ export default function DisclosurePanel({
     }
     setOpen(next);
   };
+
+  if (sheet && !showToggle) {
+    return (
+      <Sheet open={open} onClose={toggle} title={label}>
+        <div id={`${anchor}-body`} className="p-4">
+          {children}
+        </div>
+      </Sheet>
+    );
+  }
 
   return (
     <section id={anchor} ref={ref} className="card disclosure scroll-mt-24">

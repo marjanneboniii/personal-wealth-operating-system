@@ -23,6 +23,7 @@ import {
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
+import SavingsAccountChooser from "./SavingsAccountChooser";
 import Icon from "@/components/ui/Icon";
 import { SmartAmountPreview } from "@/components/ui/SmartPreview";
 import { BUDGET_TEMPLATES, budgetTemplate, type BudgetTemplateKey } from "@/features/planning/budgetTemplates";
@@ -689,15 +690,17 @@ export function GoalCardForm({
             presetDate && <p className="expense-sub num">{formatJalaliIso(presetDate)}</p>
           )}
         </Row>
-        <AccountPicker
-          label="حساب پس‌انداز"
+      </section>
+
+      <section className="card expense-card">
+        <SavingsAccountChooser
           name="fundAccountId"
           value={fundAccountId}
           options={accounts}
           balances={balances}
           onChange={setFundAccountId}
           noneLabel="بدون حساب اختصاصی"
-          sheetTitle="پس‌انداز در کدام حساب؟"
+          hint="پیشرفت هدف از موجودی همین حساب خوانده می‌شود."
         />
       </section>
 

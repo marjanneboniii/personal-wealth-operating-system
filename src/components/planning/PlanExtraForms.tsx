@@ -4,7 +4,8 @@ import { useActionState, useState, useTransition } from "react";
 import Icon from "@/components/ui/Icon";
 import type { ActionResult } from "@/app/actions";
 import { createFundAction, createUndatedAction, deleteUndatedAction } from "@/app/actions/planning";
-import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
+import { type PickerAccount } from "@/components/ui/AccountPicker";
+import SavingsAccountChooser from "./SavingsAccountChooser";
 import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 import { FormStatus } from "@/components/ui/FormStatus";
@@ -21,12 +22,12 @@ function useResetOnOk(state: ActionResult | null, reset: () => void, onDone?: ()
 }
 
 const FUND_KINDS = [
-  ["emergency", "اضطراری"],
-  ["reserve", "ذخیره"],
-  ["family_support", "خانواده"],
+  ["emergency", "اضطراری", "برای روز مبادا"],
+  ["reserve", "ذخیره", "پس‌انداز آزاد"],
+  ["family_support", "خانواده", "حمایت از عزیزان"],
 ] as const;
 
-/** صندوق اختصاصی — a target and, optionally, the account that holds it. */
+/** صندوق اختصاصی — what it is for, its target and, optionally, where it is kept. */
 export function FundCardForm({ accounts, balances, onDone }: { accounts: PickerAccount[]; balances?: Record<string, string>; onDone?: () => void }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(createFundAction, null);
   const [kind, setKind] = useState<(typeof FUND_KINDS)[number][0]>("emergency");
@@ -35,18 +36,53 @@ export function FundCardForm({ accounts, balances, onDone }: { accounts: PickerA
   const [accountId, setAccountId] = useState("");
   useResetOnOk(state, () => (setName(""), setTarget("")), onDone);
   return (
-    <form action={action} className="expense-form space-y-3 p-3 sm:p-4">
+    <form action={action} className="expense-form space-y-3 p-3 sm:p-4" dir="rtl">
       <input type="hidden" name="kind" value={kind} />
-      <div className="expense-seg" role="group" aria-label="نوع صندوق">
-        {FUND_KINDS.map(([k, t]) => (
-          <button key={k} type="button" data-on={kind === k || undefined} aria-pressed={kind === k} onClick={() => setKind(k)}>
-            {t}
-          </button>
-        ))}
-      </div>
-      <input name="name" className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="نام" aria-label="نام" maxLength={80} required />
-      <AmountInput name="target" value={target} onValueChange={setTarget} className="field num" unit="toman" placeholder="مبلغ هدف" aria-label="مبلغ هدف" />
-      <AccountPicker label="حساب (اختیاری)" name="accountId" value={accountId} options={accounts} balances={balances} onChange={setAccountId} noneLabel="بدون حساب" />
+
+      <section className="card expense-card" aria-labelledby="fund-kind-title">
+        <header className="expense-head">
+          <h2 id="fund-kind-title">صندوق برای چیست؟</h2>
+        </header>
+        <div className="expense-squares fund-kinds" role="radiogroup" aria-label="نوع صندوق">
+          {FUND_KINDS.map(([k, t, meta]) => {
+            const on = kind === k;
+            return (
+              <button key={k} type="button" role="radio" aria-checked={on} className="expense-square" data-on={on || undefined} onClick={() => setKind(k)}>
+                {on && <Check />}
+                <span className="expense-square-label">{t}</span>
+                <span className="expense-square-meta">{meta}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="card expense-card" aria-labelledby="fund-details-title">
+        <header className="expense-head">
+          <h2 id="fund-details-title">مشخصات</h2>
+        </header>
+        <div>
+          <label className="label" htmlFor="fund-name">نام صندوق</label>
+          <input id="fund-name" name="name" className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="مثلاً صندوق اضطراری خانه" maxLength={80} autoComplete="off" required />
+        </div>
+        <div>
+          <label className="label">مبلغ هدف به تومان</label>
+          <AmountInput name="target" value={target} onValueChange={setTarget} className="field num" unit="toman" placeholder="۰" aria-label="مبلغ هدف" />
+        </div>
+      </section>
+
+      <section className="card expense-card">
+        <SavingsAccountChooser
+          name="accountId"
+          value={accountId}
+          options={accounts}
+          balances={balances}
+          onChange={setAccountId}
+          noneLabel="بدون حساب اختصاصی"
+          hint="اختیاری — موجودی صندوق از همین حساب خوانده می‌شود."
+        />
+      </section>
+
       <FormStatus state={state} />
       <button type="submit" className="btn btn-primary w-full" disabled={pending || name.trim().length < 2 || !(Number(target) > 0)}>
         ساخت صندوق
@@ -55,89 +91,141 @@ export function FundCardForm({ accounts, balances, onDone }: { accounts: PickerA
   );
 }
 
-const UNITS = [
-  ["EMAMI", "سکه تمام"],
-  ["BAHAR", "بهار آزادی"],
-  ["NIM", "نیم سکه"],
-  ["ROB", "ربع سکه"],
-  ["toman", "تومان"],
+const COINS = [
+  ["EMAMI", "سکه تمام", "امامی"],
+  ["BAHAR", "بهار آزادی", "طرح قدیم"],
+  ["NIM", "نیم سکه", "½ سکه"],
+  ["ROB", "ربع سکه", "¼ سکه"],
 ] as const;
 
-/** بدهی یا طلب بدون سررسید — coins or Toman, owed on demand. */
+type Coin = (typeof COINS)[number][0];
+
+function Check() {
+  return (
+    <span className="expense-check" aria-hidden="true">
+      <Icon name="check" size={11} strokeWidth={3} />
+    </span>
+  );
+}
+
+/**
+ * بدهی بدون سررسید — coins or Toman owed with no due date. One card: what it
+ * is, then سکه (which coin, how many) or تومان (amount, optionally indexed to
+ * inflation). Kept out of net worth: with no date it is never a cash flow.
+ */
 export function UndatedForm({ onDone }: { onDone?: () => void }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(createUndatedAction, null);
-  const [direction, setDirection] = useState<"payable" | "receivable">("payable");
-  const [unit, setUnit] = useState<(typeof UNITS)[number][0]>("EMAMI");
+  const [kind, setKind] = useState<"coin" | "toman">("coin");
+  const [coin, setCoin] = useState<Coin>("EMAMI");
   const [title, setTitle] = useState("");
   const [qty, setQty] = useState("");
   const [startDate, setStartDate] = useState("");
   const [inflation, setInflation] = useState("");
   useResetOnOk(state, () => (setTitle(""), setQty(""), setInflation("")), onDone);
-  const toman = unit === "toman";
+  const toman = kind === "toman";
   return (
-    <form action={action} className="expense-form space-y-3 p-3 sm:p-4">
-      <input type="hidden" name="direction" value={direction} />
-      <input type="hidden" name="unit" value={unit} />
-      <div className="expense-seg" role="group" aria-label="جهت">
-        {(
-          [
-            ["payable", "بدهی من"],
-            ["receivable", "طلب من"],
-          ] as const
-        ).map(([k, t]) => (
-          <button key={k} type="button" data-on={direction === k || undefined} aria-pressed={direction === k} onClick={() => setDirection(k)}>
-            {t}
-          </button>
-        ))}
-      </div>
-      <input name="title" className="field" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان" aria-label="عنوان" maxLength={80} required />
-      <div className="undated-units" role="radiogroup" aria-label="واحد">
-        {UNITS.map(([k, t]) => (
-          <button key={k} type="button" role="radio" aria-checked={unit === k} className="policy-opt" data-on={unit === k || undefined} onClick={() => setUnit(k)}>
-            {t}
-          </button>
-        ))}
-      </div>
-      {toman ? (
-        <>
-          <AmountInput name="quantity" value={qty} onValueChange={setQty} className="field num" unit="toman" placeholder="مبلغ" aria-label="مبلغ" />
-          <details className="plan-menu-edit">
-            <summary>به‌روز با تورم (اختیاری)</summary>
-            <div className="plan-menu-form">
-              <DualDateInput name="startDate" value={startDate} onChange={setStartDate} label="از تاریخ" showGregorian={false} />
+    <form action={action} className="expense-form space-y-3 p-3 sm:p-4" dir="rtl">
+      <input type="hidden" name="direction" value="payable" />
+      <input type="hidden" name="unit" value={toman ? "toman" : coin} />
+
+      <section className="card expense-card" aria-label="بدهی بدون سررسید">
+        <div>
+          <label className="label" htmlFor="undated-title">عنوان</label>
+          <input
+            id="undated-title"
+            name="title"
+            className="field"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="مثلاً قرض خانوادگی"
+            maxLength={80}
+            autoComplete="off"
+            required
+          />
+        </div>
+
+        <div className="expense-seg" role="radiogroup" aria-label="واحد">
+          {(
+            [
+              ["coin", "سکه"],
+              ["toman", "تومان"],
+            ] as const
+          ).map(([k, t]) => (
+            <button key={k} type="button" role="radio" aria-checked={kind === k} data-on={kind === k || undefined} onClick={() => (setKind(k), setQty(""))}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {toman ? (
+          <>
+            <div>
+              <label className="label">مبلغ به تومان</label>
+              <AmountInput name="quantity" value={qty} onValueChange={setQty} className="field num" unit="toman" placeholder="۰" aria-label="مبلغ" />
+            </div>
+            <details className="plan-menu-edit">
+              <summary>
+                <Icon name="trend-up" size={16} />
+                به‌روز با تورم (اختیاری)
+              </summary>
+              <div className="plan-menu-form">
+                <DualDateInput name="startDate" value={startDate} onChange={setStartDate} label="از تاریخ" showGregorian={false} />
+                <input
+                  name="inflationPct"
+                  className="field num"
+                  inputMode="decimal"
+                  value={inflation}
+                  onChange={(e) => setInflation(e.target.value)}
+                  placeholder="تورم سالانه ٪"
+                  aria-label="تورم سالانه به درصد"
+                  maxLength={6}
+                />
+                <p className="expense-sub">تخمینی است؛ مبنای قانونی، شاخص رسمی روز پرداخت است.</p>
+              </div>
+            </details>
+          </>
+        ) : (
+          <>
+            <div className="expense-squares undated-coins" role="radiogroup" aria-label="نوع سکه">
+              {COINS.map(([k, label, meta]) => {
+                const on = coin === k;
+                return (
+                  <button key={k} type="button" role="radio" aria-checked={on} className="expense-square" data-on={on || undefined} onClick={() => setCoin(k)}>
+                    {on && <Check />}
+                    <span className="expense-square-label">{label}</span>
+                    <span className="expense-square-meta">{meta}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div>
+              <label className="label" htmlFor="undated-qty">تعداد</label>
               <input
-                name="inflationPct"
+                id="undated-qty"
+                name="quantity"
                 className="field num"
                 inputMode="decimal"
-                value={inflation}
-                onChange={(e) => setInflation(e.target.value)}
-                placeholder="تورم سالانه ٪"
-                aria-label="تورم سالانه به درصد"
-                maxLength={6}
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                placeholder="۰"
+                maxLength={8}
+                autoComplete="off"
               />
-              <p className="muted text-[length:var(--fs-xs)]">تخمینی است؛ مبنای قانونی، شاخص رسمی روز پرداخت است.</p>
             </div>
-          </details>
-        </>
-      ) : (
-        <input
-          name="quantity"
-          className="field num"
-          inputMode="decimal"
-          value={qty}
-          onChange={(e) => setQty(e.target.value)}
-          placeholder="تعداد"
-          aria-label="تعداد سکه"
-          maxLength={8}
-        />
-      )}
+          </>
+        )}
+        <p className="expense-note">
+          {toman ? "" : "ارزش سکه هر روز با قیمت بازار حساب می‌شود. "}در دارایی خالص حساب نمی‌شود.
+        </p>
+      </section>
+
       <FormStatus state={state} />
       <button
         type="submit"
         className="btn btn-primary w-full"
         disabled={pending || title.trim().length < 2 || !qty.trim() || (toman && !!inflation.trim() && !startDate)}
       >
-        ثبت
+        ثبت بدهی
       </button>
     </form>
   );
