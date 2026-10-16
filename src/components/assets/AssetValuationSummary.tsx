@@ -79,8 +79,11 @@ export default function AssetValuationSummary({
   showTitle = true,
   className = "",
   extra,
+  leadName = "ارزش روز سبد",
 }: {
   totals: AssetValuationTotals;
+  /** Caption of the lead figure — «ارزش روز سبد» unless the page names its own. */
+  leadName?: string;
   title?: string;
   hint?: string;
   showTitle?: boolean;
@@ -101,7 +104,7 @@ export default function AssetValuationSummary({
     lines: { label: string; value: string; tone?: string }[];
   }[] = [
     {
-      name: "ارزش روز سبد",
+      name: leadName,
       icon: "portfolio",
       lines: [
         { label: "ارزش روز تومانی", value: formatMoney(totals.valueToman, "IRT") },
@@ -169,6 +172,13 @@ export default function AssetValuationSummary({
           </div>
         ))}
       </div>
+      {/* A Toman gain beside a USD loss is not a contradiction — say why once. */}
+      {D(totals.pnlToman).isPositive() && D(totals.pnlUsd).isNegative() && (
+        <p className="mny-valuation-note">
+          <Icon name="info" size={13} />
+          سود تومانی و زیان دلاری با هم تناقض ندارند: قیمت این دارایی‌ها به تومان بالا رفته، ولی کمتر از دلار.
+        </p>
+      )}
     </section>
   );
 }

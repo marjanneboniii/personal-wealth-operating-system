@@ -120,7 +120,7 @@ export function AddGoalButton({ accounts, balances, today, label, variant, ...ra
 }
 
 /** پیش‌بینی مالی — a planned transaction, a goal or an event. */
-export function AddPlanButton({ accounts, balances, today, label, variant, ...rate }: FormProps & LauncherProps) {
+export function AddPlanButton({ accounts, savingsAccounts, balances, today, label, variant, ...rate }: FormProps & LauncherProps & { savingsAccounts?: AccountOpt[] }) {
   const [kind, setKind] = useState<"planned" | "goal" | "event">("planned");
   return (
     <Launcher title="افزودن برنامه" label={label ?? "برنامه جدید"} variant={variant}>
@@ -136,7 +136,7 @@ export function AddPlanButton({ accounts, balances, today, label, variant, ...ra
             ]}
           />
           {kind === "planned" && <PlannedCardForm accounts={accounts} balances={balances} today={today} onDone={close} {...rate} />}
-          {kind === "goal" && <GoalCardForm accounts={accounts} balances={balances} today={today} onDone={close} {...rate} />}
+          {kind === "goal" && <GoalCardForm accounts={savingsAccounts ?? []} balances={balances} today={today} onDone={close} {...rate} />}
           {kind === "event" && <EventCardForm today={today} onDone={close} {...rate} />}
         </>
       )}
@@ -144,10 +144,37 @@ export function AddPlanButton({ accounts, balances, today, label, variant, ...ra
   );
 }
 
-/** بدهی یا طلب بدون سررسید. */
+/**
+ * تعهدات آینده — a planned payment (rent, tuition, a monthly transfer) or a
+ * future event. Installments are not added here: they come from the debt they
+ * belong to («ثبت بدهی یا طلب»).
+ */
+export function AddCommitmentButton({ accounts, balances, today, label, variant, ...rate }: FormProps & LauncherProps) {
+  const [kind, setKind] = useState<"planned" | "event">("planned");
+  return (
+    <Launcher title="ثبت تعهد" label={label ?? "ثبت تعهد"} variant={variant}>
+      {(close) => (
+        <>
+          <KindSeg
+            value={kind}
+            onChange={setKind}
+            options={[
+              ["planned", "پرداخت برنامه‌ریزی‌شده"],
+              ["event", "رویداد آینده"],
+            ]}
+          />
+          {kind === "planned" && <PlannedCardForm accounts={accounts} balances={balances} today={today} onDone={close} {...rate} />}
+          {kind === "event" && <EventCardForm today={today} onDone={close} {...rate} />}
+        </>
+      )}
+    </Launcher>
+  );
+}
+
+/** بدهی بدون سررسید. */
 export function AddUndatedButton({ label, variant }: LauncherProps) {
   return (
-    <Launcher title="بدون سررسید" label={label ?? "بدون سررسید"} variant={variant}>
+    <Launcher title="بدهی بدون سررسید" label={label ?? "بدهی بدون سررسید"} variant={variant}>
       {(close) => <UndatedForm onDone={close} />}
     </Launcher>
   );

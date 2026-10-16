@@ -482,6 +482,7 @@ function refreshAll() {
     "/budgets",
     "/goals",
     "/debts",
+    "/debts/obligations",
     "/debts/cheques",
     "/installments",
     "/notifications",

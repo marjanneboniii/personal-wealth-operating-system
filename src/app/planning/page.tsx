@@ -15,6 +15,7 @@ import {
 import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import { BarsChart } from "@/components/charts/Charts";
 import { AddPlanButton } from "@/components/planning/AddPlanningSheet";
+import { listSavingsAccounts } from "@/features/planning/savingsAccounts";
 import RowAction from "@/components/RowAction";
 import Icon from "@/components/ui/Icon";
 import {
@@ -51,7 +52,7 @@ export default async function PlanningPage() {
   const user = await ensureAuth();
   const userId = (user as { id?: string } | null)?.id;
   await seedIfEmpty();
-  const [planned, insts, debts, events, projection, accountRows, fx, balanceRows] = await Promise.all([
+  const [planned, insts, debts, events, projection, accountRows, fx, balanceRows, savingsAccounts] = await Promise.all([
     listPlanned(),
     upcomingInstallments(6),
     listDebts(),
@@ -72,10 +73,11 @@ export default async function PlanningPage() {
       .leftJoin(assets, eq(assets.id, accounts.assetId))
       .leftJoin(wallets, eq(wallets.id, accounts.walletId))
       // Only this user's accounts — never another tenant's.
-      .where(sql`${accounts.deletedAt} is null and ${accounts.assetId} is not null${userId ? sql` and ${accounts.userId} = ${userId}` : sql``}`)
+      .where(sql`${accounts.deletedAt} is null and ${accounts.type} = 'asset' and ${accounts.assetId} is not null${userId ? sql` and ${accounts.userId} = ${userId}` : sql``}`)
       .orderBy(asc(accounts.code)),
     getLatestUsdIrtRate(),
     getAccountBalances(userId).catch(() => []),
+    listSavingsAccounts(userId).catch(() => []),
   ]);
   const balances = Object.fromEntries(balanceRows.map((b) => [b.accountId, b.quantity]));
 
@@ -136,6 +138,7 @@ export default async function PlanningPage() {
 
   const addProps = {
     accounts: accountRows,
+    savingsAccounts,
     balances,
     today: todayIso(),
     rate: fx.rate,

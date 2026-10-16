@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ensureAuth, isAdminOrOwner } from "@/lib/authGuard";
 import { ensureSchemaOnce } from "@/db/init-schema";
 import { loadAssetRegistryData } from "@/features/registry/loadAssetRegistryData";
-import { PageHeader } from "@/components/ui/Card";
+import { faCount } from "@/lib/format";
 import Icon from "@/components/ui/Icon";
 import { ASSET_TABS } from "@/components/ui/ModuleTabs";
 import ModuleHeader from "@/components/money/ModuleHeader";
@@ -40,24 +40,38 @@ export default async function AssetRegistryPage() {
 
   return (
     <div className="mny-page">
-      <ModuleHeader title="دارایی‌های واقعی" tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" actions={data.vehicleDashboard.length > 0 || data.realEstateDashboard.length > 0 ? (
-              <span className="flex flex-wrap gap-2">
-                {data.realEstateDashboard.length > 0 && (
-                  <Link href="/properties" className="btn btn-soft">
-                    <Icon name="home" size={16} />
-                    اجاره و بازده
-                  </Link>
-                )}
-                {data.vehicleDashboard.length > 0 && (
-                  <Link href="/vehicles" className="btn btn-soft">
-                    <Icon name="car" size={16} />
-                    هزینه و سررسید خودرو
-                  </Link>
-                )}
-              </span>
-            ) : undefined} />
+      {/* The title stays on one line: shortcuts live in the strip below, not in the head. */}
+      <ModuleHeader title="دارایی‌های واقعی" tabs={ASSET_TABS} active="/asset-registry" label="بخش‌های دارایی" />
 
-      {realValuations.length > 0 && <AssetValuationSummary totals={valuationTotalsOf(realValuations)} />}
+      {realValuations.length > 0 && (
+        <AssetValuationSummary totals={valuationTotalsOf(realValuations)} leadName="ارزش روز دارایی‌های واقعی" title="املاک، خودرو و طلا" />
+      )}
+
+      <nav className="rwa-jump" aria-label="بخش‌های دارایی واقعی">
+        <a href="#real-estate" className="rwa-jump-link">
+          <Icon name="home" size={15} />
+          املاک
+          {data.realEstateDashboard.length > 0 && <span className="num">{faCount(data.realEstateDashboard.length)}</span>}
+        </a>
+        <a href="#vehicle" className="rwa-jump-link">
+          <Icon name="car" size={15} />
+          خودرو
+          {data.vehicleDashboard.length > 0 && <span className="num">{faCount(data.vehicleDashboard.length)}</span>}
+        </a>
+        {data.realEstateDashboard.length > 0 && (
+          <Link href="/properties" className="rwa-jump-link is-more">
+            اجاره و بازده
+            <Icon name="arrow-start" size={14} />
+          </Link>
+        )}
+        {data.vehicleDashboard.length > 0 && (
+          <Link href="/vehicles" className="rwa-jump-link is-more">
+            هزینه و سررسید خودرو
+            <Icon name="arrow-start" size={14} />
+          </Link>
+        )}
+      </nav>
+
       <RegistryWorkspace
         vehicles={data.vehicles}
         ownerships={data.ownerships}

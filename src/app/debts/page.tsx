@@ -139,40 +139,55 @@ export default async function DebtsPage() {
         </>
       )}
 
-      <Section title="بدون سررسید" action={<AddUndatedButton variant="soft" label="افزودن" />}>
+      <Section title="بدهی بدون سررسید" action={undated.length > 0 ? <AddUndatedButton variant="soft" label="افزودن" /> : undefined}>
         {undated.length === 0 ? (
-          <p className="card muted text-center text-[length:var(--fs-sm)]">موردی ندارید</p>
+          <div className="card undated-empty">
+            <p>بدهی‌ای که تاریخ پرداخت ندارد — به سکه یا تومان. ارزش روزش را می‌بینید، ولی در دارایی خالص حساب نمی‌شود.</p>
+            <AddUndatedButton variant="soft" label="ثبت بدهی بدون سررسید" />
+          </div>
         ) : (
-          <ul className="card plan-list">
-            {undated.map((u) => (
-              <li key={u.id} className="plan-row">
-                <div className="plan-row-head">
-                  <span className="plan-row-title">
-                    <b className="truncate">{u.title}</b>
-                    <span className={u.direction === "receivable" ? "badge badge-pos" : "badge badge-neutral"}>{u.direction === "receivable" ? "طلب" : "بدهی"}</span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-1">
-                    <span className="text-left">
-                      <b className="plan-amount num block money-nowrap" dir="rtl">
-                        {u.valueToman != null ? formatTomanPrimary(u.valueToman, fx.rate).primary : "—"}
-                      </b>
-                      {u.unit !== "toman" && (
-                        <span className="muted num block text-[length:var(--fs-xs)]">
-                          {formatNumber(u.quantity)} {UNDATED_UNIT_LABEL[u.unit]}
-                        </span>
-                      )}
-                      {u.nominalToman && (
-                        <span className="muted num block text-[length:var(--fs-xs)]" dir="rtl">
-                          تخمین با تورم {formatNumber(u.inflationPct ?? "0")}٪ · اسمی {formatTomanPrimary(u.nominalToman, fx.rate).primary}
-                        </span>
-                      )}
+          <>
+            <p className="undated-sum">
+              <span className="muted">
+                {faCount(undated.length)} مورد · ارزش امروز
+              </span>
+              <b className="num money-nowrap" dir="rtl">
+                {formatTomanPrimary(sumToman(undated.filter((u) => u.direction !== "receivable").map((u) => u.valueToman ?? "0")), fx.rate).primary}
+              </b>
+              <span className="muted">خارج از دارایی خالص</span>
+            </p>
+            <ul className="obl-list">
+              {undated.map((u) => (
+                <li key={u.id} className="plan-row">
+                  <div className="plan-row-head">
+                    <span className="plan-row-title">
+                      <b className="truncate">{u.title}</b>
+                      {/* Older rows may be receivables; new ones are debts only. */}
+                      {u.direction === "receivable" && <span className="badge badge-pos">طلب</span>}
                     </span>
-                    <UndatedDeleteButton id={u.id} title={u.title} />
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <span className="text-left">
+                        <b className="plan-amount num block money-nowrap" dir="rtl">
+                          {u.valueToman != null ? formatTomanPrimary(u.valueToman, fx.rate).primary : "—"}
+                        </b>
+                        {u.unit !== "toman" && (
+                          <span className="muted num block text-[length:var(--fs-xs)]">
+                            {formatNumber(u.quantity)} {UNDATED_UNIT_LABEL[u.unit]}
+                          </span>
+                        )}
+                        {u.nominalToman && (
+                          <span className="muted num block text-[length:var(--fs-xs)]" dir="rtl">
+                            تخمین با تورم {formatNumber(u.inflationPct ?? "0")}٪ · اسمی {formatTomanPrimary(u.nominalToman, fx.rate).primary}
+                          </span>
+                        )}
+                      </span>
+                      <UndatedDeleteButton id={u.id} title={u.title} />
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </Section>
 
