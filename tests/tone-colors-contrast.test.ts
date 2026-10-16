@@ -9,7 +9,10 @@ import { contrast, solidFor, INK_ON_LIGHT } from "../src/lib/toneColors";
 import { EXPENSE_GROUP_LOOK, FALLBACK_LOOK, INCOME_GROUP_LOOK } from "../src/components/forms/txKit";
 import { BUDGET_TEMPLATES } from "../src/features/planning/budgetTemplates";
 
-const CSS = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
+// The global stylesheet is split in two (globals.css + sections.css); read both.
+const CSS =
+  readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8") +
+  readFileSync(new URL("../src/app/sections.css", import.meta.url), "utf8");
 const AA = 4.5;
 
 test("every category and budget hue gets a fill and text pair that clears AA", () => {

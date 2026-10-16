@@ -120,7 +120,7 @@ export function AddGoalButton({ accounts, balances, today, label, variant, ...ra
 }
 
 /** پیش‌بینی مالی — a planned transaction, a goal or an event. */
-export function AddPlanButton({ accounts, savingsAccounts, balances, today, label, variant, ...rate }: FormProps & LauncherProps & { savingsAccounts?: AccountOpt[] }) {
+export function AddPlanButton({ accounts, balances, today, label, variant, ...rate }: FormProps & LauncherProps) {
   const [kind, setKind] = useState<"planned" | "goal" | "event">("planned");
   return (
     <Launcher title="افزودن برنامه" label={label ?? "برنامه جدید"} variant={variant}>
@@ -136,7 +136,7 @@ export function AddPlanButton({ accounts, savingsAccounts, balances, today, labe
             ]}
           />
           {kind === "planned" && <PlannedCardForm accounts={accounts} balances={balances} today={today} onDone={close} {...rate} />}
-          {kind === "goal" && <GoalCardForm accounts={savingsAccounts ?? []} balances={balances} today={today} onDone={close} {...rate} />}
+          {kind === "goal" && <GoalCardForm accounts={accounts} balances={balances} today={today} onDone={close} {...rate} />}
           {kind === "event" && <EventCardForm today={today} onDone={close} {...rate} />}
         </>
       )}
