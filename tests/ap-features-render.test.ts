@@ -93,7 +93,9 @@ test("reconcile, insurance and insights pages render with real data", async () =
   const vehiclesHtml = await render(VehiclesPage);
   assert.match(vehiclesHtml, /سایپا پراید/);
   assert.match(vehiclesHtml, /ثالث ثبت نشده/, "the missing third-party cover is visible on the car");
-  assert.match(vehiclesHtml, /#سایپا_پراید/, "costs are filed under the car's tag");
+  // The tag is not printed on the card any more — it rides in the «ثبت هزینه» link.
+  assert.ok(vehiclesHtml.includes(`tags=${encodeURIComponent("#سایپا_پراید")}`), "costs are filed under the car's tag");
+  assert.doesNotMatch(vehiclesHtml, />[^<]*#سایپا_پراید/, "no hashtag is shown to the user");
 
   const { default: RecurringPage } = await import("../src/app/recurring/page");
   const recurringHtml = await render(RecurringPage);
@@ -106,7 +108,7 @@ test("reconcile, insurance and insights pages render with real data", async () =
   assert.match(home, /\/insights#data-coverage/);
 
   const { default: PropertiesPage } = await import("../src/app/properties/page");
-  assert.match(await render(PropertiesPage), /درآمد و هزینه‌ی املاک/);
+  assert.match(await render(PropertiesPage), /اجاره و بازده املاک/);
 
   const { default: AccountsPage } = await import("../src/app/accounts/page");
   const accountsHtml = await render(AccountsPage);

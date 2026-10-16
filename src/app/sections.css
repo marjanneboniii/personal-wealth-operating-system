@@ -2517,3 +2517,67 @@
   .rpt-forward th, .rpt-forward td { padding-inline: 0.5rem; }
 }
 .rpt-backup { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 1rem; }
+
+/* اجاره و بازده · هزینه و سررسید خودرو — one card per property or car:
+   head (icon, name, the one figure that matters), figures, extras, actions. */
+.rwa-list { display: grid; gap: 0.75rem; }
+.rwa-card { display: grid; gap: 0.9rem; padding: 1rem; min-width: 0; }
+.rwa-card[data-muted] { opacity: 0.7; }
+.rwa-card-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.75rem; min-width: 0; }
+.rwa-card-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  background: var(--sunken);
+  color: var(--text-2);
+}
+.rwa-card-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); font-weight: 700; line-height: 1.5; color: var(--text); }
+.rwa-card-sub { margin-top: 0.1rem; font-size: var(--fs-xs); color: var(--text-3); }
+/* The one figure that matters — its own line on a phone, beside the name when wide. */
+.rwa-yield { display: flex; flex-basis: 100%; align-items: baseline; gap: 0.5rem; padding: 0.55rem 0.85rem; border-radius: var(--r-md); background: var(--sunken); }
+@media (min-width: 720px) {
+  .rwa-yield { display: grid; flex-basis: auto; flex-shrink: 0; justify-items: end; gap: 0.05rem; padding: 0; background: none; text-align: end; }
+}
+.rwa-yield > b { font-size: var(--fs-md); font-weight: 800; color: var(--positive); }
+.rwa-yield[data-neg] > b { color: var(--negative); }
+.rwa-yield > span { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
+/* Phone: one row per figure (label · full amount) so nothing is cut off;
+   from 720px a strip of four. */
+.rwa-figs { display: grid; border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+.rwa-figs > div { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; min-width: 0; padding: 0.65rem 0.85rem; }
+.rwa-figs > div + div { border-top: 1px solid var(--border); }
+.rwa-figs dt { font-size: var(--fs-xs); color: var(--text-3); }
+.rwa-figs dd { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+@media (min-width: 720px) {
+  .rwa-figs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rwa-figs > div { display: grid; gap: 0.2rem; }
+  .rwa-figs > div + div { border-top: 0; border-inline-start: 1px solid var(--border); }
+  .rwa-figs dd { overflow: hidden; text-overflow: ellipsis; }
+}
+.rwa-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.rwa-chip { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2rem; padding-inline: 0.7rem; border-radius: var(--r-pill); background: var(--sunken); font-size: var(--fs-xs); color: var(--text-2); }
+.rwa-chip > b { font-weight: 600; color: var(--text); }
+.rwa-cover { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.rwa-cover-pill { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2rem; padding-inline: 0.7rem; border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: 600; }
+.rwa-cover-pill[data-tone="ok"] { background: var(--positive-soft); color: var(--positive); }
+.rwa-cover-pill[data-tone="neg"] { background: var(--negative-soft); color: var(--negative); }
+.rwa-dues { display: grid; gap: 0.5rem; }
+.rwa-dues-title { font-size: var(--fs-xs); font-weight: 600; color: var(--text-3); }
+.rwa-dues > ul { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+.rwa-due { display: flex; align-items: center; gap: 0.6rem; min-height: 3.25rem; padding: 0.5rem 0.75rem; }
+.rwa-due + .rwa-due { border-top: 1px solid var(--border); }
+.rwa-due-icon { display: inline-flex; flex-shrink: 0; width: 2rem; height: 2rem; align-items: center; justify-content: center; border-radius: var(--r-md); background: var(--sunken); color: var(--text-2); }
+.rwa-due[data-overdue] .rwa-due-icon { background: var(--negative-soft); color: var(--negative); }
+.rwa-due-text { display: grid; flex: 1; min-width: 0; }
+.rwa-due-text > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-weight: 600; }
+.rwa-due-text > span { font-size: var(--fs-xs); color: var(--text-3); }
+.rwa-due[data-overdue] .rwa-due-text > span:not(.rwa-due-repeat) { color: var(--negative); }
+.rwa-due > .btn { flex-shrink: 0; min-height: 2.25rem !important; padding-inline: 0.65rem !important; }
+.rwa-dues-empty { padding: 0.75rem; border: 1px dashed var(--border-strong); border-radius: var(--r-lg); text-align: center; font-size: var(--fs-xs); color: var(--text-3); }
+.rwa-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding-top: 0.25rem; border-top: 1px solid var(--border); }
+.rwa-actions > .btn { min-height: 2.5rem; }
+.rwa-more { margin-inline-start: auto; }

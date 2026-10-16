@@ -37,15 +37,19 @@ export default function VehicleDueDates({ vehicleId, items, today }: { vehicleId
   const run = (fn: () => Promise<ActionResult>) => start(async () => setResult(await fn()));
 
   return (
-    <div className="grid gap-2">
-      {items.length > 0 && (
-        <ul className="grid gap-1.5">
+    <div className="rwa-dues">
+      <p className="rwa-dues-title">سررسیدها</p>
+      {items.length > 0 ? (
+        <ul>
           {items.map((d) => (
-            <li key={d.id} className="flex flex-wrap items-center gap-2 text-[length:var(--fs-xs)]">
-              <Icon name="calendar" size={13} />
-              <span className="min-w-0 flex-1">
-                <b>{d.title}</b> · <span style={d.overdue ? { color: "var(--negative)" } : undefined}>{d.whenLabel}</span>
-                {d.repeatLabel ? <span className="muted"> · {d.repeatLabel}</span> : null}
+            <li key={d.id} className="rwa-due" data-overdue={d.overdue || undefined}>
+              <span className="rwa-due-icon" aria-hidden="true">
+                <Icon name="calendar" size={14} />
+              </span>
+              <span className="rwa-due-text">
+                <b>{d.title}</b>
+                <span>{d.whenLabel}</span>
+                {d.repeatLabel && <span className="rwa-due-repeat">{d.repeatLabel}</span>}
               </span>
               <button type="button" className={`${SMALL} btn-soft`} disabled={pending} onClick={() => run(() => completeDueDateAction(d.id))}>
                 انجام شد
@@ -62,6 +66,8 @@ export default function VehicleDueDates({ vehicleId, items, today }: { vehicleId
             </li>
           ))}
         </ul>
+      ) : (
+        <p className="rwa-dues-empty">سررسیدی ثبت نشده است</p>
       )}
       <FormStatus state={result} />
       {!adding ? (
