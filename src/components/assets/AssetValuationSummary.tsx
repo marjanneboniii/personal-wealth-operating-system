@@ -172,13 +172,6 @@ export default function AssetValuationSummary({
           </div>
         ))}
       </div>
-      {/* A Toman gain beside a USD loss is not a contradiction — say why once. */}
-      {D(totals.pnlToman).isPositive() && D(totals.pnlUsd).isNegative() && (
-        <p className="mny-valuation-note">
-          <Icon name="info" size={13} />
-          سود تومانی و زیان دلاری با هم تناقض ندارند: قیمت این دارایی‌ها به تومان بالا رفته، ولی کمتر از دلار.
-        </p>
-      )}
     </section>
   );
 }
