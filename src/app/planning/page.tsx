@@ -15,6 +15,8 @@ import {
 import { Alert, EmptyState, Metric, PageHeader, Section } from "@/components/ui/Card";
 import { BarsChart } from "@/components/charts/Charts";
 import { AddPlanButton } from "@/components/planning/AddPlanningSheet";
+import SpendSources from "@/components/planning/SpendSources";
+import { listSpendSources } from "@/features/planning/spendSources";
 import { listSavingsAccounts } from "@/features/planning/savingsAccounts";
 import RowAction from "@/components/RowAction";
 import Icon from "@/components/ui/Icon";
@@ -67,6 +69,7 @@ export default async function PlanningPage() {
 
   const pending = planned.filter((p) => p.status === "pending");
   const deficit = projection.points.find((p) => p.deficit);
+  const spendSources = await listSpendSources(userId, fx.rate).catch(() => []);
   // Planned amounts are contractual Toman.
   const totalPlannedOutToman = sumToman(
     pending.filter((p) => p.direction === "outflow").map((p) => p.amountToman ?? p.amountBase),
@@ -142,6 +145,8 @@ export default async function PlanningPage() {
           اگر همه برنامه‌ها و اقساط اجرا شوند، نقدینگی شما در این ماه منفی می‌شود. این برنامه‌ها را بازنگری یا نقدینگی را افزایش دهید.
         </Alert>
       )}
+
+      <SpendSources sources={spendSources} open={!!deficit} />
 
       <section className="metric-strip">
         <Metric label="پول قابل خرج فعلی" value={liqDisp.primary} hint={liqDisp.usdHint ? `معادل ${liqDisp.usdHint}` : undefined} />

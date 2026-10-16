@@ -1453,6 +1453,9 @@ const CHEQUE_EVENT_STATEMENTS = [
   `ALTER TABLE undated_obligations ADD COLUMN IF NOT EXISTS inflation_pct numeric(6,2) CHECK (inflation_pct IS NULL OR (inflation_pct >= 0 AND inflation_pct <= 200));`,
 ];
 
+/** «از این پول خرج می‌کنم» — mirrors drizzle/0059. */
+const SPEND_FROM_STATEMENTS = [`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS spend_from boolean NOT NULL DEFAULT false;`];
+
 /** Planning links — see drizzle/0056. */
 const PLANNING_LINK_STATEMENTS = [
   `ALTER TABLE budgets ADD COLUMN IF NOT EXISTS event_id uuid REFERENCES events(id) ON DELETE SET NULL;`,
@@ -1609,6 +1612,7 @@ export async function createSchemaIfNotExists() {
     ...PLANNING_LINK_STATEMENTS,
     ...MERGE_PLANNING_STATEMENTS,
     ...CHEQUE_EVENT_STATEMENTS,
+    ...SPEND_FROM_STATEMENTS,
     ...DEPOSIT_STATEMENTS,
     ...BALANCE_CHECKPOINT_STATEMENTS,
     ...INSURANCE_STATEMENTS,

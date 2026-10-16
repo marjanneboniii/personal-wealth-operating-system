@@ -156,12 +156,12 @@ test("installment payments leave «کل هزینه ثبت‌شده» and the sav
   const kpi = section(html, "کل هزینه ثبت‌شده");
 
   // The real expense only: 100 USD at 200,000 = ۲۰٬۰۰۰٬۰۰۰ تومان, with the
-  // ledger amount of the SAME total as its hint.
+  // ledger amount of the SAME total as its small dollar line.
   assert.ok(
     kpi.includes(`۲۰٬۰۰۰٬۰۰۰${NBSP}تومان`),
     "«کل هزینه ثبت‌شده» must be the ENTRY-derived expense total (20,000,000 Toman)",
   );
-  assert.ok(kpi.includes(`۱۰۰${NBSP}دلار`), "the hint must be the entry total in the base currency");
+  assert.ok(kpi.includes(`۱۰۰${NBSP}دلار`), "the dollar line must be the entry total in the base currency");
   assert.ok(!kpi.includes("۱۵۹.۰۹"), "…never the expense ACCOUNT BALANCE (159.09 USD)");
   // NOT the expense-account BALANCE (159.09085 USD → 31,818,170 Toman), which
   // is what a repayment of a planning-only debt used to turn into fake spend.

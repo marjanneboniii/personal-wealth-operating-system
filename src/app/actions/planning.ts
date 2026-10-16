@@ -25,6 +25,7 @@ import {
   updateFund,
   updateGoal,
 } from "@/features/planning/planItems";
+import { setSpendFrom } from "@/features/planning/spendSources";
 
 /**
  * The signed-in user's id; null only in legacy single-tenant mode (no
@@ -56,6 +57,14 @@ const s = (fd: FormData, k: string) => {
   return typeof v === "string" ? v.trim() : "";
 };
 const money = (fd: FormData, k: string) => normalizeNumericInput(s(fd, k), { decimal: false }) || "0";
+
+/* «از این پول خرج می‌کنم» — a source counted in the forecast. */
+export async function setSpendFromAction(accountId: string, on: boolean) {
+  return run(async (u) => {
+    if (!u) throw new Error("ابتدا وارد شوید.");
+    await setSpendFrom(u, accountId, on);
+  }, "ذخیره شد.");
+}
 
 /* Goals */
 export async function updateGoalAction(_p: ActionResult | null, fd: FormData) {

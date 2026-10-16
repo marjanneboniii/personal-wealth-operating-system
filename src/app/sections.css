@@ -2410,3 +2410,110 @@
   .re-module > .re-head { display: flex; }
   .re-module > .re-head > .seg { width: auto; }
 }
+
+/* پیش‌بینی مالی › از کدام پول‌ها خرج می‌کنید؟ — folded list of switches. */
+.spend-src { padding: 0; overflow: hidden; }
+.spend-src > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding-inline: 1rem;
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--fs-sm);
+}
+.spend-src > summary::-webkit-details-marker { display: none; }
+.spend-src > summary > .num { margin-inline-start: auto; font-size: var(--fs-xs); }
+.spend-src > summary > svg { flex-shrink: 0; color: var(--text-3); transition: transform 0.18s ease; }
+.spend-src[open] > summary > svg { transform: rotate(180deg); }
+.spend-src-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text); }
+.spend-src > ul { border-top: 1px solid var(--border); }
+.spend-src li + li { border-top: 1px solid var(--border); }
+.spend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3.5rem;
+  padding: 0.5rem 1rem;
+  text-align: start;
+  touch-action: manipulation;
+}
+.spend-row:hover { background: var(--hover); }
+.spend-text { display: grid; flex: 1; min-width: 0; }
+.spend-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--text); }
+.spend-bal { font-size: var(--fs-xs); color: var(--text-3); }
+.spend-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 1.5rem;
+  border-radius: var(--r-pill);
+  background: var(--border-strong);
+  transition: background 0.18s ease;
+}
+.spend-track::after {
+  content: "";
+  position: absolute;
+  top: 0.1875rem;
+  inset-inline-start: 0.1875rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: var(--r-pill);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: inset-inline-start 0.18s ease;
+}
+.spend-row[aria-checked="true"] .spend-track { background: var(--action); }
+.spend-row[aria-checked="true"] .spend-track::after { inset-inline-start: 1.1875rem; background: var(--on-ink); }
+
+/* گزارش‌های مالی — month rows: the name on its own line on a phone, then
+   income · spend · net as three compact cells; one row of four from 640px. */
+.rpt-months { padding: 0; overflow: hidden; }
+.rpt-month {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem 0.75rem;
+  padding: 0.75rem 1rem;
+  min-width: 0;
+}
+.rpt-month + .rpt-month { border-top: 1px solid var(--border); }
+.rpt-month-name { grid-column: 1 / -1; font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
+.rpt-month-head { display: none; }
+.rpt-cell { display: grid; gap: 0.15rem; min-width: 0; }
+.rpt-cell > small { font-size: var(--fs-xs); color: var(--text-3); }
+.rpt-cell > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-weight: 600; }
+.rpt-cell[data-k="in"] > b { color: var(--positive); }
+.rpt-cell[data-k="out"] > b { color: var(--negative); }
+.rpt-cell[data-k="net"] > b { color: var(--text); }
+.rpt-cell[data-k="net"][data-neg] > b { color: var(--negative); }
+@media (min-width: 640px) {
+  .rpt-month { grid-template-columns: minmax(6.5rem, 1fr) repeat(3, minmax(0, 1.4fr)); align-items: center; }
+  .rpt-month-name { grid-column: auto; }
+  .rpt-cell > small { display: none; }
+  .rpt-month-head { display: grid; padding-block: 0.5rem; background: var(--sunken); font-size: var(--fs-xs); font-weight: 600; color: var(--text-3); }
+}
+/* Investment results: stacked on a phone, side by side from 480px. */
+.rpt-pair { display: grid; padding: 0; overflow: hidden; }
+.rpt-pair > div { display: grid; gap: 0.2rem; min-width: 0; padding: 0.9rem 1rem; }
+.rpt-pair > div + div { border-top: 1px solid var(--border); }
+.rpt-pair b { font-size: var(--fs-md); font-weight: 700; }
+@media (min-width: 480px) {
+  .rpt-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rpt-pair > div + div { border-top: 0; border-inline-start: 1px solid var(--border); }
+}
+/* Today's position — label on one side, the full Toman figure on the other. */
+.rpt-today { padding: 0; overflow: hidden; }
+.rpt-today > div { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-height: 3rem; padding: 0.6rem 1rem; }
+.rpt-today > div + div { border-top: 1px solid var(--border); }
+.rpt-today > div > span:first-child { font-size: var(--fs-sm); color: var(--text-2); }
+.rpt-today-fig { display: grid; justify-items: end; gap: 0.1rem; text-align: end; }
+.rpt-today-fig > b { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+.rpt-today-fig > small { font-size: var(--fs-xs); color: var(--text-3); }
+.rpt-forward td, .rpt-forward th { white-space: nowrap; }
+@media (max-width: 639px) {
+  .rpt-forward { font-size: var(--fs-xs); }
+  .rpt-forward th, .rpt-forward td { padding-inline: 0.5rem; }
+}
+.rpt-backup { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 1rem; }
