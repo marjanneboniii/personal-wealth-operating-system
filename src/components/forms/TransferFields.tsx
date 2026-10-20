@@ -83,7 +83,9 @@ export default function TransferFields(p: Props) {
       setAddError(error ?? "");
       if (!error) setAddingTo(false);
     });
-  const held = p.heldQty ? D(p.heldQty) : null;
+  // Toman moves in whole Toman: a sale can leave a fraction (۳۱٬۸۹۹٬۰۳۰٫۵), and
+  // rounding it up for «همه» would ask for more than is held — so round down.
+  const held = p.heldQty ? D(p.isToman ? cutDecimals(p.heldQty, 0) : p.heldQty) : null;
   const typed = p.isToman ? (p.amount ? D(p.amount) : null) : p.quantity ? D(p.quantity) : null;
   const overBalance = !!typed && !!held && typed.gt(0) && typed.gt(held);
   // The unit in Persian: «تتر», or the asset's own name («آمازون ایکس»).
