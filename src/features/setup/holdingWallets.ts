@@ -68,6 +68,16 @@ export const KNOWN_WALLETS: KnownWallet[] = [
   { name: "بیت‌یونیکس", kind: "exchange", logo: `${L}/bitunix.png`, aliases: ["bitunix", "بیت یونیکس", "بیتیونیکس"] },
   { name: "کوین‌بیس", kind: "exchange", logo: `${L}/coinbase.png`, aliases: ["coinbase", "کوین بیس"] },
 
+  // Perp DEXes — on-chain trading venues. Margin is a stablecoin (USDC) moved
+  // in from a self-custody wallet; what it is worth today is the venue's own
+  // account value, which goes up and down with open positions.
+  { name: "هایپرلیکوئید", kind: "exchange", logo: `${L}/hyperliquid.png`, aliases: ["hyperliquid", "hyper liquid", "هایپر لیکوئید"] },
+  { name: "لایتر", kind: "exchange", logo: `${L}/lighter.png`, aliases: ["lighter", "lighter.xyz"] },
+  // Lighter's separate venue on Robinhood Chain (robinhoodchain.lighter.xyz).
+  { name: "لایتر رابین‌هود", kind: "exchange", logo: `${L}/lighter.png`, aliases: ["lighter robinhood", "robinhood lighter", "لایتر رابین هود"] },
+  { name: "اوندو پرپس", kind: "exchange", logo: `${L}/ondo-perps.png`, aliases: ["ondo perps", "ondoperps", "ondo perp", "اوندو پرپ"] },
+  { name: "آرکوس", kind: "exchange", logo: `${L}/arcus.png`, aliases: ["arcus", "arcus.xyz"] },
+
   // Brokerages — Toman only. Tehran-exchange shares, gold and fixed-income
   // funds and online gold are bought and sold with the Toman held here.
   { name: "کارگزاری مفید", kind: "broker", logo: "/icons/brokers/mofid.png", aliases: ["mofid", "emofid", "مفید", "کارگزاری مفيد"] },

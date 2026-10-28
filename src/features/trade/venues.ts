@@ -34,7 +34,11 @@ import {
 export type VenueType = "bank" | "cash" | "domestic_exchange" | "foreign_exchange" | "evm_wallet" | "multichain_wallet" | "unknown";
 
 const DOMESTIC_EXCHANGES = new Set(IRANIAN_EXCHANGE_NAMES);
-const FOREIGN_EXCHANGES = new Set(["بایننس", "او‌کی‌ایکس", "بای‌بیت", "کوکوین", "بیت‌گت", "ال‌بانک", "بیت‌یونیکس", "کوین‌بیس"]);
+const FOREIGN_EXCHANGES = new Set([
+  "بایننس", "او‌کی‌ایکس", "بای‌بیت", "کوکوین", "بیت‌گت", "ال‌بانک", "بیت‌یونیکس", "کوین‌بیس",
+  // Perp DEXes: foreign, no Toman, margin in USDC.
+  "هایپرلیکوئید", "لایتر", "لایتر رابین‌هود", "اوندو پرپس", "آرکوس",
+]);
 const EVM_WALLETS = new Set(["متامسک", "ربی والت", "سیف", "کوین‌بیس والت"]);
 const MULTICHAIN_WALLETS = new Set(["لجر", "تراست والت", "او‌کی‌ایکس والت", "فانتوم"]);
 
