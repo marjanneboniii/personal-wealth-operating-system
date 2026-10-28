@@ -12,6 +12,7 @@ import {
 import { eventBudgetLinks } from "@/features/planning/planItems";
 import { pendingChequesByEvent } from "@/features/cheques/service";
 import { EmptyState, Section } from "@/components/ui/Card";
+import DateTile from "@/components/ui/DateTile";
 import StatCard from "@/components/money/StatCard";
 import FormattedMoney from "@/components/ui/FormattedMoney";
 import { DEBT_TABS } from "@/components/ui/ModuleTabs";
@@ -231,11 +232,7 @@ export default async function ObligationsPage() {
               const disp = formatTomanPrimary(r.amountToman, fx.rate);
               return (
                 <li key={r.id} className="obl-row">
-                  <span
-                    className="obl-dot"
-                    data-tone={late ? "late" : soon ? "soon" : undefined}
-                    aria-hidden="true"
-                  />
+                  <DateTile iso={r.date} size="sm" className="shrink-0" />
                   <div className="obl-main">
                     <span className="obl-title">{r.title}</span>
                     <span className="obl-meta">
@@ -248,6 +245,7 @@ export default async function ObligationsPage() {
                       {disp.primary}
                     </span>
                     <span className="obl-when">
+                      {/* The leaf has no year; the full Jalali date keeps a due date next year unambiguous. */}
                       <span className="num">{formatJalaliIso(r.date)}</span>
                       <span aria-hidden="true"> · </span>
                       <span

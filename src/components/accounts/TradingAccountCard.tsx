@@ -16,7 +16,6 @@ export type TradingAccountView = {
   accountId: string;
   name: string;
   place: string;
-  site: string;
   logo: string | null;
   syncable: boolean;
   linked: boolean;
@@ -31,147 +30,130 @@ export type TradingAccountView = {
   rate: string | null;
 };
 
-const sign = (v: string) => (Number(v) > 0 ? 1 : Number(v) < 0 ? -1 : 0);
-const tone = (v: string) => (sign(v) > 0 ? "var(--positive)" : sign(v) < 0 ? "var(--negative)" : "var(--text-2)");
+const tone = (v: string) => (Number(v) > 0 ? "var(--positive)" : Number(v) < 0 ? "var(--negative)" : "var(--text-2)");
 
 /**
- * One perp margin account: what it is worth, the open P&L, the result since
- * the money went in — and the two ways to keep it current: type the venue's
- * two numbers, or let a linked wallet address read them.
+ * One perp margin account, compact: name and value, three small figures, and
+ * two actions — type the venue's two numbers, or read them from the venue.
+ * The form opens in place only when asked for.
  */
 export default function TradingAccountCard({ a }: { a: TradingAccountView }) {
+  const [panel, setPanel] = useState<"none" | "update" | "link">("none");
   const [state, update, updating] = useActionState<ActionResult | null, FormData>(updateTradingAccountAction, null);
   const [linkState, link, linking] = useActionState<ActionResult | null, FormData>(linkTradingAccountAction, null);
   const [syncState, setSyncState] = useState<ActionResult | null>(null);
   const [syncing, startSync] = useTransition();
   const stale = a.staleDays == null || a.staleDays >= a.staleAfter;
-  const toman = (usd: string) => (a.rate ? formatMoney((Number(usd) * Number(a.rate)).toFixed(0), "IRT") : null);
+  const toman = a.rate ? formatMoney((Number(a.accountValue) * Number(a.rate)).toFixed(0), "IRT") : null;
+  const sync = () => startSync(async () => setSyncState(await syncTradingAccountAction(a.accountId)));
 
   return (
     <article className="card trade-card">
       <header className="trade-head">
-        {a.logo ? <img src={a.logo} alt="" width={40} height={40} className="trade-logo" /> : <span className="trade-logo" aria-hidden="true" />}
-        <span className="min-w-0 flex-1">
-          <b className="block truncate">{a.name}</b>
-          <span className="trade-site" dir="ltr">
-            {a.site}
+        {a.logo ? (
+          /* A local 96px logo; next/image adds nothing for it. */
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={a.logo} alt="" width={32} height={32} className="trade-logo" />
+        ) : (
+          <span className="trade-logo" aria-hidden="true" />
+        )}
+        <span className="trade-name">
+          <b className="truncate">{a.place}</b>
+          <span className="trade-age" data-stale={stale || undefined}>
+            {a.staleDays == null ? "به‌روز نشده" : a.staleDays === 0 ? "امروز" : `${toFaDigits(String(a.staleDays))} روز پیش`}
           </span>
         </span>
-        <span className={`badge ${stale ? "badge-warn" : "badge-neutral"}`}>
-          {a.staleDays == null ? "هنوز به‌روز نشده" : a.staleDays === 0 ? "امروز به‌روز شد" : `${stale ? "تخمینی · " : ""}${toFaDigits(String(a.staleDays))} روز پیش`}
+        <span className="trade-value">
+          <b className="num money-nowrap" dir="rtl">
+            <FormattedMoney value={formatMoney(a.accountValue)} />
+          </b>
+          {toman && (
+            <span className="num money-nowrap" dir="rtl">
+              ≈ {toman}
+            </span>
+          )}
         </span>
       </header>
 
-      <div className="trade-value">
-        <span className="trade-label">ارزش حساب</span>
-        <b className="num money-nowrap" dir="rtl">
-          <FormattedMoney value={formatMoney(a.accountValue)} />
-        </b>
-        {toman(a.accountValue) && (
-          <span className="trade-sub num money-nowrap" dir="rtl">
-            ≈ {toman(a.accountValue)}
-          </span>
-        )}
-      </div>
-
       <dl className="trade-stats">
         <div>
-          <dt>سود و زیان باز</dt>
+          <dt>باز</dt>
           <dd className="num money-nowrap" dir="rtl" style={{ color: tone(a.unrealizedPnl) }}>
             <FormattedMoney value={formatSignedMoney(a.unrealizedPnl, "USD")} />
           </dd>
         </div>
         <div>
-          <dt>نتیجهٔ کل از واریز</dt>
+          <dt>نتیجهٔ کل</dt>
           <dd className="num money-nowrap" dir="rtl" style={{ color: tone(a.totalResult) }}>
             <FormattedMoney value={formatSignedMoney(a.totalResult, "USD")} />
           </dd>
         </div>
         <div>
-          <dt>سرمایهٔ واریزی</dt>
+          <dt>واریزی</dt>
           <dd className="num money-nowrap" dir="rtl">
             <FormattedMoney value={formatMoney(a.netDeposited)} />
           </dd>
         </div>
       </dl>
-      <p className="trade-note">
-        <Icon name="info" size={14} /> بیشترین زیانِ ممکن از اینجا، همین ارزش فعلی حساب است (اگر لیکویید شوید). سود و زیان باز سند حسابداری نمی‌خورد؛ فقط در
-        دارایی خالص دیده می‌شود.
-      </p>
 
-      <details className="trade-panel" open={a.staleDays == null}>
-        <summary>به‌روزرسانی دستی</summary>
+      <div className="trade-actions">
+        <button type="button" className="btn btn-soft" aria-expanded={panel === "update"} onClick={() => setPanel(panel === "update" ? "none" : "update")}>
+          <Icon name="note" size={15} />
+          به‌روزرسانی
+        </button>
+        {a.syncable &&
+          (a.linked ? (
+            <button type="button" className="btn btn-ghost" disabled={syncing} onClick={sync}>
+              <Icon name="refresh" size={15} />
+              {syncing ? "…" : "خواندن از پلتفرم"}
+            </button>
+          ) : (
+            <button type="button" className="btn btn-ghost" aria-expanded={panel === "link"} onClick={() => setPanel(panel === "link" ? "none" : "link")}>
+              <Icon name="link" size={15} />
+              اتصال کیف پول
+            </button>
+          ))}
+      </div>
+      <FormStatus state={syncState} />
+
+      {panel === "update" && (
         <form action={update} className="trade-form">
           <input type="hidden" name="accountId" value={a.accountId} />
-          <p className="trade-hint">دقیقاً همان دو عددی را بنویسید که پلتفرم نشان می‌دهد. اگر پوزیشن بازی ندارید، سود و زیان باز را خالی بگذارید.</p>
-          <label className="block">
-            <span className="label">ارزش حساب (Account Value)</span>
-            <input name="accountValue" className="field num" dir="ltr" inputMode="decimal" required placeholder="113.91" autoComplete="off" />
-          </label>
-          <div className="trade-pnl">
-            <label className="block flex-1">
-              <span className="label">سود و زیان باز (Unrealized PnL)</span>
-              <input name="unrealizedPnl" className="field num" dir="ltr" inputMode="decimal" placeholder="0" autoComplete="off" />
-            </label>
-            <label className="block">
-              <span className="label">نوع</span>
-              <select name="pnlSign" className="field" defaultValue="loss">
-                <option value="loss">زیان</option>
-                <option value="profit">سود</option>
-              </select>
-            </label>
-          </div>
+          <input name="accountValue" className="field num" dir="ltr" inputMode="decimal" required placeholder="ارزش حساب" aria-label="ارزش حساب (Account Value)" autoComplete="off" />
+          <span className="trade-pnl">
+            <input name="unrealizedPnl" className="field num" dir="ltr" inputMode="decimal" placeholder="سود و زیان باز" aria-label="سود و زیان باز (Unrealized PnL)" autoComplete="off" />
+            <select name="pnlSign" className="field" defaultValue="loss" aria-label="سود یا زیان">
+              <option value="loss">زیان</option>
+              <option value="profit">سود</option>
+            </select>
+          </span>
           <button type="submit" className="btn btn-primary" disabled={updating}>
-            {updating ? "در حال ثبت…" : "ثبت عددها"}
+            {updating ? "…" : "ثبت"}
           </button>
           <FormStatus state={state} />
         </form>
-      </details>
+      )}
 
-      {a.syncable && (
-        <details className="trade-panel" open={a.linked}>
-          <summary>به‌روزرسانی خودکار</summary>
-          {a.linked ? (
-            <div className="trade-form">
-              <p className="trade-hint">عددها از API عمومی {a.place} با آدرس کیف پولتان خوانده می‌شوند — فقط خواندنی، بدون کلید یا امضا.</p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={syncing}
-                  onClick={() => startSync(async () => setSyncState(await syncTradingAccountAction(a.accountId)))}
-                >
-                  <Icon name="refresh" size={16} />
-                  {syncing ? "در حال خواندن…" : "به‌روزرسانی از پلتفرم"}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  disabled={syncing}
-                  onClick={() => startSync(async () => setSyncState(await unlinkTradingAccountAction(a.accountId)))}
-                >
-                  حذف آدرس
-                </button>
-              </div>
-              <FormStatus state={syncState} />
-            </div>
-          ) : (
-            <form action={link} className="trade-form">
-              <input type="hidden" name="accountId" value={a.accountId} />
-              <p className="trade-hint">
-                آدرس عمومی کیف پولی که با آن در {a.place} معامله می‌کنید. کلید خصوصی یا عبارت بازیابی را هرگز وارد نکنید — لازم نیست.
-              </p>
-              <label className="block">
-                <span className="label">آدرس کیف پول</span>
-                <input name="address" className="field num" dir="ltr" required placeholder="0x…" autoComplete="off" spellCheck={false} pattern="0x[0-9a-fA-F]{40}" />
-              </label>
-              <button type="submit" className="btn btn-soft" disabled={linking}>
-                {linking ? "در حال خواندن…" : "ثبت آدرس و خواندن عددها"}
-              </button>
-              <FormStatus state={linkState} />
-            </form>
-          )}
-        </details>
+      {panel === "link" && (
+        <form action={link} className="trade-form">
+          <input type="hidden" name="accountId" value={a.accountId} />
+          <input name="address" className="field num" dir="ltr" required placeholder="0x…" aria-label="آدرس عمومی کیف پول" autoComplete="off" spellCheck={false} pattern="0x[0-9a-fA-F]{40}" />
+          <button type="submit" className="btn btn-primary" disabled={linking}>
+            {linking ? "…" : "اتصال"}
+          </button>
+          <FormStatus state={linkState} />
+        </form>
+      )}
+
+      {a.linked && (
+        <button
+          type="button"
+          className="trade-unlink"
+          disabled={syncing}
+          onClick={() => startSync(async () => setSyncState(await unlinkTradingAccountAction(a.accountId)))}
+        >
+          حذف اتصال کیف پول
+        </button>
       )}
     </article>
   );

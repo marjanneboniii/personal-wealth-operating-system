@@ -1,4 +1,4 @@
-import { JALALI_MONTHS, formatGregorianIso, jalaliWeekdayName, toFaDigits, toJalali } from "@/lib/format";
+import { JALALI_MONTHS, formatGregorianIso, jalaliWeekdayName, toFaDigits, toJalali, todayIso } from "@/lib/format";
 import { iranHoliday } from "@/lib/iranHolidays";
 
 /**
@@ -20,6 +20,9 @@ export default function DateTile({
   className?: string;
 }) {
   const { y, m, d } = toJalali(iso);
+  // The small leaf drops the year — unless it is not this year, where a
+  // missing year would make «۱۲ مرداد» ambiguous.
+  const showYear = size !== "sm" || y !== toJalali(todayIso()).y;
   const holiday = iranHoliday(iso);
   const occasion = holiday && holiday.name !== "جمعه" ? holiday.name : null;
   return (
@@ -32,7 +35,7 @@ export default function DateTile({
     >
       <span className="date-tile-head">
         {JALALI_MONTHS[m - 1]}
-        {size !== "sm" && <span className="num"> {toFaDigits(String(y))}</span>}
+        {showYear && <span className="num"> {toFaDigits(String(y))}</span>}
       </span>
       <span className="date-tile-day num">{toFaDigits(String(d))}</span>
       <span className="date-tile-wd">{jalaliWeekdayName(iso)}</span>

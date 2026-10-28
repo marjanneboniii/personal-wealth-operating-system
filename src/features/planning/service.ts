@@ -641,6 +641,7 @@ export async function listInstallmentSchedule(userId?: string) {
       paidFxRate: installments.paidFxRate,
       paidAt: installments.paidAt,
       status: installments.status,
+      paidEntryId: installments.paidEntryId,
       debtId: debts.id,
       title: debts.title,
       creditor: debts.creditor,
@@ -702,6 +703,8 @@ export type InstallmentScheduleRow = {
   paidFxRate: string | null;
   paidAt: string | null;
   status: string;
+  /** The ledger entry that paid it — its receipt. */
+  paidEntryId: string | null;
   debtId: string;
   title: string;
   creditor: string;

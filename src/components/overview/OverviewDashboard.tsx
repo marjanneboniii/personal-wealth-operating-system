@@ -13,6 +13,7 @@ import { AreaChart, BarsChart } from "@/components/charts/Charts";
 import Icon from "@/components/ui/Icon";
 import AllocationBar from "@/components/assets/AllocationBar";
 import FlowIcon from "@/components/transactions/FlowIcon";
+import DateTile from "@/components/ui/DateTile";
 import { humanizeEntry, moneyFlowLabel, txAmountLabel } from "@/lib/tx";
 import { monthToman } from "@/lib/cashflowToman";
 import { D, Decimal } from "@/domain/decimal";
@@ -491,9 +492,7 @@ export default async function OverviewDashboard() {
                     const toman = contractual != null ? String(contractual) : rate ? usdToIrt(i.amountBase, rate) : null;
                     return (
                       <li key={i.id} className="list-row">
-                        <span className="flow-icon" aria-hidden="true">
-                          <Icon name="calendar" size={15} />
-                        </span>
+                        <DateTile iso={i.dueDate} size="sm" className="shrink-0" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[length:var(--fs-sm)] font-medium">{i.debtTitle}</p>
                           <p className="muted truncate text-[length:var(--fs-xs)]">
