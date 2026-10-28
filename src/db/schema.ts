@@ -1059,6 +1059,53 @@ export const balanceCheckpoints = pgTable(
 );
 
 /**
+ * حساب معاملاتی — what a perp venue (هایپرلیکوئید، لایتر…) shows for one of
+ * the user's margin accounts, as of a day. Two numbers, exactly as the venue
+ * prints them: the account value and the profit/loss of positions still OPEN.
+ * Their difference is the realized balance; when it moved, one balanced
+ * adjustment entry against 4100 «سود و زیان سرمایه‌گذاری» brought the ledger
+ * to it (`entry_id`). The open part never becomes an entry: it is a mark, like
+ * a price, read as the latest row of the account.
+ */
+export const tradingAccountMarks = pgTable(
+  "trading_account_marks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    asOf: date("as_of").notNull(),
+    accountValue: money("account_value").notNull(),
+    unrealizedPnl: money("unrealized_pnl").notNull(),
+    source: text("source").notNull(), // manual | hyperliquid | lighter | lighter_rh
+    entryId: uuid("entry_id").references(() => journalEntries.id, { onDelete: "set null" }),
+  },
+  (t) => [index("trading_account_marks_account_idx").on(t.userId, t.accountId, t.createdAt)],
+);
+
+/**
+ * The public wallet address a venue's read-only API is asked about, for an
+ * automatic update. Encrypted at rest (it ties an on-chain identity to the
+ * user); no key, signature or permission is ever stored or needed.
+ */
+export const tradingAccountLinks = pgTable("trading_account_links", {
+  accountId: uuid("account_id")
+    .primaryKey()
+    .references(() => accounts.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  venue: text("venue").notNull(), // hyperliquid | lighter | lighter_rh
+  addressEnc: text("address_enc").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+});
+
+/**
  * بدهی یا طلب بدون سررسید — owed on demand, with no date (e.g. coins promised
  * in a marriage contract). Never in the cash forecast and never in the
  * headline net worth: shown on its own line, valued at today's coin price.

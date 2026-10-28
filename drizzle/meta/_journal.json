@@ -421,6 +421,13 @@
       "when": 1791410475399,
       "tag": "0059_account_spend_from",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793220455319,
+      "tag": "0060_trading_accounts",
+      "breakpoints": true
     }
   ]
 }

@@ -656,10 +656,27 @@ export async function getRealizedPnl(userId?: string): Promise<RealizedPnl> {
   const vehiclePnl = D(vehicleRows[0]?.pnl ?? "0");
   const vehicleToman = D(vehicleRows[0]?.pnlToman ?? "0");
 
+  // Perp trading (حساب معاملاتی): the realized result an account update
+  // posted to 4100 — closed trades, fees and funding. Toman is the entry's own
+  // freeze, signed like the result. No table yet (migration pending) → none.
+  const tradingRows = await rows<{ pnl: string; pnlToman: string }>(sql`
+    select coalesce(sum(-p.base_value), 0)::text as pnl,
+           coalesce(sum(sign(-p.base_value) * coalesce(s.irt_amount, abs(p.base_value) * ${todayRate}::numeric)), 0)::text as "pnlToman"
+    from trading_account_marks m
+      join journal_entries je on je.id = m.entry_id and je.status = 'posted'
+      join postings p on p.entry_id = je.id
+      join accounts a on a.id = p.account_id and a.code = '4100'
+      left join entry_fx_snapshots s on s.entry_id = je.id
+    where true ${u ? sql`and m.user_id = ${u}` : sql``}
+  `).catch(() => [] as { pnl: string; pnlToman: string }[]);
+  const tradingPnl = D(tradingRows[0]?.pnl ?? "0");
+  const tradingToman = D(tradingRows[0]?.pnlToman ?? "0");
+  const trading = tradingPnl.isZero() ? [] : [{ symbol: "معاملات پرپ", pnl: tradingPnl.toString(), pnlToman: tradingToman.toFixed(0) }];
+
   return {
-    total: Decimal.sum(data.map((d) => d.pnl)).add(realEstatePnl).add(vehiclePnl).toString(),
-    totalToman: Decimal.sum(data.map((d) => d.pnlToman)).add(realEstateToman).add(vehicleToman).toFixed(0),
-    bySymbol: data,
+    total: Decimal.sum(data.map((d) => d.pnl)).add(realEstatePnl).add(vehiclePnl).add(tradingPnl).toString(),
+    totalToman: Decimal.sum(data.map((d) => d.pnlToman)).add(realEstateToman).add(vehicleToman).add(tradingToman).toFixed(0),
+    bySymbol: [...data, ...trading],
   };
 }
 
