@@ -11,12 +11,15 @@ import StatCard from "@/components/money/StatCard";
 import FormattedMoney from "@/components/ui/FormattedMoney";
 import DisclosurePanel from "@/components/ui/DisclosurePanel";
 import Icon from "@/components/ui/Icon";
+import DateTile from "@/components/ui/DateTile";
+import Timeline, { type TimelineItem } from "@/components/ui/Timeline";
+import { iranHoliday } from "@/lib/iranHolidays";
 import { DEBT_TABS } from "@/components/ui/ModuleTabs";
 import ModuleHeader from "@/components/money/ModuleHeader";
 import ChequeForm from "@/components/debts/ChequeForm";
 import ChequeRowActions from "@/components/debts/ChequeRowActions";
 import { D, Decimal } from "@/domain/decimal";
-import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, todayIso } from "@/lib/format";
+import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, tehranDateOf, todayIso } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +51,28 @@ function clearHref(c: ChequeRow) {
   return `/new?${q.toString()}`;
 }
 
+/** What happened to a cheque, in order: recorded → due → cleared / bounced / cancelled. */
+function chequeEvents(c: ChequeRow, today: string): TimelineItem[] {
+  const issued = c.direction === "issued";
+  const recorded = tehranDateOf(c.createdAt);
+  const changed = c.status === "cleared" ? c.clearedDate : tehranDateOf(c.statusChangedAt);
+  const items: TimelineItem[] = [];
+  if (recorded) items.push({ key: "recorded", title: issued ? "چک صادر و ثبت شد" : "چک دریافت و ثبت شد", date: recorded });
+  const due = c.dueDate;
+  const pendingLate = c.status === "pending" && due < today;
+  items.push({
+    key: "due",
+    title: pendingLate ? "سررسید گذشته است" : c.status === "pending" ? "سررسید" : "سررسید بود",
+    date: due,
+    tone: pendingLate ? "negative" : c.status === "pending" ? "upcoming" : "neutral",
+    content: iranHoliday(due) ? `${iranHoliday(due)!.name} — بانک تعطیل است` : undefined,
+  });
+  if (c.status === "cleared") items.push({ key: "end", title: issued ? "پاس شد و از حساب کسر شد" : "وصول شد", date: changed, tone: "positive" });
+  if (c.status === "bounced") items.push({ key: "end", title: "برگشت خورد", date: changed, tone: "negative" });
+  if (c.status === "cancelled") items.push({ key: "end", title: "باطل شد", date: changed, tone: "warning" });
+  return items;
+}
+
 function ChequeList({ rows, today }: { rows: ChequeRow[]; today: string }) {
   return (
     <ul className="card plan-list">
@@ -65,15 +90,11 @@ function ChequeList({ rows, today }: { rows: ChequeRow[]; today: string }) {
         ].filter(Boolean);
         return (
           <li key={c.id} className="plan-queue-row flex-wrap">
-            <span
-              className="plan-icon"
-              style={{ background: issued ? "var(--negative-soft)" : "var(--positive-soft)", color: issued ? "var(--negative)" : "var(--positive)" }}
-              aria-hidden="true"
-            >
-              <Icon name={issued ? "arrow-up" : "arrow-down"} size={16} />
-            </span>
+            {/* The due date as a calendar leaf: a cheque due on جمعه or a holiday shows red. */}
+            <DateTile iso={c.dueDate} size="sm" className="shrink-0" />
             <span className="min-w-0 flex-1">
               <b className="flex items-center gap-2 text-[length:var(--fs-sm)]">
+                <Icon name={issued ? "arrow-up" : "arrow-down"} size={14} className="shrink-0" style={{ color: issued ? "var(--negative)" : "var(--positive)" }} />
                 <span className="min-w-0 break-words">
                   {issued ? "در وجه" : "از"} {c.counterparty}
                 </span>
@@ -83,6 +104,10 @@ function ChequeList({ rows, today }: { rows: ChequeRow[]; today: string }) {
                 {meta.join(" · ")}
               </span>
               {c.note && <span className="expense-sub block">{c.note}</span>}
+              <details className="cheque-history">
+                <summary>تاریخچه</summary>
+                <Timeline label={`تاریخچهٔ چک ${issued ? "در وجه" : "از"} ${c.counterparty}`} items={chequeEvents(c, today)} />
+              </details>
             </span>
             {/* Beside the name on wide screens; under it on a phone, so the name is never cut. */}
             <span className="num plan-amount money-nowrap shrink-0 max-sm:w-full max-sm:ps-11" dir="rtl" style={{ color: issued ? undefined : "var(--positive)" }}>

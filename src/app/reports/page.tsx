@@ -3,9 +3,13 @@ import { ensureAuth } from "@/lib/authGuard";
 import { seedIfEmpty } from "@/db/seed";
 import {
   getCashflow,
+  getDailyOutflow,
   getExpenseIncomeTotals,
   getRealizedPnl,
 } from "@/features/ledger/queries";
+import { getFlowByCategory, type CategoryFlowRow } from "@/features/categories/service";
+import MonthPicker from "@/components/reports/MonthPicker";
+import SpendHeatmap from "@/components/reports/SpendHeatmap";
 import { listDebts, projectCashflow } from "@/features/planning/service";
 import { isReceivable } from "@/features/planning/obligations";
 import { PageHeader, Progress, Section, SectionLink } from "@/components/ui/Card";
@@ -16,7 +20,7 @@ import RowAction from "@/components/RowAction";
 import PdfButton from "@/components/reports/PdfButton";
 import Icon from "@/components/ui/Icon";
 import { D, Decimal } from "@/domain/decimal";
-import { currencyLabel, faCount, formatJalaliIso, formatMoney, formatNumber, formatPct, formatSignedMoney, formatSignedMoneyFromUsd, jalaliMonthKey, jalaliMonthLabel, toIrtMoney, toneColor, trendTone } from "@/lib/format";
+import { currencyLabel, faCount, formatJalaliIso, formatMoney, formatNumber, formatPct, formatSignedMoney, formatSignedMoneyFromUsd, jalaliMonthKey, jalaliMonthLabel, jalaliToIso, toFaDigits, toIrtMoney, toJalali, todayIso, toneColor, trendTone, JALALI_MONTHS } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 
@@ -24,10 +28,32 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "گزارش‌های مالی" };
 
-export default async function ReportsPage() {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+/** «1405-08» → { y: 1405, m: 8 }, or null. */
+function parseMonthKey(raw: string | string[] | undefined): { y: number; m: number } | null {
+  const match = typeof raw === "string" ? /^(\d{4})-(\d{1,2})$/.exec(raw) : null;
+  if (!match) return null;
+  const y = Number(match[1]);
+  const m = Number(match[2]);
+  return y >= 1300 && y <= 1500 && m >= 1 && m <= 12 ? { y, m } : null;
+}
+
+export default async function ReportsPage({ searchParams }: { searchParams: SearchParams }) {
   await ensureAuth();
   await seedIfEmpty();
-  const [nw, flow, pnl, totals, debts, projection, fx] = await Promise.all([
+  const sp = await searchParams;
+  const today = todayIso();
+  const nowJ = toJalali(today);
+  // The month on show: ?ماه from the picker, never after this month.
+  const picked = parseMonthKey(sp.month);
+  const month = picked && (picked.y < nowJ.y || (picked.y === nowJ.y && picked.m <= nowJ.m)) ? picked : { y: nowJ.y, m: nowJ.m };
+  const monthFrom = jalaliToIso(month.y, month.m, 1);
+  const monthTo = month.m === 12 ? jalaliToIso(month.y + 1, 1, 1) : jalaliToIso(month.y, month.m + 1, 1);
+  const heatYearRaw = Number(typeof sp.hy === "string" ? sp.hy : NaN);
+  const heatYear = Number.isInteger(heatYearRaw) && heatYearRaw >= 1390 && heatYearRaw <= nowJ.y ? heatYearRaw : nowJ.y;
+
+  const [nw, flow, pnl, totals, debts, projection, fx, monthCats, monthIncome, daily] = await Promise.all([
     getCurrentNetWorth(),
     getCashflow(12),
     getRealizedPnl(),
@@ -35,6 +61,9 @@ export default async function ReportsPage() {
     listDebts(),
     projectCashflow(12),
     getLatestUsdIrtRate(),
+    getFlowByCategory(0, undefined, "expense", { from: monthFrom, to: monthTo }),
+    getFlowByCategory(0, undefined, "income", { from: monthFrom, to: monthTo }),
+    getDailyOutflow(jalaliToIso(heatYear, 1, 1), jalaliToIso(heatYear + 1, 1, 1)),
   ]);
 
   const rate = fx.rate;
@@ -98,6 +127,24 @@ export default async function ReportsPage() {
   // A small dollar line under the headline totals only — never in the month
   // rows or the forward table, where a second figure per cell is clutter.
   const usd = (v: Decimal | string | number) => (rate ? `≈ ${formatMoney(D(v).toString())}` : undefined);
+
+  // One Jalali month, picked above the breakdown. Toman is the commit-time
+  // freeze when every entry of a category carries it, else today's rate.
+  const catToman = (r: CategoryFlowRow) =>
+    r.entries === r.entriesWithSnap && D(r.totalToman).gt(0) ? D(r.totalToman) : rate ? D(r.total).mul(rate) : D(r.total);
+  const monthGroups = [...monthCats.reduce((acc, r) => {
+    const key = r.parentName ?? r.name;
+    acc.set(key, (acc.get(key) ?? D(0)).add(catToman(r)));
+    return acc;
+  }, new Map<string, Decimal>())].sort((a, b) => b[1].cmp(a[1]));
+  const monthExpense = monthGroups.reduce((sum, [, v]) => sum.add(v), D(0));
+  const monthIncomeToman = monthIncome.reduce((sum, r) => sum.add(catToman(r)), D(0));
+  const monthName = `${JALALI_MONTHS[month.m - 1]} ${toFaDigits(String(month.y))}`;
+  const monthHref = (y: number, m: number) => `/reports?month=${y}-${String(m).padStart(2, "0")}#month-report`;
+
+  const dailyToman = new Map(
+    daily.map((d) => [d.date, Number(d.outflowToman ?? (rate ? D(d.outflow).mul(rate).toFixed(0) : d.outflow))]),
+  );
 
   return (
     <div className="mny-page rpt-page">
@@ -202,6 +249,60 @@ export default async function ReportsPage() {
             ))}
           </section>
         </div>
+      </Section>
+
+      <Section title={`گزارش ${monthName}`} hint="هر ماه شمسی را جدا ببینید">
+        <div id="month-report" className="rpt-month scroll-mt-20">
+          <MonthPicker year={month.y} selected={month} current={{ y: nowJ.y, m: nowJ.m }} href={monthHref} />
+          <div className="card rpt-month-body">
+            <dl className="rpt-month-kpis">
+              <div>
+                <dt>درآمد</dt>
+                <dd className="num money-nowrap" dir="rtl" style={{ color: "var(--positive)" }}>
+                  <FormattedMoney value={toman(monthIncomeToman)} />
+                </dd>
+              </div>
+              <div>
+                <dt>هزینه</dt>
+                <dd className="num money-nowrap" dir="rtl" style={{ color: "var(--negative)" }}>
+                  <FormattedMoney value={toman(monthExpense)} />
+                </dd>
+              </div>
+              <div>
+                <dt>خالص</dt>
+                <dd className="num money-nowrap" dir="rtl" style={{ color: toneColor(trendTone(monthIncomeToman.sub(monthExpense).toString())) }}>
+                  <FormattedMoney value={formatSignedMoney(monthIncomeToman.sub(monthExpense).toFixed(0), "IRT")} />
+                </dd>
+              </div>
+            </dl>
+            {monthGroups.length ? (
+              <ul className="rpt-month-cats">
+                {monthGroups.slice(0, 6).map(([name, v]) => {
+                  const share = monthExpense.isZero() ? 0 : v.div(monthExpense).mul(100).toNumber();
+                  return (
+                    <li key={name}>
+                      <span className="rpt-month-cat-head">
+                        <span>{name}</span>
+                        <span className="num money-nowrap" dir="rtl">
+                          <FormattedMoney value={toman(v)} />
+                        </span>
+                      </span>
+                      <span className="meter" aria-hidden="true">
+                        <i style={{ width: `${Math.min(100, share)}%`, background: "var(--negative)" }} />
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="muted text-center text-[length:var(--fs-sm)]">در {monthName} هزینه‌ای ثبت نشده است.</p>
+            )}
+          </div>
+        </div>
+      </Section>
+
+      <Section title="هزینهٔ روزانه" hint="هر خانه یک روز · پررنگ‌تر یعنی خرج بیشتر">
+        <SpendHeatmap year={heatYear} days={dailyToman} today={today} hrefForYear={(y) => `/reports?hy=${y}#heatmap`} />
       </Section>
 
       <div className="grid items-start gap-5 lg:grid-cols-2">

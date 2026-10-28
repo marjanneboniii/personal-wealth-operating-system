@@ -401,8 +401,26 @@ export function formatShortDate(iso: string): string {
   return toFaDigits(`${d} ${FA_MONTHS[m - 1]}`);
 }
 
-export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+const TEHRAN_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran", year: "numeric", month: "2-digit", day: "2-digit" });
+
+/**
+ * Today's calendar date in Tehran, as ISO «YYYY-MM-DD». `toISOString()` is
+ * UTC, which is still yesterday until 03:30 Tehran time: an expense recorded
+ * at 01:00 on ۱ آذر defaulted to ۳۰ آبان and landed in the wrong month.
+ */
+export function todayIso(now: Date = new Date()): string {
+  return TEHRAN_DAY.format(now);
+}
+
+/**
+ * The Tehran calendar day of a Postgres `timestamptz::text`
+ * («2026-10-28 21:12:33.1+00»), or null when it cannot be read.
+ */
+export function tehranDateOf(timestamp: string | null | undefined): string | null {
+  if (!timestamp) return null;
+  const iso = timestamp.trim().replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : todayIso(d);
 }
 
 export function addMonthsIso(iso: string, months: number): string {

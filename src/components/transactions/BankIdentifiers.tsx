@@ -8,6 +8,7 @@ import SetupBankPicker from "@/components/setup/SetupBankPicker";
 import { SETUP_BANKS } from "@/features/setup/bankCatalog";
 import { normalizeBankName } from "@/features/bankImport/matching";
 import SmsChoices from "./SmsChoices";
+import { bankOfCard, bankOfIban } from "@/features/accounts/bankBins";
 
 type Props = { profileMode?: boolean; accounts: { id: string; name: string; bankName?: string | null }[]; identifiers: { id: string; accountName: string; bankName: string; kind: string; suffix: string }[] };
 
@@ -21,6 +22,13 @@ export default function BankIdentifiers({ accounts, identifiers, profileMode = f
  const [accountId, setAccountId] = useState(accounts.length === 1 ? accounts[0].id : "");
  const [bankName, setBankName] = useState(accounts.length === 1 ? normalizeBankName(accounts[0].bankName || "") : "");
  const [kind, setKind] = useState("card");
+ const [detected, setDetected] = useState("");
+ /** Full card or IBAN typed → pre-select its bank from the BIN / bank code. */
+ function detectBank(raw: string) {
+  if (!profileMode || kind === "account") return;
+  const bank = kind === "iban" ? bankOfIban(raw) : bankOfCard(raw);
+  if (bank) { setBankName(bank.value); setDetected(bank.name); } else setDetected("");
+ }
  async function submit(event: React.FormEvent<HTMLFormElement>) {
   event.preventDefault(); if (pending) return;
   const form = event.currentTarget;
@@ -51,7 +59,7 @@ export default function BankIdentifiers({ accounts, identifiers, profileMode = f
   </div>
   <input type="hidden" name="bankName" value={bankName} /><SetupBankPicker value={bankName} onSelect={(bank) => setBankName(bank.value)} />
   <SmsChoices label={profileMode ? "نوع شناسه" : "پیامک چه شماره‌ای را نشان می‌دهد؟"} value={kind} options={[{ id: "card", name: "کارت" }, { id: "account", name: "حساب" }, { id: "iban", name: "شبا" }]} onChange={setKind} />
-  <label className="block"><span className="label">{profileMode ? "شماره کارت، شبا یا حساب (اختیاری)" : "چند رقم آخرِ همان شماره"}</span><input name={profileMode ? "number" : "suffix"} className="field num" dir="ltr" required inputMode={kind === "iban" && profileMode ? "text" : "numeric"} minLength={profileMode ? 5 : 4} maxLength={profileMode ? 32 : 8} placeholder={profileMode ? (kind === "iban" ? "IR…" : "شماره کامل") : "1234"} autoComplete="off" /><span className="muted mt-1 block text-[length:var(--fs-xs)]">{profileMode ? "شماره کامل رمزگذاری می‌شود؛ فقط رقم‌های پایانی نمایش داده می‌شوند. رمز و CVV2 وارد نکنید." : "۴ تا ۸ رقم کافی است. شمارهٔ کامل، رمز و CVV2 لازم نیست."}</span></label>
+  <label className="block"><span className="label">{profileMode ? "شماره کارت، شبا یا حساب (اختیاری)" : "چند رقم آخرِ همان شماره"}</span><input name={profileMode ? "number" : "suffix"} className="field num" dir="ltr" required inputMode={kind === "iban" && profileMode ? "text" : "numeric"} minLength={profileMode ? 5 : 4} maxLength={profileMode ? 32 : 8} placeholder={profileMode ? (kind === "iban" ? "IR…" : "شماره کامل") : "1234"} autoComplete="off" onChange={(e) => detectBank(e.currentTarget.value)} />{detected && <span className="mt-1 block text-[length:var(--fs-xs)]" role="status" style={{ color: "var(--positive)" }}>{detected} تشخیص داده شد؛ اگر درست نیست، بانک را عوض کنید.</span>}<span className="muted mt-1 block text-[length:var(--fs-xs)]">{profileMode ? "شماره کامل رمزگذاری می‌شود؛ فقط رقم‌های پایانی نمایش داده می‌شوند. رمز و CVV2 وارد نکنید." : "۴ تا ۸ رقم کافی است. شمارهٔ کامل، رمز و CVV2 لازم نیست."}</span></label>
   <button className="btn btn-primary w-full" type="submit" disabled={!accountId || !bankName}>{profileMode ? "ذخیرهٔ مشخصات" : "ذخیرهٔ شناسه و ادامه"}</button>
  </fieldset></form>;
 

@@ -78,6 +78,8 @@ export type ChequeRow = {
   note: string | null;
   status: ChequeStatus;
   statusChangedAt: string | null;
+  /** When the cheque was recorded (timestamptz text). */
+  createdAt: string | null;
   clearedEntryId: string | null;
   clearedDate: string | null;
 };
@@ -186,6 +188,7 @@ export async function listCheques(userId: string): Promise<ChequeRow[]> {
            case when d.deleted_at is null and d.status <> 'cancelled' then d.id end as "debtId",
            c.event_id as "eventId", ev.name as "eventName", eb.tag as "eventTag",
            c.note, c.status, c.status_changed_at::text as "statusChangedAt",
+           c.created_at::text as "createdAt",
            c.cleared_entry_id as "clearedEntryId", je.entry_date::text as "clearedDate"
     from cheques c
       left join accounts a on a.id = c.account_id

@@ -15,7 +15,7 @@ import TransactionsView, { type ClientTxRow } from "@/components/transactions/Tr
 import TxScopeSwitch from "@/components/transactions/TxScopeSwitch";
 import { countHistoryRecords } from "@/features/history/service";
 import { getLatestUsdIrtRate } from "@/lib/fx";
-import { todayIso } from "@/lib/format";
+import { jalaliMonthStartIso, jalaliToIso, toJalali, todayIso } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +25,12 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /** Rows fetched per view. Hitting it is announced — never a silent cut-off. */
 const ROW_LIMIT = 150;
+
+function dayBefore(iso: string) {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
 
 function monthShift(iso: string, months: number) {
   const d = new Date(iso + "T00:00:00Z");
@@ -46,11 +52,22 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const tag = normalizeTag(s("tag")) ?? "";
   const review = s("review") === "reviewed" || s("review") === "unreviewed" ? (s("review") as "reviewed" | "unreviewed") : "";
   const sort = ["new", "old", "amount"].includes(s("sort")) ? s("sort") : "new";
-  const range = ["m1", "m3", "m6", "ytd", "all"].includes(s("range")) ? s("range") : "m3";
+  const range = ["tm", "pm", "m1", "m3", "m6", "ytd", "all"].includes(s("range")) ? s("range") : "m3";
 
   const today = todayIso();
+  // «این ماه» / «ماه قبل» / «امسال» follow the Jalali calendar: a month runs
+  // ۱ to ۳۰ آبان, a year starts on ۱ فروردین — never on the Gregorian 1st.
+  const thisMonth = jalaliMonthStartIso(today);
+  const prevMonth = jalaliMonthStartIso(dayBefore(thisMonth));
   const from =
-    range === "m1" ? monthShift(today, -1) : range === "m3" ? monthShift(today, -3) : range === "m6" ? monthShift(today, -6) : range === "ytd" ? `${today.slice(0, 4)}-01-01` : undefined;
+    range === "tm" ? thisMonth
+    : range === "pm" ? prevMonth
+    : range === "m1" ? monthShift(today, -1)
+    : range === "m3" ? monthShift(today, -3)
+    : range === "m6" ? monthShift(today, -6)
+    : range === "ytd" ? jalaliToIso(toJalali(today).y, 1, 1)
+    : undefined;
+  const to = range === "pm" ? dayBefore(thisMonth) : undefined;
 
   const [rows, accounts, fx, categoryTree, tagCounts, tagSummary, historyCount] = await Promise.all([
     getTransactions({
@@ -61,6 +78,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
       categoryId: categoryId || undefined,
       tag: tag || undefined,
       from,
+      to,
       review: (review || undefined) as "reviewed" | "unreviewed" | undefined,
       sort: sort as "new" | "old" | "amount",
       userId,

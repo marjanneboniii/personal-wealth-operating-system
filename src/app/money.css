@@ -1600,3 +1600,145 @@
   font-size: var(--fs-micro);
   font-weight: 600;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Kashi ideas, round two — timeline, month picker, month report, daily
+   heatmap, due-date leaves on installments and cheques. App tokens only.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── «خط زمانی» ── */
+.timeline { display: grid; gap: 0; margin: var(--s-2) 0 0; padding: 0; list-style: none; }
+.timeline-item { position: relative; display: grid; grid-template-columns: 1rem minmax(0, 1fr); gap: var(--s-2); padding-bottom: var(--s-3); }
+.timeline-item:last-child { padding-bottom: 0; }
+/* The rail between two markers. */
+.timeline-item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  inset-block: 1rem 0;
+  inset-inline-start: calc(0.5rem - 1px);
+  width: 2px;
+  background: var(--border-strong);
+}
+.timeline-dot {
+  --dot: var(--text-3);
+  width: 0.75rem;
+  height: 0.75rem;
+  margin: 0.3rem auto 0;
+  border-radius: var(--r-pill);
+  background: var(--dot);
+  box-shadow: 0 0 0 3px var(--surface);
+}
+.timeline-item[data-tone="positive"] .timeline-dot { --dot: var(--positive); }
+.timeline-item[data-tone="negative"] .timeline-dot { --dot: var(--negative); }
+.timeline-item[data-tone="warning"] .timeline-dot { --dot: var(--warning); }
+.timeline-item[data-tone="upcoming"] .timeline-dot { background: var(--surface); border: 2px solid var(--action); }
+.timeline-body { display: grid; gap: 0.1rem; min-width: 0; }
+.timeline-title { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
+.timeline-item[data-tone="negative"] .timeline-title { color: var(--negative); }
+.timeline-date { font-size: var(--fs-xs); color: var(--text-3); }
+.timeline-content { font-size: var(--fs-xs); color: var(--text-2); }
+.cheque-history { margin-top: var(--s-2); }
+.cheque-history > summary { display: inline-flex; min-height: 2rem; align-items: center; cursor: pointer; font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); }
+.cheque-history[open] > summary { margin-bottom: var(--s-1); }
+
+/* Due-date leaves on a list row. */
+.plan-queue-row > .date-tile { align-self: flex-start; }
+.inst-line:has(> .inst-tile) { grid-template-columns: auto minmax(0, 1fr) auto 1rem; }
+@media (max-width: 640px) {
+  .inst-line:has(> .inst-tile) { grid-template-columns: auto minmax(0, 1fr) 1rem; }
+}
+
+/* ── «انتخاب ماه» ── */
+.rpt-month { display: grid; gap: var(--s-3); }
+@media (min-width: 900px) {
+  .rpt-month { grid-template-columns: 17rem minmax(0, 1fr); align-items: start; }
+}
+.month-picker { padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+.month-picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--s-2); }
+.month-picker-head b { font-size: var(--fs-md); }
+.month-picker-nav {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--r-md);
+  font-size: var(--fs-lg);
+  color: var(--text-2);
+}
+a.month-picker-nav:hover { background: var(--hover); }
+.month-picker-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-1); }
+.month-picker-cell {
+  display: grid;
+  place-items: center;
+  min-height: 2.75rem;
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  transition: background var(--motion-micro) var(--ease);
+}
+a.month-picker-cell:hover { background: var(--hover); }
+.month-picker-cell[data-now] { box-shadow: inset 0 0 0 1px var(--border-strong); }
+.month-picker-cell[aria-current="page"] { background: var(--action); color: var(--on-ink); font-weight: 700; }
+.month-picker-cell[aria-disabled="true"] { color: var(--text-3); opacity: 0.45; }
+.month-picker-cell:focus-visible,
+.month-picker-nav:focus-visible { outline: none; box-shadow: var(--ring); }
+
+.rpt-month-body { display: grid; gap: var(--s-4); padding: var(--s-4); }
+.rpt-month-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
+.rpt-month-kpis dt { font-size: var(--fs-xs); color: var(--text-3); }
+.rpt-month-kpis dd { margin-top: 0.15rem; font-size: clamp(0.95rem, 3.6vw, var(--fs-lg)); font-weight: 700; }
+.rpt-month-cats { display: grid; gap: var(--s-3); margin: 0; padding: 0; list-style: none; }
+.rpt-month-cats li { display: grid; gap: 0.35rem; }
+.rpt-month-cat-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); font-size: var(--fs-sm); }
+.rpt-month-cat-head > span:last-child { font-weight: 600; }
+@media (max-width: 420px) {
+  .rpt-month-kpis { grid-template-columns: minmax(0, 1fr); }
+  .rpt-month-kpis > div { display: flex; align-items: baseline; justify-content: space-between; }
+}
+
+/* ── «نقشهٔ هزینهٔ روزانه» ── */
+.heatmap { --cell: 11px; --gap: 3px; display: grid; gap: var(--s-3); padding: var(--s-4); }
+.heatmap-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.heatmap-years { display: flex; align-items: center; gap: var(--s-1); }
+.heatmap-years b { min-width: 3rem; text-align: center; }
+.heatmap-year-spacer { width: 4.5rem; }
+.heatmap-total { display: grid; gap: 0.1rem; font-size: var(--fs-xs); color: var(--text-3); text-align: end; }
+.heatmap-total b { font-size: var(--fs-md); color: var(--text); }
+.heatmap-peak { color: var(--text-2); }
+/* The year scrolls inside its card on a phone — never the page. */
+.heatmap-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: var(--s-1); }
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: 1rem auto;
+  grid-template-rows: auto auto;
+  column-gap: var(--s-1);
+  width: max-content;
+}
+.heatmap-months {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--weeks), var(--cell));
+  column-gap: var(--gap);
+  height: 1.2rem;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.heatmap-wd { grid-column: 1; grid-row: 2; display: grid; grid-template-rows: repeat(7, var(--cell)); row-gap: var(--gap); font-size: 9px; line-height: var(--cell); color: var(--text-3); }
+.heatmap-cells {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, var(--cell));
+  grid-auto-columns: var(--cell);
+  gap: var(--gap);
+}
+.heatmap-cell { display: inline-block; width: var(--cell); height: var(--cell); border-radius: 3px; background: var(--sunken); }
+.heatmap-cell[data-l="none"] { background: transparent; }
+.heatmap-cell[data-l="future"] { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.heatmap-cell[data-l="1"] { background: color-mix(in srgb, var(--negative) 22%, var(--surface)); }
+.heatmap-cell[data-l="2"] { background: color-mix(in srgb, var(--negative) 45%, var(--surface)); }
+.heatmap-cell[data-l="3"] { background: color-mix(in srgb, var(--negative) 70%, var(--surface)); }
+.heatmap-cell[data-l="4"] { background: var(--negative); }
+.heatmap-legend { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-size: var(--fs-micro); color: var(--text-3); }
