@@ -70,7 +70,9 @@ function chequeEvents(c: ChequeRow, today: string): TimelineItem[] {
   if (c.status === "cleared") items.push({ key: "end", title: issued ? "پاس شد و از حساب کسر شد" : "وصول شد", date: changed, tone: "positive" });
   if (c.status === "bounced") items.push({ key: "end", title: "برگشت خورد", date: changed, tone: "negative" });
   if (c.status === "cancelled") items.push({ key: "end", title: "باطل شد", date: changed, tone: "warning" });
-  return items;
+  // In date order: a cheque recorded after its due date (an old one entered
+  // late) shows «سررسید» first. The final status always stays last.
+  return items.sort((a, b) => (a.key === "end" ? 1 : b.key === "end" ? -1 : (a.date ?? "").localeCompare(b.date ?? "")));
 }
 
 function ChequeList({ rows, today }: { rows: ChequeRow[]; today: string }) {

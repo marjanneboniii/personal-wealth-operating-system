@@ -1649,9 +1649,9 @@
 }
 
 /* ── «انتخاب ماه» ── */
-.rpt-month { display: grid; gap: var(--s-3); }
+.rpt-mreport { display: grid; gap: var(--s-3); }
 @media (min-width: 900px) {
-  .rpt-month { grid-template-columns: 17rem minmax(0, 1fr); align-items: start; }
+  .rpt-mreport { grid-template-columns: 17rem minmax(0, 1fr); align-items: start; }
 }
 .month-picker { padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
 .month-picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--s-2); }
@@ -1683,17 +1683,17 @@ a.month-picker-cell:hover { background: var(--hover); }
 .month-picker-cell:focus-visible,
 .month-picker-nav:focus-visible { outline: none; box-shadow: var(--ring); }
 
-.rpt-month-body { display: grid; gap: var(--s-4); padding: var(--s-4); }
-.rpt-month-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
-.rpt-month-kpis dt { font-size: var(--fs-xs); color: var(--text-3); }
-.rpt-month-kpis dd { margin-top: 0.15rem; font-size: clamp(0.95rem, 3.6vw, var(--fs-lg)); font-weight: 700; }
-.rpt-month-cats { display: grid; gap: var(--s-3); margin: 0; padding: 0; list-style: none; }
-.rpt-month-cats li { display: grid; gap: 0.35rem; }
-.rpt-month-cat-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); font-size: var(--fs-sm); }
-.rpt-month-cat-head > span:last-child { font-weight: 600; }
+.rpt-mreport-body { display: grid; gap: var(--s-4); padding: var(--s-4); }
+.rpt-mreport-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
+.rpt-mreport-kpis dt { font-size: var(--fs-xs); color: var(--text-3); }
+.rpt-mreport-kpis dd { margin-top: 0.15rem; font-size: clamp(0.95rem, 3.6vw, var(--fs-lg)); font-weight: 700; }
+.rpt-mreport-cats { display: grid; gap: var(--s-3); margin: 0; padding: 0; list-style: none; }
+.rpt-mreport-cats li { display: grid; gap: 0.35rem; }
+.rpt-mreport-cat-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); font-size: var(--fs-sm); }
+.rpt-mreport-cat-head > span:last-child { font-weight: 600; }
 @media (max-width: 420px) {
-  .rpt-month-kpis { grid-template-columns: minmax(0, 1fr); }
-  .rpt-month-kpis > div { display: flex; align-items: baseline; justify-content: space-between; }
+  .rpt-mreport-kpis { grid-template-columns: minmax(0, 1fr); }
+  .rpt-mreport-kpis > div { display: flex; align-items: baseline; justify-content: space-between; }
 }
 
 /* ── «نقشهٔ هزینهٔ روزانه» ── */

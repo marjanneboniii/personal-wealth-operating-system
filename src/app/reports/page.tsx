@@ -137,8 +137,13 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
     acc.set(key, (acc.get(key) ?? D(0)).add(catToman(r)));
     return acc;
   }, new Map<string, Decimal>())].sort((a, b) => b[1].cmp(a[1]));
-  const monthExpense = monthGroups.reduce((sum, [, v]) => sum.add(v), D(0));
-  const monthIncomeToman = monthIncome.reduce((sum, r) => sum.add(catToman(r)), D(0));
+  // Totals come from the same Jalali cash-flow row as the monthly table above,
+  // so the two never disagree (categories only cover categorised entries —
+  // income recorded without one read as «۰ تومان»). Older than 12 months:
+  // the category sums are all there is.
+  const flowRow = monthly.find((r) => r.month === monthFrom);
+  const monthExpense = flowRow ? flowRow.outT : monthGroups.reduce((sum, [, v]) => sum.add(v), D(0));
+  const monthIncomeToman = flowRow ? flowRow.inT : monthIncome.reduce((sum, r) => sum.add(catToman(r)), D(0));
   const monthName = `${JALALI_MONTHS[month.m - 1]} ${toFaDigits(String(month.y))}`;
   const monthHref = (y: number, m: number) => `/reports?month=${y}-${String(m).padStart(2, "0")}#month-report`;
 
@@ -252,10 +257,10 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
       </Section>
 
       <Section title={`گزارش ${monthName}`} hint="هر ماه شمسی را جدا ببینید">
-        <div id="month-report" className="rpt-month scroll-mt-20">
+        <div id="month-report" className="rpt-mreport scroll-mt-20">
           <MonthPicker year={month.y} selected={month} current={{ y: nowJ.y, m: nowJ.m }} href={monthHref} />
-          <div className="card rpt-month-body">
-            <dl className="rpt-month-kpis">
+          <div className="card rpt-mreport-body">
+            <dl className="rpt-mreport-kpis">
               <div>
                 <dt>درآمد</dt>
                 <dd className="num money-nowrap" dir="rtl" style={{ color: "var(--positive)" }}>
@@ -276,12 +281,12 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
               </div>
             </dl>
             {monthGroups.length ? (
-              <ul className="rpt-month-cats">
+              <ul className="rpt-mreport-cats">
                 {monthGroups.slice(0, 6).map(([name, v]) => {
                   const share = monthExpense.isZero() ? 0 : v.div(monthExpense).mul(100).toNumber();
                   return (
                     <li key={name}>
-                      <span className="rpt-month-cat-head">
+                      <span className="rpt-mreport-cat-head">
                         <span>{name}</span>
                         <span className="num money-nowrap" dir="rtl">
                           <FormattedMoney value={toman(v)} />
