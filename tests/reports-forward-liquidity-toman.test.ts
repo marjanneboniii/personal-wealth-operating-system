@@ -57,6 +57,8 @@ mock.module("@/db/seed", { namedExports: { seedIfEmpty: async () => {} } });
 mock.module("@/features/ledger/queries", {
   namedExports: {
     getAccountBalances: async () => [],
+    // The month report and the daily heatmap read nothing in this test.
+    getDailyOutflow: async () => [],
     getCashflow: async () => [],
     getHoldings: async () => [],
     getExpenseIncomeTotals: async () => ({
@@ -70,6 +72,7 @@ mock.module("@/features/ledger/queries", {
     getRealizedPnl: async () => ({ total: "0", bySymbol: [] }),
   },
 });
+mock.module("@/features/categories/service", { namedExports: { getFlowByCategory: async () => [] } });
 mock.module("@/features/planning/service", {
   namedExports: {
     listDebts: async () => [],

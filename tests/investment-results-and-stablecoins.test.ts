@@ -12,6 +12,7 @@
  *  • An exchange or wallet can hold any dollar stablecoin, with a Toman price.
  */
 import assert from "node:assert/strict";
+import { todayIso } from "../src/lib/format";
 import { test, mock } from "node:test";
 import { and, eq } from "drizzle-orm";
 import { D } from "../src/domain/decimal";
@@ -44,7 +45,8 @@ mock.module("next/headers", {
 });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
-const TODAY = new Date().toISOString().slice(0, 10);
+// The app's «امروز» is the Tehran day (see todayIso); a UTC date is yesterday after 20:30 UTC.
+const TODAY = todayIso();
 
 /** Tether's market price, served from the price cache through the client seam — never the network. */
 async function seedTetherPrice() {

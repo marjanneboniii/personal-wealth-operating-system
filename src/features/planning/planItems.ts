@@ -98,7 +98,7 @@ export async function addGoalContribution(userId: Owner, goalId: string, amountT
   await db.insert(goalContributions).values({
     goalId,
     amountBase: amount.toString(),
-    occurredAt: date(occurredAt) ?? new Date().toISOString().slice(0, 10),
+    occurredAt: date(occurredAt) ?? todayIso(),
     note: note?.trim().slice(0, 200) || null,
   });
 }

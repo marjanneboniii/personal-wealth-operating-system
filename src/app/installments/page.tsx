@@ -9,6 +9,7 @@ import { EmptyState, Progress, Section } from "@/components/ui/Card";
 import StatCard from "@/components/money/StatCard";
 import FormattedMoney from "@/components/ui/FormattedMoney";
 import Icon from "@/components/ui/Icon";
+import DateTile from "@/components/ui/DateTile";
 import SettleObligationSheet from "@/components/forms/SettleObligationSheet";
 import RepairPaymentButton from "@/components/forms/RepairPaymentButton";
 import { DEBT_TABS } from "@/components/ui/ModuleTabs";
@@ -200,15 +201,31 @@ export default async function InstallmentsPage() {
       <li key={r.id} className="inst-item" data-tone={tone}>
         <details className="inst-row" open={openByDefault}>
           <summary className="inst-line">
-            <span className="inst-seq num" aria-label={`قسط ${faCount(r.seq)} از ${faCount(total)}`}>
-              {r.fx.isPaid ? <Icon name="check" size={14} /> : faCount(r.seq)}
-            </span>
+            {/* A pending installment leads with its due date as a calendar
+                leaf (red on جمعه or an official holiday); a paid one keeps
+                the check mark. */}
+            {r.fx.isPaid ? (
+              <span className="inst-seq num" aria-label={`قسط ${faCount(r.seq)} از ${faCount(total)}`}>
+                <Icon name="check" size={14} />
+              </span>
+            ) : (
+              <DateTile iso={r.dueDate} size="sm" className="inst-tile" />
+            )}
             <span className="inst-main">
               <span className="inst-title" title={r.title}>
                 {r.title}
               </span>
               <span className="inst-meta">
-                {r.fx.isPaid && <span>{paidAt ? "تاریخ پرداخت" : "سررسید"} · </span>}<bdi className="num" dir="ltr">{formatJalaliIso(paidAt ?? r.dueDate)}</bdi>
+                {r.fx.isPaid ? (
+                  <>
+                    <span>{paidAt ? "تاریخ پرداخت" : "سررسید"} · </span>
+                    <bdi className="num" dir="ltr">{formatJalaliIso(paidAt ?? r.dueDate)}</bdi>
+                  </>
+                ) : (
+                  <span>
+                    قسط {faCount(r.seq)} از {faCount(total)}
+                  </span>
+                )}
                 {r.creditor ? ` · ${r.creditor}` : ""}
               </span>
             </span>

@@ -74,6 +74,8 @@ mock.module("@/features/ledger/queries", {
     // Snapshot coverage is deliberately PARTIAL (outflowEntriesSnap: 0): that
     // is the state in which the KPI headline itself is computed from
     // totalExpense, so this file cannot pass on a flow-derived number alone.
+    // The month report and the daily heatmap read nothing in this test.
+    getDailyOutflow: async () => [],
     getCashflow: async () => [
       {
         month: "2026-08-01",
@@ -91,6 +93,7 @@ mock.module("@/features/ledger/queries", {
     getRealizedPnl: async () => ({ total: "0", bySymbol: [] }),
   },
 });
+mock.module("@/features/categories/service", { namedExports: { getFlowByCategory: async () => [] } });
 mock.module("@/features/planning/service", {
   namedExports: {
     listDebts: async () => [],

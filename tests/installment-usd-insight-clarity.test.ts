@@ -177,7 +177,7 @@ mock.module("@/components/RowAction", {
 });
 
 const iso = (dayOffset: number) =>
-  new Date(Date.now() + dayOffset * 86_400_000).toISOString().slice(0, 10);
+  new Date(Date.parse(`${todayIso()}T00:00:00Z`) + dayOffset * 86_400_000).toISOString().slice(0, 10);
 
 const DAYS_LEFT = 17; // → «17 روز دیگر»
 const DUE_PENDING = iso(DAYS_LEFT);

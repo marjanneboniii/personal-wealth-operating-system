@@ -396,6 +396,8 @@ export async function getFlowByCategory(
   months = 6,
   userId?: string,
   kind: CategoryKind = "expense",
+  /** An exact half-open window [from, to) instead of the last `months` — one Jalali month of the reports page. */
+  range?: { from: string; to: string },
 ): Promise<CategoryFlowRow[]> {
   await ensureCategoryCatalog();
   const u = await resolveQueryUserId(userId);
@@ -420,7 +422,11 @@ export async function getFlowByCategory(
         and c.kind = ${kind}
         and je.status = 'posted'
         and je.type = ${kind}
-        and je.entry_date >= (current_date - (${months} || ' months')::interval)
+        ${
+          range
+            ? sql`and je.entry_date >= ${range.from}::date and je.entry_date < ${range.to}::date`
+            : sql`and je.entry_date >= (current_date - (${months} || ' months')::interval)`
+        }
         ${u ? sql`and je.user_id = ${u}` : sql``}
       group by c.id, je.id, s.irt_amount, s.usd_amount
     )

@@ -24,6 +24,7 @@ import {
   faCount,
   formatTomanPrimary,
   sumToman,
+  daysUntilIso,
 } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
@@ -32,9 +33,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "تعهدات آینده" };
 
 function daysUntil(iso: string) {
-  return Math.ceil(
-    (new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000,
-  );
+  return daysUntilIso(iso);
 }
 
 const RECURRENCE_LABEL: Record<string, string> = {

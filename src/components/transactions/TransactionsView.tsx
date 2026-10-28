@@ -52,6 +52,8 @@ const TYPE_OPTIONS = [
 ];
 
 const RANGE_OPTIONS = [
+  { key: "tm", label: "این ماه" },
+  { key: "pm", label: "ماه قبل" },
   { key: "m1", label: "۱ ماه" },
   { key: "m3", label: "۳ ماه" },
   { key: "m6", label: "۶ ماه" },

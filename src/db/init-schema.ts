@@ -1281,6 +1281,26 @@ const BALANCE_CHECKPOINT_STATEMENTS = [
    resolution_entry_id uuid REFERENCES journal_entries(id) ON DELETE SET NULL
   );`,
   `CREATE INDEX IF NOT EXISTS balance_checkpoints_account_idx ON balance_checkpoints(user_id, account_id, as_of, observed_at);`,
+  `CREATE TABLE IF NOT EXISTS trading_account_marks (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+   as_of date NOT NULL,
+   account_value numeric(38,18) NOT NULL,
+   unrealized_pnl numeric(38,18) NOT NULL,
+   source text NOT NULL CHECK (source IN ('manual','hyperliquid','lighter','lighter_rh')),
+   entry_id uuid REFERENCES journal_entries(id) ON DELETE SET NULL
+  );`,
+  `CREATE INDEX IF NOT EXISTS trading_account_marks_account_idx ON trading_account_marks(user_id, account_id, created_at);`,
+  `CREATE TABLE IF NOT EXISTS trading_account_links (
+   account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   venue text NOT NULL CHECK (venue IN ('hyperliquid','lighter','lighter_rh')),
+   address_enc text NOT NULL,
+   created_at timestamptz NOT NULL DEFAULT now(),
+   updated_at timestamptz
+  );`,
 ];
 
 /** بیمه‌نامه‌ها — see src/db/schema.ts `insurancePolicies`; mirrors drizzle/0045. */

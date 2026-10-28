@@ -12,6 +12,7 @@
  * hints, and every write refuses it after trying the market once.
  */
 import assert from "node:assert/strict";
+import { todayIso } from "../src/lib/format";
 import { test, mock } from "node:test";
 
 // The live market: unreachable until a test says otherwise.
@@ -75,7 +76,7 @@ test("a write refuses the placeholder when the market is unreachable", async () 
 test("a property/vehicle value is not frozen at the placeholder either", async () => {
   // A date the built-in historical table does not cover (it ends in the past),
   // so the resolution falls through to the user's rate — the placeholder.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
   await assert.rejects(resolveUsdRateForDateToFreeze(today, userId), /ثبت تا تکمیل تاریخچه انجام نمی‌شود/);
 });
 

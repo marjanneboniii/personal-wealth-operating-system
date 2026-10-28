@@ -954,6 +954,28 @@ export async function getPortfolioValuation(
     }
   }
 
+  // Open perp positions (حساب معاملاتی): the latest mark's unrealized P&L is
+  // added to the margin coin's value, like a price move — never an entry. It
+  // is part of what the account is worth today and of its unrealized result.
+  if (userId) {
+    const { openPositionMarks } = await import("@/features/trading/service");
+    for (const mark of await openPositionMarks(userId, valuationDate)) {
+      const valuation = assetValuations.find((v) => v.assetId === mark.assetId);
+      if (!valuation) continue;
+      const usd = mark.unrealizedPnl.mul(D(valuation.marketPrice).gt(0) ? valuation.marketPrice : "1");
+      const toman = usd.mul(fx.rate);
+      valuation.currentValue = D(valuation.currentValue).add(usd).toString();
+      valuation.currentValueToman = D(valuation.currentValueToman).add(toman).toFixed(0);
+      valuation.unrealizedPnl = D(valuation.unrealizedPnl).add(usd).toString();
+      valuation.unrealizedPnlToman = D(valuation.unrealizedPnlToman).add(toman).toFixed(0);
+      valuation.roiPercentage = calculateRoi(valuation.currentValue, valuation.costBasis);
+      totalNetWorth = totalNetWorth.add(usd);
+      totalNetWorthToman = totalNetWorthToman.add(toman);
+      totalUnrealizedPnl = totalUnrealizedPnl.add(usd);
+      totalUnrealizedPnlToman = totalUnrealizedPnlToman.add(toman);
+    }
+  }
+
   for (const valuation of assetValuations) {
     if (totalNetWorth.gt(0)) {
       valuation.sharePercentage = D(valuation.currentValue).div(totalNetWorth).mul("100").toFixed(2);

@@ -2,10 +2,10 @@ import Link from "next/link";
 import { OBLIGATION_STATE_LABELS, isReceivable, type ObligationState } from "@/features/planning/obligations";
 import { Progress } from "@/components/ui/Card";
 import PlanRowMenu from "@/components/planning/PlanRowMenu";
-import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, formatPct, formatTomanPrimary } from "@/lib/format";
+import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, formatPct, formatTomanPrimary, daysUntilIso } from "@/lib/format";
 
 export function daysUntil(iso: string) {
-  return Math.ceil((new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
+  return daysUntilIso(iso);
 }
 
 export type ObligationCardData = {

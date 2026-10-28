@@ -32,6 +32,8 @@ import AccountListItem from "@/components/accounts/AccountListItem";
 import DeleteAccountButton from "@/components/accounts/DeleteAccountButton";
 import { walletLogoFor } from "@/features/setup/holdingWallets";
 import { listReconciliation } from "@/features/reconcile/service";
+import { listTradingAccounts, TRADING_STALE_DAYS } from "@/features/trading/service";
+import TradingAccountCard from "@/components/accounts/TradingAccountCard";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +107,10 @@ export default async function AccountsPage() {
   const reconcileMismatchCount = userId
     ? (await listReconciliation(userId).catch(() => [])).filter((r) => r.state === "mismatch").length
     : 0;
+  // Perp margin accounts (هایپرلیکوئید، لایتر…). Empty until the migration
+  // that creates the marks table has run — the page then simply has no section.
+  const tradingAccounts = userId ? await listTradingAccounts(userId).catch(() => []) : [];
+  const fxRate = fx.rate && Number(fx.rate) > 0 ? String(fx.rate) : null;
 
   type Balance = (typeof balances)[number];
 
@@ -333,6 +339,37 @@ export default async function AccountsPage() {
           }
         />
       </section>
+
+      {tradingAccounts.length > 0 && (
+        <Section
+          title="حساب‌های معاملاتی"
+          hint="پلتفرم‌های پرپ · واریز و برداشت را با «انتقال» از کیف پول ثبت کنید؛ قبل از برداشت، اول حساب را به‌روز کنید."
+        >
+          <div className="trade-grid">
+            {tradingAccounts.map((t) => (
+              <TradingAccountCard
+                key={t.accountId}
+                a={{
+                  accountId: t.accountId,
+                  name: t.name,
+                  place: t.venue.place,
+                  site: t.venue.site,
+                  logo: walletLogoFor(t.venue.place),
+                  syncable: !!t.venue.sync,
+                  linked: t.linked,
+                  accountValue: t.accountValue,
+                  unrealizedPnl: t.unrealizedPnl,
+                  totalResult: D(t.accountValue).sub(t.netDeposited).toString(),
+                  netDeposited: t.netDeposited,
+                  staleDays: t.staleDays,
+                  staleAfter: TRADING_STALE_DAYS,
+                  rate: fxRate,
+                }}
+              />
+            ))}
+          </div>
+        </Section>
+      )}
 
       <DisclosurePanel anchor="bank-details" label="مشخصات کارت، شبا و حساب بانکی (اختیاری)"><BankIdentifiers profileMode accounts={bankProfileAccounts} identifiers={bankProfileIdentifiers} /></DisclosurePanel>
       <Section

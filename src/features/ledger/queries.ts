@@ -656,10 +656,27 @@ export async function getRealizedPnl(userId?: string): Promise<RealizedPnl> {
   const vehiclePnl = D(vehicleRows[0]?.pnl ?? "0");
   const vehicleToman = D(vehicleRows[0]?.pnlToman ?? "0");
 
+  // Perp trading (حساب معاملاتی): the realized result an account update
+  // posted to 4100 — closed trades, fees and funding. Toman is the entry's own
+  // freeze, signed like the result. No table yet (migration pending) → none.
+  const tradingRows = await rows<{ pnl: string; pnlToman: string }>(sql`
+    select coalesce(sum(-p.base_value), 0)::text as pnl,
+           coalesce(sum(sign(-p.base_value) * coalesce(s.irt_amount, abs(p.base_value) * ${todayRate}::numeric)), 0)::text as "pnlToman"
+    from trading_account_marks m
+      join journal_entries je on je.id = m.entry_id and je.status = 'posted'
+      join postings p on p.entry_id = je.id
+      join accounts a on a.id = p.account_id and a.code = '4100'
+      left join entry_fx_snapshots s on s.entry_id = je.id
+    where true ${u ? sql`and m.user_id = ${u}` : sql``}
+  `).catch(() => [] as { pnl: string; pnlToman: string }[]);
+  const tradingPnl = D(tradingRows[0]?.pnl ?? "0");
+  const tradingToman = D(tradingRows[0]?.pnlToman ?? "0");
+  const trading = tradingPnl.isZero() ? [] : [{ symbol: "معاملات پرپ", pnl: tradingPnl.toString(), pnlToman: tradingToman.toFixed(0) }];
+
   return {
-    total: Decimal.sum(data.map((d) => d.pnl)).add(realEstatePnl).add(vehiclePnl).toString(),
-    totalToman: Decimal.sum(data.map((d) => d.pnlToman)).add(realEstateToman).add(vehicleToman).toFixed(0),
-    bySymbol: data,
+    total: Decimal.sum(data.map((d) => d.pnl)).add(realEstatePnl).add(vehiclePnl).add(tradingPnl).toString(),
+    totalToman: Decimal.sum(data.map((d) => d.pnlToman)).add(realEstateToman).add(vehicleToman).add(tradingToman).toFixed(0),
+    bySymbol: [...data, ...trading],
   };
 }
 
@@ -757,6 +774,46 @@ export async function getCashflow(months = 6, userId?: string) {
     from attributed
     group by month_trunc
     order by month_trunc
+  `);
+}
+
+/**
+ * Spending per day in [from, to) — the reports heatmap. Same definition of
+ * «هزینه» as getCashflow (debt repayments, non-cash categories and investment
+ * results left out), grouped by entry date instead of month. Toman is the
+ * commit-time freeze when every entry of the day carries one, else null and
+ * the caller converts the USD at today's rate.
+ */
+export async function getDailyOutflow(from: string, to: string, userId?: string) {
+  const u = await resolveQueryUserId(userId);
+  if (!u && (await hasMultipleUsers())) return [];
+  return rows<{ date: string; outflow: string; outflowToman: string | null }>(sql`
+    with per_entry as (
+      select je.entry_date as day,
+             coalesce(sum(case when a.type = 'expense'
+                                and je.type not in ('debt_repayment')
+                                and coalesce(ec.nature, 'cash') = 'cash'
+                               then p.base_value else 0 end), 0) as outflow_usd,
+             s.irt_amount::numeric as irt_amount,
+             s.usd_amount::numeric as snap_usd
+      from journal_entries je
+        join postings p on p.entry_id = je.id
+        join accounts a on a.id = p.account_id
+        left join expense_categories ec on ec.id = je.category_id
+        left join entry_fx_snapshots s on s.entry_id = je.id
+      where je.status = 'posted'
+        and not ${isInvestmentResultLeg("a", "je.type")}
+        ${u ? sql`and je.user_id = ${u}` : sql``}
+        and je.entry_date >= ${from}::date and je.entry_date < ${to}::date
+      group by je.id, je.entry_date, s.irt_amount, s.usd_amount
+    )
+    select to_char(day, 'YYYY-MM-DD') as date,
+           sum(outflow_usd)::text as outflow,
+           case when bool_and(snap_usd > 0) then round(sum(irt_amount * outflow_usd / nullif(snap_usd, 0)))::text end as "outflowToman"
+    from per_entry
+    where outflow_usd > 0
+    group by day
+    order by day
   `);
 }
 
