@@ -124,7 +124,7 @@ import { createPortfolioSnapshot, getCurrentNetWorth, getPortfolioValuation } fr
 import { getAnalyticsSummary, recordAnalyticsRun } from "@/features/analytics/service";
 import { formatMoney, todayIso } from "@/lib/format";
 
-export type ActionResult = { ok: boolean; message: string };
+export type ActionResult = { ok: boolean; message: string; /** The recorded entry — its receipt is linked after a save. */ entryId?: string };
 
 /**
  * Security boundary helper for Server Actions.
@@ -1860,7 +1860,11 @@ export async function createTransactionAction(_prev: ActionResult | null, fd: Fo
     });
 
     refreshAll();
-    return { ok: true, message: "تراکنش با موفقیت ثبت شد. نرخ دلار همان روز برای آن ثابت ماند." + (linkedInst || linkedDebt ? " وضعیت بدهی/قسط به‌روزرسانی شد." : "") };
+    return {
+      ok: true,
+      message: "تراکنش با موفقیت ثبت شد. نرخ دلار همان روز برای آن ثابت ماند." + (linkedInst || linkedDebt ? " وضعیت بدهی/قسط به‌روزرسانی شد." : ""),
+      entryId,
+    };
   } catch (e) {
     const msg = e instanceof z.ZodError ? e.issues[0].message : e instanceof Error ? e.message : "خطای ناشناخته";
     return { ok: false, message: msg };

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import Icon from "@/components/ui/Icon";
+import { iranHoliday } from "@/lib/iranHolidays";
 import {
   JALALI_MONTHS,
   formatDate,
@@ -362,6 +363,9 @@ export default function JalaliDatePicker({
               const cellIso = jalaliToIso(cursor.y, cursor.m, day);
               const col = i % 7;
               const active = day === focusDay;
+              // جمعه and the fixed official holidays (نوروز، ۲۲ بهمن…) are red.
+              const holiday = iranHoliday(cellIso);
+              const occasion = holiday && holiday.name !== "جمعه" ? holiday.name : null;
               return (
                 <button
                   key={day}
@@ -369,10 +373,11 @@ export default function JalaliDatePicker({
                   data-day={day}
                   data-active={active ? "true" : undefined}
                   tabIndex={active ? 0 : -1}
-                  className={`jdp-day${cellIso === today ? " is-today" : ""}${col === 6 ? " is-holiday" : ""}`}
+                  className={`jdp-day${cellIso === today ? " is-today" : ""}${col === 6 || occasion ? " is-holiday" : ""}`}
+                  title={occasion ?? undefined}
                   aria-pressed={cellIso === iso}
                   aria-current={cellIso === today ? "date" : undefined}
-                  aria-label={`${formatDate(cellIso)}، ${WEEKDAY_NAMES[col]}`}
+                  aria-label={`${formatDate(cellIso)}، ${WEEKDAY_NAMES[col]}${occasion ? `، تعطیل: ${occasion}` : ""}`}
                   onClick={() => commit(cellIso)}
                 >
                   {fa(day)}

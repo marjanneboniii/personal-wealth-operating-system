@@ -23,12 +23,14 @@ import {
   formatQty,
   formatMoneyWithSign,
   formatShortDate,
+  jalaliWeekdayName,
   toFaDigits,
   toJalali,
   todayIso,
 } from "@/lib/format";
 import { D } from "@/domain/decimal";
 import { useProMode } from "@/components/layout/ProModeProvider";
+import { iranHoliday } from "@/lib/iranHolidays";
 
 export type ClientTxRow = TxRow & {
   fx: EntryFxSnapshot | null;
@@ -76,6 +78,18 @@ function dayLabel(iso: string) {
   return y === CURRENT_JALALI_YEAR ? formatShortDate(iso) : `${formatShortDate(iso)} ${toFaDigits(String(y))}`;
 }
 
+
+/** «چهارشنبه، ۶ آبان» — weekday first, as Persian dates are read — and a red occasion chip on an official holiday. */
+function DayHeading({ iso, label }: { iso: string; label: string }) {
+  const holiday = iranHoliday(iso);
+  return (
+    <h3 className="tx-day" data-holiday={holiday ? "true" : undefined}>
+      <span className="tx-day-wd">{jalaliWeekdayName(iso)}، </span>
+      {label}
+      {holiday && holiday.name !== "جمعه" && <span className="tx-day-occasion">{holiday.name}</span>}
+    </h3>
+  );
+}
 
 type Run = { kind: "run"; key: string; title: string; rows: ClientTxRow[] };
 type ListItem = { kind: "row"; row: ClientTxRow } | Run;
@@ -508,6 +522,10 @@ export default function TransactionsView({
                 <Icon name={e.reviewed ? "undo" : "check"} size={14} />
                 {e.reviewed ? "برگشت به بررسی‌نشده" : "تأیید"}
               </button>
+              <a href={`/transactions/receipt?id=${e.id}`} className="btn btn-soft !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
+                <Icon name="receipt" size={14} />
+                رسید
+              </a>
               {!isVoid && REPEATABLE.has(e.type) && (
                 <a href={`/new?repeat=${e.id}`} className="btn btn-soft !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
                   <Icon name="refresh" size={14} />
@@ -824,7 +842,7 @@ export default function TransactionsView({
           <div className="card tx-list">
             {groups.map((g) => (
               <section key={g.key} aria-label={g.label ?? undefined}>
-                {g.label && <h3 className="tx-day">{g.label}</h3>}
+                {g.label && <DayHeading iso={g.key} label={g.label} />}
                 <ul>{foldRuns(g.key, g.rows).map((item) => (item.kind === "row" ? renderRow(item.row) : renderRun(item)))}</ul>
               </section>
             ))}

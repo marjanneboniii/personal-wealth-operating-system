@@ -444,6 +444,40 @@ export function jalaliToIso(jy: number, jm: number, jd: number): string {
   return `${String(gy).padStart(4, "0")}-${String(gm).padStart(2, "0")}-${String(gd).padStart(2, "0")}`;
 }
 
+/** ISO first day of the Jalali month `iso` falls in (۶ آبان → ۱ آبان). */
+export function jalaliMonthStartIso(iso: string): string {
+  const { y, m } = toJalali(iso);
+  return jalaliToIso(y, m, 1);
+}
+
+/**
+ * The last `months` Jalali months up to and including the month of `today`,
+ * oldest first, each as a half-open ISO range [start, end). Month reports
+ * bucket by these — never by the Gregorian `YYYY-MM-01`, which starts ~10 days
+ * before the Jalali month and filed ۱–۹ آبان under مهر.
+ */
+export function recentJalaliMonths(months: number, today: string = todayIso()): { start: string; end: string }[] {
+  let { y, m } = toJalali(today);
+  m += 1;
+  if (m > 12) {
+    m = 1;
+    y += 1;
+  }
+  let end = jalaliToIso(y, m, 1);
+  const out: { start: string; end: string }[] = [];
+  for (let i = 0; i < Math.max(1, months); i++) {
+    m -= 1;
+    if (m < 1) {
+      m = 12;
+      y -= 1;
+    }
+    const start = jalaliToIso(y, m, 1);
+    out.unshift({ start, end });
+    end = start;
+  }
+  return out;
+}
+
 /** Persian/Arabic digits → Latin digits. */
 export function toLatinDigits(input: string): string {
   return (input ?? "")

@@ -226,6 +226,12 @@ const PATHS: Record<string, JSX.Element> = {
     </>
   ),
   check: <path d="m5.5 12.5 4 4 9-9.5" />,
+  copy: (
+    <>
+      <rect x="8.5" y="8.5" width="11" height="11" rx="2" />
+      <path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2" />
+    </>
+  ),
   alert: (
     <>
       <path d="M12 4 3.8 18.5h16.4z" />
