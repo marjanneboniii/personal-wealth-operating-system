@@ -115,6 +115,12 @@ function ChequeList({ rows, today }: { rows: ChequeRow[]; today: string }) {
             <span className="num plan-amount money-nowrap shrink-0 max-sm:w-full max-sm:ps-11" dir="rtl" style={{ color: issued ? undefined : "var(--positive)" }}>
               {formatMoney(D(c.amountToman).toFixed(0), "IRT")}
             </span>
+            {c.status === "cleared" && c.clearedEntryId && (
+              <Link href={`/transactions/receipt?id=${c.clearedEntryId}`} className="btn btn-soft !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
+                <Icon name="receipt" size={14} />
+                رسید
+              </Link>
+            )}
             <ChequeRowActions id={c.id} status={c.status} clearHref={clearHref(c)} />
           </li>
         );

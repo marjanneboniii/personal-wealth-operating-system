@@ -343,7 +343,7 @@ export default async function AccountsPage() {
       {tradingAccounts.length > 0 && (
         <Section
           title="حساب‌های معاملاتی"
-          hint="پلتفرم‌های پرپ · واریز و برداشت را با «انتقال» از کیف پول ثبت کنید؛ قبل از برداشت، اول حساب را به‌روز کنید."
+          hint="واریز و برداشت: «انتقال» از کیف پول"
         >
           <div className="trade-grid">
             {tradingAccounts.map((t) => (
@@ -353,7 +353,6 @@ export default async function AccountsPage() {
                   accountId: t.accountId,
                   name: t.name,
                   place: t.venue.place,
-                  site: t.venue.site,
                   logo: walletLogoFor(t.venue.place),
                   syncable: !!t.venue.sync,
                   linked: t.linked,

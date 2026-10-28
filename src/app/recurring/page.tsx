@@ -8,6 +8,7 @@ import StatCard from "@/components/money/StatCard";
 import FormattedMoney from "@/components/ui/FormattedMoney";
 import CommitmentMonths from "@/components/recurring/CommitmentMonths";
 import Icon from "@/components/ui/Icon";
+import DateTile from "@/components/ui/DateTile";
 import { PREMIUM_FREQUENCY_LABEL } from "@/features/insurance/service";
 import { D } from "@/domain/decimal";
 import { faCount, formatJalaliIso, formatMoney, formatPct, JALALI_MONTHS, todayIso, toJalali } from "@/lib/format";
@@ -27,6 +28,7 @@ function Row({
   unit,
   href,
   progress,
+  due,
 }: {
   icon: "receipt" | "shield" | "installments";
   title: string;
@@ -37,12 +39,18 @@ function Row({
   href?: string;
   /** Paid share of a loan, drawn as one block per installment. */
   progress?: { paid: number; total: number };
+  /** Next due date: shown as a calendar leaf (red on جمعه / a holiday) in place of the icon. */
+  due?: string | null;
 }) {
   const body = (
     <>
-      <span className="flow-icon" aria-hidden="true">
-        <Icon name={icon} size={15} />
-      </span>
+      {due ? (
+        <DateTile iso={due} size="sm" className="shrink-0" />
+      ) : (
+        <span className="flow-icon" aria-hidden="true">
+          <Icon name={icon} size={15} />
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <p className="acct-title truncate text-[length:var(--fs-sm)] font-semibold">{title}</p>
         <p className="muted truncate text-[length:var(--fs-xs)]" style={metaTone ? { color: metaTone } : undefined}>
@@ -170,7 +178,8 @@ export default async function RecurringPage() {
                       meta={meta.join(" · ")}
                       metaTone={i.overdueCount > 0 ? "var(--warning)" : ending ? "var(--positive)" : undefined}
                       amount={formatMoney(i.nextToman, "IRT")}
-                      unit={`قسط ${formatJalaliIso(i.nextDueDate)}`}
+                      unit="قسط بعدی"
+                      due={i.nextDueDate}
                       href="/debts/installments"
                       progress={{ paid: i.totalCount - i.remainingCount, total: i.totalCount }}
                     />
@@ -187,7 +196,8 @@ export default async function RecurringPage() {
                     key={p.id}
                     icon="shield"
                     title={p.title}
-                    meta={[p.kind, p.nextDate ? `بعدی ${formatJalaliIso(p.nextDate)}` : null, p.endDate ? `تا ${monthOf(p.endDate)}` : null].filter(Boolean).join(" · ")}
+                    meta={[p.kind, p.endDate ? `تا ${monthOf(p.endDate)}` : null].filter(Boolean).join(" · ")}
+                    due={p.nextDate}
                     amount={formatMoney(p.perPaymentToman, "IRT")}
                     unit={PREMIUM_FREQUENCY_LABEL[p.frequency]}
                     href={`/insurance#policy-${p.id}`}

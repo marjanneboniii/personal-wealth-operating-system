@@ -2,6 +2,7 @@ import Link from "next/link";
 import { OBLIGATION_STATE_LABELS, isReceivable, type ObligationState } from "@/features/planning/obligations";
 import { Progress } from "@/components/ui/Card";
 import PlanRowMenu from "@/components/planning/PlanRowMenu";
+import DateTile from "@/components/ui/DateTile";
 import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, formatPct, formatTomanPrimary, daysUntilIso } from "@/lib/format";
 
 export function daysUntil(iso: string) {
@@ -128,8 +129,9 @@ export default function ObligationCard({ d, today, rate }: { d: ObligationCardDa
 
       {!settled && (
         <div className="obligation-card-foot">
+          {d.nextDue && <DateTile iso={d.nextDue.dueDate} size="sm" className="shrink-0" />}
           <p
-            className="min-w-0 text-[length:var(--fs-xs)] leading-5"
+            className="min-w-0 flex-1 text-[length:var(--fs-xs)] leading-5"
             style={{ color: late ? "var(--negative)" : "var(--text-2)" }}
           >
             {d.nextDue ? (

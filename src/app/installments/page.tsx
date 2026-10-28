@@ -285,6 +285,12 @@ export default async function InstallmentsPage() {
             </dl>
             <div className="inst-footer">
               <InstallmentUsdLine fx={r.fx} />
+              {r.fx.isPaid && r.paidEntryId && (
+                <Link href={`/transactions/receipt?id=${r.paidEntryId}`} className="btn btn-soft !min-h-9 !px-3 !py-1.5 text-[length:var(--fs-xs)]">
+                  <Icon name="receipt" size={14} />
+                  رسید
+                </Link>
+              )}
 
               {!r.fx.isPaid && (
                 <div className="inst-actions">
