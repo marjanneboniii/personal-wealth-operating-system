@@ -1069,6 +1069,9 @@
 .mny-bars-col {
   display: grid;
   grid-template-rows: 11rem 1.6rem;
+  /* Chrome's UA sheet gives <button> `align-items: flex-start`, which left the
+     bar pair 10px tall at the top of its 11rem row — every bar a 2px dash. */
+  align-items: stretch;
   min-width: 0;
   border-radius: var(--r-md);
   transition: background var(--motion-micro) var(--ease);
@@ -1427,4 +1430,173 @@
   width: 18px;
   height: 18px;
   flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   «رسید تراکنش» and «برگ تقویم».
+
+   Patterns borrowed, and where:
+     • Kashi «PaymentReceipt» → centred status head with a haloed icon, the
+       amount and its words, a dashed tear line with two side notches like a
+       ticket, label/value rows and equal-width actions.
+     • Kashi «DateTile»       → desk-calendar leaf: coloured strip, large day,
+       weekday, occasion; a holiday turns the strip and the day red.
+   Colours are this app's tokens only, so both follow the dark theme.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.receipt-page { display: grid; gap: var(--s-3); width: 100%; max-width: 28rem; margin-inline: auto; padding-block: var(--s-2) var(--s-8); }
+.receipt-toolbar { display: flex; align-items: center; }
+.receipt {
+  --tone: var(--positive);
+  --tone-soft: var(--positive-soft);
+  position: relative;
+  display: grid;
+  background: var(--surface-elev);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--r-lg) + 4px);
+  box-shadow: var(--shadow-md);
+}
+.receipt[data-status="pending"] { --tone: var(--warning); --tone-soft: var(--warning-soft); }
+.receipt[data-status="failed"] { --tone: var(--negative); --tone-soft: var(--negative-soft); }
+.receipt-head { display: grid; justify-items: center; gap: var(--s-1); padding: var(--s-6) var(--s-5) var(--s-5); text-align: center; }
+.receipt-icon {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--tone);
+  color: var(--on-ink);
+  box-shadow: 0 0 0 8px var(--tone-soft);
+  animation: receipt-pop 320ms var(--ease) both;
+}
+@keyframes receipt-pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.receipt-title { font-size: var(--fs-lg); font-weight: 700; color: var(--text); }
+.receipt-desc { max-width: 22rem; font-size: var(--fs-sm); line-height: 1.7; color: var(--text-2); }
+.receipt-amount {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-top: var(--s-3);
+  /* A 13-digit figure still fits a 320px phone without wrapping. */
+  font-size: clamp(1.5rem, 7.5vw, var(--fs-2xl));
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text);
+}
+.receipt-approx { font-size: 0.6em; font-weight: 600; color: var(--text-3); }
+.receipt[data-status="failed"] .receipt-amount { color: var(--text-3); text-decoration: line-through; }
+.receipt-words { max-width: 22rem; font-size: var(--fs-xs); line-height: 1.8; color: var(--text-3); text-wrap: balance; }
+
+/* The tear line: dashed, with a half-circle notch cut into each side. */
+.receipt-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border-top: 2px dashed var(--border-strong);
+}
+.receipt-body::before,
+.receipt-body::after {
+  content: "";
+  position: absolute;
+  top: calc(-0.7rem - 1px);
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--bg);
+}
+.receipt-body::before { inset-inline-start: calc(-0.7rem - 1px); clip-path: inset(0 50% 0 0); }
+.receipt-body::after { inset-inline-end: calc(-0.7rem - 1px); clip-path: inset(0 0 0 50%); }
+.receipt-rows { display: grid; gap: 0.6rem; min-width: 0; }
+.receipt-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); min-height: 1.75rem; font-size: var(--fs-sm); line-height: 1.6; }
+.receipt-row dt { flex-shrink: 0; color: var(--text-3); }
+.receipt-row dd { min-width: 0; font-weight: 600; color: var(--text); text-align: end; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.receipt-row dd .money-unit { color: var(--text-2); }
+.receipt-code { display: inline-flex; align-items: center; gap: 0.4rem; }
+.receipt-copy {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--sunken);
+  color: var(--text-2);
+  transition: background var(--motion-micro) var(--ease);
+}
+.receipt-copy:hover { background: var(--hover); }
+/* 28px to the eye, a 44px touch target (Apple HIG / WCAG 2.5.5). */
+.receipt-copy::after { content: ""; position: absolute; inset: -8px; }
+.receipt-copy:focus-visible { outline: none; box-shadow: var(--ring); }
+.receipt-note,
+.receipt-tags { padding: 0 var(--s-5) var(--s-3); font-size: var(--fs-xs); }
+.receipt-note { color: var(--negative); font-weight: 600; }
+.receipt-tags { color: var(--text-3); }
+.receipt-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); padding: var(--s-4) var(--s-5) var(--s-5); border-top: 1px solid var(--border); }
+.receipt-actions > * { flex: 1 1 0; justify-content: center; white-space: nowrap; }
+/* Equal-width buttons squeeze their flex children; the icon must keep its size. */
+.receipt-actions svg { flex-shrink: 0; }
+.receipt-after-save { display: inline-flex; margin-top: var(--s-2); }
+@media (max-width: 380px) {
+  .receipt-body { grid-template-columns: minmax(0, 1fr); }
+  .receipt-tile { justify-self: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .receipt-icon { animation: none; }
+}
+@media print {
+  body * { visibility: hidden; }
+  .receipt, .receipt * { visibility: visible; }
+  .receipt { position: absolute; inset-block-start: 0; inset-inline: 0; margin-inline: auto; max-width: 26rem; box-shadow: none; }
+  .receipt-actions, .receipt-copy { display: none; }
+}
+
+/* ── «برگ تقویم» ── */
+.date-tile {
+  --_tone: var(--action);
+  display: inline-grid;
+  justify-items: center;
+  width: 6.5rem;
+  padding-bottom: var(--s-2);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-elev);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  line-height: 1.25;
+}
+.date-tile[data-holiday="true"] { --_tone: var(--negative); }
+.date-tile-head { width: 100%; padding: 0.3rem 0.25rem; background: var(--_tone); color: var(--on-ink); font-size: var(--fs-xs); font-weight: 700; }
+.date-tile-day { margin-top: 0.35rem; font-size: 2.5rem; font-weight: 800; line-height: 1.1; color: var(--text); }
+.date-tile[data-holiday="true"] .date-tile-day { color: var(--negative); }
+.date-tile-wd { font-size: var(--fs-xs); color: var(--text-2); }
+.date-tile-occasion { margin-top: 0.2rem; padding-inline: 0.35rem; font-size: var(--fs-micro); font-weight: 600; color: var(--negative); }
+.date-tile-greg { width: 78%; margin-top: 0.4rem; padding-top: 0.3rem; border-top: 1px dashed var(--border-strong); font-size: var(--fs-micro); color: var(--text-3); }
+.date-tile[data-size="sm"] { width: 4.25rem; padding-bottom: 0.3rem; border-radius: var(--r-md); }
+.date-tile[data-size="sm"] .date-tile-head { padding-block: 0.2rem; font-size: var(--fs-micro); }
+.date-tile[data-size="sm"] .date-tile-day { margin-top: 0.15rem; font-size: 1.6rem; }
+.date-tile[data-size="sm"] .date-tile-wd { font-size: var(--fs-micro); }
+.date-tile[data-size="lg"] { width: 8.5rem; }
+.date-tile[data-size="lg"] .date-tile-head { padding-block: 0.4rem; font-size: var(--fs-sm); }
+.date-tile[data-size="lg"] .date-tile-day { font-size: 3.4rem; }
+
+/* Day headings in the transaction list: weekday, and holidays in red. */
+.tx-day-wd { font-weight: 500; }
+.mny-page .tx-day[data-holiday="true"] { color: var(--negative); }
+.tx-day-occasion {
+  display: inline-block;
+  margin-inline-start: 0.5rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: var(--r-pill);
+  background: var(--negative-soft);
+  color: var(--negative);
+  font-size: var(--fs-micro);
+  font-weight: 600;
 }

@@ -17,10 +17,18 @@ import {
   formatMoney,
   formatPct,
   formatSignedMoney,
+  jalaliMonthStartIso,
   toJalali,
   todayIso,
   usdToIrt,
 } from "@/lib/format";
+
+/** `iso` shifted by `days` calendar days. */
+const addDaysIso = (iso: string, days: number) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -230,8 +238,11 @@ export default async function CashFlowPage() {
   const rate = fx.rate && D(fx.rate).gt(0) ? String(fx.rate) : null;
 
   // KPIs — Toman under the shared frozen-Toman rule. Every tone is taken from
-  // the figure that is printed, never from its USD twin.
-  const monthRow = flow.at(-1);
+  // the figure that is printed, never from its USD twin. «این ماه» is the
+  // current Jalali month only: getCashflow returns months that have entries,
+  // so its last row can be last month, which must not be shown as this one.
+  const thisMonth = jalaliMonthStartIso(todayIso());
+  const monthRow = flow.find((f) => f.month === thisMonth);
   const month = monthToman(monthRow, rate);
   const year = windowToman(flow, rate);
   const monthInflow = month?.inflow ?? monthRow?.inflow ?? "0";
@@ -242,12 +253,13 @@ export default async function CashFlowPage() {
   const savingsRate = D(monthInflow).gt(0) ? D(monthNet).div(monthInflow).mul(100).toFixed(0) : null;
 
   // Last month, for the change pills. Same Toman/USD basis as this month.
-  const prevRow = flow.at(-2);
+  const prevMonth = jalaliMonthStartIso(addDaysIso(thisMonth, -1));
+  const prevRow = flow.find((f) => f.month === prevMonth);
   const prev = monthToman(prevRow, rate);
   const prevInflow = prev?.inflow ?? prevRow?.inflow ?? null;
   const prevOutflow = prev?.outflow ?? prevRow?.outflow ?? null;
-  const monthName = FA_MONTHS[toJalali(monthRow?.month ?? todayIso()).m];
-  const prevName = prevRow ? FA_MONTHS[toJalali(prevRow.month).m] : null;
+  const monthName = FA_MONTHS[toJalali(thisMonth).m];
+  const prevName = FA_MONTHS[toJalali(prevMonth).m];
   const monthEmpty = D(monthInflow).isZero() && D(monthOutflow).isZero();
   /** «↑ ۱۲٪ نسبت به شهریور». `rising` says whether going up is good news. */
   const change = (cur: string, before: string | null, rising: "good" | "bad"): StatDelta | null => {

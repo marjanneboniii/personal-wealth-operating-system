@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { accounts, journalEntries, postings } from "@/db/schema";
 import { D, Decimal } from "@/domain/decimal";
 import type { AccountType } from "@/domain/accounting";
+import { recentJalaliMonths } from "@/lib/format";
 import {
   entryReferencesInactiveRwa,
   isInactiveOrOrphanedRwaAsset,
@@ -684,6 +685,14 @@ export async function getCashflow(months = 6, userId?: string) {
   if (!u && (await hasMultipleUsers())) return [];
   // Two-level aggregation: first per entry (to avoid double-counting snapshot
   // irt_amount when an entry has multiple postings), then per month.
+  // Months are JALALI months: `month` is the ISO first day of the Jalali month
+  // (1405/08/01 → 2026-10-23). Postgres' date_trunc('month') is Gregorian and
+  // put ۱–۹ آبان into the «مهر» bucket, so آبان's spending never showed.
+  const buckets = recentJalaliMonths(months);
+  const bucketValues = sql.join(
+    buckets.map((b) => sql`(${b.start}::date, ${b.end}::date)`),
+    sql`, `,
+  );
   return rows<{
     month: string;
     inflow: string;
@@ -697,9 +706,10 @@ export async function getCashflow(months = 6, userId?: string) {
     inflowEntriesSnap: number;
     outflowEntriesSnap: number;
   }>(sql`
-    with per_entry as (
+    with buckets(month_start, month_end) as (values ${bucketValues}),
+    per_entry as (
       select je.id,
-             date_trunc('month', je.entry_date)::date as month_trunc,
+             b.month_start as month_trunc,
              coalesce(sum(case when a.type = 'income' then -p.base_value else 0 end), 0) as inflow_usd,
              coalesce(sum(case when a.type = 'expense'
                                 and je.type not in ('debt_repayment')
@@ -712,11 +722,11 @@ export async function getCashflow(months = 6, userId?: string) {
         join accounts a on a.id = p.account_id
         left join expense_categories ec on ec.id = je.category_id
         left join entry_fx_snapshots s on s.entry_id = je.id
+        join buckets b on je.entry_date >= b.month_start and je.entry_date < b.month_end
       where je.status = 'posted'
         and not ${isInvestmentResultLeg("a", "je.type")}
         ${u ? sql`and je.user_id = ${u}` : sql``}
-        and je.entry_date >= (current_date - (${months} || ' months')::interval)
-      group by je.id, je.entry_date, s.irt_amount, s.usd_amount, je.type
+      group by je.id, b.month_start, s.irt_amount, s.usd_amount, je.type
     ),
     -- The snapshot freezes the Toman of the WHOLE entry (e.g. a 25M-Toman crypto
     -- buy), but only its expense/income legs are cash flow (e.g. the buy's
@@ -730,7 +740,7 @@ export async function getCashflow(months = 6, userId?: string) {
              case when snap_usd > 0 then irt_amount * outflow_usd / snap_usd end as outflow_irt
       from per_entry
     )
-    select to_char(month_trunc, 'YYYY-MM-01') as month,
+    select to_char(month_trunc, 'YYYY-MM-DD') as month,
            coalesce(sum(inflow_usd), 0)::text as inflow,
            coalesce(sum(outflow_usd), 0)::text as outflow,
            -- Toman is canonical from snapshot, only when that entry contributed to inflow/outflow
@@ -776,6 +786,8 @@ export type TxFilter = {
    * keeps them; the ledger / financial-records views still show them.
    */
   includeVoid?: boolean;
+  /** One entry by id — the receipt page. */
+  id?: string;
 };
 
 export type TxRow = LedgerRow & {
@@ -833,6 +845,7 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
       left join expense_categories epc on epc.id = ec.parent_id
     where 1 = 1
       ${u ? sql`and je.user_id = ${u}` : sql``}
+      ${filter.id ? sql`and je.id = ${filter.id}` : sql``}
       ${type ? sql`and je.type = ${type}` : sql``}
       ${from ? sql`and je.entry_date >= ${from}` : sql``}
       ${to ? sql`and je.entry_date <= ${to}` : sql``}
@@ -861,6 +874,22 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
     ${orderBy}
     limit ${safeLimit}
   `);
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * One transaction for its receipt, voided ones included (a receipt of a
+ * cancelled entry says so). Same repository and tenant guard as the list.
+ */
+export async function getTransactionById(id: string, userId?: string): Promise<(TxRow & { reference: string | null; createdAt: string | null }) | null> {
+  if (!UUID.test(id)) return null;
+  const [row] = await getTransactions({ id, includeVoid: true, limit: 1, userId });
+  if (!row) return null;
+  const [extra] = await rows<{ reference: string | null; createdAt: string | null }>(sql`
+    select je.reference, to_char(je.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as "createdAt" from journal_entries je where je.id = ${id}
+  `);
+  return { ...row, reference: extra?.reference ?? null, createdAt: extra?.createdAt ?? null };
 }
 
 export async function countUnreviewed(userId?: string): Promise<number> {

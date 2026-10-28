@@ -1355,6 +1355,12 @@ export default function TransactionForm({
       )}
 
       <FormStatus state={state} />
+      {state?.ok && state.entryId && (
+        <a href={`/transactions/receipt?id=${state.entryId}`} className="btn btn-soft receipt-after-save">
+          <Icon name="receipt" size={16} />
+          مشاهدهٔ رسید
+        </a>
+      )}
     </form>
   );
 }

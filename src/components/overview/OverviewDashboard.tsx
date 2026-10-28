@@ -24,8 +24,10 @@ import {
   formatShortDate,
   formatSignedMoney,
   inflowTone,
+  jalaliMonthStartIso,
   outflowTone,
   toJalali,
+  todayIso,
   toneColor,
   trendArrow,
   trendTone,
@@ -164,7 +166,9 @@ export default async function OverviewDashboard() {
   // This month — Toman under the shared frozen-Toman rule, and every colour is
   // taken from the figure that is actually printed (a Toman gain is never red
   // because its USD equivalent fell).
-  const monthRow = flow.at(-1);
+  // The current Jalali month only — the last row with entries may be last month.
+  const thisMonth = jalaliMonthStartIso(todayIso());
+  const monthRow = flow.find((f) => f.month === thisMonth);
   const month = monthToman(monthRow, rate);
   const monthInflow = month ? formatMoney(month.inflow, "IRT") : formatMoney(monthRow?.inflow ?? 0);
   const monthOutflow = month ? formatMoney(month.outflow, "IRT") : formatMoney(monthRow?.outflow ?? 0);
