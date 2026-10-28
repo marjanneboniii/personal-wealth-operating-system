@@ -70,10 +70,17 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       };
       // Per-user UI vocabulary preference — resolved server-side per request
       // (Directive §2). Fails safe to the SIMPLE view for anonymous users.
-      proMode = await getUserProMode((user as { id?: string }).id);
       // The first-run tour: after setup, until finished or skipped (per account).
+      // The three reads are independent, so they run side by side instead of
+      // costing three database round trips in a row on every page.
       const uid = (user as { id?: string }).id;
-      if (uid && !(await hasSeenTour(uid))) showTour = (await getSetupState(uid)).completed;
+      const [pro, seenTour, setup] = await Promise.all([
+        getUserProMode(uid),
+        hasSeenTour(uid),
+        uid ? getSetupState(uid) : Promise.resolve(null),
+      ]);
+      proMode = pro;
+      if (uid && !seenTour) showTour = !!setup?.completed;
     }
     publicHome = (await resolveHomeMode(user)) === "landing";
   } catch {

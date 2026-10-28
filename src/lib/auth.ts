@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions, users } from "@/db/schema";
@@ -105,13 +106,41 @@ export async function getSessionUser(token: string) {
   return row.user;
 }
 
+/*
+ * ONE identity lookup per request. A page used to resolve the user in the
+ * layout, in ensureAuth() and again inside every query that was not handed a
+ * userId — 8 to 10 `auth.getUser()` round trips to Supabase Auth (plus a
+ * profile read each) for /cash-flow or /reports, most of them in series.
+ *
+ * React's cache() memoises for the current render only. The key is the
+ * session cookie itself, so a login or logout that changes the cookie inside
+ * the same request can never be answered with the identity from before it.
+ */
+const profileForSupabaseCookies = cache((_cookieKey: string) => getSupabaseProfile());
+const userForSessionToken = cache((token: string) => getSessionUser(token));
+
+async function supabaseCookieKey(): Promise<string | null> {
+  try {
+    return (await cookies())
+      .getAll()
+      .filter((c) => c.name.startsWith("sb-"))
+      .map((c) => `${c.name}=${c.value}`)
+      .join(";");
+  } catch {
+    return null; // Outside a request (scripts, tests): no memoisation.
+  }
+}
+
 export async function getCurrentUser() {
-  if (hasSupabaseConfig()) return getSupabaseProfile();
+  if (hasSupabaseConfig()) {
+    const key = await supabaseCookieKey();
+    return key === null ? getSupabaseProfile() : profileForSupabaseCookies(key);
+  }
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE)?.value;
     if (!token) return null;
-    return await getSessionUser(token);
+    return await userForSessionToken(token);
   } catch (e: any) {
     if (e?.message?.includes("Authentication/Database error")) {
       throw e;
