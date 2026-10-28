@@ -32,6 +32,7 @@ import {
   trendArrow,
   trendTone,
   usdToIrt,
+  daysUntilIso,
 } from "@/lib/format";
 import { getLatestUsdIrtRateForUser } from "@/lib/fx";
 import { listDueIncomePlans, type IncomePlan } from "@/features/income/service";
@@ -54,7 +55,7 @@ const QUICK = [
 const FA_MONTHS = ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
 
 function daysUntil(iso: string) {
-  return Math.ceil((new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
+  return daysUntilIso(iso);
 }
 
 type CashflowRows = Awaited<ReturnType<typeof getCashflow>>;
@@ -152,7 +153,7 @@ export default async function OverviewDashboard() {
   const series = [...snaps]
     .reverse()
     .map((s) => ({ date: s.asOf, value: Number(s.netWorth) }))
-    .concat([{ date: new Date().toISOString().slice(0, 10), value: Number(nw.netWorth) }]);
+    .concat([{ date: todayIso(), value: Number(nw.netWorth) }]);
 
   // Snapshots are stored in USD, so the change is stated as a DOLLAR change,
   // next to the dollar equivalent — never glued onto the Toman headline.

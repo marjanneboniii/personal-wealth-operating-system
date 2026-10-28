@@ -51,7 +51,7 @@ mock.module("@/features/planning/service", {
 });
 
 const iso = (dayOffset: number) =>
-  new Date(Date.now() + dayOffset * 86_400_000).toISOString().slice(0, 10);
+  new Date(Date.parse(`${todayIso()}T00:00:00Z`) + dayOffset * 86_400_000).toISOString().slice(0, 10);
 
 const obligation = (id: string, dayOffset: number, amountToman: string) => ({
   id,

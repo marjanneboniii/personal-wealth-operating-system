@@ -1,4 +1,5 @@
 import { createReadySession } from "./support/ready-session";
+import { todayIso } from "../src/lib/format";
 /**
  * خرید و فروش دارایی — end to end through `createTransactionAction`.
  *
@@ -53,7 +54,8 @@ const modulesReady = (async () => {
   ({ TOMAN_ONLY_MESSAGE, MARKET_TOMAN_MESSAGE } = await import("../src/features/trade/rules"));
 })();
 
-const TODAY = new Date().toISOString().slice(0,10);
+// The app's «امروز» is the Tehran day (see todayIso); a UTC date is yesterday after 20:30 UTC.
+const TODAY = todayIso();
 
 function tradeForm(fields: Record<string, string>) {
   const fd = new FormData();

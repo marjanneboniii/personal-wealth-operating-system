@@ -7,6 +7,7 @@
 import { db } from "@/db";
 import { exchangeRates, settings, userFxSettings } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
+import { todayIso } from "@/lib/format";
 
 export type FxSnapshot = {
   rate: string; // IRT per 1 USD, e.g. "190000"
@@ -83,7 +84,7 @@ export async function getLatestUsdIrtRateForUser(
         const next = last && !canUpdate ? new Date(last.getTime() + 24 * 60 * 60 * 1000).toISOString() : null;
         return {
           rate: urow.currentRate.toString(),
-          effectiveDate: new Date().toISOString().slice(0, 10),
+          effectiveDate: todayIso(),
           source: "user_settings",
           lastUpdatedAt: last?.toISOString() ?? null,
           canUpdate,
@@ -115,12 +116,12 @@ export async function getLatestUsdIrtRateForUser(
   try {
     const [s] = await dbClient.select().from(settings).where(eq(settings.key, "irt_rate")).limit(1);
     if (s?.value) {
-      return { rate: s.value, effectiveDate: new Date().toISOString().slice(0, 10), source: "settings" };
+      return { rate: s.value, effectiveDate: todayIso(), source: "settings" };
     }
   } catch {}
 
   // Display placeholder — `source: "fallback"` makes every write refuse it.
-  return { rate: FALLBACK_DISPLAY_RATE, effectiveDate: new Date().toISOString().slice(0, 10), source: "fallback" };
+  return { rate: FALLBACK_DISPLAY_RATE, effectiveDate: todayIso(), source: "fallback" };
 }
 
 /**

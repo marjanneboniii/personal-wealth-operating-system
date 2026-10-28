@@ -39,10 +39,10 @@ function parseMonthKey(raw: string | string[] | undefined): { y: number; m: numb
   return y >= 1300 && y <= 1500 && m >= 1 && m <= 12 ? { y, m } : null;
 }
 
-export default async function ReportsPage({ searchParams }: { searchParams: SearchParams }) {
+export default async function ReportsPage({ searchParams }: { searchParams?: SearchParams } = {}) {
   await ensureAuth();
   await seedIfEmpty();
-  const sp = await searchParams;
+  const sp = (await searchParams) ?? {};
   const today = todayIso();
   const nowJ = toJalali(today);
   // The month on show: ?ماه from the picker, never after this month.

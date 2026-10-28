@@ -413,6 +413,16 @@ export function todayIso(now: Date = new Date()): string {
 }
 
 /**
+ * Whole calendar days from Tehran's today to `iso` (0 = today, 1 = tomorrow,
+ * −1 = yesterday). Counting from the clock instead (`iso − Date.now()`,
+ * rounded up) made today+90 read 91 just after midnight and dropped it from
+ * a 90-day window.
+ */
+export function daysUntilIso(iso: string, today: string = todayIso()): number {
+  return Math.round((Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+}
+
+/**
  * The Tehran calendar day of a Postgres `timestamptz::text`
  * («2026-10-28 21:12:33.1+00»), or null when it cannot be read.
  */

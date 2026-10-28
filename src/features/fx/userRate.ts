@@ -33,12 +33,12 @@ export function invalidateUserFxRateCache(userId?: string | null) {
 
 export async function getUserFxRate(userId: string | null | undefined): Promise<UserFxSnapshot> {
   const now = new Date();
-  const todayIso = now.toISOString().slice(0, 10);
+  const today = todayIso(now);
 
   if (!userId) {
     return {
       rate: DEFAULT_RATE,
-      effectiveDate: todayIso,
+      effectiveDate: today,
       source: "default",
       lastUpdatedAt: null,
       canUpdate: true,
@@ -60,7 +60,7 @@ export async function getUserFxRate(userId: string | null | undefined): Promise<
       const next = last && !canUpdate ? new Date(last.getTime() + RATE_UPDATE_INTERVAL_MS).toISOString() : null;
       const snapshot: UserFxSnapshot = {
         rate: row.currentRate.toString(),
-        effectiveDate: todayIso,
+        effectiveDate: today,
         source: "user_settings",
         lastUpdatedAt: last?.toISOString() ?? null,
         canUpdate,
@@ -75,7 +75,7 @@ export async function getUserFxRate(userId: string | null | undefined): Promise<
   // indistinguishable from a real rate. The market refresh creates the row.
   const fallbackSnapshot: UserFxSnapshot = {
     rate: DEFAULT_RATE,
-    effectiveDate: todayIso,
+    effectiveDate: today,
     source: "default",
     lastUpdatedAt: null,
     canUpdate: true,
@@ -186,7 +186,7 @@ export async function refreshUserFxRateFromMarket(
   invalidateUserFxRateCache(userId);
   return {
     rate: quote.rate,
-    effectiveDate: new Date().toISOString().slice(0, 10),
+    effectiveDate: todayIso(),
     source: "market",
     lastUpdatedAt: quote.observedAt,
     canUpdate: false,

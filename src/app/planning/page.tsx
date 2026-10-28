@@ -30,6 +30,7 @@ import {
   formatTomanPrimary,
   sumToman,
   todayIso,
+  daysUntilIso,
 } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
@@ -40,7 +41,7 @@ export const metadata = { title: "پیش‌بینی مالی" };
 const FA_MONTHS = ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
 
 function daysUntil(iso: string) {
-  return Math.ceil((new Date(iso + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
+  return daysUntilIso(iso);
 }
 
 /**
