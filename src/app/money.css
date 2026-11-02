@@ -1550,8 +1550,9 @@
 @media (prefers-reduced-motion: reduce) {
   .receipt-icon { animation: none; }
 }
+/* Scoped to the receipt page: unscoped, «body *» blanked every other page's print. */
 @media print {
-  body * { visibility: hidden; }
+  body:has(.receipt) * { visibility: hidden; }
   .receipt, .receipt * { visibility: visible; }
   .receipt { position: absolute; inset-block-start: 0; inset-inline: 0; margin-inline: auto; max-width: 26rem; box-shadow: none; }
   .receipt-actions, .receipt-copy { display: none; }
@@ -1862,9 +1863,21 @@ a.month-picker-cell:hover { background: var(--hover); }
   .mrep-table th:nth-child(3), .mrep-table td:nth-child(3) { display: none; }
 }
 
+/* The off-screen copy «دانلود PDF» draws: A4 width and the print layout,
+   whatever the screen (these beat the phone rules above). */
+.mrep-capture { position: fixed; top: 0; left: -10000px; width: 794px; pointer-events: none; }
+.mrep[data-capture] { width: 794px; padding: 0; border: 0; border-radius: 0; box-shadow: none; }
+.mrep[data-capture] .mrep-head { grid-template-columns: auto 1fr auto; text-align: initial; }
+.mrep[data-capture] .mrep-brand { justify-self: start; }
+.mrep[data-capture] .mrep-printed { text-align: end; }
+.mrep[data-capture] .mrep-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mrep[data-capture] .mrep-table th:nth-child(3), .mrep[data-capture] .mrep-table td:nth-child(3) { display: table-cell; }
+html[data-privacy] .mrep[data-capture] :is(.num, .money-nowrap) { filter: none !important; }
+
 @media print {
   @page { size: A4; margin: 12mm 11mm; }
   html:has(.mrep), body:has(.mrep) { background: #fff !important; }
+  body:has(.mrep) > :not(.shell-root),
   body:has(.mrep) .shell-root > :not(main),
   body:has(.mrep) main > :not(.mrep-page),
   .mrep-page > :not(.mrep) { display: none !important; }
@@ -1873,6 +1886,8 @@ a.month-picker-cell:hover { background: var(--hover); }
   /* Block, not grid: a grid split across pages lets the footer ride over the table's last row. */
   .mrep { display: block; padding: 0; border: 0; border-radius: 0; box-shadow: none; font-size: 9.5pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .mrep > * + * { margin-top: 1.4rem; }
+  .mrep-section { display: block; }
+  .mrep-section > * + * { margin-top: 0.6rem; }
   .mrep-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
   .mrep-head { grid-template-columns: auto 1fr auto !important; text-align: initial; }
   .mrep-table th:nth-child(3), .mrep-table td:nth-child(3) { display: table-cell !important; }

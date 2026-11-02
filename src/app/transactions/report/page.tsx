@@ -137,10 +137,10 @@ export default async function MonthlyReportPage({ searchParams }: { searchParams
             </Link>
           )}
         </nav>
-        <ReportPrint />
+        <ReportPrint targetId="mrep-sheet" fileName={`گزارش ماهانه ${monthName(month)}`} />
       </div>
 
-      <article className="mrep" aria-labelledby="mrep-title">
+      <article id="mrep-sheet" className="mrep" aria-labelledby="mrep-title">
         <header className="mrep-head">
           <div className="mrep-brand">
             <BrandMark size={34} framed />
