@@ -4,9 +4,11 @@
  * ثبت هزینه — tap, tap, type the amount:
  *
  *   مبلغ        the one typed field, large and centred, with preset amounts
- *   برای چه؟    coloured group tiles (مسکن، خودرو، خوراک…); a group opens its
- *               subcategories as tiles in the same colour. Recent picks first.
- *               The last tile, «+ دسته جدید», opens NewCategorySheet.
+ *   برای چه؟    a search over every subcategory, then coloured group tiles
+ *               (خوراک، مسکن، خودرو…); a group opens its subcategories as
+ *               tiles in the same colour. Recent picks first. The last tile,
+ *               «+ دسته جدید», opens NewCategorySheet. No tile shows an
+ *               amount — a category says what, never how much.
  *   پرداخت از   the Toman bank and cash accounts, as logo tiles with balance
  *   کی؟         امروز · دیروز · پریروز · تقویم
  *   شرح هزینه   optional; left empty, the description is filled in from the
@@ -25,7 +27,7 @@ import { formatMoney } from "@/lib/format";
 import { D } from "@/domain/decimal";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
-import NewCategorySheet, { NewCategoryTile } from "./NewCategorySheet";
+import NewCategorySheet, { NewCategoryTile, norm } from "./NewCategorySheet";
 import { AccountTiles, AmountHero, DateChips, EXPENSE_GROUP_LOOK, FALLBACK_LOOK, Presets, Tile, TxCard } from "./txKit";
 import type { AccountOption, CategoryGroupOption } from "./TransactionForm";
 
@@ -40,6 +42,8 @@ const PRESET_AMOUNTS = [
 
 /** Recent picks fill at most one row of tiles on a phone. */
 const RECENT_LIMIT = 6;
+/** Search results: enough to scan, few enough to stay on one screen. */
+const SEARCH_LIMIT = 12;
 
 type Leaf = CategoryGroupOption["children"][number] & { group: CategoryGroupOption };
 
@@ -92,6 +96,7 @@ export default function ExpenseFields({
   const [browsing, setBrowsing] = useState(!categoryId);
   const [openGroupId, setOpenGroupId] = useState(parentId);
   const [adding, setAdding] = useState(false);
+  const [query, setQuery] = useState("");
 
   const leaves = useMemo<Leaf[]>(() => groups.flatMap((g) => g.children.map((c) => ({ ...c, group: g }))), [groups]);
   const leafById = useMemo(() => new Map(leaves.map((l) => [l.id, l])), [leaves]);
@@ -101,11 +106,23 @@ export default function ExpenseFields({
     .filter((l): l is Leaf => !!l)
     .slice(0, RECENT_LIMIT);
   const openGroup = groups.find((g) => g.id === openGroupId) ?? null;
+  // A leaf matches on its own name first, then on its group or its note
+  // («شامپو» finds «بهداشت شخصی و شوینده‌ها»).
+  const q = norm(query);
+  const matches = q
+    ? leaves
+        .map((l) => ({ l, rank: norm(l.name).includes(q) ? 0 : norm(`${l.group.name} ${l.description ?? ""}`).includes(q) ? 1 : 2 }))
+        .filter((m) => m.rank < 2)
+        .sort((a, b) => a.rank - b.rank)
+        .slice(0, SEARCH_LIMIT)
+        .map((m) => m.l)
+    : [];
 
   const pick = (leaf: Leaf) => {
     onPick(leaf.group.id, leaf.id);
     setOpenGroupId(leaf.group.id);
     setBrowsing(false);
+    setQuery("");
   };
 
   const amountValue = amount ? D(amount) : null;
@@ -194,30 +211,67 @@ export default function ExpenseFields({
           </>
         ) : (
           <>
-            {recent.length > 0 && (
-              <>
-                <p className="txr-sub">پرکاربرد شما</p>
-                <div className="txr-tiles" role="radiogroup" aria-label="دسته‌های پرکاربرد">
-                  {recent.map((l) => (
-                    <Tile key={l.id} on={l.id === categoryId} onClick={() => pick(l)} label={l.name} icon={lookOf(l.group).icon} color={lookOf(l.group).color} />
+            <label className="catalog-search">
+              <Icon name="search" size={18} />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="جست‌وجو: بنزین، شارژ، کراتین…"
+                aria-label="جست‌وجوی دستهٔ هزینه"
+              />
+            </label>
+            {q ? (
+              matches.length > 0 ? (
+                <div className="txr-tiles" role="radiogroup" aria-label="نتیجهٔ جست‌وجو">
+                  {matches.map((l) => (
+                    <Tile
+                      key={l.id}
+                      on={l.id === categoryId}
+                      onClick={() => pick(l)}
+                      label={l.name}
+                      meta={l.group.name}
+                      icon={lookOf(l.group).icon}
+                      color={lookOf(l.group).color}
+                    />
                   ))}
                 </div>
-                <p className="txr-sub">همه گروه‌ها</p>
+              ) : (
+                <p className="txr-empty">
+                  دسته‌ای با این نام نیست؛ یک گروه را باز کنید و «+ دسته جدید» را بزنید.{" "}
+                  <button type="button" className="txr-link" onClick={() => setQuery("")}>
+                    همه گروه‌ها
+                  </button>
+                </p>
+              )
+            ) : (
+              <>
+                {recent.length > 0 && (
+                  <>
+                    <p className="txr-sub">پرکاربرد شما</p>
+                    <div className="txr-tiles" role="radiogroup" aria-label="دسته‌های پرکاربرد">
+                      {recent.map((l) => (
+                        <Tile key={l.id} on={l.id === categoryId} onClick={() => pick(l)} label={l.name} icon={lookOf(l.group).icon} color={lookOf(l.group).color} />
+                      ))}
+                    </div>
+                    <p className="txr-sub">همه گروه‌ها</p>
+                  </>
+                )}
+                <div className="txr-tiles" role="list" aria-label="گروه‌های هزینه">
+                  {groups.map((g) => (
+                    <Tile
+                      key={g.id}
+                      role="button"
+                      on={g.id === selected?.group.id}
+                      onClick={() => setOpenGroupId(g.id)}
+                      label={g.name}
+                      icon={lookOf(g).icon}
+                      color={lookOf(g).color}
+                    />
+                  ))}
+                </div>
               </>
             )}
-            <div className="txr-tiles" role="list" aria-label="گروه‌های هزینه">
-              {groups.map((g) => (
-                <Tile
-                  key={g.id}
-                  role="button"
-                  on={g.id === selected?.group.id}
-                  onClick={() => setOpenGroupId(g.id)}
-                  label={g.name}
-                  icon={lookOf(g).icon}
-                  color={lookOf(g).color}
-                />
-              ))}
-            </div>
           </>
         )}
 

@@ -1768,3 +1768,116 @@ a.month-picker-cell:hover { background: var(--hover); }
 .trade-pnl > input { flex: 1; min-width: 0; }
 .trade-pnl > select { width: 6rem; }
 .trade-unlink { justify-self: start; min-height: 2.25rem; font-size: var(--fs-micro); color: var(--text-3); text-decoration: underline; }
+
+/* ── «گزارش ماهانه» — /transactions/report ──
+   An A4 sheet: on screen it sits on the page as paper (light in both themes,
+   since it is a document), in print it is the only thing on the page. */
+.mrep-page { display: grid; gap: var(--s-3); width: 100%; max-width: 52rem; margin-inline: auto; padding-block: var(--s-2) var(--s-8); }
+.mrep-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.mrep-months { display: inline-flex; align-items: center; gap: var(--s-1); }
+.mrep-months b { min-width: 7.5rem; text-align: center; font-size: var(--fs-sm); }
+.mrep-months [data-disabled] { opacity: 0.35; }
+
+.mrep {
+  --p-ink: #1a2b3b; --p-ink-2: #4a5b6b; --p-ink-3: #7a8896; --p-line: #e3e7eb; --p-soft: #f4f6f8;
+  --p-pos: #047857; --p-neg: #b91c1c; --p-bar: #1a2b3b;
+  display: grid; gap: 1.5rem;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: #fff;
+  color: var(--p-ink);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+.mrep .money-unit { color: var(--p-ink-3); font-size: 0.85em; margin-inline-start: 0.2em; }
+.mrep-muted { color: var(--p-ink-3); }
+/* Grid items default to their content's width; a long row must wrap, never widen the sheet. */
+.mrep-page > *, .mrep > *, .mrep-cols > * { min-width: 0; }
+.mrep-head { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 1rem; padding-bottom: 1.25rem; border-bottom: 2px solid var(--p-ink); }
+.mrep-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.95rem; }
+.mrep-heading { text-align: center; }
+.mrep-kicker { color: var(--p-ink-2); font-weight: 600; }
+.mrep-heading h1 { margin: 0.1rem 0; font-size: 1.75rem; font-weight: 800; line-height: 1.3; }
+.mrep-printed { font-size: 0.72rem; text-align: end; }
+
+.mrep-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
+.mrep-kpi { display: grid; gap: 0.15rem; padding: 0.85rem 1rem; border: 1px solid var(--p-line); border-radius: 12px; background: var(--p-soft); min-width: 0; }
+.mrep-kpi > span { color: var(--p-ink-2); font-size: 0.75rem; font-weight: 600; }
+.mrep-kpi > b { font-size: 1.15rem; font-weight: 800; overflow-wrap: anywhere; }
+.mrep-kpi > small { color: var(--p-ink-3); font-size: 0.7rem; }
+.mrep-kpi[data-tone="pos"] { border-top: 3px solid var(--p-pos); }
+.mrep-kpi[data-tone="pos"] > b { color: var(--p-pos); }
+.mrep-kpi[data-tone="neg"] { border-top: 3px solid var(--p-neg); }
+.mrep-kpi[data-tone="neg"] > b { color: var(--p-neg); }
+.mrep-sign { margin-inline-end: 0.1em; }
+.mrep-aside { display: flex; flex-wrap: wrap; gap: 0.35rem 1.5rem; margin: -0.5rem 0 0; color: var(--p-ink-2); font-size: 0.75rem; }
+.mrep-empty { padding: 2.5rem 1rem; text-align: center; color: var(--p-ink-3); border: 1px dashed var(--p-line); border-radius: 12px; }
+
+.mrep-section { display: grid; align-content: start; gap: 0.6rem; }
+.mrep-section h2 { margin: 0; padding-bottom: 0.35rem; border-bottom: 1px solid var(--p-line); font-size: 0.95rem; font-weight: 700; }
+.mrep-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.5rem; }
+
+.mrep-shares { display: grid; gap: 0.55rem; margin: 0; padding: 0; list-style: none; }
+.mrep-share { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: baseline; gap: 0.25rem 0.75rem; }
+.mrep-share-name { font-weight: 600; }
+.mrep-share-pct { color: var(--p-ink-3); font-size: 0.75rem; }
+.mrep-share-amount { font-weight: 700; }
+.mrep-bar { grid-column: 1 / -1; height: 6px; border-radius: 99px; background: var(--p-soft); overflow: hidden; }
+.mrep-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--p-bar); }
+.mrep-leaves { margin: 0.15rem 0 0; color: var(--p-ink-3); font-size: 0.72rem; }
+
+.mrep-days { display: flex; align-items: flex-end; gap: 2px; height: 7rem; padding-top: 0.25rem; }
+.mrep-day { display: grid; grid-template-rows: 1fr auto; flex: 1; height: 100%; min-width: 0; }
+.mrep-day > i { align-self: end; height: calc(var(--h) * 100%); min-height: 1px; border-radius: 3px 3px 0 0; background: var(--p-bar); opacity: calc(0.35 + var(--h) * 0.65); }
+.mrep-day > small { height: 1rem; color: var(--p-ink-3); font-size: 0.62rem; text-align: center; }
+
+.mrep-top { display: grid; gap: 0.45rem; margin: 0; padding: 0; list-style: none; counter-reset: top; }
+.mrep-top li { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; padding-bottom: 0.45rem; border-bottom: 1px dashed var(--p-line); }
+.mrep-top li:last-child { border-bottom: 0; padding-bottom: 0; }
+.mrep-top-text { display: grid; min-width: 0; }
+.mrep-top-text b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrep-top-text small { color: var(--p-ink-3); font-size: 0.7rem; }
+.mrep-top .money-nowrap { font-weight: 700; color: var(--p-neg); }
+
+.mrep-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.mrep-table th { padding: 0.45rem 0.5rem; background: var(--p-soft); color: var(--p-ink-2); font-weight: 600; text-align: start; border-bottom: 1px solid var(--p-line); }
+.mrep-table td { padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--p-line); vertical-align: top; }
+.mrep-table td:first-child { white-space: nowrap; color: var(--p-ink-2); }
+.mrep-table tr { break-inside: avoid; }
+.mrep-amount { text-align: end !important; white-space: nowrap; font-weight: 600; }
+.mrep-amount [data-sign="1"] { color: var(--p-pos); }
+.mrep-amount [data-sign="-1"] { color: var(--p-neg); }
+.mrep-type { display: block; color: var(--p-ink-3); font-size: 0.66rem; }
+
+.mrep-foot { display: grid; gap: 0.25rem; padding-top: 0.85rem; border-top: 1px solid var(--p-line); color: var(--p-ink-3); font-size: 0.68rem; }
+.mrep-foot p { margin: 0; }
+
+@media (max-width: 640px) {
+  .mrep-head { grid-template-columns: 1fr; text-align: center; }
+  .mrep-brand { justify-self: center; }
+  .mrep-printed { text-align: center; }
+  .mrep-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mrep-table th:nth-child(3), .mrep-table td:nth-child(3) { display: none; }
+}
+
+@media print {
+  @page { size: A4; margin: 12mm 11mm; }
+  html:has(.mrep), body:has(.mrep) { background: #fff !important; }
+  body:has(.mrep) .shell-root > :not(main),
+  body:has(.mrep) main > :not(.mrep-page),
+  .mrep-page > :not(.mrep) { display: none !important; }
+  body:has(.mrep) main { max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  .mrep-page { max-width: none; padding: 0; }
+  /* Block, not grid: a grid split across pages lets the footer ride over the table's last row. */
+  .mrep { display: block; padding: 0; border: 0; border-radius: 0; box-shadow: none; font-size: 9.5pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .mrep > * + * { margin-top: 1.4rem; }
+  .mrep-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .mrep-head { grid-template-columns: auto 1fr auto !important; text-align: initial; }
+  .mrep-table th:nth-child(3), .mrep-table td:nth-child(3) { display: table-cell !important; }
+  .mrep-table thead { display: table-header-group; }
+  .mrep-keep, .mrep-kpis, .mrep-section h2 { break-inside: avoid; }
+  .mrep-section h2 { break-after: avoid; }
+  html[data-privacy] .mrep :is(.num, .money-nowrap) { filter: none !important; }
+}

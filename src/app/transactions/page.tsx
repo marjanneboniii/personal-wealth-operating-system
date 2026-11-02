@@ -140,6 +140,10 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         active="/transactions"
         actions={
           <>
+            <Link href="/transactions/report" className="btn btn-ghost">
+              <Icon name="download" size={16} />
+              گزارش<span className="mny-hide-phone"> ماهانه</span> PDF
+            </Link>
             <Link href="/transactions/import" className="btn btn-ghost">
               <Icon name="import" size={16} />
               <span className="mny-hide-phone">اتصال </span>پیامک

@@ -22,6 +22,7 @@ import {
   EXPENSE_CATEGORY_CATALOG,
   EXPENSE_CATEGORY_LEAVES,
   EXPENSE_CATEGORY_NODE_COUNT,
+  RETIRED_EXPENSE_CODES,
 } from "../src/features/categories/catalog";
 import {
   addCustomCategory,
@@ -91,12 +92,16 @@ async function fixture() {
 
 /* ------------------------------------------------------------------ */
 
-test("standard catalog — 16 parents, hierarchical, unique codes/names, non-cash flag", async () => {
+test("standard catalog — 17 parents, hierarchical, unique codes/names, non-cash flag", async () => {
   await resetDb();
   await ensureCategoryCatalog();
 
   // Static taxonomy invariants
-  assert.equal(EXPENSE_CATEGORY_CATALOG.length, 16, "16 top-level categories");
+  assert.equal(EXPENSE_CATEGORY_CATALOG.length, 17, "17 top-level categories");
+  assert.ok(
+    EXPENSE_CATEGORY_LEAVES.every((l) => !/[0-9۰-۹]{3}|تومان/.test(l.name)),
+    "no category name carries an amount",
+  );
   const leafCodes = EXPENSE_CATEGORY_LEAVES.map((l) => l.code);
   assert.equal(new Set(leafCodes).size, leafCodes.length, "leaf codes unique");
   const leafNames = EXPENSE_CATEGORY_LEAVES.map((l) => l.name);
@@ -107,7 +112,7 @@ test("standard catalog — 16 parents, hierarchical, unique codes/names, non-cas
 
   // DB bootstrap
   const tree = await listCategoryTree();
-  assert.equal(tree.length, 16);
+  assert.equal(tree.length, 17);
   const totalNodes = tree.length + tree.reduce((s, p) => s + p.children.length, 0);
   assert.equal(totalNodes, EXPENSE_CATEGORY_NODE_COUNT);
   const allCodes = await db.select({ code: expenseCategories.code }).from(expenseCategories);
@@ -117,6 +122,41 @@ test("standard catalog — 16 parents, hierarchical, unique codes/names, non-cas
   await ensureCategoryCatalog();
   const after = await db.select({ code: expenseCategories.code }).from(expenseCategories);
   assert.equal(after.length, allCodes.length, "ensureCategoryCatalog is idempotent");
+});
+
+test("an older catalogue is brought up to date — renamed, re-homed and retired rows keep their ids", async () => {
+  const { user } = await fixture();
+  const nail = (await getCategoryByCode("HYG-NAIL"))!;
+  const hyg = (await getCategoryByCode("HYG"))!;
+  // The tree as it was stored before: nail care under hygiene with an old name,
+  // and the «خریدهای شخصی» group with a custom leaf of the user's.
+  await db.update(expenseCategories).set({ parentId: hyg.id, name: "ترمیم ناخن قدیمی" }).where(eq(expenseCategories.id, nail.id));
+  const [pur] = await db
+    .insert(expenseCategories)
+    .values({ code: "PUR", name: "خریدهای شخصی و خانوادگی", level: 0, sortOrder: 99, isSystem: true, kind: "expense" })
+    .returning();
+  await db
+    .insert(expenseCategories)
+    .values({ code: "PUR-HOME", name: "لوازم خانگی", parentId: pur.id, level: 1, sortOrder: 0, isSystem: true, kind: "expense" });
+  const [mine] = await db
+    .insert(expenseCategories)
+    .values({ userId: user.id, code: "USR-PUR-X", name: "لوازم دیجیتال", parentId: pur.id, level: 1, sortOrder: 1, kind: "expense" })
+    .returning();
+
+  await ensureCategoryCatalog();
+
+  const after = (await getCategoryByCode("HYG-NAIL"))!;
+  assert.equal(after.id, nail.id, "same row — past entries keep their category");
+  assert.equal(after.name, "ترمیم ناخن");
+  assert.equal(after.parentId, (await getCategoryByCode("BTY"))!.id, "moved to «آرایشگاه و زیبایی»");
+
+  const tree = await listCategoryTree(user.id);
+  assert.ok(!tree.some((p) => p.code === "PUR"), "a retired group leaves the picker");
+  assert.ok(!tree.some((p) => p.children.some((c) => c.code === "PUR-HOME")));
+  const misc = tree.find((p) => p.code === "MSC")!;
+  assert.ok(misc.children.some((c) => c.id === mine.id), "the user's own leaf moves to «متفرقه»");
+  assert.equal((await getCategoryByCode("PUR"))!.isActive, false, "retired, not deleted");
+  assert.ok(RETIRED_EXPENSE_CODES.includes("PUR"));
 });
 
 test("expense entry carries its category and feeds the category report", async () => {
@@ -158,7 +198,7 @@ test("expense entry carries its category and feeds the category report", async (
   assert.equal(Number(fuelRow!.total), 30);
   assert.equal(Number(rentRow!.total), 70);
   assert.equal(fuelRow!.parentCode, "TRN");
-  assert.equal(rentRow!.parentName, "مسکن و ساختمان");
+  assert.equal(rentRow!.parentName, "مسکن و قبوض");
 
   // Cash expense shows up in the cash-flow outflow
   const flow = await getCashflow(6, user.id);

@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import { test, mock } from "node:test";
 import { eq, sql } from "drizzle-orm";
 import { D, Decimal } from "../src/domain/decimal";
+import { todayIso } from "../src/lib/format";
 import { accounts, assetClasses, assets, journalEntries, postings, users, userFxSettings, wallets, wallexAssetCatalog } from "../src/db/schema";
 
 const cookieJar: { value: string | null } = { value: null };
@@ -32,7 +33,10 @@ mock.module("next/headers", {
 });
 mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 
-const TODAY = new Date().toISOString().slice(0, 10);
+// The app's «today» is Tehran's date. From 20:30 UTC Tehran is already on the
+// next day, and a UTC date would read as yesterday — a past purchase with no
+// historical rate, which is refused.
+const TODAY = todayIso();
 
 test("trade fees: net proceeds, exact Toman, both directions", async () => {
   const { db } = await import("../src/db");
