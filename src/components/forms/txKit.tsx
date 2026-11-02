@@ -37,22 +37,25 @@ export const TX_KINDS = [
 
 /** Expense groups: an icon and a colour per standard group code. */
 export const EXPENSE_GROUP_LOOK: Record<string, { icon: IconName; color: string }> = {
+  FOD: { icon: "food", color: "#f76b15" },
   HSG: { icon: "home", color: "#3e63dd" },
   TRN: { icon: "car", color: "#0090ff" },
-  FOD: { icon: "food", color: "#f76b15" },
-  HLT: { icon: "heart", color: "#e5484d" },
-  HYG: { icon: "sparkle", color: "#d6409f" },
+  HYG: { icon: "bag", color: "#ab4aba" },
+  BTY: { icon: "sparkle", color: "#d6409f" },
   CLT: { icon: "shirt", color: "#8e4ec6" },
-  ENT: { icon: "ticket", color: "#e93d82" },
+  HLT: { icon: "heart", color: "#e5484d" },
+  ENT: { icon: "plane", color: "#e93d82" },
   COM: { icon: "phone", color: "#00a2c7" },
-  PUR: { icon: "bag", color: "#ab4aba" },
   FAM: { icon: "users", color: "#12a594" },
   INS: { icon: "shield", color: "#6e56cf" },
+  FIN: { icon: "card", color: "#5b5bd6" },
   EDU: { icon: "book", color: "#3e9b4f" },
-  WRK: { icon: "briefcase", color: "#5b5bd6" },
+  WRK: { icon: "briefcase", color: "#0d74ce" },
   TAX: { icon: "receipt", color: "#978365" },
   SOC: { icon: "gift", color: "#ca244d" },
   MSC: { icon: "more", color: "#8b8d98" },
+  // Retired group — still named in past entries and reports.
+  PUR: { icon: "bag", color: "#8b8d98" },
 };
 
 /** Income groups, the same way. */

@@ -48,8 +48,8 @@ export type PremiumFrequency = (typeof PREMIUM_FREQUENCIES)[number];
 export const INSURANCE_KIND_META: Record<InsuranceKind, { label: string; insured: "vehicle" | "property" | "none"; category: string }> = {
   third_party: { label: "شخص ثالث خودرو", insured: "vehicle", category: "TRN-INS-TP" },
   car_body: { label: "بدنه خودرو", insured: "vehicle", category: "TRN-INS-BODY" },
-  fire: { label: "آتش‌سوزی و زلزله", insured: "property", category: "INS-OTHER" },
-  life: { label: "عمر", insured: "none", category: "INS-OTHER" },
+  fire: { label: "آتش‌سوزی و زلزله", insured: "property", category: "INS-HOME" },
+  life: { label: "عمر", insured: "none", category: "INS-LIFE" },
   health: { label: "درمان تکمیلی", insured: "none", category: "INS-HEALTH" },
   travel: { label: "مسافرتی", insured: "none", category: "INS-OTHER" },
   liability: { label: "مسئولیت", insured: "property", category: "INS-OTHER" },
