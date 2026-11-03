@@ -70,49 +70,47 @@ export default function ObligationCard({ d, today, rate }: { d: ObligationCardDa
 
   return (
     <li className={`obl-card${settled ? " is-settled" : ""}`}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
+      <div className="obl-card-head">
+        <div className="obl-card-id">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 className="text-[length:var(--fs-sm)] font-semibold leading-6">{d.title}</h3>
+            <h3 className="obl-card-title">{d.title}</h3>
             {badge && <span className={badge}>{OBLIGATION_STATE_LABELS[state]}</span>}
           </div>
-          <p className="muted mt-0.5 text-[length:var(--fs-xs)] leading-5">
-            {d.creditor}
-            <span aria-hidden="true"> · </span>
-            شروع <span className="num">{formatJalaliIso(d.startDate)}</span>
+          {/* Each fact is one unbreakable chip: the line wraps between them,
+              never inside «شروع ۱۴۰۵/۰۲/۱۳». */}
+          <p className="obl-card-meta">
+            <span>{d.creditor}</span>
+            <span>
+              شروع <bdi className="num">{formatJalaliIso(d.startDate)}</bdi>
+            </span>
             {interest > 0 && (
-              <>
-                <span aria-hidden="true"> · </span>
-                سود <span className="num">{formatPct(interest, 1)}</span>
-              </>
+              <span>
+                سود <bdi className="num">{formatPct(interest, 1)}</bdi>
+              </span>
             )}
           </p>
         </div>
-        <div className="flex shrink-0 items-start gap-1 text-left">
-        <div>
-          <p
-            className="num text-[length:var(--fs-md)] font-bold leading-6 money-nowrap"
-            dir="rtl"
-            style={settled ? { color: "var(--positive)" } : undefined}
-          >
+        <div className="obl-card-figure">
+          <p className="obl-card-amount num money-nowrap" dir="rtl" style={settled ? { color: "var(--positive)" } : undefined}>
             {outstanding.primary}
           </p>
           {d.principalToman != null && !settled && (
-            <p className="muted num text-[length:var(--fs-xs)] leading-5 money-nowrap" dir="rtl">
-              اصل {formatMoney(d.principalToman, "IRT")}
+            <p className="obl-card-principal num money-nowrap" dir="rtl">
+              از اصل {formatMoney(d.principalToman, "IRT")}
             </p>
           )}
         </div>
-        <PlanRowMenu
-          kind="debt"
-          item={{ id: d.id, name: d.title, creditor: d.creditor, status: d.status ?? "active", hasPayments: d.paidCount > 0 }}
-          today={today}
-        />
+        <div className="obl-card-menu">
+          <PlanRowMenu
+            kind="debt"
+            item={{ id: d.id, name: d.title, creditor: d.creditor, status: d.status ?? "active", hasPayments: d.paidCount > 0 }}
+            today={today}
+          />
         </div>
       </div>
 
       {scheduled && (
-        <div className="mt-3 flex items-center gap-3">
+        <div className="obl-card-progress">
           <div className="min-w-0 flex-1">
             <Progress
               value={progress}
@@ -129,34 +127,27 @@ export default function ObligationCard({ d, today, rate }: { d: ObligationCardDa
 
       {!settled && (
         <div className="obligation-card-foot">
-          {d.nextDue && <DateTile iso={d.nextDue.dueDate} size="sm" className="shrink-0" />}
-          <p
-            className="min-w-0 flex-1 text-[length:var(--fs-xs)] leading-5"
-            style={{ color: late ? "var(--negative)" : "var(--text-2)" }}
-          >
+          <div className="obl-card-next" data-late={late || undefined}>
+            {d.nextDue && <DateTile iso={d.nextDue.dueDate} size="sm" className="shrink-0" />}
             {d.nextDue ? (
-              <>
-                {receivable ? "دریافت بعدی" : "قسط بعدی"}{" "}
-                <b className="num font-semibold" dir="rtl">
+              <div className="obl-card-next-body">
+                <span className="obl-card-next-label">{receivable ? "دریافت بعدی" : "قسط بعدی"}</span>
+                <b className="obl-card-next-amount num money-nowrap" dir="rtl">
                   {d.nextDue.amountToman != null ? formatMoney(d.nextDue.amountToman, "IRT") : "—"}
                 </b>
-                <span aria-hidden="true"> · </span>
-                <span className="whitespace-nowrap">{dDays != null ? formatDaysUntil(dDays) : "—"}</span>
-              </>
+                <span className="obl-card-next-when">{dDays != null ? formatDaysUntil(dDays) : "—"}</span>
+              </div>
             ) : (
-              "بدون زمان‌بندی"
+              <span className="obl-card-next-label">بدون زمان‌بندی</span>
             )}
-          </p>
-          <div className="flex shrink-0 gap-1.5">
+          </div>
+          <div className="obl-card-actions">
             {scheduled && (
-              <Link href="/debts/installments" className="btn btn-soft !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]">
+              <Link href="/debts/installments" className="btn btn-soft">
                 اقساط
               </Link>
             )}
-            <Link
-              href={settleHref}
-              className={`btn ${scheduled ? "btn-ghost" : "btn-soft"} !min-h-9 !px-3.5 !py-1.5 text-[length:var(--fs-xs)]`}
-            >
+            <Link href={settleHref} className={`btn ${scheduled ? "btn-ghost" : "btn-soft"}`}>
               {scheduled ? (receivable ? "دریافت آزاد" : "پرداخت آزاد") : receivable ? "ثبت دریافت" : "پرداخت"}
             </Link>
           </div>

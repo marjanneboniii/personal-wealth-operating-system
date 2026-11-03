@@ -1616,6 +1616,12 @@
     --ring: 0 0 0 3px rgba(230,236,242,.30);
     --signal-mint: #2bd3a8;
     color: var(--text);
+    /* Solid ink: at 82% the bar let the page through, so it read muddy grey
+       over light cards and navy over the dark hero — a different colour on
+       every screen. */
+    background: var(--bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   html:not(.dark) body::before {
     content: "";

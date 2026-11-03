@@ -153,7 +153,7 @@ export default async function InstallmentsPage() {
       ? "کاهش معادل دلاری اقساط پرداخت‌نشده"
       : insight?.direction === "increase"
         ? "افزایش معادل دلاری اقساط پرداخت‌نشده"
-        : "معادل دلاری اقساط بدون تغییر";
+        : "معادل دلاری اقساط پرداخت‌نشده";
   // A DEBT is the mirror image of an asset: FEWER dollars of obligation is good
   // news, so the colour follows that reading, and the words say it out loud.
   const insightWord =
@@ -251,13 +251,20 @@ export default async function InstallmentsPage() {
                 </dd>
               </div>
               {paidAt ? (
-                <div>
-                  <dt>{receivable ? "دریافت" : "پرداخت"}</dt>
-                  <dd>
-                    <span className="num">{formatJalaliIso(paidAt)}</span> ·{" "}
-                    <span className="num">{paidOnTime ? "در سررسید" : `سررسید ${formatJalaliIso(r.dueDate)}`}</span>
-                  </dd>
-                </div>
+                <>
+                  <div>
+                    <dt>{receivable ? "تاریخ دریافت" : "تاریخ پرداخت"}</dt>
+                    <dd>
+                      <bdi className="num" dir="ltr">{formatJalaliIso(paidAt)}</bdi>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>سررسید</dt>
+                    <dd>
+                      {paidOnTime ? "همان روز سررسید" : <bdi className="num" dir="ltr">{formatJalaliIso(r.dueDate)}</bdi>}
+                    </dd>
+                  </div>
+                </>
               ) : (
                 <div>
                   <dt>سررسید</dt>
@@ -371,7 +378,7 @@ export default async function InstallmentsPage() {
         </Section>}
         pending={<div className="space-y-5">
       {insight && (
-        <section className="card px-4 py-3">
+        <section className="card inst-insight">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <h2 className="text-[length:var(--fs-xs)] font-semibold">{insightLabel}</h2>
             <div className="text-[length:var(--fs-sm)] font-bold money-nowrap" dir="rtl" style={insightColor ? { color: insightColor } : undefined}>
@@ -389,8 +396,11 @@ export default async function InstallmentsPage() {
 
           {/* The claim's arithmetic — the frozen Toman balance, each side's
               rate and the dollar figure each produces — one tap away. */}
-          <details className="mt-2">
-            <summary className="muted cursor-pointer text-[length:var(--fs-xs)]">جزئیات محاسبه</summary>
+          <details className="inst-insight-more">
+            <summary>
+              جزئیات محاسبه
+              <Icon name="chevronDown" size={14} className="inst-caret" />
+            </summary>
             <dl className="mt-2 space-y-1 border-t pt-2 sm:grid sm:grid-cols-2 sm:gap-x-6 sm:space-y-0" style={{ borderColor: "var(--border)" }}>
               <InsightRow label="مانده اقساط پرداخت‌نشده" value={formatMoney(insight.amountToman, "IRT")} />
               <InsightRow

@@ -77,7 +77,7 @@ export default async function LoansPage() {
         </section>
       )}
 
-      <Section title="وام‌های من" action={<span className="muted num text-[length:var(--fs-xs)]">{faCount(loans.length)}</span>}>
+      <Section title="وام‌های من" action={<span className="section-count num">{faCount(loans.length)}</span>}>
         {loans.length === 0 ? (
           <div className="card">
             <EmptyState

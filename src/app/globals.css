@@ -5475,6 +5475,8 @@ dt,
 
 .app-topbar {
   min-height: var(--mobile-topbar-h);
+  background: color-mix(in oklab, var(--bg) 82%, transparent);
+  border-bottom: 1px solid var(--border);
   padding-inline: max(0.75rem, var(--safe-right)) max(0.75rem, var(--safe-left));
   transform: translateZ(0);
 }

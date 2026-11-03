@@ -696,8 +696,6 @@ export default function Shell({
       <header
         className="app-topbar sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 backdrop-blur-xl lg:hidden"
         style={{
-          background: "color-mix(in oklab, var(--bg) 82%, transparent)",
-          borderBottom: "1px solid var(--border)",
           paddingTop: "max(0.625rem, env(safe-area-inset-top))",
         }}
       >
