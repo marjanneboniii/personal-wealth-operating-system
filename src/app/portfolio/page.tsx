@@ -118,7 +118,7 @@ export default async function PortfolioPage() {
 
           <Section
             title="فهرست دارایی‌ها"
-            action={<span className="muted num text-[length:var(--fs-xs)]">{faCount(valuation.assetValuations.length)}</span>}
+            action={<span className="section-count num">{faCount(valuation.assetValuations.length)}</span>}
           >
             <HoldingsTable rows={valuation.assetValuations} toIrt={toIrt} />
           </Section>

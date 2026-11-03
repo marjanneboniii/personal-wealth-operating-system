@@ -109,7 +109,7 @@ export default async function AssetsPage() {
 
           <Section
             title="فهرست دارایی‌ها"
-            action={<span className="muted num text-[length:var(--fs-xs)]">{faCount(all.length)}</span>}
+            action={<span className="section-count num">{faCount(all.length)}</span>}
           >
             <HoldingsTable rows={all} toIrt={toIrt} />
           </Section>

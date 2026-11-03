@@ -1896,3 +1896,175 @@ html[data-privacy] .mrep[data-capture] :is(.num, .money-nowrap) { filter: none !
   .mrep-section h2 { break-after: avoid; }
   html[data-privacy] .mrep :is(.num, .money-nowrap) { filter: none !important; }
 }
+
+/* ── Obligation card ─────────────────────────────────────────────────
+   A list of obligation cards is a stack of separate cards (the inner rounded
+   corners of a single bordered list read as cards sliding over each other).
+   Head: who/what on the start side, the outstanding figure on the end side;
+   on a phone the figure drops under the title, full width, so neither
+   squeezes the other. Foot: the next due date and its amount, then the two
+   actions; on a phone the actions take their own full-width row. */
+.obl-list:has(> .obl-card) { display: grid; gap: 0.75rem; border: 0; background: transparent; overflow: visible; border-radius: 0; }
+.obl-list > .obl-card { border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-sm); }
+.obl-list > .obl-card + .obl-card { border-top: 1px solid var(--border); }
+.obl-list > .obl-card.is-settled { background: var(--sunken); box-shadow: none; }
+.obl-card { padding: 1rem 1.1rem; border-radius: calc(var(--r-lg) + 2px); }
+
+.obl-card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "id figure menu";
+  align-items: start;
+  gap: 0.25rem 0.75rem;
+}
+.obl-card-id { grid-area: id; min-width: 0; }
+.obl-card-figure { grid-area: figure; display: grid; justify-items: end; gap: 0.1rem; text-align: end; }
+.obl-card-menu { grid-area: menu; margin-inline-end: -0.4rem; margin-top: -0.3rem; }
+.obl-card-title { font-size: var(--fs-sm); font-weight: 700; line-height: 1.6; }
+.obl-card-meta { display: flex; flex-wrap: wrap; gap: 0.15rem 0; margin-top: 0.2rem; font-size: var(--fs-xs); line-height: 1.6; color: var(--text-3); }
+.obl-card-meta > span { white-space: nowrap; }
+.obl-card-meta > span + span::before { content: "·"; margin-inline: 0.4rem; color: var(--border-strong); }
+.obl-card-amount { font-size: var(--fs-md); font-weight: 800; line-height: 1.5; }
+.obl-card-principal { font-size: var(--fs-xs); color: var(--text-3); }
+
+.obl-card-progress { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.9rem; }
+
+.obl-card .obligation-card-foot {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px dashed var(--border);
+}
+.obl-card-next { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.obl-card-next-body { display: grid; gap: 0.05rem; min-width: 0; }
+.obl-card-next-label { font-size: var(--fs-xs); color: var(--text-3); }
+.obl-card-next-amount { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+.obl-card-next-when { font-size: var(--fs-xs); color: var(--text-2); white-space: nowrap; }
+.obl-card-next[data-late] .obl-card-next-when,
+.obl-card-next[data-late] .obl-card-next-amount { color: var(--negative); }
+.obl-card-actions { display: flex; flex-shrink: 0; gap: 0.5rem; }
+.obl-card-actions .btn { min-height: 40px; height: 40px; padding: 0.4rem 1rem; font-size: var(--fs-xs); white-space: nowrap; }
+
+@media (max-width: 639px) {
+  .obl-card { padding: 0.95rem; }
+  .obl-card-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "id menu" "figure figure";
+  }
+  .obl-card-figure {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 0.75rem;
+    margin-top: 0.6rem;
+    padding: 0.65rem 0.8rem;
+    border-radius: var(--r-md);
+    background: var(--sunken);
+    text-align: start;
+  }
+  .obl-card-amount { font-size: var(--fs-lg, 1.2rem); }
+  .obl-card .obligation-card-foot { flex-wrap: wrap; }
+  .obl-card-next { flex: 1 1 100%; }
+  .obl-card-actions { display: grid; flex: 1 1 100%; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+  .obl-card-actions .btn { height: 44px; }
+}
+
+/* ── Installment rows: a stack of separate cards ─────────────────────
+   One bordered list with rounded rows inside read as cards sliding over each
+   other (most of all with a row opened). Each installment is its own card;
+   paid ones too, without the 3px edge stripe that bent around the corner. */
+.inst-list { display: grid; gap: 0.6rem; border: 0; border-radius: 0; background: transparent; overflow: visible; }
+.inst-list > li + li { border-top: 0; }
+.inst-list > .inst-item,
+.inst-paid-list .inst-item,
+.inst-paid-list .inst-item + .inst-item {
+  border: 1px solid var(--border);
+  border-radius: calc(var(--r-lg) + 2px);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.inst-list > .inst-item[data-tone="late"] { border-color: color-mix(in oklab, var(--negative) 35%, var(--border)); }
+.inst-list > .inst-item:has(> details[open]) { box-shadow: var(--shadow-md, var(--shadow-sm)); }
+.inst-paid-list .inst-line { min-height: 0; }
+.inst-more { padding-bottom: 1rem; }
+.inst-facts dd { font-size: var(--fs-sm); }
+.inst-actions .btn-ghost { border-color: var(--border); }
+@media (max-width: 479px) {
+  .inst-actions .btn { min-height: 44px; }
+  .inst-footer { gap: 0.6rem; }
+}
+
+/* «کاهش/افزایش معادل دلاری» — headline and figure, then a quiet disclosure
+   right under them (it sat in a 40px-tall box with a gap above). */
+.card.inst-insight { padding: 0.9rem 1rem 0.5rem; }
+.inst-insight-more { margin-top: 0.15rem; }
+.mny-page .inst-insight-more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 36px;
+  padding-block: 0;
+  list-style: none;
+  cursor: pointer;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.inst-insight-more > summary::-webkit-details-marker { display: none; }
+.inst-insight-more[open] { padding-bottom: 0.5rem; }
+
+/* A lone last stat on a phone takes the whole row: lay it out as a row
+   (label on one side, figure on the other) instead of a tall empty card. */
+@media (max-width: 1023px) {
+  .mny-stats > .mny-stat:last-child:nth-child(even):not(.mny-stat-lead):not([data-tone="ink"]) {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .mny-stats > .mny-stat:last-child:nth-child(even):not(.mny-stat-lead):not([data-tone="ink"]) .mny-stat-value {
+    font-size: 1.35rem;
+  }
+}
+
+/* «حساب معاملاتی» — the update form: each figure keeps its label once typed
+   in (placeholders vanished, leaving two bare numbers), the unit sits inside
+   the field, and the sign is a two-way toggle instead of a native select. */
+.trade-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+.trade-actions > .btn[aria-expanded="true"] { background: var(--action-soft); color: var(--action); border-color: transparent; }
+.trade-form { gap: var(--s-3); padding-top: var(--s-3); border-top: 1px dashed var(--border); }
+.trade-field { display: grid; gap: 0.35rem; min-width: 0; }
+.trade-field > span:first-child,
+.trade-field > label { font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); }
+.trade-field small { margin-inline-start: 0.35rem; font-size: var(--fs-micro); font-weight: 400; color: var(--text-3); }
+.trade-input { position: relative; display: block; flex: 1; min-width: 0; }
+/* The figure is typed left-to-right; the unit is pinned to the right edge
+   (physical sides: the input's own dir="ltr" would flip logical ones). */
+.trade-input > .field { width: 100%; padding-left: 0.85rem; padding-right: 3.25rem; text-align: left; }
+.trade-input > i { position: absolute; inset-block: 0; right: 0.85rem; display: flex; align-items: center; font-style: normal; font-size: var(--fs-xs); color: var(--text-3); pointer-events: none; }
+.trade-pnl { display: flex; gap: var(--s-2); align-items: stretch; }
+.trade-sign { display: grid; grid-template-columns: 1fr 1fr; flex-shrink: 0; width: 8.5rem; padding: 3px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--sunken); }
+.trade-sign > label { position: relative; display: flex; align-items: center; justify-content: center; border-radius: calc(var(--r-md) - 2px); font-size: var(--fs-xs); font-weight: 600; color: var(--text-3); cursor: pointer; }
+.trade-sign input { position: absolute; opacity: 0; pointer-events: none; }
+.trade-sign > label:has(input:checked) { background: var(--surface); box-shadow: var(--shadow-sm); }
+.trade-sign > label[data-tone="neg"]:has(input:checked) { color: var(--negative); }
+.trade-sign > label[data-tone="pos"]:has(input:checked) { color: var(--positive); }
+.trade-sign > label:has(input:focus-visible) { box-shadow: var(--ring); }
+
+/* The count beside a section title: a small pill, not a stray digit at the
+   far edge of the row. */
+.section-count {
+  min-width: 1.5rem;
+  padding: 0 0.45rem;
+  border-radius: var(--r-pill);
+  background: var(--sunken);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1.5rem;
+  text-align: center;
+}

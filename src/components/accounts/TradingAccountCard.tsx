@@ -77,7 +77,7 @@ export default function TradingAccountCard({ a }: { a: TradingAccountView }) {
 
       <dl className="trade-stats">
         <div>
-          <dt>باز</dt>
+          <dt>سود/زیان باز</dt>
           <dd className="num money-nowrap" dir="rtl" style={{ color: tone(a.unrealizedPnl) }}>
             <FormattedMoney value={formatSignedMoney(a.unrealizedPnl, "USD")} />
           </dd>
@@ -119,14 +119,36 @@ export default function TradingAccountCard({ a }: { a: TradingAccountView }) {
       {panel === "update" && (
         <form action={update} className="trade-form">
           <input type="hidden" name="accountId" value={a.accountId} />
-          <input name="accountValue" className="field num" dir="ltr" inputMode="decimal" required placeholder="ارزش حساب" aria-label="ارزش حساب (Account Value)" autoComplete="off" />
-          <span className="trade-pnl">
-            <input name="unrealizedPnl" className="field num" dir="ltr" inputMode="decimal" placeholder="سود و زیان باز" aria-label="سود و زیان باز (Unrealized PnL)" autoComplete="off" />
-            <select name="pnlSign" className="field" defaultValue="loss" aria-label="سود یا زیان">
-              <option value="loss">زیان</option>
-              <option value="profit">سود</option>
-            </select>
-          </span>
+          <label className="trade-field">
+            <span>ارزش حساب <small dir="ltr">Account Value</small></span>
+            <span className="trade-input">
+              <input name="accountValue" className="field num" dir="ltr" inputMode="decimal" required placeholder="0.00" autoComplete="off" />
+              <i aria-hidden="true">دلار</i>
+            </span>
+          </label>
+          <div className="trade-field">
+            <label htmlFor={`${a.accountId}-pnl`}>
+              سود و زیان باز <small dir="ltr">Unrealized PnL</small>
+            </label>
+            <span className="trade-pnl">
+              <span className="trade-input">
+                <input id={`${a.accountId}-pnl`} name="unrealizedPnl" className="field num" dir="ltr" inputMode="decimal" placeholder="0.00" autoComplete="off" />
+                <i aria-hidden="true">دلار</i>
+              </span>
+              {/* Two plain radios, not a <select>: the sign is a binary choice
+                  and both options stay visible. */}
+              <span className="trade-sign" role="radiogroup" aria-label="سود یا زیان">
+                <label data-tone="neg">
+                  <input type="radio" name="pnlSign" value="loss" defaultChecked />
+                  زیان
+                </label>
+                <label data-tone="pos">
+                  <input type="radio" name="pnlSign" value="profit" />
+                  سود
+                </label>
+              </span>
+            </span>
+          </div>
           <button type="submit" className="btn btn-primary" disabled={updating}>
             {updating ? "…" : "ثبت"}
           </button>
