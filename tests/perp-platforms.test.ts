@@ -17,6 +17,10 @@ const PERPS: [string, string, string][] = [
   ["Lighter Robinhood", "لایتر رابین‌هود", "/icons/wallets/lighter.png"],
   ["Ondo Perps", "اوندو پرپس", "/icons/wallets/ondo-perps.png"],
   ["arcus.xyz", "آرکوس", "/icons/wallets/arcus.png"],
+  ["TxFlow", "تی‌ایکس‌فلو", "/icons/wallets/txflow.png"],
+  ["hibachi.xyz", "هیباچی", "/icons/wallets/hibachi.png"],
+  ["Variational", "واریشنال", "/icons/wallets/variational.png"],
+  ["entropy.io", "انتروپی", "/icons/wallets/entropy.png"],
 ];
 
 test("each perp DEX maps from its English spelling to one Persian place with a logo on disk", () => {

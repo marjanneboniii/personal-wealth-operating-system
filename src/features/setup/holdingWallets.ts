@@ -77,6 +77,10 @@ export const KNOWN_WALLETS: KnownWallet[] = [
   { name: "لایتر رابین‌هود", kind: "exchange", logo: `${L}/lighter.png`, aliases: ["lighter robinhood", "robinhood lighter", "لایتر رابین هود"] },
   { name: "اوندو پرپس", kind: "exchange", logo: `${L}/ondo-perps.png`, aliases: ["ondo perps", "ondoperps", "ondo perp", "اوندو پرپ"] },
   { name: "آرکوس", kind: "exchange", logo: `${L}/arcus.png`, aliases: ["arcus", "arcus.xyz"] },
+  { name: "تی‌ایکس‌فلو", kind: "exchange", logo: `${L}/txflow.png`, aliases: ["txflow", "tx flow", "txflow.com", "تی ایکس فلو"] },
+  { name: "هیباچی", kind: "exchange", logo: `${L}/hibachi.png`, aliases: ["hibachi", "hibachi.xyz"] },
+  { name: "واریشنال", kind: "exchange", logo: `${L}/variational.png`, aliases: ["variational", "variational.io", "omni", "واریاشنال"] },
+  { name: "انتروپی", kind: "exchange", logo: `${L}/entropy.png`, aliases: ["entropy", "entropy.io"] },
 
   // Brokerages — Toman only. Tehran-exchange shares, gold and fixed-income
   // funds and online gold are bought and sold with the Toman held here.

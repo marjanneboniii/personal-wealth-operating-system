@@ -13,7 +13,8 @@
  *                    accounts[].positions[].unrealized_pnl.
  *                  Mainnet: https://mainnet.zklighter.elliot.ai
  *                  Robinhood Chain: https://api.rh.lighter.xyz
- * Ondo Perps and Arcus publish no such endpoint: updated by hand.
+ * Ondo Perps, Arcus, TxFlow, Hibachi, Variational and Entropy are updated by
+ * hand (no address-only read endpoint; Hibachi's needs an API key).
  */
 import { D } from "@/domain/decimal";
 import { canonicalWalletName } from "@/features/setup/holdingWallets";
@@ -28,6 +29,10 @@ export const PERP_VENUES: readonly PerpVenue[] = [
   { place: "لایتر رابین‌هود", sync: "lighter_rh", site: "robinhoodchain.lighter.xyz" },
   { place: "اوندو پرپس", sync: null, site: "app.ondoperps.xyz" },
   { place: "آرکوس", sync: null, site: "app.arcus.xyz" },
+  { place: "تی‌ایکس‌فلو", sync: null, site: "app.txflow.com" },
+  { place: "هیباچی", sync: null, site: "hibachi.xyz" },
+  { place: "واریشنال", sync: null, site: "omni.variational.io" },
+  { place: "انتروپی", sync: null, site: "entropy.io" },
 ];
 
 const BY_PLACE = new Map(PERP_VENUES.map((v) => [v.place, v]));
