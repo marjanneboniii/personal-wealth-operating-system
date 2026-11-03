@@ -36,6 +36,8 @@ test("perp places are recognised by name, other places are not", () => {
   assert.equal(perpVenueOf("Hyperliquid")?.sync, "hyperliquid");
   assert.equal(perpVenueOf("لایتر رابین‌هود")?.sync, "lighter_rh");
   assert.equal(perpVenueOf("آرکوس")?.sync, null);
+  assert.equal(perpVenueOf("hibachi")?.place, "هیباچی");
+  assert.equal(perpVenueOf("entropy.io")?.sync, null);
   assert.equal(perpVenueOf("ربی والت"), null);
 });
 
