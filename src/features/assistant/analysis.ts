@@ -176,6 +176,12 @@ export function categoryTrends(
 export type AnalysisInput = {
   today: string;
   availableCashToman: number;
+  /**
+   * Money one exchange trade + one transfer away from the bank: stablecoins
+   * and Toman sitting on Iranian exchanges. Not in the bank today, but not a
+   * shortfall either — a Toman gap it covers is a timing task, not a deficit.
+   */
+  convertibleToman: number;
   liquidToman: number;
   avgMonthlyExpenseToman: number;
   avgMonthlyIncomeToman: number;
@@ -197,33 +203,56 @@ export type AnalysisInput = {
   topClassShare: { name: string; pct: number } | null;
 };
 
-const fmt = (n: number) => Math.round(n).toLocaleString("fa-IR");
+/** «۲۸٫۳ میلیون تومان»-style amounts: readable at a glance, and a negative reads «منفی …» (a bare minus flips in RTL text). */
+export function fmtToman(n: number): string {
+  const v = Math.abs(n);
+  const fa = (x: number, d = 0) => x.toLocaleString("fa-IR", { maximumFractionDigits: d });
+  const body = v >= 1e9 ? `${fa(v / 1e9, 1)} میلیارد` : v >= 1e6 ? `${fa(v / 1e6, 1)} میلیون` : v >= 1e3 ? `${fa(Math.round(v / 1e3))} هزار` : fa(Math.round(v));
+  return `${n < 0 ? "منفی " : ""}${body} تومان`;
+}
+const fmt = (n: number) => fmtToman(n).replace(/ تومان$/, "");
 const pct = (n: number) => `${Math.round(n).toLocaleString("fa-IR")}٪`;
 
 /** Ranks every problem and opportunity the data supports. Nothing is invented: no data → no finding. */
 export function analyze(input: AnalysisInput): Finding[] {
   const f: Finding[] = [];
 
-  if (input.projectionDeficit) {
+  // Toman the bank accounts will be short of: the projected low point, or
+  // the next 30 days of obligations, whichever is larger.
+  const deficitGap = input.projectionDeficit ? Math.max(0, -input.projectionDeficit.cumulativeToman) : 0;
+  const obligationGap = Math.max(0, input.obligationsNext30Toman - input.availableCashToman);
+  const gap = Math.max(deficitGap, obligationGap);
+  if (gap > 0 && input.convertibleToman >= gap) {
+    const when = obligationGap > 0 ? "پرداخت‌های ۳۰ روز آینده" : `${input.projectionDeficit!.month}`;
     f.push({
-      id: "projection_deficit",
-      severity: "critical",
-      title: "کسری نقدینگی در پیش‌بینی",
-      detail: `با برنامه‌ها و اقساط فعلی، نقدینگی تجمعی در ${input.projectionDeficit.month} به ${fmt(input.projectionDeficit.cumulativeToman)} تومان می‌رسد.`,
-      href: "/planning",
-      score: 100,
+      id: "convert_in_time",
+      severity: "info",
+      title: "موجودی تومانی بانک کم است؛ به‌موقع تبدیل کنید",
+      detail: `برای ${when} حدود ${fmt(gap)} تومان در حساب بانکی کم می‌آید، ولی ${fmt(input.convertibleToman)} تومان استیبل‌کوین و موجودی صرافی دارید. کافی است همین مقدار را چند روز زودتر از صرافی به تومان و بعد به حساب بانکی منتقل کنید (واریز صرافی معمولاً یک تا دو روز کاری طول می‌کشد).`,
+      href: "/accounts",
+      score: 56,
     });
-  }
-
-  if (input.obligationsNext30Toman > 0 && input.obligationsNext30Toman > input.availableCashToman) {
-    f.push({
-      id: "obligations_exceed_cash",
-      severity: "critical",
-      title: "تعهدات ۳۰ روز آینده بیش از نقدینگی در دسترس است",
-      detail: `تعهدات قطعی ${fmt(input.obligationsNext30Toman)} تومان و نقد در دسترس ${fmt(input.availableCashToman)} تومان است؛ کسری ${fmt(input.obligationsNext30Toman - input.availableCashToman)} تومان.`,
-      href: "/recurring",
-      score: 95,
-    });
+  } else if (gap > 0) {
+    const missing = gap - input.convertibleToman;
+    if (input.projectionDeficit && deficitGap >= obligationGap) {
+      f.push({
+        id: "projection_deficit",
+        severity: "critical",
+        title: "کسری نقدینگی در پیش‌بینی",
+        detail: `با برنامه‌ها و اقساط فعلی، در ${input.projectionDeficit.month} حدود ${fmt(missing)} تومان کم می‌آید${input.convertibleToman > 0 ? ` (حتی با تبدیل ${fmt(input.convertibleToman)} تومان استیبل‌کوین و موجودی صرافی)` : ""}.`,
+        href: "/planning",
+        score: 100,
+      });
+    } else {
+      f.push({
+        id: "obligations_exceed_cash",
+        severity: "critical",
+        title: "تعهدات ۳۰ روز آینده بیش از نقدینگی است",
+        detail: `تعهدات ${fmt(input.obligationsNext30Toman)} تومان است و نقد بانکی به‌همراه استیبل‌کوین و موجودی صرافی ${fmt(input.availableCashToman + input.convertibleToman)} تومان؛ حدود ${fmt(missing)} تومان کم است.`,
+        href: "/recurring",
+        score: 95,
+      });
+    }
   }
 
   if (input.overdueInstallments.count > 0) {
@@ -281,17 +310,25 @@ export function analyze(input: AnalysisInput): Finding[] {
     });
   }
 
-  for (const t of input.categoryTrends) {
-    if (t.changePct == null || t.changePct < 50 || t.baselineToman <= 0) continue;
-    if (t.paceToman - t.baselineToman < Math.max(1, input.avgMonthlyExpenseToman * 0.05)) continue;
-    f.push({
-      id: `category_spike:${t.name}`,
-      severity: "warning",
-      title: `هزینه‌ی «${t.name}» غیرعادی بالا رفته است`,
-      detail: `با روند این ماه به حدود ${fmt(t.paceToman)} تومان می‌رسد؛ میانگین ماه‌های قبل ${fmt(t.baselineToman)} تومان بود (${pct(t.changePct)} بیشتر).`,
-      href: "/cash-flow",
-      score: 50 + Math.min(20, t.changePct / 10),
-    });
+  // Early in a month the pace is guesswork; a tiny baseline turns ordinary
+  // spending into «+۱۲۰۰٪». Both are filtered, and the rest is ONE finding.
+  if (input.monthProgress >= 0.3 && input.avgMonthlyExpenseToman > 0) {
+    const floor = input.avgMonthlyExpenseToman * 0.03;
+    const spikes = input.categoryTrends
+      .filter((t) => t.changePct != null && t.changePct >= 50 && t.baselineToman >= floor && t.paceToman - t.baselineToman >= input.avgMonthlyExpenseToman * 0.05)
+      .sort((a, b) => b.paceToman - b.baselineToman - (a.paceToman - a.baselineToman));
+    if (spikes.length) {
+      const extra = spikes.reduce((s, t) => s + (t.paceToman - t.baselineToman), 0);
+      const names = spikes.slice(0, 3).map((t) => `«${t.name}»`).join("، ");
+      f.push({
+        id: "category_spike",
+        severity: "warning",
+        title: spikes.length === 1 ? `هزینه‌ی ${names} بیش از معمول است` : `هزینه‌ی ${spikes.length.toLocaleString("fa-IR")} دسته بیش از معمول است`,
+        detail: `${names}${spikes.length > 3 ? " و …" : ""}: با روند این ماه حدود ${fmt(extra)} تومان بیشتر از میانگین ماه‌های قبل خرج می‌شود.`,
+        href: "/cash-flow",
+        score: 50 + Math.min(15, spikes.length * 3),
+      });
+    }
   }
 
   for (const d of input.duplicates.slice(0, 3)) {
