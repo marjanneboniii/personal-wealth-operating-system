@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
-import { Alert, Metric, PageHeader, Progress, Section } from "@/components/ui/Card";
+import { Alert, PageHeader } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
-import { formatMoney, formatPct, formatShortDate, formatSignedMoney, faCount } from "@/lib/format";
+import { JALALI_MONTHS, toJalali } from "@/lib/format";
 import { getAssistantConfig } from "@/features/assistant/gemini";
 import { buildFinancialSnapshot, snapshotHash, type FinancialSnapshot } from "@/features/assistant/snapshot";
 import { getLatestInsight, listConversations, listMemories } from "@/features/assistant/store";
-import type { Finding, Severity } from "@/features/assistant/analysis";
+import { fmtToman, type Finding, type Severity } from "@/features/assistant/analysis";
 import AssistantWorkspace, { AskButton } from "@/components/assistant/AssistantWorkspace";
 import AssistantChat from "@/components/assistant/AssistantChat";
 import InsightPanel from "@/components/assistant/InsightPanel";
@@ -27,187 +27,241 @@ export const metadata = { title: "دستیار هوشمند" };
  * its findings, with no Gemini key at all.
  */
 
-const SEVERITY: Record<Severity, { c: string; bg: string; icon: IconName; label: string }> = {
-  critical: { c: "var(--negative)", bg: "var(--negative-soft)", icon: "alert", label: "فوری" },
-  warning: { c: "var(--warning)", bg: "var(--warning-soft)", icon: "alert", label: "هشدار" },
-  opportunity: { c: "var(--positive)", bg: "var(--positive-soft)", icon: "trend-up", label: "فرصت" },
-  info: { c: "var(--info)", bg: "var(--info-soft)", icon: "info", label: "نکته" },
+const SEVERITY: Record<Severity, { tone: string; icon: IconName; label: string }> = {
+  critical: { tone: "neg", icon: "alert", label: "فوری" },
+  warning: { tone: "warn", icon: "alert", label: "هشدار" },
+  opportunity: { tone: "pos", icon: "trend-up", label: "فرصت" },
+  info: { tone: "mint", icon: "swap", label: "پیشنهاد" },
 };
 
-const toman = (n: number) => formatMoney(String(Math.round(n)), "IRT");
-const signedToman = (n: number) => formatSignedMoney(String(Math.round(n)), "IRT");
+/** «۱٫۳ میلیارد» — the figure, without the unit (the unit is set smaller beside it). */
+const short = (n: number) => fmtToman(n).replace(/ تومان$/, "");
+const full = (n: number) => `${Math.round(n).toLocaleString("fa-IR")} تومان`;
+const pct = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toLocaleString("fa-IR", { maximumFractionDigits: 1 })}٪`;
+
+function Amount({ value, size = "md" }: { value: number; size?: "lg" | "md" | "sm" }) {
+  return (
+    <span className={`ai-amt ai-amt-${size}`} title={full(value)}>
+      {short(value)} <small>تومان</small>
+    </span>
+  );
+}
 
 function askFor(f: Finding): string {
   return `درباره‌ی این مورد توضیح بده و بگو دقیقاً چه کار کنم: «${f.title}» — ${f.detail}`;
 }
 
+function dayBadge(iso: string) {
+  const { m, d } = toJalali(iso);
+  return (
+    <span className="ai-date" aria-hidden="true">
+      <b>{d.toLocaleString("fa-IR")}</b>
+      <small>{JALALI_MONTHS[m - 1]}</small>
+    </span>
+  );
+}
+
 function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode }) {
   const top = s.findings[0] ?? null;
+  const rest = s.findings.slice(1, 7);
   const month = s.cashflow.currentMonth;
-  const accountsTotal = s.accounts.reduce((sum, a) => sum + a.balanceToman, 0);
-  const monthAgo = s.netWorth.history.find((h) => h.label === "ماه گذشته") ?? s.netWorth.history[0] ?? null;
-  const prevMonth = s.cashflow.months.at(-2);
+  const nw = s.netWorth;
+  const monthAgo = nw.history.find((h) => h.label === "ماه گذشته") ?? nw.history[0] ?? null;
+  const flowMax = Math.max(month.incomeToman, month.expenseToman, 1);
+  const reach = nw.availableCashToman + nw.convertibleToman;
+  const covered = reach >= s.obligations.next30Toman;
+  const liqMax = Math.max(reach, s.obligations.next30Toman, 1);
+  const upcoming = s.obligations.upcoming.filter((u) => u.date >= s.asOf).slice(0, 6);
 
   return (
-    <div className="space-y-5">
+    <div className="ai-dash">
       {/* ── مهم‌ترین پیشنهاد دستیار ── */}
-      <section className="card ai-top" aria-labelledby="ai-top-title">
-        <span className="ai-top-icon" style={top ? { background: SEVERITY[top.severity].bg, color: SEVERITY[top.severity].c } : undefined} aria-hidden="true">
+      <section className={`ai-hero tone-${top ? SEVERITY[top.severity].tone : "pos"}`} aria-labelledby="ai-top-title">
+        <span className="ai-hero-icon" aria-hidden="true">
           <Icon name={top ? SEVERITY[top.severity].icon : "check-circle"} size={20} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="muted text-[length:var(--fs-xs)] font-medium" id="ai-top-title">مهم‌ترین پیشنهاد دستیار</p>
-          {top ? (
-            <>
-              <b className="mt-0.5 block text-[length:var(--fs-md)]">{top.title}</b>
-              <p className="sub mt-1 text-[length:var(--fs-sm)] leading-6">{top.detail}</p>
-              <div className="mt-2.5 flex flex-wrap gap-2">
-                <AskButton question={askFor(top)} label="راهکار بده" />
-                {top.href && (
-                  <Link href={top.href} className="btn btn-ghost !min-h-8 !px-3 !py-1 text-[length:var(--fs-xs)]">
-                    مشاهده
-                  </Link>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <b className="mt-0.5 block text-[length:var(--fs-md)]">مشکل یا فرصت فوری‌ای دیده نشد</b>
-              <p className="sub mt-1 text-[length:var(--fs-sm)] leading-6">نقدینگی، اقساط، بودجه‌ها و روند هزینه‌ها در محدوده‌ی عادی‌اند.</p>
-            </>
+          <p className="ai-eyebrow" id="ai-top-title">
+            <Icon name="sparkle" size={12} /> مهم‌ترین پیشنهاد دستیار
+          </p>
+          <h2 className="ai-hero-title">{top ? top.title : "همه‌چیز مرتب است"}</h2>
+          <p className="ai-hero-text">{top ? top.detail : "نقدینگی، اقساط، بودجه‌ها و روند هزینه‌ها در محدوده‌ی عادی‌اند."}</p>
+          {top && (
+            <div className="ai-hero-actions">
+              <AskButton question={askFor(top)} label="راهکار بده" className="btn btn-primary ai-btn" />
+              {top.href && (
+                <Link href={top.href} className="btn btn-ghost ai-btn">
+                  مشاهده
+                </Link>
+              )}
+            </div>
           )}
         </div>
       </section>
 
-      {/* ── خلاصه‌ی وضعیت ── */}
-      <section className="metric-strip ai-metrics" aria-label="خلاصه‌ی وضعیت مالی">
-        <Metric label="ارزش کل دارایی‌ها" value={toman(s.netWorth.totalAssetsToman)} />
-        <Metric label="موجودی حساب‌ها" value={toman(accountsTotal)} hint={`نقد در دسترس ${toman(s.netWorth.availableCashToman)}`} />
-        <Metric label="بدهی‌های باقی‌مانده" value={toman(s.netWorth.totalDebtToman)} tone={s.netWorth.totalDebtToman > 0 ? "down" : "neutral"} hint={s.netWorth.receivablesToman > 0 ? `مطالبات ${toman(s.netWorth.receivablesToman)}` : undefined} />
-        <Metric
-          label="ارزش خالص دارایی"
-          value={toman(s.netWorth.netWorthToman)}
-          hint={monthAgo ? `${monthAgo.label}: ${monthAgo.changePct != null ? formatPct(monthAgo.changePct.toFixed(1), 1) : "—"} (دلاری)` : "تاریخچه‌ای ثبت نشده"}
-          tone={monthAgo ? (monthAgo.changeUsd > 0 ? "up" : monthAgo.changeUsd < 0 ? "down" : "neutral") : "neutral"}
-        />
-        <Metric label={`درآمد ${month.label}`} value={toman(month.incomeToman)} hint={prevMonth ? `ماه قبل ${toman(prevMonth.incomeToman)}` : undefined} />
-        <Metric label={`هزینه ${month.label}`} value={toman(month.expenseToman)} hint={`${faCount(month.daysElapsed)} از ${faCount(month.daysInMonth)} روز ماه`} />
-        <Metric label="جریان نقدینگی خالص" value={signedToman(month.netToman)} tone={month.netToman > 0 ? "up" : month.netToman < 0 ? "down" : "neutral"} hint="درآمد منهای هزینه‌ی همین ماه" />
-        <Metric label="تعهدات ۳۰ روز آینده" value={toman(s.obligations.next30Toman)} tone={s.obligations.next30Toman > s.netWorth.availableCashToman ? "down" : "neutral"} hint={s.obligations.overdue.count ? `${faCount(s.obligations.overdue.count)} قسط معوق` : "اقساط، بیمه و پرداخت‌های تکراری"} />
-      </section>
+      {/* ── سه کارت خلاصه ── */}
+      <div className="ai-kpis">
+        <section className="ai-card ai-kpi" aria-label="ارزش خالص">
+          <p className="ai-kpi-label">ارزش خالص دارایی</p>
+          <Amount value={nw.netWorthToman} size="lg" />
+          {monthAgo && (
+            <span className={`ai-chip ${monthAgo.changeUsd > 0 ? "is-pos" : monthAgo.changeUsd < 0 ? "is-neg" : ""}`}>
+              {monthAgo.changePct != null ? pct(monthAgo.changePct) : "—"} نسبت به {monthAgo.label} <small>(دلاری)</small>
+            </span>
+          )}
+          <dl className="ai-kv">
+            <div>
+              <dt>کل دارایی</dt>
+              <dd><Amount value={nw.totalAssetsToman} size="sm" /></dd>
+            </div>
+            <div>
+              <dt>بدهی باقی‌مانده</dt>
+              <dd><Amount value={nw.totalDebtToman} size="sm" /></dd>
+            </div>
+          </dl>
+        </section>
 
-      {/* ── هشدارها و فرصت‌ها ── */}
-      {s.findings.length > 1 && (
-        <Section id="ai-findings" title="هشدارها و فرصت‌ها">
-          <ul className="card plan-list">
-            {s.findings.slice(1, 9).map((f) => {
-              const t = SEVERITY[f.severity];
-              return (
-                <li key={f.id} className="plan-queue-row">
-                  <span className="plan-icon" style={{ background: t.bg, color: t.c }} aria-hidden="true">
-                    <Icon name={t.icon} size={16} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <b className="block text-[length:var(--fs-sm)]">
-                      <span className="ai-sev" style={{ color: t.c }}>{t.label}</span> {f.title}
-                    </b>
-                    <span className="expense-sub line-clamp-3 block">{f.detail}</span>
-                  </span>
-                  <AskButton question={askFor(f)} label="بپرس" />
-                </li>
-              );
-            })}
-          </ul>
-        </Section>
-      )}
+        <section className="ai-card ai-kpi" aria-label="جریان نقدی این ماه">
+          <p className="ai-kpi-label">
+            {month.label} <span className="ai-muted">· روز {month.daysElapsed.toLocaleString("fa-IR")} از {month.daysInMonth.toLocaleString("fa-IR")}</span>
+          </p>
+          <Amount value={month.netToman} size="lg" />
+          {month.incomeToman === 0 && month.expenseToman === 0 ? (
+            <span className="ai-chip">هنوز تراکنشی در این ماه نیست</span>
+          ) : (
+            <span className={`ai-chip ${month.netToman >= 0 ? "is-pos" : "is-neg"}`}>{month.netToman >= 0 ? "مازاد این ماه" : "کسری این ماه"}</span>
+          )}
+          <div className="ai-bars">
+            <div className="ai-bar-row">
+              <span>درآمد</span>
+              <i className="ai-bar"><b className="is-pos" style={{ width: `${(month.incomeToman / flowMax) * 100}%` }} /></i>
+              <Amount value={month.incomeToman} size="sm" />
+            </div>
+            <div className="ai-bar-row">
+              <span>هزینه</span>
+              <i className="ai-bar"><b className="is-neg" style={{ width: `${(month.expenseToman / flowMax) * 100}%` }} /></i>
+              <Amount value={month.expenseToman} size="sm" />
+            </div>
+          </div>
+        </section>
+
+        <section className="ai-card ai-kpi" aria-label="نقدینگی">
+          <p className="ai-kpi-label">نقدینگی در دسترس</p>
+          <Amount value={reach} size="lg" />
+          <span className={`ai-chip ${covered ? "is-pos" : "is-neg"}`}>
+            {covered ? "تعهدات ۳۰ روز پوشش دارد" : "کمتر از تعهدات ۳۰ روز"}
+          </span>
+          <i className="ai-stack" aria-hidden="true">
+            <b className="is-ink" style={{ width: `${(nw.availableCashToman / liqMax) * 100}%` }} />
+            <b className="is-mint" style={{ width: `${(nw.convertibleToman / liqMax) * 100}%` }} />
+            {s.obligations.next30Toman > 0 && <em style={{ insetInlineStart: `${Math.min(100, (s.obligations.next30Toman / liqMax) * 100)}%` }} />}
+          </i>
+          <dl className="ai-kv">
+            <div>
+              <dt><i className="ai-dot is-ink" />تومان در بانک</dt>
+              <dd><Amount value={nw.availableCashToman} size="sm" /></dd>
+            </div>
+            <div>
+              <dt><i className="ai-dot is-mint" />تتر و صرافی</dt>
+              <dd><Amount value={nw.convertibleToman} size="sm" /></dd>
+            </div>
+            <div>
+              <dt><i className="ai-dot is-line" />تعهدات ۳۰ روز</dt>
+              <dd><Amount value={s.obligations.next30Toman} size="sm" /></dd>
+            </div>
+          </dl>
+        </section>
+      </div>
+
+      <div className="ai-cols">
+        {/* ── هشدارها و فرصت‌ها ── */}
+        <section className="ai-card" aria-labelledby="ai-findings-title">
+          <h3 className="ai-card-title" id="ai-findings-title">هشدارها و فرصت‌ها</h3>
+          {rest.length === 0 ? (
+            <p className="ai-empty-line">مورد دیگری برای توجه نیست.</p>
+          ) : (
+            <ul className="ai-list" role="list">
+              {rest.map((f) => {
+                const t = SEVERITY[f.severity];
+                return (
+                  <li key={f.id} className="ai-finding">
+                    <span className={`ai-finding-icon tone-${t.tone}`} aria-hidden="true">
+                      <Icon name={t.icon} size={14} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="ai-finding-title">{f.title}</p>
+                      <p className="ai-finding-text">{f.detail}</p>
+                    </div>
+                    <AskButton question={askFor(f)} label="بپرس" className="ai-ask" />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <div className="ai-side">
+          <section className="ai-card" aria-labelledby="ai-up-title">
+            <h3 className="ai-card-title" id="ai-up-title">
+              پرداخت‌های نزدیک
+              {s.obligations.overdue.count > 0 && <span className="ai-chip is-neg">{s.obligations.overdue.count.toLocaleString("fa-IR")} معوق</span>}
+            </h3>
+            {upcoming.length === 0 ? (
+              <p className="ai-empty-line">در ۶۰ روز آینده پرداخت قطعی ثبت نشده.</p>
+            ) : (
+              <ul className="ai-list" role="list">
+                {upcoming.map((u, i) => (
+                  <li key={`${u.date}-${u.title}-${i}`} className="ai-pay">
+                    {dayBadge(u.date)}
+                    <div className="min-w-0 flex-1">
+                      <p className="ai-finding-title truncate">{u.title}</p>
+                      <p className="ai-finding-text">{u.kind === "installment" ? "قسط" : u.kind === "premium" ? "حق بیمه" : "پرداخت تکراری · برآورد"}</p>
+                    </div>
+                    <Amount value={u.toman} size="sm" />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="ai-card" aria-labelledby="ai-bud-title">
+            <h3 className="ai-card-title" id="ai-bud-title">
+              بودجه‌ها
+              <Link href="/budgets" className="ai-card-link">همه</Link>
+            </h3>
+            {s.budgets.length === 0 ? (
+              <p className="ai-empty-line">
+                بودجه‌ی فعالی ندارید. <Link href="/budgets" className="underline">ساخت بودجه</Link>
+              </p>
+            ) : (
+              <ul className="ai-list" role="list">
+                {s.budgets.map((b) => {
+                  const tone = b.status === "over" ? "neg" : b.status === "at_risk" ? "warn" : "pos";
+                  return (
+                    <li key={`${b.name}-${b.periodStart}`} className="ai-budget">
+                      <div className="ai-budget-head">
+                        <p className="ai-finding-title truncate">{b.name}</p>
+                        <span className={`ai-pct tone-${tone}`}>{Math.round(b.usagePct).toLocaleString("fa-IR")}٪</span>
+                      </div>
+                      <i className="ai-bar"><b className={`is-${tone}`} style={{ width: `${Math.min(100, b.usagePct)}%` }} /></i>
+                      <p className="ai-finding-text">
+                        {short(b.spentToman)} از {short(b.limitToman)} · {b.daysLeft.toLocaleString("fa-IR")} روز مانده
+                        {b.status !== "ok" && ` · با این روند ${short(b.projectedToman)}`}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
 
       {insight}
 
-      {/* ── بودجه‌ها ── */}
-      <Section id="ai-budgets" title="بودجه‌ها">
-        {s.budgets.length === 0 ? (
-          <p className="muted text-[length:var(--fs-sm)]">
-            بودجه‌ی فعالی برای این دوره ندارید. <Link href="/budgets" className="underline">ساخت بودجه</Link>
-          </p>
-        ) : (
-          <ul className="card list-card" role="list">
-            {s.budgets.map((b) => {
-              const color = b.status === "over" ? "var(--negative)" : b.status === "at_risk" ? "var(--warning)" : "var(--positive)";
-              return (
-                <li key={`${b.name}-${b.periodStart}`} className="ai-budget">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <b className="truncate text-[length:var(--fs-sm)]">{b.name}</b>
-                    <span className="text-[length:var(--fs-xs)]" style={{ color }}>{formatPct(b.usagePct.toFixed(0), 0)}</span>
-                  </div>
-                  <Progress value={Math.min(100, b.usagePct)} color={color} aria-label={`مصرف بودجه‌ی ${b.name}`} />
-                  <p className="muted text-[length:var(--fs-xs)] leading-5">
-                    {toman(b.spentToman)} از {toman(b.limitToman)} · {faCount(b.daysLeft)} روز مانده
-                    {b.status !== "ok" && ` · با همین روند ${toman(b.projectedToman)}`}
-                    {b.exhaustDate && ` · پر شدن سقف حدود ${formatShortDate(b.exhaustDate)}`}
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Section>
-
-      {/* ── پرداخت‌های نزدیک ── */}
-      <Section id="ai-upcoming" title="اقساط و پرداخت‌های نزدیک">
-        {s.obligations.upcoming.length === 0 && s.obligations.overdue.count === 0 ? (
-          <p className="muted text-[length:var(--fs-sm)]">در ۶۰ روز آینده پرداخت قطعی ثبت‌شده‌ای ندارید.</p>
-        ) : (
-          <ul className="card list-card" role="list">
-            {s.obligations.overdue.count > 0 && (
-              <li className="list-row">
-                <span className="flow-icon" style={{ background: "var(--negative-soft)", color: "var(--negative)" }} aria-hidden="true">
-                  <Icon name="clock" size={15} />
-                </span>
-                <span className="min-w-0 flex-1 text-[length:var(--fs-sm)]">{faCount(s.obligations.overdue.count)} قسط سررسیدگذشته</span>
-                <b className="text-[length:var(--fs-sm)]">{toman(s.obligations.overdue.toman)}</b>
-              </li>
-            )}
-            {s.obligations.upcoming.slice(0, 10).map((u, i) => (
-              <li key={`${u.date}-${u.title}-${i}`} className="list-row" style={{ borderTop: "1px solid var(--border)" }}>
-                <span className="flow-icon" style={{ background: "var(--action-soft)" }} aria-hidden="true">
-                  <Icon name={u.kind === "installment" ? "installments" : u.kind === "premium" ? "shield" : "receipt"} size={15} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[length:var(--fs-sm)]">{u.title}</span>
-                  <span className="muted text-[length:var(--fs-xs)]">
-                    {formatShortDate(u.date)} · {u.kind === "installment" ? "قسط" : u.kind === "premium" ? "حق بیمه" : "پرداخت تکراری (برآورد)"}
-                  </span>
-                </span>
-                <b className="text-[length:var(--fs-sm)]">{toman(u.toman)}</b>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Section>
-
-      {/* ── تغییر ارزش خالص ── */}
-      {s.netWorth.history.length > 0 && (
-        <Section id="ai-networth" title="تغییر ارزش خالص (به دلار)">
-          <div className="metric-strip">
-            {s.netWorth.history.map((h) => (
-              <Metric
-                key={h.label}
-                label={`نسبت به ${h.label}`}
-                value={h.changePct != null ? formatPct(h.changePct.toFixed(1), 1) : "—"}
-                tone={h.changeUsd > 0 ? "up" : h.changeUsd < 0 ? "down" : "neutral"}
-                hint={formatSignedMoney(String(h.changeUsd), "USD")}
-              />
-            ))}
-          </div>
-          <p className="muted mt-2 text-[length:var(--fs-xs)] leading-5">
-            مقایسه بر پایه‌ی عکس‌های ثبت‌شده‌ی ثروت (به دلار) است؛ افزایش ارزش دارایی لزوماً سود تحقق‌یافته یا درآمد نیست.
-          </p>
-        </Section>
-      )}
-
-      <p className="muted text-[length:var(--fs-micro)] leading-4">
-        به‌روز تا {s.asOfJalali} · نرخ دلار {toman(s.usdToToman)} · {faCount(s.dataQuality.transactionsLast30)} هزینه در ۳۰ روز اخیر
-        {s.dataQuality.unreviewedImports > 0 && ` · ${faCount(s.dataQuality.unreviewedImports)} رکورد بازبینی‌نشده`}
+      <p className="ai-foot">
+        به‌روز تا {s.asOfJalali} · دلار {short(s.usdToToman)} تومان
+        {s.dataQuality.unreviewedImports > 0 && ` · ${s.dataQuality.unreviewedImports.toLocaleString("fa-IR")} رکورد بازبینی‌نشده`}
       </p>
     </div>
   );
@@ -236,12 +290,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="space-y-4">
-      <PageHeader title="دستیار هوشمند" subtitle="تحلیلگر مالی شخصی شما: وضعیت پول، بودجه، اقساط، بدهی و دارایی را می‌خواند، مشکل‌ها را پیدا می‌کند و راهکار می‌دهد." />
-      {!config.configured && (
-        <Alert tone="warn" title="گفتگو با دستیار هنوز فعال نیست">
-          کلید Gemini روی سرور تنظیم نشده است. متغیر محیطی <code dir="ltr">GEMINI_API_KEY</code> را در تنظیمات میزبان (مثلاً Vercel → Settings → Environment Variables) اضافه و دوباره deploy کنید. داشبورد و هشدارهای این صفحه بدون آن هم کار می‌کنند.
-        </Alert>
-      )}
+      <PageHeader title="دستیار هوشمند" subtitle="وضعیت مالی‌تان در یک نگاه، و پاسخ هر سؤالی درباره‌ی پولتان." />
       <AssistantWorkspace
         initialTab={sp.tab === "chat" ? "chat" : "dashboard"}
         dashboard={

@@ -111,7 +111,7 @@ export default function AssistantChat({
       const message = text.trim();
       if (!message || busy) return;
       if (!configured) {
-        setNotice("کلید Gemini روی سرور تنظیم نشده است؛ گفتگو در دسترس نیست.");
+        setNotice("گفتگو با دستیار فعلاً در دسترس نیست.");
         return;
       }
       setNotice(null);
@@ -232,13 +232,13 @@ export default function AssistantChat({
   return (
     <div className="ai-chat">
       <div className="ai-chat-bar">
-        <button type="button" className="btn btn-soft !min-h-9 !px-3 text-[length:var(--fs-xs)]" onClick={newConversation}>
+        <button type="button" className="ai-pill is-primary" onClick={newConversation}>
           <Icon name="plus" size={14} /> گفتگوی تازه
         </button>
-        <button type="button" className="btn btn-ghost !min-h-9 !px-3 text-[length:var(--fs-xs)]" onClick={() => setShowHistory((v) => !v)} aria-expanded={showHistory}>
+        <button type="button" className="ai-pill" onClick={() => setShowHistory((v) => !v)} aria-expanded={showHistory}>
           <Icon name="clock" size={14} /> گفتگوهای قبلی{conversations.length ? ` (${fa(conversations.length)})` : ""}
         </button>
-        <button type="button" className="btn btn-ghost !min-h-9 !px-3 text-[length:var(--fs-xs)]" onClick={() => setShowMemory((v) => !v)} aria-expanded={showMemory}>
+        <button type="button" className="ai-pill" onClick={() => setShowMemory((v) => !v)} aria-expanded={showMemory}>
           <Icon name="note" size={14} /> آنچه دستیار به خاطر دارد{memories.length ? ` (${fa(memories.length)})` : ""}
         </button>
       </div>
@@ -343,10 +343,11 @@ export default function AssistantChat({
             <p className="muted text-[length:var(--fs-xs)] leading-5">
               دستیار حساب‌ها، تراکنش‌ها، بودجه‌ها، اقساط، بدهی‌ها و دارایی‌های ثبت‌شده‌ی شما را هر بار تازه می‌خواند. فارسی یا انگلیسی بنویسید.
             </p>
-            <div className="ai-chips">
+            <div className="ai-starters">
               {STARTERS.map((s) => (
-                <button key={s} type="button" className="chip" onClick={() => send(s)} disabled={busy || !configured}>
-                  {s}
+                <button key={s} type="button" className="ai-starter" onClick={() => send(s)} disabled={busy || !configured}>
+                  <Icon name="sparkle" size={13} />
+                  <span>{s}</span>
                 </button>
               ))}
             </div>
@@ -465,12 +466,12 @@ export default function AssistantChat({
         )}
         <textarea
           ref={inputRef}
-          className="field ai-input"
+          className="ai-input"
           value={input}
           dir="auto"
-          rows={2}
+          rows={1}
           maxLength={MAX_CHARS}
-          placeholder={configured ? "سؤالتان را بنویسید… (Enter ارسال، Shift+Enter خط تازه)" : "دستیار هنوز راه‌اندازی نشده است."}
+          placeholder={configured ? "سؤالتان را بنویسید… (Enter ارسال، Shift+Enter خط تازه)" : "گفتگو فعلاً در دسترس نیست."}
           disabled={!configured}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -481,12 +482,12 @@ export default function AssistantChat({
           }}
         />
         {busy ? (
-          <button type="button" className="btn btn-soft ai-send" onClick={() => abortRef.current?.abort()}>
-            <Icon name="x" size={16} /> توقف
+          <button type="button" className="ai-send is-stop" onClick={() => abortRef.current?.abort()} aria-label="توقف">
+            <Icon name="x" size={18} />
           </button>
         ) : (
-          <button type="submit" className="btn btn-primary ai-send" disabled={!input.trim() || !configured}>
-            <Icon name="send" size={16} /> ارسال
+          <button type="submit" className="ai-send" disabled={!input.trim() || !configured} aria-label="ارسال">
+            <Icon name="send" size={18} />
           </button>
         )}
       </form>
