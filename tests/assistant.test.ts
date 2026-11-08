@@ -30,6 +30,7 @@ mock.module("next/cache", { namedExports: { revalidatePath: () => {} } });
 const baseInput = (over: Partial<AnalysisInput> = {}): AnalysisInput => ({
   today: "2026-11-08",
   availableCashToman: 0,
+  convertibleToman: 0,
   liquidToman: 0,
   avgMonthlyExpenseToman: 0,
   avgMonthlyIncomeToman: 0,
@@ -93,7 +94,7 @@ test("analysis invents nothing from empty data", () => {
   assert.deepEqual(analyze(baseInput()), []);
 });
 
-test("a projected cash deficit outranks everything else", () => {
+test("a cash shortfall outranks everything else, reported once", () => {
   const findings = analyze(
     baseInput({
       projectionDeficit: { month: "دی ۱۴۰۵", cumulativeToman: -5_000_000 },
@@ -103,9 +104,37 @@ test("a projected cash deficit outranks everything else", () => {
       availableCashToman: 2_000_000,
     }),
   );
-  assert.equal(findings[0].id, "projection_deficit");
-  assert.ok(findings.some((f) => f.id === "obligations_exceed_cash"));
-  assert.ok(findings.findIndex((f) => f.id === "unreviewed") > findings.findIndex((f) => f.id === "obligations_exceed_cash"));
+  assert.equal(findings[0].severity, "critical");
+  assert.equal(findings[0].id, "obligations_exceed_cash", "the larger of the two gaps (8M now vs 5M later) is the one reported");
+  assert.equal(findings.filter((f) => f.severity === "critical").length, 1, "one shortfall, one finding");
+  assert.ok(findings.findIndex((f) => f.id === "unreviewed") > 0);
+});
+
+test("stablecoins covering a low Toman bank balance are a timing task, not a deficit", () => {
+  const base = { projectionDeficit: { month: "بهمن ۱۴۰۵", cumulativeToman: -28_000_000 }, availableCashToman: 6_000_000, obligationsNext30Toman: 600_000 };
+  const covered = analyze(baseInput({ ...base, convertibleToman: 1_200_000_000 }));
+  assert.ok(!covered.some((f) => f.severity === "critical"), "no crisis when stablecoins cover the gap");
+  const timing = covered.find((f) => f.id === "convert_in_time");
+  assert.ok(timing, "says to convert in time instead");
+  assert.match(timing!.detail, /۲۸ میلیون/);
+  const short = analyze(baseInput({ ...base, convertibleToman: 10_000_000 }));
+  assert.equal(short[0].id, "projection_deficit", "still a deficit when even the stablecoins are not enough");
+  assert.match(short[0].detail, /۱۸ میلیون/, "reports only the part conversion cannot cover");
+});
+
+test("category spikes are one grouped finding, and small baselines or early-month pace don't trigger it", () => {
+  const trends = [
+    { name: "خوراک", currentToman: 3_000_000, paceToman: 6_000_000, baselineToman: 2_000_000, changePct: 200 },
+    { name: "هدیه", currentToman: 1_900_000, paceToman: 3_800_000, baselineToman: 300_000, changePct: 1166 },
+    { name: "سلامت", currentToman: 650_000, paceToman: 1_300_000, baselineToman: 200_000, changePct: 550 },
+  ];
+  const f = analyze(baseInput({ categoryTrends: trends, avgMonthlyExpenseToman: 10_000_000, monthProgress: 0.55 }));
+  const spikes = f.filter((x) => x.id.startsWith("category_spike"));
+  assert.equal(spikes.length, 1);
+  assert.match(spikes[0].title, /۲ دسته/, "سلامت's 200k baseline is below 3% of monthly spending — its «+۵۵۰٪» is noise");
+  assert.doesNotMatch(spikes[0].detail, /سلامت/);
+  const early = analyze(baseInput({ categoryTrends: trends, avgMonthlyExpenseToman: 10_000_000, monthProgress: 0.15 }));
+  assert.ok(!early.some((x) => x.id.startsWith("category_spike")), "four days into a month the pace is guesswork");
 });
 
 test("idle cash is an opportunity only when obligations and a 6-month buffer are covered", () => {

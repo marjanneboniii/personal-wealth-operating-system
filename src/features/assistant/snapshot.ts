@@ -51,6 +51,10 @@ export type FinancialSnapshot = {
     netWorthToman: number;
     liquidToman: number;
     availableCashToman: number;
+    /** Stablecoins + Toman on Iranian exchanges: one trade and one transfer from the bank. */
+    convertibleToman: number;
+    stablecoinToman: number;
+    exchangeTomanToman: number;
     futureObligationsToman: number;
     byClass: { name: string; sharePct: number; valueToman: number }[];
     history: { label: string; asOf: string; netWorthUsd: number; changeUsd: number; changePct: number | null }[];
@@ -199,6 +203,15 @@ async function build(userId: string): Promise<FinancialSnapshot> {
     .slice(0, 30);
 
   const assets = (nw.valuation?.assetValuations ?? []) as Array<Record<string, any>>;
+  /* ── convertible liquidity: not in the bank, but a trade + transfer away ── */
+  const stablecoinToman = Math.round(
+    assets.filter((a) => ["استیبل‌کوین", "Stablecoin"].includes(String(a.className))).reduce((sum, a) => sum + (Number(a.currentValueToman) || 0), 0),
+  );
+  const exchangeTomanToman = Math.round(
+    balances
+      .filter((b) => b.type === "asset" && b.isActive !== false && b.walletKind === "exchange" && (b.symbol === "IRT" || b.symbol === "IRR"))
+      .reduce((sum, b) => sum + Math.max(0, b.symbol === "IRR" ? Number(b.quantity) / 10 : Number(b.quantity)), 0),
+  );
   const topAssets = [...assets]
     .filter((a) => Number(a.currentValueToman) > 0)
     .sort((a, b) => Number(b.currentValueToman) - Number(a.currentValueToman))
@@ -353,6 +366,9 @@ async function build(userId: string): Promise<FinancialSnapshot> {
       netWorthToman: n(nw.netWorthToman),
       liquidToman: n(nw.liquidToman),
       availableCashToman: n(nw.availableCashToman),
+      convertibleToman: stablecoinToman + exchangeTomanToman,
+      stablecoinToman,
+      exchangeTomanToman,
       futureObligationsToman: n(nw.futureObligationsToman),
       byClass,
       history,
@@ -409,6 +425,7 @@ async function build(userId: string): Promise<FinancialSnapshot> {
   const findings = analyze({
     today,
     availableCashToman: snapshot.netWorth.availableCashToman,
+    convertibleToman: snapshot.netWorth.convertibleToman,
     liquidToman: snapshot.netWorth.liquidToman,
     avgMonthlyExpenseToman: avgExpense,
     avgMonthlyIncomeToman: avgIncome,
