@@ -428,6 +428,13 @@
       "when": 1793220455319,
       "tag": "0060_trading_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793220456320,
+      "tag": "0061_assistant",
+      "breakpoints": true
     }
   ]
 }

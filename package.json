@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@doranjs/core": "0.3.0",
+    "@google/genai": "2.31.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
     "dotenv": "17.3.1",

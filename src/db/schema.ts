@@ -2166,3 +2166,67 @@ export const setupSessions = pgTable("setup_sessions", {
   leaseUntil: timestamp("lease_until", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ------------------------------------------------------------------ */
+/* دستیار هوشمند — the Gemini-backed assistant (drizzle/0061)          */
+/* Text columns hold AES-GCM envelopes (src/lib/fieldEncryption.ts).   */
+/* None of these rows feed accounting: the ledger stays the only truth */
+/* and the assistant re-reads it on every turn.                        */
+/* ------------------------------------------------------------------ */
+
+export const assistantConversations = pgTable(
+  "assistant_conversations",
+  {
+    ...base,
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+  },
+  (t) => [index("assistant_conversations_user_idx").on(t.userId, t.updatedAt)],
+);
+
+export const assistantMessages = pgTable(
+  "assistant_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => assistantConversations.id, { onDelete: "cascade" }),
+    role: text("role").notNull(), // user | model
+    contentEnc: text("content_enc").notNull(),
+    /** proposals, follow-up suggestions, model name, token usage */
+    meta: jsonb("meta").notNull().default({}),
+  },
+  (t) => [index("assistant_messages_conversation_idx").on(t.conversationId, t.createdAt)],
+);
+
+export const assistantMemories = pgTable(
+  "assistant_memories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // goal | preference | constraint | fact
+    contentEnc: text("content_enc").notNull(),
+  },
+  (t) => [index("assistant_memories_user_idx").on(t.userId, t.createdAt)],
+);
+
+/** One cached dashboard analysis per user, valid while the data hash matches. */
+export const assistantInsights = pgTable("assistant_insights", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  snapshotHash: text("snapshot_hash").notNull(),
+  model: text("model").notNull(),
+  contentEnc: text("content_enc").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
