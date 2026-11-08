@@ -5,6 +5,7 @@ import "./globals.css";
 import "./sections.css";
 // After globals: the money module's rules win at equal specificity.
 import "./money.css";
+import "./assistant.css";
 import Shell from "@/components/layout/Shell";
 import { ProModeProvider } from "@/components/layout/ProModeProvider";
 import { getCurrentUser } from "@/lib/auth";

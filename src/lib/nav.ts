@@ -389,6 +389,14 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "بینش‌ها",
     items: [
       {
+        href: "/assistant",
+        since: "2026-11-08",
+        label: "دستیار هوشمند",
+        icon: "sparkle",
+        question: "با پولم چه کنم؟ از دستیار بپرس.",
+        keywords: ["assistant", "ai", "gemini", "chat", "advisor", "دستیار", "هوش مصنوعی", "مشاور", "گفتگو", "راهنمای مالی", "تحلیل"],
+      },
+      {
         href: "/insights",
         label: "بینش‌ها",
         icon: "info",

@@ -1620,6 +1620,45 @@ const BANK_SMS_STATEMENTS = [
   "\nDO $$ DECLARE role_name text; BEGIN\n  FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP\n    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN\n      EXECUTE format('REVOKE ALL ON public.bank_sms_connections, public.bank_sms_inbox FROM %I', role_name);\n    END IF;\n  END LOOP;\nEND $$;\n"
 ];
 
+/** دستیار هوشمند — see src/db/schema.ts `assistantConversations`…; mirrors drizzle/0061. */
+const ASSISTANT_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS assistant_conversations (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   updated_at timestamptz,
+   deleted_at timestamptz,
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   title text NOT NULL
+  );`,
+  `CREATE INDEX IF NOT EXISTS assistant_conversations_user_idx ON assistant_conversations(user_id, updated_at);`,
+  `CREATE TABLE IF NOT EXISTS assistant_messages (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   conversation_id uuid NOT NULL REFERENCES assistant_conversations(id) ON DELETE CASCADE,
+   role text NOT NULL CHECK (role IN ('user','model')),
+   content_enc text NOT NULL,
+   meta jsonb NOT NULL DEFAULT '{}'::jsonb
+  );`,
+  `CREATE INDEX IF NOT EXISTS assistant_messages_conversation_idx ON assistant_messages(conversation_id, created_at);`,
+  `CREATE TABLE IF NOT EXISTS assistant_memories (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   created_at timestamptz NOT NULL DEFAULT now(),
+   updated_at timestamptz,
+   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+   kind text NOT NULL CHECK (kind IN ('goal','preference','constraint','fact')),
+   content_enc text NOT NULL
+  );`,
+  `CREATE INDEX IF NOT EXISTS assistant_memories_user_idx ON assistant_memories(user_id, created_at);`,
+  `CREATE TABLE IF NOT EXISTS assistant_insights (
+   user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+   snapshot_hash text NOT NULL,
+   model text NOT NULL,
+   content_enc text NOT NULL,
+   created_at timestamptz NOT NULL DEFAULT now()
+  );`,
+];
+
 export async function createSchemaIfNotExists() {
   for (const stmt of [
     ...STATEMENTS,
@@ -1638,6 +1677,7 @@ export async function createSchemaIfNotExists() {
     ...INSURANCE_STATEMENTS,
     ...TEMPLATE_STATEMENTS,
     ...VEHICLE_DUE_STATEMENTS,
+    ...ASSISTANT_STATEMENTS,
     // Required, not optional: these close a measured 57-index gap against the
     // migrations, and tests/schema-drift.test.ts fails if any is missing.
     ...PARITY_INDEX_STATEMENTS,
