@@ -193,7 +193,13 @@ export async function* runChatTurn(input: {
           attempt.done();
           if (input.signal?.aborted) throw err;
           const e = attempt.timedOut() ? new AssistantError("timeout", 504) : classifyGeminiError(err);
-          if (e.code === "bad_model") markModelUnavailable(model);
+          if (e.code === "bad_model") {
+            markModelUnavailable(model);
+          } else if (e.code === "rate_limited" || e.code === "quota") {
+            markModelUnavailable(model, 60_000);
+          } else if (e.code === "unavailable") {
+            markModelUnavailable(model, 30_000);
+          }
           console.warn(`[assistant] model ${model} failed (${e.code}); ${modelIdx + 1 < chain.length && shouldFallBack(e) ? `falling back to ${chain[modelIdx + 1]}` : "no fallback left"}`);
           if (!shouldFallBack(e) || modelIdx + 1 >= chain.length || deadline - Date.now() < MIN_ATTEMPT_MS) throw e;
           modelIdx++;
@@ -286,7 +292,13 @@ export async function generateInsight(userId: string, opts: { force?: boolean } 
     } catch (err) {
       attempt.done();
       const e = attempt.timedOut() ? new AssistantError("timeout", 504) : classifyGeminiError(err);
-      if (e.code === "bad_model") markModelUnavailable(model);
+      if (e.code === "bad_model") {
+        markModelUnavailable(model);
+      } else if (e.code === "rate_limited" || e.code === "quota") {
+        markModelUnavailable(model, 60_000);
+      } else if (e.code === "unavailable") {
+        markModelUnavailable(model, 30_000);
+      }
       if (!shouldFallBack(e) || i + 1 >= chain.length || deadline - Date.now() < MIN_ATTEMPT_MS) throw e;
       console.warn(`[assistant] insight model ${model} failed (${e.code}); falling back to ${chain[i + 1]}`);
     }

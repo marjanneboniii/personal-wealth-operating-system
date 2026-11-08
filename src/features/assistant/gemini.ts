@@ -22,7 +22,15 @@ import { ApiError, GoogleGenAI } from "@google/genai";
  * `gemini-flash-latest` is Google's moving alias; 2.5 is the last resort.
  * A model that no longer exists answers 404 and is skipped automatically.
  */
-export const DEFAULT_GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-flash"] as const;
+export const DEFAULT_GEMINI_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-3.6-flash",
+  "gemini-flash-latest",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+] as const;
 export const DEFAULT_GEMINI_MODEL = DEFAULT_GEMINI_MODELS[0];
 const MODEL_ID = /^[a-z0-9][a-z0-9.\-]{1,80}$/i;
 

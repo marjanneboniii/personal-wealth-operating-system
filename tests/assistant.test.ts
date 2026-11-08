@@ -155,7 +155,15 @@ test("config: the key is required; the fallback chain is strongest Flash first a
   const dflt = getAssistantConfig({} as NodeJS.ProcessEnv);
   assert.equal(dflt.configured, false);
   assert.equal(DEFAULT_GEMINI_MODEL, "gemini-3.8-flash");
-  assert.deepEqual(dflt.models, ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-flash"]);
+  assert.deepEqual(dflt.models, [
+    "gemini-3.8-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-flash-latest",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+  ]);
   assert.ok(!dflt.models.includes("gemini-3.7-flash"), "3.7 is routed to 3.8 by Google — useless as a fallback");
   assert.equal(dflt.attemptTimeoutMs, 30_000);
   const single = getAssistantConfig({ GEMINI_API_KEY: "k", GEMINI_MODEL: "gemini-2.5-pro" } as unknown as NodeJS.ProcessEnv);
