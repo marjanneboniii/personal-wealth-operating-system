@@ -110,7 +110,7 @@ export default function TradingAccountCard({ a }: { a: TradingAccountView }) {
           ) : (
             <button type="button" className="btn btn-ghost" aria-expanded={panel === "link"} onClick={() => setPanel(panel === "link" ? "none" : "link")}>
               <Icon name="link" size={15} />
-              اتصال کیف پول
+              {a.place === "آرکوس" ? "اتصال کلید پلتفرم" : "اتصال کیف پول"}
             </button>
           ))}
       </div>
@@ -159,7 +159,20 @@ export default function TradingAccountCard({ a }: { a: TradingAccountView }) {
       {panel === "link" && (
         <form action={link} className="trade-form">
           <input type="hidden" name="accountId" value={a.accountId} />
-          <input name="address" className="field num" dir="ltr" required placeholder="0x…" aria-label="آدرس عمومی کیف پول" autoComplete="off" spellCheck={false} pattern="0x[0-9a-fA-F]{40}" />
+          {a.place === "آرکوس" ? (
+            <div className="space-y-2">
+              <label className="trade-field">
+                <span>کلید API <small dir="ltr">API Key</small></span>
+                <input name="apiKey" className="field num" dir="ltr" required placeholder="کلید فقط‌خواندنی از app.arcus.xyz" autoComplete="off" spellCheck={false} />
+              </label>
+              <label className="trade-field">
+                <span>کلید امضا <small dir="ltr">Sign Key</small></span>
+                <input name="signKey" type="password" className="field num" dir="ltr" required placeholder="کلید امضا (Ed25519)" autoComplete="off" spellCheck={false} />
+              </label>
+            </div>
+          ) : (
+            <input name="address" className="field num" dir="ltr" required placeholder="0x…" aria-label="آدرس عمومی کیف پول" autoComplete="off" spellCheck={false} pattern="0x[0-9a-fA-F]{40}" />
+          )}
           <button type="submit" className="btn btn-primary" disabled={linking}>
             {linking ? "…" : "اتصال"}
           </button>
@@ -174,7 +187,7 @@ export default function TradingAccountCard({ a }: { a: TradingAccountView }) {
           disabled={syncing}
           onClick={() => startSync(async () => setSyncState(await unlinkTradingAccountAction(a.accountId)))}
         >
-          حذف اتصال کیف پول
+          {a.place === "آرکوس" ? "حذف کلید پلتفرم" : "حذف اتصال کیف پول"}
         </button>
       )}
     </article>

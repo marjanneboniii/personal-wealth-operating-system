@@ -19,7 +19,7 @@
 import { D } from "@/domain/decimal";
 import { canonicalWalletName } from "@/features/setup/holdingWallets";
 
-export type SyncVenue = "hyperliquid" | "lighter" | "lighter_rh";
+export type SyncVenue = "hyperliquid" | "lighter" | "lighter_rh" | "arcus";
 
 export type PerpVenue = { place: string; sync: SyncVenue | null; site: string };
 
@@ -28,7 +28,7 @@ export const PERP_VENUES: readonly PerpVenue[] = [
   { place: "لایتر", sync: "lighter", site: "app.lighter.xyz" },
   { place: "لایتر رابین‌هود", sync: "lighter_rh", site: "robinhoodchain.lighter.xyz" },
   { place: "اوندو پرپس", sync: null, site: "app.ondoperps.xyz" },
-  { place: "آرکوس", sync: null, site: "app.arcus.xyz" },
+  { place: "آرکوس", sync: "arcus", site: "app.arcus.xyz" },
   { place: "تی‌ایکس‌فلو", sync: null, site: "app.txflow.com" },
   { place: "هیباچی", sync: null, site: "hibachi.xyz" },
   { place: "واریشنال", sync: null, site: "omni.variational.io" },
@@ -85,6 +85,36 @@ export function readLighter(json: unknown): VenueReading | null {
     }
   }
   return { accountValue: value.toString(), unrealizedPnl: upnl.toString() };
+}
+
+/**
+ * Arcus `GET /v1/account` → the two numbers (equity and unrealized PnL).
+ */
+export function readArcus(json: unknown): VenueReading | null {
+  const j = json as {
+    equity?: unknown;
+    accountValue?: unknown;
+    collateralBalance?: unknown;
+    unrealizedPnl?: unknown;
+    positions?: { unrealizedPnl?: unknown; unrealized_pnl?: unknown }[];
+  } | null;
+  const equityVal = j?.equity ?? j?.accountValue ?? j?.collateralBalance;
+  if (equityVal == null) return null;
+  const equityStr = String(equityVal);
+  if (!Number.isFinite(Number(equityStr))) return null;
+
+  let upnl = D(0);
+  if (j?.unrealizedPnl != null && Number.isFinite(Number(j.unrealizedPnl))) {
+    upnl = D(String(j.unrealizedPnl));
+  } else if (Array.isArray(j?.positions)) {
+    for (const p of j.positions) {
+      const u = p?.unrealizedPnl ?? p?.unrealized_pnl;
+      if (u != null && Number.isFinite(Number(u))) upnl = upnl.add(String(u));
+    }
+  } else if (j?.collateralBalance != null && Number.isFinite(Number(j.collateralBalance))) {
+    upnl = D(equityStr).sub(String(j.collateralBalance));
+  }
+  return { accountValue: D(equityStr).toString(), unrealizedPnl: upnl.toString() };
 }
 
 /** Realized balance = account value − open P&L: the part already won or lost. */
