@@ -449,6 +449,13 @@
       "when": 1793220458322,
       "tag": "0063_normalize_usdg",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1793220459323,
+      "tag": "0064_clean_perp_adjustment",
+      "breakpoints": true
     }
   ]
 }

@@ -331,9 +331,11 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
                 {rate && <span className="muted num text-[length:var(--fs-xs)]" dir="rtl">{formatSignedMoney(unrealized.toString(), "USD")}</span>}
               </div>
             </div>
-            {pnl.bySymbol.length > 0 ? (
+            {pnl.bySymbol.filter((s) => s.symbol !== "معاملات پرپ").length > 0 ? (
               <ul className="card plan-list">
-                {pnl.bySymbol.map((s) => (
+                {pnl.bySymbol
+                  .filter((s) => s.symbol !== "معاملات پرپ")
+                  .map((s) => (
                   <li key={s.symbol} className="plan-queue-row">
                     <span className="min-w-0 flex-1 text-[length:var(--fs-sm)] font-bold" dir="rtl">
                       {currencyLabel(s.symbol)}
