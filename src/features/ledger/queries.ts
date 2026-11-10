@@ -38,7 +38,7 @@ async function rows<T>(query: ReturnType<typeof sql>): Promise<T[]> {
   // values, IDs and stored names are never rewritten.
   return res.rows.map((raw) => {
     const row = { ...raw } as Record<string, unknown>;
-    for (const key of ["name", "assetName", "walletName", "accountName"]) {
+    for (const key of ["name", "assetName", "walletName", "accountName", "description", "flow", "account"]) {
       if (typeof row[key] === "string") row[key] = displayAccountName(row[key] as string);
     }
     if (Array.isArray(row.lines)) row.lines = row.lines.map((line) => ({ ...line, account: displayAccountName(line.account ?? "") }));

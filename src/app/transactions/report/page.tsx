@@ -178,7 +178,7 @@ export default async function MonthlyReportPage({ searchParams }: { searchParams
           <div className="mrep-kpi">
             <span>نرخ پس‌انداز</span>
             <b className="num" dir="ltr">{r.savingsRate == null ? "—" : formatPct(r.savingsRate * 100, 0)}</b>
-            <small>میانگین خرج روزانه {toman(avgDaily)}</small>
+            <small>میانگین روزانه: <span className="money-nowrap">{toman(avgDaily)}</span></small>
           </div>
         </section>
 
