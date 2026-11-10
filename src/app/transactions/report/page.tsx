@@ -17,7 +17,7 @@ import Icon from "@/components/ui/Icon";
 import FormattedMoney from "@/components/ui/FormattedMoney";
 import ReportPrint from "@/components/transactions/ReportPrint";
 import { D } from "@/domain/decimal";
-import { JALALI_MONTHS, faCount, formatJalaliIso, formatMoney, formatPct, toFaDigits, toJalali, todayIso } from "@/lib/format";
+import { JALALI_MONTHS, faCount, formatJalaliIso, formatMoney, formatMoneyWithSign, formatPct, toFaDigits, toJalali, todayIso } from "@/lib/format";
 import { getLatestUsdIrtRate } from "@/lib/fx";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +52,7 @@ function Shares({ items, leaves }: { items: CategoryShare[]; leaves: boolean }) 
         <li key={g.name}>
           <div className="mrep-share">
             <span className="mrep-share-name">{g.name}</span>
-            <span className="mrep-share-pct num">{formatPct(g.share * 100, 0)}</span>
+            <span className="mrep-share-pct num" dir="ltr">{formatPct(g.share * 100, 0)}</span>
             <span className="mrep-share-amount money-nowrap">{toman(g.toman)}</span>
             <span className="mrep-bar" aria-hidden="true">
               <span style={{ inlineSize: `${Math.max(g.share * 100, 1)}%` }} />
@@ -78,11 +78,10 @@ function Shares({ items, leaves }: { items: CategoryShare[]; leaves: boolean }) 
 function Amount({ row }: { row: ReportRow }) {
   if (!row.toman) return <span className="mrep-muted">—</span>;
   const sign = row.sign > 0 ? "+" : row.sign < 0 ? "−" : "";
+  const prefix = row.approx ? "≈ " : "";
   return (
     <span className="money-nowrap" data-sign={row.sign}>
-      {row.approx && "≈ "}
-      {sign && <span className="mrep-sign">{sign}</span>}
-      {toman(row.toman)}
+      <FormattedMoney value={formatMoneyWithSign(sign, row.toman, "IRT", prefix)} />
     </span>
   );
 }
@@ -172,14 +171,13 @@ export default async function MonthlyReportPage({ searchParams }: { searchParams
           <div className="mrep-kpi" data-tone={netTone}>
             <span>مانده (درآمد منهای هزینه)</span>
             <b className="mrep-kpi-val">
-              {D(r.net).isNegative() && <span className="mrep-sign">−</span>}
-              {toman(D(r.net).abs().toFixed(0))}
+              <FormattedMoney value={formatMoneyWithSign(D(r.net).isNegative() ? "−" : "", D(r.net).abs().toFixed(0), "IRT")} />
             </b>
             <small>{D(r.net).isNegative() ? "بیش از درآمد خرج شده" : "پس‌انداز این ماه"}</small>
           </div>
           <div className="mrep-kpi">
             <span>نرخ پس‌انداز</span>
-            <b className="num">{r.savingsRate == null ? "—" : formatPct(r.savingsRate * 100, 0)}</b>
+            <b className="num" dir="ltr">{r.savingsRate == null ? "—" : formatPct(r.savingsRate * 100, 0)}</b>
             <small>میانگین خرج روزانه {toman(avgDaily)}</small>
           </div>
         </section>

@@ -849,6 +849,12 @@ export type TxFilter = {
    * transaction feed unless explicitly requested.
    */
   includeTradingAdjustments?: boolean;
+  /**
+   * Balance reconciliation adjustments (اصلاح موجودی) reconcile accounts with
+   * banks/wallets internally; they are omitted from everyday cash-flow transactions
+   * and reports unless explicitly requested or filtered by type=adjustment.
+   */
+  includeReconcileAdjustments?: boolean;
   /** One entry by id — the receipt page. */
   id?: string;
 };
@@ -937,10 +943,19 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
       -- Trading accounts track value and performance on their dedicated cards; mark syncs
       -- must not pollute the user's personal cashflow feed.
       ${
-        filter.includeTradingAdjustments
+        filter.includeTradingAdjustments || filter.type === "adjustment"
           ? sql``
           : sql`and not exists (select 1 from trading_account_marks tam where tam.entry_id = je.id)
                 and not (je.type = 'adjustment' and je.description like '%معاملات%')`
+      }
+      -- Hide balance reconciliation adjustments from everyday transactions by default.
+      -- Reconcile adjustments balance the books internally and are shown in the reconcile module
+      -- and account-specific ledger history; they must not pollute the everyday personal cashflow feed.
+      ${
+        filter.includeReconcileAdjustments || filter.type === "adjustment"
+          ? sql``
+          : sql`and not exists (select 1 from balance_checkpoints bc where bc.resolution_entry_id = je.id)
+                and not (je.type = 'adjustment' and je.description like 'اصلاح موجودی%')`
       }
     group by je.id, er.entry_id, ec.name, epc.name, ec.nature
     ${orderBy}
