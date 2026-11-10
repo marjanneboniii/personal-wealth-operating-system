@@ -635,6 +635,11 @@ export async function getPortfolioValuation(
       costBasisByAsset.set(holding.assetId, holding.symbol.toUpperCase() === "USDT" ? holding.quantity : holding.costBase);
       continue;
     }
+    if (holding.symbol === "IRT" || holding.symbol === "IRR") {
+      const tomanQty = holding.symbol === "IRR" ? D(holding.quantity).div("10") : D(holding.quantity);
+      costBasisByAsset.set(holding.assetId, tomanQty.div(fx.rate).toString());
+      continue;
+    }
     const assetLots = openLots.filter((lot) => lot.assetId === holding.assetId);
     const cost = assetLots.length
       ? assetLots.reduce((sum, lot) => sum.add(D(lot.qtyRemaining).mul(lot.unitCostBase)), Decimal.zero())
@@ -725,10 +730,9 @@ export async function getPortfolioValuation(
       currentValueToman = tomanQuantity.toFixed(0);
       currentValue = tomanQuantity.div(fx.rate).toString();
       marketPrice = qty.isZero() ? "0" : D(currentValue).div(qty).toString();
-      unrealizedPnl = D(currentValue).sub(costBasis).toString();
-      unrealizedPnlToman = historicalCostToman
-        ? D(currentValueToman).sub(historicalCostToman).toFixed(0)
-        : D(unrealizedPnl).mul(fx.rate).toFixed(0);
+      historicalCostToman = currentValueToman;
+      unrealizedPnl = "0";
+      unrealizedPnlToman = "0";
       valuationBasis = "face_value";
       priceFreshness = "fresh";
       valuationBase = "toman"; // the rial balance IS the value; USD = Toman ÷ rate
@@ -860,6 +864,11 @@ export async function getPortfolioValuation(
       stablecoinDca(holding.assetId, holding.quantity, costBasisByAsset.get(holding.assetId) ?? holding.costBase, stableCost.get(holding.assetId), fx.rate),
     );
   }
+  for (const holding of activeHoldings) {
+    if (holding.symbol === "IRT" || holding.symbol === "IRR") {
+      dcaByAsset.delete(holding.assetId);
+    }
+  }
   let investedUsd = Decimal.zero();
   let investedToman = Decimal.zero();
   for (const valuation of assetValuations) {
@@ -904,6 +913,14 @@ export async function getPortfolioValuation(
   // per row and the headline aggregate are consistent, so the «سبد دارایی»
   // page can never show a positive unrealized P&L next to a value below cost.
   for (const valuation of assetValuations) {
+    if (valuation.symbol === "IRT" || valuation.symbol === "IRR") {
+      valuation.costBasisToman = valuation.currentValueToman;
+      valuation.unrealizedPnlToman = "0";
+      valuation.unrealizedPnl = "0";
+      valuation.costBasis = valuation.currentValue;
+      valuation.roiPercentage = "0";
+      continue;
+    }
     valuation.costBasisToman = D(valuation.currentValueToman)
       .sub(valuation.unrealizedPnlToman)
       .toFixed(0);

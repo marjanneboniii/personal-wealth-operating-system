@@ -251,3 +251,48 @@ test("pure FX calculation never rewrites USD cost basis", () => {
   assert.equal(a.unrealizedPnlToman, "5000000000");
   assert.equal(b.unrealizedPnlToman, "10000000000");
 });
+
+test("Toman cash holding has zero PnL and cost basis equals current value", async () => {
+  const { db } = await import("../src/db");
+  const { users, userFxSettings, assets, accounts } = await import("../src/db/schema");
+  const { postEntry } = await import("../src/features/ledger/service");
+
+  const [user] = await db.insert(users).values({ name: "TomanUser", username: `tmn-${Date.now()}`, role: "owner" } as any).returning();
+  await db.insert(userFxSettings).values({ userId: user.id, currentRate: "100000" } as any);
+  const irtAsset = (await db.select().from(assets).where(eq(assets.symbol, "IRT")))[0];
+  if (!irtAsset) return;
+
+  const [tmnAccount] = await db.insert(accounts).values({
+    code: `1001-${Date.now()}`,
+    name: "بانک سامان",
+    type: "asset",
+    assetId: irtAsset.id,
+    userId: user.id,
+  } as any).returning();
+  const [eqAccount] = await db.insert(accounts).values({
+    code: `3001-${Date.now()}`,
+    name: "سرمایه افتتاحیه",
+    type: "equity",
+    assetId: irtAsset.id,
+    userId: user.id,
+  } as any).returning();
+
+  await postEntry({
+    entryDate: "2026-08-01",
+    type: "opening",
+    description: "موجودی اولیه بانک",
+    userId: user.id,
+    postings: [
+      { accountId: tmnAccount.id, assetId: irtAsset.id, quantity: "7000000", baseValue: "70" },
+      { accountId: eqAccount.id, assetId: irtAsset.id, quantity: "-7000000", baseValue: "-70" },
+    ],
+  });
+
+  const s = await getPortfolioValuation(undefined, user.id);
+  const tmnRow = s.assetValuations.find((a) => a.symbol === "IRT");
+  assert.ok(tmnRow, "IRT row should exist");
+  assert.equal(tmnRow.currentValueToman, "7000000");
+  assert.equal(tmnRow.costBasisToman, "7000000");
+  assert.equal(tmnRow.unrealizedPnlToman, "0");
+  assert.equal(tmnRow.unrealizedPnl, "0");
+});
