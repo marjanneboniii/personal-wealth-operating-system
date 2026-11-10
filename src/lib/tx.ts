@@ -91,21 +91,50 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
       ? D(frozenToman).toFixed(0)
       : null;
 
+  // Trading result adjustment entry: a perp venue mark realized into the margin account
+  // against 4100 «سود و زیان سرمایه‌گذاری».
+  const isTradingAdjustment =
+    e.type === "adjustment" &&
+    (e.description.includes("معاملات") || e.lines.some((l) => l.account.includes("سود و زیان")));
+
+  const tradingMarginLeg = isTradingAdjustment
+    ? e.lines.find((l) => !l.account.includes("سود و زیان")) ?? e.lines[0]
+    : null;
+
   let sign: -1 | 0 | 1 = 0;
-  if (POSITIVE_TYPES.has(e.type)) sign = 1;
-  else if (NEGATIVE_TYPES.has(e.type)) sign = -1;
+  if (tradingMarginLeg) {
+    const isProfit = D(tradingMarginLeg.quantity).gt(0) || e.description.startsWith("سود");
+    sign = isProfit ? 1 : -1;
+  } else if (POSITIVE_TYPES.has(e.type)) {
+    sign = 1;
+  } else if (NEGATIVE_TYPES.has(e.type)) {
+    sign = -1;
+  }
 
   // Category is the user's expense classification. The positive ledger leg
   // is a shared system bucket (often 5900 «هزینه متفرقه»), not the category.
   // Use the saved category in human-facing flows without altering postings.
-  const from = negatives[0]?.account ?? null;
-  const to = e.type === "expense" ? e.categoryName?.trim() || "هزینه" : positives[0]?.account ?? null;
+  const from = tradingMarginLeg
+    ? (sign < 0 ? tradingMarginLeg.account : null)
+    : (negatives[0]?.account ?? null);
+  const to = tradingMarginLeg
+    ? (sign > 0 ? tradingMarginLeg.account : null)
+    : (e.type === "expense" ? e.categoryName?.trim() || "هزینه" : positives[0]?.account ?? null);
 
-  const qtyLeg = positives[0] ?? e.lines[0];
-  // Display only: the asset label is shown to the user in Persian
-  // (USD→دلار, USDT→تتر, IRT→تومان, ETH→اتریوم); tickers without a Persian
-  // display name (BTC, GOLD18, …) pass through unchanged.
-  const qtyLabel = qtyLeg && qtyLeg.symbol && qtyLeg.symbol !== "USD" && qtyLeg.symbol !== "IRT" ? `${formatQty(qtyLeg.quantity, qtyLeg.decimals ?? 8)} ${currencyLabel(qtyLeg.symbol)}` : null;
+  const qtyLeg = tradingMarginLeg ?? (positives[0] ?? e.lines[0]);
+  let qtyLabel: string | null = null;
+  if (tradingMarginLeg && tradingMarginLeg.symbol && tradingMarginLeg.symbol !== "IRT") {
+    const absQty = D(tradingMarginLeg.quantity).abs().toString();
+    const coin = currencyLabel(tradingMarginLeg.symbol);
+    const signPrefix = sign > 0 ? "+ " : "− ";
+    qtyLabel = `${signPrefix}${formatQty(absQty, tradingMarginLeg.decimals ?? 4)} ${coin}`;
+  } else if (qtyLeg && qtyLeg.symbol && qtyLeg.symbol !== "USD" && qtyLeg.symbol !== "IRT") {
+    qtyLabel = `${formatQty(qtyLeg.quantity, qtyLeg.decimals ?? 8)} ${currencyLabel(qtyLeg.symbol)}`;
+  }
+
+  const typeLabel = tradingMarginLeg
+    ? "معاملات پرپ"
+    : (ENTRY_TYPE_LABELS[e.type as EntryType] ?? e.type);
 
   return {
     amount: amount.toFixed(2),
@@ -114,7 +143,7 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
     sign,
     from,
     to,
-    typeLabel: ENTRY_TYPE_LABELS[e.type as EntryType] ?? e.type,
+    typeLabel,
     qtyLabel,
   };
 }
