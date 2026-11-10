@@ -153,8 +153,8 @@ export function moneyFlowLabel(from: string | null, to: string | null): string |
   const pFrom = from != null ? plainAccountName(from) : null;
   const pTo = to != null ? plainAccountName(to) : null;
   if (pFrom && pTo) return `از ${pFrom} به ${pTo}`;
-  if (pFrom) return `${pFrom} · تسویه پوزیشن`;
-  if (pTo) return `${pTo} · تسویه پوزیشن`;
+  if (pFrom) return `از ${pFrom}`;
+  if (pTo) return `به ${pTo}`;
   return null;
 }
 
