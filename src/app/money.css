@@ -44,6 +44,8 @@
 }
 .mny-head-row > .mny-title {
   min-width: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .mny-head-row {
   display: flex;
@@ -58,6 +60,9 @@
   font-weight: 800;
   letter-spacing: -0.01em;
   line-height: 1.3;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 .mny-head-actions {
   display: flex;
@@ -66,10 +71,24 @@
   gap: 0.5rem;
 }
 @media (max-width: 639px) {
+  .mny-head-row {
+    gap: 0.5rem;
+  }
+  .mny-title {
+    font-size: 20px;
+  }
+  .mny-head-actions {
+    gap: 0.35rem;
+  }
   .mny-head-actions .btn {
     min-height: 40px;
-    padding-inline: 0.8rem;
+    padding-inline: 0.75rem;
     font-size: var(--fs-xs);
+  }
+  .mny-head-actions .btn:has(.mny-hide-phone) {
+    padding-inline: 0.6rem;
+    min-width: 40px;
+    justify-content: center;
   }
   .mny-hide-phone {
     display: none;
@@ -624,6 +643,9 @@
 }
 .mny-tx-amount[data-sign="1"] {
   color: var(--positive);
+}
+.mny-tx[data-type="adjustment"] .mny-tx-amount[data-sign="-1"] {
+  color: var(--negative);
 }
 .mny-run-chev {
   display: none;
@@ -1804,9 +1826,34 @@ a.month-picker-cell:hover { background: var(--hover); }
 .mrep-printed { font-size: 0.72rem; text-align: end; }
 
 .mrep-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
-.mrep-kpi { display: grid; gap: 0.15rem; padding: 0.85rem 1rem; border: 1px solid var(--p-line); border-radius: 12px; background: var(--p-soft); min-width: 0; }
+.mrep-kpi {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--p-line);
+  border-radius: 12px;
+  background: var(--p-soft);
+  min-width: 0;
+  overflow: hidden;
+}
 .mrep-kpi > span { color: var(--p-ink-2); font-size: 0.75rem; font-weight: 600; }
-.mrep-kpi > b { font-size: 1.15rem; font-weight: 800; overflow-wrap: anywhere; }
+.mrep-kpi > b,
+.mrep-kpi-val {
+  font-size: clamp(1rem, 3.2vw, 1.15rem);
+  font-weight: 800;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.25rem;
+  min-width: 0;
+  line-height: 1.25;
+}
+.mrep-kpi .money-unit {
+  font-size: 0.72em;
+  font-weight: 500;
+  color: var(--p-ink-3);
+  white-space: nowrap;
+}
 .mrep-kpi > small { color: var(--p-ink-3); font-size: 0.7rem; }
 .mrep-kpi[data-tone="pos"] { border-top: 3px solid var(--p-pos); }
 .mrep-kpi[data-tone="pos"] > b { color: var(--p-pos); }
@@ -1859,7 +1906,10 @@ a.month-picker-cell:hover { background: var(--hover); }
   .mrep-head { grid-template-columns: 1fr; text-align: center; }
   .mrep-brand { justify-self: center; }
   .mrep-printed { text-align: center; }
-  .mrep-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mrep-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+  .mrep-kpi { padding: 0.75rem 0.65rem; }
+  .mrep-kpi > b,
+  .mrep-kpi-val { font-size: 0.95rem; }
   .mrep-table th:nth-child(3), .mrep-table td:nth-child(3) { display: none; }
 }
 
@@ -1870,9 +1920,12 @@ a.month-picker-cell:hover { background: var(--hover); }
 .mrep[data-capture] .mrep-head { grid-template-columns: auto 1fr auto; text-align: initial; }
 .mrep[data-capture] .mrep-brand { justify-self: start; }
 .mrep[data-capture] .mrep-printed { text-align: end; }
-.mrep[data-capture] .mrep-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mrep[data-capture] .mrep-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
+.mrep[data-capture] .mrep-kpi { padding: 0.85rem 1rem; }
+.mrep[data-capture] .mrep-kpi > b,
+.mrep[data-capture] .mrep-kpi-val { font-size: 1.15rem; }
 .mrep[data-capture] .mrep-table th:nth-child(3), .mrep[data-capture] .mrep-table td:nth-child(3) { display: table-cell; }
-html[data-privacy] .mrep[data-capture] :is(.num, .money-nowrap) { filter: none !important; }
+html[data-privacy] .mrep[data-capture] :is(.num, .money-nowrap, .mrep-kpi-val) { filter: none !important; }
 
 @media print {
   @page { size: A4; margin: 12mm 11mm; }
@@ -1894,7 +1947,7 @@ html[data-privacy] .mrep[data-capture] :is(.num, .money-nowrap) { filter: none !
   .mrep-table thead { display: table-header-group; }
   .mrep-keep, .mrep-kpis, .mrep-section h2 { break-inside: avoid; }
   .mrep-section h2 { break-after: avoid; }
-  html[data-privacy] .mrep :is(.num, .money-nowrap) { filter: none !important; }
+  html[data-privacy] .mrep :is(.num, .money-nowrap, .mrep-kpi-val) { filter: none !important; }
 }
 
 /* ── Obligation card ─────────────────────────────────────────────────

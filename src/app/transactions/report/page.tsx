@@ -161,17 +161,17 @@ export default async function MonthlyReportPage({ searchParams }: { searchParams
         <section className="mrep-kpis" aria-label="خلاصهٔ ماه">
           <div className="mrep-kpi" data-tone="pos">
             <span>درآمد</span>
-            <b className="money-nowrap">{toman(r.income)}</b>
+            <b className="mrep-kpi-val">{toman(r.income)}</b>
             <small>{faCount(r.incomeCount)} تراکنش</small>
           </div>
           <div className="mrep-kpi" data-tone="neg">
             <span>هزینه</span>
-            <b className="money-nowrap">{toman(r.expense)}</b>
+            <b className="mrep-kpi-val">{toman(r.expense)}</b>
             <small>{faCount(r.expenseCount)} تراکنش</small>
           </div>
           <div className="mrep-kpi" data-tone={netTone}>
             <span>مانده (درآمد منهای هزینه)</span>
-            <b className="money-nowrap">
+            <b className="mrep-kpi-val">
               {D(r.net).isNegative() && <span className="mrep-sign">−</span>}
               {toman(D(r.net).abs().toFixed(0))}
             </b>

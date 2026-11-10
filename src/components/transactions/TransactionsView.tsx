@@ -283,7 +283,7 @@ export default function TransactionsView({
       ? trade.priceMode === "registry"
         ? trade.tradeSymbol
         : `${formatQty(trade.tradeQuantity, 8)} ${currencyLabel(trade.tradeSymbol)}`
-      : null;
+      : h.qtyLabel;
     const tagLine = e.tags.length ? e.tags.map((t) => `#${t}`).join(" ") : null;
 
     const amount = txAmountLabel(h, e.fx?.irtAmount, rate);

@@ -140,13 +140,13 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         active="/transactions"
         actions={
           <>
-            <Link href="/transactions/report" className="btn btn-ghost">
+            <Link href="/transactions/report" className="btn btn-ghost" title="گزارش ماهانه PDF" aria-label="گزارش ماهانه PDF">
               <Icon name="download" size={16} />
-              گزارش<span className="mny-hide-phone"> ماهانه</span> PDF
+              <span className="mny-hide-phone">گزارش ماهانه PDF</span>
             </Link>
-            <Link href="/transactions/import" className="btn btn-ghost">
+            <Link href="/transactions/import" className="btn btn-ghost" title="اتصال پیامک" aria-label="اتصال پیامک">
               <Icon name="import" size={16} />
-              <span className="mny-hide-phone">اتصال </span>پیامک
+              <span className="mny-hide-phone">اتصال پیامک</span>
             </Link>
             <Link href="/new" className="btn btn-primary">
               <Icon name="plus" size={16} />

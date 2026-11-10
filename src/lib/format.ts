@@ -220,15 +220,14 @@ export function formatSignedMoney(
   if (dec.isZero()) return formatMoney("0", currency);
   const { n, label } = moneyDigits(dec.abs().toString(), currency);
   const sign = dec.isNegative() ? "−" : "+";
-  return `${RLI}${ltrNum(sign + n)}${NBSP}${label}${PDI}`;
+  return `${RLI}${sign} ${ltrNum(n)}${NBSP}${label}${PDI}`;
 }
 
 /**
  * Money whose sign is decided by the CALLER, not by the amount — a ledger row
  * where direction comes from the entry (h.sign), not from a stored positive
- * figure. The sign, an optional prefix («≈ » for a live-FX equivalent) and the
- * digits share ONE left-to-right isolate, so the row can never render as
- * «۱۲۳٬۴۵۶− تومان» or float its «≈» to the wrong end.
+ * figure. The sign is positioned in RTL before the digits, so the row renders as
+ * «+ ۱۲۳٬۴۵۶ تومان» or «− ۱۲۳٬۴۵۶ تومان».
  *
  * Prefer formatSignedMoney when the value itself already carries the sign.
  */
@@ -239,7 +238,8 @@ export function formatMoneyWithSign(
   prefix = "",
 ): string {
   const { n, label } = moneyDigits(absValue, currency);
-  return `${RLI}${ltrNum(`${prefix}${sign}${n}`)}${NBSP}${label}${PDI}`;
+  const s = sign ? `${sign} ` : "";
+  return `${RLI}${s}${prefix}${ltrNum(n)}${NBSP}${label}${PDI}`;
 }
 
 /**
