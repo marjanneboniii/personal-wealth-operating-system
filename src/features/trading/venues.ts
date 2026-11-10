@@ -106,8 +106,9 @@ export function readArcus(json: unknown): VenueReading | null {
   let upnl = D(0);
   if (j?.unrealizedPnl != null && Number.isFinite(Number(j.unrealizedPnl))) {
     upnl = D(String(j.unrealizedPnl));
-  } else if (Array.isArray(j?.positions)) {
-    for (const p of j.positions) {
+  } else if (j?.positions && typeof j.positions === "object") {
+    const list = Array.isArray(j.positions) ? j.positions : Object.values(j.positions as Record<string, unknown>);
+    for (const p of list as any[]) {
       const u = p?.unrealizedPnl ?? p?.unrealized_pnl;
       if (u != null && Number.isFinite(Number(u))) upnl = upnl.add(String(u));
     }

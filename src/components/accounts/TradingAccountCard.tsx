@@ -110,7 +110,7 @@ export default function TradingAccountCard({ a }: { a: TradingAccountView }) {
           ) : (
             <button type="button" className="btn btn-ghost" aria-expanded={panel === "link"} onClick={() => setPanel(panel === "link" ? "none" : "link")}>
               <Icon name="link" size={15} />
-              {a.place === "آرکوس" ? "اتصال کلید پلتفرم" : "اتصال کیف پول"}
+              اتصال کیف پول
             </button>
           ))}
       </div>
@@ -162,13 +162,16 @@ export default function TradingAccountCard({ a }: { a: TradingAccountView }) {
           {a.place === "آرکوس" ? (
             <div className="space-y-2">
               <label className="trade-field">
-                <span>کلید API <small dir="ltr">API Key</small></span>
-                <input name="apiKey" className="field num" dir="ltr" required placeholder="کلید فقط‌خواندنی از app.arcus.xyz" autoComplete="off" spellCheck={false} />
+                <span>آدرس کیف پول متصل به آرکوس <small dir="ltr">0x…</small></span>
+                <input name="address" className="field num" dir="ltr" required placeholder="0x…" aria-label="آدرس کیف پول متصل به آرکوس" autoComplete="off" spellCheck={false} pattern="0x[0-9a-fA-F]{40}" />
               </label>
-              <label className="trade-field">
-                <span>کلید امضا <small dir="ltr">Sign Key</small></span>
-                <input name="signKey" type="password" className="field num" dir="ltr" required placeholder="کلید امضا (Ed25519)" autoComplete="off" spellCheck={false} />
-              </label>
+              <details className="text-xs text-muted">
+                <summary className="cursor-pointer py-1">کلید API و امضا (اختیاری)</summary>
+                <div className="space-y-2 pt-2">
+                  <input name="apiKey" className="field num" dir="ltr" placeholder="کلید API (اختیاری)" autoComplete="off" spellCheck={false} />
+                  <input name="signKey" type="password" className="field num" dir="ltr" placeholder="کلید امضا (اختیاری)" autoComplete="off" spellCheck={false} />
+                </div>
+              </details>
             </div>
           ) : (
             <input name="address" className="field num" dir="ltr" required placeholder="0x…" aria-label="آدرس عمومی کیف پول" autoComplete="off" spellCheck={false} pattern="0x[0-9a-fA-F]{40}" />
@@ -187,7 +190,7 @@ export default function TradingAccountCard({ a }: { a: TradingAccountView }) {
           disabled={syncing}
           onClick={() => startSync(async () => setSyncState(await unlinkTradingAccountAction(a.accountId)))}
         >
-          {a.place === "آرکوس" ? "حذف کلید پلتفرم" : "حذف اتصال کیف پول"}
+          حذف اتصال کیف پول
         </button>
       )}
     </article>

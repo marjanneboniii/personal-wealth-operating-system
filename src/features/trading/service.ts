@@ -251,14 +251,14 @@ export async function linkTradingAccount(userId: string, accountId: string, addr
   const account = await ownedPerpAccount(userId, accountId);
   if (!account.venue.sync) throw new Error(`${account.venue.place} بروزرسانی خودکار ندارد؛ عددها را دستی وارد کنید.`);
   if (account.venue.sync === "arcus") {
-    let hasKeys = false;
+    let valid = false;
     try {
       const p = JSON.parse(addressOrCreds);
-      hasKeys = Boolean(p.apiKey && p.signKey);
+      valid = isEvmAddress(p.address) || Boolean(p.apiKey && p.signKey);
     } catch {
-      hasKeys = addressOrCreds.includes(":") && addressOrCreds.length > 20;
+      valid = isEvmAddress(addressOrCreds) || (addressOrCreds.includes(":") && addressOrCreds.length > 20);
     }
-    if (!hasKeys) throw new Error("کلید API و کلید امضای آرکوس معتبر نیست.");
+    if (!valid) throw new Error("آدرس کیف پول متصل به آرکوس معتبر نیست (0x و ۴۰ کاراکتر).");
   } else {
     if (!isEvmAddress(addressOrCreds)) throw new Error("آدرس کیف پول معتبر نیست (0x و ۴۰ کاراکتر).");
   }

@@ -20,34 +20,53 @@ function signArcusRequest(signKeyHex: string, timestamp: number, method = "GET",
 }
 
 async function fetchArcusReading(credentials: string): Promise<VenueReading> {
+  let address = "";
   let apiKey = "";
   let signKey = "";
-  try {
-    const parsed = JSON.parse(credentials);
-    apiKey = (parsed.apiKey ?? "").trim();
-    signKey = (parsed.signKey ?? "").trim();
-  } catch {
-    const parts = credentials.split(":");
-    apiKey = (parts[0] ?? "").trim();
-    signKey = (parts[1] ?? "").trim();
-  }
-  if (!apiKey || !signKey) {
-    throw new Error("کلید API و کلید امضای آرکوس وارد نشده است.");
+
+  if (isEvmAddress(credentials)) {
+    address = credentials.trim();
+  } else {
+    try {
+      const parsed = JSON.parse(credentials);
+      address = (parsed.address ?? "").trim();
+      apiKey = (parsed.apiKey ?? "").trim();
+      signKey = (parsed.signKey ?? "").trim();
+    } catch {
+      const parts = credentials.split(":");
+      if (isEvmAddress(parts[0])) {
+        address = parts[0].trim();
+        apiKey = (parts[1] ?? "").trim();
+        signKey = (parts[2] ?? "").trim();
+      }
+    }
   }
 
-  const timestamp = Date.now();
-  const signature = signArcusRequest(signKey, timestamp, "GET", "/v1/account");
+  if (!address || !isEvmAddress(address)) {
+    throw new Error("آدرس کیف پول متصل به آرکوس وارد نشده یا معتبر نیست (0x و ۴۰ کاراکتر).");
+  }
+
+  const path = `/v1/account?address=${encodeURIComponent(address)}`;
+  const headers: Record<string, string> = { Accept: "application/json" };
+
+  if (apiKey && signKey) {
+    const timestamp = Date.now();
+    try {
+      const signature = signArcusRequest(signKey, timestamp, "GET", path);
+      headers["X-API-Key"] = apiKey;
+      headers["X-Timestamp"] = String(timestamp);
+      headers["X-Signature"] = signature;
+    } catch {
+      // If signKey is malformed, still attempt public read with address
+    }
+  }
+
   const signal = AbortSignal.timeout(10_000);
   let res: Response;
   try {
-    res = await fetch("https://api.arcus.xyz/v1/account", {
+    res = await fetch(`https://api.arcus.xyz${path}`, {
       method: "GET",
-      headers: {
-        "X-API-Key": apiKey,
-        "X-Timestamp": String(timestamp),
-        "X-Signature": signature,
-        Accept: "application/json",
-      },
+      headers,
       signal,
       cache: "no-store",
     });
