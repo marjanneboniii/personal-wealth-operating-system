@@ -71,7 +71,7 @@ export async function linkTradingAccountAction(_prev: ActionResult | null, fd: F
   const address = String(fd.get("address") ?? "").trim();
   const apiKey = String(fd.get("apiKey") ?? "").trim();
   const signKey = String(fd.get("signKey") ?? "").trim();
-  const creds = apiKey && signKey ? JSON.stringify({ apiKey, signKey }) : address;
+  const creds = apiKey && signKey ? JSON.stringify({ address, apiKey, signKey }) : address;
   try {
     await linkTradingAccount(user.id, accountId, creds);
     const { realizedChange } = await syncTradingAccount(user.id, accountId);
