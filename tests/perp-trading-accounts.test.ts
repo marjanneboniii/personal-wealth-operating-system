@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { eq } from "drizzle-orm";
 import { D } from "../src/domain/decimal";
 import { accounts, assetClasses, assets, journalEntries, userFxSettings, users, wallets, wallexAssetCatalog } from "../src/db/schema";
-import { readHyperliquid, readLighter, perpVenueOf, realizedBalanceOf } from "../src/features/trading/venues";
+import { readHyperliquid, readLighter, readArcus, perpVenueOf, realizedBalanceOf } from "../src/features/trading/venues";
 import { todayIso } from "../src/lib/format";
 
 const TODAY = todayIso();
@@ -30,12 +30,16 @@ test("venue readers take the documented numbers and refuse anything else", () =>
   });
   assert.deepEqual(lighter, { accountValue: "113.91", unrealizedPnl: "-5" });
   assert.equal(readLighter({ code: 21100, message: "account not found" }), null, "no account → nothing, never a zero");
+
+  const arcus = readArcus({ equity: "199", unrealizedPnl: "-5" });
+  assert.deepEqual(arcus, { accountValue: "199", unrealizedPnl: "-5" });
+  assert.equal(readArcus({ error: "bad" }), null);
 });
 
 test("perp places are recognised by name, other places are not", () => {
   assert.equal(perpVenueOf("Hyperliquid")?.sync, "hyperliquid");
   assert.equal(perpVenueOf("لایتر رابین‌هود")?.sync, "lighter_rh");
-  assert.equal(perpVenueOf("آرکوس")?.sync, null);
+  assert.equal(perpVenueOf("آرکوس")?.sync, "arcus");
   assert.equal(perpVenueOf("hibachi")?.place, "هیباچی");
   assert.equal(perpVenueOf("entropy.io")?.sync, null);
   assert.equal(perpVenueOf("ربی والت"), null);

@@ -68,14 +68,18 @@ export async function linkTradingAccountAction(_prev: ActionResult | null, fd: F
   if (!user?.id) return { ok: false, message: "وارد شوید." };
   const accountId = String(fd.get("accountId") ?? "");
   if (!z.uuid().safeParse(accountId).success) return { ok: false, message: "حساب را انتخاب کنید." };
+  const address = String(fd.get("address") ?? "").trim();
+  const apiKey = String(fd.get("apiKey") ?? "").trim();
+  const signKey = String(fd.get("signKey") ?? "").trim();
+  const creds = apiKey && signKey ? JSON.stringify({ apiKey, signKey }) : address;
   try {
-    await linkTradingAccount(user.id, accountId, String(fd.get("address") ?? ""));
+    await linkTradingAccount(user.id, accountId, creds);
     const { realizedChange } = await syncTradingAccount(user.id, accountId);
     refresh();
-    return { ok: true, message: `آدرس ثبت شد. ${resultMessage(realizedChange)}` };
+    return { ok: true, message: `اطلاعات پلتفرم ثبت شد. ${resultMessage(realizedChange)}` };
   } catch (e) {
     refresh();
-    return { ok: false, message: e instanceof Error ? e.message : "ثبت آدرس انجام نشد." };
+    return { ok: false, message: e instanceof Error ? e.message : "ثبت اطلاعات انجام نشد." };
   }
 }
 

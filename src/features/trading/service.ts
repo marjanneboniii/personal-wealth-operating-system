@@ -221,13 +221,24 @@ export async function recordTradingMark(
   });
 }
 
-/** Links (or replaces) the public wallet address of a syncable venue account. */
-export async function linkTradingAccount(userId: string, accountId: string, address: string): Promise<void> {
+/** Links (or replaces) the credentials or public wallet address of a syncable venue account. */
+export async function linkTradingAccount(userId: string, accountId: string, addressOrCreds: string): Promise<void> {
   const account = await ownedPerpAccount(userId, accountId);
   if (!account.venue.sync) throw new Error(`${account.venue.place} بروزرسانی خودکار ندارد؛ عددها را دستی وارد کنید.`);
-  if (!isEvmAddress(address)) throw new Error("آدرس کیف پول معتبر نیست (0x و ۴۰ کاراکتر).");
-  const addressEnc = encryptSensitive(address.trim().toLowerCase(), ADDRESS_CONTEXT);
-  if (!addressEnc) throw new Error("آدرس ذخیره نشد.");
+  if (account.venue.sync === "arcus") {
+    let hasKeys = false;
+    try {
+      const p = JSON.parse(addressOrCreds);
+      hasKeys = Boolean(p.apiKey && p.signKey);
+    } catch {
+      hasKeys = addressOrCreds.includes(":") && addressOrCreds.length > 20;
+    }
+    if (!hasKeys) throw new Error("کلید API و کلید امضای آرکوس معتبر نیست.");
+  } else {
+    if (!isEvmAddress(addressOrCreds)) throw new Error("آدرس کیف پول معتبر نیست (0x و ۴۰ کاراکتر).");
+  }
+  const addressEnc = encryptSensitive(addressOrCreds.trim(), ADDRESS_CONTEXT);
+  if (!addressEnc) throw new Error("اطلاعات اتصال ذخیره نشد.");
   await db
     .insert(tradingAccountLinks)
     .values({ accountId, userId, venue: account.venue.sync, addressEnc })
@@ -246,10 +257,10 @@ export async function syncTradingAccount(userId: string, accountId: string) {
     .from(tradingAccountLinks)
     .where(and(eq(tradingAccountLinks.accountId, accountId), eq(tradingAccountLinks.userId, userId)))
     .limit(1);
-  if (!link || !account.venue.sync) throw new Error("برای این حساب آدرس کیف پول ثبت نشده است.");
-  const address = decryptSensitive(link.addressEnc, ADDRESS_CONTEXT);
-  if (!address) throw new Error("آدرس ذخیره‌شده خوانده نشد؛ دوباره ثبتش کنید.");
-  const reading = await fetchVenueReading(account.venue.sync, address);
+  if (!link || !account.venue.sync) throw new Error("برای این حساب آدرس کیف پول یا کلید ثبت نشده است.");
+  const creds = decryptSensitive(link.addressEnc, ADDRESS_CONTEXT);
+  if (!creds) throw new Error("اطلاعات اتصال ذخیره‌شده خوانده نشد؛ دوباره ثبتش کنید.");
+  const reading = await fetchVenueReading(account.venue.sync, creds);
   return recordTradingMark(userId, accountId, { ...reading, source: account.venue.sync });
 }
 

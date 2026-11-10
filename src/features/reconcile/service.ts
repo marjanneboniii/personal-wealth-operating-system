@@ -28,6 +28,7 @@ import { accounts, balanceCheckpoints, entryFxSnapshots, entryReviews } from "@/
 import { D, Decimal } from "@/domain/decimal";
 import { ensureSystemAccount } from "@/features/accounts/systemAccounts";
 import { isLiquidAccount } from "@/features/accounts/classification";
+import { perpVenueOf } from "@/features/trading/venues";
 import { postEntry } from "@/features/ledger/service";
 import { nativeUnitPriceUsd } from "@/features/fx/unitPrice";
 import { getWritableUsdIrtRateForUser } from "@/lib/fx";
@@ -80,13 +81,13 @@ function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 }
 
-type MoneyAccountRow = { id: string; name: string; symbol: string; classCode: string | null; className: string | null; walletKind: string | null };
+type MoneyAccountRow = { id: string; name: string; symbol: string; classCode: string | null; className: string | null; walletKind: string | null; walletName: string | null };
 
-/** The user's own money accounts (bank, cash, fund, stablecoin wallet). */
+/** The user's own money accounts (bank, cash, fund, stablecoin wallet). Excludes perp trading venues. */
 async function moneyAccounts(userId: string, client: any = db): Promise<MoneyAccountRow[]> {
   const list = await rows<MoneyAccountRow>(
     sql`
-      select a.id, a.name, ast.symbol, ac.code as "classCode", ac.name as "className", w.kind as "walletKind"
+      select a.id, a.name, ast.symbol, ac.code as "classCode", ac.name as "className", w.kind as "walletKind", w.name as "walletName"
       from accounts a
         join assets ast on ast.id = a.asset_id and ast.deleted_at is null
         left join asset_classes ac on ac.id = ast.class_id
@@ -96,7 +97,7 @@ async function moneyAccounts(userId: string, client: any = db): Promise<MoneyAcc
     `,
     client,
   );
-  return list.filter((a) => isLiquidAccount(a));
+  return list.filter((a) => isLiquidAccount(a) && !perpVenueOf(a.walletName));
 }
 
 async function assertMoneyAccount(userId: string, accountId: string, client: any = db): Promise<MoneyAccountRow> {

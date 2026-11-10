@@ -843,6 +843,12 @@ export type TxFilter = {
    * keeps them; the ledger / financial-records views still show them.
    */
   includeVoid?: boolean;
+  /**
+   * Perp venue marks (سود/زیان معاملات پلتفرم‌های پرپ) adjust account balances
+   * on dedicated trading cards; they are omitted from the everyday cash-flow
+   * transaction feed unless explicitly requested.
+   */
+  includeTradingAdjustments?: boolean;
   /** One entry by id — the receipt page. */
   id?: string;
 };
@@ -927,6 +933,15 @@ export async function getTransactions(filter: TxFilter = {}): Promise<TxRow[]> {
       -- by the referenced property asset, never by every posting in the entry.
       -- The journal row itself is never mutated.
       and not ${entryReferencesInactiveRwa(sql`je.id`)}
+      -- Hide perp trading mark balance adjustments from everyday transactions by default.
+      -- Trading accounts track value and performance on their dedicated cards; mark syncs
+      -- must not pollute the user's personal cashflow feed.
+      ${
+        filter.includeTradingAdjustments
+          ? sql``
+          : sql`and not exists (select 1 from trading_account_marks tam where tam.entry_id = je.id)
+                and not (je.type = 'adjustment' and je.description like '%معاملات%')`
+      }
     group by je.id, er.entry_id, ec.name, epc.name, ec.nature
     ${orderBy}
     limit ${safeLimit}
