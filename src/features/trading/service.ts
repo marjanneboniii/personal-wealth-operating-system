@@ -38,6 +38,29 @@ const TOLERANCE = D("0.01");
 const rows = async <T>(q: ReturnType<typeof sql>, client: any = db): Promise<T[]> =>
   ((await client.execute(q)) as { rows: T[] }).rows;
 
+let venueConstraintHealed = false;
+async function ensureTradingVenueConstraints(): Promise<void> {
+  if (venueConstraintHealed) return;
+  try {
+    await db.execute(sql`
+      DO $$ BEGIN
+        ALTER TABLE public.trading_account_links DROP CONSTRAINT IF EXISTS trading_account_links_venue_check;
+        ALTER TABLE public.trading_account_marks DROP CONSTRAINT IF EXISTS trading_account_marks_source_check;
+      EXCEPTION WHEN OTHERS THEN NULL;
+      END $$;
+    `);
+    venueConstraintHealed = true;
+  } catch {
+    try {
+      await db.execute(sql.raw("ALTER TABLE public.trading_account_links DROP CONSTRAINT IF EXISTS trading_account_links_venue_check;"));
+    } catch {}
+    try {
+      await db.execute(sql.raw("ALTER TABLE public.trading_account_marks DROP CONSTRAINT IF EXISTS trading_account_marks_source_check;"));
+    } catch {}
+    venueConstraintHealed = true;
+  }
+}
+
 export type TradingAccount = {
   accountId: string;
   name: string;
@@ -148,6 +171,7 @@ export async function recordTradingMark(
   accountId: string,
   input: VenueReading & { asOf?: string; source?: "manual" | SyncVenue },
 ): Promise<{ realizedChange: string; entryId: string | null }> {
+  await ensureTradingVenueConstraints();
   const value = D(input.accountValue);
   const upnl = D(input.unrealizedPnl);
   if (value.isNegative()) throw new Error("ارزش حساب نمی‌تواند منفی باشد.");
@@ -223,6 +247,7 @@ export async function recordTradingMark(
 
 /** Links (or replaces) the credentials or public wallet address of a syncable venue account. */
 export async function linkTradingAccount(userId: string, accountId: string, addressOrCreds: string): Promise<void> {
+  await ensureTradingVenueConstraints();
   const account = await ownedPerpAccount(userId, accountId);
   if (!account.venue.sync) throw new Error(`${account.venue.place} بروزرسانی خودکار ندارد؛ عددها را دستی وارد کنید.`);
   if (account.venue.sync === "arcus") {

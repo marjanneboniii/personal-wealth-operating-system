@@ -1289,18 +1289,20 @@ const BALANCE_CHECKPOINT_STATEMENTS = [
    as_of date NOT NULL,
    account_value numeric(38,18) NOT NULL,
    unrealized_pnl numeric(38,18) NOT NULL,
-   source text NOT NULL CHECK (source IN ('manual','hyperliquid','lighter','lighter_rh')),
+   source text NOT NULL,
    entry_id uuid REFERENCES journal_entries(id) ON DELETE SET NULL
   );`,
   `CREATE INDEX IF NOT EXISTS trading_account_marks_account_idx ON trading_account_marks(user_id, account_id, created_at);`,
   `CREATE TABLE IF NOT EXISTS trading_account_links (
    account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-   venue text NOT NULL CHECK (venue IN ('hyperliquid','lighter','lighter_rh')),
+   venue text NOT NULL,
    address_enc text NOT NULL,
    created_at timestamptz NOT NULL DEFAULT now(),
    updated_at timestamptz
   );`,
+  `ALTER TABLE trading_account_links DROP CONSTRAINT IF EXISTS trading_account_links_venue_check;`,
+  `ALTER TABLE trading_account_marks DROP CONSTRAINT IF EXISTS trading_account_marks_source_check;`,
 ];
 
 /** بیمه‌نامه‌ها — see src/db/schema.ts `insurancePolicies`; mirrors drizzle/0045. */
