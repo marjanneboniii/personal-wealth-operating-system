@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import Icon from "@/components/ui/Icon";
 import { faCount } from "@/lib/format";
+import AmountRange, { type AmountRangeProps } from "@/components/ui/AmountRange";
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -46,10 +47,13 @@ export type FilterChipField = {
   onClick: () => void;
 };
 
+export type FilterAmountRangeField = Omit<AmountRangeProps, "className">;
+
 export default function AdvancedFilter({
   search,
   selects = [],
   chips = [],
+  amountRange,
   isFiltered = false,
   onClear,
   children,
@@ -63,6 +67,7 @@ export default function AdvancedFilter({
   };
   selects?: FilterSelectField[];
   chips?: FilterChipField[];
+  amountRange?: FilterAmountRangeField;
   isFiltered?: boolean;
   onClear?: () => void;
   children?: ReactNode;
@@ -102,9 +107,10 @@ export default function AdvancedFilter({
   const activeCount =
     selects.filter((s) => s.value && s.value !== s.placeholder && s.value !== "m3").length +
     chips.filter((c) => c.active).length +
-    (search?.value ? 1 : 0);
+    (search?.value ? 1 : 0) +
+    (amountRange ? 1 : 0);
 
-  const hasCollapsible = selects.length > 0 || chips.length > 0 || !!children;
+  const hasCollapsible = selects.length > 0 || chips.length > 0 || !!amountRange || !!children;
 
   return (
     <div className="advanced-filter card sticky top-[52px] z-20 space-y-2 p-2 lg:top-0" style={{ touchAction: "manipulation" }}>
@@ -172,6 +178,11 @@ export default function AdvancedFilter({
                   {c.active && c.activeLabel ? c.activeLabel : c.label}
                 </button>
               ))}
+              {amountRange && (
+                <div className="w-full pt-1">
+                  <AmountRange {...amountRange} />
+                </div>
+              )}
               {children}
             </div>
           </details>

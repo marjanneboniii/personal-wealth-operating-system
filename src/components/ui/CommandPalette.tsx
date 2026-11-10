@@ -37,6 +37,8 @@ const COMMANDS: Cmd[] = [
   })),
 ];
 
+const POPULAR_TAGS = ["#سفر", "#خرید_خانه", "#درمان", "#سرمایه‌گذاری", "#قسط", "#تعمیرات"];
+
 function norm(s: string) {
   return toLatinDigits(s)
     .toLowerCase()
@@ -47,12 +49,42 @@ function norm(s: string) {
     .trim();
 }
 
+const STORAGE_KEY = "pwos_recent_searches_v1";
+
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // جستجوهای اخیر در مرورگر
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) setRecentSearches(JSON.parse(stored));
+    } catch {
+      // حالت ناشناس / Private mode
+    }
+  }, [open]);
+
+  const rememberSearch = (q: string) => {
+    const trimmed = q.trim();
+    if (!trimmed || trimmed.length < 2) return;
+    const next = [trimmed, ...recentSearches.filter((s) => norm(s) !== norm(trimmed))].slice(0, 6);
+    setRecentSearches(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {}
+  };
+
+  const clearRecents = () => {
+    setRecentSearches([]);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+  };
 
   // "Adjust state during render" — reset whenever the palette is opened
   const [wasOpen, setWasOpen] = useState(open);
@@ -127,6 +159,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       } else if (e.key === "Enter") {
         const cmd = results[index] ?? results[0];
         if (cmd) {
+          if (query.trim()) rememberSearch(query.trim());
           onClose();
           router.push(cmd.href);
         }
@@ -134,7 +167,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, results, index, onClose, router]);
+  }, [open, results, index, onClose, router, query]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-idx="${index}"]`)?.scrollIntoView({ block: "nearest" });
@@ -151,8 +184,12 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         onClick={onClose}
       />
       <div
-        className="command-palette-panel pop-in absolute inset-x-3 top-[12dvh] mx-auto flex max-h-[66dvh] w-full max-w-xl flex-col overflow-hidden rounded-[var(--r-lg)] border sm:inset-x-0"
-        style={{ background: "var(--surface-elev)", borderColor: "var(--border-strong)", boxShadow: "var(--shadow-lg)" }}
+        className="command-palette-panel pop-in absolute inset-x-3 top-[10dvh] mx-auto flex max-h-[72dvh] w-full max-w-xl flex-col overflow-hidden rounded-[var(--r-lg)] border sm:inset-x-0"
+        style={{
+          background: "var(--surface-elev)",
+          borderColor: "var(--border-strong)",
+          boxShadow: "var(--shadow-lg)",
+        }}
       >
         <h2 id="cmdk-title" className="sr-only">
           مرکز فرمان
@@ -175,6 +212,70 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
           />
           <kbd className="kbd shrink-0">esc</kbd>
         </div>
+
+        {/* بخش جستجوهای اخیر و پیشنهادات پرطرفدار (الگوی SearchSuggest کاشی ۲.۰) */}
+        {!query.trim() && (
+          <div className="space-y-2 border-b border-[var(--border)] bg-[var(--sunken)]/60 px-4 py-2.5 text-xs">
+            {recentSearches.length > 0 && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold text-[var(--text-3)]">
+                  <span className="flex items-center gap-1">
+                    <svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3.3 10a6.7 6.7 0 1 0 1.9-4.7M3.2 2.9v2.6h2.6M10 6.6V10l2.3 1.5" />
+                    </svg>
+                    جستجوهای اخیر
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearRecents}
+                    className="text-[var(--text-3)] hover:text-[var(--negative)] transition-colors"
+                  >
+                    پاک کردن
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {recentSearches.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => {
+                        setQuery(s);
+                        setIndex(0);
+                      }}
+                      className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-0.5 text-[11px] text-[var(--text-2)] hover:border-[var(--action)] hover:text-[var(--action)] transition-all active:scale-95"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-[var(--text-3)]">
+                <svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m2.75 13.5 4.6-4.6 3.2 3.2 6.2-6.2M12.75 5.9h4v4" />
+                </svg>
+                برچسب‌های پرتکرار
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {POPULAR_TAGS.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      setQuery(tag);
+                      setIndex(0);
+                    }}
+                    className="rounded-full bg-[var(--action-soft)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--action)] hover:bg-[var(--action)] hover:text-[var(--on-ink)] transition-all active:scale-95"
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div ref={listRef} id="cmdk-list" role="listbox" className="min-h-0 flex-1 overflow-y-auto p-1.5">
           {results.length === 0 && (
@@ -199,17 +300,19 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                 aria-selected={item.idx === index}
                 onMouseEnter={() => setIndex(item.idx)}
                 onClick={() => {
+                  if (query.trim()) rememberSearch(query.trim());
                   onClose();
                   router.push(item.cmd.href);
                 }}
-                className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-right"
+                className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-right transition-colors"
                 style={{ background: item.idx === index ? "var(--action-soft)" : "transparent" }}
               >
                 <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px]"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] transition-transform"
                   style={{
                     background: item.idx === index ? "var(--action)" : "var(--sunken)",
                     color: item.idx === index ? "var(--on-ink)" : "var(--text-2)",
+                    transform: item.idx === index ? "scale(1.04)" : "scale(1)",
                   }}
                 >
                   <Icon name={item.cmd.icon} size={16} />
