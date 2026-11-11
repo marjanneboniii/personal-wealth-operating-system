@@ -209,7 +209,7 @@ export async function* runChatTurn(input: {
             fullText = textBefore;
             yield { type: "reset", content: textBefore };
           }
-          yield { type: "status", label: `پاسخ دیر شد؛ در حال تلاش با مدل دیگر (${chain[modelIdx]})…` };
+          yield { type: "status", label: "پاسخ طول کشید؛ در حال تلاش با مدل دیگر…" };
         }
       }
       // Each round is billed in full (the prompt is resent with the tool results).
