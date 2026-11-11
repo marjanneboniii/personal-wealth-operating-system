@@ -41,6 +41,14 @@
   --fs-lg: 20px; --fs-xl: 24px; --fs-2xl: 32px; --fs-hero: clamp(28px,6.4vw,40px);
   --motion-micro: 120ms; --motion-data: 150ms; --motion-sheet: 200ms;
   --ease: cubic-bezier(.22,.61,.36,1);
+  /* Kashi 2.0 Motion & Micro-interactions */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1.3);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 320ms;
   --shadow-sm: 0 1px 3px rgba(12,25,39,.06);
   --shadow-md: 0 6px 8px rgba(12,25,39,.03),0 18px 22px rgba(12,25,39,.09);
   --shadow-lg: 0 6px 8px rgba(12,25,39,.05),0 16px 20px rgba(12,25,39,.06),0 50px 60px rgba(12,25,39,.10);
@@ -117,6 +125,63 @@ input[type="checkbox"],
 input[type="radio"] {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Kashi 2.0 Tactile Spring Checkbox */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-content: center;
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  min-inline-size: 1.15rem;
+  min-block-size: 1.15rem;
+  margin: 0;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--on-ink);
+  cursor: pointer;
+  vertical-align: middle;
+  flex-shrink: 0;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-spring);
+}
+input[type="checkbox"]::before {
+  content: "";
+  inline-size: 0.72rem;
+  block-size: 0.72rem;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.5 3.5 5.5 10 2.5 7'/%3E%3C/svg%3E") center / contain no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.5 3.5 5.5 10 2.5 7'/%3E%3C/svg%3E") center / contain no-repeat;
+  transform: scale(0);
+  transition: transform var(--duration-normal) var(--ease-spring);
+}
+input[type="checkbox"]:hover:not(:disabled) {
+  border-color: var(--action);
+  box-shadow: 0 0 0 3px var(--action-soft);
+}
+input[type="checkbox"]:checked {
+  background: var(--action);
+  border-color: var(--action);
+}
+input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+input[type="checkbox"]:active:not(:disabled) {
+  transform: scale(0.9);
+}
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+  box-shadow: var(--ring);
+}
+input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 ::selection {
@@ -527,11 +592,18 @@ button.tag-chip:hover {
   background: transparent;
   border-color: var(--action);
   color: var(--action);
-  transition: background var(--motion-data) var(--ease), opacity 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+              opacity var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-spring),
+              border-color var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard);
   cursor: pointer;
   user-select: none;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+}
+.btn > svg {
+  transition: transform var(--duration-normal) var(--ease-spring);
 }
 @media (pointer: coarse) {
   .btn {
@@ -545,8 +617,11 @@ button.tag-chip:hover {
 .btn:hover {
   background: var(--hover);
 }
-.btn:active {
-  transform: scale(0.98);
+.btn:hover:not(:disabled) > svg:last-child:not(:only-child) {
+  transform: translateX(-2px);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 .btn:disabled {
   opacity: 0.5;
@@ -642,8 +717,25 @@ button.tag-chip:hover {
   cursor: default;
 }
 .field-error,
-.field[aria-invalid="true"] {
+.field[aria-invalid="true"],
+[data-invalid] .field {
   border-color: var(--negative);
+  animation: field-shake 320ms var(--ease-standard);
+}
+@keyframes field-shake {
+  20% { transform: translateX(3px); }
+  40% { transform: translateX(-3px); }
+  60% { transform: translateX(2px); }
+  80% { transform: translateX(-1px); }
+}
+@keyframes hint-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.field-error-hint,
+.field-hint-error {
+  color: var(--negative);
+  animation: hint-in var(--duration-normal) var(--ease-standard);
 }
 .field-error:focus,
 .field[aria-invalid="true"]:focus {
@@ -925,6 +1017,43 @@ button.jdp-title:hover,
   font-family: inherit;
 }
 
+/* ─────────────────────── Range Slider (AmountRange) ─────────────────────── */
+
+.range-thumb-slider::-webkit-slider-thumb {
+  pointer-events: auto;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--action);
+  cursor: grab;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--duration-fast) var(--ease-spring), box-shadow var(--duration-fast) var(--ease-standard);
+}
+.range-thumb-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px var(--action-soft);
+}
+.range-thumb-slider::-moz-range-thumb {
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--action);
+  cursor: grab;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--duration-fast) var(--ease-spring), box-shadow var(--duration-fast) var(--ease-standard);
+}
+.range-thumb-slider::-moz-range-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px var(--action-soft);
+}
+
 /* ─────────────────────── Segmented control ─────────────────────── */
 
 .seg {
@@ -935,6 +1064,8 @@ button.jdp-title:hover,
   border-radius: var(--r-md);
   background: var(--sunken);
   border: 1px solid var(--border);
+  position: relative;
+  isolation: isolate;
 }
 .seg button,
 .seg a {
@@ -947,20 +1078,28 @@ button.jdp-title:hover,
   font-weight: 500;
   color: var(--text-2);
   white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-spring);
   min-height: 44px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 .seg button:hover,
 .seg a:hover {
   color: var(--text);
 }
+.seg button:active,
+.seg a:active {
+  transform: scale(0.96);
+}
 .seg .seg-on {
   background: var(--surface);
   color: var(--text);
   font-weight: 600;
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
 }
 /* On an ink stage the chosen range wears the mint, like every active state. */
 .ink-stage .seg .seg-on,

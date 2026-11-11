@@ -7,6 +7,7 @@ import { previewPurchaseUsdAction, saveVehicleAction } from "@/app/actions/regis
 import DualDateInput from "@/components/ui/DualDateInput";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import AmountInput from "@/components/ui/AmountInput";
+import PlateInput from "@/components/ui/PlateInput";
 import { formatMoney, toFaDigits, toJalali, todayIso } from "@/lib/format";
 import type { VehicleBrand, VehicleCatalogModel } from "@/features/rwa/vehicle/types";
 import { Labeled, Result } from "./shared";
@@ -198,7 +199,7 @@ export default function VehicleForm({
 
       <div className="grid gap-3 md:grid-cols-3">
         <Labeled label="پلاک (اختیاری)">
-          <input className="field" name="plate" placeholder="۱۲ الف ۳۴۵ ایران ۱۱" />
+          <PlateInput name="plate" />
         </Labeled>
         <Labeled label="کارکرد (اختیاری) — کیلومتر">
           <AmountInput className="field num" name="mileage" inputMode="numeric" placeholder="۳۲٬۵۰۰" showWords={false} unit="none" />
