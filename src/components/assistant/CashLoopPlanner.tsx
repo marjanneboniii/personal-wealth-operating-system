@@ -121,7 +121,7 @@ export default function CashLoopPlanner({ s }: Props) {
               <Icon name="swap" size={13} />
               حسابگر جریان نقد و تبدیل تتر به تومان
             </span>
-            <h2 className="text-xl font-bold text-[var(--text)]">لوپ نقدینگی، پرداخت اقساط و تاب‌آوری</h2>
+            <h2 className="text-xl font-bold text-[var(--text)]">برنامه‌ریزی نقدینگی، پوشش اقساط و تاب‌آوری</h2>
             <p className="text-sm text-[var(--text-2)] max-w-2xl leading-relaxed">
               این بخش مستقیماً به حساب‌های بانکی، موجودی صرافی (بیت‌پین)، استیبل‌کوین‌ها و اقساط شما متصل است و به شما می‌گوید
               دقیقاً چه مقدار تتر باید بفروشید و به بانک واریز کنید تا بدون استرس از پس هزینه‌ها و سررسیدها برآیید.
@@ -392,15 +392,15 @@ export default function CashLoopPlanner({ s }: Props) {
         </div>
       </div>
 
-      {/* ── لوپ اجرایی ۳ مرحله‌ای نقدینگی (The 3-Step Execution Loop) ── */}
+      {/* ── مراحل ۳ گانه تأمین نقدینگی (بیت‌پین → بانک → اقساط) ── */}
       <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-4">
         <div>
           <h3 className="font-bold text-base text-[var(--text)] flex items-center gap-2">
             <Icon name="swap" size={16} />
-            چرخه اجرایی نقدینگی (لوپ بیت‌پین → بانک → اقساط)
+            مراحل اجرایی تأمین نقدینگی (بیت‌پین → بانک → اقساط)
           </h3>
           <p className="text-xs text-[var(--text-3)] mt-1">
-            برای جلوگیری از اتلاف کارمزد و استرس سررسید، چرخه تبدیل و انتقال را دقیقاً در سه گام زیر اجرا کنید:
+            برای جلوگیری از اتلاف کارمزد و استرس سررسید، مراحل تبدیل و انتقال را دقیقاً در سه گام زیر اجرا کنید:
           </p>
         </div>
 

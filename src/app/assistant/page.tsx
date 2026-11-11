@@ -176,7 +176,7 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
             onClick={() => window.dispatchEvent(new CustomEvent("assistant:open-loop"))}
             className="btn btn-ghost ai-btn !w-full !justify-center !mt-2.5 !text-[length:var(--fs-xs)] !min-h-[34px]"
           >
-            <Icon name="swap" size={13} /> ماشین‌حساب تبدیل تتر و لوپ نقدینگی
+            <Icon name="swap" size={13} /> حسابگر تأمین نقدینگی و تبدیل تتر
           </button>
         </section>
       </div>

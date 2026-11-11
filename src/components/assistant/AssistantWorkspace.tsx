@@ -67,7 +67,7 @@ export default function AssistantWorkspace({
             className={tab === "cash_loop" ? "is-on" : undefined}
             onClick={() => setTab("cash_loop")}
           >
-            <Icon name="swap" size={15} /> لوپ نقدینگی و تبدیل تتر
+            <Icon name="swap" size={15} /> تأمین نقدینگی و تبدیل تتر
           </button>
         )}
       </div>
