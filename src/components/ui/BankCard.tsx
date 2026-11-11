@@ -15,6 +15,8 @@ export interface BankCardProps {
   masked?: boolean;
   /** نام یا اسلاگ بانک در صورت تمایل به تعیین دستی */
   bankName?: string;
+  /** موجودی کارت یا حساب */
+  balance?: string;
   className?: string;
 }
 
@@ -53,10 +55,18 @@ const BANK_BINS: Record<string, BankMeta> = {
   "639607": { name: "بانک سرمایه", color: "#242582", textColor: "#ffffff" },
 };
 
-export function detectBank(rawNumber: string): BankMeta {
+export function detectBank(rawNumber: string, fallbackName?: string): BankMeta {
   const clean = toLatinDigits(rawNumber).replace(/[^\d]/g, "");
   const bin = clean.slice(0, 6);
-  return BANK_BINS[bin] ?? { name: "کارت شتابی", color: "#1f2937", textColor: "#ffffff" };
+  if (bin && BANK_BINS[bin]) return BANK_BINS[bin];
+  if (fallbackName) {
+    const norm = fallbackName.trim();
+    const found = Object.values(BANK_BINS).find(
+      (b) => b.name === norm || norm.includes(b.name) || b.name.includes(norm)
+    );
+    if (found) return { ...found, name: norm };
+  }
+  return { name: fallbackName || "کارت شتابی", color: "#1f2937", textColor: "#ffffff" };
 }
 
 /**
@@ -68,6 +78,7 @@ export default function BankCard({
   expiry,
   masked = false,
   bankName,
+  balance,
   className = "",
 }: BankCardProps) {
   const [copied, setCopied] = useState(false);
@@ -75,19 +86,26 @@ export default function BankCard({
 
   const clean = toLatinDigits(number).replace(/[^\d]/g, "");
   const bank = useMemo(() => {
-    const detected = detectBank(clean);
-    if (bankName) return { ...detected, name: bankName };
-    return detected;
+    return detectBank(clean, bankName);
   }, [clean, bankName]);
 
   const displayDigits = useMemo(() => {
     if (!clean) return "•••• •••• •••• ••••";
-    const padded = clean.padEnd(16, "•").slice(0, 16);
+    let formatted = clean;
+    if (clean.length === 4) {
+      formatted = `••••••••••••${clean}`;
+    } else if (clean.length === 10) {
+      // 6-digit BIN + 4-digit tail
+      formatted = `${clean.slice(0, 6)}••••••${clean.slice(6)}`;
+    } else if (clean.length < 16) {
+      formatted = clean.padEnd(16, "•").slice(0, 16);
+    }
+
     if (showMasked && clean.length === 16) {
       const m = `${clean.slice(0, 4)} ${clean.slice(4, 6)}•• •••• ${clean.slice(12, 16)}`;
       return toFaDigits(m);
     }
-    const grouped = padded.replace(/(.{4})/g, "$1 ").trim();
+    const grouped = formatted.slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
     return toFaDigits(grouped);
   }, [clean, showMasked]);
 
@@ -182,6 +200,12 @@ export default function BankCard({
           <span className="text-[9px] opacity-70">صاحب کارت</span>
           <span className="font-semibold">{holder || "دارنده کارت"}</span>
         </div>
+        {balance && (
+          <div className="flex flex-col items-center">
+            <span className="text-[9px] opacity-70">موجودی</span>
+            <span className="num font-bold text-sm tracking-tight">{balance}</span>
+          </div>
+        )}
         {expiry && (
           <div className="flex flex-col items-end" dir="ltr">
             <span className="text-[9px] opacity-70">انقضا</span>
