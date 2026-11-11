@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/ui/Icon";
 import { ALL_NAV_ITEMS, QUICK_ACTIONS } from "@/lib/nav";
@@ -59,25 +59,27 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   const inputRef = useRef<HTMLInputElement>(null);
 
   // جستجوهای اخیر در مرورگر
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  useEffect(() => {
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setRecentSearches(JSON.parse(stored));
+      return stored ? JSON.parse(stored) : [];
     } catch {
-      // حالت ناشناس / Private mode
+      return [];
     }
-  }, [open]);
+  });
 
-  const rememberSearch = (q: string) => {
+  const rememberSearch = useCallback((q: string) => {
     const trimmed = q.trim();
     if (!trimmed || trimmed.length < 2) return;
-    const next = [trimmed, ...recentSearches.filter((s) => norm(s) !== norm(trimmed))].slice(0, 6);
-    setRecentSearches(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {}
-  };
+    setRecentSearches((prev) => {
+      const next = [trimmed, ...prev.filter((s) => norm(s) !== norm(trimmed))].slice(0, 6);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   const clearRecents = () => {
     setRecentSearches([]);
@@ -167,7 +169,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, results, index, onClose, router, query]);
+  }, [open, results, index, onClose, router, query, rememberSearch]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-idx="${index}"]`)?.scrollIntoView({ block: "nearest" });

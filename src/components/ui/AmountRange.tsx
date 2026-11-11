@@ -44,7 +44,7 @@ export default function AmountRange({
   const [lo, hi] = value ?? inner;
   const { from = "از", to = "تا" } = labels;
 
-  const fmt = (n: number) => formatNumber(n, 0, "fa");
+  const fmt = (n: number) => formatNumber(n, { decimals: 0, digits: "fa", isolate: false });
 
   const setRange = (next: [number, number]) => {
     if (value === undefined) setInner(next);
@@ -52,10 +52,15 @@ export default function AmountRange({
   };
 
   // نگهداری مقدار متنی فیلدها جدا از عدد برای جلوگیری از پرش caret هنگام تایپ
+  const [prevLo, setPrevLo] = useState(lo);
+  const [prevHi, setPrevHi] = useState(hi);
   const [text, setText] = useState<[string, string]>([fmt(lo), fmt(hi)]);
-  useEffect(() => {
+
+  if (prevLo !== lo || prevHi !== hi) {
+    setPrevLo(lo);
+    setPrevHi(hi);
     setText([fmt(lo), fmt(hi)]);
-  }, [lo, hi]);
+  }
 
   const parseNumber = (s: string) => {
     const latin = toLatinDigits(s).replace(/[^\d]/g, "");
