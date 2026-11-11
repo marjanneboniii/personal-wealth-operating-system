@@ -19,7 +19,7 @@
 .ai-tabs {
   display: flex;
   gap: 4px;
-  max-width: 440px;
+  max-width: 640px;
   padding: 4px;
   margin-bottom: 1.1rem;
   border-radius: var(--r-pill);
