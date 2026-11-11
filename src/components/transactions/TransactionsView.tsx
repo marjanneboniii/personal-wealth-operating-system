@@ -209,7 +209,33 @@ export default function TransactionsView({
     });
   };
 
-  const selectedRows = useMemo(() => rows.filter((r) => selected.has(r.id)), [rows, selected]);
+  // Maximum Toman amount present in rows, used as slider upper bound
+  const maxRowAmount = useMemo(() => {
+    let m = 0;
+    for (const r of rows) {
+      const h = humanizeEntry(r);
+      const t = h.nativeIrt ?? r.fx?.irtAmount;
+      const val = t ? Number(t) : rate && Number(rate) > 0 ? Number(D(h.amountExact).mul(rate).toFixed(0)) : 0;
+      if (val > m) m = val;
+    }
+    return m > 0 ? Math.ceil(m / 100000) * 100000 : 10000000;
+  }, [rows, rate]);
+
+  const [amountRange, setAmountRange] = useState<[number, number]>([0, maxRowAmount]);
+  const [filterByAmount, setFilterByAmount] = useState(false);
+
+  const effectiveRows = useMemo(() => {
+    if (!filterByAmount) return rows;
+    const [minVal, maxVal] = amountRange;
+    return rows.filter((r) => {
+      const h = humanizeEntry(r);
+      const t = h.nativeIrt ?? r.fx?.irtAmount;
+      const val = t ? Number(t) : rate && Number(rate) > 0 ? Number(D(h.amountExact).mul(rate).toFixed(0)) : 0;
+      return val >= minVal && val <= maxVal;
+    });
+  }, [rows, filterByAmount, amountRange, rate]);
+
+  const selectedRows = useMemo(() => effectiveRows.filter((r) => selected.has(r.id)), [effectiveRows, selected]);
   // Net Toman of the selection (Palletline's summary bar): in minus out, from
   // each entry's own frozen Toman. Shown only when every selected entry has
   // one — a partial sum would be a wrong number, not a smaller one.
@@ -223,20 +249,20 @@ export default function TransactionsView({
     }
     return sum;
   }, [selectedRows]);
-  const unreviewedCount = useMemo(() => rows.filter((r) => !r.reviewed).length, [rows]);
+  const unreviewedCount = useMemo(() => effectiveRows.filter((r) => !r.reviewed).length, [effectiveRows]);
 
   // Day headers only make sense for a date order; «بیشترین مبلغ» is one list.
   const byDay = filters.sort !== "amount";
   const groups = useMemo(() => {
-    if (!byDay) return [{ key: "all", label: null as string | null, rows }];
+    if (!byDay) return [{ key: "all", label: null as string | null, rows: effectiveRows }];
     const out: { key: string; label: string | null; rows: ClientTxRow[] }[] = [];
-    for (const r of rows) {
+    for (const r of effectiveRows) {
       const last = out[out.length - 1];
       if (last && last.key === r.entryDate) last.rows.push(r);
       else out.push({ key: r.entryDate, label: dayLabel(r.entryDate), rows: [r] });
     }
     return out;
-  }, [rows, byDay]);
+  }, [effectiveRows, byDay]);
 
   const exportCsv = () => {
     const head = "date,description,type,from,to,amount_usd,amount_irt,tags\n";
@@ -268,7 +294,7 @@ export default function TransactionsView({
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const isFiltered = filters.q || filters.type || filters.accountId || filters.categoryId || filters.tag || filters.review || filters.range !== "m3";
+  const isFiltered = filters.q || filters.type || filters.accountId || filters.categoryId || filters.tag || filters.review || filters.range !== "m3" || filterByAmount;
 
   const renderRow = (e: ClientTxRow) => {
     const h = humanizeEntry(e);
@@ -676,6 +702,17 @@ export default function TransactionsView({
           ariaLabel: "جستجوی تراکنش‌ها",
           onChange: (v) => apply({ q: v }),
         }}
+        amountRange={{
+          min: 0,
+          max: maxRowAmount,
+          value: filterByAmount ? amountRange : [0, maxRowAmount],
+          step: maxRowAmount > 100_000_000 ? 500_000 : maxRowAmount > 10_000_000 ? 50_000 : 10_000,
+          unit: "تومان",
+          onChange: (val) => {
+            setAmountRange(val);
+            setFilterByAmount(true);
+          },
+        }}
         selects={[
           {
             key: "type",
@@ -752,7 +789,11 @@ export default function TransactionsView({
           },
         ]}
         isFiltered={!!isFiltered}
-        onClear={() => router.replace("/transactions")}
+        onClear={() => {
+          setFilterByAmount(false);
+          setAmountRange([0, maxRowAmount]);
+          router.replace("/transactions");
+        }}
       />
         {/* One row of quick filters; it scrolls sideways on a phone instead of
             wrapping into a second line. */}
@@ -771,7 +812,7 @@ export default function TransactionsView({
             بررسی‌نشده <span className="num mny-chip-count">{faCount(unreviewedCount)}</span>
           </button>
         </div>
-        <p className="mny-tx-count">{faCount(rows.length)} مورد در فهرست فعلی</p>
+        <p className="mny-tx-count">{faCount(effectiveRows.length)} مورد در فهرست فعلی</p>
       </section>
 
       {tagSummary && tagSummary.entries > 0 && (
@@ -824,7 +865,7 @@ export default function TransactionsView({
         </p>
       )}
 
-      {rows.length === 0 ? (
+      {effectiveRows.length === 0 ? (
         <div className="card flex flex-col items-center gap-2 px-6 py-12 text-center">
           <span className="flow-icon" aria-hidden="true">
             <Icon name="search" size={17} />
@@ -833,7 +874,15 @@ export default function TransactionsView({
             {isFiltered ? "تراکنشی با این فیلترها پیدا نشد" : "هنوز تراکنشی ثبت نشده است"}
           </p>
           {isFiltered && (
-            <button type="button" className="btn btn-soft mt-1" onClick={() => router.replace("/transactions")}>
+            <button
+              type="button"
+              className="btn btn-soft mt-1"
+              onClick={() => {
+                setFilterByAmount(false);
+                setAmountRange([0, maxRowAmount]);
+                router.replace("/transactions");
+              }}
+            >
               حذف فیلترها
             </button>
           )}

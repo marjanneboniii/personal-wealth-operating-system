@@ -13,7 +13,7 @@ import { SETUP_BANKS, type SetupBankOption } from "@/features/setup/bankCatalog"
 import { toLatinDigits } from "@/lib/format";
 
 /** Catalogue name → card BINs. Names match `bankCatalog` entries exactly. */
-const CARD_BINS: Record<string, readonly string[]> = {
+export const CARD_BINS: Record<string, readonly string[]> = {
   "بانک ملی ایران": ["603799"],
   "بانک سپه": ["589210"],
   "بانک توسعه صادرات ایران": ["627648", "207177"],
