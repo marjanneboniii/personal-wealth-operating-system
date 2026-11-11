@@ -34,9 +34,6 @@ import { walletLogoFor } from "@/features/setup/holdingWallets";
 import { listReconciliation } from "@/features/reconcile/service";
 import { listTradingAccounts, TRADING_STALE_DAYS } from "@/features/trading/service";
 import TradingAccountCard from "@/components/accounts/TradingAccountCard";
-import BankCard from "@/components/ui/BankCard";
-import { CARD_BINS } from "@/features/accounts/bankBins";
-import { normalizeBankName } from "@/features/bankImport/matching";
 
 export const dynamic = "force-dynamic";
 
@@ -261,55 +258,6 @@ export default async function AccountsPage() {
     if (i.kind === "card" && i.suffix && !cardTail.has(i.accountId)) cardTail.set(i.accountId, `•• ${toFaDigits(i.suffix.slice(-4))}`);
   }
 
-  // Graphical bank cards (Kashi 2.0 BankCard) for all active bank accounts and identifiers
-  const userName = (user as { name?: string | null; email?: string | null } | null)?.name || (user as { email?: string | null } | null)?.email?.split("@")[0] || "کاربر توازن";
-  const bankCards: { id: string; number: string; bankName?: string; holder: string; balance?: string; masked: boolean }[] = [];
-
-  for (const acc of bankProfileAccounts) {
-    const cardId = bankProfileIdentifiers.find((i) => i.accountId === acc.id && i.kind === "card");
-    const rawBank = acc.bankName || cardId?.bankName || "";
-    const normBank = normalizeBankName(rawBank);
-    const bin = (CARD_BINS[rawBank] || CARD_BINS[normBank])?.[0] || "";
-    const cleanSuffix = (cardId?.suffix || "").replace(/\D/g, "");
-    const number = cleanSuffix.length === 16
-      ? cleanSuffix
-      : cleanSuffix.length > 0
-        ? (bin ? `${bin}${cleanSuffix.slice(-4)}` : cleanSuffix)
-        : (bin ? `${bin}0000000000` : "6037990000000000");
-    const b = moneyById.get(acc.id);
-    const balance = b ? formatMoney(D(b.quantity).toFixed(0), "IRT") : undefined;
-    bankCards.push({
-      id: acc.id,
-      number,
-      bankName: rawBank || undefined,
-      holder: userName,
-      balance,
-      masked: true,
-    });
-  }
-
-  // Fallback: If no bank SMS accounts configured, but there are bank wallets with accounts
-  if (bankCards.length === 0) {
-    for (const w of walletViews) {
-      if (w.meta?.kind === "bank") {
-        for (const row of w.rows) {
-          const rawBank = w.meta.institution || w.name;
-          const normBank = normalizeBankName(rawBank);
-          const bin = (CARD_BINS[rawBank] || CARD_BINS[normBank])?.[0] || "";
-          const balance = formatMoney(D(row.quantity).toFixed(0), row.symbol === "IRR" ? "IRR" : "IRT");
-          bankCards.push({
-            id: row.accountId,
-            number: bin ? `${bin}0000000000` : "6037990000000000",
-            bankName: rawBank,
-            holder: userName,
-            balance,
-            masked: true,
-          });
-        }
-      }
-    }
-  }
-
   const irtShare = totalToman && totalToman.gt(0) ? irtToman.div(totalToman).mul(100).toNumber() : null;
   return (
     <div className="accounts-page mny-page">
@@ -392,25 +340,6 @@ export default async function AccountsPage() {
           }
         />
       </section>
-
-      {bankCards.length > 0 && (
-        <Section
-          title="کارت‌های بانکی"
-          hint={`${faCount(bankCards.length)} کارت بانکی`}
-          action={
-            <Link href="#bank-details" className="btn btn-ghost !min-h-8 !px-2.5 !py-1 text-[length:var(--fs-xs)]">
-              <Icon name="card" size={14} />
-              مدیریت کارت‌ها و شبا
-            </Link>
-          }
-        >
-          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-            {bankCards.map((c) => (
-              <BankCard key={c.id} {...c} />
-            ))}
-          </div>
-        </Section>
-      )}
 
       {tradingAccounts.length > 0 && (
         <Section
