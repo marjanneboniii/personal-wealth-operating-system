@@ -4199,12 +4199,40 @@ body {
 /* ثبت تعهد — direction tiles side by side, custom due-date rows.
    The tile grids keep a fixed column count at every width: the generic
    .expense-squares grid widens to 6 columns on desktop, which squeezed two
-   or three tiles into a sixth of the card each. Two classes outrank it. */
+   or three tiles into a sixth of the card each. Three classes outrank it. */
 .expense-squares.debt-direction { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .expense-squares.debt-modes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.expense-squares.debt-intervals { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 /* Short hints («یا هر چند ماه», «تاریخ‌های دلخواه») wrap instead of being cut on a phone. */
-.debt-direction > .expense-square, .debt-modes > .expense-square { padding-inline: 0.5rem; }
-.debt-direction .expense-square-meta, .debt-modes .expense-square-meta { white-space: normal; line-height: 1.5; }
+.debt-direction > .expense-square,
+.debt-modes > .expense-square,
+.debt-intervals > .expense-square {
+  padding-inline: 0.5rem;
+}
+.debt-direction .expense-square-meta,
+.debt-modes .expense-square-meta {
+  white-space: normal;
+  line-height: 1.5;
+}
+.debt-intervals > .expense-square {
+  min-height: 3rem;
+  padding-block: 0.5rem;
+  padding-inline: 0.375rem;
+}
+.debt-intervals .expense-square-label {
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  overflow: visible;
+  text-overflow: clip;
+  display: block;
+}
+.debt-intervals .expense-check {
+  width: 1rem;
+  height: 1rem;
+  top: 0.25rem;
+  inset-inline-end: 0.25rem;
+}
 .debt-dates { display: grid; gap: 0.5rem; list-style: none; }
 .debt-date-row { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
 .debt-date-seq { flex-shrink: 0; min-width: 3.25rem; font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); }

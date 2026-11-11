@@ -27,15 +27,31 @@ type UiMessage = {
   error?: string;
 };
 
-const STARTERS = [
-  "وضعیت مالی فعلی من چطور است؟",
-  "ماه گذشته پولم بیشتر صرف چه چیزهایی شد؟",
-  "کدام هزینه‌هایم قابل کاهش است؟",
-  "در ماه آینده چه پرداخت‌هایی دارم و نقدینگی‌ام کافی است؟",
-  "چقدر می‌توانم بدون مشکل برای تعهداتم خرج کنم؟",
-  "کدام بدهی را زودتر پرداخت کنم؟",
-  "آیا بودجه‌بندی فعلی من منطقی است؟",
-  "تراکنش‌های ماه اخیر را از نظر دسته‌بندی اشتباه بررسی کن.",
+const STARTER_CARDS = [
+  {
+    icon: "installments" as const,
+    title: "اقساط و بدهی‌ها",
+    desc: "اقساط ماه آینده و سررسید هر کدام چیست؟",
+    prompt: "در ماه آینده چه اقساطی دارم و سررسید و مبلغ هر قسط چقدر است؟",
+  },
+  {
+    icon: "shield" as const,
+    title: "بیمه‌نامه‌ها و شخص ثالث",
+    desc: "بررسی وضعیت و مبلغ دقیق اقساط بیمه شخص ثالث من",
+    prompt: "وضعیت بیمه‌نامه‌ها و مبلغ دقیق قسط بیمه شخص ثالث من چقدر است؟",
+  },
+  {
+    icon: "wallet" as const,
+    title: "نقدینگی و موجودی آزاد",
+    desc: "آیا نقدینگی حساب‌های بانکی برای پرداخت‌های پیش‌رو کافی است؟",
+    prompt: "وضعیت نقدینگی و موجودی حساب‌های من برای هزینه‌ها و تعهدات پیش‌رو چگونه است؟",
+  },
+  {
+    icon: "cashflow" as const,
+    title: "تحلیل کلی جریان وجوه",
+    desc: "بررسی درآمد، هزینه‌ها و فرصت‌های صرفه‌جویی مالی",
+    prompt: "وضعیت مالی من در ماه گذشته چطور بوده و کدام هزینه‌هایم قابل کاهش است؟",
+  },
 ];
 
 const MEMORY_KIND: Record<string, string> = { goal: "هدف", preference: "ترجیح", constraint: "محدودیت", fact: "واقعیت" };
@@ -336,18 +352,29 @@ export default function AssistantChat({
         {loadingConv && <p className="muted text-[length:var(--fs-sm)]">در حال بارگذاری گفتگو…</p>}
         {!loadingConv && messages.length === 0 && (
           <div className="ai-empty">
-            <span className="ai-empty-icon" aria-hidden="true">
-              <Icon name="sparkle" size={22} />
-            </span>
-            <p className="font-semibold">هر سؤالی درباره‌ی پول و دارایی‌تان دارید بپرسید.</p>
-            <p className="muted text-[length:var(--fs-xs)] leading-5">
-              دستیار حساب‌ها، تراکنش‌ها، بودجه‌ها، اقساط، بدهی‌ها و دارایی‌های ثبت‌شده‌ی شما را هر بار تازه می‌خواند. فارسی یا انگلیسی بنویسید.
+            <div className="ai-empty-avatar" aria-hidden="true">
+              <Icon name="sparkle" size={26} />
+            </div>
+            <h2 className="ai-empty-title">دستیار هوشمند توازن</h2>
+            <p className="ai-empty-desc">
+              تحلیل و پاسخ‌گویی بر اساس داده‌های زنده و واقعی حساب‌ها، اقساط، بدهی‌ها، بیمه‌نامه‌ها و بودجه‌های شما.
             </p>
-            <div className="ai-starters">
-              {STARTERS.map((s) => (
-                <button key={s} type="button" className="ai-starter" onClick={() => send(s)} disabled={busy || !configured}>
-                  <Icon name="sparkle" size={13} />
-                  <span>{s}</span>
+            <div className="ai-starters-grid">
+              {STARTER_CARDS.map((c) => (
+                <button
+                  key={c.title}
+                  type="button"
+                  className="ai-starter-card"
+                  onClick={() => send(c.prompt)}
+                  disabled={busy || !configured}
+                >
+                  <div className="ai-starter-icon">
+                    <Icon name={c.icon} size={18} />
+                  </div>
+                  <div className="ai-starter-text">
+                    <b className="ai-starter-title">{c.title}</b>
+                    <span className="ai-starter-desc">{c.desc}</span>
+                  </div>
                 </button>
               ))}
             </div>
@@ -357,37 +384,54 @@ export default function AssistantChat({
         {messages.map((m) => (
           <div key={m.id} className={`ai-msg ai-msg-${m.role}`}>
             {m.role === "user" ? (
-              <div className="ai-bubble" dir="auto">
-                {m.content}
+              <div className="ai-user-wrap">
+                <div className="ai-bubble" dir="auto">
+                  {m.content}
+                </div>
                 {m.id === lastUserId && !busy && !m.id.startsWith("tmp-") && (
                   <button
                     type="button"
-                    className="ai-edit"
+                    className="ai-edit-btn"
                     onClick={() => {
                       setEditingId(m.id);
                       setInput(m.content);
                       inputRef.current?.focus();
                     }}
                   >
-                    ویرایش
+                    <Icon name="note" size={11} />
+                    <span>ویرایش پیام</span>
                   </button>
                 )}
               </div>
             ) : (
               <div className="ai-answer">
-                {m.content ? <Markdown text={visible(m.content)} /> : null}
-                {m.pending && !m.content && (
-                  <p className="ai-status">
-                    <span className="ai-dots" aria-hidden="true"><i /><i /><i /></span>
-                    {status ?? "در حال تحلیل…"}
-                  </p>
-                )}
-                {m.pending && m.content && status && <p className="ai-status muted">{status}</p>}
-                {m.error && (
-                  <div className="ai-error" role="alert">
-                    <Icon name="alert" size={14} /> {m.error}
+                <div className="ai-model-header">
+                  <div className="ai-avatar" aria-hidden="true">
+                    <Icon name="sparkle" size={13} />
                   </div>
-                )}
+                  <span className="ai-model-name">دستیار هوشمند</span>
+                  {m.meta.model && <span className="ai-model-tag" dir="ltr">{m.meta.model}</span>}
+                </div>
+                <div className="ai-answer-body">
+                  {m.content ? <Markdown text={visible(m.content)} /> : null}
+                  {m.pending && !m.content && (
+                    <div className="ai-status">
+                      <span className="ai-dots" aria-hidden="true"><i /><i /><i /></span>
+                      <span>{status ?? "در حال تحلیل و تنظیم پاسخ…"}</span>
+                    </div>
+                  )}
+                  {m.pending && m.content && status && (
+                    <div className="ai-status is-streaming">
+                      <span className="ai-dots" aria-hidden="true"><i /><i /><i /></span>
+                      <span className="muted">{status}</span>
+                    </div>
+                  )}
+                  {m.error && (
+                    <div className="ai-error" role="alert">
+                      <Icon name="alert" size={14} /> {m.error}
+                    </div>
+                  )}
+                </div>
                 {(m.meta.proposals ?? []).length > 0 && (
                   <div className="ai-proposals">
                     <p className="muted text-[length:var(--fs-xs)]">پیشنهاد اصلاح دسته‌بندی — تا تأیید نکنید چیزی تغییر نمی‌کند:</p>
@@ -419,16 +463,16 @@ export default function AssistantChat({
                 {!m.pending && m.content && (
                   <div className="ai-tools">
                     <button type="button" className="ai-link" onClick={() => navigator.clipboard?.writeText(visible(m.content))}>
-                      <Icon name="copy" size={12} /> کپی
+                      <Icon name="copy" size={12} /> کپی پاسخ
                     </button>
-                    {m.meta.model && <span className="ai-link" dir="ltr">{m.meta.model}</span>}
                   </div>
                 )}
                 {m === lastModel && !busy && (m.meta.suggestions ?? []).length > 0 && (
                   <div className="ai-chips">
                     {m.meta.suggestions!.map((s) => (
-                      <button key={s} type="button" className="chip" onClick={() => send(s)} dir="auto">
-                        {s}
+                      <button key={s} type="button" className="ai-chip-btn" onClick={() => send(s)} dir="auto">
+                        <Icon name="sparkle" size={11} />
+                        <span>{s}</span>
                       </button>
                     ))}
                   </div>

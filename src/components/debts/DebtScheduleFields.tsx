@@ -208,7 +208,7 @@ export default function DebtScheduleFields({
           </div>
           <div className="space-y-1.5">
             <span className="label">فاصله اقساط</span>
-            <div className="expense-squares" role="radiogroup" aria-label="فاصله اقساط">
+            <div className="expense-squares debt-intervals" role="radiogroup" aria-label="فاصله اقساط">
               {RECURRING_INTERVALS.map((months) => {
                 const on = value.intervalMonths === String(months);
                 return (

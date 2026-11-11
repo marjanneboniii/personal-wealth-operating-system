@@ -7,6 +7,8 @@ import { getFlowByCategory, getMiscCategory, type CategoryFlowRow } from "@/feat
 import { getCurrentNetWorth } from "@/features/portfolio/service";
 import { listBudgets, listDebts, listGoals, projectCashflow, upcomingInstallments } from "@/features/planning/service";
 import { isReceivable } from "@/features/planning/obligations";
+import { resolveInstallmentToman } from "@/features/planning/installmentFx";
+import { listPolicies } from "@/features/insurance/service";
 import { listRecurringPayments } from "@/features/recurring/service";
 import { reconcileMismatches } from "@/features/reconcile/service";
 import { JALALI_MONTHS, recentJalaliMonths, todayIso, toJalali } from "@/lib/format";
@@ -80,10 +82,24 @@ export type FinancialSnapshot = {
     totalCount: number;
     nextDueDate: string | null;
     nextDueToman: number | null;
+    installmentToman?: number | null;
+    installments?: { seq: number; dueDate: string; toman: number; status: string; paidToman?: number }[];
     overdueCount: number;
     state: string;
   }[];
   receivables: { title: string; outstandingToman: number; nextDueDate: string | null }[];
+  insurance?: {
+    id: string;
+    kind: string;
+    title: string;
+    insurer: string | null;
+    premiumToman: number;
+    premiumFrequency: string;
+    endDate: string | null;
+    debtId: string | null;
+    debtTitle: string | null;
+    status: string;
+  }[];
   obligations: {
     next30Toman: number;
     overdue: { count: number; toman: number };
@@ -150,7 +166,7 @@ async function build(userId: string): Promise<FinancialSnapshot> {
 
   const safe = <T,>(p: Promise<T>, fallback: T) => p.catch(() => fallback);
 
-  const [nw, balances, flow, catCurrent, catPrev, incomeCurrent, budgets, debts, upcoming, projection, goals, recurring, series, unreviewed, mismatches, recentTx, misc, lastActivity] =
+  const [nw, balances, flow, catCurrent, catPrev, incomeCurrent, budgets, debts, upcoming, projection, goals, recurring, series, unreviewed, mismatches, recentTx, misc, lastActivity, policies] =
     await Promise.all([
       getCurrentNetWorth(userId),
       getAccountBalances(userId),
@@ -177,6 +193,7 @@ async function build(userId: string): Promise<FinancialSnapshot> {
           group by p.account_id`),
         { rows: [] } as unknown as Awaited<ReturnType<typeof db.execute>>,
       ),
+      safe(listPolicies(userId), []),
     ]);
 
   const rate = Number(nw.valuation?.currentFxRate ?? 0) || 0;
@@ -267,6 +284,30 @@ async function build(userId: string): Promise<FinancialSnapshot> {
       const own = (d.installments ?? []) as Array<Record<string, any>>;
       const overdueCount = own.filter((i) => i.status !== "paid" && i.dueDate < today).length;
       const rateNum = Number(d.interestRate);
+
+      const installmentList = own.map((i) => {
+        const resolved = resolveInstallmentToman(i as any, rate);
+        const tomanVal = i.amountToman != null ? n(i.amountToman) : (resolved ? n(resolved) : 0);
+        return {
+          seq: Number(i.seq ?? 0),
+          dueDate: String(i.dueDate ?? ""),
+          toman: tomanVal,
+          status: String(i.status ?? "pending"),
+          paidToman: i.paidToman != null ? n(i.paidToman) : undefined,
+        };
+      });
+
+      const samplePending = own.find((i) => i.status !== "paid") ?? own[0];
+      const sampleResolved = samplePending ? resolveInstallmentToman(samplePending as any, rate) : null;
+      const regularToman = samplePending
+        ? (samplePending.amountToman != null ? n(samplePending.amountToman) : (sampleResolved ? n(sampleResolved) : null))
+        : null;
+
+      const nextDueResolved = d.nextDue ? resolveInstallmentToman(d.nextDue as any, rate) : null;
+      const nextDueTomanVal = d.nextDue
+        ? (d.nextDue.amountToman != null ? n(d.nextDue.amountToman) : (nextDueResolved ? n(nextDueResolved) : null))
+        : null;
+
       return {
         title: String(d.title),
         creditor: String(d.creditor ?? ""),
@@ -275,7 +316,9 @@ async function build(userId: string): Promise<FinancialSnapshot> {
         paidCount: Number(d.paidCount ?? 0),
         totalCount: Number(d.totalCount ?? 0),
         nextDueDate: d.nextDue?.dueDate ?? null,
-        nextDueToman: d.nextDue ? n(d.nextDue.amountToman ?? 0) || null : null,
+        nextDueToman: nextDueTomanVal,
+        installmentToman: regularToman,
+        installments: installmentList,
         overdueCount,
         state: String(d.state ?? d.status ?? ""),
       };
@@ -391,6 +434,18 @@ async function build(userId: string): Promise<FinancialSnapshot> {
     budgets: budgetForecasts,
     debts: debtRows,
     receivables,
+    insurance: ((policies ?? []) as Array<Record<string, any>>).map((p) => ({
+      id: String(p.id),
+      kind: String(p.kind ?? ""),
+      title: String(p.title ?? ""),
+      insurer: p.insurer ? String(p.insurer) : null,
+      premiumToman: n(p.premiumToman),
+      premiumFrequency: String(p.premiumFrequency ?? "annual"),
+      endDate: p.endDate ? String(p.endDate) : null,
+      debtId: p.debtId ? String(p.debtId) : null,
+      debtTitle: p.debtTitle ? String(p.debtTitle) : null,
+      status: String(p.status ?? "active"),
+    })),
     obligations: {
       next30Toman,
       overdue: { count: overdueCount, toman: overdueToman },
