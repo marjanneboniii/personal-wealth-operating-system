@@ -576,9 +576,6 @@
   .ai-starters-grid { grid-template-columns: 1fr; }
   .ai-thread { min-height: 0; max-height: none; padding: 0.85rem; }
 }
-  .ai-starter:nth-child(n + 5) { display: none; }
-  .ai-thread { min-height: 0; max-height: none; padding: 0.85rem; }
-}
 
 /* ── safe markdown ── */
 .md > * + * { margin-top: 0.6rem; }
