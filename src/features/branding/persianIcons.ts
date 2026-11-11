@@ -343,16 +343,35 @@ const PAYMENT_MAP: Record<string, string> = {
   "پی آی آر": "pay-ir",
   "pay ir": "pay-ir",
   "pay-ir": "pay-ir",
+  payir: "pay-ir",
   "سپ": "sep",
   sep: "sep",
   "اسنپ پی": "snap-pay",
+  "اسنپ‌پی": "snap-pay",
   "snap pay": "snap-pay",
   "snap-pay": "snap-pay",
+  snappay: "snap-pay",
+  "snapp-pay": "snap-pay",
+  "تارا": "digipay",
+  tara: "digipay",
+  "ترب پی": "digipay",
+  "ترب‌پی": "digipay",
+  "تکنو پی": "digipay",
+  "تکنوپی": "digipay",
 };
 
 export function getPaymentGatewayLogo(name: string | null | undefined): string | null {
   const slug = lookupSlug(PAYMENT_MAP, name, ["درگاه", "پرداخت"]);
   return slug ? `${BASE}/payment-gateways/${slug}.svg` : null;
+}
+
+/**
+ * bankLogoDataUri — Kashi 2.0 compatible logo URI resolver for banks and payment gateways.
+ * Accepts English or Persian slug/name and returns the local SVG path.
+ */
+export function bankLogoDataUri(slug: string): string {
+  const norm = slug.toLowerCase().replace(/[\s_]+/g, "-");
+  return getPaymentGatewayLogo(norm) ?? getBankLogo(norm) ?? `${BASE}/banks/${norm}.svg`;
 }
 
 /* ────────────────────── Insurance companies ─────────────────────── */
