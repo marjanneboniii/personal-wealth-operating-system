@@ -5,6 +5,7 @@ import { getTransactionById } from "@/features/ledger/queries";
 import { getEntryFxSnapshots } from "@/features/ledger/fxSnapshots";
 import { EmptyState } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
+import AssetLogo from "@/components/ui/AssetLogo";
 import DateTile from "@/components/ui/DateTile";
 import FormattedMoney from "@/components/ui/FormattedMoney";
 import { ReceiptCode, ReceiptPrint } from "@/components/transactions/ReceiptActions";
@@ -35,6 +36,23 @@ const TITLE_BY_TYPE: Record<string, string> = {
 
 type Status = "success" | "pending" | "failed";
 const STATUS_ICON: Record<Status, IconName> = { success: "check", pending: "clock", failed: "x" };
+
+/**
+ * Iranian tracking number (شماره پیگیری / RRN):
+ * Must be purely numeric and displayed in Persian digits.
+ */
+function toNumericTrackingCode(reference: string | null | undefined, entryId: string): string {
+  const cleanRef = reference ? reference.replace(/\D/g, "") : "";
+  if (cleanRef.length >= 6) return cleanRef;
+
+  const hex = entryId.replace(/-/g, "");
+  let hash = 0n;
+  for (let i = 0; i < Math.min(hex.length, 12); i++) {
+    hash = hash * 16n + BigInt(parseInt(hex[i], 16));
+  }
+  const digits = (hash % 9000000000n + 1000000000n).toString();
+  return cleanRef ? `${cleanRef}${digits}`.slice(-10) : digits;
+}
 
 /** «۰۹:۱۲» at Tehran time — the moment the entry was committed. */
 function tehranTime(iso: string | null) {
@@ -96,7 +114,8 @@ export default async function ReceiptPage({ searchParams }: { searchParams: Sear
         : entry.description;
 
   const category = entry.categoryName ? `${entry.categoryParentName ? `${entry.categoryParentName} › ` : ""}${entry.categoryName}` : null;
-  const code = (entry.reference?.trim() || entry.id.slice(0, 8)).toUpperCase();
+  const numericCode = toNumericTrackingCode(entry.reference, entry.id);
+  const faCode = toFaDigits(numericCode);
   const time = tehranTime(entry.createdAt);
   const holiday = iranHoliday(entry.entryDate);
 
@@ -105,12 +124,30 @@ export default async function ReceiptPage({ searchParams }: { searchParams: Sear
     if (value != null && value !== "") rows.push([label, value]);
   };
   add("نوع", h.typeLabel);
-  add("از", h.from ? plainAccountName(h.from) : null);
-  if (entry.type === "expense") {
-    add("بابت", entry.categoryName ?? null);
-    add("گروه", entry.categoryParentName ?? null);
+  if (h.from) {
+    const fromName = plainAccountName(h.from);
+    add(
+      "حساب مبدأ",
+      <span className="flex items-center justify-end gap-1.5 font-semibold">
+        <AssetLogo assetType="bank" brandName={fromName} name={fromName} size={18} />
+        <span>{fromName}</span>
+      </span>,
+    );
+  }
+  if (entry.type === "expense" || entry.type === "installment" || entry.type === "debt_repayment") {
+    add("بابت", entry.description || entry.categoryName || null);
+    if (entry.categoryParentName) add("گروه", entry.categoryParentName);
   } else {
-    add("به", h.to ? plainAccountName(h.to) : null);
+    if (h.to) {
+      const toName = plainAccountName(h.to);
+      add(
+        "به حساب",
+        <span className="flex items-center justify-end gap-1.5 font-semibold">
+          <AssetLogo assetType="bank" brandName={toName} name={toName} size={18} />
+          <span>{toName}</span>
+        </span>,
+      );
+    }
     add("دسته", category);
   }
   add("مقدار", h.qtyLabel ? <span className="num" dir="rtl">{h.qtyLabel}</span> : null);
@@ -134,7 +171,7 @@ export default async function ReceiptPage({ searchParams }: { searchParams: Sear
   add("معادل دلاری", <FormattedMoney value={formatMoney(h.amount)} />);
   add("نرخ زمان ثبت", snap ? <FormattedMoney value={formatMoney(snap.fxRate, "IRT")} /> : null);
   add("منبع", SOURCE_LABEL[entry.source] ?? entry.source);
-  add("کد پیگیری", <ReceiptCode value={code} label={code} />);
+  add("شماره پیگیری", <ReceiptCode value={numericCode} label={faCode} />);
 
   return (
     <div className="receipt-page">
@@ -145,7 +182,19 @@ export default async function ReceiptPage({ searchParams }: { searchParams: Sear
         </Link>
       </div>
 
-      <section className="receipt" data-status={status} aria-labelledby="receipt-title">
+      <section className="receipt relative overflow-hidden" data-status={status} aria-labelledby="receipt-title">
+        {/* Kashi 2.0 Status Stamp Watermark */}
+        <div
+          className="receipt-stamp pointer-events-none absolute inset-inline-end-4 top-4 select-none rounded-[var(--r-md)] border-2 border-dashed px-3 py-1 text-[length:var(--fs-xs)] font-extrabold uppercase opacity-85"
+          style={{
+            borderColor: "var(--tone)",
+            color: "var(--tone)",
+            transform: "rotate(-7deg)",
+          }}
+          aria-hidden="true"
+        >
+          {status === "failed" ? "ابطال شد" : status === "pending" ? "در انتظار تأیید" : "پرداخت شد"}
+        </div>
         <header className="receipt-head">
           <span className="receipt-icon" aria-hidden="true">
             <Icon name={STATUS_ICON[status]} size={26} />

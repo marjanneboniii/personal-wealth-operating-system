@@ -1,17 +1,19 @@
 import InstallmentViews from "@/components/planning/InstallmentViews";
 import Link from "next/link";
 import { ensureAuth } from "@/lib/authGuard";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, assetClasses, assets, wallets } from "@/db/schema";
+import { accounts, assetClasses, assets, institutions, postings, wallets } from "@/db/schema";
 import { seedIfEmpty } from "@/db/seed";
 import { EmptyState, Progress, Section } from "@/components/ui/Card";
 import StatCard from "@/components/money/StatCard";
 import FormattedMoney from "@/components/ui/FormattedMoney";
 import Icon from "@/components/ui/Icon";
 import DateTile from "@/components/ui/DateTile";
+import AssetLogo from "@/components/ui/AssetLogo";
 import SettleObligationSheet from "@/components/forms/SettleObligationSheet";
 import RepairPaymentButton from "@/components/forms/RepairPaymentButton";
+import { listBankIdentifiers } from "@/features/bankImport/identifiers";
 import { DEBT_TABS } from "@/components/ui/ModuleTabs";
 import ModuleHeader from "@/components/money/ModuleHeader";
 import {
@@ -28,6 +30,7 @@ import {
   formatPctIsolated,
   formatTomanPrimary,
   sumToman,
+  toFaDigits,
 } from "@/lib/format";
 import { listInstallmentSchedule } from "@/features/planning/service";
 import { listUnsettledInstallmentPayments } from "@/features/planning/repairPayments";
@@ -137,6 +140,52 @@ export default async function InstallmentsPage() {
   const today = todayIso();
   const pending = rows.filter((r) => !r.fx.isPaid);
   const paid = rows.filter((r) => r.fx.isPaid);
+  const paidEntryIds = paid.map((r) => r.paidEntryId).filter((id): id is string => !!id);
+
+  const [payerPostings, bankIdentifiers] = await Promise.all([
+    paidEntryIds.length
+      ? db
+          .select({
+            entryId: postings.entryId,
+            accountId: postings.accountId,
+            accountName: accounts.name,
+            bankName: accounts.bankName,
+            walletName: wallets.name,
+            institutionName: institutions.name,
+          })
+          .from(postings)
+          .innerJoin(accounts, eq(accounts.id, postings.accountId))
+          .leftJoin(wallets, eq(wallets.id, accounts.walletId))
+          .leftJoin(institutions, eq(institutions.id, wallets.institutionId))
+          .where(
+            and(
+              inArray(postings.entryId, paidEntryIds),
+              eq(accounts.type, "asset"),
+            ),
+          )
+      : Promise.resolve([]),
+    authUser ? listBankIdentifiers(authUser.id).catch(() => []) : Promise.resolve([]),
+  ]);
+
+  const cardTail = new Map<string, string>();
+  for (const i of bankIdentifiers) {
+    if (i.kind === "card" && i.suffix && !cardTail.has(i.accountId)) {
+      cardTail.set(i.accountId, `•• ${toFaDigits(i.suffix.slice(-4))}`);
+    }
+  }
+
+  const payerByEntryId = new Map<string, { accountId: string; name: string; bankName: string }>();
+  for (const p of payerPostings) {
+    if (!payerByEntryId.has(p.entryId)) {
+      const bankName = p.institutionName || p.walletName || p.bankName || p.accountName;
+      payerByEntryId.set(p.entryId, {
+        accountId: p.accountId,
+        name: p.accountName,
+        bankName,
+      });
+    }
+  }
+
   const overdueList = pending.filter((r) => r.dueDate < today);
   const next30 = pending.filter((r) => r.dueDate >= today && daysUntil(r.dueDate) <= 30);
   const laterList = pending.filter((r) => r.dueDate >= today && daysUntil(r.dueDate) > 30);
@@ -191,6 +240,8 @@ export default async function InstallmentsPage() {
     const receivable = isReceivable(r.direction);
     const partial = r.status === INSTALLMENT_PARTIAL;
     const total = totalByDebt.get(r.debtId) ?? r.seq;
+    const payer = r.paidEntryId ? payerByEntryId.get(r.paidEntryId) : null;
+    const tail = payer ? cardTail.get(payer.accountId) : null;
     // A paid installment shows WHEN IT WAS PAID (its due date is a note); a
     // pending one shows the countdown. The countdown phrase is an RTL isolate.
     const paidAt = r.fx.isPaid ? r.fx.paidAt : null;
@@ -220,6 +271,14 @@ export default async function InstallmentsPage() {
                   <>
                     <span>{paidAt ? "تاریخ پرداخت" : "سررسید"} · </span>
                     <bdi className="num" dir="ltr">{formatJalaliIso(paidAt ?? r.dueDate)}</bdi>
+                    {payer && (
+                      <span className="inline-flex items-center gap-1 font-medium text-[var(--text)]">
+                        <span>· از</span>
+                        <AssetLogo assetType="bank" brandName={payer.bankName} name={payer.bankName} size={15} />
+                        <span>{payer.bankName}</span>
+                        {tail && <span className="muted num text-[11px]">{tail}</span>}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <span>
@@ -264,6 +323,16 @@ export default async function InstallmentsPage() {
                       {paidOnTime ? "همان روز سررسید" : <bdi className="num" dir="ltr">{formatJalaliIso(r.dueDate)}</bdi>}
                     </dd>
                   </div>
+                  {payer && (
+                    <div>
+                      <dt>{receivable ? "واریز به حساب" : "پرداخت از حساب"}</dt>
+                      <dd className="flex items-center gap-1.5 font-medium">
+                        <AssetLogo assetType="bank" brandName={payer.bankName} name={payer.bankName} size={18} />
+                        <span>{payer.bankName}</span>
+                        {tail && <span className="muted num text-xs">({tail})</span>}
+                      </dd>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div>

@@ -16,10 +16,10 @@ export function ReceiptCode({ value, label }: { value: string; label: string }) 
   }
   return (
     <span className="receipt-code">
-      <bdi className="num" dir="ltr">
+      <bdi className="num font-bold tracking-wider" dir="rtl">
         {label}
       </bdi>
-      <button type="button" className="receipt-copy" onClick={copy} aria-label={copied ? "کپی شد" : "کپی کد پیگیری"}>
+      <button type="button" className="receipt-copy" onClick={copy} aria-label={copied ? "کپی شد" : "کپی شماره پیگیری"}>
         <Icon name={copied ? "check" : "copy"} size={15} />
       </button>
       <span role="status" className="sr-only">

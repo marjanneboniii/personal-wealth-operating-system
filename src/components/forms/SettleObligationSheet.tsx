@@ -8,6 +8,7 @@ import { formatMoney } from "@/lib/format";
 import AccountPicker, { type PickerAccount } from "@/components/ui/AccountPicker";
 import AmountInput from "@/components/ui/AmountInput";
 import Sheet from "@/components/ui/Sheet";
+import AssetLogo from "@/components/ui/AssetLogo";
 
 type Props = {
   /** The installment being settled. */
@@ -177,23 +178,74 @@ export default function SettleObligationSheet({
             )}
           </div>
 
-          <AccountPicker
-            label={receivable ? "واریز به حساب" : "پرداخت از حساب"}
-            value={cashAccountId}
-            options={accounts}
-            balances={balances}
-            onChange={setCashAccountId}
-            placeholder={receivable ? "انتخاب حساب واریز" : "انتخاب حساب پرداخت"}
-            sheetTitle={receivable ? "واریز به کدام حساب؟" : "پرداخت از کدام حساب؟"}
-            empty={
-              <p className="muted text-[length:var(--fs-xs)] leading-5">
+          {accounts.length === 0 ? (
+            <div className="soft rounded-[var(--r-md)] p-3 text-[length:var(--fs-xs)]">
+              <p className="muted leading-5">
                 هنوز حساب بانکی یا نقدی ثبت نکرده‌اید.{" "}
-                <a href="/accounts" className="underline">
+                <a href="/accounts" className="underline font-bold">
                   افزودن حساب
                 </a>
               </p>
-            }
-          />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="label">
+                {receivable ? "واریز به حساب" : "پرداخت از حساب"}
+              </label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {accounts.slice(0, 4).map((a) => {
+                  const isSelected = a.id === cashAccountId;
+                  const place = a.walletName || a.name;
+                  const rawBal = balances?.[a.id] ?? a.balance;
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => setCashAccountId(a.id)}
+                      className={`flex items-center justify-between gap-3 p-3 rounded-[var(--r-lg)] border text-start transition-all cursor-pointer ${
+                        isSelected
+                          ? "border-[var(--primary)] bg-[var(--primary-soft)] shadow-sm ring-1 ring-[var(--primary)]"
+                          : "border-[var(--border)] bg-[var(--surface-elev)] hover:border-[var(--border-strong)]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <AssetLogo assetType="bank" brandName={place} name={place} size={32} />
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm truncate">{place}</div>
+                          {rawBal != null && (
+                            <div className="text-xs muted num" dir="rtl">
+                              {formatMoney(D(rawBal).toFixed(0), "IRT")}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <span
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                          isSelected
+                            ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                            : "border-[var(--border-strong)]"
+                        }`}
+                      >
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {accounts.length > 4 && (
+                <div className="mt-2">
+                  <AccountPicker
+                    value={cashAccountId}
+                    options={accounts}
+                    balances={balances}
+                    onChange={setCashAccountId}
+                    placeholder={receivable ? "انتخاب حساب دیگر…" : "انتخاب حساب دیگر…"}
+                    sheetTitle={receivable ? "واریز به کدام حساب؟" : "پرداخت از کدام حساب؟"}
+                  />
+                </div>
+              )}
+            </div>
+          )}
           {overdraft && (
             <p className="mt-[-0.5rem] text-[length:var(--fs-xs)]" style={{ color: "var(--warning)" }}>
               موجودی این حساب از مبلغ {verb} کمتر است؛ پس از ثبت، موجودی آن منفی می‌شود.

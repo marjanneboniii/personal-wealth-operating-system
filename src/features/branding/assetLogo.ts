@@ -35,7 +35,10 @@ import {
   getInsuranceLogo,
   getIranianBrandLogo,
   getPaymentGatewayLogo,
+  bankLogoDataUri,
 } from "./persianIcons";
+
+export { bankLogoDataUri };
 
 /* ─────────────────────────── Types ─────────────────────────── */
 
