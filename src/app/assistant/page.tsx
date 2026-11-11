@@ -11,6 +11,7 @@ import { fmtToman, type Finding, type Severity } from "@/features/assistant/anal
 import AssistantWorkspace, { AskButton } from "@/components/assistant/AssistantWorkspace";
 import AssistantChat from "@/components/assistant/AssistantChat";
 import InsightPanel from "@/components/assistant/InsightPanel";
+import CashLoopPlanner from "@/components/assistant/CashLoopPlanner";
 
 export const dynamic = "force-dynamic";
 // The «تحلیل هوشمند» server action runs here and may fall back across models.
@@ -170,6 +171,13 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
               <dd><Amount value={s.obligations.next30Toman} size="sm" /></dd>
             </div>
           </dl>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("assistant:open-loop"))}
+            className="btn btn-ghost ai-btn !w-full !justify-center !mt-2.5 !text-[length:var(--fs-xs)] !min-h-[34px]"
+          >
+            <Icon name="swap" size={13} /> ماشین‌حساب تبدیل تتر و لوپ نقدینگی
+          </button>
         </section>
       </div>
 
@@ -292,7 +300,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
     <div className="space-y-4">
       <PageHeader title="دستیار هوشمند" subtitle="وضعیت مالی‌تان در یک نگاه، و پاسخ هر سؤالی درباره‌ی پولتان." />
       <AssistantWorkspace
-        initialTab={sp.tab === "chat" ? "chat" : "dashboard"}
+        initialTab={sp.tab === "chat" ? "chat" : sp.tab === "cash_loop" ? "cash_loop" : "dashboard"}
         dashboard={
           snapshot ? (
             <Dashboard s={snapshot} insight={insight} />
@@ -303,6 +311,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
           )
         }
         chat={<AssistantChat configured={config.configured} initialConversations={conversations} initialMemories={memories} />}
+        cashLoop={snapshot ? <CashLoopPlanner s={snapshot} /> : null}
       />
     </div>
   );
