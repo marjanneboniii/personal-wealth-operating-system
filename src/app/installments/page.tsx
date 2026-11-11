@@ -168,21 +168,25 @@ export default async function InstallmentsPage() {
   ]);
 
   const cardTail = new Map<string, string>();
-  for (const i of bankIdentifiers) {
-    if (i.kind === "card" && i.suffix && !cardTail.has(i.accountId)) {
-      cardTail.set(i.accountId, `•• ${toFaDigits(i.suffix.slice(-4))}`);
+  if (Array.isArray(bankIdentifiers)) {
+    for (const i of bankIdentifiers) {
+      if (i.kind === "card" && i.suffix && !cardTail.has(i.accountId)) {
+        cardTail.set(i.accountId, `•• ${toFaDigits(i.suffix.slice(-4))}`);
+      }
     }
   }
 
   const payerByEntryId = new Map<string, { accountId: string; name: string; bankName: string }>();
-  for (const p of payerPostings) {
-    if (!payerByEntryId.has(p.entryId)) {
-      const bankName = p.institutionName || p.walletName || p.bankName || p.accountName;
-      payerByEntryId.set(p.entryId, {
-        accountId: p.accountId,
-        name: p.accountName,
-        bankName,
-      });
+  if (Array.isArray(payerPostings)) {
+    for (const p of payerPostings) {
+      if (!payerByEntryId.has(p.entryId)) {
+        const bankName = p.institutionName || p.walletName || p.bankName || p.accountName;
+        payerByEntryId.set(p.entryId, {
+          accountId: p.accountId,
+          name: p.accountName,
+          bankName,
+        });
+      }
     }
   }
 
