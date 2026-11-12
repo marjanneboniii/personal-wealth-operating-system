@@ -16,13 +16,28 @@ interface Props {
 
 type Horizon = 1 | 2 | 3 | 6;
 
-type PurchaseCategory = "all" | "ceremony" | "wedding" | "home";
+export interface CategoryMeta {
+  key: string;
+  label: string;
+  icon: import("@/components/ui/Icon").IconName;
+}
 
-interface PurchaseItem {
+export const KNOWN_PURCHASE_CATEGORIES: Record<string, { label: string; icon: import("@/components/ui/Icon").IconName }> = {
+  ceremony: { label: "مراسم عقد و محضر", icon: "ring" },
+  wedding: { label: "طلا و مراسم عروسی", icon: "sparkle" },
+  home: { label: "لوازم خانه و جهیزیه", icon: "home" },
+  apparel: { label: "پوشاک و ملزومات", icon: "shirt" },
+  gold: { label: "طلا و سرمایه‌گذاری", icon: "coins" },
+  transport: { label: "خودرو و حمل‌ونقل", icon: "car" },
+  digital: { label: "کالای دیجیتال", icon: "phone" },
+  other: { label: "سایر خریدهای احتمالی", icon: "gift" },
+};
+
+export interface PurchaseItem {
   id: string;
   title: string;
-  category: "ceremony" | "wedding" | "home";
-  categoryLabel: string;
+  category: string;
+  categoryLabel?: string;
   estimatedToman: number;
   selected: boolean;
 }
@@ -99,6 +114,12 @@ export const ASSISTANT_QUICK_QUESTIONS = [
     desc: "چگونه با دریافت درآمد جدید، تغییر هزینه‌ها یا تغییر نرخ، تحلیل و پیشنهادهای دستیار آپدیت شود؟",
     prompt: "اگر در ماه‌های آینده وضعیت شغلی‌ام تغییر کرد، درآمد جدیدی ایجاد شد یا هزینه‌های غیرمنتظره‌ای اضافه شد، چطور این اطلاعات را به تو بدهم تا تحلیل ترازنامه، صندوق تتر و استراتژی بقای مالی مرا مجدداً به‌روزرسانی کنی؟",
   },
+  {
+    title: "جبران تترهای مصرف‌شده و مثبت کردن PnL دلاری سبد",
+    badge: "جبران تتر و PnL",
+    desc: "محاسبه تترهای فروخته‌شده در بیت‌پین برای تنقلات و اقساط، استراتژی بازخرید و مثبت کردن سود دلاری",
+    prompt: "تترهایی که تاکنون برای هزینه‌های جاری زندگی، خریدهای روزمره، تنقلات و اقساط فروخته شده و از تومان-بیت‌پین به حساب‌های بانکی منتقل شده را بررسی کن. چطور این تترهای سوخته را جبران کنم و چه برنامه‌ای برای بازخرید آن‌ها داشته باشم؟ همچنین برای سود و زیان تحقق‌نیافته دلاری سبد که هم‌اکنون منفی است، چه استراتژی مهندسی‌شده‌ای پیاده کنم تا در چرخه‌های بعدی مثبت شود؟",
+  },
 ];
 
 export default function CashLoopPlanner({ s }: Props) {
@@ -157,10 +178,31 @@ export default function CashLoopPlanner({ s }: Props) {
   // ── Unbudgeted Major Life Purchases (عقد، عروسی، لوازم خانه) ──
   const [purchases, setPurchases] = useState<PurchaseItem[]>(INITIAL_PURCHASES);
   const [includePurchases, setIncludePurchases] = useState<boolean>(true);
-  const [purchaseFilter, setPurchaseFilter] = useState<PurchaseCategory>("all");
+  const [purchaseFilter, setPurchaseFilter] = useState<string>("all");
   const [newTitle, setNewTitle] = useState("");
   const [newAmount, setNewAmount] = useState<number>(10_000_000);
-  const [newCategory, setNewCategory] = useState<"ceremony" | "wedding" | "home">("home");
+  const [newCategory, setNewCategory] = useState<string>("home");
+
+  // Inline editing state for purchases
+  const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editAmount, setEditAmount] = useState<number>(0);
+  const [editCategory, setEditCategory] = useState<string>("home");
+
+  // Dynamic category list derived from current items
+  const dynamicCategories = useMemo(() => {
+    const map = new Map<string, { label: string; icon: import("@/components/ui/Icon").IconName; count: number; totalToman: number }>();
+    for (const p of purchases) {
+      const meta = KNOWN_PURCHASE_CATEGORIES[p.category];
+      const label = meta?.label ?? p.categoryLabel ?? p.category;
+      const icon = meta?.icon ?? "gift";
+      const existing = map.get(p.category) ?? { label, icon, count: 0, totalToman: 0 };
+      existing.count += 1;
+      if (p.selected) existing.totalToman += p.estimatedToman;
+      map.set(p.category, existing);
+    }
+    return Array.from(map.entries()).map(([key, data]) => ({ key, ...data }));
+  }, [purchases]);
 
   // Filtered purchases
   const visiblePurchases = useMemo(() => {
@@ -185,14 +227,53 @@ export default function CashLoopPlanner({ s }: Props) {
     );
   };
 
+  const startEditPurchase = (item: PurchaseItem) => {
+    setEditingPurchaseId(item.id);
+    setEditTitle(item.title);
+    setEditAmount(item.estimatedToman);
+    setEditCategory(item.category);
+  };
+
+  const saveEditPurchase = () => {
+    if (!editingPurchaseId || !editTitle.trim()) return;
+    setPurchases((prev) =>
+      prev.map((p) => {
+        if (p.id !== editingPurchaseId) return p;
+        const meta = KNOWN_PURCHASE_CATEGORIES[editCategory];
+        return {
+          ...p,
+          title: editTitle.trim(),
+          estimatedToman: Math.max(0, editAmount),
+          category: editCategory,
+          categoryLabel: meta?.label ?? editCategory,
+        };
+      }),
+    );
+    setEditingPurchaseId(null);
+  };
+
+  const cancelEditPurchase = () => {
+    setEditingPurchaseId(null);
+  };
+
+  const deletePurchase = (id: string) => {
+    setPurchases((prev) => prev.filter((p) => p.id !== id));
+    if (editingPurchaseId === id) setEditingPurchaseId(null);
+  };
+
+  const resetPurchases = () => {
+    setPurchases(INITIAL_PURCHASES);
+    setEditingPurchaseId(null);
+  };
+
   const addNewPurchase = () => {
     if (!newTitle.trim()) return;
-    const catLabels = { ceremony: "مراسم عقد", wedding: "طلا و عروسی", home: "لوازم خانه و جهیزیه" };
+    const meta = KNOWN_PURCHASE_CATEGORIES[newCategory];
     const newItem: PurchaseItem = {
       id: `custom-${Date.now()}`,
       title: newTitle.trim(),
       category: newCategory,
-      categoryLabel: catLabels[newCategory],
+      categoryLabel: meta?.label ?? newCategory,
       estimatedToman: newAmount,
       selected: true,
     };
@@ -469,13 +550,24 @@ ${question}`;
                   بودجه‌بندی هوشمند خریدهای آینده: جهیزیه، لوازم خانه و مراسم عقد و عروسی
                 </h3>
                 <p className="text-xs text-[var(--text-3)]">
-                  اقلامی که هنوز بودجه رسمی برای آن‌ها ثبت نکرده‌اید اما قطعاً در پیش دارید.
+                  اقلام حدسی و احتمالی آینده با قابلیت ویرایش، حذف، تفکیک دسته‌بندی و تعیین بودجه در صندوق تتر
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* دکمه بازنشانی اقلام پیش‌فرض */}
+            <button
+              type="button"
+              onClick={resetPurchases}
+              className="text-xs text-[var(--text-3)] hover:text-[var(--text)] px-2.5 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--sunken)] flex items-center gap-1.5 transition-colors"
+              title="بازگرداندن اقلام به ۲۸ قلم اولیه"
+            >
+              <Icon name="refresh" size={13} />
+              <span>بازنشانی پیش‌فرض</span>
+            </button>
+
             {/* کلید فعال/غیرفعال کردن اعمال در حسابگر نقدینگی */}
             <label className="flex items-center gap-2 cursor-pointer bg-[var(--sunken)] px-3 py-1.5 rounded-xl border border-[var(--border)] hover:bg-[var(--surface-hover)] transition-colors">
               <input
@@ -491,83 +583,215 @@ ${question}`;
           </div>
         </div>
 
-        {/* فیلتر دسته‌بندی‌ها و سرجمع هر بخش */}
+        {/* بنر شفاف‌سازی: اقلام آزمایشی و پیش‌بینی شخصی هستند و هنوز در بودجه رسمی ثبت نشده‌اند */}
+        <div className="p-3.5 rounded-xl bg-[var(--sunken)] border border-[var(--border)] flex items-start gap-3 text-xs leading-relaxed">
+          <span className="p-1.5 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] shrink-0 mt-0.5">
+            <Icon name="info" size={16} />
+          </span>
+          <div className="space-y-1">
+            <p className="font-bold text-[var(--text)]">
+              یادآوری: این اقلام، پیش‌بینی‌های شخصی شما در دستیار هستند و هنوز در بخش بودجه ثبت رسمی نشده‌اند
+            </p>
+            <p className="text-[11px] text-[var(--text-3)]">
+              هیچ‌کدام از این خریدها قطعی نیستند و صرفاً تخمین ذهنی شما برای سنجش فشار نقدینگی و صندوق تترند. شما می‌توانید مبالغ را تغییر دهید، هر قلم را ویرایش یا حذف کنید، یا دسته‌های جدید اضافه نمایید. هر زمان تصمیم نهایی گرفتید، می‌توانید آن‌ها را ابتدا در بخش بودجه تعریف کنید.
+            </p>
+          </div>
+        </div>
+
+        {/* فیلتر دسته‌بندی‌ها با آیکون‌های اختصاصی و سرجمع هر بخش */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              { key: "all", label: "همه اقلام (۲۸ مورد)" },
-              { key: "ceremony", label: "۱. مراسم عقد و محضر" },
-              { key: "wedding", label: "۲. طلا و مراسم عروسی" },
-              { key: "home", label: "۳. لوازم خانگی و جهیزیه" },
-            ].map((tab) => (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setPurchaseFilter("all")}
+              className={`py-1.5 px-3 text-xs rounded-xl font-semibold border transition-all flex items-center gap-1.5 ${
+                purchaseFilter === "all"
+                  ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)] shadow-sm"
+                  : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--surface-hover)]"
+              }`}
+            >
+              <Icon name="receipt" size={13} />
+              <span>همه اقلام</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/15 num">
+                {toFaDigits(String(purchases.length))}
+              </span>
+            </button>
+            {dynamicCategories.map((cat) => (
               <button
-                key={tab.key}
+                key={cat.key}
                 type="button"
-                onClick={() => setPurchaseFilter(tab.key as PurchaseCategory)}
-                className={`py-1.5 px-3 text-xs rounded-xl font-semibold border transition-all ${
-                  purchaseFilter === tab.key
+                onClick={() => setPurchaseFilter(cat.key)}
+                className={`py-1.5 px-3 text-xs rounded-xl font-semibold border transition-all flex items-center gap-1.5 ${
+                  purchaseFilter === cat.key
                     ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)] shadow-sm"
                     : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--surface-hover)]"
                 }`}
               >
-                {tab.label}
+                <Icon name={cat.icon} size={13} />
+                <span>{cat.label}</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 num">
+                  {toFaDigits(String(cat.count))}
+                </span>
               </button>
             ))}
           </div>
 
           <div className="text-xs font-bold text-[var(--text)] bg-[var(--accent-soft)] px-3 py-1.5 rounded-xl text-[var(--accent)] border border-[var(--accent)]/30">
-            جمع کل خریدهای تیک‌خورده: <span className="num font-black text-sm">{full(totalSelectedPurchasesToman)}</span>
+            جمع خریدهای تیک‌خورده: <span className="num font-black text-sm">{full(totalSelectedPurchasesToman)}</span>
           </div>
         </div>
 
-        {/* لیست اقلام با قابلیت ویرایش مستقیم مبلغ و تیک فعال‌سازی */}
+        {/* لیست اقلام با قابلیت ویرایش کامل، حذف، و تغییر سریع مبلغ */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-96 overflow-y-auto pr-1">
-          {visiblePurchases.map((item) => (
-            <div
-              key={item.id}
-              className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-2 ${
-                item.selected
-                  ? "bg-[var(--surface)] border-[var(--border-strong)] shadow-xs"
-                  : "bg-[var(--sunken)]/60 border-[var(--border)] opacity-60"
-              }`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <input
-                  type="checkbox"
-                  checked={item.selected}
-                  onChange={() => togglePurchase(item.id)}
-                  className="w-4 h-4 accent-[var(--action)] rounded cursor-pointer shrink-0"
-                />
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-[var(--text)] truncate">{item.title}</p>
-                  <span className="text-[10px] text-[var(--text-3)]">{item.categoryLabel}</span>
+          {visiblePurchases.map((item) => {
+            const isEditing = editingPurchaseId === item.id;
+            const catMeta = KNOWN_PURCHASE_CATEGORIES[item.category];
+            const catIcon = catMeta?.icon ?? "gift";
+            const catLabel = catMeta?.label ?? item.categoryLabel ?? item.category;
+
+            if (isEditing) {
+              return (
+                <div
+                  key={item.id}
+                  className="p-3 rounded-xl border border-[var(--action)] bg-[var(--surface)] shadow-md space-y-2.5"
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-[var(--text)]">
+                    <span className="flex items-center gap-1.5 text-[var(--action)]">
+                      <Icon name="edit" size={13} /> ویرایش قلم خرید
+                    </span>
+                    <button
+                      type="button"
+                      onClick={cancelEditPurchase}
+                      className="text-[var(--text-3)] hover:text-[var(--text)]"
+                    >
+                      <Icon name="x" size={13} />
+                    </button>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-[var(--text)] outline-none focus:border-[var(--action)]"
+                    placeholder="عنوان خرید"
+                  />
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      step="500000"
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(Math.max(0, Number(e.target.value) || 0))}
+                      className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1 text-[var(--text)] num focus:border-[var(--action)] outline-none"
+                      placeholder="مبلغ (تومان)"
+                    />
+                    <select
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value)}
+                      className="text-xs bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1 text-[var(--text)] outline-none"
+                    >
+                      {Object.entries(KNOWN_PURCHASE_CATEGORIES).map(([key, meta]) => (
+                        <option key={key} value={key}>
+                          {meta.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={cancelEditPurchase}
+                      className="px-2.5 py-1 rounded-lg text-xs bg-[var(--sunken)] text-[var(--text-3)] hover:text-[var(--text)]"
+                    >
+                      انصراف
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveEditPurchase}
+                      className="px-3 py-1 rounded-lg text-xs font-bold bg-[var(--action)] text-[var(--on-ink)] flex items-center gap-1 shadow-xs"
+                    >
+                      <Icon name="check" size={12} /> ذخیره
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={item.id}
+                className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2.5 ${
+                  item.selected
+                    ? "bg-[var(--surface)] border-[var(--border-strong)] shadow-xs"
+                    : "bg-[var(--sunken)]/60 border-[var(--border)] opacity-60"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <input
+                      type="checkbox"
+                      checked={item.selected}
+                      onChange={() => togglePurchase(item.id)}
+                      className="w-4 h-4 accent-[var(--action)] rounded cursor-pointer shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[var(--text)] truncate">{item.title}</p>
+                      <div className="flex items-center gap-1 mt-0.5 text-[10px] text-[var(--text-3)]">
+                        <Icon name={catIcon} size={11} />
+                        <span>{catLabel}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => startEditPurchase(item)}
+                      className="p-1.5 rounded-lg text-[var(--text-3)] hover:text-[var(--text)] hover:bg-[var(--sunken)] transition-colors"
+                      title="ویرایش قلم خرید"
+                    >
+                      <Icon name="edit" size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deletePurchase(item.id)}
+                      className="p-1.5 rounded-lg text-[var(--text-3)] hover:text-[var(--negative)] hover:bg-[var(--negative)]/10 transition-colors"
+                      title="حذف قلم خرید"
+                    >
+                      <Icon name="trash" size={13} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* فیلد تغییر مستقیم مبلغ */}
+                <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[var(--border)]/70">
+                  <span className="text-[10px] text-[var(--text-3)] font-medium">مبلغ برآوردی:</span>
+                  <div className="w-28 shrink-0">
+                    <input
+                      type="number"
+                      step="500000"
+                      value={item.estimatedToman}
+                      onChange={(e) => updatePurchaseAmount(item.id, Number(e.target.value) || 0)}
+                      disabled={!item.selected}
+                      className="w-full text-right text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1 text-[var(--text)] num focus:border-[var(--action)] outline-none"
+                      title="مبلغ برآوردی (تومان)"
+                    />
+                  </div>
                 </div>
               </div>
-
-              {/* فیلد ویرایش مبلغ */}
-              <div className="w-28 shrink-0">
-                <input
-                  type="number"
-                  step="500000"
-                  value={item.estimatedToman}
-                  onChange={(e) => updatePurchaseAmount(item.id, Number(e.target.value) || 0)}
-                  disabled={!item.selected}
-                  className="w-full text-right text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1 text-[var(--text)] num focus:border-[var(--action)] outline-none"
-                  title="مبلغ برآوردی (تومان)"
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* فرم اضافه کردن خرید جدید */}
+        {/* فرم اضافه کردن خرید جدید با انتخاب دسته و لوگوی اختصاصی */}
         <div className="p-3 rounded-xl bg-[var(--sunken)] border border-[var(--border)] flex flex-wrap items-center gap-2 text-xs">
           <span className="font-bold text-[var(--text)] flex items-center gap-1 shrink-0">
-            <Icon name="plus" size={14} /> افزودن خرید جدید:
+            <Icon name="plus" size={14} /> افزودن قلم جدید:
           </span>
           <input
             type="text"
-            placeholder="عنوان خرید (مثلاً لوستر اتاق یا کت‌وشلوار...)"
+            placeholder="عنوان خرید (مثلاً لوستر یا اتو بخار...)"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             className="flex-1 min-w-[180px] bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-[var(--text)] outline-none focus:border-[var(--action)]"
@@ -582,19 +806,21 @@ ${question}`;
           />
           <select
             value={newCategory}
-            onChange={(e) => setNewCategory(e.target.value as "ceremony" | "wedding" | "home")}
+            onChange={(e) => setNewCategory(e.target.value)}
             className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-[var(--text)] outline-none"
           >
-            <option value="ceremony">مراسم عقد</option>
-            <option value="wedding">طلا و عروسی</option>
-            <option value="home">لوازم خانه</option>
+            {Object.entries(KNOWN_PURCHASE_CATEGORIES).map(([key, meta]) => (
+              <option key={key} value={key}>
+                {meta.label}
+              </option>
+            ))}
           </select>
           <button
             type="button"
             onClick={addNewPurchase}
-            className="px-3 py-1.5 rounded-lg bg-[var(--action)] text-[var(--on-ink)] font-bold hover:opacity-90 transition-opacity shrink-0"
+            className="px-3.5 py-1.5 rounded-lg bg-[var(--action)] text-[var(--on-ink)] font-bold hover:opacity-90 transition-opacity shrink-0 flex items-center gap-1"
           >
-            افزودن قلم
+            <Icon name="plus" size={13} /> افزودن
           </button>
         </div>
       </section>
