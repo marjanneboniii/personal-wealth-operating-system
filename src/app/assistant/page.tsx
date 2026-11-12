@@ -8,7 +8,7 @@ import { getAssistantConfig } from "@/features/assistant/gemini";
 import { buildFinancialSnapshot, snapshotHash, type FinancialSnapshot } from "@/features/assistant/snapshot";
 import { getLatestInsight, listConversations, listMemories } from "@/features/assistant/store";
 import { fmtToman, type Finding, type Severity } from "@/features/assistant/analysis";
-import AssistantWorkspace, { AskButton } from "@/components/assistant/AssistantWorkspace";
+import AssistantWorkspace, { AskButton, OpenLoopButton } from "@/components/assistant/AssistantWorkspace";
 import AssistantChat from "@/components/assistant/AssistantChat";
 import InsightPanel from "@/components/assistant/InsightPanel";
 import CashLoopPlanner from "@/components/assistant/CashLoopPlanner";
@@ -171,13 +171,7 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
               <dd><Amount value={s.obligations.next30Toman} size="sm" /></dd>
             </div>
           </dl>
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent("assistant:open-loop"))}
-            className="btn btn-ghost ai-btn !w-full !justify-center !mt-2.5 !text-[length:var(--fs-xs)] !min-h-[34px]"
-          >
-            <Icon name="swap" size={13} /> حسابگر صندوق مخارج و تبدیل تتر
-          </button>
+          <OpenLoopButton />
         </section>
       </div>
 

@@ -98,3 +98,16 @@ export function AskButton({ question, label = "از دستیار بپرس", clas
     </button>
   );
 }
+
+/** Switches to the Tether expense fund tab. */
+export function OpenLoopButton({ className, label = "حسابگر صندوق مخارج و تبدیل تتر" }: { className?: string; label?: string }) {
+  return (
+    <button
+      type="button"
+      className={className ?? "btn btn-ghost ai-btn !w-full !justify-center !mt-2.5 !text-[length:var(--fs-xs)] !min-h-[34px]"}
+      onClick={() => window.dispatchEvent(new CustomEvent("assistant:open-loop"))}
+    >
+      <Icon name="swap" size={13} /> {label}
+    </button>
+  );
+}

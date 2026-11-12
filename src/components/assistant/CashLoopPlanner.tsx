@@ -18,28 +18,32 @@ type Horizon = 1 | 2 | 3 | 6;
 
 export default function CashLoopPlanner({ s }: Props) {
   // ── Existing accounts & liquid positions ──
-  const bankToman = s.netWorth.availableCashToman;
-  const exchangeToman = s.netWorth.exchangeTomanToman;
-  const stablecoinToman = s.netWorth.stablecoinToman;
-  const baseRate = s.usdToToman > 0 ? s.usdToToman : 70000;
+  const bankToman = s?.netWorth?.availableCashToman ?? 0;
+  const exchangeToman = s?.netWorth?.exchangeTomanToman ?? 0;
+  const stablecoinToman = s?.netWorth?.stablecoinToman ?? 0;
+  const baseRate = s?.usdToToman && s.usdToToman > 0 ? s.usdToToman : 70000;
 
   // Filter bank and exchange accounts
-  const bankAccounts = s.accounts.filter(
-    (a) => a.kind === "bank" || (["IRT", "IRR"].includes(a.currency) && a.kind !== "exchange"),
+  const accounts = Array.isArray(s?.accounts) ? s.accounts : [];
+  const bankAccounts = accounts.filter(
+    (a) => a && (a.kind === "bank" || (["IRT", "IRR"].includes(a.currency ?? "") && a.kind !== "exchange")),
   );
-  const stablecoinAccounts = s.accounts.filter(
-    (a) => ["USDT", "USDC", "DAI"].includes(a.currency) || a.name.includes("تتر"),
+  const stablecoinAccounts = accounts.filter(
+    (a) =>
+      a &&
+      (["USDT", "USDC", "DAI"].includes(a.currency ?? "") ||
+        (typeof a.name === "string" && a.name.includes("تتر"))),
   );
 
   // Exact USDT quantity from accounts or derived
-  const actualUsdtHoldings = stablecoinAccounts.reduce((sum, a) => sum + (a.balance > 0 ? a.balance : 0), 0);
-  const totalUsdt = actualUsdtHoldings > 0 ? Math.round(actualUsdtHoldings) : Math.round(stablecoinToman / baseRate);
+  const actualUsdtHoldings = stablecoinAccounts.reduce((sum, a) => sum + (a && a.balance > 0 ? a.balance : 0), 0);
+  const totalUsdt = actualUsdtHoldings > 0 ? Math.round(actualUsdtHoldings) : Math.round(stablecoinToman / Math.max(1, baseRate));
 
   // Default monthly expense from actual system analysis, with sane fallback
   const defaultMonthlyExpense =
-    s.cashflow.avgMonthlyExpenseToman > 0
+    s?.cashflow?.avgMonthlyExpenseToman && s.cashflow.avgMonthlyExpenseToman > 0
       ? s.cashflow.avgMonthlyExpenseToman
-      : s.cashflow.currentMonth.expenseToman > 0
+      : s?.cashflow?.currentMonth?.expenseToman && s.cashflow.currentMonth.expenseToman > 0
         ? s.cashflow.currentMonth.expenseToman
         : 18_000_000;
 
@@ -55,18 +59,20 @@ export default function CashLoopPlanner({ s }: Props) {
   const [monthlySalary, setMonthlySalary] = useState<number>(25_000_000);
 
   // ── Obligations within the selected horizon ──
-  const today = s.asOf || todayIso();
+  const today = s?.asOf || todayIso();
   const maxDays = horizon * 30;
+  const upcoming = Array.isArray(s?.obligations?.upcoming) ? s.obligations.upcoming : [];
 
   const obligationsInWindow = useMemo(() => {
-    return s.obligations.upcoming.filter((u) => {
+    return upcoming.filter((u) => {
+      if (!u || !u.date) return false;
       const days = daysUntilIso(u.date, today);
       return days >= 0 && days <= maxDays;
     });
-  }, [s.obligations.upcoming, today, maxDays]);
+  }, [upcoming, today, maxDays]);
 
   const totalObligationsToman = useMemo(() => {
-    return obligationsInWindow.reduce((sum, u) => sum + u.toman, 0);
+    return obligationsInWindow.reduce((sum, u) => sum + (u.toman || 0), 0);
   }, [obligationsInWindow]);
 
   // ── Calculations for Base Scenario (بدون شغل) ──
