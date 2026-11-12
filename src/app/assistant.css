@@ -324,12 +324,56 @@
   color: var(--text-3);
   margin: 0;
 }
+.ai-starters-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  margin-bottom: 0.2rem;
+  width: 100%;
+}
+.ai-starters-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all var(--motion-micro) var(--ease);
+}
+.ai-starters-tab:hover {
+  background: var(--hover);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.ai-starters-tab.is-active {
+  background: var(--ai-mint-bg);
+  border-color: var(--ai-mint-border);
+  color: var(--ai-mint-ink);
+  font-weight: 700;
+  box-shadow: var(--shadow-xs);
+}
+.ai-tab-count {
+  font-size: 0.65rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 9999px;
+  background: var(--sunken);
+  color: inherit;
+  opacity: 0.85;
+}
 .ai-starters-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem;
   width: 100%;
-  margin-top: 1rem;
+  margin-top: 0.75rem;
 }
 .ai-starter-card {
   display: flex;
@@ -361,8 +405,24 @@
   color: var(--ai-mint-ink);
   margin-top: 0.1rem;
 }
-.ai-starter-text { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.ai-starter-text { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; flex: 1; }
+.ai-starter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  width: 100%;
+}
 .ai-starter-title { font-size: var(--fs-xs); font-weight: 700; color: var(--text); }
+.ai-starter-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  background: var(--sunken);
+  color: var(--text-3);
+  font-weight: 500;
+  white-space: nowrap;
+}
 .ai-starter-desc { font-size: var(--fs-micro); line-height: 1.6; color: var(--text-3); }
 
 /* Conversation messages */
