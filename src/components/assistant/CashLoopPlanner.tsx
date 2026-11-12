@@ -63,6 +63,44 @@ const INITIAL_PURCHASES: PurchaseItem[] = [
   { id: "h-bride-luggage", title: "چمدان عروس، لباس زیر و ملزومات شخصی", category: "home", categoryLabel: "لوازم خانه و جهیزیه", estimatedToman: 16_000_000, selected: true },
 ];
 
+export type JobScenario = "unemployed" | "contract_3m" | "contract_renewed" | "stable";
+
+export const HIGH_INFLATION_PRESET_RATES = [
+  320_000,
+  370_000,
+  420_000,
+  450_000,
+  500_000,
+  550_000,
+];
+
+export const ASSISTANT_QUICK_QUESTIONS = [
+  {
+    title: "قرارداد ۳ ماهه و ریسک بیکاری مجدد",
+    badge: "امنیت شغلی",
+    desc: "برنامه‌ریزی مالی با فرض قرارداد ۳ ماهه و سناریوی اتمام قرارداد بدون تمدید یا تمدید مجدد",
+    prompt: "وضعیت شغلی من فعلاً ممکن است یک قرارداد موقت ۳ ماهه باشد و بعد از ۳ ماه ممکن است دوباره بیکار شوم یا تمدید شود. با توجه به کل بدهی ۴۵٫۹ میلیونی، اقساط ۶ ماه آینده (> ۲ م.ت) و هزینه‌های عقد و جهیزیه، چطور تترها و حقوق ۳ ماهه را فازبندی کنم که اگر تمدید نشد به بحران نخورم و تترهایم نسوزد؟",
+  },
+  {
+    title: "سناریوی جهش تتر به ۳۲۰ تا ۵۵۰ هزار تومان",
+    badge: "تورم و تتر",
+    desc: "بررسی تأثیر صعود قیمت تتر تا سال آینده به ۳۲۰، ۴۲۰ یا ۵۵۰ هزار تومان بر بدهی‌ها و حفظ سرمایه",
+    prompt: "ممکن است تا سال آینده قیمت تتر در ایران از ۳۲۰،۰۰۰ تومان فراتر رفته و به ۳۷۰،۰۰۰، ۴۲۰،۰۰۰، ۴۵۰،۰۰۰، ۵۰۰،۰۰۰ یا ۵۵۰،۰۰۰ تومان یا بین این ارقام برسد. این جهش تورمی دلار چه تأثیری بر توان تسویه بدهی ۴۵٫۹ میلیونی و هزینه‌های من دارد و استراتژی بهینه برای زمان‌بندی فروش پله‌ای تتر چیست؟",
+  },
+  {
+    title: "فازبندی خریدهای عقد، جهیزیه و طلا",
+    badge: "خریدهای آینده",
+    desc: "دسته‌بندی ۲۸ قلم خرید ضروری، تفکیک سرمایه‌گذاری طلا از هزینه‌های مصرفی جشن و تالار",
+    prompt: "من در پیش‌رو خریدهای بزرگی (عقد، جهیزیه، لوازم خانه، طلا و مراسم عروسی) دارم. چطور این خریدها را فازبندی کنم تا طلای عروس به عنوان حفظ ارزش دارایی حفظ شود و هزینه‌های مصرفی تالار و تشریفات باعث فروش عجولانه تتر در کف قیمتی نشود؟",
+  },
+  {
+    title: "به‌روزرسانی تحلیل با تغییر درآمد و مخارج",
+    badge: "تحلیل پویا",
+    desc: "چگونه با دریافت درآمد جدید، تغییر هزینه‌ها یا تغییر نرخ، تحلیل و پیشنهادهای دستیار آپدیت شود؟",
+    prompt: "اگر در ماه‌های آینده وضعیت شغلی‌ام تغییر کرد، درآمد جدیدی ایجاد شد یا هزینه‌های غیرمنتظره‌ای اضافه شد، چطور این اطلاعات را به تو بدهم تا تحلیل ترازنامه، صندوق تتر و استراتژی بقای مالی مرا مجدداً به‌روزرسانی کنی؟",
+  },
+];
+
 export default function CashLoopPlanner({ s }: Props) {
   // ── Existing accounts & liquid positions ──
   const bankToman = s?.netWorth?.availableCashToman ?? 0;
@@ -110,9 +148,11 @@ export default function CashLoopPlanner({ s }: Props) {
   // ── Debt Strategy: فقط اقساط سررسید شده دوره یا تسویه کامل بدهی ۴۵٫۹ میلیونی ──
   const [debtStrategy, setDebtStrategy] = useState<"schedule" | "full">("schedule");
 
-  // ── Dual Scenario Controls (اشتغال در آینده در برابر عدم اشتغال) ──
-  const [simulateJob, setSimulateJob] = useState<boolean>(false);
+  // ── Dual Scenario Controls (اشتغال در آینده، قرارداد ۳ ماهه و عدم اشتغال) ──
+  const [jobScenario, setJobScenario] = useState<JobScenario>("contract_3m");
+  const [contractMonths, setContractMonths] = useState<number>(3);
   const [monthlySalary, setMonthlySalary] = useState<number>(25_000_000);
+  const [customQuestion, setCustomQuestion] = useState("");
 
   // ── Unbudgeted Major Life Purchases (عقد، عروسی، لوازم خانه) ──
   const [purchases, setPurchases] = useState<PurchaseItem[]>(INITIAL_PURCHASES);
@@ -196,17 +236,27 @@ export default function CashLoopPlanner({ s }: Props) {
   const neededUsdtBase = deficitTomanBase > 0 ? Math.ceil(deficitTomanBase / Math.max(1, rate)) : 0;
   const remainingUsdtBase = Math.max(0, totalUsdt - neededUsdtBase);
 
-  // ── Calculations for Job Scenario (با شغل و حقوق ماهانه) ──
-  const totalSalaryInHorizon = simulateJob ? monthlySalary * horizon : 0;
+  // ── Calculations for Job / Temporary Contract Scenario ──
+  const activeSalaryMonths = useMemo(() => {
+    if (jobScenario === "unemployed") return 0;
+    if (jobScenario === "contract_3m") return Math.min(contractMonths, horizon);
+    if (jobScenario === "contract_renewed") return Math.min(contractMonths * 2, horizon);
+    return horizon;
+  }, [jobScenario, contractMonths, horizon]);
+
+  const isJobActive = jobScenario !== "unemployed";
+  const totalSalaryInHorizon = isJobActive ? monthlySalary * activeSalaryMonths : 0;
+  const monthsAtRisk = Math.max(0, horizon - activeSalaryMonths);
+
   const deficitTomanJob = Math.max(0, grossNeedToman - readyToman - totalSalaryInHorizon);
   const neededUsdtJob = deficitTomanJob > 0 ? Math.ceil(deficitTomanJob / Math.max(1, rate)) : 0;
   const remainingUsdtJob = Math.max(0, totalUsdt - neededUsdtJob);
 
   // Active scenario outputs
-  const activeDeficitToman = simulateJob ? deficitTomanJob : deficitTomanBase;
-  const activeNeededUsdt = simulateJob ? neededUsdtJob : neededUsdtBase;
-  const activeRemainingUsdt = simulateJob ? remainingUsdtJob : remainingUsdtBase;
-  const savedUsdtWithJob = Math.max(0, neededUsdtBase - neededUsdtJob);
+  const activeDeficitToman = isJobActive ? deficitTomanJob : deficitTomanBase;
+  const activeNeededUsdt = isJobActive ? neededUsdtJob : neededUsdtBase;
+  const activeRemainingUsdt = isJobActive ? remainingUsdtJob : remainingUsdtBase;
+  const savedUsdtWithJob = Math.max(0, neededUsdtBase - activeNeededUsdt);
 
   // Runway calculation (months until liquid cash + stablecoins exhaust)
   const totalLiquidNetWorthToman = readyToman + totalUsdt * rate;
@@ -214,26 +264,42 @@ export default function CashLoopPlanner({ s }: Props) {
   const runwayMonthsBase =
     monthlyBurnBase > 0 ? Math.round((totalLiquidNetWorthToman / monthlyBurnBase) * 10) / 10 : 0;
 
-  const monthlyNetBurnJob = Math.max(0, monthlyBurnBase - monthlySalary);
+  const monthlyNetBurnJob = Math.max(
+    0,
+    monthlyBurnBase - (activeSalaryMonths > 0 ? totalSalaryInHorizon / horizon : 0),
+  );
   const runwayMonthsJob =
     monthlyNetBurnJob > 0
       ? Math.round((totalLiquidNetWorthToman / monthlyNetBurnJob) * 10) / 10
       : Infinity;
 
+  const activeRunwayMonths = isJobActive ? runwayMonthsJob : runwayMonthsBase;
+
   // Trading allocation
   const safeTradingUsdt = Math.round((totalUsdt * tradingPortionPct) / 100);
   const emergencyReserveUsdt = Math.max(0, totalUsdt - safeTradingUsdt);
 
-  // FX Sensitivity Matrix
-  const sensitivityRates = [
-    Math.round(rate * 0.9),
-    rate,
-    Math.round(rate * 1.1),
-    Math.round(rate * 1.25),
-  ];
+  // FX Sensitivity Matrix - includes baseRate, current rate, and future inflation target rates (320k to 550k)
+  const sensitivityRates = useMemo(() => {
+    const set = new Set<number>([
+      Math.round(baseRate),
+      Math.round(rate),
+      ...HIGH_INFLATION_PRESET_RATES,
+    ]);
+    return Array.from(set).sort((a, b) => a - b);
+  }, [baseRate, rate]);
 
   // Dispatch question to AI Assistant
-  const askAssistantWithScenario = () => {
+  const askAssistantQuestion = (question: string) => {
+    const jobDescription =
+      jobScenario === "unemployed"
+        ? "بدون شغل فعلی / اتکای کامل به صندوق تتر"
+        : jobScenario === "contract_3m"
+          ? `قرارداد موقت ۳ ماهه با حقوق ماهانه ${full(monthlySalary)} (ریسک بازگشت به بیکاری در ماه ۴ به بعد)`
+          : jobScenario === "contract_renewed"
+            ? `قرارداد ۳ ماهه با تمدید دوره‌ای با حقوق ماهانه ${full(monthlySalary)}`
+            : `استخدام دائم و باثبات با حقوق ماهانه ${full(monthlySalary)}`;
+
     const text = `من برنامه‌ریزی جامع مالی و صندوق مخارج تتر را بررسی کردم:
 ۱. وضعیت بدهی‌ها:
 - کل بدهی‌های باقی‌مانده: ${full(totalOutstandingDebt)}
@@ -244,18 +310,28 @@ export default function CashLoopPlanner({ s }: Props) {
 - جمع بودجه برنامه‌ریزی‌شده خریدهای عقد، طلا، عروسی و لوازم خانه: ${full(totalSelectedPurchasesToman)}
 - وضعیت اعمال در محاسبات نقدینگی: ${includePurchases ? "لحاظ‌شده در نیاز نقدی" : "صرفاً برآورد جداگانه"}
 
-۳. نقدینگی و سناریوی شغلی:
+۳. نقدینگی و سناریوی شغلی و نرخ تتر:
 - افق انتخابی: ${toFaDigits(String(horizon))} ماهه
 - مخارج زندگی ماهانه: ${full(monthlyExpense)}
 - نیاز کل نقدینگی این دوره: ${full(grossNeedToman)}
 - موجودی ریالی آماده در بانک و صرافی: ${full(readyToman)}
-- حالت شغلی: ${simulateJob ? `شاغل با حقوق ماهانه ${full(monthlySalary)}` : "بدون شغل / اتکا به استیبل‌کوین‌ها"}
-- کسری خالص نهایی: ${full(activeDeficitToman)}
-- تتر مورد نیاز برای فروش در بیت‌پین: ${num(activeNeededUsdt)} USDT (به نرخ ${num(rate)} تومان)
-- مانده تتر پس از تأمین: ${num(activeRemainingUsdt)} USDT
+- وضعیت شغلی: ${jobDescription}
+- ماه‌های پوشش با حقوق: ${toFaDigits(String(activeSalaryMonths))} ماه | ماه‌های در معرض ریسک بیکاری: ${toFaDigits(String(monthsAtRisk))} ماه
+- نرخ تتر مبنا: ${num(rate)} تومان (با پیش‌بینی جهش‌های احتمالی تا ۵۵۰ هزار تومان)
+- کسری خالص نهایی این دوره: ${full(activeDeficitToman)}
+- تتر مورد نیاز برای فروش در بیت‌پین: ${num(activeNeededUsdt)} تتر (به نرخ ${num(rate)} تومان)
+- مانده تتر پس از تأمین: ${num(activeRemainingUsdt)} تتر
 
-لطفاً یک تحلیل جامع، دقیق و مهندسی‌شده بدهید: چطور هزینه‌های مراسم عقد، خرید لوازم منزل و اقساط ۶ ماه آینده را فازبندی کنم تا کمترین فشار به دارایی‌های تتر و سرمایه ترید وارد شود؟`;
+پرسش تخصصی کاربر از دستیار هوشمند:
+${question}`;
+
     window.dispatchEvent(new CustomEvent("assistant:ask", { detail: text }));
+  };
+
+  const askAssistantWithScenario = () => {
+    askAssistantQuestion(
+      "لطفاً یک تحلیل جامع، دقیق و مهندسی‌شده بدهید: با توجه به وضعیت شغلی (قرارداد ۳ ماهه یا بیکاری) و سناریوی صعود نرخ تتر تا ۵۵۰ هزار تومان، چطور هزینه‌های مراسم عقد، خرید لوازم منزل و اقساط ۶ ماه آینده را فازبندی کنم تا کمترین فشار به دارایی‌های تتر و سرمایه ترید وارد شود و چطور با تغییرات آینده این تحلیل را آپدیت کنم؟",
+    );
   };
 
   return (
@@ -283,17 +359,23 @@ export default function CashLoopPlanner({ s }: Props) {
 
           <div className="text-center px-5 py-4 rounded-2xl bg-[var(--surface)] border-2 border-[var(--border-strong)] shadow-sm shrink-0 min-w-[210px]">
             <p className="text-xs text-[var(--text-3)] mb-1 font-medium">
-              {simulateJob ? "تاب‌آوری در سناریوی اشتغال" : "تاب‌آوری در سناریوی بدون شغل"}
+              {isJobActive
+                ? jobScenario === "contract_3m"
+                  ? "تاب‌آوری (قرارداد ۳ ماهه)"
+                  : "تاب‌آوری در سناریوی اشتغال"
+                : "تاب‌آوری در سناریوی بدون شغل"}
             </p>
             <p className="text-3xl font-black num text-[var(--positive)]">
-              {simulateJob && runwayMonthsJob === Infinity
+              {isJobActive && runwayMonthsJob === Infinity
                 ? "پایدار (نامحدود)"
-                : `${toFaDigits((simulateJob ? runwayMonthsJob : runwayMonthsBase).toFixed(1))} ماه`}
+                : `${toFaDigits(activeRunwayMonths.toFixed(1))} ماه`}
             </p>
             <p className="text-[11px] text-[var(--text-3)] mt-1">
-              {simulateJob && runwayMonthsJob === Infinity
+              {isJobActive && runwayMonthsJob === Infinity
                 ? "حقوق هزینه‌ها و اقساط را کامل جبران می‌کند"
-                : "پوشش مخارج جاری و اقساط بانکی"}
+                : isJobActive
+                  ? `${toFaDigits(String(activeSalaryMonths))} ماه حقوق + ${toFaDigits(String(monthsAtRisk))} ماه اتکا به تتر`
+                  : "پوشش مخارج جاری و اقساط از تتر"}
             </p>
           </div>
         </div>
@@ -365,7 +447,7 @@ export default function CashLoopPlanner({ s }: Props) {
           <div className="p-3 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
             <span className="text-[11px] text-[var(--text-3)] block mb-0.5">معادل تتری اقساط ۶ ماهه:</span>
             <span className="text-base font-black text-[var(--action)] num">
-              {num(Math.ceil(scheduledInstallmentsToman / rate))} <small className="text-xs font-normal">USDT</small>
+              {num(Math.ceil(scheduledInstallmentsToman / rate))} <small className="text-xs font-normal">تتر</small>
             </span>
             <span className="text-[10px] text-[var(--text-3)] block mt-0.5">
               فقط {toFaDigits(((scheduledInstallmentsToman / (totalUsdt * rate || 1)) * 100).toFixed(1))}٪ از کل تترها
@@ -517,7 +599,7 @@ export default function CashLoopPlanner({ s }: Props) {
         </div>
       </section>
 
-      {/* ── بخش سناریوسازی دوسطحی: اشتغال در آینده در برابر عدم اشتغال ── */}
+      {/* ── بخش سناریوسازی اشتغال: قرارداد موقت ۳ ماهه در برابر بیکاری و تمدید ── */}
       <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--border)]">
           <div className="flex items-center gap-2">
@@ -525,17 +607,17 @@ export default function CashLoopPlanner({ s }: Props) {
               <Icon name="briefcase" size={18} />
             </span>
             <div>
-              <h3 className="font-bold text-sm text-[var(--text)]">سناریوسازی وضعیت اشتغال و حقوق ماهانه در آینده</h3>
-              <p className="text-[11px] text-[var(--text-3)]">تأثیر یافتن شغل بر کاهش و توقف فروش تترهای شما</p>
+              <h3 className="font-bold text-sm text-[var(--text)]">سناریوسازی وضعیت اشتغال، قرارداد موقت و حقوق در آینده</h3>
+              <p className="text-[11px] text-[var(--text-3)]">بررسی قرارداد ۳ ماهه و ریسک بیکاری مجدد در مقایسه با عدم اشتغال یا استخدام پایدار</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-[var(--sunken)] p-1 rounded-xl border border-[var(--border)]">
+          <div className="flex flex-wrap items-center gap-1.5 bg-[var(--sunken)] p-1 rounded-xl border border-[var(--border)]">
             <button
               type="button"
-              onClick={() => setSimulateJob(false)}
+              onClick={() => setJobScenario("unemployed")}
               className={`py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
-                !simulateJob
+                jobScenario === "unemployed"
                   ? "bg-[var(--action)] text-[var(--on-ink)] shadow-sm"
                   : "text-[var(--text-2)] hover:text-[var(--text)]"
               }`}
@@ -544,24 +626,46 @@ export default function CashLoopPlanner({ s }: Props) {
             </button>
             <button
               type="button"
-              onClick={() => setSimulateJob(true)}
+              onClick={() => setJobScenario("contract_3m")}
               className={`py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
-                simulateJob
+                jobScenario === "contract_3m"
                   ? "bg-[var(--action)] text-[var(--on-ink)] shadow-sm"
                   : "text-[var(--text-2)] hover:text-[var(--text)]"
               }`}
             >
-              شبیه‌سازی اشتغال در آینده
+              قرارداد ۳ ماهه (ریسک بیکاری مجدد)
+            </button>
+            <button
+              type="button"
+              onClick={() => setJobScenario("contract_renewed")}
+              className={`py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
+                jobScenario === "contract_renewed"
+                  ? "bg-[var(--action)] text-[var(--on-ink)] shadow-sm"
+                  : "text-[var(--text-2)] hover:text-[var(--text)]"
+              }`}
+            >
+              قرارداد ۳ ماهه با تمدید
+            </button>
+            <button
+              type="button"
+              onClick={() => setJobScenario("stable")}
+              className={`py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
+                jobScenario === "stable"
+                  ? "bg-[var(--action)] text-[var(--on-ink)] shadow-sm"
+                  : "text-[var(--text-2)] hover:text-[var(--text)]"
+              }`}
+            >
+              استخدام دائم و باثبات
             </button>
           </div>
         </div>
 
-        {simulateJob ? (
+        {isJobActive ? (
           <div className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
               <div className="md:col-span-5">
                 <label className="block text-xs font-medium text-[var(--text-2)] mb-1">
-                  حقوق ماهانه فرضی در آینده (تومان):
+                  حقوق ماهانه قرارداد / شغل (تومان):
                 </label>
                 <input
                   type="number"
@@ -595,15 +699,55 @@ export default function CashLoopPlanner({ s }: Props) {
               </div>
             </div>
 
+            {/* مدت قرارداد موقت در صورت انتخاب سناریوی قرارداد */}
+            {(jobScenario === "contract_3m" || jobScenario === "contract_renewed") && (
+              <div className="p-3 rounded-xl bg-[var(--sunken)] border border-[var(--border)] flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-[var(--text)]">مدت قرارداد اولیه:</span>
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 6].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setContractMonths(m)}
+                        className={`px-2.5 py-1 rounded-lg border num text-xs ${
+                          contractMonths === m
+                            ? "bg-[var(--action)] text-[var(--on-ink)] font-bold"
+                            : "bg-[var(--surface)] text-[var(--text-2)] border-[var(--border)]"
+                        }`}
+                      >
+                        {toFaDigits(String(m))} ماهه
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 text-[11px] text-[var(--text-3)]">
+                  <span>پوشش با حقوق: <strong className="num text-[var(--positive)]">{toFaDigits(String(activeSalaryMonths))} ماه</strong></span>
+                  {monthsAtRisk > 0 && (
+                    <span>ریسک بازگشت به بیکاری: <strong className="num text-[var(--negative)]">{toFaDigits(String(monthsAtRisk))} ماه</strong></span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* کارت هایلایت تأثیر اشتغال بر حفظ تترها */}
             <div className="p-4 rounded-xl bg-[var(--positive-soft)] border border-[var(--positive)] text-[var(--positive)] flex flex-wrap items-center justify-between gap-3 text-xs">
               <div className="space-y-1">
                 <p className="font-bold flex items-center gap-1.5 text-sm">
                   <Icon name="check" size={16} />
-                  معجزه اشتغال: نجات <span className="num font-black text-base">{num(savedUsdtWithJob)} تتر</span> از فروش اجباری در این دوره!
+                  {jobScenario === "contract_3m" ? (
+                    <>پوشش قرارداد موقت: نجات <span className="num font-black text-base">{num(savedUsdtWithJob)} تتر</span> از فروش اجباری!</>
+                  ) : (
+                    <>معجزه اشتغال: نجات <span className="num font-black text-base">{num(savedUsdtWithJob)} تتر</span> از فروش اجباری در این دوره!</>
+                  )}
                 </p>
                 <p className="text-[11px] opacity-90 leading-relaxed">
-                  با این حقوق، فروش تتر شما از <strong className="num">{num(neededUsdtBase)} USDT</strong> به <strong className="num">{num(neededUsdtJob)} USDT</strong> کاهش می‌یابد و تترهای شما برای جهش‌های بازار و سرمایه‌گذاری حفظ می‌شوند.
+                  {jobScenario === "contract_3m" ? (
+                    <>در طول {toFaDigits(String(activeSalaryMonths))} ماه قرارداد، حقوق دریافتی ({short(totalSalaryInHorizon)} تومان) مخارج را پوشش می‌دهد و فروش تتر متوقف می‌شود. برای {toFaDigits(String(monthsAtRisk))} ماه باقیمانده که ریسک بیکاری وجود دارد، معادل <strong className="num">{num(activeNeededUsdt)} تتر</strong> برای فروش در بیت‌پین برنامه‌ریزی شده است.</>
+                  ) : (
+                    <>با این حقوق، فروش تتر شما از <strong className="num">{num(neededUsdtBase)} تتر</strong> به <strong className="num">{num(activeNeededUsdt)} تتر</strong> کاهش می‌یابد و تترهای شما برای جهش‌های بازار و سرمایه‌گذاری حفظ می‌شوند.</>
+                  )}
                 </p>
               </div>
               <div className="text-right num font-black text-lg shrink-0">
@@ -648,7 +792,7 @@ export default function CashLoopPlanner({ s }: Props) {
             <span className="text-xs font-semibold text-[var(--text-2)]">کل موجودی تتر (استیبل‌کوین)</span>
             <Icon name="crypto" size={15} className="text-[var(--text-3)]" />
           </div>
-          <p className="text-xl font-black text-[var(--text)] num">{num(totalUsdt)} <small className="text-xs font-normal">USDT</small></p>
+          <p className="text-xl font-black text-[var(--text)] num">{num(totalUsdt)} <small className="text-xs font-normal">تتر</small></p>
           <p className="text-[11px] text-[var(--text-3)] mt-1">ارزش ریالی: {short(totalUsdt * rate)} تومان</p>
         </div>
 
@@ -666,7 +810,32 @@ export default function CashLoopPlanner({ s }: Props) {
               className="w-full text-base font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2.5 py-1 text-[var(--text)] num outline-none focus:border-[var(--action)]"
             />
           </div>
-          <p className="text-[11px] text-[var(--text-3)] mt-1">نرخ پیش‌فرض سیستم: {num(baseRate)} تومان</p>
+          <div className="flex flex-wrap gap-1 mt-2">
+            <button
+              type="button"
+              onClick={() => setRate(baseRate)}
+              className={`px-2 py-0.5 text-[10px] rounded-md border num ${
+                rate === baseRate ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)] font-bold" : "bg-[var(--sunken)] text-[var(--text-3)] border-[var(--border)]"
+              }`}
+            >
+              نرخ روز ({short(baseRate)})
+            </button>
+            {HIGH_INFLATION_PRESET_RATES.map((pr) => (
+              <button
+                key={pr}
+                type="button"
+                onClick={() => setRate(pr)}
+                className={`px-2 py-0.5 text-[10px] rounded-md border num transition-all ${
+                  rate === pr ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)] font-bold" : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--surface-hover)]"
+                }`}
+              >
+                {short(pr)}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-[var(--text-3)] mt-1.5 leading-tight">
+            سناریوهای صعود تتر تا ۵۵۰ هزار تومان (در نرخ‌های بالا تتر بسیار کمتری فروخته می‌شود).
+          </p>
         </div>
       </div>
 
@@ -786,7 +955,7 @@ export default function CashLoopPlanner({ s }: Props) {
           <section className="card p-5 border-2 border-[var(--action)] rounded-2xl bg-[var(--surface)] shadow-md space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-[var(--action)] uppercase tracking-wider">
-                نتیجه نهایی محاسبات {simulateJob ? "(سناریوی اشتغال)" : "(سناریوی بدون شغل)"}
+                نتیجه نهایی محاسبات {isJobActive ? (jobScenario === "contract_3m" ? "(سناریوی قرارداد ۳ ماهه)" : "(سناریوی اشتغال)") : "(سناریوی بدون شغل)"}
               </span>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-[var(--sunken)] text-[var(--text-3)] font-semibold">
                 افق {toFaDigits(String(horizon))} ماهه
@@ -824,9 +993,9 @@ export default function CashLoopPlanner({ s }: Props) {
                 <span>موجودی تومان نقد (بانک + صرافی):</span>
                 <span className="num font-semibold">−{full(readyToman)}</span>
               </div>
-              {simulateJob && totalSalaryInHorizon > 0 && (
+              {isJobActive && totalSalaryInHorizon > 0 && (
                 <div className="flex justify-between text-[var(--positive)] font-bold">
-                  <span>درآمد حقوقی در این افق:</span>
+                  <span>درآمد حقوقی در این افق ({toFaDigits(String(activeSalaryMonths))} ماه):</span>
                   <span className="num">−{full(totalSalaryInHorizon)}</span>
                 </div>
               )}
@@ -856,21 +1025,21 @@ export default function CashLoopPlanner({ s }: Props) {
                   <p className="text-xs text-[var(--text-2)] mb-1">تتر مورد نیاز جهت فروش در بیت‌پین:</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-black text-[var(--text)] num">{num(activeNeededUsdt)}</span>
-                    <span className="text-sm font-bold text-[var(--text)]">USDT</span>
-                    {simulateJob && savedUsdtWithJob > 0 && (
+                    <span className="text-sm font-bold text-[var(--text)]">تتر</span>
+                    {isJobActive && savedUsdtWithJob > 0 && (
                       <span className="text-xs text-[var(--positive)] mr-auto font-bold">
                         ({num(savedUsdtWithJob)} تتر کمتر از حالت بدون شغل)
                       </span>
                     )}
                   </div>
                   <p className="text-[11px] text-[var(--text-3)] mt-2">
-                    مانده تتر پس از تبدیل: <strong className="num text-[var(--text)]">{num(activeRemainingUsdt)} USDT</strong>
+                    مانده تتر پس از تبدیل: <strong className="num text-[var(--text)]">{num(activeRemainingUsdt)} تتر</strong>
                   </p>
                 </div>
               ) : (
                 <p className="text-xs text-[var(--text-2)] mt-2">
-                  {simulateJob
-                    ? "با درآمد حاصل از شغل، تمام هزینه‌ها، اقساط و خریدهای آینده پوشش داده می‌شود و نیازی به فروش تتر ندارید!"
+                  {isJobActive
+                    ? "با درآمد حاصل از شغل یا قرارداد، تمام هزینه‌ها، اقساط و خریدهای آینده پوشش داده می‌شود و نیازی به فروش تتر ندارید!"
                     : "موجودی تومان در بانک و بیت‌پین برای کل این دوره کافی است و نیازی به تبدیل تتر ندارید."}
                 </p>
               )}
@@ -898,7 +1067,7 @@ export default function CashLoopPlanner({ s }: Props) {
               ماتریس تحلیل حساسیت: اگر قیمت دلار تغییر کند، چند تتر باید بفروشید؟
             </h3>
             <p className="text-xs text-[var(--text-3)] mt-0.5">
-              مهندسی سناریوهای نوسان نرخ تبدیل برای کسری نقدینگی {short(activeDeficitToman)} تومان:
+              مهندسی سناریوهای نوسان و صعود نرخ تتر (۳۲۰ تا ۵۵۰ هزار تومان) برای کسری نقدینگی {short(activeDeficitToman)} تومان:
             </p>
           </div>
         </div>
@@ -912,15 +1081,41 @@ export default function CashLoopPlanner({ s }: Props) {
                 <th className="py-2.5 px-3">تتر لازم جهت فروش</th>
                 <th className="py-2.5 px-3">مانده تتر پس از فروش</th>
                 <th className="py-2.5 px-3">درصد حفظ سرمایه</th>
-                <th className="py-2.5 px-3">ارزیابی فنی</th>
+                <th className="py-2.5 px-3">صرفه‌جویی و ارزیابی فنی</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
-              {sensitivityRates.map((r, i) => {
+              {sensitivityRates.map((r) => {
                 const req = activeDeficitToman > 0 ? Math.ceil(activeDeficitToman / r) : 0;
                 const rem = Math.max(0, totalUsdt - req);
                 const preservedPct = totalUsdt > 0 ? Math.round((rem / totalUsdt) * 100) : 100;
                 const isCurrent = r === rate;
+
+                const label =
+                  r === Math.round(baseRate)
+                    ? "نرخ روز بازار"
+                    : r === 320_000
+                      ? "جهش تورمی ۳۲۰ ه.ت"
+                      : r === 370_000
+                        ? "جهش تورمی ۳۷۰ ه.ت"
+                        : r === 420_000
+                          ? "جهش تورمی ۴۲۰ ه.ت"
+                          : r === 450_000
+                            ? "جهش تورمی ۴۵۰ ه.ت"
+                            : r === 500_000
+                              ? "جهش تورمی ۵۰۰ ه.ت"
+                              : r === 550_000
+                                ? "جهش تورمی ۵۵۰ ه.ت"
+                                : isCurrent
+                                  ? "نرخ انتخابی فعلی"
+                                  : r > rate
+                                    ? `صعود به ${short(r)}`
+                                    : `افت به ${short(r)}`;
+
+                const savedComparedToBase =
+                  baseRate > 0 && activeDeficitToman > 0
+                    ? Math.max(0, Math.ceil(activeDeficitToman / baseRate) - req)
+                    : 0;
 
                 return (
                   <tr
@@ -931,35 +1126,124 @@ export default function CashLoopPlanner({ s }: Props) {
                         : "hover:bg-[var(--sunken)]"
                     }`}
                   >
-                    <td className="py-2.5 px-3">
-                      {i === 0
-                        ? "افت ۱۰٪ نرخ"
-                        : isCurrent
-                          ? "نرخ انتخابی فعلی"
-                          : i === 2
-                            ? "رشد ۱۰٪ نرخ"
-                            : "رشد ۲۵٪ نرخ"}
+                    <td className="py-2.5 px-3 flex items-center gap-1.5">
+                      {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-[var(--action)]" />}
+                      <span>{label}</span>
                     </td>
                     <td className="py-2.5 px-3 num font-semibold">{num(r)} تومان</td>
                     <td className="py-2.5 px-3 num text-[var(--negative)] font-black">
-                      {num(req)} USDT
+                      {num(req)} تتر
                     </td>
                     <td className="py-2.5 px-3 num text-[var(--positive)] font-semibold">
-                      {num(rem)} USDT
+                      {num(rem)} تتر
                     </td>
                     <td className="py-2.5 px-3 num">{toFaDigits(String(preservedPct))}٪</td>
                     <td className="py-2.5 px-3 text-[var(--text-3)]">
-                      {r > rate
-                        ? "صرفه‌جویی بیشتر در تتر با افزایش نرخ"
-                        : r < rate
-                          ? "نیاز به تبدیل تتر بیشتر"
-                          : "مبنای فعلی محاسبات"}
+                      {r >= 320_000 ? (
+                        <span className="text-[var(--positive)] font-semibold">
+                          صرفه‌جویی {num(savedComparedToBase)} تتر نسبت به نرخ روز
+                        </span>
+                      ) : r > rate ? (
+                        "صرفه‌جویی در تتر با افزایش نرخ"
+                      ) : r < rate ? (
+                        "نیاز به تبدیل تتر بیشتر"
+                      ) : (
+                        "مبنای فعلی محاسبات شما"
+                      )}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      {/* ── گفتگوی مستقیم و سوالات تخصصی با دستیار هوشمند ── */}
+      <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-4 shadow-xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+              <Icon name="sparkle" size={18} />
+            </span>
+            <div>
+              <h3 className="font-bold text-base text-[var(--text)]">
+                گفتگوی مستقیم و مشاوره تخصصی با دستیار هوشمند
+              </h3>
+              <p className="text-xs text-[var(--text-3)] mt-0.5">
+                پرسش‌های تخصصی متناسب با شرایط قرارداد ۳ ماهه، صعود تتر تا ۵۵۰ هزار تومان، و به‌روزرسانی تحلیل‌ها
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* پیشنهادهای سریع سوال تخصصی بر اساس پارامترهای زنده */}
+        <div>
+          <label className="block text-xs font-semibold text-[var(--text-2)] mb-2">
+            پیشنهادهای سوال تخصصی بر اساس پارامترهای فعال شما:
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {ASSISTANT_QUICK_QUESTIONS.map((q) => (
+              <button
+                key={q.title}
+                type="button"
+                onClick={() => askAssistantQuestion(q.prompt)}
+                className="p-3 text-right rounded-xl border border-[var(--border)] bg-[var(--sunken)] hover:bg-[var(--surface-hover)] hover:border-[var(--border-strong)] transition-all flex flex-col gap-1 text-xs"
+              >
+                <div className="flex items-center justify-between">
+                  <strong className="text-[var(--text)] font-bold">{q.title}</strong>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--surface)] text-[var(--text-3)] border border-[var(--border)]">
+                    {q.badge}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[var(--text-3)] line-clamp-2 leading-relaxed">
+                  {q.desc}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* کادر ورودی سوال دلخواه از دستیار */}
+        <div className="space-y-2 pt-2 border-t border-[var(--border)]">
+          <label className="block text-xs font-semibold text-[var(--text-2)]">
+            یا سوال اختصاصی و شرایط خود را مستقیماً از دستیار بپرسید:
+          </label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <textarea
+              rows={2}
+              value={customQuestion}
+              onChange={(e) => setCustomQuestion(e.target.value)}
+              placeholder="مثال: اگر قراردادم تمدید نشد و تتر تا ۴۵۰ هزار بالا رفت، قسط‌ها و خرید جهیزیه را چطور هماهنگ کنم؟"
+              className="flex-1 bg-[var(--sunken)] border border-[var(--border)] rounded-xl p-3 text-xs text-[var(--text)] placeholder:text-[var(--text-3)] outline-none focus:border-[var(--action)] resize-none"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (customQuestion.trim()) {
+                  askAssistantQuestion(customQuestion.trim());
+                  setCustomQuestion("");
+                }
+              }}
+              disabled={!customQuestion.trim()}
+              className="py-2.5 px-4 rounded-xl bg-[var(--action)] text-[var(--on-ink)] font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50 shrink-0 sm:self-stretch"
+            >
+              <Icon name="sparkle" size={14} />
+              ارسال سوال به دستیار
+            </button>
+          </div>
+        </div>
+
+        {/* دکمه ارسال گزارش کامل سناریو */}
+        <div className="pt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={askAssistantWithScenario}
+            className="text-xs text-[var(--text-2)] hover:text-[var(--text)] flex items-center gap-1.5 underline decoration-dotted"
+          >
+            <Icon name="reports" size={13} />
+            ارسال کل اطلاعات و اعداد این سناریو به گفتگوی دستیار
+          </button>
         </div>
       </section>
 
@@ -1072,7 +1356,7 @@ export default function CashLoopPlanner({ s }: Props) {
           <div className="space-y-0.5">
             <p className="text-xs font-bold text-[var(--text)]">سهم سرمایه اختصاص‌یافته به ترید فعال:</p>
             <p className="text-[11px] text-[var(--text-3)]">
-              از کل {num(totalUsdt)} تتر: معادل <strong className="num text-[var(--text)]">{num(safeTradingUsdt)} USDT</strong> درگیر در ترید و <strong className="num text-[var(--positive)]">{num(emergencyReserveUsdt)} USDT</strong> در صندوق امنیت دست‌نخورده
+              از کل {num(totalUsdt)} تتر: معادل <strong className="num text-[var(--text)]">{num(safeTradingUsdt)} تتر</strong> درگیر در ترید و <strong className="num text-[var(--positive)]">{num(emergencyReserveUsdt)} تتر</strong> در صندوق امنیت دست‌نخورده
             </p>
           </div>
           <div className="flex items-center gap-2">
