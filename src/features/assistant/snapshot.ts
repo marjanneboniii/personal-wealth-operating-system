@@ -176,7 +176,7 @@ async function build(userId: string): Promise<FinancialSnapshot> {
       getFlowByCategory(1, userId, "income", { from: current.start, to: tomorrow }),
       listBudgets(userId),
       listDebts(userId),
-      upcomingInstallments(60, userId),
+      upcomingInstallments(180, userId),
       projectCashflow(6, "base", userId),
       listGoals(userId),
       safe(listRecurringPayments(userId, today), null),
@@ -341,13 +341,13 @@ async function build(userId: string): Promise<FinancialSnapshot> {
       overdueCount++;
       overdueToman += toman;
     }
-    if (i.dueDate <= addDays(today, 60)) upcomingRows.push({ date: i.dueDate, title: i.debtTitle, toman, kind: "installment" });
+    if (i.dueDate <= addDays(today, 180)) upcomingRows.push({ date: i.dueDate, title: i.debtTitle, toman, kind: "installment" });
   }
   for (const p of recurring?.premiums ?? []) {
-    if (p.nextDate && p.nextDate >= today && p.nextDate <= addDays(today, 60)) upcomingRows.push({ date: p.nextDate, title: p.title, toman: n(p.perPaymentToman), kind: "premium" });
+    if (p.nextDate && p.nextDate >= today && p.nextDate <= addDays(today, 180)) upcomingRows.push({ date: p.nextDate, title: p.title, toman: n(p.perPaymentToman), kind: "premium" });
   }
   for (const s of recurring?.detected ?? []) {
-    if (s.nextExpected >= today && s.nextExpected <= addDays(today, 60)) upcomingRows.push({ date: s.nextExpected, title: s.label, toman: n(s.monthlyToman), kind: "subscription" });
+    if (s.nextExpected >= today && s.nextExpected <= addDays(today, 180)) upcomingRows.push({ date: s.nextExpected, title: s.label, toman: n(s.monthlyToman), kind: "subscription" });
   }
   upcomingRows.sort((a, b) => a.date.localeCompare(b.date));
   const next30Toman = overdueToman + upcomingRows.filter((r) => r.date >= today && r.date <= horizon).reduce((s, r) => s + r.toman, 0);

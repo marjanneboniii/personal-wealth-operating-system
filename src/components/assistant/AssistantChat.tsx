@@ -27,36 +27,79 @@ type UiMessage = {
   error?: string;
 };
 
+type StarterCategory = "all" | "expenses_job" | "trading_invest" | "debts_purchases";
+
+const STARTER_CATEGORIES: { id: StarterCategory; label: string; icon: "sparkle" | "briefcase" | "crypto" | "gift" }[] = [
+  { id: "all", label: "همه سوالات تخصصی", icon: "sparkle" },
+  { id: "expenses_job", label: "دسته‌های هزینه و شغل", icon: "briefcase" },
+  { id: "trading_invest", label: "ترید و سرمایه‌گذاری", icon: "crypto" },
+  { id: "debts_purchases", label: "بدهی‌ها و خریدهای آینده", icon: "gift" },
+];
+
 const STARTER_CARDS = [
   {
+    category: "expenses_job" as const,
+    badge: "دسته‌های هزینه",
+    icon: "receipt" as const,
+    title: "تحلیل دسته‌های هزینه و نشتی‌ها",
+    desc: "بررسی تنقلات، اشتراک‌ها و بهینه‌سازی هزینه‌های ماهانه",
+    prompt: "دسته‌های هزینه‌ای من را تحلیل کن. کدام هزینه‌ها (مثل تنقلات، کافه یا اشتراک‌های خودکار) نشتی مالی محسوب می‌شوند و در شرایط فعلی که درآمد ثابت ندارم، چقدر و از چه بخش‌هایی باید هزینه‌های جاری‌ام را کاهش دهم تا دوره تاب‌آوری نقدی‌ام بیشتر شود؟",
+  },
+  {
+    category: "expenses_job" as const,
+    badge: "وضعیت شغلی",
+    icon: "briefcase" as const,
+    title: "وضعیت شغلی و حقوق فرضی",
+    desc: "تعیین مستمری ماهانه از دارایی و شبیه‌سازی اشتغال در آینده",
+    prompt: "من در حال حاضر شغل ثابتی ندارم و با کسری جریان نقدینگی روبرو هستم. چطور برای خودم حقوق فرضی ماهانه تعیین کنم تا سرمایه‌ام بی‌برنامه نسوزد؟ و اگر در آینده شغلی با حقوق ۲۵ تا ۳۵ میلیون تومان پیدا کنم، جریان مالی و وابستگی به فروش دارایی‌ها چطور تغییر می‌کند؟",
+  },
+  {
+    category: "trading_invest" as const,
+    badge: "ترید و رمزارز",
+    icon: "crypto" as const,
+    title: "ترید: سود سرمایه یا درآمد؟",
+    desc: "سقف تخصیص ریسک، قاعده ۳۰/۷۰ و جلوگیری از نابودی سرمایه",
+    prompt: "من با بخشی از استیبل‌کوین‌هایم ترید می‌کنم. چرا سود حاصل از ترید درآمد جاری محسوب نمی‌شود و سود سرمایه است؟ چه درصدی از تترها را مجازم درگیر معاملات پرریسک کنم و چه فرمولی برای برداشت سود و جلوگیری از افت اصل سرمایه در صورت نزول بازار پیشنهاد می‌کنی؟",
+  },
+  {
+    category: "trading_invest" as const,
+    badge: "سرمایه‌گذاری",
+    icon: "portfolio" as const,
+    title: "تخصیص دارایی و درآمد غیرفعال",
+    desc: "توازن ثروت ۱۷٫۷ میلیاردی، اجاره املاک و پوشش تورم",
+    prompt: "تحلیل جامع ترازنامه و ثروت خالص من (حدود ۱۷٫۷ میلیارد تومان): سبد دارایی من میان املاک، تتر، رمزارز و نقدینگی چطور توزیع شده است؟ برای ایجاد درآمد غیرفعال واقعی (مانند اجاره ملک یا سود استیبل‌کوین) و حفظ ارزش دارایی‌ها در برابر تورم چه راهکار مهندسی‌شده‌ای پیشنهاد می‌کنی؟",
+  },
+  {
+    category: "debts_purchases" as const,
+    badge: "بدهی و اقساط",
     icon: "installments" as const,
-    title: "اقساط و بدهی‌ها",
-    desc: "اقساط ماه آینده و سررسید هر کدام چیست؟",
-    prompt: "در ماه آینده چه اقساطی دارم و سررسید و مبلغ هر قسط چقدر است؟",
+    title: "بدهی‌ها و اقساط ۶ ماهه",
+    desc: "بررسی کل بدهی ۴۵٫۹ میلیونی و اقساط بالای ۲ میلیون آبان به بعد",
+    prompt: "کل بدهی‌های من حدود ۴۵٫۹ میلیون تومان است و برای ۶ ماه آینده (آبان تا اردیبهشت) بالای ۲ میلیون بدهی اقساطی دارم. لطفاً سررسیدها و مبلغ دقیق هر کدام را با راهکار تسویه از تتر یا درآمد به من نشان بده.",
   },
   {
-    icon: "shield" as const,
-    title: "بیمه‌نامه‌ها و شخص ثالث",
-    desc: "بررسی وضعیت و مبلغ دقیق اقساط بیمه شخص ثالث من",
-    prompt: "وضعیت بیمه‌نامه‌ها و مبلغ دقیق قسط بیمه شخص ثالث من چقدر است؟",
+    category: "debts_purchases" as const,
+    badge: "خریدهای آینده",
+    icon: "gift" as const,
+    title: "جهیزیه، لوازم خانه و مراسم عقد",
+    desc: "فازبندی ۲۸ قلم خرید ضروری، تفکیک طلا از هزینه‌های مصرفی",
+    prompt: "من در ذهنم خریدهای بزرگی دارم که هنوز بودجه‌بندی نکرده‌ام (مانند خرید جاروبرقی، بخاری، پرده‌ها، اتو، کنسول، جاکفشی، کافه بار، لوستر، سرویس خواب، رگال لباس، حلقه، هزینه‌های عقد، طلا، تالار، شام و جهیزیه). چطور این هزینه‌ها را در ۳ فاز دسته‌بندی کنم، طلا را به عنوان حفظ سرمایه جدا کنم و با مدیریت فروش تتر تامین مالی کنم؟",
   },
   {
-    icon: "wallet" as const,
-    title: "نقدینگی و موجودی آزاد",
-    desc: "آیا نقدینگی حساب‌های بانکی برای پرداخت‌های پیش‌رو کافی است؟",
-    prompt: "وضعیت نقدینگی و موجودی حساب‌های من برای هزینه‌ها و تعهدات پیش‌رو چگونه است؟",
-  },
-  {
-    icon: "cashflow" as const,
-    title: "تحلیل کلی جریان وجوه",
-    desc: "بررسی درآمد، هزینه‌ها و فرصت‌های صرفه‌جویی مالی",
-    prompt: "وضعیت مالی من در ماه گذشته چطور بوده و کدام هزینه‌هایم قابل کاهش است؟",
-  },
-  {
+    category: "trading_invest" as const,
+    badge: "تبدیل تتر",
     icon: "swap" as const,
-    title: "صندوق مخارج و تبدیل تتر",
-    desc: "چقدر تتر برای مخارج ماه و اقساط بفروشم و چطور ترید را مدیریت کنم؟",
-    prompt: "چقدر نیاز دارم تتر در بیت‌پین بفروشم و به حساب بانکی منتقل کنم تا اقساط و هزینه‌هایم پوشش داده شود؟ آیا سود ترید درآمد حساب می‌شود؟",
+    title: "صندوق مخارج تتر و چرخه نقد",
+    desc: "محاسبه تتر موردنیاز برای فروش در بیت‌پین و واریز پایا",
+    prompt: "چقدر نیاز دارم استیبل‌کوین (تتر) از بیت‌پین بفروشم و به تومان و حساب بانکی واریز کنم تا اقساط و هزینه‌های ماه‌های آینده‌ام تامین شود؟ چرخه گام‌به‌گام انتقال و نرخ بهینه تسویه را بگو.",
+  },
+  {
+    category: "debts_purchases" as const,
+    badge: "بیمه‌نامه",
+    icon: "shield" as const,
+    title: "بیمه شخص ثالث و تعهدات",
+    desc: "بررسی وضعیت و مبلغ دقیق قسط ۹۰۹٬۰۹۰ تومانی بیمه",
+    prompt: "وضعیت بیمه‌نامه‌ها و مبلغ دقیق قسط بیمه شخص ثالث من چقدر است و سررسید بعدی آن چه تاریخی است؟",
   },
 ];
 
@@ -89,6 +132,7 @@ export default function AssistantChat({
   const [notice, setNotice] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showMemory, setShowMemory] = useState(false);
+  const [starterCategory, setStarterCategory] = useState<StarterCategory>("all");
   const [, startTransition] = useTransition();
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -363,10 +407,28 @@ export default function AssistantChat({
             </div>
             <h2 className="ai-empty-title">دستیار هوشمند توازن</h2>
             <p className="ai-empty-desc">
-              تحلیل و پاسخ‌گویی بر اساس داده‌های زنده و واقعی حساب‌ها، اقساط، بدهی‌ها، بیمه‌نامه‌ها و بودجه‌های شما.
+              تحلیل و پاسخ‌گویی بر اساس داده‌های زنده و واقعی حساب‌ها، هزینه‌ها، وضعیت شغلی، ترید و سود سرمایه، بدهی‌ها و بودجه‌های شما.
             </p>
+            <div className="ai-starters-tabs" role="tablist" aria-label="دسته‌بندی موضوعات">
+              {STARTER_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={starterCategory === cat.id}
+                  className={`ai-starters-tab ${starterCategory === cat.id ? "is-active" : ""}`}
+                  onClick={() => setStarterCategory(cat.id)}
+                >
+                  <Icon name={cat.icon} size={13} />
+                  <span>{cat.label}</span>
+                  <span className="ai-tab-count">
+                    {cat.id === "all" ? STARTER_CARDS.length : STARTER_CARDS.filter((c) => c.category === cat.id).length}
+                  </span>
+                </button>
+              ))}
+            </div>
             <div className="ai-starters-grid">
-              {STARTER_CARDS.map((c) => (
+              {STARTER_CARDS.filter((c) => starterCategory === "all" || c.category === starterCategory).map((c) => (
                 <button
                   key={c.title}
                   type="button"
@@ -378,7 +440,10 @@ export default function AssistantChat({
                     <Icon name={c.icon} size={18} />
                   </div>
                   <div className="ai-starter-text">
-                    <b className="ai-starter-title">{c.title}</b>
+                    <div className="ai-starter-head">
+                      <b className="ai-starter-title">{c.title}</b>
+                      <span className="ai-starter-badge">{c.badge}</span>
+                    </div>
                     <span className="ai-starter-desc">{c.desc}</span>
                   </div>
                 </button>

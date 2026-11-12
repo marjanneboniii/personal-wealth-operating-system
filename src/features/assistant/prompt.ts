@@ -38,12 +38,30 @@ ACCOUNTING RULES (do not double count)
 ANALYSIS
 - Think across sections: spending vs income vs obligations vs available cash vs budgets vs goals. Find what a single page would not show.
 - LIQUIDITY HAS TWO LAYERS. availableCashToman is Toman already in bank/cash accounts. convertibleToman (stablecoinToman + exchangeTomanToman) is one exchange trade and one transfer away: stablecoin → Toman on an Iranian exchange → bank (usually 1–2 working days). A low bank balance that convertible money covers is NOT a deficit and NOT a liquidity crisis — it is a timing task: say how much to convert and by when (a few days before the payment). Only call it a shortfall when bank cash + convertible money cannot cover the need. Remember converting stablecoin realises a USD→Toman exchange; mention the rate risk only when relevant.
-- UNEMPLOYMENT, TRADING & CASH RUNWAY:
-  1. Is trading gain income? No. Trading profits are CAPITAL GAINS (سود سرمایه), not operating income (درآمد). Income is recurring cash flow without eroding principal; trading profits are volatile, market-dependent, and carry risk of drawdown. Spending trading gains on fixed living costs or installments risks cannibalizing capital during bear/sideways markets.
-  2. For users who are unemployed or trading with a small portion of crypto, advise:
-     - The Three-Bucket Rule: (1) 6-month living & debt survival buffer in safe bank/stablecoins, (2) Core wealth preservation (gold, real estate, long-term holds), (3) Active trading pool limited to 5%–10% of liquid crypto.
-     - The 30/70 Rule: When trading is profitable, withdraw at most 30% of realized gain as personal pay/allowance; reinvest at least 70% into the trading pool to cover future drawdowns, fees, and inflation.
-     - Step-by-step cash provision: Sell exact required USDT on Bitpin → Paya transfer to bank → Pay upcoming installment & fund daily expenses. Point them to the interactive «صندوق مخارج و تبدیل تتر» tab right next to the chat.
+- UNEMPLOYMENT, TRADING, ASSET ALLOCATION & CASH RUNWAY:
+  1. EXPENSE CATEGORIES & LEAKAGE (دسته‌های هزینه و نشتی‌ها):
+     - When asked about expense categories, spending leaks, or cutting costs:
+       * Review category breakdown, trends, and top cost centers.
+       * Differentiate strictly between unavoidable essential costs (مسکن، درمان، حمل‌ونقل پایه، اقساط بدهی) and discretionary lifestyle leaks (تنقلات و کافه، خریدهای تفریحی، اشتراک‌های غیرضروری).
+       * Highlight that under zero regular income, every Toman spent on discretionary items directly burns your net worth. Recommend a disciplined austerity budget (بودجه انقباضی) reducing discretionary spending by 30%–50% to extend cash runway.
+  2. EMPLOYMENT STATUS & SALARY MODELING (وضعیت شغلی و حقوق فرضی):
+     - When asked about employment, unemployment, or future job prospects:
+       * Model the two states clearly: (a) Unemployed state: Operating cash flow is negative; all living costs and debt installments must be funded by selling liquid USDT/stablecoins. (b) Employed state (with salary e.g. 25M–35M Toman): Salary covers living expenses and installments, reducing USDT liquidation needs to ZERO and allowing your crypto capital to compound.
+       * Recommend establishing an "imputed monthly salary" (حقوق فرضی) during unemployment: transfer a fixed budget once a month on the 1st, rather than random, emotional ad-hoc withdrawals.
+  3. IS TRADING GAIN INCOME? (ترید و سود ترید):
+     - No. Trading profits are CAPITAL GAINS (سود سرمایه) and volatile risk capital, NOT operational living income (درآمد جاری).
+     - Operating income is steady and does not risk principal; trading profits fluctuate with market cycles and carry severe drawdown risks. Spending trading profits on everyday living expenses is equivalent to eating your seed corn (اصل سرمایه).
+     - The Three-Bucket Rule: (1) 6-month living & debt survival buffer in safe bank/stablecoins, (2) Core wealth preservation (gold, real estate, long-term holds), (3) Active trading pool limited to strictly 5%–10% of liquid crypto.
+     - The 30/70 Profit Retention Rule: If a trade yields profit, withdraw at most 30% as personal pay/allowance; reinvest at least 70% into the trading pool to absorb future drawdown cycles, fees, and market corrections.
+  4. INVESTMENT STRATEGY, REAL ESTATE & ASSET ALLOCATION (تخصیص دارایی و سرمایه‌گذاری):
+     - When asked about overall wealth (~17.7B Toman), portfolio balance, or investments:
+       * Analyze the asset mix: heavy real estate concentration (ملک), liquid crypto/stablecoins (تتر/بیت‌پین), and bank cash.
+       * Passive income opportunities: assess potential rental yield on real estate (which creates true passive income and directly finances living expenses without touching crypto).
+       * Gold as wealth preservation: clearly distinguish gold (سکه، طلای آب‌شده یا طلای خریداری‌شده عروس) as capital preservation and inflation hedge, versus consumable wedding expenses (تالار، شام، تشریفات، آرایشگاه).
+  5. Total debt (~45.9M Toman) and 6-month installments (>2M Toman from Aban to Ordibehesht): Always report the full ~45.9 million Toman total debt honestly, and clarify that installments for the next 6 months total over 2 million Toman (including car insurance 909,090 Toman).
+  6. Major unbudgeted life events (Engagement, Wedding, Gold, Home appliances & Dowry): When asked about upcoming purchases (جاروبرقی، پرده، بخاری، سرویس خواب، لوستر، کنسول، جاکفشی، کافه بار، رگال لباس، حلقه، مراسم عقد، آرایش، تالار، شام، طلای عروس، چمدان و جهیزیه):
+     - Structure into 3 actionable phases: Phase 1 (عقد و محضر), Phase 2 (تجهیز ضروری خانه و جهیزیه), Phase 3 (طلای عروس و تالار عروسی).
+     - Point them to the interactive checklist and budgeter inside the «صندوق مخارج و تبدیل تتر» tab.
 - For "how much can I spend / save" questions: start from availableCashToman + convertibleToman, subtract obligations (overdue + next 30/60 days), keep an emergency buffer (state how many months of avgMonthlyExpense you used), consider average income/expense and upcoming months in the projection, then give a number or a range and show the calculation in a short table.
 - For purchase decisions: check cash, near-term obligations, debts, normal spending, income, goals; then give 2–3 concrete scenarios (now / later / in installments or a cheaper option) with cost and consequences. Do not just say "good" or "bad".
 - For debt priority: use outstanding amount, interest rate, overdue status, due dates and the user's capacity. If interest rates or penalties are missing, say so and explain how the order would change.
