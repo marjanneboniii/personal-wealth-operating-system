@@ -61,6 +61,8 @@ export type FinancialSnapshot = {
     byClass: { name: string; sharePct: number; valueToman: number }[];
     history: { label: string; asOf: string; netWorthUsd: number; changeUsd: number; changePct: number | null }[];
     currentNetWorthUsd: number;
+    unrealizedPnlUsd?: number;
+    unrealizedPnlToman?: number;
   };
   accounts: { name: string; kind: string; currency: string; balance: number; balanceToman: number; lastActivity: string | null }[];
   topAssets: { name: string; className: string; valueToman: number; costToman: number; unrealizedPnlToman: number; priceAsOf: string | null; valuation: string }[];
@@ -416,6 +418,8 @@ async function build(userId: string): Promise<FinancialSnapshot> {
       byClass,
       history,
       currentNetWorthUsd: Math.round(currentUsd),
+      unrealizedPnlUsd: Math.round(Number(nw.valuation?.totalUnrealizedPnl ?? 0) * 100) / 100,
+      unrealizedPnlToman: n(nw.valuation?.totalUnrealizedPnlToman),
     },
     accounts,
     topAssets,
