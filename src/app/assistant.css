@@ -65,7 +65,6 @@
 .ai-card:hover {
   border-color: var(--border-strong);
 }
-}
 .ai-card-title {
   display: flex;
   align-items: center;
