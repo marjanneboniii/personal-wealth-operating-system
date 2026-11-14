@@ -699,7 +699,7 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
             : `استخدام دائم و باثبات با حقوق ماهانه ${full(monthlySalary)}`;
 
     const text = hasTetherOrCrypto
-      ? `من برنامه‌ریزی جامع مالی و صندوق مخارج تتر را بررسی کردم:
+      ? `من برنامه‌ریزی جامع مالی و جریان نقدینگی را بررسی کردم:
 ۱. وضعیت بدهی‌ها:
 - کل بدهی‌های باقی‌مانده: ${full(totalOutstandingDebt)}
 - اقساط ۶ ماه آینده (آبان تا اردیبهشت): ${full(scheduledInstallmentsToman)}
@@ -767,18 +767,14 @@ ${question}`;
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent)]/20">
                 <Icon name="sparkle" size={13} />
-                {hasTetherOrCrypto
-                  ? (isOwner ? "صندوق مخارج تتر · تسویه بدهی و جهیزیه" : "صندوق مخارج تتر · پوشش اقساط و مخارج")
-                  : "جریان نقدینگی · پوشش اقساط و تاب‌آوری مالی"}
+                برنامه‌ریزی جریان نقدینگی و تاب‌آوری
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] bg-[var(--sunken)] text-[var(--text-3)] border border-[var(--border)]">
                 افق {toFaDigits(String(horizon))} ماهه
               </span>
             </div>
             <h2 className="text-2xl font-black text-[var(--text)] tracking-tight">
-              {hasTetherOrCrypto
-                ? (isOwner ? "صندوق مخارج تتری، پوشش اقساط و بودجه‌بندی عقد و زندگی" : "صندوق مخارج تتری، پوشش اقساط و بودجه‌بندی خریدهای آینده")
-                : "برنامه‌ریزی جریان نقدینگی، پوشش اقساط و تاب‌آوری مالی"}
+              برنامه‌ریزی جریان نقدینگی، پوشش اقساط و خریدهای آینده
             </h2>
             <p className="text-xs text-[var(--text-2)] leading-relaxed">
               {hasTetherOrCrypto

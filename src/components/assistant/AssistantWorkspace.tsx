@@ -69,7 +69,7 @@ export default function AssistantWorkspace({
             className={tab === "cash_loop" ? "is-on" : undefined}
             onClick={() => setTab("cash_loop")}
           >
-            <Icon name="swap" size={15} /> {cashLoopTabTitle ?? "برنامه‌ریزی جریان نقدینگی و تاب‌آوری"}
+            <Icon name="swap" size={15} /> {cashLoopTabTitle ?? "برنامه‌ریزی جریان نقدینگی"}
           </button>
         )}
       </div>
@@ -101,8 +101,8 @@ export function AskButton({ question, label = "از دستیار بپرس", clas
   );
 }
 
-/** Switches to the Tether expense fund tab. */
-export function OpenLoopButton({ className, label = "حسابگر صندوق مخارج و تبدیل تتر" }: { className?: string; label?: string }) {
+/** Switches to the Cash Flow Planning tab. */
+export function OpenLoopButton({ className, label = "برنامه‌ریزی جریان نقدینگی" }: { className?: string; label?: string }) {
   return (
     <button
       type="button"

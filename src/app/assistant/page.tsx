@@ -103,13 +103,17 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
       {/* ── سه کارت خلاصه ── */}
       <div className="ai-kpis">
         <section className="ai-card ai-kpi" aria-label="ارزش خالص">
-          <p className="ai-kpi-label">ارزش خالص دارایی</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="ai-kpi-label flex items-center gap-1.5 font-bold">
+              <Icon name="coins" size={15} className="text-[var(--accent)]" /> ارزش خالص دارایی
+            </p>
+            {monthAgo && (
+              <span className={`ai-chip ${monthAgo.changeUsd > 0 ? "is-pos" : monthAgo.changeUsd < 0 ? "is-neg" : ""}`}>
+                {monthAgo.changePct != null ? pct(monthAgo.changePct) : "—"} نسبت به {monthAgo.label} <small>(دلاری)</small>
+              </span>
+            )}
+          </div>
           <Amount value={nw.netWorthToman} size="lg" />
-          {monthAgo && (
-            <span className={`ai-chip ${monthAgo.changeUsd > 0 ? "is-pos" : monthAgo.changeUsd < 0 ? "is-neg" : ""}`}>
-              {monthAgo.changePct != null ? pct(monthAgo.changePct) : "—"} نسبت به {monthAgo.label} <small>(دلاری)</small>
-            </span>
-          )}
           <dl className="ai-kv">
             <div>
               <dt>کل دارایی</dt>
@@ -123,15 +127,21 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
         </section>
 
         <section className="ai-card ai-kpi" aria-label="جریان نقدی این ماه">
-          <p className="ai-kpi-label">
-            {month.label} <span className="ai-muted">· روز {month.daysElapsed.toLocaleString("fa-IR")} از {month.daysInMonth.toLocaleString("fa-IR")}</span>
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="ai-kpi-label flex items-center gap-1.5 font-bold">
+              <Icon name="repeat" size={15} className="text-sky-500" />
+              <span>{month.label}</span>
+              <span className="ai-muted text-[10px]">· روز {month.daysElapsed.toLocaleString("fa-IR")} از {month.daysInMonth.toLocaleString("fa-IR")}</span>
+            </p>
+            {month.incomeToman === 0 && month.expenseToman === 0 ? (
+              <span className="ai-chip">هنوز تراکنشی نیست</span>
+            ) : (
+              <span className={`ai-chip ${month.netToman >= 0 ? "is-pos" : "is-neg"}`}>
+                {month.netToman >= 0 ? "مازاد ماه" : "کسری ماه"}
+              </span>
+            )}
+          </div>
           <Amount value={month.netToman} size="lg" />
-          {month.incomeToman === 0 && month.expenseToman === 0 ? (
-            <span className="ai-chip">هنوز تراکنشی در این ماه نیست</span>
-          ) : (
-            <span className={`ai-chip ${month.netToman >= 0 ? "is-pos" : "is-neg"}`}>{month.netToman >= 0 ? "مازاد این ماه" : "کسری این ماه"}</span>
-          )}
           <div className="ai-bars">
             <div className="ai-bar-row">
               <span>درآمد</span>
@@ -147,11 +157,15 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
         </section>
 
         <section className="ai-card ai-kpi" aria-label="نقدینگی">
-          <p className="ai-kpi-label">نقدینگی در دسترس</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="ai-kpi-label flex items-center gap-1.5 font-bold">
+              <Icon name="shield" size={15} className="text-emerald-500" /> نقدینگی در دسترس
+            </p>
+            <span className={`ai-chip ${covered ? "is-pos" : "is-neg"}`}>
+              {covered ? "پوشش ۳۰ روز برقرار" : "کمتر از تعهدات ۳۰ روز"}
+            </span>
+          </div>
           <Amount value={reach} size="lg" />
-          <span className={`ai-chip ${covered ? "is-pos" : "is-neg"}`}>
-            {covered ? "تعهدات ۳۰ روز پوشش دارد" : "کمتر از تعهدات ۳۰ روز"}
-          </span>
           <i className="ai-stack" aria-hidden="true">
             <b className="is-ink" style={{ width: `${(nw.availableCashToman / liqMax) * 100}%` }} />
             <b className="is-mint" style={{ width: `${(nw.convertibleToman / liqMax) * 100}%` }} />
@@ -306,9 +320,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
     );
   const hasTetherOrCrypto = isOwner || hasTether || hasCrypto;
 
-  const cashLoopTabTitle = hasTetherOrCrypto
-    ? (isOwner ? "صندوق مخارج و تبدیل تتر" : "صندوق مخارج و مدیریت تتر")
-    : "برنامه‌ریزی جریان نقدینگی و تاب‌آوری";
+  const cashLoopTabTitle = "برنامه‌ریزی جریان نقدینگی";
 
   return (
     <div className="space-y-4">
