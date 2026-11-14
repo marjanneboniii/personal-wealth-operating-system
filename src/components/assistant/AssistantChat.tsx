@@ -14,6 +14,7 @@ import {
   updateMemoryAction,
 } from "@/app/actions/assistant";
 import type { ConversationSummary, Memory, MessageMeta, RecategorizeProposal, StoredMessage } from "@/features/assistant/store";
+import type { FinancialSnapshot } from "@/features/assistant/snapshot";
 
 const MARKER = "[[FOLLOWUPS]]";
 const MAX_CHARS = 4000;
@@ -111,72 +112,159 @@ const OWNER_STARTER_CARDS = [
   },
 ];
 
-const GENERAL_STARTER_CARDS = [
-  {
-    category: "expenses_job" as const,
+export function buildDynamicStarterCards(s?: FinancialSnapshot | null) {
+  const accounts = Array.isArray(s?.accounts) ? s.accounts : [];
+  const byClass = Array.isArray(s?.netWorth?.byClass) ? s.netWorth.byClass : [];
+  const topAssets = Array.isArray(s?.topAssets) ? s.topAssets : [];
+  const debts = Array.isArray(s?.debts) ? s.debts : [];
+
+  const hasTether =
+    (s?.netWorth?.stablecoinToman ?? 0) > 0 ||
+    accounts.some(
+      (a) =>
+        ["USDT", "USDC", "DAI"].includes(a?.currency ?? "") ||
+        (typeof a?.name === "string" && a.name.includes("تتر")),
+    );
+  const hasCrypto =
+    hasTether ||
+    byClass.some((c) => c?.name?.includes("رمزارز") || c?.name?.toLowerCase().includes("crypto")) ||
+    topAssets.some((a) => a?.className?.includes("رمزارز") || a?.className?.toLowerCase().includes("crypto"));
+
+  const hasGold =
+    byClass.some((c) => c?.name?.includes("طلا") || c?.name?.toLowerCase().includes("gold")) ||
+    topAssets.some((a) => a?.className?.includes("طلا") || a?.className?.toLowerCase().includes("gold"));
+
+  const hasStocks =
+    byClass.some((c) => c?.name?.includes("سهام") || c?.name?.includes("بورس") || c?.name?.toLowerCase().includes("stock")) ||
+    topAssets.some((a) => a?.className?.includes("سهام") || a?.className?.includes("بورس") || a?.className?.toLowerCase().includes("stock"));
+
+  const hasRealEstate =
+    byClass.some((c) => c?.name?.includes("ملک") || c?.name?.includes("املاک") || c?.name?.toLowerCase().includes("real")) ||
+    topAssets.some((a) => a?.className?.includes("ملک") || a?.className?.includes("املاک"));
+
+  const hasDebts = debts.length > 0 || (s?.netWorth?.totalDebtToman ?? 0) > 0;
+  const hasIncome = (s?.cashflow?.avgMonthlyIncomeToman ?? 0) > 0 || (s?.cashflow?.currentMonth?.incomeToman ?? 0) > 0;
+
+  const cards: typeof OWNER_STARTER_CARDS = [];
+
+  // ۱. دسته‌های هزینه و نشتی‌ها
+  cards.push({
+    category: "expenses_job",
     badge: "دسته‌های هزینه",
-    icon: "receipt" as const,
+    icon: "receipt",
     title: "تحلیل دسته‌های هزینه و نشتی‌ها",
     desc: "شناسایی هزینه‌های پرتکرار، اشتراک‌ها و راه‌های کاهش مخارج جاری",
     prompt: "دسته‌های هزینه‌ای من را بر اساس تراکنش‌های ثبت‌شده تحلیل کن. کدام هزینه‌ها بیشترین سهم را دارند و چطور می‌توانم هزینه‌های جاری و نشتی‌های مالی‌ام را کاهش دهم تا دوره تاب‌آوری نقدی‌ام بیشتر شود؟",
-  },
-  {
-    category: "expenses_job" as const,
-    badge: "برنامه‌ریزی مالی",
-    icon: "briefcase" as const,
-    title: "بودجه‌بندی جریان نقدی و امنیت درآمد",
-    desc: "تنظیم بودجه بقا و استراتژی پس‌انداز متناسب با وضعیت شغلی",
-    prompt: "جریان ورودی و خروجی ماهانه من را بررسی کن. آیا مازاد نقدینگی دارم یا کسری؟ چطور می‌توانم بودجه‌بندی دقیق‌تری برای مخارج ضروری و پس‌انداز منظم ماهانه‌ام داشته باشم؟",
-  },
-  {
-    category: "trading_invest" as const,
-    badge: "پوشش تورم",
-    icon: "crypto" as const,
-    title: "حفظ قدرت خرید در برابر تورم و نوسان ارز",
-    desc: "استراتژی نگهداری دارایی‌ها، استیبل‌کوین و پوشش ریسک ارزی",
-    prompt: "در شرایط تورمی و نوسانات نرخ ارز، چطور می‌توانم قدرت خرید دارایی‌هایم را حفظ کنم؟ نقش نگهداری استیبل‌کوین (تتر) و تبدیل به‌موقع دارایی‌ها در کاهش ریسک‌های مالی چیست؟",
-  },
-  {
-    category: "trading_invest" as const,
-    badge: "سرمایه‌گذاری",
-    icon: "portfolio" as const,
-    title: "تخصیص دارایی و تنوع‌بخشی سبد",
-    desc: "بررسی ترکیب دارایی‌ها میان نقدینگی، طلا، املاک و رمزارز",
-    prompt: "ترکیب سبد دارایی‌های مرا بر اساس ترازنامه تحلیل کن. آیا تنوع‌بخشی مناسبی دارم و چه راهکارهایی برای تعادل ریسک و بازدهی و ایجاد درآمد غیرفعال پیشنهاد می‌کنی؟",
-  },
-  {
-    category: "trading_invest" as const,
-    badge: "صندوق نقدینگی",
-    icon: "swap" as const,
-    title: "مدیریت نقدینگی و صندوق اضطراری",
-    desc: "محاسبه میزان نقدینگی در دسترس بانک و صرافی‌ها",
-    prompt: "موجودی نقدینگی من در بانک‌ها و حساب‌های صرافی چقدر است؟ آیا این میزان نقدینگی برای پوشش هزینه‌ها و تعهدات ماه‌های آینده من کافی است؟",
-  },
-  {
-    category: "debts_purchases" as const,
-    badge: "بدهی و اقساط",
-    icon: "installments" as const,
-    title: "مدیریت بدهی‌ها و اولویت‌بندی اقساط",
-    desc: "بررسی سررسیدهای پیش‌رو و بهترین استراتژی تسویه بدهی‌ها",
-    prompt: "وضعیت بدهی‌ها و تعهدات اقساطی مرا بر اساس داده‌های ثبت‌شده بررسی کن. اولویت تسویه آنها چگونه باید باشد و چه برنامه‌ای برای کاهش فشار اقساط ماهانه پیشنهاد می‌دهی؟",
-  },
-  {
-    category: "debts_purchases" as const,
+  });
+
+  // ۲. وضعیت شغلی و جریان درآمد
+  cards.push({
+    category: "expenses_job",
+    badge: hasIncome ? "امنیت درآمد و شغل" : "جریان درآمدی",
+    icon: "briefcase",
+    title: hasIncome ? "بودجه‌بندی حقوق و درآمد ماهانه" : "برنامه‌ریزی تنوع جریان درآمد",
+    desc: hasIncome ? "تخصیص هوشمند درآمد ماهانه (قانون ۵۰/۳۰/۲۰) و پس‌انداز منظم" : "راهکارهای ایجاد درآمد پایدار و مدیریت جریان ورودی نقدی",
+    prompt: hasIncome
+      ? "جریان درآمد ماهانه من را بررسی کن. چطور حقوق و درآمدم را به شکل بهینه میان مخارج ضروری، پس‌انداز و سرمایه‌گذاری تقسیم کنم تا امنیت مالی بالاتری داشته باشم؟"
+      : "وضعیت جریان درآمدی و نقدینگی مرا تحلیل کن. در شرایط کنونی چه استراتژی‌ای برای مدیریت مخارج و افزایش درآمدهای جدید پیشنهاد می‌کنی؟",
+  });
+
+  // ۳. کریپتو و تتر (تنها اگر کاربر رمزارز یا تتر داشته باشد)
+  if (hasCrypto) {
+    cards.push({
+      category: "trading_invest",
+      badge: hasTether ? "تتر و رمزارز" : "بازار رمزارز",
+      icon: "crypto",
+      title: hasTether ? "مدیریت استیبل‌کوین و پوشش ریسک ارزی" : "تحلیل دارایی‌های کریپتو و مدیریت ریسک",
+      desc: hasTether ? "استراتژی تبدیل تتر، پوشش نوسان ارز و نقدشوندگی" : "بررسی پورتفوی رمزارز و استراتژی نوسان‌گیری یا هولد",
+      prompt: hasTether
+        ? "موجودی تتر و رمزارز مرا در برابر تورم و نوسان ارز تحلیل کن. چه زمان و به چه میزان برای هزینه‌ها تبدیل انجام دهم و چطور از اصل سرمایه محافظت کنم؟"
+        : "وضعیت پورتفوی رمزارز مرا تحلیل کن. برای کنترل ریسک نوسانات و خروج به موقع به استیبل‌کوین یا تومان چه برنامه‌ای پیشنهاد می‌دهی؟",
+    });
+  }
+
+  // ۴. طلا و مسکوکات (تنها در صورت داشتن طلا در سبد)
+  if (hasGold) {
+    cards.push({
+      category: "trading_invest",
+      badge: "طلا و مسکوکات",
+      icon: "portfolio",
+      title: "نقش طلا در سبد دارایی و حفظ ارزش",
+      desc: "تحلیل بازدهی طلا در برابر تورم و استراتژی فروش یا حفظ",
+      prompt: "دارایی‌های طلای من چه سهمی از کل ارزش خالص مرا تشکیل می‌دهند؟ در مقایسه با سایر بازارها، آیا افزایش سهم طلا یا صندوق‌های طلا را پیشنهاد می‌کنی؟",
+    });
+  }
+
+  // ۵. بورس و سهام (تنها در صورت داشتن سهام)
+  if (hasStocks) {
+    cards.push({
+      category: "trading_invest",
+      badge: "بازار بورس",
+      icon: "portfolio",
+      title: "تنوع‌بخشی سهام و مدیریت بازدهی بورس",
+      desc: "تحلیل عملکرد سبد بورسی، سود تقسیمی و مدیریت ریسک",
+      prompt: "ترکیب سهام و صندوق‌های بورسی مرا بررسی کن. با توجه به شرایط اقتصادی، چه بازتنظیم (Rebalance) در سبد سهام پیشنهاد می‌کنی؟",
+    });
+  }
+
+  // ۶. املاک (تنها در صورت داشتن ملک)
+  if (hasRealEstate) {
+    cards.push({
+      category: "trading_invest",
+      badge: "املاک و مستغلات",
+      icon: "portfolio",
+      title: "بازدهی املاک و جریان نقدی اجاره",
+      desc: "بررسی سهم املاک در ثروت کل و بهینه‌سازی درآمد غیرفعال",
+      prompt: "سهم املاک در ترازنامه مرا بررسی کن. چطور می‌توانم جریان نقدی غیرفعال (اجاره) را از این دارایی‌ها بهینه‌تر دریافت کنم؟",
+    });
+  }
+
+  // اگر کاربر در هیچ بازار مالی (کریپتو، طلا، سهام) فعال نبود، یک کارت عمومی بدون ریسک نشان می‌دهیم
+  if (!hasCrypto && !hasGold && !hasStocks) {
+    cards.push({
+      category: "trading_invest",
+      badge: "سرمایه‌گذاری",
+      icon: "portfolio",
+      title: "حفظ ارزش پول و پس‌انداز کم‌ریسک",
+      desc: "روش‌های مقابله با تورم از طریق صندوق‌های درآمد ثابت و پس‌انداز",
+      prompt: "با توجه به اینکه در بازارهای پرریسک مالی فعال نیستم، بهترین راهکار برای حفظ ارزش پول نقد و پس‌انداز ماهانه‌ام در برابر تورم چیست؟",
+    });
+  }
+
+  // ۷. صندوق نقدینگی و اضطراری بانکی
+  cards.push({
+    category: "expenses_job",
+    badge: "صندوق اضطراری",
+    icon: "briefcase",
+    title: "ساخت صندوق اضطراری و تاب‌آوری مالی",
+    desc: "محاسبه ۳ تا ۶ ماه مخارج ضروری برای سپر امن در برابر شوک‌های مالی",
+    prompt: "با توجه به میانگین هزینه‌های ماهانه من، مبلغ ایده‌آل برای صندوق اضطراری من چقدر است و موجودی فعلی نقد من در بانک‌ها تا چند ماه پاسخگوی شرایط بحرانی است؟",
+  });
+
+  // ۸. بدهی‌ها و اقساط
+  cards.push({
+    category: "debts_purchases",
+    badge: hasDebts ? "بدهی و اقساط" : "کنترل تعهدات",
+    icon: "installments",
+    title: hasDebts ? "مدیریت بدهی‌ها و اولویت‌بندی اقساط" : "استراتژی زندگی بدون بدهی",
+    desc: hasDebts ? "بررسی سررسیدهای پیش‌رو و بهترین استراتژی تسویه بدهی‌ها" : "روش‌های استفاده بهینه از جریان نقدینگی بدون افتادن در تله بدهی",
+    prompt: hasDebts
+      ? "وضعیت بدهی‌ها و تعهدات اقساطی مرا بر اساس داده‌های ثبت‌شده بررسی کن. اولویت تسویه آنها چگونه باید باشد تا کمترین سود و فشار پرداخت شود؟"
+      : "من بدهی ثبت‌شده‌ای ندارم؛ چطور این انضباط مالی را حفظ کنم و مازاد نقدی‌ام را بدون ایجاد تعهدات سنگین رشد دهم؟",
+  });
+
+  // ۹. خریدهای آینده
+  cards.push({
+    category: "debts_purchases",
     badge: "خریدهای آینده",
-    icon: "gift" as const,
+    icon: "gift",
     title: "برنامه‌ریزی و فازبندی خریدهای بزرگ",
     desc: "فازبندی اهداف مالی، برآورد هزینه و تامین مالی هدفمند",
     prompt: "من در ماه‌های آینده تصمیم به خریدهای ضروری و تجهیزاتی دارم. چطور این خریدها را فازبندی کنم، سقف بودجه تعیین کنم و بدون ایجاد کسری نقدینگی آنها را تامین مالی نمایم؟",
-  },
-  {
-    category: "debts_purchases" as const,
-    badge: "تعهدات دوره‌ای",
-    icon: "shield" as const,
-    title: "تعهدات منظم، بیمه و هزینه‌های ثابت",
-    desc: "بررسی هزینه‌های تکرارشونده و موعدهای سررسید",
-    prompt: "هزینه‌های ثابت، حق بیمه‌ها و تعهدات دوره‌ای من در ماه‌های آینده چه مواردی هستند و چه تاریخی سررسید می‌شوند؟",
-  },
-];
+  });
+
+  return cards;
+}
 
 const MEMORY_KIND: Record<string, string> = { goal: "هدف", preference: "ترجیح", constraint: "محدودیت", fact: "واقعیت" };
 
@@ -191,13 +279,15 @@ export default function AssistantChat({
   initialConversations,
   initialMemories,
   isOwner = false,
+  s = null,
 }: {
   configured: boolean;
   initialConversations: ConversationSummary[];
   initialMemories: Memory[];
   isOwner?: boolean;
+  s?: FinancialSnapshot | null;
 }) {
-  const starterCards = isOwner ? OWNER_STARTER_CARDS : GENERAL_STARTER_CARDS;
+  const starterCards = isOwner ? OWNER_STARTER_CARDS : buildDynamicStarterCards(s);
   const [conversations, setConversations] = useState(initialConversations);
   const [memories, setMemories] = useState(initialMemories);
   const [activeId, setActiveId] = useState<string | null>(null);

@@ -291,10 +291,31 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
   const stale = Boolean(latest && snapshot && latest.hash !== snapshotHash(snapshot));
   const insight = <InsightPanel configured={config.configured} initial={latest ? { content: latest.content, createdAt: latest.createdAt } : null} stale={stale} />;
 
+  const hasTether =
+    (snapshot?.netWorth?.stablecoinToman ?? 0) > 0 ||
+    (snapshot?.accounts ?? []).some(
+      (a) =>
+        ["USDT", "USDC", "DAI"].includes(a.currency ?? "") ||
+        (typeof a.name === "string" && a.name.includes("تتر")),
+    );
+  const hasCrypto =
+    (snapshot?.netWorth?.byClass ?? []).some(
+      (c) => c.name.includes("رمزارز") || c.name.toLowerCase().includes("crypto"),
+    ) ||
+    (snapshot?.topAssets ?? []).some(
+      (a) => a.className.includes("رمزارز") || a.className.toLowerCase().includes("crypto"),
+    );
+  const hasTetherOrCrypto = isOwner || hasTether || hasCrypto;
+
+  const cashLoopTabTitle = hasTetherOrCrypto
+    ? (isOwner ? "صندوق مخارج و تبدیل تتر" : "صندوق مخارج و مدیریت تتر")
+    : "برنامه‌ریزی جریان نقدینگی و تاب‌آوری";
+
   return (
     <div className="space-y-4">
       <PageHeader title="دستیار هوشمند" subtitle="وضعیت مالی‌تان در یک نگاه، و پاسخ هر سؤالی درباره‌ی پولتان." />
       <AssistantWorkspace
+        cashLoopTabTitle={cashLoopTabTitle}
         initialTab={sp.tab === "chat" ? "chat" : sp.tab === "cash_loop" ? "cash_loop" : "dashboard"}
         dashboard={
           snapshot ? (
@@ -305,7 +326,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
             </Alert>
           )
         }
-        chat={<AssistantChat configured={config.configured} initialConversations={conversations} initialMemories={memories} isOwner={isOwner} />}
+        chat={<AssistantChat configured={config.configured} initialConversations={conversations} initialMemories={memories} isOwner={isOwner} s={snapshot} />}
         cashLoop={snapshot ? <CashLoopPlanner s={snapshot} isOwner={isOwner} /> : null}
       />
     </div>
