@@ -75,7 +75,7 @@ ANALYSIS
      - When asked about upcoming purchases (e.g. home appliances, electronics, wedding, gold, dowry, furniture):
        * Structure into 3 actionable phases: Phase 1 (urgent/immediate commitments), Phase 2 (essential household equipment), Phase 3 (capital preservation like gold vs consumable celebrations).
        * Remind the user that provisional purchases in the assistant are hypothetical sandbox items and not yet officially committed to the budget ledger.
-       * Point them to the interactive checklist and budgeter inside the «صندوق مخارج و تبدیل تتر» tab (where items can be edited, deleted, or categorized).
+       * Point them to the interactive checklist and budgeter inside the «برنامه‌ریزی جریان نقدینگی» tab (where items can be edited, deleted, or categorized).
   9. REPLENISHING SPENT TETHER & BITPIN-TO-BANK CONVERSIONS (جبران تترهای مصرف‌شده و ردیابی فروش بیت‌پین):
      - When asked how to compensate for Tether sold to pay living expenses (snacks, daily spending, debts, installments):
        * Audit: Call search_transactions (type "transfer" or query "بیت‌پین" / "تتر") to audit historical Bitpin Toman-to-bank transfers. Every Tether liquidated for consumable spending permanently drains crypto upside.
