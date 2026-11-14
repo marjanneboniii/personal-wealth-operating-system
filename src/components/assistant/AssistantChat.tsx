@@ -36,7 +36,7 @@ const STARTER_CATEGORIES: { id: StarterCategory; label: string; icon: "sparkle" 
   { id: "debts_purchases", label: "بدهی‌ها و خریدهای آینده", icon: "gift" },
 ];
 
-const STARTER_CARDS = [
+const OWNER_STARTER_CARDS = [
   {
     category: "expenses_job" as const,
     badge: "دسته‌های هزینه",
@@ -111,6 +111,73 @@ const STARTER_CARDS = [
   },
 ];
 
+const GENERAL_STARTER_CARDS = [
+  {
+    category: "expenses_job" as const,
+    badge: "دسته‌های هزینه",
+    icon: "receipt" as const,
+    title: "تحلیل دسته‌های هزینه و نشتی‌ها",
+    desc: "شناسایی هزینه‌های پرتکرار، اشتراک‌ها و راه‌های کاهش مخارج جاری",
+    prompt: "دسته‌های هزینه‌ای من را بر اساس تراکنش‌های ثبت‌شده تحلیل کن. کدام هزینه‌ها بیشترین سهم را دارند و چطور می‌توانم هزینه‌های جاری و نشتی‌های مالی‌ام را کاهش دهم تا دوره تاب‌آوری نقدی‌ام بیشتر شود؟",
+  },
+  {
+    category: "expenses_job" as const,
+    badge: "برنامه‌ریزی مالی",
+    icon: "briefcase" as const,
+    title: "بودجه‌بندی جریان نقدی و امنیت درآمد",
+    desc: "تنظیم بودجه بقا و استراتژی پس‌انداز متناسب با وضعیت شغلی",
+    prompt: "جریان ورودی و خروجی ماهانه من را بررسی کن. آیا مازاد نقدینگی دارم یا کسری؟ چطور می‌توانم بودجه‌بندی دقیق‌تری برای مخارج ضروری و پس‌انداز منظم ماهانه‌ام داشته باشم؟",
+  },
+  {
+    category: "trading_invest" as const,
+    badge: "پوشش تورم",
+    icon: "crypto" as const,
+    title: "حفظ قدرت خرید در برابر تورم و نوسان ارز",
+    desc: "استراتژی نگهداری دارایی‌ها، استیبل‌کوین و پوشش ریسک ارزی",
+    prompt: "در شرایط تورمی و نوسانات نرخ ارز، چطور می‌توانم قدرت خرید دارایی‌هایم را حفظ کنم؟ نقش نگهداری استیبل‌کوین (تتر) و تبدیل به‌موقع دارایی‌ها در کاهش ریسک‌های مالی چیست؟",
+  },
+  {
+    category: "trading_invest" as const,
+    badge: "سرمایه‌گذاری",
+    icon: "portfolio" as const,
+    title: "تخصیص دارایی و تنوع‌بخشی سبد",
+    desc: "بررسی ترکیب دارایی‌ها میان نقدینگی، طلا، املاک و رمزارز",
+    prompt: "ترکیب سبد دارایی‌های مرا بر اساس ترازنامه تحلیل کن. آیا تنوع‌بخشی مناسبی دارم و چه راهکارهایی برای تعادل ریسک و بازدهی و ایجاد درآمد غیرفعال پیشنهاد می‌کنی؟",
+  },
+  {
+    category: "trading_invest" as const,
+    badge: "صندوق نقدینگی",
+    icon: "swap" as const,
+    title: "مدیریت نقدینگی و صندوق اضطراری",
+    desc: "محاسبه میزان نقدینگی در دسترس بانک و صرافی‌ها",
+    prompt: "موجودی نقدینگی من در بانک‌ها و حساب‌های صرافی چقدر است؟ آیا این میزان نقدینگی برای پوشش هزینه‌ها و تعهدات ماه‌های آینده من کافی است؟",
+  },
+  {
+    category: "debts_purchases" as const,
+    badge: "بدهی و اقساط",
+    icon: "installments" as const,
+    title: "مدیریت بدهی‌ها و اولویت‌بندی اقساط",
+    desc: "بررسی سررسیدهای پیش‌رو و بهترین استراتژی تسویه بدهی‌ها",
+    prompt: "وضعیت بدهی‌ها و تعهدات اقساطی مرا بر اساس داده‌های ثبت‌شده بررسی کن. اولویت تسویه آنها چگونه باید باشد و چه برنامه‌ای برای کاهش فشار اقساط ماهانه پیشنهاد می‌دهی؟",
+  },
+  {
+    category: "debts_purchases" as const,
+    badge: "خریدهای آینده",
+    icon: "gift" as const,
+    title: "برنامه‌ریزی و فازبندی خریدهای بزرگ",
+    desc: "فازبندی اهداف مالی، برآورد هزینه و تامین مالی هدفمند",
+    prompt: "من در ماه‌های آینده تصمیم به خریدهای ضروری و تجهیزاتی دارم. چطور این خریدها را فازبندی کنم، سقف بودجه تعیین کنم و بدون ایجاد کسری نقدینگی آنها را تامین مالی نمایم؟",
+  },
+  {
+    category: "debts_purchases" as const,
+    badge: "تعهدات دوره‌ای",
+    icon: "shield" as const,
+    title: "تعهدات منظم، بیمه و هزینه‌های ثابت",
+    desc: "بررسی هزینه‌های تکرارشونده و موعدهای سررسید",
+    prompt: "هزینه‌های ثابت، حق بیمه‌ها و تعهدات دوره‌ای من در ماه‌های آینده چه مواردی هستند و چه تاریخی سررسید می‌شوند؟",
+  },
+];
+
 const MEMORY_KIND: Record<string, string> = { goal: "هدف", preference: "ترجیح", constraint: "محدودیت", fact: "واقعیت" };
 
 const visible = (text: string) => {
@@ -123,11 +190,14 @@ export default function AssistantChat({
   configured,
   initialConversations,
   initialMemories,
+  isOwner = false,
 }: {
   configured: boolean;
   initialConversations: ConversationSummary[];
   initialMemories: Memory[];
+  isOwner?: boolean;
 }) {
+  const starterCards = isOwner ? OWNER_STARTER_CARDS : GENERAL_STARTER_CARDS;
   const [conversations, setConversations] = useState(initialConversations);
   const [memories, setMemories] = useState(initialMemories);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -429,14 +499,14 @@ export default function AssistantChat({
                 >
                   <Icon name={cat.icon} size={13} />
                   <span>{cat.label}</span>
-                  <span className="ai-tab-count">
-                    {cat.id === "all" ? STARTER_CARDS.length : STARTER_CARDS.filter((c) => c.category === cat.id).length}
+                  <span className="ai-tab-count num">
+                    {fa(cat.id === "all" ? starterCards.length : starterCards.filter((c) => c.category === cat.id).length)}
                   </span>
                 </button>
               ))}
             </div>
             <div className="ai-starters-grid">
-              {STARTER_CARDS.filter((c) => starterCategory === "all" || c.category === starterCategory).map((c) => (
+              {starterCards.filter((c) => starterCategory === "all" || c.category === starterCategory).map((c) => (
                 <button
                   key={c.title}
                   type="button"

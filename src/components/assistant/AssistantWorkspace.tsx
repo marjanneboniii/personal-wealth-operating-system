@@ -104,10 +104,13 @@ export function OpenLoopButton({ className, label = "حسابگر صندوق م�
   return (
     <button
       type="button"
-      className={className ?? "btn btn-ghost ai-btn !w-full !justify-center !mt-2.5 !text-[length:var(--fs-xs)] !min-h-[34px]"}
+      className={
+        className ??
+        "btn btn-ghost ai-btn !w-full !justify-center !mt-2.5 !text-[length:var(--fs-xs)] !min-h-[36px] !border !border-[var(--accent)]/30 !bg-[var(--accent-soft)]/40 hover:!bg-[var(--accent-soft)] !text-[var(--accent)] !font-bold transition-all shadow-xs"
+      }
       onClick={() => window.dispatchEvent(new CustomEvent("assistant:open-loop"))}
     >
-      <Icon name="swap" size={13} /> {label}
+      <Icon name="swap" size={14} /> {label}
     </button>
   );
 }

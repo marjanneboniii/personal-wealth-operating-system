@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ensureAuth } from "@/lib/authGuard";
+import { ensureAuth, isAdminOrOwner } from "@/lib/authGuard";
 import { Alert, PageHeader } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import { JALALI_MONTHS, toJalali } from "@/lib/format";
@@ -271,6 +271,7 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
 
 export default async function AssistantPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await ensureAuth();
+  const isOwner = isAdminOrOwner(user);
   const sp = await searchParams;
   const config = getAssistantConfig();
 
@@ -304,8 +305,8 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
             </Alert>
           )
         }
-        chat={<AssistantChat configured={config.configured} initialConversations={conversations} initialMemories={memories} />}
-        cashLoop={snapshot ? <CashLoopPlanner s={snapshot} /> : null}
+        chat={<AssistantChat configured={config.configured} initialConversations={conversations} initialMemories={memories} isOwner={isOwner} />}
+        cashLoop={snapshot ? <CashLoopPlanner s={snapshot} isOwner={isOwner} /> : null}
       />
     </div>
   );
