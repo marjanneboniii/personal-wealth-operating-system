@@ -10,11 +10,13 @@ export default function AssistantWorkspace({
   dashboard,
   chat,
   cashLoop,
+  cashLoopTabTitle,
   initialTab = "dashboard",
 }: {
   dashboard: ReactNode;
   chat: ReactNode;
   cashLoop?: ReactNode;
+  cashLoopTabTitle?: string;
   initialTab?: Tab;
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -67,7 +69,7 @@ export default function AssistantWorkspace({
             className={tab === "cash_loop" ? "is-on" : undefined}
             onClick={() => setTab("cash_loop")}
           >
-            <Icon name="swap" size={15} /> صندوق مخارج و تبدیل تتر
+            <Icon name="swap" size={15} /> {cashLoopTabTitle ?? "برنامه‌ریزی جریان نقدینگی و تاب‌آوری"}
           </button>
         )}
       </div>

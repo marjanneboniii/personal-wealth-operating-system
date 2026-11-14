@@ -125,12 +125,137 @@ export const OWNER_QUICK_QUESTIONS = [
   },
 ];
 
+export function buildDynamicPlannerQuestions(s: FinancialSnapshot, isOwner: boolean = false) {
+  if (isOwner) return OWNER_QUICK_QUESTIONS;
+
+  const accounts = Array.isArray(s?.accounts) ? s.accounts : [];
+  const byClass = Array.isArray(s?.netWorth?.byClass) ? s.netWorth.byClass : [];
+  const topAssets = Array.isArray(s?.topAssets) ? s.topAssets : [];
+  const debts = Array.isArray(s?.debts) ? s.debts : [];
+
+  const actualUsdtHoldings = accounts
+    .filter((a) => a && (["USDT", "USDC", "DAI"].includes(a.currency ?? "") || (typeof a.name === "string" && a.name.includes("تتر"))))
+    .reduce((sum, a) => sum + (a && a.balance > 0 ? a.balance : 0), 0);
+  const stablecoinToman = s?.netWorth?.stablecoinToman ?? 0;
+  const hasTether = actualUsdtHoldings > 0 || stablecoinToman > 0;
+  const hasCrypto =
+    hasTether ||
+    byClass.some((c) => c?.name?.includes("رمزارز") || c?.name?.toLowerCase().includes("crypto")) ||
+    topAssets.some((a) => a?.className?.includes("رمزارز") || a?.className?.toLowerCase().includes("crypto"));
+
+  const hasGold =
+    byClass.some((c) => c?.name?.includes("طلا") || c?.name?.toLowerCase().includes("gold")) ||
+    topAssets.some((a) => a?.className?.includes("طلا") || a?.className?.toLowerCase().includes("gold"));
+
+  const hasStocks =
+    byClass.some((c) => c?.name?.includes("سهام") || c?.name?.includes("بورس") || c?.name?.toLowerCase().includes("stock")) ||
+    topAssets.some((a) => a?.className?.includes("سهام") || a?.className?.includes("بورس") || a?.className?.toLowerCase().includes("stock"));
+
+  const hasDebts = debts.length > 0 || (s?.netWorth?.totalDebtToman ?? 0) > 0;
+  const avgIncome = s?.cashflow?.avgMonthlyIncomeToman ?? 0;
+  const hasIncome = avgIncome > 0 || (s?.cashflow?.currentMonth?.incomeToman ?? 0) > 0;
+
+  const questions = [];
+
+  // ۱. نقدینگی و تاب‌آوری
+  if (hasTether || hasCrypto) {
+    questions.push({
+      title: "برنامه‌ریزی صندوق تتر و تاب‌آوری نقدینگی",
+      badge: "صندوق تتر",
+      desc: "تحلیل پوشش هزینه‌های ماهانه و تعهدات بر اساس موجودی نقد و استیبل‌کوین",
+      prompt: "بر اساس موجودی نقدینگی بانک، صرافی و تتر و هزینه‌های جاری، نقدینگی من تا چند ماه پاسخگوی مخارج است و چه زمان‌بندی برای تبدیل پله‌ای تتر به تومان پیشنهاد می‌کنی؟",
+    });
+  } else {
+    questions.push({
+      title: "برنامه‌ریزی نقدینگی بانکی و تاب‌آوری مالی",
+      badge: "جریان نقدینگی",
+      desc: "تحلیل پوشش هزینه‌های ماهانه و تعهدات بر اساس موجودی حساب‌های بانکی",
+      prompt: "بر اساس موجودی حساب‌های بانکی و هزینه‌های جاری، نقدینگی ریالی من تا چند ماه پاسخگوی مخارج است و چگونه می‌توانم تاب‌آوری مالی‌ام را افزایش دهم؟",
+    });
+    questions.push({
+      title: "ساخت صندوق اضطراری و سپر مالی",
+      badge: "صندوق اضطراری",
+      desc: "راهکار تامین ۳ تا ۶ ماه مخارج ضروری در حساب‌های بانکی برای آرامش فکری",
+      prompt: "با توجه به مخارج ماهانه و نقدینگی در دسترس من، چطور یک صندوق اضطراری ۳ تا ۶ ماهه در حساب‌های بانکی ایجاد کنم که در برابر شوک‌های ناگهانی مالی در امان باشم؟",
+    });
+  }
+
+  // ۲. بدهی‌ها و اقساط
+  if (hasDebts) {
+    questions.push({
+      title: "مدیریت تسویه بدهی‌ها و اقساط",
+      badge: "بدهی و اقساط",
+      desc: "مقایسه تسویه یکجای بدهی در برابر پرداخت پله‌ای اقساط سررسیددار",
+      prompt: "با توجه به بدهی‌ها و اقساط پیش‌رو، آیا تسویه کامل یکجا برای وضعیت مالی من مناسب‌تر است یا پرداخت پله‌ای در موعد سررسید؟ لطفاً ریسک‌های هر دو حالت را تحلیل کن.",
+    });
+  }
+
+  // ۳. تورم و بازارها
+  if (hasTether || hasCrypto) {
+    questions.push({
+      title: "پوشش ریسک تورم و نوسان نرخ ارز",
+      badge: "پوشش تورم",
+      desc: "تاثیر جهش‌های قیمتی ارز بر هزینه‌ها و نحوه تبدیل بهینه تتر به تومان",
+      prompt: "اگر نرخ ارز و تورم در ماه‌های آینده افزایش یابد، چه تاثیری بر هزینه‌ها و ارزش بدهی‌های من خواهد داشت و زمان‌بندی بهینه برای تبدیل دارایی‌های تتری به تومان چیست؟",
+    });
+  } else if (hasGold) {
+    questions.push({
+      title: "پوشش تورم با طلا و دارایی‌های امن",
+      badge: "طلا و تورم",
+      desc: "بررسی نقش ذخایر طلا در حفظ ارزش پول و شرایط تبدیل احتمالی به نقدینگی",
+      prompt: "با توجه به دارایی‌های طلای من، در شرایط تورمی چه سهمی از دارایی‌ها باید در طلا باقی بماند و آیا تبدیل طلا برای مخارج ضروری پیشنهاد می‌شود؟",
+    });
+  } else if (hasStocks) {
+    questions.push({
+      title: "مدیریت ریسک سبد سهام در برابر تورم",
+      badge: "بازار سرمایه",
+      desc: "بررسی بازدهی سبد بورسی و استراتژی نقدشوندگی در صورت نیاز نقدی",
+      prompt: "پورتفوی سهام من در برابر تورم چه عملکردی دارد و در صورت نیاز به نقدینگی، چه استراتژی خروج یا کسب سود تقسیمی را پیشنهاد می‌دهی؟",
+    });
+  } else {
+    questions.push({
+      title: "پوشش تورم با پس‌انداز و سرمایه‌گذاری کم‌ریسک",
+      badge: "پوشش تورم",
+      desc: "روش‌های حفظ قدرت خرید نقدینگی در شرایط تورمی بدون ورود به بازارهای پرریسک",
+      prompt: "با توجه به اینکه در بازارهای پرریسک فعال نیستم، چطور قدرت خرید پس‌انداز ریالی و درآمد ماهانه‌ام را در برابر تورم حفظ کنم؟",
+    });
+  }
+
+  // ۴. بودجه‌بندی درآمد شغلی
+  if (hasIncome) {
+    questions.push({
+      title: "بودجه‌بندی هوشمند درآمد و پس‌انداز",
+      badge: "بودجه‌بندی",
+      desc: "فرمول بهینه تقسیم درآمد ماهانه میان مخارج، پس‌انداز و اهداف مالی",
+      prompt: "چگونه جریان ورودی درآمد ماهانه‌ام را برای مخارج جاری، پس‌انداز و خریدهای آینده بودجه‌بندی کنم تا همیشه مازاد نقدی پایدار داشته باشم؟",
+    });
+  }
+
+  // ۵. خریدهای آینده
+  questions.push({
+    title: "فازبندی و بودجه‌بندی خریدهای پیش‌رو",
+    badge: "خریدهای آینده",
+    desc: "برنامه‌ریزی خرید اقلام ضروری و سرمایه‌ای بدون ایجاد کسری نقدینگی",
+    prompt: "چطور خریدهای پیش‌بینی‌شده‌ام را فازبندی و اولویت‌بندی کنم تا هزینه‌های جاری با فشار نقدینگی مواجه نشوند و ارزش سرمایه حفظ شود؟",
+  });
+
+  // ۶. به‌روزرسانی تحلیل
+  questions.push({
+    title: "به‌روزرسانی تحلیل با تغییر درآمد و مخارج",
+    badge: "تحلیل پویا",
+    desc: "چگونه با دریافت درآمد جدید یا تغییر هزینه‌ها، تحلیل و پیشنهادهای دستیار آپدیت شود؟",
+    prompt: "اگر در ماه‌های آینده وضعیت شغلی‌ام تغییر کرد، درآمد جدیدی ایجاد شد یا هزینه‌های غیرمنتظره‌ای اضافه شد، چطور این اطلاعات را به تو بدهم تا تحلیل ترازنامه و جریان نقدینگی مرا مجدداً به‌روزرسانی کنی؟",
+  });
+
+  return questions;
+}
+
 export const GENERAL_QUICK_QUESTIONS = [
   {
-    title: "برنامه‌ریزی صندوق نقدینگی و تاب‌آوری",
-    badge: "صندوق نقدینگی",
-    desc: "تحلیل پوشش هزینه‌های ماهانه و تعهدات بر اساس موجودی نقد و رمزارز",
-    prompt: "بر اساس موجودی نقدینگی بانک و صرافی‌ها و هزینه‌های جاری، نقدینگی من تا چند ماه پاسخگوی مخارج است و چگونه می‌توانم تاب‌آوری مالی‌ام را افزایش دهم؟",
+    title: "برنامه‌ریزی نقدینگی و تاب‌آوری",
+    badge: "جریان نقدینگی",
+    desc: "تحلیل پوشش هزینه‌های ماهانه و تعهدات بر اساس موجودی نقد و درآمد",
+    prompt: "بر اساس موجودی نقدینگی بانک و هزینه‌های جاری، نقدینگی من تا چند ماه پاسخگوی مخارج است و چگونه می‌توانم تاب‌آوری مالی‌ام را افزایش دهم؟",
   },
   {
     title: "مدیریت تسویه بدهی‌ها و اقساط",
@@ -139,10 +264,10 @@ export const GENERAL_QUICK_QUESTIONS = [
     prompt: "با توجه به بدهی‌ها و اقساط پیش‌رو، آیا تسویه کامل یکجا برای وضعیت مالی من مناسب‌تر است یا پرداخت پله‌ای در موعد سررسید؟ لطفاً ریسک‌های هر دو حالت را تحلیل کن.",
   },
   {
-    title: "پوشش ریسک تورم و نوسان نرخ ارز",
+    title: "پوشش ریسک تورم و مدیریت دارایی‌ها",
     badge: "پوشش تورم",
-    desc: "تاثیر جهش‌های قیمتی ارز و تورم بر هزینه‌ها و نحوه تبدیل بهینه دارایی‌ها",
-    prompt: "اگر نرخ ارز و تورم در ماه‌های آینده افزایش یابد، چه تاثیری بر هزینه‌ها و ارزش بدهی‌های من خواهد داشت و زمان‌بندی بهینه برای تبدیل دارایی‌ها به تومان چیست؟",
+    desc: "تاثیر تورم بر هزینه‌ها و نحوه حفظ ارزش دارایی‌ها",
+    prompt: "اگر تورم در ماه‌های آینده افزایش یابد، چه تاثیری بر هزینه‌ها و ارزش بدهی‌های من خواهد داشت و بهترین استراتژی مالی چیست؟",
   },
   {
     title: "فازبندی و بودجه‌بندی خریدهای پیش‌رو",
@@ -154,12 +279,12 @@ export const GENERAL_QUICK_QUESTIONS = [
     title: "به‌روزرسانی تحلیل با تغییر درآمد و مخارج",
     badge: "تحلیل پویا",
     desc: "چگونه با دریافت درآمد جدید یا تغییر هزینه‌ها، تحلیل و پیشنهادهای دستیار آپدیت شود؟",
-    prompt: "اگر در ماه‌های آینده وضعیت شغلی‌ام تغییر کرد، درآمد جدیدی ایجاد شد یا هزینه‌های غیرمنتظره‌ای اضافه شد، چطور این اطلاعات را به تو بدهم تا تحلیل ترازنامه و صندوق مخارج مرا مجدداً به‌روزرسانی کنی؟",
+    prompt: "اگر در ماه‌های آینده وضعیت شغلی‌ام تغییر کرد، درآمد جدیدی ایجاد شد یا هزینه‌های غیرمنتظره‌ای اضافه شد، چطور این اطلاعات را به تو بدهم تا تحلیل ترازنامه و جریان نقدینگی مرا مجدداً به‌روزرسانی کنی؟",
   },
   {
-    title: "بهینه‌سازی بازدهی و سودآوری سبد دارایی",
+    title: "بهینه‌سازی بازدهی و سودآوری دارایی‌ها",
     badge: "سرمایه‌گذاری",
-    desc: "استراتژی مدیریت ریسک، حفظ ارزش دارایی‌ها و سودآوری پایدار سبد",
+    desc: "استراتژی مدیریت ریسک، حفظ ارزش دارایی‌ها و سودآوری پایدار",
     prompt: "وضعیت سبد دارایی‌های مرا بررسی کن. چه استراتژی‌ای پیاده کنم تا در نوسانات بازار سودآوری دارایی‌ها حفظ و تقویت شود؟",
   },
 ];
@@ -167,7 +292,6 @@ export const GENERAL_QUICK_QUESTIONS = [
 export const ASSISTANT_QUICK_QUESTIONS = OWNER_QUICK_QUESTIONS;
 
 export default function CashLoopPlanner({ s, isOwner = false }: Props) {
-  const quickQuestions = isOwner ? OWNER_QUICK_QUESTIONS : GENERAL_QUICK_QUESTIONS;
   // ── Existing accounts & liquid positions ──
   const bankToman = s?.netWorth?.availableCashToman ?? 0;
   const exchangeToman = s?.netWorth?.exchangeTomanToman ?? 0;
@@ -190,6 +314,15 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
   const actualUsdtHoldings = stablecoinAccounts.reduce((sum, a) => sum + (a && a.balance > 0 ? a.balance : 0), 0);
   const totalUsdt = actualUsdtHoldings > 0 ? Math.round(actualUsdtHoldings) : Math.round(stablecoinToman / Math.max(1, baseRate));
 
+  const hasTether = actualUsdtHoldings > 0 || stablecoinToman > 0;
+  const hasCrypto =
+    hasTether ||
+    (s?.netWorth?.byClass ?? []).some((c) => c?.name?.includes("رمزارز") || c?.name?.toLowerCase().includes("crypto")) ||
+    (s?.topAssets ?? []).some((a) => a?.className?.includes("رمزارز") || a?.className?.toLowerCase().includes("crypto"));
+  const hasTetherOrCrypto = isOwner || hasTether || hasCrypto;
+
+  const quickQuestions = useMemo(() => buildDynamicPlannerQuestions(s, isOwner), [s, isOwner]);
+
   // Debts details
   const debtsList = Array.isArray(s?.debts) ? s.debts : [];
   const totalDebtFromNetWorth = s?.netWorth?.totalDebtToman ?? 0;
@@ -208,6 +341,9 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
         ? s.cashflow.currentMonth.expenseToman
         : 18_000_000;
 
+  const avgMonthlyIncome = s?.cashflow?.avgMonthlyIncomeToman ?? s?.cashflow?.currentMonth?.incomeToman ?? 0;
+  const netMonthlyCashflow = avgMonthlyIncome - defaultMonthlyExpense;
+
   // ── Interactive user controls ──
   const [horizon, setHorizon] = useState<Horizon>(6); // Default to 6 months as requested
   const [monthlyExpense, setMonthlyExpense] = useState<number>(defaultMonthlyExpense);
@@ -219,7 +355,7 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
   const [debtStrategy, setDebtStrategy] = useState<"schedule" | "full">("schedule");
 
   // ── Dual Scenario Controls (اشتغال در آینده، قرارداد ۳ ماهه و عدم اشتغال) ──
-  const [jobScenario, setJobScenario] = useState<JobScenario>("contract_3m");
+  const [jobScenario, setJobScenario] = useState<JobScenario>(isOwner ? "contract_3m" : "stable");
   const [contractMonths, setContractMonths] = useState<number>(3);
   const [monthlySalary, setMonthlySalary] = useState<number>(25_000_000);
   const [customQuestion, setCustomQuestion] = useState("");
@@ -421,14 +557,15 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
   const askAssistantQuestion = (question: string) => {
     const jobDescription =
       jobScenario === "unemployed"
-        ? "بدون شغل فعلی / اتکای کامل به صندوق تتر"
+        ? (hasTetherOrCrypto ? "بدون شغل فعلی / اتکای کامل به صندوق تتر" : "بدون شغل فعلی / اتکای کامل به موجودی نقد و پس‌انداز")
         : jobScenario === "contract_3m"
           ? `قرارداد موقت ۳ ماهه با حقوق ماهانه ${full(monthlySalary)} (ریسک بازگشت به بیکاری در ماه ۴ به بعد)`
           : jobScenario === "contract_renewed"
             ? `قرارداد ۳ ماهه با تمدید دوره‌ای با حقوق ماهانه ${full(monthlySalary)}`
             : `استخدام دائم و باثبات با حقوق ماهانه ${full(monthlySalary)}`;
 
-    const text = `من برنامه‌ریزی جامع مالی و صندوق مخارج تتر را بررسی کردم:
+    const text = hasTetherOrCrypto
+      ? `من برنامه‌ریزی جامع مالی و صندوق مخارج تتر را بررسی کردم:
 ۱. وضعیت بدهی‌ها:
 - کل بدهی‌های باقی‌مانده: ${full(totalOutstandingDebt)}
 - اقساط ۶ ماه آینده (آبان تا اردیبهشت): ${full(scheduledInstallmentsToman)}
@@ -451,6 +588,27 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
 - مانده تتر پس از تأمین: ${num(activeRemainingUsdt)} تتر
 
 پرسش تخصصی کاربر از دستیار هوشمند:
+${question}`
+      : `من برنامه‌ریزی جامع جریان نقدینگی و تاب‌آوری مالی را بررسی کردم:
+۱. وضعیت بدهی‌ها و اقساط:
+- کل بدهی‌های باقی‌مانده: ${full(totalOutstandingDebt)}
+- اقساط دوره (${toFaDigits(String(horizon))} ماهه): ${full(scheduledInstallmentsToman)}
+- استراتژی انتخابی: ${debtStrategy === "full" ? "تسویه کامل کل بدهی" : "پرداخت اقساط دوره در سررسید"}
+
+۲. خریدهای پیش‌بینی‌شده آینده:
+- جمع بودجه خریدهای برنامه‌ریزی‌شده: ${full(totalSelectedPurchasesToman)}
+- وضعیت اعمال در محاسبات: ${includePurchases ? "لحاظ‌شده در نیاز نقدی" : "صرفاً برآورد جداگانه"}
+
+۳. جریان نقدینگی و وضعیت شغلی:
+- افق انتخابی: ${toFaDigits(String(horizon))} ماهه
+- مخارج زندگی ماهانه: ${full(monthlyExpense)}
+- نیاز کل نقدینگی دوره: ${full(grossNeedToman)}
+- موجودی نقد در بانک‌ها: ${full(readyToman)}
+- وضعیت شغلی و درآمدی: ${jobDescription}
+- درآمد پیش‌بینی‌شده در این افق: ${full(totalSalaryInHorizon)}
+- ${activeDeficitToman > 0 ? `کسری نقدینگی ریالی دوره: ${full(activeDeficitToman)}` : `مازاد نقدینگی ریالی دوره: ${full(readyToman + totalSalaryInHorizon - grossNeedToman)}`}
+
+پرسش تخصصی کاربر از دستیار هوشمند:
 ${question}`;
 
     window.dispatchEvent(new CustomEvent("assistant:ask", { detail: text }));
@@ -460,7 +618,9 @@ ${question}`;
     askAssistantQuestion(
       isOwner
         ? "لطفاً یک تحلیل جامع، دقیق و مهندسی‌شده بدهید: با توجه به وضعیت شغلی (قرارداد ۳ ماهه یا بیکاری) و سناریوی صعود نرخ تتر تا ۵۵۰ هزار تومان، چطور هزینه‌های مراسم عقد، خرید لوازم منزل و اقساط ۶ ماه آینده را فازبندی کنم تا کمترین فشار به دارایی‌های تتر و سرمایه ترید وارد شود و چطور با تغییرات آینده این تحلیل را آپدیت کنم؟"
-        : "لطفاً یک تحلیل جامع، دقیق و مهندسی‌شده بدهید: با توجه به وضعیت شغلی، تعهدات و سناریوهای نوسان نرخ ارز و تورم، چطور هزینه‌ها و اقساط آینده را فازبندی کنم تا کمترین فشار به دارایی‌ها وارد شود و چطور با تغییرات آینده این تحلیل را آپدیت کنم؟",
+        : hasTetherOrCrypto
+          ? "لطفاً یک تحلیل جامع، دقیق و مهندسی‌شده بدهید: با توجه به وضعیت شغلی، تعهدات و سناریوهای نوسان نرخ ارز و تورم، چطور هزینه‌ها و اقساط آینده را فازبندی کنم تا کمترین فشار به دارایی‌ها وارد شود و چطور با تغییرات آینده این تحلیل را آپدیت کنم؟"
+          : "لطفاً یک تحلیل جامع، دقیق و کاربردی بدهید: با توجه به وضعیت درآمد و جریان نقدینگی بانکی، چطور هزینه‌ها، اقساط و خریدهای آینده را فازبندی کنم تا صندوق اضطراری تامین شده و دچار کسری نقدینگی نشوم و با تغییر درآمد چطور تحلیل‌ها آپدیت شوند؟",
     );
   };
 
@@ -473,19 +633,25 @@ ${question}`;
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent)]/20">
                 <Icon name="sparkle" size={13} />
-                {isOwner ? "معماری جامع ثروت، بدهی‌ها و مراسم زندگی" : "معماری جامع ثروت، تعهدات و بودجه‌بندی هوشمند"}
+                {hasTetherOrCrypto
+                  ? (isOwner ? "صندوق مخارج تتر · تسویه بدهی و جهیزیه" : "صندوق مخارج تتر · پوشش اقساط و مخارج")
+                  : "جریان نقدینگی · پوشش اقساط و تاب‌آوری مالی"}
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] bg-[var(--sunken)] text-[var(--text-3)] border border-[var(--border)]">
                 افق {toFaDigits(String(horizon))} ماهه
               </span>
             </div>
             <h2 className="text-2xl font-black text-[var(--text)] tracking-tight">
-              {isOwner ? "صندوق مخارج تتری، پوشش اقساط و بودجه‌بندی عقد و زندگی" : "صندوق مخارج تتری، پوشش اقساط و بودجه‌بندی خریدهای آینده"}
+              {hasTetherOrCrypto
+                ? (isOwner ? "صندوق مخارج تتری، پوشش اقساط و بودجه‌بندی عقد و زندگی" : "صندوق مخارج تتری، پوشش اقساط و بودجه‌بندی خریدهای آینده")
+                : "برنامه‌ریزی جریان نقدینگی، پوشش اقساط و تاب‌آوری مالی"}
             </h2>
             <p className="text-xs text-[var(--text-2)] leading-relaxed">
-              {isOwner
-                ? `این پلتفرم مهندسی‌شده، کل بدهی‌های شما (${short(totalOutstandingDebt)} تومان)، اقساط ۶ ماه آینده (بالای ۲ میلیون تومان)، هزینه‌های خرید خانه، عقد و عروسی، و تترهای صرافی بیت‌پین را در دو سناریوی **بدون شغل** و **شغل آینده** به‌طور دقیق بالانس می‌کند.`
-                : `این پلتفرم مهندسی‌شده، کل بدهی‌های شما (${short(totalOutstandingDebt)} تومان)، اقساط سررسیددار، هزینه‌های برنامه‌ریزی‌شده، و نقدینگی تتری و بانکی را در سناریوهای مختلف شغلی به‌طور دقیق بالانس می‌کند.`}
+              {hasTetherOrCrypto
+                ? (isOwner
+                    ? `این پلتفرم مهندسی‌شده، کل بدهی‌های شما (${short(totalOutstandingDebt)} تومان)، اقساط ۶ ماه آینده (بالای ۲ میلیون تومان)، هزینه‌های خرید خانه، عقد و عروسی، و تترهای صرافی بیت‌پین را در دو سناریوی **بدون شغل** و **شغل آینده** به‌طور دقیق بالانس می‌کند.`
+                    : `این پلتفرم مهندسی‌شده، کل بدهی‌های شما (${short(totalOutstandingDebt)} تومان)، اقساط سررسیددار، هزینه‌های برنامه‌ریزی‌شده، و نقدینگی تتری و بانکی را در سناریوهای مختلف شغلی به‌طور دقیق بالانس می‌کند.`)
+                : `این پلتفرم مهندسی‌شده، کل بدهی‌های شما (${short(totalOutstandingDebt)} تومان)، اقساط سررسیددار، هزینه‌های برنامه‌ریزی‌شده و موجودی نقدینگی و درآمد را به‌طور دقیق بالانس می‌کند.`}
             </p>
           </div>
 
@@ -495,7 +661,7 @@ ${question}`;
                 ? jobScenario === "contract_3m"
                   ? "تاب‌آوری (قرارداد ۳ ماهه)"
                   : "تاب‌آوری در سناریوی اشتغال"
-                : "تاب‌آوری در سناریوی بدون شغل"}
+                : (hasTetherOrCrypto ? "تاب‌آوری در سناریوی بدون شغل" : "تاب‌آوری موجودی نقد بدون درآمد")}
             </p>
             <p className="text-3xl font-black num text-[var(--positive)]">
               {isJobActive && runwayMonthsJob === Infinity
@@ -506,8 +672,10 @@ ${question}`;
               {isJobActive && runwayMonthsJob === Infinity
                 ? "حقوق هزینه‌ها و اقساط را کامل جبران می‌کند"
                 : isJobActive
-                  ? `${toFaDigits(String(activeSalaryMonths))} ماه حقوق + ${toFaDigits(String(monthsAtRisk))} ماه اتکا به تتر`
-                  : "پوشش مخارج جاری و اقساط از تتر"}
+                  ? (hasTetherOrCrypto
+                      ? `${toFaDigits(String(activeSalaryMonths))} ماه حقوق + ${toFaDigits(String(monthsAtRisk))} ماه اتکا به تتر`
+                      : `${toFaDigits(String(activeSalaryMonths))} ماه درآمد + پس‌انداز بانکی`)
+                  : (hasTetherOrCrypto ? "پوشش مخارج جاری و اقساط از تتر" : "پوشش مخارج جاری و اقساط از موجودی نقد")}
             </p>
           </div>
         </div>
@@ -587,13 +755,29 @@ ${question}`;
             <span className="text-[10px] text-[var(--text-3)] block mt-0.5">مبلغ منظور شده: {short(activeDebtBurdenToman)} ت</span>
           </div>
           <div className="p-3 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
-            <span className="text-[11px] text-[var(--text-3)] block mb-0.5">معادل تتری اقساط ۶ ماهه:</span>
-            <span className="text-base font-black text-[var(--action)] num">
-              {num(Math.ceil(scheduledInstallmentsToman / rate))} <small className="text-xs font-normal">تتر</small>
-            </span>
-            <span className="text-[10px] text-[var(--text-3)] block mt-0.5">
-              فقط {toFaDigits(((scheduledInstallmentsToman / (totalUsdt * rate || 1)) * 100).toFixed(1))}٪ از کل تترها
-            </span>
+            {hasTetherOrCrypto ? (
+              <>
+                <span className="text-[11px] text-[var(--text-3)] block mb-0.5">معادل تتری اقساط ۶ ماهه:</span>
+                <span className="text-base font-black text-[var(--action)] num">
+                  {num(Math.ceil(scheduledInstallmentsToman / rate))} <small className="text-xs font-normal">تتر</small>
+                </span>
+                <span className="text-[10px] text-[var(--text-3)] block mt-0.5">
+                  فقط {toFaDigits(((scheduledInstallmentsToman / (totalUsdt * rate || 1)) * 100).toFixed(1))}٪ از کل تترها
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-[11px] text-[var(--text-3)] block mb-0.5">نسبت اقساط به درآمد دوره:</span>
+                <span className="text-base font-black text-[var(--action)] num">
+                  {avgMonthlyIncome > 0
+                    ? `${toFaDigits(((scheduledInstallmentsToman / (avgMonthlyIncome * 6 || 1)) * 100).toFixed(1))}٪`
+                    : "—"}
+                </span>
+                <span className="text-[10px] text-[var(--text-3)] block mt-0.5">
+                  {avgMonthlyIncome > 0 ? "سهم اقساط از کل درآمد ۶ ماهه" : "مدیریت با نقدینگی بانکی"}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -613,7 +797,9 @@ ${question}`;
                     : "بودجه‌بندی هوشمند خریدهای آینده"}
                 </h3>
                 <p className="text-xs text-[var(--text-3)]">
-                  اقلام حدسی و احتمالی آینده با قابلیت ویرایش، حذف، تفکیک دسته‌بندی و تعیین بودجه در صندوق تتر
+                  {hasTetherOrCrypto
+                    ? "اقلام حدسی و احتمالی آینده با قابلیت ویرایش، حذف، تفکیک دسته‌بندی و تعیین بودجه در صندوق تتر"
+                    : "اقلام حدسی و احتمالی آینده با قابلیت ویرایش، حذف، تفکیک دسته‌بندی و تعیین بودجه"}
                 </p>
               </div>
             </div>
@@ -640,7 +826,9 @@ ${question}`;
                 className="w-4 h-4 accent-[var(--action)] rounded cursor-pointer"
               />
               <span className="text-xs font-bold text-[var(--text)]">
-                اعمال در نیاز نقدینگی صندوق تتر ({short(totalSelectedPurchasesToman)} ت)
+                {hasTetherOrCrypto
+                  ? `اعمال در نیاز نقدینگی صندوق تتر (${short(totalSelectedPurchasesToman)} ت)`
+                  : `اعمال در برآورد نقدینگی دوره (${short(totalSelectedPurchasesToman)} ت)`}
               </span>
             </label>
           </div>
@@ -656,7 +844,9 @@ ${question}`;
               یادآوری: این اقلام، پیش‌بینی‌های شخصی شما در دستیار هستند و هنوز در بخش بودجه ثبت رسمی نشده‌اند
             </p>
             <p className="text-[11px] text-[var(--text-3)]">
-              هیچ‌کدام از این خریدها قطعی نیستند و صرفاً تخمین ذهنی شما برای سنجش فشار نقدینگی و صندوق تترند. شما می‌توانید مبالغ را تغییر دهید، هر قلم را ویرایش یا حذف کنید، یا دسته‌های جدید اضافه نمایید. هر زمان تصمیم نهایی گرفتید، می‌توانید آن‌ها را ابتدا در بخش بودجه تعریف کنید.
+              {hasTetherOrCrypto
+                ? "هیچ‌کدام از این خریدها قطعی نیستند و صرفاً تخمین ذهنی شما برای سنجش فشار نقدینگی و صندوق تترند. شما می‌توانید مبالغ را تغییر دهید، هر قلم را ویرایش یا حذف کنید، یا دسته‌های جدید اضافه نمایید. هر زمان تصمیم نهایی گرفتید، می‌توانید آن‌ها را ابتدا در بخش بودجه تعریف کنید."
+                : "هیچ‌کدام از این خریدها قطعی نیستند و صرفاً تخمین ذهنی شما برای سنجش فشار نقدینگی و تاب‌آوری مالی‌اند. شما می‌توانید مبالغ را تغییر دهید، هر قلم را ویرایش یا حذف کنید، یا دسته‌های جدید اضافه نمایید. هر زمان تصمیم نهایی گرفتید، می‌توانید آن‌ها را ابتدا در بخش بودجه تعریف کنید."}
             </p>
           </div>
         </div>
@@ -1072,113 +1262,183 @@ ${question}`;
               </div>
             )}
 
-            {/* کارت هایلایت تأثیر اشتغال بر حفظ تترها */}
+            {/* کارت هایلایت تأثیر اشتغال بر نقدینگی و دارایی‌ها */}
             <div className="p-4 rounded-xl bg-[var(--positive-soft)] border border-[var(--positive)] text-[var(--positive)] flex flex-wrap items-center justify-between gap-3 text-xs">
               <div className="space-y-1">
                 <p className="font-bold flex items-center gap-1.5 text-sm">
                   <Icon name="check" size={16} />
-                  {jobScenario === "contract_3m" ? (
-                    <>پوشش قرارداد موقت: نجات <span className="num font-black text-base">{num(savedUsdtWithJob)} تتر</span> از فروش اجباری!</>
+                  {hasTetherOrCrypto ? (
+                    jobScenario === "contract_3m" ? (
+                      <>پوشش قرارداد موقت: نجات <span className="num font-black text-base">{num(savedUsdtWithJob)} تتر</span> از فروش اجباری!</>
+                    ) : (
+                      <>معجزه اشتغال: نجات <span className="num font-black text-base">{num(savedUsdtWithJob)} تتر</span> از فروش اجباری در این دوره!</>
+                    )
                   ) : (
-                    <>معجزه اشتغال: نجات <span className="num font-black text-base">{num(savedUsdtWithJob)} تتر</span> از فروش اجباری در این دوره!</>
+                    jobScenario === "contract_3m" ? (
+                      <>پوشش قرارداد ۳ ماهه: تأمین <span className="num font-black text-base">{short(totalSalaryInHorizon)} تومان</span> جریان نقدی ورودی</>
+                    ) : (
+                      <>تأثیر مستقیم جریان درآمد: تأمین <span className="num font-black text-base">{short(totalSalaryInHorizon)} تومان</span> در این دوره</>
+                    )
                   )}
                 </p>
                 <p className="text-[11px] opacity-90 leading-relaxed">
-                  {jobScenario === "contract_3m" ? (
-                    <>در طول {toFaDigits(String(activeSalaryMonths))} ماه قرارداد، حقوق دریافتی ({short(totalSalaryInHorizon)} تومان) مخارج را پوشش می‌دهد و فروش تتر متوقف می‌شود. برای {toFaDigits(String(monthsAtRisk))} ماه باقیمانده که ریسک بیکاری وجود دارد، معادل <strong className="num">{num(activeNeededUsdt)} تتر</strong> برای فروش در بیت‌پین برنامه‌ریزی شده است.</>
+                  {hasTetherOrCrypto ? (
+                    jobScenario === "contract_3m" ? (
+                      <>در طول {toFaDigits(String(activeSalaryMonths))} ماه قرارداد، حقوق دریافتی ({short(totalSalaryInHorizon)} تومان) مخارج را پوشش می‌دهد و فروش تتر متوقف می‌شود. برای {toFaDigits(String(monthsAtRisk))} ماه باقیمانده که ریسک بیکاری وجود دارد، معادل <strong className="num">{num(activeNeededUsdt)} تتر</strong> برای فروش در بیت‌پین برنامه‌ریزی شده است.</>
+                    ) : (
+                      <>با این حقوق، فروش تتر شما از <strong className="num">{num(neededUsdtBase)} تتر</strong> به <strong className="num">{num(activeNeededUsdt)} تتر</strong> کاهش می‌یابد و تترهای شما برای جهش‌های بازار و سرمایه‌گذاری حفظ می‌شوند.</>
+                    )
                   ) : (
-                    <>با این حقوق، فروش تتر شما از <strong className="num">{num(neededUsdtBase)} تتر</strong> به <strong className="num">{num(activeNeededUsdt)} تتر</strong> کاهش می‌یابد و تترهای شما برای جهش‌های بازار و سرمایه‌گذاری حفظ می‌شوند.</>
+                    jobScenario === "contract_3m" ? (
+                      <>در طول {toFaDigits(String(activeSalaryMonths))} ماه قرارداد، حقوق دریافتی ({short(totalSalaryInHorizon)} تومان) مخارج و اقساط را تأمین می‌کند. برای {toFaDigits(String(monthsAtRisk))} ماه پس از قرارداد، برنامه‌ریزی تکیه بر پس‌انداز و صندوق اضطراری فعال است.</>
+                    ) : (
+                      <>با احتساب حقوق ماهانه {short(monthlySalary)} تومان، کل ورودی نقدی دوره به {short(totalSalaryInHorizon)} تومان می‌رسد که مانع از ایجاد کسری نقدینگی و فشار بر پس‌انداز بانکی می‌شود.</>
+                    )
                   )}
                 </p>
               </div>
               <div className="text-right num font-black text-lg shrink-0">
-                +{short(savedUsdtWithJob * rate)} <span className="text-xs font-normal">تومان ارزش حفظ‌شده</span>
+                +{short(hasTetherOrCrypto ? savedUsdtWithJob * rate : totalSalaryInHorizon)} <span className="text-xs font-normal">تومان {hasTetherOrCrypto ? "ارزش حفظ‌شده" : "درآمد دوره"}</span>
               </div>
             </div>
           </div>
         ) : (
           <p className="text-xs text-[var(--text-3)] leading-relaxed">
-            در این حالت، سیستم فرض می‌کند درآمد فعالی ندارید و تمامی مخارج، اقساط ۶ ماه آینده و خریدهای پیش‌رو از محل صندوق تتری و موجودی ریالی تأمین می‌شود. این حالت بقای شما را با حفظ ۹۰٪ سرمایه ترید تضمین می‌کند.
+            {hasTetherOrCrypto
+              ? "در این حالت، سیستم فرض می‌کند درآمد فعالی ندارید و تمامی مخارج، اقساط ۶ ماه آینده و خریدهای پیش‌رو از محل صندوق تتری و موجودی ریالی تأمین می‌شود. این حالت بقای شما را با حفظ ۹۰٪ سرمایه ترید تضمین می‌کند."
+              : "در این حالت، سیستم فرض می‌کند درآمد فعالی ندارید و تمامی مخارج، اقساط ۶ ماه آینده و خریدهای پیش‌رو از محل موجودی نقد و پس‌انداز بانکی تأمین می‌شود."}
           </p>
         )}
       </section>
 
       {/* ── ۴ کارت اتصال زنده به حساب‌ها (Kashi Design) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* تومان در بانک */}
-        <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[var(--text-2)]">تومان در بانک</span>
-            <span className="w-2.5 h-2.5 rounded-full bg-[var(--positive)]" title="متصل" />
-          </div>
-          <p className="text-xl font-black text-[var(--text)] num">{short(bankToman)} <small className="text-xs font-normal">تومان</small></p>
-          <p className="text-[11px] text-[var(--text-3)] mt-1 truncate">
-            {bankAccounts.length > 0 ? bankAccounts.map((a) => a.name).join(" · ") : "حساب‌های بانکی متصل"}
-          </p>
-        </div>
+        {hasTetherOrCrypto ? (
+          <>
+            {/* تومان در بانک */}
+            <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[var(--text-2)]">تومان در بانک</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[var(--positive)]" title="متصل" />
+              </div>
+              <p className="text-xl font-black text-[var(--text)] num">{short(bankToman)} <small className="text-xs font-normal">تومان</small></p>
+              <p className="text-[11px] text-[var(--text-3)] mt-1 truncate">
+                {bankAccounts.length > 0 ? bankAccounts.map((a) => a.name).join(" · ") : "حساب‌های بانکی متصل"}
+              </p>
+            </div>
 
-        {/* تومان در صرافی بیت‌پین */}
-        <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[var(--text-2)]">تومان در بیت‌پین / صرافی</span>
-            <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)]" title="آماده تسویه پایا" />
-          </div>
-          <p className="text-xl font-black text-[var(--text)] num">{short(exchangeToman)} <small className="text-xs font-normal">تومان</small></p>
-          <p className="text-[11px] text-[var(--text-3)] mt-1">آماده پایا به بانک (بدون ترید)</p>
-        </div>
+            {/* تومان در صرافی بیت‌پین */}
+            <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[var(--text-2)]">تومان در بیت‌پین / صرافی</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)]" title="آماده تسویه پایا" />
+              </div>
+              <p className="text-xl font-black text-[var(--text)] num">{short(exchangeToman)} <small className="text-xs font-normal">تومان</small></p>
+              <p className="text-[11px] text-[var(--text-3)] mt-1">آماده پایا به بانک (بدون ترید)</p>
+            </div>
 
-        {/* موجودی تتر */}
-        <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[var(--text-2)]">کل موجودی تتر (استیبل‌کوین)</span>
-            <Icon name="crypto" size={15} className="text-[var(--text-3)]" />
-          </div>
-          <p className="text-xl font-black text-[var(--text)] num">{num(totalUsdt)} <small className="text-xs font-normal">تتر</small></p>
-          <p className="text-[11px] text-[var(--text-3)] mt-1">ارزش ریالی: {short(totalUsdt * rate)} تومان</p>
-        </div>
+            {/* موجودی تتر */}
+            <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[var(--text-2)]">کل موجودی تتر (استیبل‌کوین)</span>
+                <Icon name="crypto" size={15} className="text-[var(--text-3)]" />
+              </div>
+              <p className="text-xl font-black text-[var(--text)] num">{num(totalUsdt)} <small className="text-xs font-normal">تتر</small></p>
+              <p className="text-[11px] text-[var(--text-3)] mt-1">ارزش ریالی: {short(totalUsdt * rate)} تومان</p>
+            </div>
 
-        {/* نرخ تتر / دلار */}
-        <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[var(--text-2)]">نرخ تبدیل تتر (تومان)</span>
-            <span className="text-[10px] text-[var(--text-3)]">قابل ویرایش</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <AmountInput
-              value={rate}
-              onValueChange={(val) => setRate(Math.max(1000, Number(val) || baseRate))}
-              className="w-full text-base font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2.5 py-1 text-[var(--text)] num outline-none focus:border-[var(--action)]"
-              unit="toman"
-              showWords={true}
-            />
-          </div>
-          <div className="flex flex-wrap gap-1 mt-2">
-            <button
-              type="button"
-              onClick={() => setRate(baseRate)}
-              className={`px-2 py-0.5 text-[10px] rounded-md border num ${
-                rate === baseRate ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)] font-bold" : "bg-[var(--sunken)] text-[var(--text-3)] border-[var(--border)]"
-              }`}
-            >
-              نرخ روز ({short(baseRate)})
-            </button>
-            {HIGH_INFLATION_PRESET_RATES.map((pr) => (
-              <button
-                key={pr}
-                type="button"
-                onClick={() => setRate(pr)}
-                className={`px-2 py-0.5 text-[10px] rounded-md border num transition-all ${
-                  rate === pr ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)] font-bold" : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--surface-hover)]"
-                }`}
-              >
-                {short(pr)}
-              </button>
-            ))}
-          </div>
-          <p className="text-[10px] text-[var(--text-3)] mt-1.5 leading-tight">
-            سناریوهای صعود تتر تا ۵۵۰ هزار تومان (در نرخ‌های بالا تتر بسیار کمتری فروخته می‌شود).
-          </p>
-        </div>
+            {/* نرخ تتر / دلار */}
+            <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[var(--text-2)]">نرخ تبدیل تتر (تومان)</span>
+                <span className="text-[10px] text-[var(--text-3)]">قابل ویرایش</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <AmountInput
+                  value={rate}
+                  onValueChange={(val) => setRate(Math.max(1000, Number(val) || baseRate))}
+                  className="w-full text-base font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2.5 py-1 text-[var(--text)] num outline-none focus:border-[var(--action)]"
+                  unit="toman"
+                  showWords={true}
+                />
+              </div>
+              <div className="flex flex-wrap gap-1 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setRate(baseRate)}
+                  className={`px-2 py-0.5 text-[10px] rounded-md border num ${
+                    rate === baseRate ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)] font-bold" : "bg-[var(--sunken)] text-[var(--text-3)] border-[var(--border)]"
+                  }`}
+                >
+                  نرخ روز ({short(baseRate)})
+                </button>
+                {HIGH_INFLATION_PRESET_RATES.map((pr) => (
+                  <button
+                    key={pr}
+                    type="button"
+                    onClick={() => setRate(pr)}
+                    className={`px-2 py-0.5 text-[10px] rounded-md border num transition-all ${
+                      rate === pr ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)] font-bold" : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--surface-hover)]"
+                    }`}
+                  >
+                    {short(pr)}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[var(--text-3)] mt-1.5 leading-tight">
+                سناریوهای صعود تتر تا ۵۵۰ هزار تومان (در نرخ‌های بالا تتر بسیار کمتری فروخته می‌شود).
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* موجودی نقد در بانک */}
+            <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[var(--text-2)]">موجودی نقد در بانک</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[var(--positive)]" title="نقدینگی آماده" />
+              </div>
+              <p className="text-xl font-black text-[var(--text)] num">{short(bankToman)} <small className="text-xs font-normal">تومان</small></p>
+              <p className="text-[11px] text-[var(--text-3)] mt-1 truncate">
+                {bankAccounts.length > 0 ? bankAccounts.map((a) => a.name).join(" · ") : "حساب‌های بانکی متصل"}
+              </p>
+            </div>
+
+            {/* میانگین درآمد ماهانه */}
+            <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[var(--text-2)]">میانگین درآمد ماهانه</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[var(--action)]" title="جریان ورودی" />
+              </div>
+              <p className="text-xl font-black text-[var(--text)] num">{short(avgMonthlyIncome)} <small className="text-xs font-normal">تومان</small></p>
+              <p className="text-[11px] text-[var(--text-3)] mt-1">بر اساس گردش واریزهای ترازنامه</p>
+            </div>
+
+            {/* مخارج ماهانه زندگی */}
+            <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[var(--text-2)]">مخارج ماهانه زندگی</span>
+                <span className="text-[10px] text-[var(--text-3)]">پایه محاسبات</span>
+              </div>
+              <p className="text-xl font-black text-[var(--text)] num">{short(monthlyExpense)} <small className="text-xs font-normal">تومان</small></p>
+              <p className="text-[11px] text-[var(--text-3)] mt-1">میانگین هزینه‌های جاری و قبوض</p>
+            </div>
+
+            {/* خالص جریان نقدی ماهانه */}
+            <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[var(--text-2)]">خالص جریان نقد ماهانه</span>
+                <span className={`w-2.5 h-2.5 rounded-full ${netMonthlyCashflow >= 0 ? "bg-[var(--positive)]" : "bg-[var(--negative)]"}`} />
+              </div>
+              <p className={`text-xl font-black num ${netMonthlyCashflow >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"}`}>
+                {short(Math.abs(netMonthlyCashflow))} <small className="text-xs font-normal">تومان</small>
+              </p>
+              <p className="text-[11px] text-[var(--text-3)] mt-1">
+                {netMonthlyCashflow >= 0 ? "مازاد نقدی ماهانه (قابل پس‌انداز)" : "کسری جریان نقد ماهانه"}
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── پنل محاسباتی تعاملی و نتایج تبدیل ── */}
@@ -1353,7 +1613,7 @@ ${question}`;
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-semibold">
-                  {activeDeficitToman > 0 ? "کسری نقدینگی ریالی نهایی" : "پوشش کامل ریالی (بدون نیاز به تتر)"}
+                  {activeDeficitToman > 0 ? "کسری نقدینگی ریالی نهایی" : (hasTetherOrCrypto ? "پوشش کامل ریالی (بدون نیاز به تتر)" : "پوشش کامل نقدینگی ریالی")}
                 </span>
                 <span className="text-sm font-black num">
                   {activeDeficitToman > 0
@@ -1363,26 +1623,37 @@ ${question}`;
               </div>
 
               {activeDeficitToman > 0 ? (
-                <div className="mt-3 pt-3 border-t border-black/10 dark:border-white/10">
-                  <p className="text-xs text-[var(--text-2)] mb-1">تتر مورد نیاز جهت فروش در بیت‌پین:</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-[var(--text)] num">{num(activeNeededUsdt)}</span>
-                    <span className="text-sm font-bold text-[var(--text)]">تتر</span>
-                    {isJobActive && savedUsdtWithJob > 0 && (
-                      <span className="text-xs text-[var(--positive)] mr-auto font-bold">
-                        ({num(savedUsdtWithJob)} تتر کمتر از حالت بدون شغل)
-                      </span>
-                    )}
+                hasTetherOrCrypto ? (
+                  <div className="mt-3 pt-3 border-t border-black/10 dark:border-white/10">
+                    <p className="text-xs text-[var(--text-2)] mb-1">تتر مورد نیاز جهت فروش در بیت‌پین:</p>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-black text-[var(--text)] num">{num(activeNeededUsdt)}</span>
+                      <span className="text-sm font-bold text-[var(--text)]">تتر</span>
+                      {isJobActive && savedUsdtWithJob > 0 && (
+                        <span className="text-xs text-[var(--positive)] mr-auto font-bold">
+                          ({num(savedUsdtWithJob)} تتر کمتر از حالت بدون شغل)
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-[var(--text-3)] mt-2">
+                      مانده تتر پس از تبدیل: <strong className="num text-[var(--text)]">{num(activeRemainingUsdt)} تتر</strong>
+                    </p>
                   </div>
-                  <p className="text-[11px] text-[var(--text-3)] mt-2">
-                    مانده تتر پس از تبدیل: <strong className="num text-[var(--text)]">{num(activeRemainingUsdt)} تتر</strong>
-                  </p>
-                </div>
+                ) : (
+                  <div className="mt-3 pt-3 border-t border-black/10 dark:border-white/10 space-y-1">
+                    <p className="text-xs text-[var(--text-2)] font-semibold">پیشنهاد مدیریت نقدینگی:</p>
+                    <p className="text-[11px] text-[var(--text-3)] leading-relaxed">
+                      کسری نقدینگی به مبلغ <strong className="num text-[var(--negative)]">{full(activeDeficitToman)}</strong> پیش‌بینی شده است. پیشنهاد می‌شود خریدهای غیرضروری را به دوره‌های بعد موکول کرده یا پس‌انداز ماهانه را افزایش دهید.
+                    </p>
+                  </div>
+                )
               ) : (
                 <p className="text-xs text-[var(--text-2)] mt-2">
-                  {isJobActive
-                    ? "با درآمد حاصل از شغل یا قرارداد، تمام هزینه‌ها، اقساط و خریدهای آینده پوشش داده می‌شود و نیازی به فروش تتر ندارید!"
-                    : "موجودی تومان در بانک و بیت‌پین برای کل این دوره کافی است و نیازی به تبدیل تتر ندارید."}
+                  {hasTetherOrCrypto
+                    ? (isJobActive
+                        ? "با درآمد حاصل از شغل یا قرارداد، تمام هزینه‌ها، اقساط و خریدهای آینده پوشش داده می‌شود و نیازی به فروش تتر ندارید!"
+                        : "موجودی تومان در بانک و بیت‌پین برای کل این دوره کافی است و نیازی به تبدیل تتر ندارید.")
+                    : "موجودی نقدینگی در بانک و درآمد ماهانه پاسخگوی تمام مخارج، اقساط و خریدهای برنامه‌ریزی‌شده در این افق است."}
                 </p>
               )}
             </div>
@@ -1401,105 +1672,107 @@ ${question}`;
       </div>
 
       {/* ── جدول ماتریس تحلیل حساسیت نرخ تتر (FX Sensitivity Analysis) ── */}
-      <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-base text-[var(--text)] flex items-center gap-2">
-              <Icon name="reports" size={16} />
-              ماتریس تحلیل حساسیت: اگر قیمت دلار تغییر کند، چند تتر باید بفروشید؟
-            </h3>
-            <p className="text-xs text-[var(--text-3)] mt-0.5">
-              مهندسی سناریوهای نوسان و صعود نرخ تتر (۳۲۰ تا ۵۵۰ هزار تومان) برای کسری نقدینگی {short(activeDeficitToman)} تومان:
-            </p>
+      {hasTetherOrCrypto && (
+        <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-base text-[var(--text)] flex items-center gap-2">
+                <Icon name="reports" size={16} />
+                ماتریس تحلیل حساسیت: اگر قیمت دلار تغییر کند، چند تتر باید بفروشید؟
+              </h3>
+              <p className="text-xs text-[var(--text-3)] mt-0.5">
+                مهندسی سناریوهای نوسان و صعود نرخ تتر (۳۲۰ تا ۵۵۰ هزار تومان) برای کسری نقدینگی {short(activeDeficitToman)} تومان:
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-right border-collapse">
-            <thead>
-              <tr className="border-b border-[var(--border)] text-[var(--text-3)] bg-[var(--sunken)]">
-                <th className="py-2.5 px-3">سناریوی نرخ تتر</th>
-                <th className="py-2.5 px-3">نرخ هر تتر (تومان)</th>
-                <th className="py-2.5 px-3">تتر لازم جهت فروش</th>
-                <th className="py-2.5 px-3">مانده تتر پس از فروش</th>
-                <th className="py-2.5 px-3">درصد حفظ سرمایه</th>
-                <th className="py-2.5 px-3">صرفه‌جویی و ارزیابی فنی</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {sensitivityRates.map((r) => {
-                const req = activeDeficitToman > 0 ? Math.ceil(activeDeficitToman / r) : 0;
-                const rem = Math.max(0, totalUsdt - req);
-                const preservedPct = totalUsdt > 0 ? Math.round((rem / totalUsdt) * 100) : 100;
-                const isCurrent = r === rate;
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-right border-collapse">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-[var(--text-3)] bg-[var(--sunken)]">
+                  <th className="py-2.5 px-3">سناریوی نرخ تتر</th>
+                  <th className="py-2.5 px-3">نرخ هر تتر (تومان)</th>
+                  <th className="py-2.5 px-3">تتر لازم جهت فروش</th>
+                  <th className="py-2.5 px-3">مانده تتر پس از فروش</th>
+                  <th className="py-2.5 px-3">درصد حفظ سرمایه</th>
+                  <th className="py-2.5 px-3">صرفه‌جویی و ارزیابی فنی</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {sensitivityRates.map((r) => {
+                  const req = activeDeficitToman > 0 ? Math.ceil(activeDeficitToman / r) : 0;
+                  const rem = Math.max(0, totalUsdt - req);
+                  const preservedPct = totalUsdt > 0 ? Math.round((rem / totalUsdt) * 100) : 100;
+                  const isCurrent = r === rate;
 
-                const label =
-                  r === Math.round(baseRate)
-                    ? "نرخ روز بازار"
-                    : r === 320_000
-                      ? "جهش تورمی ۳۲۰ ه.ت"
-                      : r === 370_000
-                        ? "جهش تورمی ۳۷۰ ه.ت"
-                        : r === 420_000
-                          ? "جهش تورمی ۴۲۰ ه.ت"
-                          : r === 450_000
-                            ? "جهش تورمی ۴۵۰ ه.ت"
-                            : r === 500_000
-                              ? "جهش تورمی ۵۰۰ ه.ت"
-                              : r === 550_000
-                                ? "جهش تورمی ۵۵۰ ه.ت"
-                                : isCurrent
-                                  ? "نرخ انتخابی فعلی"
-                                  : r > rate
-                                    ? `صعود به ${short(r)}`
-                                    : `افت به ${short(r)}`;
+                  const label =
+                    r === Math.round(baseRate)
+                      ? "نرخ روز بازار"
+                      : r === 320_000
+                        ? "جهش تورمی ۳۲۰ ه.ت"
+                        : r === 370_000
+                          ? "جهش تورمی ۳۷۰ ه.ت"
+                          : r === 420_000
+                            ? "جهش تورمی ۴۲۰ ه.ت"
+                            : r === 450_000
+                              ? "جهش تورمی ۴۵۰ ه.ت"
+                              : r === 500_000
+                                ? "جهش تورمی ۵۰۰ ه.ت"
+                                : r === 550_000
+                                  ? "جهش تورمی ۵۵۰ ه.ت"
+                                  : isCurrent
+                                    ? "نرخ انتخابی فعلی"
+                                    : r > rate
+                                      ? `صعود به ${short(r)}`
+                                      : `افت به ${short(r)}`;
 
-                const savedComparedToBase =
-                  baseRate > 0 && activeDeficitToman > 0
-                    ? Math.max(0, Math.ceil(activeDeficitToman / baseRate) - req)
-                    : 0;
+                  const savedComparedToBase =
+                    baseRate > 0 && activeDeficitToman > 0
+                      ? Math.max(0, Math.ceil(activeDeficitToman / baseRate) - req)
+                      : 0;
 
-                return (
-                  <tr
-                    key={r}
-                    className={`transition-colors ${
-                      isCurrent
-                        ? "bg-[var(--accent-soft)]/40 font-bold"
-                        : "hover:bg-[var(--sunken)]"
-                    }`}
-                  >
-                    <td className="py-2.5 px-3 flex items-center gap-1.5">
-                      {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-[var(--action)]" />}
-                      <span>{label}</span>
-                    </td>
-                    <td className="py-2.5 px-3 num font-semibold">{num(r)} تومان</td>
-                    <td className="py-2.5 px-3 num text-[var(--negative)] font-black">
-                      {num(req)} تتر
-                    </td>
-                    <td className="py-2.5 px-3 num text-[var(--positive)] font-semibold">
-                      {num(rem)} تتر
-                    </td>
-                    <td className="py-2.5 px-3 num">{toFaDigits(String(preservedPct))}٪</td>
-                    <td className="py-2.5 px-3 text-[var(--text-3)]">
-                      {r >= 320_000 ? (
-                        <span className="text-[var(--positive)] font-semibold">
-                          صرفه‌جویی {num(savedComparedToBase)} تتر نسبت به نرخ روز
-                        </span>
-                      ) : r > rate ? (
-                        "صرفه‌جویی در تتر با افزایش نرخ"
-                      ) : r < rate ? (
-                        "نیاز به تبدیل تتر بیشتر"
-                      ) : (
-                        "مبنای فعلی محاسبات شما"
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                  return (
+                    <tr
+                      key={r}
+                      className={`transition-colors ${
+                        isCurrent
+                          ? "bg-[var(--accent-soft)]/40 font-bold"
+                          : "hover:bg-[var(--sunken)]"
+                      }`}
+                    >
+                      <td className="py-2.5 px-3 flex items-center gap-1.5">
+                        {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-[var(--action)]" />}
+                        <span>{label}</span>
+                      </td>
+                      <td className="py-2.5 px-3 num font-semibold">{num(r)} تومان</td>
+                      <td className="py-2.5 px-3 num text-[var(--negative)] font-black">
+                        {num(req)} تتر
+                      </td>
+                      <td className="py-2.5 px-3 num text-[var(--positive)] font-semibold">
+                        {num(rem)} تتر
+                      </td>
+                      <td className="py-2.5 px-3 num">{toFaDigits(String(preservedPct))}٪</td>
+                      <td className="py-2.5 px-3 text-[var(--text-3)]">
+                        {r >= 320_000 ? (
+                          <span className="text-[var(--positive)] font-semibold">
+                            صرفه‌جویی {num(savedComparedToBase)} تتر نسبت به نرخ روز
+                          </span>
+                        ) : r > rate ? (
+                          "صرفه‌جویی در تتر با افزایش نرخ"
+                        ) : r < rate ? (
+                          "نیاز به تبدیل تتر بیشتر"
+                        ) : (
+                          "مبنای فعلی محاسبات شما"
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* ── گفتگوی مستقیم و سوالات تخصصی با دستیار هوشمند ── */}
       <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-4 shadow-xs">
@@ -1513,7 +1786,9 @@ ${question}`;
                 گفتگوی مستقیم و مشاوره تخصصی با دستیار هوشمند
               </h3>
               <p className="text-xs text-[var(--text-3)] mt-0.5">
-                پرسش‌های تخصصی متناسب با شرایط قرارداد ۳ ماهه، صعود تتر تا ۵۵۰ هزار تومان، و به‌روزرسانی تحلیل‌ها
+                {hasTetherOrCrypto
+                  ? "پرسش‌های تخصصی متناسب با شرایط قرارداد ۳ ماهه، صعود تتر تا ۵۵۰ هزار تومان، و به‌روزرسانی تحلیل‌ها"
+                  : "پرسش‌های تخصصی متناسب با وضعیت درآمد، تاب‌آوری جریان نقدینگی و اهداف مالی"}
               </p>
             </div>
           </div>
@@ -1593,58 +1868,59 @@ ${question}`;
         </div>
       </section>
 
-      {/* ── مراحل ۳ گانه تأمین نقدینگی (بیت‌پین → بانک → اقساط و خریدها) ── */}
+      {/* ── مراحل ۳ گانه تأمین نقدینگی و مدیریت جریان مالی ── */}
       <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-4">
         <div>
           <h3 className="font-bold text-base text-[var(--text)] flex items-center gap-2">
             <Icon name="swap" size={16} />
-            مراحل اجرایی تأمین نقدینگی (بیت‌پین → بانک → اقساط و خریدها)
+            {hasTetherOrCrypto
+              ? "مراحل اجرایی تأمین نقدینگی (بیت‌پین → بانک → اقساط و خریدها)"
+              : "مراحل اجرایی مدیریت جریان نقدینگی و انضباط مالی"}
           </h3>
           <p className="text-xs text-[var(--text-3)] mt-1">
-            برای جلوگیری از اتلاف کارمزد و استرس سررسید، مراحل تبدیل و انتقال را دقیقاً در سه گام زیر اجرا کنید:
+            {hasTetherOrCrypto
+              ? "برای جلوگیری از اتلاف کارمزد و استرس سررسید، مراحل تبدیل و انتقال را دقیقاً در سه گام زیر اجرا کنید:"
+              : "برای حفظ پایداری مالی و پیشگیری از کسری، چرخه نقدینگی ماهانه را در ۳ گام زیر پیاده‌سازی کنید:"}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* گام ۱ */}
-          <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-[var(--action)] text-[var(--on-ink)] text-xs font-black flex items-center justify-center num">
-                ۱
-              </span>
-              <span className="text-xs font-bold text-[var(--text)]">فروش تتر در بیت‌پین</span>
+        {hasTetherOrCrypto ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* گام ۱ */}
+            <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[var(--action)] text-[var(--on-ink)] text-xs font-black flex items-center justify-center num">
+                  ۱
+                </span>
+                <span className="text-xs font-bold text-[var(--text)]">فروش تتر در بیت‌پین</span>
+              </div>
+              <p className="text-xs text-[var(--text-2)] leading-relaxed">
+                تعداد <strong className="num text-[var(--text)]">{num(activeNeededUsdt)} تتر</strong> را در بازار تتر/تومان صرافی بیت‌پین به صورت سفارش عادی (Maker) برای کاهش کارمزد بفروشید.
+              </p>
+              <div className="text-[11px] text-[var(--text-3)] pt-1 border-t border-[var(--border)]">
+                ارزش تومانی حاصل: <strong className="num text-[var(--text)]">{short(activeNeededUsdt * rate)} تومان</strong>
+              </div>
             </div>
-            <p className="text-xs text-[var(--text-2)] leading-relaxed">
-              تعداد <strong className="num text-[var(--text)]">{num(activeNeededUsdt)} تتر</strong> را در بازار تتر/تومان صرافی بیت‌پین به صورت سفارش عادی (Maker) برای کاهش کارمزد بفروشید.
-            </p>
-            <div className="text-[11px] text-[var(--text-3)] pt-1 border-t border-[var(--border)]">
-              ارزش تومانی حاصل: <strong className="num text-[var(--text)]">{short(activeNeededUsdt * rate)} تومان</strong>
-            </div>
-          </div>
 
-          {/* گام ۲ */}
-          <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-[var(--action)] text-[var(--on-ink)] text-xs font-black flex items-center justify-center num">
-                ۲
-              </span>
-              <span className="text-xs font-bold text-[var(--text)]">تسویه پایا به حساب بانکی</span>
+            {/* گام ۲ */}
+            <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[var(--action)] text-[var(--on-ink)] text-xs font-black flex items-center justify-center num">
+                  ۲
+                </span>
+                <span className="text-xs font-bold text-[var(--text)]">تسویه پایا به حساب بانکی</span>
+              </div>
+              <p className="text-xs text-[var(--text-2)] leading-relaxed">
+                مبلغ <strong className="num text-[var(--text)]">{short(activeDeficitToman)} تومان</strong> را از کیف پول ریالی بیت‌پین به حساب بانکی اصلی خود (مثلاً سامان یا بلوبانک) ثبت برداشت کنید.
+              </p>
+              <div className="text-[11px] text-[var(--text-3)] pt-1 border-t border-[var(--border)]">
+                زمان تسویه: سیکل‌های پایا (حدود ساعت ۳:۴۵ یا ۱۳:۴۵ کاری)
+              </div>
             </div>
-            <p className="text-xs text-[var(--text-2)] leading-relaxed">
-              مبلغ <strong className="num text-[var(--text)]">{short(activeDeficitToman)} تومان</strong> را از کیف پول ریالی بیت‌پین به حساب بانکی اصلی خود (مثلاً سامان یا بلوبانک) ثبت برداشت کنید.
-            </p>
-            <div className="text-[11px] text-[var(--text-3)] pt-1 border-t border-[var(--border)]">
-              زمان تسویه: سیکل‌های پایا (حدود ساعت ۳:۴۵ یا ۱۳:۴۵ کاری)
-            </div>
-          </div>
 
-          {/* گام ۳ */}
-          <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-[var(--positive)] text-[var(--on-ink)] text-xs font-black flex items-center justify-center num">
-                ۳
-              </span>
-              <span className="text-xs font-bold text-[var(--text)]">پرداخت اقساط و اجرای خریدها</span>
+            {/* گام ۳ */}
+            <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--positive)] text-[var(--on-ink)] text-xs font-black flex items-center justify-center num">
+              ۳
             </div>
             <p className="text-xs text-[var(--text-2)] leading-relaxed">
               {isOwner
@@ -1655,10 +1931,60 @@ ${question}`;
               آرامش فکری: استرس روزمره از معاملات ترید کاملاً حذف می‌شود.
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* گام ۱ */}
+            <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[var(--action)] text-[var(--on-ink)] text-xs font-black flex items-center justify-center num">
+                  ۱
+                </span>
+                <span className="text-xs font-bold text-[var(--text)]">تفکیک درآمد و پس‌انداز اضطراری</span>
+              </div>
+              <p className="text-xs text-[var(--text-2)] leading-relaxed">
+                به محض دریافت حقوق یا درآمد ماهانه، حداقل ۲۰٪ آن را مستقیماً به حساب سپرده اضطراری انتقال دهید تا خرج‌های روزمره به آن دسترسی نداشته باشند.
+              </p>
+              <div className="text-[11px] text-[var(--text-3)] pt-1 border-t border-[var(--border)]">
+                هدف: ساخت سپر امن مالی ۳ تا ۶ ماه
+              </div>
+            </div>
+
+            {/* گام ۲ */}
+            <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[var(--action)] text-[var(--on-ink)] text-xs font-black flex items-center justify-center num">
+                  ۲
+                </span>
+                <span className="text-xs font-bold text-[var(--text)]">تسویه اقساط و هزینه‌های ثابت</span>
+              </div>
+              <p className="text-xs text-[var(--text-2)] leading-relaxed">
+                اقساط وام‌ها، قبوض و بدهی‌های سررسیدشده را در روزهای اول ماه تسویه کنید تا مشمول جریمه دیرکرد یا بدحسابی بانکی نشوید.
+              </p>
+              <div className="text-[11px] text-[var(--text-3)] pt-1 border-t border-[var(--border)]">
+                مبلغ اقساط دوره: {short(scheduledInstallmentsToman)} تومان
+              </div>
+            </div>
+
+            {/* گام ۳ */}
+            <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[var(--positive)] text-[var(--on-ink)] text-xs font-black flex items-center justify-center num">
+                  ۳
+                </span>
+                <span className="text-xs font-bold text-[var(--text)]">اجرای فازبندی خریدهای آینده</span>
+              </div>
+              <p className="text-xs text-[var(--text-2)] leading-relaxed">
+                خریدهای برنامه‌ریزی‌شده را صرفاً از محل مازاد پس‌انداز و با اولویت اقلام ضروری انجام دهید تا جریان نقدی همیشه مثبت بماند.
+              </p>
+              <div className="text-[11px] text-[var(--text-3)] pt-1 border-t border-[var(--border)]">
+                انضباط مالی: پیشگیری از هرگونه بدهی جدید
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
-      {/* ── فازبندی مهندسی‌شده خریدهای بزرگ زندگی و مدیریت ترید ── */}
+      {/* ── فازبندی مهندسی‌شده خریدهای بزرگ زندگی و مدیریت نقدینگی ── */}
       <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-4">
         <div>
           <h3 className="font-bold text-base text-[var(--text)] flex items-center gap-2">
@@ -1682,7 +2008,7 @@ ${question}`;
             <p className="text-xs text-[var(--text-2)] leading-relaxed">
               {isOwner
                 ? "هزینه‌های کم‌حجم‌تر اما ضروری (لباس، آرایش، حلقه، محضر، عکاسی). این فاز اولویت زمانی دارد و باید از ریال نقد و تبدیل پله‌ای تتر تأمین شود."
-                : "هزینه‌ها و اقساط با اولویت زمانی بالا. این فاز باید ابتدا از نقدینگی بانکی و تبدیل پله‌ای دارایی‌ها تامین شود تا جریمه یا تاخیری ایجاد نشود."}
+                : "هزینه‌ها و اقساط با اولویت زمانی بالا. این فاز باید ابتدا از نقدینگی بانکی و درآمد ورودی تامین شود تا جریمه یا تاخیری ایجاد نشود."}
             </p>
           </div>
 
@@ -1709,31 +2035,33 @@ ${question}`;
           </div>
         </div>
 
-        {/* اسلایدر تخصیص سرمایه به ترید */}
-        <div className="p-4 rounded-xl bg-[var(--sunken)] border border-[var(--border)] flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-0.5">
-            <p className="text-xs font-bold text-[var(--text)]">سهم سرمایه اختصاص‌یافته به ترید فعال:</p>
-            <p className="text-[11px] text-[var(--text-3)]">
-              از کل {num(totalUsdt)} تتر: معادل <strong className="num text-[var(--text)]">{num(safeTradingUsdt)} تتر</strong> درگیر در ترید و <strong className="num text-[var(--positive)]">{num(emergencyReserveUsdt)} تتر</strong> در صندوق امنیت دست‌نخورده
-            </p>
+        {/* اسلایدر تخصیص سرمایه به ترید (تنها در صورت داشتن تتر یا رمزارز) */}
+        {hasTetherOrCrypto && (
+          <div className="p-4 rounded-xl bg-[var(--sunken)] border border-[var(--border)] flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <p className="text-xs font-bold text-[var(--text)]">سهم سرمایه اختصاص‌یافته به ترید فعال:</p>
+              <p className="text-[11px] text-[var(--text-3)]">
+                از کل {num(totalUsdt)} تتر: معادل <strong className="num text-[var(--text)]">{num(safeTradingUsdt)} تتر</strong> درگیر در ترید و <strong className="num text-[var(--positive)]">{num(emergencyReserveUsdt)} تتر</strong> در صندوق امنیت دست‌نخورده
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {[5, 10, 15, 20].map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setTradingPortionPct(p)}
+                  className={`py-1 px-3 text-xs rounded-lg font-bold border transition-colors ${
+                    tradingPortionPct === p
+                      ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)]"
+                      : "bg-[var(--surface)] text-[var(--text-2)] border-[var(--border)]"
+                  }`}
+                >
+                  {toFaDigits(String(p))}٪
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {[5, 10, 15, 20].map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setTradingPortionPct(p)}
-                className={`py-1 px-3 text-xs rounded-lg font-bold border transition-colors ${
-                  tradingPortionPct === p
-                    ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)]"
-                    : "bg-[var(--surface)] text-[var(--text-2)] border-[var(--border)]"
-                }`}
-              >
-                {toFaDigits(String(p))}٪
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
       </section>
     </div>
   );
