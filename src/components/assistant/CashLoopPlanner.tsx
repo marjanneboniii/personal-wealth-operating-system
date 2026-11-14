@@ -23,18 +23,117 @@ export interface CategoryMeta {
   key: string;
   label: string;
   icon: import("@/components/ui/Icon").IconName;
+  color?: string;
+  bg?: string;
+  border?: string;
+  badgeBg?: string;
 }
 
-export const KNOWN_PURCHASE_CATEGORIES: Record<string, { label: string; icon: import("@/components/ui/Icon").IconName }> = {
-  ceremony: { label: "مراسم عقد و محضر", icon: "ring" },
-  wedding: { label: "طلا و مراسم عروسی", icon: "sparkle" },
-  home: { label: "لوازم خانه و جهیزیه", icon: "home" },
-  apparel: { label: "پوشاک و ملزومات", icon: "shirt" },
-  gold: { label: "طلا و سرمایه‌گذاری", icon: "coins" },
-  transport: { label: "خودرو و حمل‌ونقل", icon: "car" },
-  digital: { label: "کالای دیجیتال", icon: "phone" },
-  other: { label: "سایر خریدهای احتمالی", icon: "gift" },
+export const KNOWN_PURCHASE_CATEGORIES: Record<
+  string,
+  {
+    label: string;
+    icon: import("@/components/ui/Icon").IconName;
+    color: string;
+    bg: string;
+    border: string;
+    badgeBg: string;
+  }
+> = {
+  home: {
+    label: "لوازم خانه و جهیزیه",
+    icon: "home",
+    color: "text-sky-600 dark:text-sky-400",
+    bg: "bg-sky-500/15 dark:bg-sky-500/20",
+    border: "border-sky-500/30",
+    badgeBg: "bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300",
+  },
+  ceremony: {
+    label: "مراسم عقد و محضر",
+    icon: "ring",
+    color: "text-purple-600 dark:text-purple-400",
+    bg: "bg-purple-500/15 dark:bg-purple-500/20",
+    border: "border-purple-500/30",
+    badgeBg: "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300",
+  },
+  wedding: {
+    label: "طلا و مراسم عروسی",
+    icon: "sparkle",
+    color: "text-amber-600 dark:text-amber-400",
+    bg: "bg-amber-500/15 dark:bg-amber-500/20",
+    border: "border-amber-500/30",
+    badgeBg: "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300",
+  },
+  gold: {
+    label: "طلا و سرمایه‌گذاری",
+    icon: "coins",
+    color: "text-yellow-600 dark:text-yellow-400",
+    bg: "bg-yellow-500/15 dark:bg-yellow-500/20",
+    border: "border-yellow-500/30",
+    badgeBg: "bg-yellow-50 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300",
+  },
+  apparel: {
+    label: "پوشاک و ملزومات",
+    icon: "shirt",
+    color: "text-rose-600 dark:text-rose-400",
+    bg: "bg-rose-500/15 dark:bg-rose-500/20",
+    border: "border-rose-500/30",
+    badgeBg: "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300",
+  },
+  digital: {
+    label: "کالای دیجیتال",
+    icon: "phone",
+    color: "text-indigo-600 dark:text-indigo-400",
+    bg: "bg-indigo-500/15 dark:bg-indigo-500/20",
+    border: "border-indigo-500/30",
+    badgeBg: "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300",
+  },
+  transport: {
+    label: "خودرو و حمل‌ونقل",
+    icon: "car",
+    color: "text-blue-600 dark:text-blue-400",
+    bg: "bg-blue-500/15 dark:bg-blue-500/20",
+    border: "border-blue-500/30",
+    badgeBg: "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300",
+  },
+  other: {
+    label: "سایر خریدهای احتمالی",
+    icon: "gift",
+    color: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-500/15 dark:bg-emerald-500/20",
+    border: "border-emerald-500/30",
+    badgeBg: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300",
+  },
 };
+
+export interface QuickPresetPurchase {
+  title: string;
+  category: string;
+  defaultToman: number;
+  icon: import("@/components/ui/Icon").IconName;
+}
+
+export const QUICK_SELECTABLE_PURCHASES: QuickPresetPurchase[] = [
+  { title: "لوستر پذیرایی", category: "home", defaultToman: 14_000_000, icon: "home" },
+  { title: "اتو بخار", category: "home", defaultToman: 4_500_000, icon: "home" },
+  { title: "بخاری / سیستم گرمایشی", category: "home", defaultToman: 8_500_000, icon: "home" },
+  { title: "جاروبرقی", category: "home", defaultToman: 12_000_000, icon: "home" },
+  { title: "پرده سالن پذیرایی", category: "home", defaultToman: 15_000_000, icon: "home" },
+  { title: "کنسول و آینه", category: "home", defaultToman: 18_000_000, icon: "home" },
+  { title: "کافه بار خانگی", category: "home", defaultToman: 10_000_000, icon: "home" },
+  { title: "سرویس خواب کامل", category: "home", defaultToman: 32_000_000, icon: "home" },
+  { title: "جاکفشی مدرن", category: "home", defaultToman: 6_500_000, icon: "home" },
+  { title: "حلقه طلا / نشان", category: "ceremony", defaultToman: 35_000_000, icon: "ring" },
+  { title: "خرید طلای عروس (سرویس)", category: "wedding", defaultToman: 160_000_000, icon: "sparkle" },
+  { title: "ست کت‌وشلوار و لباس", category: "apparel", defaultToman: 12_000_000, icon: "shirt" },
+  { title: "گوشی / لپ‌تاپ", category: "digital", defaultToman: 45_000_000, icon: "phone" },
+];
+
+let purchaseCounter = 0;
+function getNextPurchaseId(prefix: string): string {
+  purchaseCounter += 1;
+  return `${prefix}-${purchaseCounter}`;
+}
 
 export interface PurchaseItem {
   id: string;
@@ -376,12 +475,28 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
 
   // Dynamic category list derived from current items
   const dynamicCategories = useMemo(() => {
-    const map = new Map<string, { label: string; icon: import("@/components/ui/Icon").IconName; count: number; totalToman: number }>();
+    const map = new Map<
+      string,
+      {
+        label: string;
+        icon: import("@/components/ui/Icon").IconName;
+        color: string;
+        bg: string;
+        border: string;
+        badgeBg: string;
+        count: number;
+        totalToman: number;
+      }
+    >();
     for (const p of purchases) {
       const meta = KNOWN_PURCHASE_CATEGORIES[p.category];
       const label = meta?.label ?? p.categoryLabel ?? p.category;
       const icon = meta?.icon ?? "gift";
-      const existing = map.get(p.category) ?? { label, icon, count: 0, totalToman: 0 };
+      const color = meta?.color ?? "text-emerald-600 dark:text-emerald-400";
+      const bg = meta?.bg ?? "bg-emerald-500/15";
+      const border = meta?.border ?? "border-emerald-500/30";
+      const badgeBg = meta?.badgeBg ?? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300";
+      const existing = map.get(p.category) ?? { label, icon, color, bg, border, badgeBg, count: 0, totalToman: 0 };
       existing.count += 1;
       if (p.selected) existing.totalToman += p.estimatedToman;
       map.set(p.category, existing);
@@ -455,7 +570,7 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
     if (!newTitle.trim()) return;
     const meta = KNOWN_PURCHASE_CATEGORIES[newCategory];
     const newItem: PurchaseItem = {
-      id: `custom-${Date.now()}`,
+      id: getNextPurchaseId("custom"),
       title: newTitle.trim(),
       category: newCategory,
       categoryLabel: meta?.label ?? newCategory,
@@ -464,6 +579,25 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
     };
     setPurchases((prev) => [newItem, ...prev]);
     setNewTitle("");
+  };
+
+  const addQuickPreset = (preset: QuickPresetPurchase) => {
+    const meta = KNOWN_PURCHASE_CATEGORIES[preset.category];
+    const newItem: PurchaseItem = {
+      id: getNextPurchaseId("preset"),
+      title: preset.title,
+      category: preset.category,
+      categoryLabel: meta?.label ?? preset.category,
+      estimatedToman: preset.defaultToman,
+      selected: true,
+    };
+    setPurchases((prev) => [newItem, ...prev]);
+  };
+
+  const selectQuickPreset = (preset: QuickPresetPurchase) => {
+    setNewTitle(preset.title);
+    setNewAmount(preset.defaultToman);
+    setNewCategory(preset.category);
   };
 
   // ── Obligations within the selected horizon (up to 180 days) ──
@@ -835,29 +969,27 @@ ${question}`;
         </div>
 
         {/* بنر شفاف‌سازی: اقلام آزمایشی و پیش‌بینی شخصی هستند و هنوز در بودجه رسمی ثبت نشده‌اند */}
-        <div className="p-3.5 rounded-xl bg-[var(--sunken)] border border-[var(--border)] flex items-start gap-3 text-xs leading-relaxed">
-          <span className="p-1.5 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] shrink-0 mt-0.5">
-            <Icon name="info" size={16} />
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 flex items-start gap-3.5 text-xs leading-relaxed shadow-xs">
+          <span className="p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 shadow-xs">
+            <Icon name="info" size={18} />
           </span>
-          <div className="space-y-1">
-            <p className="font-bold text-[var(--text)]">
+          <div className="space-y-1.5 flex-1">
+            <p className="font-extrabold text-[var(--text)] text-xs md:text-sm">
               یادآوری: این اقلام، پیش‌بینی‌های شخصی شما در دستیار هستند و هنوز در بخش بودجه ثبت رسمی نشده‌اند
             </p>
-            <p className="text-[11px] text-[var(--text-3)]">
-              {hasTetherOrCrypto
-                ? "هیچ‌کدام از این خریدها قطعی نیستند و صرفاً تخمین ذهنی شما برای سنجش فشار نقدینگی و صندوق تترند. شما می‌توانید مبالغ را تغییر دهید، هر قلم را ویرایش یا حذف کنید، یا دسته‌های جدید اضافه نمایید. هر زمان تصمیم نهایی گرفتید، می‌توانید آن‌ها را ابتدا در بخش بودجه تعریف کنید."
-                : "هیچ‌کدام از این خریدها قطعی نیستند و صرفاً تخمین ذهنی شما برای سنجش فشار نقدینگی و تاب‌آوری مالی‌اند. شما می‌توانید مبالغ را تغییر دهید، هر قلم را ویرایش یا حذف کنید، یا دسته‌های جدید اضافه نمایید. هر زمان تصمیم نهایی گرفتید، می‌توانید آن‌ها را ابتدا در بخش بودجه تعریف کنید."}
+            <p className="text-[11.5px] text-[var(--text-2)] leading-relaxed font-normal">
+              هیچ‌کدام از این خریدها قطعی نیستند و صرفاً تخمین ذهنی شما برای سنجش فشار نقدینگی و تاب‌آوری مالی‌اند. شما می‌توانید مبالغ را تغییر دهید، هر قلم را ویرایش یا حذف کنید، یا دسته‌های جدید اضافه نمایید. هر زمان تصمیم نهایی گرفتید، می‌توانید آن‌ها را ابتدا در بخش بودجه تعریف کنید
             </p>
           </div>
         </div>
 
         {/* فیلتر دسته‌بندی‌ها با آیکون‌های اختصاصی و سرجمع هر بخش */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() => setPurchaseFilter("all")}
-              className={`py-1.5 px-3 text-xs rounded-xl font-semibold border transition-all flex items-center gap-1.5 ${
+              className={`py-1.5 px-3 text-xs rounded-xl font-bold border transition-all flex items-center gap-1.5 ${
                 purchaseFilter === "all"
                   ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)] shadow-sm"
                   : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--surface-hover)]"
@@ -865,7 +997,7 @@ ${question}`;
             >
               <Icon name="receipt" size={13} />
               <span>همه اقلام</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/15 num">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/15 num font-bold">
                 {toFaDigits(String(purchases.length))}
               </span>
             </button>
@@ -874,35 +1006,153 @@ ${question}`;
                 key={cat.key}
                 type="button"
                 onClick={() => setPurchaseFilter(cat.key)}
-                className={`py-1.5 px-3 text-xs rounded-xl font-semibold border transition-all flex items-center gap-1.5 ${
+                className={`py-1.5 px-3 text-xs rounded-xl font-bold border transition-all flex items-center gap-1.5 ${
                   purchaseFilter === cat.key
                     ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)] shadow-sm"
-                    : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--surface-hover)]"
+                    : `${cat.badgeBg} ${cat.border} hover:opacity-90`
                 }`}
               >
-                <Icon name={cat.icon} size={13} />
+                <Icon name={cat.icon} size={13} className={purchaseFilter === cat.key ? "" : cat.color} />
                 <span>{cat.label}</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 num">
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 num font-bold">
                   {toFaDigits(String(cat.count))}
                 </span>
               </button>
             ))}
           </div>
 
-          <div className="text-xs font-bold text-[var(--text)] bg-[var(--accent-soft)] px-4 py-2.5 rounded-xl text-[var(--accent)] border border-[var(--accent)]/30 flex flex-col items-end gap-1 shadow-xs">
+          <div className="text-xs font-bold text-[var(--text)] bg-[var(--surface)] px-4 py-2.5 rounded-2xl border border-[var(--border)] flex flex-col items-end gap-1 shadow-xs">
             <div className="flex items-center gap-2">
-              <span className="text-[var(--text)] font-semibold text-xs">جمع کل خریدهای تیک‌خورده:</span>
-              <span className="num font-black text-sm">{full(totalSelectedPurchasesToman)}</span>
+              <span className="text-[var(--text-2)] font-semibold text-xs">جمع کل خریدهای تیک‌خورده:</span>
+              <span className="num font-black text-sm text-[var(--text)]">{full(totalSelectedPurchasesToman)}</span>
             </div>
             {totalSelectedPurchasesToman > 0 && (
-              <span className="text-[11px] font-medium text-[var(--accent)]">
-                معادل: {amountToWords(totalSelectedPurchasesToman, "toman")}
+              <span className="text-[11px] font-bold text-[var(--accent)] bg-[var(--accent-soft)] px-2 py-0.5 rounded-lg border border-[var(--accent)]/20">
+                {amountToWords(totalSelectedPurchasesToman, "toman")}
               </span>
             )}
           </div>
         </div>
 
-        {/* لیست اقلام با قابلیت ویرایش کامل، حذف، و تغییر سریع مبلغ با نمایش به حروف */}
+        {/* بخش افزودن خریدهای پیشنهادی با انتخاب مستقیم رنگی و لوگودار */}
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-[var(--sunken)] via-[var(--surface)] to-[var(--sunken)] border border-[var(--border)] space-y-3.5 shadow-xs">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center">
+                <Icon name="sparkle" size={15} />
+              </span>
+              <div>
+                <h4 className="font-bold text-xs text-[var(--text)]">
+                  انتخاب سریع اقلام پیشنهادی (افزودن مستقیم یا انتخاب جهت ویرایش):
+                </h4>
+                <p className="text-[10.5px] text-[var(--text-3)]">
+                  روی هر مورد کلیک کنید تا در فرم پر شود، یا با دکمه + مستقیماً به لیست اضافه کنید
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {QUICK_SELECTABLE_PURCHASES.map((preset, idx) => {
+              const meta = KNOWN_PURCHASE_CATEGORIES[preset.category];
+              const color = meta?.color ?? "text-emerald-600 dark:text-emerald-400";
+              const bg = meta?.bg ?? "bg-emerald-500/15";
+              const border = meta?.border ?? "border-emerald-500/30";
+              const isAlreadyAdded = purchases.some((p) => p.title === preset.title);
+
+              return (
+                <div
+                  key={idx}
+                  className={`group relative p-2.5 rounded-xl border transition-all text-right flex flex-col justify-between gap-2 cursor-pointer ${
+                    isAlreadyAdded
+                      ? "bg-[var(--surface)] border-[var(--border)] opacity-85 hover:opacity-100"
+                      : "bg-[var(--surface)] hover:bg-[var(--surface-hover)] border-[var(--border)] hover:border-[var(--border-strong)] shadow-xs"
+                  }`}
+                  onClick={() => selectQuickPreset(preset)}
+                >
+                  <div className="flex items-start justify-between gap-1.5">
+                    <span className={`w-8 h-8 rounded-lg ${bg} ${color} border ${border} flex items-center justify-center shrink-0`}>
+                      <Icon name={preset.icon} size={15} />
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addQuickPreset(preset);
+                      }}
+                      className="p-1 rounded-md text-[var(--text-3)] hover:text-[var(--action)] hover:bg-[var(--sunken)] transition-colors"
+                      title="افزودن فوری به لیست"
+                    >
+                      <Icon name="plus" size={13} />
+                    </button>
+                  </div>
+                  <div>
+                    <p className="font-bold text-xs text-[var(--text)] line-clamp-1 group-hover:text-[var(--action)] transition-colors">
+                      {preset.title}
+                    </p>
+                    <p className="text-[11px] font-extrabold text-[var(--text-2)] num mt-0.5">
+                      {toFaDigits(preset.defaultToman.toLocaleString("fa-IR"))} ت
+                    </p>
+                    <p className="text-[9.5px] text-[var(--accent)] font-medium truncate mt-0.5">
+                      {amountToWords(preset.defaultToman, "toman")}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* فرم افزودن دستی یا تنظیم سفارشی خرید با نمایش مبالغ به عدد و حروف */}
+          <div className="pt-3 border-t border-[var(--border)]/70 flex flex-wrap items-center gap-2.5 text-xs">
+            <span className="font-bold text-[var(--text)] flex items-center gap-1.5 shrink-0">
+              <Icon name="plus" size={14} className="text-[var(--action)]" />
+              <span>عنوان خرید (مثلاً لوستر، اتو بخار، بخاری...):</span>
+            </span>
+            <input
+              type="text"
+              placeholder="عنوان خرید (مثلاً لوستر، اتو بخار، بخاری...)"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              className="flex-1 min-w-[200px] bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-[var(--text)] outline-none focus:border-[var(--action)] transition-colors"
+            />
+            <div className="w-52 shrink-0 space-y-1">
+              <AmountInput
+                value={newAmount}
+                onValueChange={(val) => setNewAmount(Math.max(0, Number(val) || 0))}
+                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-[var(--text)] num font-bold outline-none focus:border-[var(--action)] text-xs text-right"
+                unit="toman"
+                showWords={false}
+                placeholder="مبلغ (تومان)"
+              />
+              {newAmount > 0 && (
+                <p className="text-[10px] text-[var(--accent)] font-bold truncate px-1 bg-[var(--accent-soft)]/60 rounded py-0.5 border border-[var(--accent)]/15" title={amountToWords(newAmount, "toman") ?? ""}>
+                  {amountToWords(newAmount, "toman")}
+                </p>
+              )}
+            </div>
+            <select
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 text-[var(--text)] outline-none font-medium"
+            >
+              {Object.entries(KNOWN_PURCHASE_CATEGORIES).map(([key, meta]) => (
+                <option key={key} value={key}>
+                  {meta.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={addNewPurchase}
+              disabled={!newTitle.trim()}
+              className="px-4 py-2 rounded-xl bg-[var(--action)] text-[var(--on-ink)] font-bold hover:opacity-90 transition-opacity shrink-0 flex items-center gap-1.5 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Icon name="plus" size={14} /> افزودن به لیست
+            </button>
+          </div>
+        </div>
+
+        {/* لیست اقلام با لوگوهای رنگی اختصاصی، قابلیت ویرایش کامل، حذف، و نمایش مبالغ به عدد و حروف */}
         {purchases.length === 0 ? (
           <div className="text-center py-10 px-4 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--sunken)] space-y-2">
             <div className="w-12 h-12 rounded-2xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center mx-auto text-[var(--text-3)] shadow-xs">
@@ -910,7 +1160,7 @@ ${question}`;
             </div>
             <p className="font-bold text-sm text-[var(--text)]">هنوز خریدی در این بخش اضافه نکرده‌اید</p>
             <p className="text-xs text-[var(--text-3)] max-w-md mx-auto leading-relaxed">
-              خریدهای بزرگ یا پیش‌بینی‌شده خود را با فرم زیر ثبت کنید تا مبلغ آنها در تحلیل صندوق نقدینگی و تاب‌آوری مالی محاسبه شود.
+              خریدهای بزرگ یا پیش‌بینی‌شده خود را با انتخاب اقلام بالا یا فرم زیر ثبت کنید تا مبلغ آنها در تحلیل صندوق نقدینگی و تاب‌آوری مالی محاسبه شود.
             </p>
           </div>
         ) : visiblePurchases.length === 0 ? (
@@ -918,29 +1168,33 @@ ${question}`;
             <p className="text-xs text-[var(--text-3)]">هیچ خریدی در این دسته‌بندی یافت نشد.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-96 overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-1">
           {visiblePurchases.map((item) => {
             const isEditing = editingPurchaseId === item.id;
             const catMeta = KNOWN_PURCHASE_CATEGORIES[item.category];
             const catIcon = catMeta?.icon ?? "gift";
             const catLabel = catMeta?.label ?? item.categoryLabel ?? item.category;
+            const catColor = catMeta?.color ?? "text-emerald-600 dark:text-emerald-400";
+            const catBg = catMeta?.bg ?? "bg-emerald-500/15";
+            const catBorder = catMeta?.border ?? "border-emerald-500/30";
+            const catBadgeBg = catMeta?.badgeBg ?? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300";
 
             if (isEditing) {
               return (
                 <div
                   key={item.id}
-                  className="p-3.5 rounded-xl border-2 border-[var(--action)] bg-[var(--surface)] shadow-md space-y-2.5"
+                  className="p-4 rounded-2xl border-2 border-[var(--action)] bg-[var(--surface)] shadow-md space-y-3"
                 >
                   <div className="flex items-center justify-between text-xs font-bold text-[var(--text)]">
                     <span className="flex items-center gap-1.5 text-[var(--action)]">
-                      <Icon name="edit" size={13} /> ویرایش قلم خرید
+                      <Icon name="edit" size={14} /> ویرایش قلم خرید
                     </span>
                     <button
                       type="button"
                       onClick={cancelEditPurchase}
                       className="text-[var(--text-3)] hover:text-[var(--text)]"
                     >
-                      <Icon name="x" size={13} />
+                      <Icon name="x" size={14} />
                     </button>
                   </div>
 
@@ -948,33 +1202,33 @@ ${question}`;
                     type="text"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-[var(--text)] outline-none focus:border-[var(--action)]"
+                    className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-3 py-2 text-[var(--text)] outline-none focus:border-[var(--action)]"
                     placeholder="عنوان خرید"
                   />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <label className="text-[10px] text-[var(--text-3)] block font-medium">مبلغ (تومان):</label>
+                      <label className="text-[10.5px] text-[var(--text-3)] block font-medium">مبلغ (تومان):</label>
                       <AmountInput
                         value={editAmount}
                         onValueChange={(val) => setEditAmount(Math.max(0, Number(val) || 0))}
-                        className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text)] num focus:border-[var(--action)] outline-none"
+                        className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-2.5 py-1.5 text-[var(--text)] num focus:border-[var(--action)] outline-none"
                         unit="toman"
                         showWords={false}
                         placeholder="۰"
                       />
                       {editAmount > 0 && (
-                        <p className="text-[10.5px] text-[var(--accent)] font-semibold leading-relaxed mt-0.5 px-2 py-0.5 rounded bg-[var(--accent-soft)]/60 border border-[var(--accent)]/20">
+                        <p className="text-[10px] text-[var(--accent)] font-bold leading-relaxed mt-0.5 px-2 py-0.5 rounded-lg bg-[var(--accent-soft)] border border-[var(--accent)]/20">
                           {amountToWords(editAmount, "toman")}
                         </p>
                       )}
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] text-[var(--text-3)] block font-medium">دسته‌بندی:</label>
+                      <label className="text-[10.5px] text-[var(--text-3)] block font-medium">دسته‌بندی:</label>
                       <select
                         value={editCategory}
                         onChange={(e) => setEditCategory(e.target.value)}
-                        className="w-full text-xs bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text)] outline-none"
+                        className="w-full text-xs bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-2.5 py-2 text-[var(--text)] outline-none"
                       >
                         {Object.entries(KNOWN_PURCHASE_CATEGORIES).map(([key, meta]) => (
                           <option key={key} value={key}>
@@ -989,16 +1243,16 @@ ${question}`;
                     <button
                       type="button"
                       onClick={cancelEditPurchase}
-                      className="px-2.5 py-1 rounded-lg text-xs bg-[var(--sunken)] text-[var(--text-3)] hover:text-[var(--text)]"
+                      className="px-3 py-1.5 rounded-xl text-xs bg-[var(--sunken)] text-[var(--text-3)] hover:text-[var(--text)]"
                     >
                       انصراف
                     </button>
                     <button
                       type="button"
                       onClick={saveEditPurchase}
-                      className="px-3.5 py-1 rounded-lg text-xs font-bold bg-[var(--action)] text-[var(--on-ink)] flex items-center gap-1 shadow-xs"
+                      className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[var(--action)] text-[var(--on-ink)] flex items-center gap-1 shadow-sm"
                     >
-                      <Icon name="check" size={12} /> ذخیره تغییرات
+                      <Icon name="check" size={13} /> ذخیره تغییرات
                     </button>
                   </div>
                 </div>
@@ -1008,25 +1262,30 @@ ${question}`;
             return (
               <div
                 key={item.id}
-                className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between gap-2.5 ${
+                className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
                   item.selected
                     ? "bg-[var(--surface)] border-[var(--border-strong)] shadow-xs"
                     : "bg-[var(--sunken)]/60 border-[var(--border)] opacity-60"
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-2.5">
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <input
                       type="checkbox"
                       checked={item.selected}
                       onChange={() => togglePurchase(item.id)}
-                      className="w-4 h-4 accent-[var(--action)] rounded cursor-pointer shrink-0"
+                      className="w-4 h-4 accent-[var(--action)] rounded cursor-pointer shrink-0 mt-0.5"
                     />
-                    <div className="min-w-0">
+                    {/* لوگوی رنگی اختصاصی دسته */}
+                    <div className={`w-9 h-9 rounded-xl ${catBg} ${catColor} border ${catBorder} flex items-center justify-center shrink-0 shadow-xs`}>
+                      <Icon name={catIcon} size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs font-bold text-[var(--text)] truncate">{item.title}</p>
-                      <div className="flex items-center gap-1 mt-0.5 text-[10px] text-[var(--text-3)]">
-                        <Icon name={catIcon} size={11} />
-                        <span>{catLabel}</span>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className={`px-2 py-0.5 rounded-md text-[9.5px] font-semibold border ${catBorder} ${catBadgeBg}`}>
+                          {catLabel}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1051,7 +1310,7 @@ ${question}`;
                   </div>
                 </div>
 
-                {/* فیلد تغییر مستقیم مبلغ و نمایش خودکار مبلغ به حروف */}
+                {/* نمایش مبلغ به عدد و به حروف */}
                 <div className="pt-2 border-t border-[var(--border)]/70 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10px] text-[var(--text-3)] font-medium">مبلغ برآوردی:</span>
@@ -1060,7 +1319,7 @@ ${question}`;
                         value={item.estimatedToman}
                         onValueChange={(val) => updatePurchaseAmount(item.id, Number(val) || 0)}
                         disabled={!item.selected}
-                        className="w-full text-right text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1 text-[var(--text)] num focus:border-[var(--action)] outline-none"
+                        className="w-full text-right text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-2 py-1 text-[var(--text)] num focus:border-[var(--action)] outline-none"
                         unit="toman"
                         showWords={false}
                         placeholder="۰"
@@ -1068,7 +1327,7 @@ ${question}`;
                     </div>
                   </div>
                   {item.estimatedToman > 0 && (
-                    <div className="flex items-center justify-between gap-1 text-[10.5px] text-[var(--accent)] font-semibold bg-[var(--accent-soft)]/60 px-2 py-1 rounded-lg border border-[var(--accent)]/15 select-none">
+                    <div className="flex items-center justify-between gap-1 text-[10.5px] text-[var(--accent)] font-bold bg-[var(--accent-soft)] px-2.5 py-1 rounded-xl border border-[var(--accent)]/20 select-none">
                       <span className="text-[var(--text-3)] text-[9.5px] shrink-0 font-normal">به حروف:</span>
                       <span className="truncate text-left" title={amountToWords(item.estimatedToman, "toman") ?? ""}>
                         {amountToWords(item.estimatedToman, "toman")}
@@ -1081,53 +1340,6 @@ ${question}`;
           })}
         </div>
         )}
-
-        {/* فرم اضافه کردن خرید جدید با انتخاب دسته و لوگوی اختصاصی و مبلغ به حروف */}
-        <div className="p-3.5 rounded-xl bg-[var(--sunken)] border border-[var(--border)] flex flex-wrap items-center gap-2.5 text-xs">
-          <span className="font-bold text-[var(--text)] flex items-center gap-1 shrink-0">
-            <Icon name="plus" size={14} /> افزودن قلم جدید:
-          </span>
-          <input
-            type="text"
-            placeholder="عنوان خرید (مثلاً لوستر، اتو بخار، بخاری...)"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            className="flex-1 min-w-[180px] bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-[var(--text)] outline-none focus:border-[var(--action)]"
-          />
-          <div className="w-44 shrink-0 space-y-1">
-            <AmountInput
-              value={newAmount}
-              onValueChange={(val) => setNewAmount(Math.max(0, Number(val) || 0))}
-              className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-[var(--text)] num font-semibold outline-none focus:border-[var(--action)] text-xs"
-              unit="toman"
-              showWords={false}
-              placeholder="مبلغ (تومان)"
-            />
-            {newAmount > 0 && (
-              <p className="text-[10px] text-[var(--accent)] font-semibold leading-tight truncate px-1" title={amountToWords(newAmount, "toman") ?? ""}>
-                {amountToWords(newAmount, "toman")}
-              </p>
-            )}
-          </div>
-          <select
-            value={newCategory}
-            onChange={(e) => setNewCategory(e.target.value)}
-            className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-[var(--text)] outline-none"
-          >
-            {Object.entries(KNOWN_PURCHASE_CATEGORIES).map(([key, meta]) => (
-              <option key={key} value={key}>
-                {meta.label}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={addNewPurchase}
-            className="px-4 py-1.5 rounded-lg bg-[var(--action)] text-[var(--on-ink)] font-bold hover:opacity-90 transition-opacity shrink-0 flex items-center gap-1 shadow-xs"
-          >
-            <Icon name="plus" size={13} /> افزودن
-          </button>
-        </div>
       </section>
 
       {/* ── بخش سناریوسازی اشتغال: قرارداد موقت ۳ ماهه در برابر بیکاری و تمدید ── */}
