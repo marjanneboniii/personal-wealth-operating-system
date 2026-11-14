@@ -5,6 +5,8 @@ import type { FinancialSnapshot } from "@/features/assistant/snapshot";
 import { fmtToman } from "@/features/assistant/analysis";
 import { daysUntilIso, formatShortDate, toFaDigits, todayIso } from "@/lib/format";
 import Icon from "@/components/ui/Icon";
+import AmountInput from "@/components/ui/AmountInput";
+import { amountToWords } from "@/lib/numberToWords";
 
 const short = (n: number) => fmtToman(n).replace(/ تومان$/, "");
 const full = (n: number) => `${Math.round(n).toLocaleString("fa-IR")} تومان`;
@@ -636,12 +638,20 @@ ${question}`;
             ))}
           </div>
 
-          <div className="text-xs font-bold text-[var(--text)] bg-[var(--accent-soft)] px-3 py-1.5 rounded-xl text-[var(--accent)] border border-[var(--accent)]/30">
-            جمع خریدهای تیک‌خورده: <span className="num font-black text-sm">{full(totalSelectedPurchasesToman)}</span>
+          <div className="text-xs font-bold text-[var(--text)] bg-[var(--accent-soft)] px-4 py-2.5 rounded-xl text-[var(--accent)] border border-[var(--accent)]/30 flex flex-col items-end gap-1 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-[var(--text)] font-semibold text-xs">جمع کل خریدهای تیک‌خورده:</span>
+              <span className="num font-black text-sm">{full(totalSelectedPurchasesToman)}</span>
+            </div>
+            {totalSelectedPurchasesToman > 0 && (
+              <span className="text-[11px] font-medium text-[var(--accent)]">
+                معادل: {amountToWords(totalSelectedPurchasesToman, "toman")}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* لیست اقلام با قابلیت ویرایش کامل، حذف، و تغییر سریع مبلغ */}
+        {/* لیست اقلام با قابلیت ویرایش کامل، حذف، و تغییر سریع مبلغ با نمایش به حروف */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-96 overflow-y-auto pr-1">
           {visiblePurchases.map((item) => {
             const isEditing = editingPurchaseId === item.id;
@@ -653,7 +663,7 @@ ${question}`;
               return (
                 <div
                   key={item.id}
-                  className="p-3 rounded-xl border border-[var(--action)] bg-[var(--surface)] shadow-md space-y-2.5"
+                  className="p-3.5 rounded-xl border-2 border-[var(--action)] bg-[var(--surface)] shadow-md space-y-2.5"
                 >
                   <div className="flex items-center justify-between text-xs font-bold text-[var(--text)]">
                     <span className="flex items-center gap-1.5 text-[var(--action)]">
@@ -676,26 +686,37 @@ ${question}`;
                     placeholder="عنوان خرید"
                   />
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="number"
-                      step="500000"
-                      value={editAmount}
-                      onChange={(e) => setEditAmount(Math.max(0, Number(e.target.value) || 0))}
-                      className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1 text-[var(--text)] num focus:border-[var(--action)] outline-none"
-                      placeholder="مبلغ (تومان)"
-                    />
-                    <select
-                      value={editCategory}
-                      onChange={(e) => setEditCategory(e.target.value)}
-                      className="text-xs bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1 text-[var(--text)] outline-none"
-                    >
-                      {Object.entries(KNOWN_PURCHASE_CATEGORIES).map(([key, meta]) => (
-                        <option key={key} value={key}>
-                          {meta.label}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-[var(--text-3)] block font-medium">مبلغ (تومان):</label>
+                      <AmountInput
+                        value={editAmount}
+                        onValueChange={(val) => setEditAmount(Math.max(0, Number(val) || 0))}
+                        className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text)] num focus:border-[var(--action)] outline-none"
+                        unit="toman"
+                        showWords={false}
+                        placeholder="۰"
+                      />
+                      {editAmount > 0 && (
+                        <p className="text-[10.5px] text-[var(--accent)] font-semibold leading-relaxed mt-0.5 px-2 py-0.5 rounded bg-[var(--accent-soft)]/60 border border-[var(--accent)]/20">
+                          {amountToWords(editAmount, "toman")}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-[var(--text-3)] block font-medium">دسته‌بندی:</label>
+                      <select
+                        value={editCategory}
+                        onChange={(e) => setEditCategory(e.target.value)}
+                        className="w-full text-xs bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text)] outline-none"
+                      >
+                        {Object.entries(KNOWN_PURCHASE_CATEGORIES).map(([key, meta]) => (
+                          <option key={key} value={key}>
+                            {meta.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-end gap-1.5 pt-1">
@@ -709,9 +730,9 @@ ${question}`;
                     <button
                       type="button"
                       onClick={saveEditPurchase}
-                      className="px-3 py-1 rounded-lg text-xs font-bold bg-[var(--action)] text-[var(--on-ink)] flex items-center gap-1 shadow-xs"
+                      className="px-3.5 py-1 rounded-lg text-xs font-bold bg-[var(--action)] text-[var(--on-ink)] flex items-center gap-1 shadow-xs"
                     >
-                      <Icon name="check" size={12} /> ذخیره
+                      <Icon name="check" size={12} /> ذخیره تغییرات
                     </button>
                   </div>
                 </div>
@@ -721,14 +742,14 @@ ${question}`;
             return (
               <div
                 key={item.id}
-                className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2.5 ${
+                className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between gap-2.5 ${
                   item.selected
                     ? "bg-[var(--surface)] border-[var(--border-strong)] shadow-xs"
                     : "bg-[var(--sunken)]/60 border-[var(--border)] opacity-60"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <input
                       type="checkbox"
                       checked={item.selected}
@@ -764,46 +785,63 @@ ${question}`;
                   </div>
                 </div>
 
-                {/* فیلد تغییر مستقیم مبلغ */}
-                <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[var(--border)]/70">
-                  <span className="text-[10px] text-[var(--text-3)] font-medium">مبلغ برآوردی:</span>
-                  <div className="w-28 shrink-0">
-                    <input
-                      type="number"
-                      step="500000"
-                      value={item.estimatedToman}
-                      onChange={(e) => updatePurchaseAmount(item.id, Number(e.target.value) || 0)}
-                      disabled={!item.selected}
-                      className="w-full text-right text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1 text-[var(--text)] num focus:border-[var(--action)] outline-none"
-                      title="مبلغ برآوردی (تومان)"
-                    />
+                {/* فیلد تغییر مستقیم مبلغ و نمایش خودکار مبلغ به حروف */}
+                <div className="pt-2 border-t border-[var(--border)]/70 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-[var(--text-3)] font-medium">مبلغ برآوردی:</span>
+                    <div className="w-32 shrink-0">
+                      <AmountInput
+                        value={item.estimatedToman}
+                        onValueChange={(val) => updatePurchaseAmount(item.id, Number(val) || 0)}
+                        disabled={!item.selected}
+                        className="w-full text-right text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2 py-1 text-[var(--text)] num focus:border-[var(--action)] outline-none"
+                        unit="toman"
+                        showWords={false}
+                        placeholder="۰"
+                      />
+                    </div>
                   </div>
+                  {item.estimatedToman > 0 && (
+                    <div className="flex items-center justify-between gap-1 text-[10.5px] text-[var(--accent)] font-semibold bg-[var(--accent-soft)]/60 px-2 py-1 rounded-lg border border-[var(--accent)]/15 select-none">
+                      <span className="text-[var(--text-3)] text-[9.5px] shrink-0 font-normal">به حروف:</span>
+                      <span className="truncate text-left" title={amountToWords(item.estimatedToman, "toman") ?? ""}>
+                        {amountToWords(item.estimatedToman, "toman")}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* فرم اضافه کردن خرید جدید با انتخاب دسته و لوگوی اختصاصی */}
-        <div className="p-3 rounded-xl bg-[var(--sunken)] border border-[var(--border)] flex flex-wrap items-center gap-2 text-xs">
+        {/* فرم اضافه کردن خرید جدید با انتخاب دسته و لوگوی اختصاصی و مبلغ به حروف */}
+        <div className="p-3.5 rounded-xl bg-[var(--sunken)] border border-[var(--border)] flex flex-wrap items-center gap-2.5 text-xs">
           <span className="font-bold text-[var(--text)] flex items-center gap-1 shrink-0">
             <Icon name="plus" size={14} /> افزودن قلم جدید:
           </span>
           <input
             type="text"
-            placeholder="عنوان خرید (مثلاً لوستر یا اتو بخار...)"
+            placeholder="عنوان خرید (مثلاً لوستر، اتو بخار، بخاری...)"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             className="flex-1 min-w-[180px] bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-[var(--text)] outline-none focus:border-[var(--action)]"
           />
-          <input
-            type="number"
-            step="1000000"
-            placeholder="مبلغ (تومان)"
-            value={newAmount}
-            onChange={(e) => setNewAmount(Math.max(0, Number(e.target.value) || 0))}
-            className="w-32 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-[var(--text)] num font-semibold outline-none focus:border-[var(--action)]"
-          />
+          <div className="w-44 shrink-0 space-y-1">
+            <AmountInput
+              value={newAmount}
+              onValueChange={(val) => setNewAmount(Math.max(0, Number(val) || 0))}
+              className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-[var(--text)] num font-semibold outline-none focus:border-[var(--action)] text-xs"
+              unit="toman"
+              showWords={false}
+              placeholder="مبلغ (تومان)"
+            />
+            {newAmount > 0 && (
+              <p className="text-[10px] text-[var(--accent)] font-semibold leading-tight truncate px-1" title={amountToWords(newAmount, "toman") ?? ""}>
+                {amountToWords(newAmount, "toman")}
+              </p>
+            )}
+          </div>
           <select
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
@@ -818,7 +856,7 @@ ${question}`;
           <button
             type="button"
             onClick={addNewPurchase}
-            className="px-3.5 py-1.5 rounded-lg bg-[var(--action)] text-[var(--on-ink)] font-bold hover:opacity-90 transition-opacity shrink-0 flex items-center gap-1"
+            className="px-4 py-1.5 rounded-lg bg-[var(--action)] text-[var(--on-ink)] font-bold hover:opacity-90 transition-opacity shrink-0 flex items-center gap-1 shadow-xs"
           >
             <Icon name="plus" size={13} /> افزودن
           </button>
@@ -893,12 +931,12 @@ ${question}`;
                 <label className="block text-xs font-medium text-[var(--text-2)] mb-1">
                   حقوق ماهانه قرارداد / شغل (تومان):
                 </label>
-                <input
-                  type="number"
-                  step="1000000"
+                <AmountInput
                   value={monthlySalary}
-                  onChange={(e) => setMonthlySalary(Math.max(0, Number(e.target.value) || 0))}
+                  onValueChange={(val) => setMonthlySalary(Math.max(0, Number(val) || 0))}
                   className="w-full bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text)] num font-bold focus:border-[var(--action)] outline-none"
+                  unit="toman"
+                  showWords={true}
                 />
               </div>
 
@@ -1029,11 +1067,12 @@ ${question}`;
             <span className="text-[10px] text-[var(--text-3)]">قابل ویرایش</span>
           </div>
           <div className="flex items-center gap-2">
-            <input
-              type="number"
+            <AmountInput
               value={rate}
-              onChange={(e) => setRate(Math.max(1000, Number(e.target.value) || baseRate))}
+              onValueChange={(val) => setRate(Math.max(1000, Number(val) || baseRate))}
               className="w-full text-base font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-lg px-2.5 py-1 text-[var(--text)] num outline-none focus:border-[var(--action)]"
+              unit="toman"
+              showWords={true}
             />
           </div>
           <div className="flex flex-wrap gap-1 mt-2">
@@ -1107,12 +1146,12 @@ ${question}`;
                 <label className="block text-xs font-medium text-[var(--text-2)] mb-1">
                   مخارج ماهانه زندگی (تومان):
                 </label>
-                <input
-                  type="number"
-                  step="1000000"
+                <AmountInput
                   value={monthlyExpense}
-                  onChange={(e) => setMonthlyExpense(Math.max(0, Number(e.target.value) || 0))}
+                  onValueChange={(val) => setMonthlyExpense(Math.max(0, Number(val) || 0))}
                   className="w-full bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm text-[var(--text)] num font-bold focus:border-[var(--action)] outline-none"
+                  unit="toman"
+                  showWords={true}
                 />
                 <span className="text-[11px] text-[var(--text-3)] mt-1 block">
                   میانگین واقعی سیستم: {short(defaultMonthlyExpense)} تومان
