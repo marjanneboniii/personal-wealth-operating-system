@@ -912,8 +912,8 @@ ${question}`;
         </div>
       </section>
 
-      {/* ── ماژول طلایی: بودجه‌بندی خریدهای آینده، جهیزیه و مراسم عقد و عروسی ── */}
-      <section className="card p-5 border-2 border-[var(--accent)]/50 rounded-2xl bg-[var(--surface)] shadow-md space-y-4">
+      {/* ── بودجه‌بندی هوشمند خریدهای آینده ── */}
+      <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--border)]">
           <div>
             <div className="flex items-center gap-2">
@@ -965,8 +965,8 @@ ${question}`;
         </div>
 
         {/* بنر شفاف‌سازی: اقلام آزمایشی و پیش‌بینی شخصی هستند و هنوز در بودجه رسمی ثبت نشده‌اند */}
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 flex items-start gap-3.5 text-xs leading-relaxed shadow-xs">
-          <span className="p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 shadow-xs">
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-[var(--signal-mint)]/10 via-[var(--signal-mint)]/5 to-transparent border border-[var(--signal-mint)]/25 flex items-start gap-3.5 text-xs leading-relaxed shadow-xs">
+          <span className="p-2 rounded-xl bg-[var(--signal-mint)]/15 text-[var(--signal-mint)] shrink-0 mt-0.5 shadow-xs">
             <Icon name="info" size={18} />
           </span>
           <div className="space-y-1.5 flex-1">

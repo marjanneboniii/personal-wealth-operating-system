@@ -105,7 +105,7 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
         <section className="ai-card ai-kpi" aria-label="ارزش خالص">
           <div className="flex items-center justify-between gap-2">
             <p className="ai-kpi-label flex items-center gap-1.5 font-bold">
-              <Icon name="coins" size={15} className="text-[var(--accent)]" /> ارزش خالص دارایی
+              <Icon name="overview" size={15} className="text-[var(--signal-mint)]" /> ارزش خالص دارایی
             </p>
             {monthAgo && (
               <span className={`ai-chip ${monthAgo.changeUsd > 0 ? "is-pos" : monthAgo.changeUsd < 0 ? "is-neg" : ""}`}>
