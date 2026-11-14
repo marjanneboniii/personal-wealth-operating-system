@@ -429,8 +429,8 @@ export default function AssistantChat({
                 >
                   <Icon name={cat.icon} size={13} />
                   <span>{cat.label}</span>
-                  <span className="ai-tab-count">
-                    {cat.id === "all" ? STARTER_CARDS.length : STARTER_CARDS.filter((c) => c.category === cat.id).length}
+                  <span className="ai-tab-count num">
+                    {fa(cat.id === "all" ? STARTER_CARDS.length : STARTER_CARDS.filter((c) => c.category === cat.id).length)}
                   </span>
                 </button>
               ))}
