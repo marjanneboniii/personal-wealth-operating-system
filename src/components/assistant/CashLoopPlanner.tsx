@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FinancialSnapshot } from "@/features/assistant/snapshot";
 import { fmtToman } from "@/features/assistant/analysis";
 import { daysUntilIso, formatShortDate, toFaDigits, todayIso } from "@/lib/format";
@@ -14,6 +14,7 @@ const num = (n: number) => Math.round(n).toLocaleString("fa-IR");
 
 interface Props {
   s: FinancialSnapshot;
+  isOwner?: boolean;
 }
 
 type Horizon = 1 | 2 | 3 | 6;
@@ -91,7 +92,7 @@ export const HIGH_INFLATION_PRESET_RATES = [
   550_000,
 ];
 
-export const ASSISTANT_QUICK_QUESTIONS = [
+export const OWNER_QUICK_QUESTIONS = [
   {
     title: "قرارداد ۳ ماهه و ریسک بیکاری مجدد",
     badge: "امنیت شغلی",
@@ -124,7 +125,49 @@ export const ASSISTANT_QUICK_QUESTIONS = [
   },
 ];
 
-export default function CashLoopPlanner({ s }: Props) {
+export const GENERAL_QUICK_QUESTIONS = [
+  {
+    title: "برنامه‌ریزی صندوق نقدینگی و تاب‌آوری",
+    badge: "صندوق نقدینگی",
+    desc: "تحلیل پوشش هزینه‌های ماهانه و تعهدات بر اساس موجودی نقد و رمزارز",
+    prompt: "بر اساس موجودی نقدینگی بانک و صرافی‌ها و هزینه‌های جاری، نقدینگی من تا چند ماه پاسخگوی مخارج است و چگونه می‌توانم تاب‌آوری مالی‌ام را افزایش دهم؟",
+  },
+  {
+    title: "مدیریت تسویه بدهی‌ها و اقساط",
+    badge: "بدهی و اقساط",
+    desc: "مقایسه تسویه یکجای بدهی در برابر پرداخت پله‌ای اقساط سررسیددار",
+    prompt: "با توجه به بدهی‌ها و اقساط پیش‌رو، آیا تسویه کامل یکجا برای وضعیت مالی من مناسب‌تر است یا پرداخت پله‌ای در موعد سررسید؟ لطفاً ریسک‌های هر دو حالت را تحلیل کن.",
+  },
+  {
+    title: "پوشش ریسک تورم و نوسان نرخ ارز",
+    badge: "پوشش تورم",
+    desc: "تاثیر جهش‌های قیمتی ارز و تورم بر هزینه‌ها و نحوه تبدیل بهینه دارایی‌ها",
+    prompt: "اگر نرخ ارز و تورم در ماه‌های آینده افزایش یابد، چه تاثیری بر هزینه‌ها و ارزش بدهی‌های من خواهد داشت و زمان‌بندی بهینه برای تبدیل دارایی‌ها به تومان چیست؟",
+  },
+  {
+    title: "فازبندی و بودجه‌بندی خریدهای پیش‌رو",
+    badge: "خریدهای آینده",
+    desc: "برنامه‌ریزی خرید اقلام ضروری و سرمایه‌ای بدون ایجاد کسری نقدینگی",
+    prompt: "چطور خریدهای پیش‌بینی‌شده‌ام را فازبندی و اولویت‌بندی کنم تا هزینه‌های جاری با فشار نقدینگی مواجه نشوند و ارزش سرمایه حفظ شود؟",
+  },
+  {
+    title: "به‌روزرسانی تحلیل با تغییر درآمد و مخارج",
+    badge: "تحلیل پویا",
+    desc: "چگونه با دریافت درآمد جدید یا تغییر هزینه‌ها، تحلیل و پیشنهادهای دستیار آپدیت شود؟",
+    prompt: "اگر در ماه‌های آینده وضعیت شغلی‌ام تغییر کرد، درآمد جدیدی ایجاد شد یا هزینه‌های غیرمنتظره‌ای اضافه شد، چطور این اطلاعات را به تو بدهم تا تحلیل ترازنامه و صندوق مخارج مرا مجدداً به‌روزرسانی کنی؟",
+  },
+  {
+    title: "بهینه‌سازی بازدهی و سودآوری سبد دارایی",
+    badge: "سرمایه‌گذاری",
+    desc: "استراتژی مدیریت ریسک، حفظ ارزش دارایی‌ها و سودآوری پایدار سبد",
+    prompt: "وضعیت سبد دارایی‌های مرا بررسی کن. چه استراتژی‌ای پیاده کنم تا در نوسانات بازار سودآوری دارایی‌ها حفظ و تقویت شود؟",
+  },
+];
+
+export const ASSISTANT_QUICK_QUESTIONS = OWNER_QUICK_QUESTIONS;
+
+export default function CashLoopPlanner({ s, isOwner = false }: Props) {
+  const quickQuestions = isOwner ? OWNER_QUICK_QUESTIONS : GENERAL_QUICK_QUESTIONS;
   // ── Existing accounts & liquid positions ──
   const bankToman = s?.netWorth?.availableCashToman ?? 0;
   const exchangeToman = s?.netWorth?.exchangeTomanToman ?? 0;
@@ -151,7 +194,11 @@ export default function CashLoopPlanner({ s }: Props) {
   const debtsList = Array.isArray(s?.debts) ? s.debts : [];
   const totalDebtFromNetWorth = s?.netWorth?.totalDebtToman ?? 0;
   const totalDebtFromDebts = debtsList.reduce((sum, d) => sum + (d?.outstandingToman ?? 0), 0);
-  const totalOutstandingDebt = Math.max(totalDebtFromNetWorth, totalDebtFromDebts, 45_900_000);
+  const totalOutstandingDebt = Math.max(
+    totalDebtFromNetWorth,
+    totalDebtFromDebts,
+    isOwner ? 45_900_000 : 0,
+  );
 
   // Default monthly expense from actual system analysis, with sane fallback
   const defaultMonthlyExpense =
@@ -178,7 +225,27 @@ export default function CashLoopPlanner({ s }: Props) {
   const [customQuestion, setCustomQuestion] = useState("");
 
   // ── Unbudgeted Major Life Purchases (عقد، عروسی، لوازم خانه) ──
-  const [purchases, setPurchases] = useState<PurchaseItem[]>(INITIAL_PURCHASES);
+  const [purchases, setPurchases] = useState<PurchaseItem[]>(isOwner ? INITIAL_PURCHASES : []);
+
+  useEffect(() => {
+    try {
+      const storageKey = `tavazon_cash_loop_purchases_${isOwner ? "owner" : "user"}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setPurchases(parsed);
+        }
+      }
+    } catch {}
+  }, [isOwner]);
+
+  useEffect(() => {
+    try {
+      const storageKey = `tavazon_cash_loop_purchases_${isOwner ? "owner" : "user"}`;
+      localStorage.setItem(storageKey, JSON.stringify(purchases));
+    } catch {}
+  }, [purchases, isOwner]);
   const [includePurchases, setIncludePurchases] = useState<boolean>(true);
   const [purchaseFilter, setPurchaseFilter] = useState<string>("all");
   const [newTitle, setNewTitle] = useState("");
@@ -264,7 +331,7 @@ export default function CashLoopPlanner({ s }: Props) {
   };
 
   const resetPurchases = () => {
-    setPurchases(INITIAL_PURCHASES);
+    setPurchases(isOwner ? INITIAL_PURCHASES : []);
     setEditingPurchaseId(null);
   };
 
@@ -296,12 +363,11 @@ export default function CashLoopPlanner({ s }: Props) {
     });
   }, [upcoming, today, maxDays]);
 
-  // Installment obligations sum (normally > 2,000,000 Toman for 6 months)
+  // Installment obligations sum
   const scheduledInstallmentsToman = useMemo(() => {
     const sum = obligationsInWindow.reduce((s, u) => s + (u.toman || 0), 0);
-    // If system shows small mock, ensure at least contractual reality if user has ~2M in 6 months
-    return sum > 0 ? sum : 2_200_000;
-  }, [obligationsInWindow]);
+    return sum > 0 ? sum : (isOwner ? 2_200_000 : 0);
+  }, [obligationsInWindow, isOwner]);
 
   // Active debt burden in calculations
   const activeDebtBurdenToman = debtStrategy === "full" ? totalOutstandingDebt : scheduledInstallmentsToman;
@@ -387,10 +453,10 @@ export default function CashLoopPlanner({ s }: Props) {
 ۱. وضعیت بدهی‌ها:
 - کل بدهی‌های باقی‌مانده: ${full(totalOutstandingDebt)}
 - اقساط ۶ ماه آینده (آبان تا اردیبهشت): ${full(scheduledInstallmentsToman)}
-- استراتژی انتخابی بدهی: ${debtStrategy === "full" ? "تسویه کامل کل بدهی ۴۵٫۹ میلیونی" : "پرداخت اقساط ۶ ماهه در سررسید"}
+- استراتژی انتخابی بدهی: ${debtStrategy === "full" ? (isOwner && totalOutstandingDebt === 45_900_000 ? "تسویه کامل کل بدهی ۴۵٫۹ میلیونی" : "تسویه کامل کل بدهی") : "پرداخت اقساط ۶ ماهه در سررسید"}
 
-۲. خریدهای پیش‌رو و مراسم عقد، عروسی و تجهیز خانه:
-- جمع بودجه برنامه‌ریزی‌شده خریدهای عقد، طلا، عروسی و لوازم خانه: ${full(totalSelectedPurchasesToman)}
+۲. خریدهای پیش‌رو${isOwner ? " و مراسم عقد، عروسی و تجهیز خانه" : ""}:
+- جمع بودجه برنامه‌ریزی‌شده خریدهای آینده: ${full(totalSelectedPurchasesToman)}
 - وضعیت اعمال در محاسبات نقدینگی: ${includePurchases ? "لحاظ‌شده در نیاز نقدی" : "صرفاً برآورد جداگانه"}
 
 ۳. نقدینگی و سناریوی شغلی و نرخ تتر:
@@ -413,7 +479,9 @@ ${question}`;
 
   const askAssistantWithScenario = () => {
     askAssistantQuestion(
-      "لطفاً یک تحلیل جامع، دقیق و مهندسی‌شده بدهید: با توجه به وضعیت شغلی (قرارداد ۳ ماهه یا بیکاری) و سناریوی صعود نرخ تتر تا ۵۵۰ هزار تومان، چطور هزینه‌های مراسم عقد، خرید لوازم منزل و اقساط ۶ ماه آینده را فازبندی کنم تا کمترین فشار به دارایی‌های تتر و سرمایه ترید وارد شود و چطور با تغییرات آینده این تحلیل را آپدیت کنم؟",
+      isOwner
+        ? "لطفاً یک تحلیل جامع، دقیق و مهندسی‌شده بدهید: با توجه به وضعیت شغلی (قرارداد ۳ ماهه یا بیکاری) و سناریوی صعود نرخ تتر تا ۵۵۰ هزار تومان، چطور هزینه‌های مراسم عقد، خرید لوازم منزل و اقساط ۶ ماه آینده را فازبندی کنم تا کمترین فشار به دارایی‌های تتر و سرمایه ترید وارد شود و چطور با تغییرات آینده این تحلیل را آپدیت کنم؟"
+        : "لطفاً یک تحلیل جامع، دقیق و مهندسی‌شده بدهید: با توجه به وضعیت شغلی، تعهدات و سناریوهای نوسان نرخ ارز و تورم، چطور هزینه‌ها و اقساط آینده را فازبندی کنم تا کمترین فشار به دارایی‌ها وارد شود و چطور با تغییرات آینده این تحلیل را آپدیت کنم؟",
     );
   };
 
@@ -426,17 +494,19 @@ ${question}`;
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent)]/20">
                 <Icon name="sparkle" size={13} />
-                معماری جامع ثروت، بدهی‌ها و مراسم زندگی
+                {isOwner ? "معماری جامع ثروت، بدهی‌ها و مراسم زندگی" : "معماری جامع ثروت، تعهدات و بودجه‌بندی هوشمند"}
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] bg-[var(--sunken)] text-[var(--text-3)] border border-[var(--border)]">
-                افق {toFaDigits(String(horizon))} ماهه (از آبان‌ماه)
+                افق {toFaDigits(String(horizon))} ماهه
               </span>
             </div>
             <h2 className="text-2xl font-black text-[var(--text)] tracking-tight">
-              صندوق مخارج تتری، پوشش اقساط و بودجه‌بندی عقد و زندگی
+              {isOwner ? "صندوق مخارج تتری، پوشش اقساط و بودجه‌بندی عقد و زندگی" : "صندوق مخارج تتری، پوشش اقساط و بودجه‌بندی خریدهای آینده"}
             </h2>
             <p className="text-xs text-[var(--text-2)] leading-relaxed">
-              این پلتفرم مهندسی‌شده، کل بدهی‌های شما ({short(totalOutstandingDebt)} تومان)، اقساط ۶ ماه آینده (بالای ۲ میلیون تومان)، هزینه‌های خرید خانه، عقد و عروسی، و تترهای صرافی بیت‌پین را در دو سناریوی **بدون شغل** و **شغل آینده** به‌طور دقیق بالانس می‌کند.
+              {isOwner
+                ? `این پلتفرم مهندسی‌شده، کل بدهی‌های شما (${short(totalOutstandingDebt)} تومان)، اقساط ۶ ماه آینده (بالای ۲ میلیون تومان)، هزینه‌های خرید خانه، عقد و عروسی، و تترهای صرافی بیت‌پین را در دو سناریوی **بدون شغل** و **شغل آینده** به‌طور دقیق بالانس می‌کند.`
+                : `این پلتفرم مهندسی‌شده، کل بدهی‌های شما (${short(totalOutstandingDebt)} تومان)، اقساط سررسیددار، هزینه‌های برنامه‌ریزی‌شده، و نقدینگی تتری و بانکی را در سناریوهای مختلف شغلی به‌طور دقیق بالانس می‌کند.`}
             </p>
           </div>
 
@@ -476,7 +546,11 @@ ${question}`;
                 مدیریت کل بدهی‌ها ({short(totalOutstandingDebt)} تومان) و اقساط ۶ ماه آینده
               </h3>
               <p className="text-[11px] text-[var(--text-3)]">
-                اقساط وام‌ها و بیمه شخص ثالث در بازه ۶ ماهه آبان تا اردیبهشت: بالای <strong className="num text-[var(--negative)]">{short(scheduledInstallmentsToman)} تومان</strong>
+                {isOwner ? (
+                  <>اقساط وام‌ها و بیمه شخص ثالث در بازه ۶ ماهه آبان تا اردیبهشت: بالای <strong className="num text-[var(--negative)]">{short(scheduledInstallmentsToman)} تومان</strong></>
+                ) : (
+                  <>اقساط و تعهدات سررسیددار در بازه ۶ ماه آینده: <strong className="num text-[var(--negative)]">{short(scheduledInstallmentsToman)} تومان</strong></>
+                )}
               </p>
             </div>
           </div>
@@ -516,14 +590,20 @@ ${question}`;
             <span className="text-[10px] text-[var(--text-3)] block mt-0.5">شامل کلیه وام‌ها و تعهدات</span>
           </div>
           <div className="p-3 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
-            <span className="text-[11px] text-[var(--text-3)] block mb-0.5">اقساط ۶ ماه آینده (آبان-اردیبهشت):</span>
+            <span className="text-[11px] text-[var(--text-3)] block mb-0.5">
+              {isOwner ? "اقساط ۶ ماه آینده (آبان-اردیبهشت):" : "اقساط ۶ ماه آینده:"}
+            </span>
             <span className="text-base font-black text-[var(--text)] num">{full(scheduledInstallmentsToman)}</span>
-            <span className="text-[10px] text-[var(--text-3)] block mt-0.5">وام‌ها + قسط ۹۰۹٬۰۹۰ ت بیمه</span>
+            <span className="text-[10px] text-[var(--text-3)] block mt-0.5">
+              {isOwner ? "وام‌ها + قسط ۹۰۹٬۰۹۰ ت بیمه" : "تعهدات و اقساط ثبت‌شده"}
+            </span>
           </div>
           <div className="p-3 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
             <span className="text-[11px] text-[var(--text-3)] block mb-0.5">استراتژی اعمال‌شده در حسابگر:</span>
             <span className="text-xs font-bold text-[var(--accent)] block">
-              {debtStrategy === "full" ? "تسویه یکجای ۴۵٫۹ میلیون" : "تأمین پله‌ای اقساط سررسید"}
+              {debtStrategy === "full"
+                ? (isOwner && totalOutstandingDebt === 45_900_000 ? "تسویه یکجای ۴۵٫۹ میلیون" : "تسویه کامل کل بدهی")
+                : "تأمین پله‌ای اقساط سررسید"}
             </span>
             <span className="text-[10px] text-[var(--text-3)] block mt-0.5">مبلغ منظور شده: {short(activeDebtBurdenToman)} ت</span>
           </div>
@@ -549,7 +629,9 @@ ${question}`;
               </span>
               <div>
                 <h3 className="font-bold text-base text-[var(--text)]">
-                  بودجه‌بندی هوشمند خریدهای آینده: جهیزیه، لوازم خانه و مراسم عقد و عروسی
+                  {isOwner
+                    ? "بودجه‌بندی هوشمند خریدهای آینده: جهیزیه، لوازم خانه و مراسم عقد و عروسی"
+                    : "بودجه‌بندی هوشمند خریدهای آینده"}
                 </h3>
                 <p className="text-xs text-[var(--text-3)]">
                   اقلام حدسی و احتمالی آینده با قابلیت ویرایش، حذف، تفکیک دسته‌بندی و تعیین بودجه در صندوق تتر
@@ -652,7 +734,22 @@ ${question}`;
         </div>
 
         {/* لیست اقلام با قابلیت ویرایش کامل، حذف، و تغییر سریع مبلغ با نمایش به حروف */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-96 overflow-y-auto pr-1">
+        {purchases.length === 0 ? (
+          <div className="text-center py-10 px-4 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--sunken)] space-y-2">
+            <div className="w-12 h-12 rounded-2xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center mx-auto text-[var(--text-3)] shadow-xs">
+              <Icon name="gift" size={24} />
+            </div>
+            <p className="font-bold text-sm text-[var(--text)]">هنوز خریدی در این بخش اضافه نکرده‌اید</p>
+            <p className="text-xs text-[var(--text-3)] max-w-md mx-auto leading-relaxed">
+              خریدهای بزرگ یا پیش‌بینی‌شده خود را با فرم زیر ثبت کنید تا مبلغ آنها در تحلیل صندوق نقدینگی و تاب‌آوری مالی محاسبه شود.
+            </p>
+          </div>
+        ) : visiblePurchases.length === 0 ? (
+          <div className="text-center py-8 px-4 rounded-xl border border-dashed border-[var(--border)] bg-[var(--sunken)] space-y-2">
+            <p className="text-xs text-[var(--text-3)]">هیچ خریدی در این دسته‌بندی یافت نشد.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-96 overflow-y-auto pr-1">
           {visiblePurchases.map((item) => {
             const isEditing = editingPurchaseId === item.id;
             const catMeta = KNOWN_PURCHASE_CATEGORIES[item.category];
@@ -814,6 +911,7 @@ ${question}`;
             );
           })}
         </div>
+        )}
 
         {/* فرم اضافه کردن خرید جدید با انتخاب دسته و لوگوی اختصاصی و مبلغ به حروف */}
         <div className="p-3.5 rounded-xl bg-[var(--sunken)] border border-[var(--border)] flex flex-wrap items-center gap-2.5 text-xs">
@@ -1240,7 +1338,7 @@ ${question}`;
               </div>
               {includePurchases && totalSelectedPurchasesToman > 0 && (
                 <div className="flex justify-between text-[var(--accent)] font-semibold">
-                  <span>خریدهای آینده (عقد، عروسی و خانه):</span>
+                  <span>خریدهای آینده{isOwner ? " (عقد، عروسی و خانه)" : ""}:</span>
                   <span className="num">+{full(totalSelectedPurchasesToman)}</span>
                 </div>
               )}
@@ -1448,7 +1546,7 @@ ${question}`;
             پیشنهادهای سوال تخصصی بر اساس پارامترهای فعال شما:
           </label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {ASSISTANT_QUICK_QUESTIONS.map((q) => (
+            {quickQuestions.map((q) => (
               <button
                 key={q.title}
                 type="button"
@@ -1479,7 +1577,11 @@ ${question}`;
               rows={2}
               value={customQuestion}
               onChange={(e) => setCustomQuestion(e.target.value)}
-              placeholder="مثال: اگر قراردادم تمدید نشد و تتر تا ۴۵۰ هزار بالا رفت، قسط‌ها و خرید جهیزیه را چطور هماهنگ کنم؟"
+              placeholder={
+                isOwner
+                  ? "مثال: اگر قراردادم تمدید نشد و تتر تا ۴۵۰ هزار بالا رفت، قسط‌ها و خرید جهیزیه را چطور هماهنگ کنم؟"
+                  : "مثال: اگر تورم افزایش یابد یا درآمد تغییر کند، موجودی نقد و دارایی‌ها تا چند ماه پاسخگوی مخارج است؟"
+              }
               className="flex-1 bg-[var(--sunken)] border border-[var(--border)] rounded-xl p-3 text-xs text-[var(--text)] placeholder:text-[var(--text-3)] outline-none focus:border-[var(--action)] resize-none"
             />
             <button
@@ -1566,7 +1668,9 @@ ${question}`;
               <span className="text-xs font-bold text-[var(--text)]">پرداخت اقساط و اجرای خریدها</span>
             </div>
             <p className="text-xs text-[var(--text-2)] leading-relaxed">
-              اقساط ۶ ماه آینده را در موعد سررسید تسویه کنید و مبالغ خرید لوازم خانه، عقد یا جهیزیه را طبق فازبندی اجرا نمایید.
+              {isOwner
+                ? "اقساط ۶ ماه آینده را در موعد سررسید تسویه کنید و مبالغ خرید لوازم خانه، عقد یا جهیزیه را طبق فازبندی اجرا نمایید."
+                : "اقساط و تعهدات آینده را در موعد سررسید تسویه کنید و مبالغ خریدهای پیش‌رو را طبق برنامه‌ریزی مدیریت نمایید."}
             </p>
             <div className="text-[11px] text-[var(--text-3)] pt-1 border-t border-[var(--border)]">
               آرامش فکری: استرس روزمره از معاملات ترید کاملاً حذف می‌شود.
@@ -1580,38 +1684,48 @@ ${question}`;
         <div>
           <h3 className="font-bold text-base text-[var(--text)] flex items-center gap-2">
             <Icon name="shield" size={16} />
-            نقشه راه مهندسی مالی: فازبندی ۳ مرحله‌ای خریدهای زندگی و مدیریت ریسک
+            {isOwner
+              ? "نقشه راه مهندسی مالی: فازبندی ۳ مرحله‌ای خریدهای زندگی و مدیریت ریسک"
+              : "نقشه راه مهندسی مالی: فازبندی ۳ مرحله‌ای بودجه‌بندی و مدیریت ریسک"}
           </h3>
           <p className="text-xs text-[var(--text-3)] mt-1">
-            چگونه خرید لوازم خانه، طلا و مراسم عقد/عروسی را بدون شوک به ثروت مدیریت کنیم؟
+            {isOwner
+              ? "چگونه خرید لوازم خانه، طلا و مراسم عقد/عروسی را بدون شوک به ثروت مدیریت کنیم؟"
+              : "چگونه خریدهای بزرگ، اهداف مالی و تعهدات را بدون شوک به ثروت مدیریت کنیم؟"}
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
             <span className="text-xs font-bold text-[var(--accent)] flex items-center gap-1.5">
-              <Icon name="sparkle" size={14} /> فاز ۱: مراسم عقد و محضر
+              <Icon name="sparkle" size={14} /> {isOwner ? "فاز ۱: مراسم عقد و محضر" : "فاز ۱: تعهدات فوری و ضروری"}
             </span>
             <p className="text-xs text-[var(--text-2)] leading-relaxed">
-              هزینه‌های کم‌حجم‌تر اما ضروری (لباس، آرایش، حلقه، محضر، عکاسی). این فاز اولویت زمانی دارد و باید از ریال نقد و تبدیل پله‌ای تتر تأمین شود.
+              {isOwner
+                ? "هزینه‌های کم‌حجم‌تر اما ضروری (لباس، آرایش، حلقه، محضر، عکاسی). این فاز اولویت زمانی دارد و باید از ریال نقد و تبدیل پله‌ای تتر تأمین شود."
+                : "هزینه‌ها و اقساط با اولویت زمانی بالا. این فاز باید ابتدا از نقدینگی بانکی و تبدیل پله‌ای دارایی‌ها تامین شود تا جریمه یا تاخیری ایجاد نشود."}
             </p>
           </div>
 
           <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
             <span className="text-xs font-bold text-[var(--action)] flex items-center gap-1.5">
-              <Icon name="overview" size={14} /> فاز ۲: خرید تجهیزات ضروری خانه
+              <Icon name="overview" size={14} /> {isOwner ? "فاز ۲: خرید تجهیزات ضروری خانه" : "فاز ۲: اقلام میان‌مدت و تجهیزات"}
             </span>
             <p className="text-xs text-[var(--text-2)] leading-relaxed">
-              جاروبرقی، بخاری، پرده‌ها، اتو و سرویس خواب. خریدها را به تدریج و در حراج‌ها یا با کارت‌های اقساطی انجام دهید تا نقدینگی یکجا خارج نشود.
+              {isOwner
+                ? "جاروبرقی، بخاری، پرده‌ها، اتو و سرویس خواب. خریدها را به تدریج و در حراج‌ها یا با کارت‌های اقساطی انجام دهید تا نقدینگی یکجا خارج نشود."
+                : "خریدهای مهمی که امکان زمان‌بندی دارند. خریدها را به‌تدریج و پس از تثبیت جریان ورودی نقدی انجام دهید تا نقدینگی یکجا خارج نشود."}
             </p>
           </div>
 
           <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
             <span className="text-xs font-bold text-[var(--positive)] flex items-center gap-1.5">
-              <Icon name="trend-up" size={14} /> فاز ۳: طلای عروس و تالار عروسی
+              <Icon name="trend-up" size={14} /> {isOwner ? "فاز ۳: طلای عروس و تالار عروسی" : "فاز ۳: سرمایه‌گذاری و اهداف بلندمدت"}
             </span>
             <p className="text-xs text-[var(--text-2)] leading-relaxed">
-              سنگین‌ترین بخش بودجه. طلا خود یک دارایی سرمایه‌ای ضد تورم است؛ اما برای تالار و شام، در صورت یافتن شغل یا پس از تثبیت سود تریدها اقدام کنید.
+              {isOwner
+                ? "سنگین‌ترین بخش بودجه. طلا خود یک دارایی سرمایه‌ای ضد تورم است؛ اما برای تالار و شام، در صورت یافتن شغل یا پس از تثبیت سود تریدها اقدام کنید."
+                : "بخش‌های کلان بودجه و اهداف غیرفوری. دارایی‌های سرمایه‌ای و ضد تورم را اولویت دهید و هزینه‌های مصرفی بزرگ را پس از ایجاد ثبات کامل درآمدی اجرا کنید."}
             </p>
           </div>
         </div>
