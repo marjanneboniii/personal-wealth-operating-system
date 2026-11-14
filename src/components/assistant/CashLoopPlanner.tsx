@@ -226,26 +226,6 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
 
   // ── Unbudgeted Major Life Purchases (عقد، عروسی، لوازم خانه) ──
   const [purchases, setPurchases] = useState<PurchaseItem[]>(isOwner ? INITIAL_PURCHASES : []);
-
-  useEffect(() => {
-    try {
-      const storageKey = `tavazon_cash_loop_purchases_${isOwner ? "owner" : "user"}`;
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setPurchases(parsed);
-        }
-      }
-    } catch {}
-  }, [isOwner]);
-
-  useEffect(() => {
-    try {
-      const storageKey = `tavazon_cash_loop_purchases_${isOwner ? "owner" : "user"}`;
-      localStorage.setItem(storageKey, JSON.stringify(purchases));
-    } catch {}
-  }, [purchases, isOwner]);
   const [includePurchases, setIncludePurchases] = useState<boolean>(true);
   const [purchaseFilter, setPurchaseFilter] = useState<string>("all");
   const [newTitle, setNewTitle] = useState("");
@@ -353,15 +333,14 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
   // ── Obligations within the selected horizon (up to 180 days) ──
   const today = s?.asOf || todayIso();
   const maxDays = horizon * 30;
-  const upcoming = Array.isArray(s?.obligations?.upcoming) ? s.obligations.upcoming : [];
-
   const obligationsInWindow = useMemo(() => {
+    const upcoming = Array.isArray(s?.obligations?.upcoming) ? s.obligations.upcoming : [];
     return upcoming.filter((u) => {
       if (!u || !u.date) return false;
       const days = daysUntilIso(u.date, today);
       return days >= 0 && days <= maxDays;
     });
-  }, [upcoming, today, maxDays]);
+  }, [s, today, maxDays]);
 
   // Installment obligations sum
   const scheduledInstallmentsToman = useMemo(() => {
