@@ -6283,6 +6283,47 @@ a.expense-square { text-decoration: none; color: var(--text-2); }
   background: linear-gradient(to top, var(--surface-elev) 75%, transparent);
 }
 
+/* ── Goals, Funds & Events Kashi tiles ── */
+.goal-hero {
+  display: grid; gap: 0.85rem; padding: 1.1rem 1.25rem; border-radius: var(--r-lg); color: #eef3f8;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(49, 242, 191, 0.18), transparent 55%),
+    radial-gradient(90% 120% at 100% 100%, rgba(62, 99, 221, 0.18), transparent 60%),
+    linear-gradient(135deg, #14263b, #0d1a2b);
+  box-shadow: var(--shadow-md);
+}
+.goal-hero-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.goal-hero-label { font-size: var(--fs-xs); color: rgba(238, 243, 248, 0.72); }
+.goal-hero-figure { font-size: var(--fs-lg); font-weight: 700; letter-spacing: -0.01em; margin-top: 0.15rem; }
+.goal-hero-figure span { font-size: var(--fs-sm); font-weight: 500; color: rgba(238, 243, 248, 0.7); }
+.goal-grid { display: grid; gap: 0.75rem; list-style: none; padding: 0; margin: 0; }
+@media (min-width: 720px) { .goal-grid:not(.goal-grid-single) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.goal-tile {
+  --tone-soft: color-mix(in srgb, var(--tone, var(--action)) 11%, var(--surface));
+  --tone-ink: color-mix(in srgb, var(--tone, var(--action)) 68%, var(--text));
+  display: grid; gap: 0.65rem; min-width: 0; padding: 0.95rem 1rem;
+  border-radius: var(--r-lg);
+  border: 1px solid color-mix(in srgb, var(--tone, var(--action)) 24%, var(--border));
+  background: linear-gradient(175deg, var(--tone-soft), var(--surface) 64%);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--motion-micro) var(--ease);
+}
+.goal-tile:hover { border-color: color-mix(in srgb, var(--tone, var(--action)) 46%, var(--border)); }
+.goal-tile[data-muted] { opacity: 0.68; }
+.goal-tile-head { display: flex; align-items: flex-start; gap: 0.65rem; min-width: 0; }
+.goal-tile-icon {
+  display: inline-grid; place-items: center; flex: none; width: 2.3rem; height: 2.3rem; border-radius: 0.8rem;
+  color: var(--tone-on, #fff);
+  background: linear-gradient(135deg, var(--tone, var(--action)), color-mix(in srgb, var(--tone, var(--action)) 72%, #000));
+  box-shadow: 0 5px 12px color-mix(in srgb, var(--tone, var(--action)) 28%, transparent);
+}
+.goal-tile-name { font-size: var(--fs-sm); font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.goal-tile-meta { font-size: var(--fs-micro); color: var(--text-3); margin-top: 0.1rem; }
+.goal-tile-amount { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem; font-size: var(--fs-sm); }
+.goal-tile-amount b { font-weight: 700; color: var(--text); }
+.goal-tile-amount span { font-size: var(--fs-xs); color: var(--text-3); }
+.goal-tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: var(--fs-xs); color: var(--text-2); }
+
 /* ── Planning family (بودجه‌ها · اهداف و صندوق‌ها · پیش‌بینی مالی) ──
    One list idiom: a card holding rows, each row a head line, an optional
    meter and a quiet footer. */

@@ -23,6 +23,8 @@ import {
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
 import Sheet from "@/components/ui/Sheet";
+import { EXPENSE_GROUP_LOOK, FALLBACK_LOOK } from "@/components/forms/txKit";
+import { EXPENSE_CATEGORY_CATALOG } from "@/features/categories/catalog";
 import { budgetTemplate } from "@/features/planning/budgetTemplates";
 import type { listBudgets } from "@/features/planning/service";
 import { faCount, formatJalaliIso, formatMoney } from "@/lib/format";
@@ -35,6 +37,23 @@ const DAY = 86_400_000;
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / DAY);
 const toman = (v: string | number) => formatMoney(String(v), "IRT");
 const pct = (n: number) => `${Math.round(n).toLocaleString("fa-IR")}٪`;
+
+const ROTATING_TONES = ["#3e63dd", "#12a594", "#f76b15", "#e93d82", "#00a2c7", "#8e4ec6", "#3e9b4f"];
+
+function categoryLookForBudget(name: string) {
+  const clean = name.trim();
+  for (const group of EXPENSE_CATEGORY_CATALOG) {
+    if (clean === group.name || clean.includes(group.name) || group.name.includes(clean)) {
+      return EXPENSE_GROUP_LOOK[group.code] ?? FALLBACK_LOOK;
+    }
+    if (group.children?.some((c) => clean === c.name || clean.includes(c.name))) {
+      return EXPENSE_GROUP_LOOK[group.code] ?? FALLBACK_LOOK;
+    }
+  }
+  let hash = 0;
+  for (let i = 0; i < clean.length; i += 1) hash = (hash * 31 + clean.charCodeAt(i)) >>> 0;
+  return { icon: "budgets" as const, color: ROTATING_TONES[hash % ROTATING_TONES.length]! };
+}
 
 function statusOf(usage: number, over: boolean) {
   if (over || usage >= 100) return { color: "var(--negative)", label: "خارج از سقف", tone: "neg" as const };
@@ -300,33 +319,65 @@ function ProjectCard({ b, today, onEdit, onDelete }: { b: Budget; today: string;
 }
 
 function CategoryRow({ b, onDelete }: { b: Budget; onDelete: (b: Budget) => void }) {
+  const look = categoryLookForBudget(b.name);
   const status = statusOf(b.usage, b.over);
   const left = Number(b.remainingToman);
+  const ringColor = status.tone === "pos" ? look.color : status.color;
+
   return (
-    <li className="bgt-cat" style={{ "--tone": status.color } as CSSProperties}>
-      <Ring value={b.usage} color={status.color} size={52} stroke={6}>
-        <b className="num bgt-ring-small">{pct(b.usage)}</b>
-      </Ring>
-      <div className="min-w-0 flex-1">
-        <div className="bgt-cat-top">
-          <b className="truncate">{b.name}</b>
-          {status.tone !== "pos" && <span className={`badge ${status.tone === "neg" ? "badge-neg" : "badge-warn"}`}>{status.label}</span>}
-        </div>
-        <div className="num bgt-cat-amount" dir="rtl">
-          {toman(b.spentToman)} <span className="muted">از {toman(b.amountToman)}</span>
-        </div>
-        <div className="bgt-cat-foot">
-          <span className="num">
+    <li className="bgt-cat-card" style={toneVars(look.color) as CSSProperties}>
+      <header className="bgt-cat-head">
+        <span className="bgt-cat-icon" aria-hidden="true">
+          <Icon name={look.icon} size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="bgt-cat-title-row">
+            <h3 className="bgt-cat-name">{b.name}</h3>
+            <span className={`badge ${status.tone === "neg" ? "badge-neg" : status.tone === "warn" ? "badge-warn" : "badge-pos"}`}>
+              {status.label}
+            </span>
+          </div>
+          <p className="bgt-cat-period num">
             {formatJalaliIso(b.periodStart)} ← {formatJalaliIso(b.periodEnd)}
-          </span>
-          <span className="num" dir="rtl" style={{ color: left < 0 ? "var(--negative)" : "var(--positive)" }}>
-            {left < 0 ? `${toman(-left)} بیشتر از سقف` : `${toman(left)} مانده`}
-          </span>
+          </p>
         </div>
+        <button type="button" className="icon-btn" aria-label={`حذف بودجه ${b.name}`} onClick={() => onDelete(b)}>
+          <Icon name="trash" size={15} />
+        </button>
+      </header>
+
+      <div className="bgt-cat-body">
+        <Ring value={b.usage} color={ringColor} size={58} stroke={6}>
+          <b className="num bgt-ring-small">{pct(b.usage)}</b>
+        </Ring>
+        <dl className="bgt-cat-figures">
+          <div>
+            <dt>خرج شده</dt>
+            <dd className="num" dir="rtl">{toman(b.spentToman)}</dd>
+          </div>
+          <div>
+            <dt>سقف</dt>
+            <dd className="num" dir="rtl">{toman(b.amountToman)}</dd>
+          </div>
+          <div>
+            <dt>{left < 0 ? "بیش از سقف" : "مانده"}</dt>
+            <dd className="num" dir="rtl" style={{ color: left < 0 ? "var(--negative)" : "var(--positive)" }}>
+              {toman(Math.abs(left))}
+            </dd>
+          </div>
+        </dl>
       </div>
-      <button type="button" className="icon-btn" aria-label={`حذف بودجه ${b.name}`} onClick={() => onDelete(b)}>
-        <Icon name="trash" size={15} />
-      </button>
+
+      <span className="bgt-bar" aria-hidden="true">
+        <i style={{ width: `${Math.min(100, Math.max(0, b.usage))}%`, background: ringColor }} />
+      </span>
+
+      <footer className="bgt-cat-actions">
+        <Link href="/new?type=expense" className="bgt-cat-cta">
+          <Icon name="plus" size={13} strokeWidth={2.4} />
+          ثبت هزینه
+        </Link>
+      </footer>
     </li>
   );
 }
@@ -341,6 +392,7 @@ export default function BudgetsView({ budgets, today }: { budgets: Budget[]; tod
 
   const limit = budgets.reduce((s, b) => s + Number(b.amountToman), 0);
   const spent = budgets.reduce((s, b) => s + Number(b.spentToman), 0);
+  const remaining = limit - spent;
   const usage = limit > 0 ? (spent / limit) * 100 : 0;
   const overCount = budgets.filter((b) => b.over).length;
   const status = statusOf(usage, spent > limit);
@@ -362,6 +414,10 @@ export default function BudgetsView({ budgets, today }: { budgets: Budget[]; tod
           <div className="flex flex-wrap gap-1.5">
             <span className="bgt-hero-chip">{faCount(budgets.length)} بودجه فعال</span>
             {projects.length > 0 && <span className="bgt-hero-chip">{faCount(projects.length)} رویداد و پروژه</span>}
+            {categories.length > 0 && <span className="bgt-hero-chip">{faCount(categories.length)} بودجه ماهانه</span>}
+            <span className="bgt-hero-chip" data-tone={remaining < 0 ? "neg" : "pos"}>
+              {remaining < 0 ? `${toman(-remaining)} کسری سقف` : `${toman(remaining)} مانده کل`}
+            </span>
             <span className="bgt-hero-chip" data-tone={overCount ? "neg" : status.tone}>
               {overCount ? `${faCount(overCount)} خارج از سقف` : "همه در چارچوب"}
             </span>
@@ -389,7 +445,7 @@ export default function BudgetsView({ budgets, today }: { budgets: Budget[]; tod
             <Icon name="budgets" size={15} />
             بودجه‌های ماهانه
           </h2>
-          <ul className="card bgt-cat-list">
+          <ul className="bgt-cat-grid">
             {categories.map((b) => (
               <CategoryRow key={b.id} b={b} onDelete={setDeleting} />
             ))}

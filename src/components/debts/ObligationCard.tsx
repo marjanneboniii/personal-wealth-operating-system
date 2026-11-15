@@ -1,9 +1,12 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { OBLIGATION_STATE_LABELS, isReceivable, type ObligationState } from "@/features/planning/obligations";
 import { Progress } from "@/components/ui/Card";
+import Icon, { type IconName } from "@/components/ui/Icon";
 import PlanRowMenu from "@/components/planning/PlanRowMenu";
 import DateTile from "@/components/ui/DateTile";
 import { faCount, formatDaysUntil, formatJalaliIso, formatMoney, formatPct, formatTomanPrimary, daysUntilIso } from "@/lib/format";
+import { toneVars } from "@/lib/toneColors";
 
 export function daysUntil(iso: string) {
   return daysUntilIso(iso);
@@ -42,6 +45,15 @@ function resolveState(d: ObligationCardData, today: string): ObligationState {
   return "active";
 }
 
+function lookForObligation(state: ObligationState, receivable: boolean, scheduled: boolean): { color: string; icon: IconName } {
+  if (state === "settled") return { color: "#12a594", icon: "check-circle" };
+  if (state === "overdue") return { color: "#e5484d", icon: "alert" };
+  if (state === "due-soon") return { color: "#f76b15", icon: "clock" };
+  if (receivable) return { color: "#00a2c7", icon: "download" };
+  if (scheduled) return { color: "#3e63dd", icon: "debts" };
+  return { color: "#d6409f", icon: "wallet" };
+}
+
 /**
  * One obligation — a debt, a receivable or a loan.
  *
@@ -63,14 +75,18 @@ export default function ObligationCard({ d, today, rate }: { d: ObligationCardDa
   const dDays = d.nextDue ? daysUntil(d.nextDue.dueDate) : null;
   const interest = Number(d.interestRate ?? 0);
   const scheduled = d.totalCount > 0;
+  const look = lookForObligation(state, receivable, scheduled);
 
   const settleHref = `/new?type=debt_repayment&debtId=${d.id}&title=${encodeURIComponent(
     `${receivable ? "دریافت" : "بازپرداخت"} — ${d.title}`,
   )}`;
 
   return (
-    <li className={`obl-card${settled ? " is-settled" : ""}`}>
+    <li className={`obl-card${settled ? " is-settled" : ""}`} style={toneVars(look.color) as CSSProperties}>
       <div className="obl-card-head">
+        <span className="obl-card-icon" aria-hidden="true">
+          <Icon name={look.icon} size={18} />
+        </span>
         <div className="obl-card-id">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <h3 className="obl-card-title">{d.title}</h3>
@@ -114,7 +130,7 @@ export default function ObligationCard({ d, today, rate }: { d: ObligationCardDa
           <div className="min-w-0 flex-1">
             <Progress
               value={progress}
-              color={settled ? "var(--positive)" : "var(--action)"}
+              color={settled ? "var(--positive)" : look.color}
               aria-label="پیشرفت اقساط"
               segments={d.totalCount}
             />
