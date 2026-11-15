@@ -41,9 +41,20 @@ const full = (n: number) => `${Math.round(n).toLocaleString("fa-IR")} تومان
 const pct = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toLocaleString("fa-IR", { maximumFractionDigits: 1 })}٪`;
 
 function Amount({ value, size = "md" }: { value: number; size?: "lg" | "md" | "sm" }) {
+  const absShort = short(Math.abs(value));
+  const spaceIdx = absShort.indexOf(" ");
+  const numPart = spaceIdx === -1 ? absShort : absShort.slice(0, spaceIdx);
+  const unitPart = spaceIdx === -1 ? "" : absShort.slice(spaceIdx + 1);
+  const isNeg = value < 0;
+
   return (
-    <span className={`ai-amt ai-amt-${size}`} title={full(value)}>
-      {short(value)} <small>تومان</small>
+    <span className={`ai-amt ai-amt-${size}${isNeg ? " is-neg-amt" : ""}`} title={full(value)}>
+      <span dir="ltr" className="ltr-isolate">
+        {isNeg ? "−" : ""}
+        {numPart}
+      </span>
+      {unitPart && <span className="ai-amt-unit">{unitPart}</span>}
+      <small>تومان</small>
     </span>
   );
 }
@@ -111,13 +122,20 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
               </span>
               <span>ارزش خالص دارایی</span>
             </p>
-            {monthAgo && (
-              <span className={`ai-chip ${monthAgo.changeUsd > 0 ? "is-pos" : monthAgo.changeUsd < 0 ? "is-neg" : ""}`}>
-                {monthAgo.changePct != null ? pct(monthAgo.changePct) : "—"} نسبت به {monthAgo.label} <small>(دلاری)</small>
-              </span>
-            )}
           </div>
           <Amount value={nw.netWorthToman} size="lg" />
+          {monthAgo && (
+            <span className={`ai-chip ${monthAgo.changeUsd > 0 ? "is-pos" : monthAgo.changeUsd < 0 ? "is-neg" : ""}`}>
+              {monthAgo.changePct != null ? (
+                <span dir="ltr" className="ltr-isolate">
+                  {pct(monthAgo.changePct)}
+                </span>
+              ) : (
+                "—"
+              )}{" "}
+              نسبت به {monthAgo.label} <small>(دلاری)</small>
+            </span>
+          )}
           <dl className="ai-kv">
             <div>
               <dt>کل دارایی</dt>
@@ -134,7 +152,7 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
           <div className="ai-kpi-head">
             <p className="ai-kpi-label">
               <span className="ai-kpi-mark" data-tone="flow" aria-hidden="true">
-                <Icon name="repeat" size={15} />
+                <Icon name="cashflow" size={15} />
               </span>
               <span>
                 {month.label}{" "}
@@ -143,15 +161,15 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
                 </span>
               </span>
             </p>
-            {month.incomeToman === 0 && month.expenseToman === 0 ? (
-              <span className="ai-chip">هنوز تراکنشی نیست</span>
-            ) : (
-              <span className={`ai-chip ${month.netToman >= 0 ? "is-pos" : "is-neg"}`}>
-                {month.netToman >= 0 ? "مازاد ماه" : "کسری ماه"}
-              </span>
-            )}
           </div>
           <Amount value={month.netToman} size="lg" />
+          {month.incomeToman === 0 && month.expenseToman === 0 ? (
+            <span className="ai-chip">هنوز تراکنشی نیست</span>
+          ) : (
+            <span className={`ai-chip ${month.netToman >= 0 ? "is-pos" : "is-neg"}`}>
+              {month.netToman >= 0 ? "مازاد ماه" : "کسری ماه"}
+            </span>
+          )}
           <div className="ai-bars">
             <div className="ai-bar-row">
               <span>درآمد</span>
@@ -174,11 +192,11 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
               </span>
               <span>نقدینگی در دسترس</span>
             </p>
-            <span className={`ai-chip ${covered ? "is-pos" : "is-neg"}`}>
-              {covered ? "پوشش ۳۰ روز برقرار" : "کمتر از تعهدات ۳۰ روز"}
-            </span>
           </div>
           <Amount value={reach} size="lg" />
+          <span className={`ai-chip ${covered ? "is-pos" : "is-neg"}`}>
+            {covered ? "پوشش ۳۰ روز برقرار" : "کمتر از تعهدات ۳۰ روز"}
+          </span>
           <i className="ai-stack" aria-hidden="true">
             <b className="is-ink" style={{ width: `${(nw.availableCashToman / liqMax) * 100}%` }} />
             <b className="is-mint" style={{ width: `${(nw.convertibleToman / liqMax) * 100}%` }} />

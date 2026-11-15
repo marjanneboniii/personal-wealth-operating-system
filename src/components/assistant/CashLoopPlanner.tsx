@@ -12,6 +12,34 @@ const short = (n: number) => fmtToman(n).replace(/ تومان$/, "");
 const full = (n: number) => `${Math.round(n).toLocaleString("fa-IR")} تومان`;
 const num = (n: number) => Math.round(n).toLocaleString("fa-IR");
 
+function SignedToman({ sign, amount, compact = false }: { sign: "+" | "−"; amount: number; compact?: boolean }) {
+  if (compact) {
+    const absShort = short(Math.abs(amount));
+    const spaceIdx = absShort.indexOf(" ");
+    const numPart = spaceIdx === -1 ? absShort : absShort.slice(0, spaceIdx);
+    const unitPart = spaceIdx === -1 ? "" : absShort.slice(spaceIdx + 1);
+    return (
+      <span className="inline-flex items-baseline gap-1">
+        <span dir="ltr" className="num ltr-isolate">
+          {sign}
+          {numPart}
+        </span>
+        {unitPart && <span>{unitPart}</span>}
+        <span>تومان</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-baseline gap-1">
+      <span dir="ltr" className="num ltr-isolate">
+        {sign}
+        {Math.round(Math.abs(amount)).toLocaleString("fa-IR")}
+      </span>
+      <span>تومان</span>
+    </span>
+  );
+}
+
 interface Props {
   s: FinancialSnapshot;
   isOwner?: boolean;
@@ -1553,8 +1581,9 @@ ${question}`;
                   )}
                 </p>
               </div>
-              <div className="text-right num font-black text-lg shrink-0">
-                +{short(hasTetherOrCrypto ? savedUsdtWithJob * rate : totalSalaryInHorizon)} <span className="text-xs font-normal">تومان {hasTetherOrCrypto ? "ارزش حفظ‌شده" : "درآمد دوره"}</span>
+              <div className="text-right num font-black text-lg shrink-0 flex items-baseline gap-1">
+                <SignedToman sign="+" amount={hasTetherOrCrypto ? savedUsdtWithJob * rate : totalSalaryInHorizon} compact />
+                <span className="text-xs font-normal">{hasTetherOrCrypto ? "ارزش حفظ‌شده" : "درآمد دوره"}</span>
               </div>
             </div>
           </div>
@@ -1834,13 +1863,13 @@ ${question}`;
               {includePurchases && totalSelectedPurchasesToman > 0 && (
                 <div className="flex justify-between text-[var(--text)] font-semibold">
                   <span>خریدهای آینده{isOwner ? " (عقد، عروسی و خانه)" : ""}:</span>
-                  <span className="num">+{full(totalSelectedPurchasesToman)}</span>
+                  <SignedToman sign="+" amount={totalSelectedPurchasesToman} />
                 </div>
               )}
               {bufferPct > 0 && (
                 <div className="flex justify-between text-[var(--text-3)]">
                   <span>حاشیه اطمینان ({toFaDigits(String(bufferPct))}٪):</span>
-                  <span className="num">+{short(bufferToman)} تومان</span>
+                  <SignedToman sign="+" amount={bufferToman} compact />
                 </div>
               )}
               <div className="flex justify-between pt-2 border-t border-[var(--border)] font-bold text-sm text-[var(--text)]">
@@ -1849,12 +1878,14 @@ ${question}`;
               </div>
               <div className="flex justify-between text-[var(--positive)]">
                 <span>موجودی تومان نقد (بانک + صرافی):</span>
-                <span className="num font-semibold">−{full(readyToman)}</span>
+                <span className="font-semibold">
+                  <SignedToman sign="−" amount={readyToman} />
+                </span>
               </div>
               {isJobActive && totalSalaryInHorizon > 0 && (
                 <div className="flex justify-between text-[var(--positive)] font-bold">
                   <span>درآمد حقوقی در این افق ({toFaDigits(String(activeSalaryMonths))} ماه):</span>
-                  <span className="num">−{full(totalSalaryInHorizon)}</span>
+                  <SignedToman sign="−" amount={totalSalaryInHorizon} />
                 </div>
               )}
             </div>
