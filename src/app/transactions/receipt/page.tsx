@@ -5,7 +5,7 @@ import { getTransactionById } from "@/features/ledger/queries";
 import { getEntryFxSnapshots } from "@/features/ledger/fxSnapshots";
 import { EmptyState } from "@/components/ui/Card";
 import Icon, { type IconName } from "@/components/ui/Icon";
-import AssetLogo from "@/components/ui/AssetLogo";
+import ReceiptAccountLogo from "@/components/transactions/ReceiptAccountLogo";
 import DateTile from "@/components/ui/DateTile";
 import FormattedMoney from "@/components/ui/FormattedMoney";
 import { ReceiptCode, ReceiptPrint } from "@/components/transactions/ReceiptActions";
@@ -123,13 +123,16 @@ export default async function ReceiptPage({ searchParams }: { searchParams: Sear
   const add = (label: string, value: ReactNode | null | undefined) => {
     if (value != null && value !== "") rows.push([label, value]);
   };
+  const fromLine = entry.lines.find((l) => D(l.baseValue).lt(0));
+  const toLine = entry.lines.find((l) => D(l.baseValue).gt(0));
+
   add("نوع", h.typeLabel);
   if (h.from) {
     const fromName = plainAccountName(h.from);
     add(
       "حساب مبدأ",
       <span className="flex items-center justify-end gap-1.5 font-semibold">
-        <AssetLogo assetType="bank" brandName={fromName} name={fromName} size={18} />
+        <ReceiptAccountLogo accountName={fromName} symbol={fromLine?.symbol} size={18} />
         <span>{fromName}</span>
       </span>,
     );
@@ -143,7 +146,7 @@ export default async function ReceiptPage({ searchParams }: { searchParams: Sear
       add(
         "به حساب",
         <span className="flex items-center justify-end gap-1.5 font-semibold">
-          <AssetLogo assetType="bank" brandName={toName} name={toName} size={18} />
+          <ReceiptAccountLogo accountName={toName} symbol={toLine?.symbol} size={18} />
           <span>{toName}</span>
         </span>,
       );

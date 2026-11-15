@@ -48,6 +48,7 @@ export const EXPENSE_CATEGORY_CATALOG: CatalogNode[] = [
       { code: "FOD-GROCERY-DAILY", name: "نان، میوه و سبزی", nameEn: "Bread, Fruit & Vegetables" },
       { code: "FOD-MEAT", name: "گوشت، مرغ و ماهی", nameEn: "Meat, Poultry & Fish" },
       { code: "FOD-SNACK", name: "تنقلات و نوشیدنی", nameEn: "Snacks & Drinks" },
+      { code: "FOD-COFFEE", name: "قهوه، چای و دمنوش خانگی", nameEn: "Home Coffee & Tea" },
       { code: "FOD-DELIVERY", name: "سفارش آنلاین غذا", nameEn: "Food Delivery" },
       {
         code: "FOD-REST",
@@ -78,6 +79,7 @@ export const EXPENSE_CATEGORY_CATALOG: CatalogNode[] = [
       { code: "HSG-PHONE", name: "قبض تلفن ثابت", nameEn: "Landline Phone" },
       { code: "HSG-MAINT", name: "تعمیرات و نگهداری منزل", nameEn: "Home Maintenance" },
       { code: "HSG-EQUIP", name: "لوازم خانگی و مبلمان", nameEn: "Appliances & Furniture" },
+      { code: "HSG-DECOR", name: "دکوراسیون و خرده‌ریز خانه", nameEn: "Home Decor & Accessories" },
       { code: "HSG-CLEAN", name: "نظافت و خدمات منزل", nameEn: "Cleaning & Home Services" },
       { code: "HSG-OTHER", name: "سایر هزینه‌های مسکن", nameEn: "Other Housing" },
     ],
@@ -217,6 +219,7 @@ export const EXPENSE_CATEGORY_CATALOG: CatalogNode[] = [
       { code: "COM-INTERNET", name: "بستهٔ اینترنت موبایل", nameEn: "Mobile Data" },
       { code: "COM-SUB", name: "اشتراک فیلم و موسیقی", nameEn: "Streaming Subscriptions" },
       { code: "COM-SOFTWARE", name: "نرم‌افزار و سرویس آنلاین", nameEn: "Software & Online Services" },
+      { code: "COM-AI", name: "ابزارها و اشتراک‌های هوش مصنوعی", nameEn: "AI Tools & Subscriptions" },
       { code: "COM-DEVICE", name: "گوشی و لوازم دیجیتال", nameEn: "Phones & Gadgets" },
       { code: "COM-OTHER", name: "سایر هزینه‌های ارتباطی", nameEn: "Other Communications" },
     ],
