@@ -261,19 +261,23 @@
 .ai-hero-title { margin-top: 0.3rem; font-size: 1.15rem; font-weight: 800; line-height: 1.5; color: var(--text); }
 .ai-hero-text { margin-top: 0.35rem; max-width: 66ch; font-size: var(--fs-sm); line-height: 1.85; color: var(--text-2); }
 .ai-hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; margin-top: 0.95rem; }
-.ai-btn { min-height: 40px !important; padding-inline: 1.05rem !important; border-radius: var(--r-pill) !important; font-size: var(--fs-xs) !important; font-weight: 600 !important; }
+.ai-btn { min-height: 40px !important; padding-inline: 1.05rem !important; border-radius: var(--r-pill) !important; font-size: var(--fs-xs) !important; font-weight: 600 !important; white-space: nowrap; }
 @media (max-width: 639px) {
   .ai-hero { flex-direction: column; gap: 0.8rem; padding: 1.1rem; }
   .ai-hero-icon { width: 40px; height: 40px; border-radius: 12px; }
   .ai-hero-title { font-size: var(--fs-md); }
   .ai-hero-actions { width: 100%; }
-  .ai-hero-actions .ai-btn { flex: 1; justify-content: center; }
+  .ai-hero-actions .ai-btn { flex: 1 1 calc(50% - 0.3rem); justify-content: center; }
+  .ai-hero-actions .ai-btn:last-child:nth-child(odd) { flex-basis: 100%; }
 }
 
 /* ── Amounts: figure big, unit small ── */
-.ai-amt { display: inline-flex; align-items: baseline; gap: 0.25rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ai-amt { display: inline-flex; align-items: baseline; gap: 0.28rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ai-amt .ai-amt-unit { font-size: 0.78em; font-weight: 700; color: var(--text-2); }
 .ai-amt small { font-size: 0.62em; font-weight: 500; color: var(--text-3); }
 .ai-amt-lg { font-size: clamp(1.35rem, 2.2vw, 1.65rem); font-weight: 800; letter-spacing: -0.01em; line-height: 1.25; color: var(--text); }
+.ai-amt-lg.is-neg-amt { color: var(--negative); }
+.ai-amt-lg.is-neg-amt .ai-amt-unit { color: color-mix(in oklab, var(--negative) 78%, var(--text-2)); }
 .ai-amt-md { font-size: var(--fs-md); font-weight: 700; }
 .ai-amt-sm { font-size: var(--fs-sm); font-weight: 600; }
 
@@ -294,7 +298,7 @@
 .ai-kpi-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.5rem;
 }
 .ai-kpi-label {
@@ -304,6 +308,7 @@
   font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--text-2);
+  white-space: nowrap;
 }
 .ai-kpi-mark {
   display: inline-flex;
