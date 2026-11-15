@@ -27,8 +27,14 @@ export interface CategoryMeta {
   bg?: string;
   border?: string;
   badgeBg?: string;
+  natureLabel?: string;
 }
 
+/**
+ * دسته‌بندی خریدهای آینده با توکن‌های بومی سیستم دیزاین توازن/دارینو (Kashi 2.0):
+ * بدون استفاده از رنگ‌های بنفش (purple/indigo) یا طلایی/زرد (amber/yellow).
+ * تفکیک بصری از طریق کلاس‌های توکن‌محور `.ai-cat-tone-*`، آیکون اختصاصی و برچسب ماهیت مالی انجام می‌شود.
+ */
 export const KNOWN_PURCHASE_CATEGORIES: Record<
   string,
   {
@@ -38,71 +44,80 @@ export const KNOWN_PURCHASE_CATEGORIES: Record<
     bg: string;
     border: string;
     badgeBg: string;
+    natureLabel: string;
   }
 > = {
   home: {
     label: "لوازم خانه و جهیزیه",
     icon: "home",
-    color: "text-sky-600 dark:text-sky-400",
-    bg: "bg-sky-500/15 dark:bg-sky-500/20",
-    border: "border-sky-500/30",
-    badgeBg: "bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300",
+    color: "ai-cat-tone-home ai-cat-icon",
+    bg: "ai-cat-tone-home ai-cat-icon",
+    border: "border-[var(--border-strong)]",
+    badgeBg: "ai-cat-tone-home ai-cat-badge",
+    natureLabel: "تجهیزات بادوام",
   },
   ceremony: {
     label: "مراسم عقد و محضر",
     icon: "ring",
-    color: "text-purple-600 dark:text-purple-400",
-    bg: "bg-purple-500/15 dark:bg-purple-500/20",
-    border: "border-purple-500/30",
-    badgeBg: "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300",
+    color: "ai-cat-tone-ceremony ai-cat-icon",
+    bg: "ai-cat-tone-ceremony ai-cat-icon",
+    border: "border-[var(--border-strong)]",
+    badgeBg: "ai-cat-tone-ceremony ai-cat-badge",
+    natureLabel: "اولویت فاز ۱",
   },
   wedding: {
     label: "طلا و مراسم عروسی",
     icon: "sparkle",
-    color: "text-amber-600 dark:text-amber-400",
-    bg: "bg-amber-500/15 dark:bg-amber-500/20",
-    border: "border-amber-500/30",
-    badgeBg: "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300",
+    color: "ai-cat-tone-wedding ai-cat-icon",
+    bg: "ai-cat-tone-wedding ai-cat-icon",
+    border: "border-[var(--border-strong)]",
+    badgeBg: "ai-cat-tone-wedding ai-cat-badge",
+    natureLabel: "فاز ۳ · تشریفات و طلا",
   },
   gold: {
     label: "طلا و سرمایه‌گذاری",
     icon: "coins",
-    color: "text-yellow-600 dark:text-yellow-400",
-    bg: "bg-yellow-500/15 dark:bg-yellow-500/20",
-    border: "border-yellow-500/30",
-    badgeBg: "bg-yellow-50 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300",
+    color: "ai-cat-tone-gold ai-cat-icon",
+    bg: "ai-cat-tone-gold ai-cat-icon",
+    border: "border-[var(--border-strong)]",
+    badgeBg: "ai-cat-tone-gold ai-cat-badge",
+    natureLabel: "حفظ ارزش سرمایه",
   },
   apparel: {
     label: "پوشاک و ملزومات",
     icon: "shirt",
-    color: "text-rose-600 dark:text-rose-400",
-    bg: "bg-rose-500/15 dark:bg-rose-500/20",
-    border: "border-rose-500/30",
-    badgeBg: "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300",
+    color: "ai-cat-tone-apparel ai-cat-icon",
+    bg: "ai-cat-tone-apparel ai-cat-icon",
+    border: "border-[var(--border-strong)]",
+    badgeBg: "ai-cat-tone-apparel ai-cat-badge",
+    natureLabel: "ملزومات مصرفی",
   },
   digital: {
     label: "کالای دیجیتال",
     icon: "phone",
-    color: "text-indigo-600 dark:text-indigo-400",
-    bg: "bg-indigo-500/15 dark:bg-indigo-500/20",
-    border: "border-indigo-500/30",
-    badgeBg: "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300",
+    color: "ai-cat-tone-digital ai-cat-icon",
+    bg: "ai-cat-tone-digital ai-cat-icon",
+    border: "border-[var(--border-strong)]",
+    badgeBg: "ai-cat-tone-digital ai-cat-badge",
+    natureLabel: "ابزار و تکنولوژی",
   },
   transport: {
     label: "خودرو و حمل‌ونقل",
     icon: "car",
-    color: "text-blue-600 dark:text-blue-400",
-    bg: "bg-blue-500/15 dark:bg-blue-500/20",
-    border: "border-blue-500/30",
-    badgeBg: "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300",
+    color: "ai-cat-tone-transport ai-cat-icon",
+    bg: "ai-cat-tone-transport ai-cat-icon",
+    border: "border-[var(--border-strong)]",
+    badgeBg: "ai-cat-tone-transport ai-cat-badge",
+    natureLabel: "دارایی مصرفی",
   },
   other: {
     label: "سایر خریدهای احتمالی",
     icon: "gift",
-    color: "text-emerald-600 dark:text-emerald-400",
-    bg: "bg-emerald-500/15 dark:bg-emerald-500/20",
-    border: "border-emerald-500/30",
-    badgeBg: "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300",
+    color: "ai-cat-tone-other ai-cat-icon",
+    bg: "ai-cat-tone-other ai-cat-icon",
+    border: "border-[var(--border-strong)]",
+    badgeBg: "ai-cat-tone-other ai-cat-badge",
+    natureLabel: "سایر اقلام",
   },
 };
 
@@ -484,6 +499,7 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
         bg: string;
         border: string;
         badgeBg: string;
+        natureLabel: string;
         count: number;
         totalToman: number;
       }
@@ -492,11 +508,12 @@ export default function CashLoopPlanner({ s, isOwner = false }: Props) {
       const meta = KNOWN_PURCHASE_CATEGORIES[p.category];
       const label = meta?.label ?? p.categoryLabel ?? p.category;
       const icon = meta?.icon ?? "gift";
-      const color = meta?.color ?? "text-emerald-600 dark:text-emerald-400";
-      const bg = meta?.bg ?? "bg-emerald-500/15";
-      const border = meta?.border ?? "border-emerald-500/30";
-      const badgeBg = meta?.badgeBg ?? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300";
-      const existing = map.get(p.category) ?? { label, icon, color, bg, border, badgeBg, count: 0, totalToman: 0 };
+      const color = meta?.color ?? "ai-cat-tone-other ai-cat-icon";
+      const bg = meta?.bg ?? "ai-cat-tone-other ai-cat-icon";
+      const border = meta?.border ?? "border-[var(--border-strong)]";
+      const badgeBg = meta?.badgeBg ?? "ai-cat-tone-other ai-cat-badge";
+      const natureLabel = meta?.natureLabel ?? "سایر اقلام";
+      const existing = map.get(p.category) ?? { label, icon, color, bg, border, badgeBg, natureLabel, count: 0, totalToman: 0 };
       existing.count += 1;
       if (p.selected) existing.totalToman += p.estimatedToman;
       map.set(p.category, existing);
@@ -760,33 +777,33 @@ ${question}`;
 
   return (
     <div className="ai-loop space-y-5" dir="rtl">
-      {/* ── کاشی هدر مجلل Kashi 2.0: تاب‌آوری، افق زمانی و چشم‌انداز ── */}
-      <section className="card p-6 border border-[var(--border)] rounded-2xl bg-gradient-to-br from-[var(--surface)] via-[var(--surface)] to-[var(--sunken)] shadow-sm">
+      {/* ── کاشی هدر Ink-Stage Kashi 2.0: تاب‌آوری، افق زمانی و چشم‌انداز ── */}
+      <section className="ink-stage ai-loop-hero">
         <div className="flex flex-wrap items-center justify-between gap-5">
-          <div className="space-y-1.5 max-w-2xl">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent)]/20">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--accent-soft)] text-[var(--signal-mint)] border border-[var(--signal-mint)]/25">
                 <Icon name="sparkle" size={13} />
                 برنامه‌ریزی جریان نقدینگی و تاب‌آوری
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] bg-[var(--sunken)] text-[var(--text-3)] border border-[var(--border)]">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] bg-[var(--sunken)] text-[var(--text-2)] border border-[var(--border)]">
                 افق {toFaDigits(String(horizon))} ماهه
               </span>
             </div>
-            <h2 className="text-2xl font-black text-[var(--text)] tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-black text-[var(--text)] tracking-tight">
               برنامه‌ریزی جریان نقدینگی، پوشش اقساط و خریدهای آینده
             </h2>
             <p className="text-xs text-[var(--text-2)] leading-relaxed">
               {hasTetherOrCrypto
                 ? (isOwner
-                    ? `این پلتفرم مهندسی‌شده، کل بدهی‌های شما (${short(totalOutstandingDebt)} تومان)، اقساط ۶ ماه آینده (بالای ۲ میلیون تومان)، هزینه‌های خرید خانه، عقد و عروسی، و تترهای صرافی بیت‌پین را در دو سناریوی **بدون شغل** و **شغل آینده** به‌طور دقیق بالانس می‌کند.`
+                    ? `این پلتفرم مهندسی‌شده، کل بدهی‌های شما (${short(totalOutstandingDebt)} تومان)، اقساط ۶ ماه آینده (بالای ۲ میلیون تومان)، هزینه‌های خرید خانه، عقد و عروسی، و تترهای صرافی بیت‌پین را در دو سناریوی بدون شغل و شغل آینده به‌طور دقیق بالانس می‌کند.`
                     : `این پلتفرم مهندسی‌شده، کل بدهی‌های شما (${short(totalOutstandingDebt)} تومان)، اقساط سررسیددار، هزینه‌های برنامه‌ریزی‌شده، و نقدینگی تتری و بانکی را در سناریوهای مختلف شغلی به‌طور دقیق بالانس می‌کند.`)
                 : `این پلتفرم مهندسی‌شده، کل بدهی‌های شما (${short(totalOutstandingDebt)} تومان)، اقساط سررسیددار، هزینه‌های برنامه‌ریزی‌شده و موجودی نقدینگی و درآمد را به‌طور دقیق بالانس می‌کند.`}
             </p>
           </div>
 
-          <div className="text-center px-5 py-4 rounded-2xl bg-[var(--surface)] border-2 border-[var(--border-strong)] shadow-sm shrink-0 min-w-[210px]">
-            <p className="text-xs text-[var(--text-3)] mb-1 font-medium">
+          <div className="ai-loop-runway shrink-0">
+            <p className="text-xs text-[var(--text-2)] mb-1 font-medium">
               {isJobActive
                 ? jobScenario === "contract_3m"
                   ? "تاب‌آوری (قرارداد ۳ ماهه)"
@@ -814,8 +831,8 @@ ${question}`;
       {/* ── کاشی ویژه: مدیریت بدهی ۴۵٫۹ میلیونی و اقساط ۶ ماهه از آبان ── */}
       <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-[var(--negative-soft)] text-[var(--negative)] flex items-center justify-center">
+          <div className="flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl bg-[var(--negative-soft)] text-[var(--negative)] flex items-center justify-center shrink-0">
               <Icon name="installments" size={18} />
             </span>
             <div>
@@ -861,12 +878,12 @@ ${question}`;
 
         {/* لیست اقساط و بدهی‌ها */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-          <div className="p-3 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
+          <div className="p-3.5 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
             <span className="text-[11px] text-[var(--text-3)] block mb-0.5">کل مانده بدهی‌ها:</span>
             <span className="text-base font-black text-[var(--negative)] num">{full(totalOutstandingDebt)}</span>
             <span className="text-[10px] text-[var(--text-3)] block mt-0.5">شامل کلیه وام‌ها و تعهدات</span>
           </div>
-          <div className="p-3 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
+          <div className="p-3.5 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
             <span className="text-[11px] text-[var(--text-3)] block mb-0.5">
               {isOwner ? "اقساط ۶ ماه آینده (آبان-اردیبهشت):" : "اقساط ۶ ماه آینده:"}
             </span>
@@ -875,16 +892,16 @@ ${question}`;
               {isOwner ? "وام‌ها + قسط ۹۰۹٬۰۹۰ ت بیمه" : "تعهدات و اقساط ثبت‌شده"}
             </span>
           </div>
-          <div className="p-3 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
+          <div className="p-3.5 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
             <span className="text-[11px] text-[var(--text-3)] block mb-0.5">استراتژی اعمال‌شده در حسابگر:</span>
-            <span className="text-xs font-bold text-[var(--accent)] block">
+            <span className="text-xs font-bold text-[var(--action)] block">
               {debtStrategy === "full"
                 ? (isOwner && totalOutstandingDebt === 45_900_000 ? "تسویه یکجای ۴۵٫۹ میلیون" : "تسویه کامل کل بدهی")
                 : "تأمین پله‌ای اقساط سررسید"}
             </span>
             <span className="text-[10px] text-[var(--text-3)] block mt-0.5">مبلغ منظور شده: {short(activeDebtBurdenToman)} ت</span>
           </div>
-          <div className="p-3 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
+          <div className="p-3.5 rounded-xl bg-[var(--sunken)] border border-[var(--border)]">
             {hasTetherOrCrypto ? (
               <>
                 <span className="text-[11px] text-[var(--text-3)] block mb-0.5">معادل تتری اقساط ۶ ماهه:</span>
@@ -912,12 +929,12 @@ ${question}`;
         </div>
       </section>
 
-      {/* ── بودجه‌بندی هوشمند خریدهای آینده ── */}
+      {/* ── بودجه‌بندی هوشمند خریدهای آینده (سیستم دیزاین یکپارچه بدون بنفش و طلایی) ── */}
       <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--border)]">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="w-8 h-8 rounded-xl bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center">
+            <div className="flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-xl bg-[var(--accent-soft)] text-[var(--action)] flex items-center justify-center shrink-0">
                 <Icon name="gift" size={18} />
               </span>
               <div>
@@ -940,7 +957,7 @@ ${question}`;
             <button
               type="button"
               onClick={resetPurchases}
-              className="text-xs text-[var(--text-3)] hover:text-[var(--text)] px-2.5 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--sunken)] flex items-center gap-1.5 transition-colors"
+              className="text-xs text-[var(--text-2)] hover:text-[var(--text)] px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--sunken)] flex items-center gap-1.5 transition-colors font-medium"
               title="بازگرداندن اقلام به ۲۸ قلم اولیه"
             >
               <Icon name="refresh" size={13} />
@@ -948,7 +965,7 @@ ${question}`;
             </button>
 
             {/* کلید فعال/غیرفعال کردن اعمال در حسابگر نقدینگی */}
-            <label className="flex items-center gap-2 cursor-pointer bg-[var(--sunken)] px-3 py-1.5 rounded-xl border border-[var(--border)] hover:bg-[var(--surface-hover)] transition-colors">
+            <label className="flex items-center gap-2 cursor-pointer bg-[var(--sunken)] px-3 py-1.5 rounded-xl border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors">
               <input
                 type="checkbox"
                 checked={includePurchases}
@@ -965,19 +982,54 @@ ${question}`;
         </div>
 
         {/* بنر شفاف‌سازی: اقلام آزمایشی و پیش‌بینی شخصی هستند و هنوز در بودجه رسمی ثبت نشده‌اند */}
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-[var(--signal-mint)]/10 via-[var(--signal-mint)]/5 to-transparent border border-[var(--signal-mint)]/25 flex items-start gap-3.5 text-xs leading-relaxed shadow-xs">
-          <span className="p-2 rounded-xl bg-[var(--signal-mint)]/15 text-[var(--signal-mint)] shrink-0 mt-0.5 shadow-xs">
+        <div className="p-4 rounded-2xl bg-[var(--sunken)] border border-[var(--border)] flex items-start gap-3.5 text-xs leading-relaxed">
+          <span className="p-2 rounded-xl bg-[var(--accent-soft)] text-[var(--action)] shrink-0 mt-0.5">
             <Icon name="info" size={18} />
           </span>
-          <div className="space-y-1.5 flex-1">
-            <p className="font-extrabold text-[var(--text)] text-xs md:text-sm">
+          <div className="space-y-1 flex-1">
+            <p className="font-bold text-[var(--text)] text-xs md:text-sm">
               یادآوری: این اقلام، پیش‌بینی‌های شخصی شما در دستیار هستند و هنوز در بخش بودجه ثبت رسمی نشده‌اند
             </p>
             <p className="text-[11.5px] text-[var(--text-2)] leading-relaxed font-normal">
-              هیچ‌کدام از این خریدها قطعی نیستند و صرفاً تخمین ذهنی شما برای سنجش فشار نقدینگی و تاب‌آوری مالی‌اند. شما می‌توانید مبالغ را تغییر دهید، هر قلم را ویرایش یا حذف کنید، یا دسته‌های جدید اضافه نمایید. هر زمان تصمیم نهایی گرفتید، می‌توانید آن‌ها را ابتدا در بخش بودجه تعریف کنید
+              هیچ‌کدام از این خریدها قطعی نیستند و صرفاً تخمین ذهنی شما برای سنجش فشار نقدینگی و تاب‌آوری مالی‌اند. شما می‌توانید مبالغ را تغییر دهید، هر قلم را ویرایش یا حذف کنید، یا دسته‌های جدید اضافه نمایید. هر زمان تصمیم نهایی گرفتید، می‌توانید آن‌ها را در بخش بودجه تعریف کنید.
             </p>
           </div>
         </div>
+
+        {/* نوار تفکیک سهم بودجه هر دسته (جایگزین سیستماتیک و مینیمال به جای رنگ‌های بنفش و طلایی) */}
+        {dynamicCategories.length > 0 && totalSelectedPurchasesToman > 0 && (
+          <div className="p-3.5 rounded-2xl bg-[var(--sunken)] border border-[var(--border)] space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-bold text-[var(--text-2)]">ترکیب و سهم هر بخش از کل بودجه خریدهای انتخابی:</span>
+              <span className="num font-black text-[var(--text)]">{full(totalSelectedPurchasesToman)}</span>
+            </div>
+            <div className="ai-cat-bar" aria-hidden="true">
+              {dynamicCategories
+                .filter((cat) => cat.totalToman > 0)
+                .map((cat) => (
+                  <span
+                    key={cat.key}
+                    className={`ai-cat-tone-${cat.key}`}
+                    style={{ flexGrow: cat.totalToman }}
+                    title={`${cat.label}: ${full(cat.totalToman)}`}
+                  />
+                ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-[var(--text-2)]">
+              {dynamicCategories.map((cat) => {
+                const sharePct = totalSelectedPurchasesToman > 0 ? Math.round((cat.totalToman / totalSelectedPurchasesToman) * 100) : 0;
+                return (
+                  <span key={cat.key} className={`inline-flex items-center gap-1.5 ai-cat-tone-${cat.key}`}>
+                    <i className="inline-block w-2 h-2 rounded-full" style={{ background: "var(--cat-ink, var(--action))" }} />
+                    <strong className="text-[var(--text)]">{cat.label}:</strong>
+                    <span className="num">{short(cat.totalToman)} ت</span>
+                    <span className="text-[var(--text-3)] num">({toFaDigits(String(sharePct))}٪)</span>
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* فیلتر دسته‌بندی‌ها با آیکون‌های اختصاصی و سرجمع هر بخش */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
@@ -988,7 +1040,7 @@ ${question}`;
               className={`py-1.5 px-3 text-xs rounded-xl font-bold border transition-all flex items-center gap-1.5 ${
                 purchaseFilter === "all"
                   ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)] shadow-sm"
-                  : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--surface-hover)]"
+                  : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--hover)]"
               }`}
             >
               <Icon name="receipt" size={13} />
@@ -997,44 +1049,47 @@ ${question}`;
                 {toFaDigits(String(purchases.length))}
               </span>
             </button>
-            {dynamicCategories.map((cat) => (
-              <button
-                key={cat.key}
-                type="button"
-                onClick={() => setPurchaseFilter(cat.key)}
-                className={`py-1.5 px-3 text-xs rounded-xl font-bold border transition-all flex items-center gap-1.5 ${
-                  purchaseFilter === cat.key
-                    ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)] shadow-sm"
-                    : `${cat.badgeBg} ${cat.border} hover:opacity-90`
-                }`}
-              >
-                <Icon name={cat.icon} size={13} className={purchaseFilter === cat.key ? "" : cat.color} />
-                <span>{cat.label}</span>
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 num font-bold">
-                  {toFaDigits(String(cat.count))}
-                </span>
-              </button>
-            ))}
+            {dynamicCategories.map((cat) => {
+              const active = purchaseFilter === cat.key;
+              return (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => setPurchaseFilter(cat.key)}
+                  className={`py-1.5 px-3 text-xs rounded-xl font-bold border transition-all flex items-center gap-1.5 ai-cat-tone-${cat.key} ${
+                    active
+                      ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)] shadow-sm"
+                      : "ai-cat-badge hover:opacity-90"
+                  }`}
+                >
+                  <Icon name={cat.icon} size={13} />
+                  <span>{cat.label}</span>
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 num font-bold">
+                    {toFaDigits(String(cat.count))}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="text-xs font-bold text-[var(--text)] bg-[var(--surface)] px-4 py-2.5 rounded-2xl border border-[var(--border)] flex flex-col items-end gap-1 shadow-xs">
+          <div className="text-xs font-bold text-[var(--text)] bg-[var(--sunken)] px-4 py-2.5 rounded-2xl border border-[var(--border)] flex flex-col items-end gap-1">
             <div className="flex items-center gap-2">
               <span className="text-[var(--text-2)] font-semibold text-xs">جمع کل خریدهای تیک‌خورده:</span>
               <span className="num font-black text-sm text-[var(--text)]">{full(totalSelectedPurchasesToman)}</span>
             </div>
             {totalSelectedPurchasesToman > 0 && (
-              <span className="text-[11px] font-bold text-[var(--accent)] bg-[var(--accent-soft)] px-2 py-0.5 rounded-lg border border-[var(--accent)]/20">
+              <span className="text-[11px] font-bold text-[var(--action)] bg-[var(--accent-soft)] px-2 py-0.5 rounded-lg">
                 {amountToWords(totalSelectedPurchasesToman, "toman")}
               </span>
             )}
           </div>
         </div>
 
-        {/* بخش افزودن خریدهای پیشنهادی با انتخاب مستقیم رنگی و لوگودار */}
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-[var(--sunken)] via-[var(--surface)] to-[var(--sunken)] border border-[var(--border)] space-y-3.5 shadow-xs">
+        {/* بخش افزودن خریدهای پیشنهادی با انتخاب مستقیم توکن‌محور */}
+        <div className="p-4 rounded-2xl bg-[var(--sunken)] border border-[var(--border)] space-y-3.5">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="w-7 h-7 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center">
+              <span className="w-7 h-7 rounded-lg bg-[var(--accent-soft)] text-[var(--action)] flex items-center justify-center">
                 <Icon name="sparkle" size={15} />
               </span>
               <div>
@@ -1050,24 +1105,20 @@ ${question}`;
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
             {QUICK_SELECTABLE_PURCHASES.map((preset, idx) => {
-              const meta = KNOWN_PURCHASE_CATEGORIES[preset.category];
-              const color = meta?.color ?? "text-emerald-600 dark:text-emerald-400";
-              const bg = meta?.bg ?? "bg-emerald-500/15";
-              const border = meta?.border ?? "border-emerald-500/30";
               const isAlreadyAdded = purchases.some((p) => p.title === preset.title);
 
               return (
                 <div
                   key={idx}
-                  className={`group relative p-2.5 rounded-xl border transition-all text-right flex flex-col justify-between gap-2 cursor-pointer ${
+                  className={`group relative p-2.5 rounded-xl border transition-all text-right flex flex-col justify-between gap-2 cursor-pointer ai-cat-tone-${preset.category} ${
                     isAlreadyAdded
                       ? "bg-[var(--surface)] border-[var(--border)] opacity-85 hover:opacity-100"
-                      : "bg-[var(--surface)] hover:bg-[var(--surface-hover)] border-[var(--border)] hover:border-[var(--border-strong)] shadow-xs"
+                      : "bg-[var(--surface)] hover:border-[var(--border-strong)] border-[var(--border)] shadow-xs"
                   }`}
                   onClick={() => selectQuickPreset(preset)}
                 >
                   <div className="flex items-start justify-between gap-1.5">
-                    <span className={`w-8 h-8 rounded-lg ${bg} ${color} border ${border} flex items-center justify-center shrink-0`}>
+                    <span className="w-8 h-8 rounded-lg ai-cat-icon border flex items-center justify-center shrink-0">
                       <Icon name={preset.icon} size={15} />
                     </span>
                     <button
@@ -1089,7 +1140,7 @@ ${question}`;
                     <p className="text-[11px] font-extrabold text-[var(--text-2)] num mt-0.5">
                       {toFaDigits(preset.defaultToman.toLocaleString("fa-IR"))} ت
                     </p>
-                    <p className="text-[9.5px] text-[var(--accent)] font-medium truncate mt-0.5">
+                    <p className="text-[9.5px] text-[var(--text-3)] font-medium truncate mt-0.5">
                       {amountToWords(preset.defaultToman, "toman")}
                     </p>
                   </div>
@@ -1099,10 +1150,10 @@ ${question}`;
           </div>
 
           {/* فرم افزودن دستی یا تنظیم سفارشی خرید با نمایش مبالغ به عدد و حروف */}
-          <div className="pt-3 border-t border-[var(--border)]/70 flex flex-wrap items-center gap-2.5 text-xs">
+          <div className="pt-3 border-t border-[var(--border)] flex flex-wrap items-center gap-2.5 text-xs">
             <span className="font-bold text-[var(--text)] flex items-center gap-1.5 shrink-0">
               <Icon name="plus" size={14} className="text-[var(--action)]" />
-              <span>عنوان خرید (مثلاً لوستر، اتو بخار، بخاری...):</span>
+              <span>عنوان خرید:</span>
             </span>
             <input
               type="text"
@@ -1121,7 +1172,7 @@ ${question}`;
                 placeholder="مبلغ (تومان)"
               />
               {newAmount > 0 && (
-                <p className="text-[10px] text-[var(--accent)] font-bold truncate px-1 bg-[var(--accent-soft)]/60 rounded py-0.5 border border-[var(--accent)]/15" title={amountToWords(newAmount, "toman") ?? ""}>
+                <p className="text-[10px] text-[var(--text-2)] font-semibold truncate px-1.5 bg-[var(--surface)] rounded py-0.5 border border-[var(--border)]" title={amountToWords(newAmount, "toman") ?? ""}>
                   {amountToWords(newAmount, "toman")}
                 </p>
               )}
@@ -1148,7 +1199,7 @@ ${question}`;
           </div>
         </div>
 
-        {/* لیست اقلام با لوگوهای رنگی اختصاصی، قابلیت ویرایش کامل، حذف، و نمایش مبالغ به عدد و حروف */}
+        {/* لیست اقلام با توکن‌های بومی سیستم دیزاین، قابلیت ویرایش کامل، حذف، و نمایش مبالغ به عدد و حروف */}
         {purchases.length === 0 ? (
           <div className="text-center py-10 px-4 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--sunken)] space-y-2">
             <div className="w-12 h-12 rounded-2xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center mx-auto text-[var(--text-3)] shadow-xs">
@@ -1165,184 +1216,181 @@ ${question}`;
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-1">
-          {visiblePurchases.map((item) => {
-            const isEditing = editingPurchaseId === item.id;
-            const catMeta = KNOWN_PURCHASE_CATEGORIES[item.category];
-            const catIcon = catMeta?.icon ?? "gift";
-            const catLabel = catMeta?.label ?? item.categoryLabel ?? item.category;
-            const catColor = catMeta?.color ?? "text-emerald-600 dark:text-emerald-400";
-            const catBg = catMeta?.bg ?? "bg-emerald-500/15";
-            const catBorder = catMeta?.border ?? "border-emerald-500/30";
-            const catBadgeBg = catMeta?.badgeBg ?? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300";
+            {visiblePurchases.map((item) => {
+              const isEditing = editingPurchaseId === item.id;
+              const catMeta = KNOWN_PURCHASE_CATEGORIES[item.category];
+              const catIcon = catMeta?.icon ?? "gift";
+              const catLabel = catMeta?.label ?? item.categoryLabel ?? item.category;
+              const natureLabel = catMeta?.natureLabel ?? "برنامه‌ریزی";
 
-            if (isEditing) {
+              if (isEditing) {
+                return (
+                  <div
+                    key={item.id}
+                    className="p-4 rounded-2xl border-2 border-[var(--action)] bg-[var(--surface)] shadow-md space-y-3"
+                  >
+                    <div className="flex items-center justify-between text-xs font-bold text-[var(--text)]">
+                      <span className="flex items-center gap-1.5 text-[var(--action)]">
+                        <Icon name="edit" size={14} /> ویرایش قلم خرید
+                      </span>
+                      <button
+                        type="button"
+                        onClick={cancelEditPurchase}
+                        className="text-[var(--text-3)] hover:text-[var(--text)]"
+                      >
+                        <Icon name="x" size={14} />
+                      </button>
+                    </div>
+
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-3 py-2 text-[var(--text)] outline-none focus:border-[var(--action)]"
+                      placeholder="عنوان خرید"
+                    />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10.5px] text-[var(--text-3)] block font-medium">مبلغ (تومان):</label>
+                        <AmountInput
+                          value={editAmount}
+                          onValueChange={(val) => setEditAmount(Math.max(0, Number(val) || 0))}
+                          className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-2.5 py-1.5 text-[var(--text)] num focus:border-[var(--action)] outline-none"
+                          unit="toman"
+                          showWords={false}
+                          placeholder="۰"
+                        />
+                        {editAmount > 0 && (
+                          <p className="text-[10px] text-[var(--text-2)] font-semibold leading-relaxed mt-0.5 px-2 py-0.5 rounded-lg bg-[var(--sunken)] border border-[var(--border)]">
+                            {amountToWords(editAmount, "toman")}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10.5px] text-[var(--text-3)] block font-medium">دسته‌بندی:</label>
+                        <select
+                          value={editCategory}
+                          onChange={(e) => setEditCategory(e.target.value)}
+                          className="w-full text-xs bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-2.5 py-2 text-[var(--text)] outline-none"
+                        >
+                          {Object.entries(KNOWN_PURCHASE_CATEGORIES).map(([key, meta]) => (
+                            <option key={key} value={key}>
+                              {meta.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={cancelEditPurchase}
+                        className="px-3 py-1.5 rounded-xl text-xs bg-[var(--sunken)] text-[var(--text-3)] hover:text-[var(--text)]"
+                      >
+                        انصراف
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveEditPurchase}
+                        className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[var(--action)] text-[var(--on-ink)] flex items-center gap-1 shadow-sm"
+                      >
+                        <Icon name="check" size={13} /> ذخیره تغییرات
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div
                   key={item.id}
-                  className="p-4 rounded-2xl border-2 border-[var(--action)] bg-[var(--surface)] shadow-md space-y-3"
+                  className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 ai-cat-tone-${item.category} ai-cat-card ${
+                    item.selected
+                      ? "bg-[var(--surface)] border-[var(--border)] hover:border-[var(--border-strong)] shadow-xs"
+                      : "bg-[var(--sunken)]/60 border-[var(--border)] opacity-60"
+                  }`}
                 >
-                  <div className="flex items-center justify-between text-xs font-bold text-[var(--text)]">
-                    <span className="flex items-center gap-1.5 text-[var(--action)]">
-                      <Icon name="edit" size={14} /> ویرایش قلم خرید
-                    </span>
-                    <button
-                      type="button"
-                      onClick={cancelEditPurchase}
-                      className="text-[var(--text-3)] hover:text-[var(--text)]"
-                    >
-                      <Icon name="x" size={14} />
-                    </button>
-                  </div>
-
-                  <input
-                    type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-3 py-2 text-[var(--text)] outline-none focus:border-[var(--action)]"
-                    placeholder="عنوان خرید"
-                  />
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[10.5px] text-[var(--text-3)] block font-medium">مبلغ (تومان):</label>
-                      <AmountInput
-                        value={editAmount}
-                        onValueChange={(val) => setEditAmount(Math.max(0, Number(val) || 0))}
-                        className="w-full text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-2.5 py-1.5 text-[var(--text)] num focus:border-[var(--action)] outline-none"
-                        unit="toman"
-                        showWords={false}
-                        placeholder="۰"
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <input
+                        type="checkbox"
+                        checked={item.selected}
+                        onChange={() => togglePurchase(item.id)}
+                        className="w-4 h-4 accent-[var(--action)] rounded cursor-pointer shrink-0 mt-0.5"
                       />
-                      {editAmount > 0 && (
-                        <p className="text-[10px] text-[var(--accent)] font-bold leading-relaxed mt-0.5 px-2 py-0.5 rounded-lg bg-[var(--accent-soft)] border border-[var(--accent)]/20">
-                          {amountToWords(editAmount, "toman")}
-                        </p>
-                      )}
+                      <div className="w-9 h-9 rounded-xl ai-cat-icon border flex items-center justify-center shrink-0">
+                        <Icon name={catIcon} size={16} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-[var(--text)] truncate">{item.title}</p>
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          <span className="px-2 py-0.5 rounded-md text-[9.5px] font-semibold border ai-cat-badge">
+                            {catLabel}
+                          </span>
+                          <span className="text-[9px] text-[var(--text-3)]">· {natureLabel}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[10.5px] text-[var(--text-3)] block font-medium">دسته‌بندی:</label>
-                      <select
-                        value={editCategory}
-                        onChange={(e) => setEditCategory(e.target.value)}
-                        className="w-full text-xs bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-2.5 py-2 text-[var(--text)] outline-none"
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => startEditPurchase(item)}
+                        className="p-1.5 rounded-lg text-[var(--text-3)] hover:text-[var(--text)] hover:bg-[var(--sunken)] transition-colors"
+                        title="ویرایش قلم خرید"
                       >
-                        {Object.entries(KNOWN_PURCHASE_CATEGORIES).map(([key, meta]) => (
-                          <option key={key} value={key}>
-                            {meta.label}
-                          </option>
-                        ))}
-                      </select>
+                        <Icon name="edit" size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deletePurchase(item.id)}
+                        className="p-1.5 rounded-lg text-[var(--text-3)] hover:text-[var(--negative)] hover:bg-[var(--negative-soft)] transition-colors"
+                        title="حذف قلم خرید"
+                      >
+                        <Icon name="trash" size={13} />
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end gap-1.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={cancelEditPurchase}
-                      className="px-3 py-1.5 rounded-xl text-xs bg-[var(--sunken)] text-[var(--text-3)] hover:text-[var(--text)]"
-                    >
-                      انصراف
-                    </button>
-                    <button
-                      type="button"
-                      onClick={saveEditPurchase}
-                      className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[var(--action)] text-[var(--on-ink)] flex items-center gap-1 shadow-sm"
-                    >
-                      <Icon name="check" size={13} /> ذخیره تغییرات
-                    </button>
+                  {/* نمایش مبلغ به عدد و به حروف */}
+                  <div className="pt-2 border-t border-[var(--border)] space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-[var(--text-3)] font-medium">مبلغ برآوردی:</span>
+                      <div className="w-32 shrink-0">
+                        <AmountInput
+                          value={item.estimatedToman}
+                          onValueChange={(val) => updatePurchaseAmount(item.id, Number(val) || 0)}
+                          disabled={!item.selected}
+                          className="w-full text-right text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-2 py-1 text-[var(--text)] num focus:border-[var(--action)] outline-none"
+                          unit="toman"
+                          showWords={false}
+                          placeholder="۰"
+                        />
+                      </div>
+                    </div>
+                    {item.estimatedToman > 0 && (
+                      <div className="flex items-center justify-between gap-1 text-[10.5px] text-[var(--text-2)] font-semibold bg-[var(--sunken)] px-2.5 py-1 rounded-xl border border-[var(--border)] select-none">
+                        <span className="text-[var(--text-3)] text-[9.5px] shrink-0 font-normal">به حروف:</span>
+                        <span className="truncate text-left" title={amountToWords(item.estimatedToman, "toman") ?? ""}>
+                          {amountToWords(item.estimatedToman, "toman")}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
-            }
-
-            return (
-              <div
-                key={item.id}
-                className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
-                  item.selected
-                    ? "bg-[var(--surface)] border-[var(--border-strong)] shadow-xs"
-                    : "bg-[var(--sunken)]/60 border-[var(--border)] opacity-60"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2.5">
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <input
-                      type="checkbox"
-                      checked={item.selected}
-                      onChange={() => togglePurchase(item.id)}
-                      className="w-4 h-4 accent-[var(--action)] rounded cursor-pointer shrink-0 mt-0.5"
-                    />
-                    {/* لوگوی رنگی اختصاصی دسته */}
-                    <div className={`w-9 h-9 rounded-xl ${catBg} ${catColor} border ${catBorder} flex items-center justify-center shrink-0 shadow-xs`}>
-                      <Icon name={catIcon} size={16} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-[var(--text)] truncate">{item.title}</p>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <span className={`px-2 py-0.5 rounded-md text-[9.5px] font-semibold border ${catBorder} ${catBadgeBg}`}>
-                          {catLabel}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => startEditPurchase(item)}
-                      className="p-1.5 rounded-lg text-[var(--text-3)] hover:text-[var(--text)] hover:bg-[var(--sunken)] transition-colors"
-                      title="ویرایش قلم خرید"
-                    >
-                      <Icon name="edit" size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deletePurchase(item.id)}
-                      className="p-1.5 rounded-lg text-[var(--text-3)] hover:text-[var(--negative)] hover:bg-[var(--negative)]/10 transition-colors"
-                      title="حذف قلم خرید"
-                    >
-                      <Icon name="trash" size={13} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* نمایش مبلغ به عدد و به حروف */}
-                <div className="pt-2 border-t border-[var(--border)]/70 space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] text-[var(--text-3)] font-medium">مبلغ برآوردی:</span>
-                    <div className="w-32 shrink-0">
-                      <AmountInput
-                        value={item.estimatedToman}
-                        onValueChange={(val) => updatePurchaseAmount(item.id, Number(val) || 0)}
-                        disabled={!item.selected}
-                        className="w-full text-right text-xs font-bold bg-[var(--sunken)] border border-[var(--border)] rounded-xl px-2 py-1 text-[var(--text)] num focus:border-[var(--action)] outline-none"
-                        unit="toman"
-                        showWords={false}
-                        placeholder="۰"
-                      />
-                    </div>
-                  </div>
-                  {item.estimatedToman > 0 && (
-                    <div className="flex items-center justify-between gap-1 text-[10.5px] text-[var(--accent)] font-bold bg-[var(--accent-soft)] px-2.5 py-1 rounded-xl border border-[var(--accent)]/20 select-none">
-                      <span className="text-[var(--text-3)] text-[9.5px] shrink-0 font-normal">به حروف:</span>
-                      <span className="truncate text-left" title={amountToWords(item.estimatedToman, "toman") ?? ""}>
-                        {amountToWords(item.estimatedToman, "toman")}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+            })}
+          </div>
         )}
       </section>
 
       {/* ── بخش سناریوسازی اشتغال: قرارداد موقت ۳ ماهه در برابر بیکاری و تمدید ── */}
       <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--border)]">
-          <div className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-[var(--mint-soft,var(--accent-soft))] text-[var(--accent)] flex items-center justify-center">
+          <div className="flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl bg-[var(--accent-soft)] text-[var(--action)] flex items-center justify-center shrink-0">
               <Icon name="briefcase" size={18} />
             </span>
             <div>
@@ -1427,8 +1475,8 @@ ${question}`;
                       onClick={() => setMonthlySalary(sal)}
                       className={`px-3 py-1.5 text-xs rounded-xl border num font-medium transition-all ${
                         monthlySalary === sal
-                          ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)] font-bold shadow-xs"
-                          : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--surface-hover)]"
+                          ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)] font-bold shadow-xs"
+                          : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--hover)]"
                       }`}
                     >
                       {short(sal)} تومان
@@ -1539,7 +1587,7 @@ ${question}`;
             <div className="card p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-[var(--text-2)]">تومان در بیت‌پین / صرافی</span>
-                <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)]" title="آماده تسویه پایا" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[var(--signal-mint)]" title="آماده تسویه پایا" />
               </div>
               <p className="text-xl font-black text-[var(--text)] num">{short(exchangeToman)} <small className="text-xs font-normal">تومان</small></p>
               <p className="text-[11px] text-[var(--text-3)] mt-1">آماده پایا به بانک (بدون ترید)</p>
@@ -1575,7 +1623,7 @@ ${question}`;
                   type="button"
                   onClick={() => setRate(baseRate)}
                   className={`px-2 py-0.5 text-[10px] rounded-md border num ${
-                    rate === baseRate ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)] font-bold" : "bg-[var(--sunken)] text-[var(--text-3)] border-[var(--border)]"
+                    rate === baseRate ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)] font-bold" : "bg-[var(--sunken)] text-[var(--text-3)] border-[var(--border)]"
                   }`}
                 >
                   نرخ روز ({short(baseRate)})
@@ -1586,7 +1634,7 @@ ${question}`;
                     type="button"
                     onClick={() => setRate(pr)}
                     className={`px-2 py-0.5 text-[10px] rounded-md border num transition-all ${
-                      rate === pr ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)] font-bold" : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--surface-hover)]"
+                      rate === pr ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)] font-bold" : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--hover)]"
                     }`}
                   >
                     {short(pr)}
@@ -1676,7 +1724,7 @@ ${question}`;
                     className={`py-2 px-1 text-xs rounded-xl font-semibold border transition-all ${
                       horizon === item.key
                         ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)] shadow-sm"
-                        : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--surface-hover)]"
+                        : "bg-[var(--sunken)] text-[var(--text-2)] border-[var(--border)] hover:bg-[var(--hover)]"
                     }`}
                   >
                     {item.label}
@@ -1715,7 +1763,7 @@ ${question}`;
                       onClick={() => setBufferPct(pct)}
                       className={`py-2 text-xs rounded-xl font-semibold border ${
                         bufferPct === pct
-                          ? "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]"
+                          ? "bg-[var(--action)] text-[var(--on-ink)] border-[var(--action)]"
                           : "bg-[var(--sunken)] text-[var(--text-3)] border-[var(--border)]"
                       }`}
                     >
@@ -1784,7 +1832,7 @@ ${question}`;
                 <span className="font-semibold text-[var(--negative)] num">{full(activeDebtBurdenToman)}</span>
               </div>
               {includePurchases && totalSelectedPurchasesToman > 0 && (
-                <div className="flex justify-between text-[var(--accent)] font-semibold">
+                <div className="flex justify-between text-[var(--text)] font-semibold">
                   <span>خریدهای آینده{isOwner ? " (عقد، عروسی و خانه)" : ""}:</span>
                   <span className="num">+{full(totalSelectedPurchasesToman)}</span>
                 </div>
@@ -1944,7 +1992,7 @@ ${question}`;
                       key={r}
                       className={`transition-colors ${
                         isCurrent
-                          ? "bg-[var(--accent-soft)]/40 font-bold"
+                          ? "bg-[var(--accent-soft)] font-bold"
                           : "hover:bg-[var(--sunken)]"
                       }`}
                     >
@@ -1985,8 +2033,8 @@ ${question}`;
       {/* ── گفتگوی مستقیم و سوالات تخصصی با دستیار هوشمند ── */}
       <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-4 shadow-xs">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 rounded-xl bg-[var(--accent-soft)] text-[var(--action)]">
               <Icon name="sparkle" size={18} />
             </span>
             <div>
@@ -2013,7 +2061,7 @@ ${question}`;
                 key={q.title}
                 type="button"
                 onClick={() => askAssistantQuestion(q.prompt)}
-                className="p-3 text-right rounded-xl border border-[var(--border)] bg-[var(--sunken)] hover:bg-[var(--surface-hover)] hover:border-[var(--border-strong)] transition-all flex flex-col gap-1 text-xs"
+                className="p-3 text-right rounded-xl border border-[var(--border)] bg-[var(--sunken)] hover:bg-[var(--hover)] hover:border-[var(--border-strong)] transition-all flex flex-col gap-1 text-xs"
               >
                 <div className="flex items-center justify-between">
                   <strong className="text-[var(--text)] font-bold">{q.title}</strong>
@@ -2076,7 +2124,7 @@ ${question}`;
         </div>
       </section>
 
-      {/* ── مراحل ۳ گانه تأمین نقدینگی و مدیریت جریان مالی ── */}
+      {/* ── مراحل ۳ گانه تأمین نقدینگی و مدیریت جریان مالی (اصلاح ساختار گام ۳) ── */}
       <section className="card p-5 border border-[var(--border)] rounded-2xl bg-[var(--surface)] space-y-4">
         <div>
           <h3 className="font-bold text-base text-[var(--text)] flex items-center gap-2">
@@ -2127,16 +2175,21 @@ ${question}`;
             </div>
 
             {/* گام ۳ */}
-            <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--positive)] text-[var(--on-ink)] text-xs font-black flex items-center justify-center num">
-              ۳
-            </div>
-            <p className="text-xs text-[var(--text-2)] leading-relaxed">
-              {isOwner
-                ? "اقساط ۶ ماه آینده را در موعد سررسید تسویه کنید و مبالغ خرید لوازم خانه، عقد یا جهیزیه را طبق فازبندی اجرا نمایید."
-                : "اقساط و تعهدات آینده را در موعد سررسید تسویه کنید و مبالغ خریدهای پیش‌رو را طبق برنامه‌ریزی مدیریت نمایید."}
-            </p>
-            <div className="text-[11px] text-[var(--text-3)] pt-1 border-t border-[var(--border)]">
-              آرامش فکری: استرس روزمره از معاملات ترید کاملاً حذف می‌شود.
+            <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[var(--positive)] text-[var(--on-ink)] text-xs font-black flex items-center justify-center num">
+                  ۳
+                </span>
+                <span className="text-xs font-bold text-[var(--text)]">تسویه اقساط و اجرای فازبندی خریدها</span>
+              </div>
+              <p className="text-xs text-[var(--text-2)] leading-relaxed">
+                {isOwner
+                  ? "اقساط ۶ ماه آینده را در موعد سررسید تسویه کنید و مبالغ خرید لوازم خانه، عقد یا جهیزیه را طبق فازبندی اجرا نمایید."
+                  : "اقساط و تعهدات آینده را در موعد سررسید تسویه کنید و مبالغ خریدهای پیش‌رو را طبق برنامه‌ریزی مدیریت نمایید."}
+              </p>
+              <div className="text-[11px] text-[var(--text-3)] pt-1 border-t border-[var(--border)]">
+                آرامش فکری: استرس روزمره از معاملات ترید کاملاً حذف می‌شود.
+              </div>
             </div>
           </div>
         ) : (
@@ -2210,8 +2263,8 @@ ${question}`;
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--sunken)] space-y-2">
-            <span className="text-xs font-bold text-[var(--accent)] flex items-center gap-1.5">
-              <Icon name="sparkle" size={14} /> {isOwner ? "فاز ۱: مراسم عقد و محضر" : "فاز ۱: تعهدات فوری و ضروری"}
+            <span className="text-xs font-bold text-[var(--text)] flex items-center gap-1.5">
+              <Icon name="sparkle" size={14} className="text-[var(--signal-mint)]" /> {isOwner ? "فاز ۱: مراسم عقد و محضر" : "فاز ۱: تعهدات فوری و ضروری"}
             </span>
             <p className="text-xs text-[var(--text-2)] leading-relaxed">
               {isOwner

@@ -50,7 +50,13 @@ export default function AssistantWorkspace({
           className={tab === "dashboard" ? "is-on" : undefined}
           onClick={() => setTab("dashboard")}
         >
-          <Icon name="overview" size={15} /> داشبورد دستیار
+          <span className="ai-tab-icon" aria-hidden="true">
+            <Icon name="overview" size={15} />
+          </span>
+          <span className="ai-tab-copy">
+            <span className="ai-tab-title">داشبورد دستیار</span>
+            <span className="ai-tab-sub">نمای کلی، هشدارها و بودجه</span>
+          </span>
         </button>
         <button
           type="button"
@@ -59,7 +65,13 @@ export default function AssistantWorkspace({
           className={tab === "chat" ? "is-on" : undefined}
           onClick={() => setTab("chat")}
         >
-          <Icon name="sparkle" size={15} /> گفتگو با دستیار
+          <span className="ai-tab-icon" aria-hidden="true">
+            <Icon name="sparkle" size={15} />
+          </span>
+          <span className="ai-tab-copy">
+            <span className="ai-tab-title">گفتگو با دستیار</span>
+            <span className="ai-tab-sub">پرسش‌وپاسخ و تحلیل هوشمند</span>
+          </span>
         </button>
         {cashLoop && (
           <button
@@ -69,7 +81,13 @@ export default function AssistantWorkspace({
             className={tab === "cash_loop" ? "is-on" : undefined}
             onClick={() => setTab("cash_loop")}
           >
-            <Icon name="swap" size={15} /> {cashLoopTabTitle ?? "برنامه‌ریزی جریان نقدینگی"}
+            <span className="ai-tab-icon" aria-hidden="true">
+              <Icon name="swap" size={15} />
+            </span>
+            <span className="ai-tab-copy">
+              <span className="ai-tab-title">{cashLoopTabTitle ?? "برنامه‌ریزی جریان نقدینگی"}</span>
+              <span className="ai-tab-sub">پوشش اقساط، خریدها و سناریوها</span>
+            </span>
           </button>
         )}
       </div>
@@ -108,7 +126,7 @@ export function OpenLoopButton({ className, label = "برنامه‌ریزی ج�
       type="button"
       className={
         className ??
-        "btn btn-ghost ai-btn !w-full !justify-center !mt-2.5 !text-[length:var(--fs-xs)] !min-h-[36px] !border !border-[var(--accent)]/30 !bg-[var(--accent-soft)]/40 hover:!bg-[var(--accent-soft)] !text-[var(--accent)] !font-bold transition-all shadow-xs"
+        "btn btn-soft ai-btn"
       }
       onClick={() => window.dispatchEvent(new CustomEvent("assistant:open-loop"))}
     >

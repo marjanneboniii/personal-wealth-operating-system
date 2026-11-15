@@ -8,7 +8,7 @@ import { getAssistantConfig } from "@/features/assistant/gemini";
 import { buildFinancialSnapshot, snapshotHash, type FinancialSnapshot } from "@/features/assistant/snapshot";
 import { getLatestInsight, listConversations, listMemories } from "@/features/assistant/store";
 import { fmtToman, type Finding, type Severity } from "@/features/assistant/analysis";
-import AssistantWorkspace, { AskButton } from "@/components/assistant/AssistantWorkspace";
+import AssistantWorkspace, { AskButton, OpenLoopButton } from "@/components/assistant/AssistantWorkspace";
 import AssistantChat from "@/components/assistant/AssistantChat";
 import InsightPanel from "@/components/assistant/InsightPanel";
 import CashLoopPlanner from "@/components/assistant/CashLoopPlanner";
@@ -56,8 +56,8 @@ function dayBadge(iso: string) {
   const { m, d } = toJalali(iso);
   return (
     <span className="ai-date" aria-hidden="true">
-      <b>{d.toLocaleString("fa-IR")}</b>
       <small>{JALALI_MONTHS[m - 1]}</small>
+      <b>{d.toLocaleString("fa-IR")}</b>
     </span>
   );
 }
@@ -79,33 +79,37 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
       {/* ── مهم‌ترین پیشنهاد دستیار ── */}
       <section className={`ai-hero tone-${top ? SEVERITY[top.severity].tone : "pos"}`} aria-labelledby="ai-top-title">
         <span className="ai-hero-icon" aria-hidden="true">
-          <Icon name={top ? SEVERITY[top.severity].icon : "check-circle"} size={20} />
+          <Icon name={top ? SEVERITY[top.severity].icon : "check-circle"} size={22} />
         </span>
         <div className="min-w-0 flex-1">
           <p className="ai-eyebrow" id="ai-top-title">
-            <Icon name="sparkle" size={12} /> مهم‌ترین پیشنهاد دستیار
+            <Icon name="sparkle" size={12} />
+            <span>مهم‌ترین پیشنهاد دستیار</span>
+            {top && <span className="ai-eyebrow-badge">{SEVERITY[top.severity].label}</span>}
           </p>
           <h2 className="ai-hero-title">{top ? top.title : "همه‌چیز مرتب است"}</h2>
           <p className="ai-hero-text">{top ? top.detail : "نقدینگی، اقساط، بودجه‌ها و روند هزینه‌ها در محدوده‌ی عادی‌اند."}</p>
-          {top && (
-            <div className="ai-hero-actions">
-              <AskButton question={askFor(top)} label="راهکار بده" className="btn btn-primary ai-btn" />
-              {top.href && (
-                <Link href={top.href} className="btn btn-ghost ai-btn">
-                  مشاهده
-                </Link>
-              )}
-            </div>
-          )}
+          <div className="ai-hero-actions">
+            {top && <AskButton question={askFor(top)} label="راهکار بده" className="btn btn-primary ai-btn" />}
+            {top?.href && (
+              <Link href={top.href} className="btn btn-ghost ai-btn">
+                مشاهده
+              </Link>
+            )}
+            <OpenLoopButton label="برنامه‌ریزی جریان نقدینگی" className="btn btn-soft ai-btn" />
+          </div>
         </div>
       </section>
 
-      {/* ── سه کارت خلاصه ── */}
+      {/* ── سه کارت خلاصه (Kashi Stat Cards) ── */}
       <div className="ai-kpis">
         <section className="ai-card ai-kpi" aria-label="ارزش خالص">
-          <div className="flex items-center justify-between gap-2">
-            <p className="ai-kpi-label flex items-center gap-1.5 font-bold">
-              <Icon name="overview" size={15} className="text-[var(--signal-mint)]" /> ارزش خالص دارایی
+          <div className="ai-kpi-head">
+            <p className="ai-kpi-label">
+              <span className="ai-kpi-mark" data-tone="mint" aria-hidden="true">
+                <Icon name="overview" size={15} />
+              </span>
+              <span>ارزش خالص دارایی</span>
             </p>
             {monthAgo && (
               <span className={`ai-chip ${monthAgo.changeUsd > 0 ? "is-pos" : monthAgo.changeUsd < 0 ? "is-neg" : ""}`}>
@@ -127,11 +131,17 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
         </section>
 
         <section className="ai-card ai-kpi" aria-label="جریان نقدی این ماه">
-          <div className="flex items-center justify-between gap-2">
-            <p className="ai-kpi-label flex items-center gap-1.5 font-bold">
-              <Icon name="repeat" size={15} className="text-sky-500" />
-              <span>{month.label}</span>
-              <span className="ai-muted text-[10px]">· روز {month.daysElapsed.toLocaleString("fa-IR")} از {month.daysInMonth.toLocaleString("fa-IR")}</span>
+          <div className="ai-kpi-head">
+            <p className="ai-kpi-label">
+              <span className="ai-kpi-mark" data-tone="flow" aria-hidden="true">
+                <Icon name="repeat" size={15} />
+              </span>
+              <span>
+                {month.label}{" "}
+                <span className="ai-muted text-[10px]">
+                  · روز {month.daysElapsed.toLocaleString("fa-IR")} از {month.daysInMonth.toLocaleString("fa-IR")}
+                </span>
+              </span>
             </p>
             {month.incomeToman === 0 && month.expenseToman === 0 ? (
               <span className="ai-chip">هنوز تراکنشی نیست</span>
@@ -157,9 +167,12 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
         </section>
 
         <section className="ai-card ai-kpi" aria-label="نقدینگی">
-          <div className="flex items-center justify-between gap-2">
-            <p className="ai-kpi-label flex items-center gap-1.5 font-bold">
-              <Icon name="shield" size={15} className="text-emerald-500" /> نقدینگی در دسترس
+          <div className="ai-kpi-head">
+            <p className="ai-kpi-label">
+              <span className="ai-kpi-mark" data-tone="pos" aria-hidden="true">
+                <Icon name="shield" size={15} />
+              </span>
+              <span>نقدینگی در دسترس</span>
             </p>
             <span className={`ai-chip ${covered ? "is-pos" : "is-neg"}`}>
               {covered ? "پوشش ۳۰ روز برقرار" : "کمتر از تعهدات ۳۰ روز"}
@@ -191,7 +204,13 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
       <div className="ai-cols">
         {/* ── هشدارها و فرصت‌ها ── */}
         <section className="ai-card" aria-labelledby="ai-findings-title">
-          <h3 className="ai-card-title" id="ai-findings-title">هشدارها و فرصت‌ها</h3>
+          <h3 className="ai-card-title" id="ai-findings-title">
+            <span className="ai-card-title-icon" aria-hidden="true">
+              <Icon name="alert" size={14} />
+            </span>
+            <span>هشدارها و فرصت‌ها</span>
+            {rest.length > 0 && <span className="ai-card-count num">{rest.length.toLocaleString("fa-IR")}</span>}
+          </h3>
           {rest.length === 0 ? (
             <p className="ai-empty-line">مورد دیگری برای توجه نیست.</p>
           ) : (
@@ -199,12 +218,15 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
               {rest.map((f) => {
                 const t = SEVERITY[f.severity];
                 return (
-                  <li key={f.id} className="ai-finding">
+                  <li key={f.id} className={`ai-finding tone-${t.tone}`}>
                     <span className={`ai-finding-icon tone-${t.tone}`} aria-hidden="true">
-                      <Icon name={t.icon} size={14} />
+                      <Icon name={t.icon} size={15} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="ai-finding-title">{f.title}</p>
+                      <div className="ai-finding-head">
+                        <span className="ai-finding-badge">{t.label}</span>
+                        <p className="ai-finding-title">{f.title}</p>
+                      </div>
                       <p className="ai-finding-text">{f.detail}</p>
                     </div>
                     <AskButton question={askFor(f)} label="بپرس" className="ai-ask" />
@@ -218,8 +240,14 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
         <div className="ai-side">
           <section className="ai-card" aria-labelledby="ai-up-title">
             <h3 className="ai-card-title" id="ai-up-title">
-              پرداخت‌های نزدیک
-              {s.obligations.overdue.count > 0 && <span className="ai-chip is-neg">{s.obligations.overdue.count.toLocaleString("fa-IR")} معوق</span>}
+              <span className="ai-card-title-icon" aria-hidden="true">
+                <Icon name="calendar" size={14} />
+              </span>
+              <span>پرداخت‌های نزدیک</span>
+              {s.obligations.overdue.count > 0 && (
+                <span className="ai-chip is-neg">{s.obligations.overdue.count.toLocaleString("fa-IR")} معوق</span>
+              )}
+              <Link href="/debts/installments" className="ai-card-link">اقساط</Link>
             </h3>
             {upcoming.length === 0 ? (
               <p className="ai-empty-line">در ۶۰ روز آینده پرداخت قطعی ثبت نشده.</p>
@@ -230,7 +258,9 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
                     {dayBadge(u.date)}
                     <div className="min-w-0 flex-1">
                       <p className="ai-finding-title truncate">{u.title}</p>
-                      <p className="ai-finding-text">{u.kind === "installment" ? "قسط" : u.kind === "premium" ? "حق بیمه" : "پرداخت تکراری · برآورد"}</p>
+                      <p className="ai-finding-text">
+                        {u.kind === "installment" ? "قسط" : u.kind === "premium" ? "حق بیمه" : "پرداخت تکراری · برآورد"}
+                      </p>
                     </div>
                     <Amount value={u.toman} size="sm" />
                   </li>
@@ -241,7 +271,10 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
 
           <section className="ai-card" aria-labelledby="ai-bud-title">
             <h3 className="ai-card-title" id="ai-bud-title">
-              بودجه‌ها
+              <span className="ai-card-title-icon" aria-hidden="true">
+                <Icon name="budgets" size={14} />
+              </span>
+              <span>بودجه‌ها</span>
               <Link href="/budgets" className="ai-card-link">همه</Link>
             </h3>
             {s.budgets.length === 0 ? (
@@ -275,8 +308,15 @@ function Dashboard({ s, insight }: { s: FinancialSnapshot; insight: ReactNode })
       {insight}
 
       <p className="ai-foot">
-        به‌روز تا {s.asOfJalali} · دلار {short(s.usdToToman)} تومان
-        {s.dataQuality.unreviewedImports > 0 && ` · ${s.dataQuality.unreviewedImports.toLocaleString("fa-IR")} رکورد بازبینی‌نشده`}
+        <span>به‌روز تا {s.asOfJalali}</span>
+        <span>·</span>
+        <span>دلار {short(s.usdToToman)} تومان</span>
+        {s.dataQuality.unreviewedImports > 0 && (
+          <>
+            <span>·</span>
+            <span>{s.dataQuality.unreviewedImports.toLocaleString("fa-IR")} رکورد بازبینی‌نشده</span>
+          </>
+        )}
       </p>
     </div>
   );
@@ -304,27 +344,11 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
   const stale = Boolean(latest && snapshot && latest.hash !== snapshotHash(snapshot));
   const insight = <InsightPanel configured={config.configured} initial={latest ? { content: latest.content, createdAt: latest.createdAt } : null} stale={stale} />;
 
-  const hasTether =
-    (snapshot?.netWorth?.stablecoinToman ?? 0) > 0 ||
-    (snapshot?.accounts ?? []).some(
-      (a) =>
-        ["USDT", "USDC", "DAI"].includes(a.currency ?? "") ||
-        (typeof a.name === "string" && a.name.includes("تتر")),
-    );
-  const hasCrypto =
-    (snapshot?.netWorth?.byClass ?? []).some(
-      (c) => c.name.includes("رمزارز") || c.name.toLowerCase().includes("crypto"),
-    ) ||
-    (snapshot?.topAssets ?? []).some(
-      (a) => a.className.includes("رمزارز") || a.className.toLowerCase().includes("crypto"),
-    );
-  const hasTetherOrCrypto = isOwner || hasTether || hasCrypto;
-
   const cashLoopTabTitle = "برنامه‌ریزی جریان نقدینگی";
 
   return (
     <div className="space-y-4">
-      <PageHeader title="دستیار هوشمند" subtitle="وضعیت مالی‌تان در یک نگاه، و پاسخ هر سؤالی درباره‌ی پولتان." />
+      <PageHeader title="دستیار هوشمند" subtitle="وضعیت مالی‌تان در یک نگاه، برنامه‌ریزی جریان نقدینگی و پاسخ هر سؤالی درباره‌ی پولتان." />
       <AssistantWorkspace
         cashLoopTabTitle={cashLoopTabTitle}
         initialTab={sp.tab === "chat" ? "chat" : sp.tab === "cash_loop" ? "cash_loop" : "dashboard"}
