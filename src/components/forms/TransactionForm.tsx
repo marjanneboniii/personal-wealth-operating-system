@@ -35,7 +35,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { parseTags } from "@/features/tags/normalize";
 import { createTransactionAction, createTransferDestinationAction, type ActionResult } from "@/app/actions";
 import { KNOWN_WALLETS } from "@/features/setup/holdingWallets";
-import { currencyLabel, faCount, formatMoney, formatQty, getDualDate } from "@/lib/format";
+import { currencyLabel, faCount, formatMoney, formatMoneyWithSign, formatQty, formatQtyWithSign, getDualDate } from "@/lib/format";
 import { useLatestRate } from "@/components/ui/SmartPreview";
 import AmountInput from "@/components/ui/AmountInput";
 import Icon from "@/components/ui/Icon";
@@ -581,9 +581,9 @@ export default function TransactionForm({
         : type === "transfer" && transferQuantityToman
           ? true
           : !!amountValue && amountValue.gt(0);
-  const qtyWithUnit = hasQuantity
-    ? `${formatQty(quantity, qtyDecimals)} ${currencyLabel(assetSymbol) !== assetSymbol ? currencyLabel(assetSymbol) : assetName}`
-    : "—";
+  const qtyUnitLabel = currencyLabel(assetSymbol) !== assetSymbol ? currencyLabel(assetSymbol) : assetName;
+  const signedQtyLabel = (sign: "+" | "−") =>
+    hasQuantity ? formatQtyWithSign(sign, quantity, qtyUnitLabel, qtyDecimals) : "—";
 
   /* ── Fee: in the unit of the account that pays it ─────────────────── */
   const feePayAccount = type === "transfer" ? fromAccount : moneyAccount;
@@ -607,6 +607,12 @@ export default function TransactionForm({
       ? formatMoney(settleNet.toFixed(0), "IRT")
       : `${formatQty(settleNet.toString(), 6)} ${currencyLabel(moneyAccount?.symbol)}`
     : "—";
+  const signedSettleLabel = (sign: "+" | "−") =>
+    settleNet
+      ? priceUnit === "IRT"
+        ? formatMoneyWithSign(sign, settleNet.toFixed(0), "IRT")
+        : formatQtyWithSign(sign, settleNet.toString(), currencyLabel(moneyAccount?.symbol), 6)
+      : "—";
   const registryNet = isRegistrySale && salePrice && D(salePrice).gt(0)
     ? feeValue
       ? D(salePrice).sub(feeValue)
@@ -771,7 +777,7 @@ export default function TransactionForm({
       [
         `واریز می‌شود به ${accountLabel(moneyAccount)}`,
         <b key="ri" className="num" style={{ color: "var(--positive)" }}>
-          + {registryNet ? formatMoney(registryNet.toFixed(0), "IRT") : "—"}
+          {registryNet ? formatMoneyWithSign("+", registryNet.toFixed(0), "IRT") : "—"}
         </b>,
       ],
     );
@@ -784,12 +790,12 @@ export default function TransactionForm({
     ]);
     const outRow: [string, React.ReactNode] =
       type === "buy"
-        ? [`کم می‌شود از ${accountLabel(moneyAccount)}`, <b key="o" className="num" style={{ color: "var(--negative)" }}>− {settleTotalLabel}</b>]
-        : [`کم می‌شود از ${assetName || "دارایی"}`, <b key="o" className="num" style={{ color: "var(--negative)" }}>− {qtyWithUnit}</b>];
+        ? [`کم می‌شود از ${accountLabel(moneyAccount)}`, <b key="o" className="num" style={{ color: "var(--negative)" }}>{signedSettleLabel("−")}</b>]
+        : [`کم می‌شود از ${assetName || "دارایی"}`, <b key="o" className="num" style={{ color: "var(--negative)" }}>{signedQtyLabel("−")}</b>];
     const inRow: [string, React.ReactNode] =
       type === "buy"
-        ? [`اضافه می‌شود به ${assetName || "دارایی"}`, <b key="i" className="num" style={{ color: "var(--positive)" }}>+ {qtyWithUnit}</b>]
-        : [`واریز می‌شود به ${accountLabel(moneyAccount)}`, <b key="i" className="num" style={{ color: "var(--positive)" }}>+ {settleTotalLabel}</b>];
+        ? [`اضافه می‌شود به ${assetName || "دارایی"}`, <b key="i" className="num" style={{ color: "var(--positive)" }}>{signedQtyLabel("+")}</b>]
+        : [`واریز می‌شود به ${accountLabel(moneyAccount)}`, <b key="i" className="num" style={{ color: "var(--positive)" }}>{signedSettleLabel("+")}</b>];
     summary.push(outRow, inRow);
     if (quote) {
       summary.push(

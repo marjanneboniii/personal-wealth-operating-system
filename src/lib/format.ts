@@ -243,6 +243,27 @@ export function formatMoneyWithSign(
 }
 
 /**
+ * Quantity + unit with a caller-supplied sign inside ONE bidi isolate, matching
+ * `formatMoneyWithSign`. Without this, prepending `+ ` or `− ` outside
+ * `formatQty(...)` leaves the sign outside the LTR isolate so RTL pushes it to
+ * the trailing side of the digits («۵ − تتر» instead of «−۵ تتر»).
+ */
+export function formatQtyWithSign(
+  sign: "+" | "−" | "",
+  absValue: string | number,
+  unit: string,
+  assetDecimals = 8,
+  digits: DigitStyle = "fa",
+): string {
+  const dp = smartDecimals(absValue, assetDecimals);
+  const raw = D(absValue ?? 0).abs().toFixed(dp).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+  const grouped = groupThousands(raw);
+  const num = digits === "en" ? grouped.replace(/٬/g, ",") : toFaDigits(grouped);
+  const signed = ltrNum(`${sign}${num}`);
+  return unit ? `${RLI}${signed}${NBSP}${unit}${PDI}` : `${RLI}${signed}${PDI}`;
+}
+
+/**
  * Signed percent with caller-chosen precision — «+۱۲.۵٪» / «−۸.۳۰٪» / «۰٪».
  * Zero is unsigned (Directive §4: zero is neutral) and, like every percent
  * here, sign and ٪ live inside the numeric isolate.

@@ -26,7 +26,7 @@ import AmountInput from "@/components/ui/AmountInput";
 import DualDateInput from "@/components/ui/DualDateInput";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import Sheet from "@/components/ui/Sheet";
-import { JALALI_MONTHS, faCount, formatJalaliIso, formatNumber, formatQty, toFaDigits, toJalali } from "@/lib/format";
+import { JALALI_MONTHS, faCount, formatJalaliIso, formatMoneyWithSign, formatNumber, formatQtyWithSign, toFaDigits, toJalali } from "@/lib/format";
 
 // Icons and colours match «ثبت تراکنش» (TX_KINDS, --kind-* in globals.css):
 // colour = domain of money, icon = direction.
@@ -52,9 +52,11 @@ const UNIT_LABEL: Record<HistoryUnit, string> = {
 };
 const UNITS = Object.keys(UNIT_LABEL) as HistoryUnit[];
 
-function amountText(amount: string, unit: HistoryUnit) {
-  const n = unit === "IRT" ? formatNumber(amount, { decimals: 0 }) : formatQty(amount, 3);
-  return `${n} ${UNIT_LABEL[unit]}`;
+function signedAmountText(sign: -1 | 0 | 1, amount: string, unit: HistoryUnit) {
+  const s: "+" | "−" | "" = sign > 0 ? "+" : sign < 0 ? "−" : "";
+  return unit === "IRT"
+    ? formatMoneyWithSign(s, amount, "IRT")
+    : formatQtyWithSign(s, amount, UNIT_LABEL[unit], 3);
 }
 
 /** Compact Toman for the summary tiles: ۱٫۲ میلیارد / ۳۴۰ میلیون. */
@@ -245,8 +247,7 @@ export default function HistoryView({
               </span>
             </span>
             <span className="hist-amount num money-nowrap" data-sign={meta.sign} dir="rtl">
-              {meta.sign > 0 ? "+" : meta.sign < 0 ? "−" : ""}
-              {amountText(r.amount, r.unit)}
+              {signedAmountText(meta.sign, r.amount, r.unit)}
             </span>
           </summary>
           <div className="hist-more">

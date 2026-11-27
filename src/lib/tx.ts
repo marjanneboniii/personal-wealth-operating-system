@@ -2,7 +2,7 @@ import { displayAccountName } from "@/lib/assetDisplay";
 import { ENTRY_TYPE_LABELS, type EntryType } from "@/domain/accounting";
 import { D, Decimal } from "@/domain/decimal";
 import type { LedgerRow } from "@/features/ledger/queries";
-import { currencyLabel, formatMoneyWithSign, formatQty } from "@/lib/format";
+import { currencyLabel, formatMoneyWithSign, formatQty, formatQtyWithSign } from "@/lib/format";
 
 /**
  * The signed Toman amount shown for one transaction.
@@ -126,8 +126,7 @@ export function humanizeEntry(e: LedgerRow): HumanTx {
   if (tradingMarginLeg && tradingMarginLeg.symbol && tradingMarginLeg.symbol !== "IRT") {
     const absQty = D(tradingMarginLeg.quantity).abs().toString();
     const coin = currencyLabel(tradingMarginLeg.symbol);
-    const signPrefix = sign > 0 ? "+ " : "− ";
-    qtyLabel = `${signPrefix}${formatQty(absQty, tradingMarginLeg.decimals ?? 4)} ${coin}`;
+    qtyLabel = formatQtyWithSign(sign > 0 ? "+" : "−", absQty, coin, tradingMarginLeg.decimals ?? 4);
   } else if (qtyLeg && qtyLeg.symbol && qtyLeg.symbol !== "USD" && qtyLeg.symbol !== "IRT") {
     qtyLabel = `${formatQty(qtyLeg.quantity, qtyLeg.decimals ?? 8)} ${currencyLabel(qtyLeg.symbol)}`;
   }

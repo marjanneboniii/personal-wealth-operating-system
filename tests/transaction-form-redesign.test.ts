@@ -126,3 +126,12 @@ test("the server reads Persian digits in amounts as the same number", () => {
   assert.match(actions, /for \(const key of \["irtAmount", "amount", "quantity", "fee", "fxRate"\]\)/);
   assert.match(actions, /normalizeNumericInput\(raw\[key\]/);
 });
+
+test("review summary signs stay inside the numeric bidi isolate so +/− precede digits in RTL", async () => {
+  assert.doesNotMatch(CODE, />[+−]\s*\{(?:settleTotalLabel|qtyWithUnit|registryNet)/);
+  assert.match(CODE, /formatMoneyWithSign\(/);
+  assert.match(CODE, /formatQtyWithSign\(/);
+  const { formatQtyWithSign } = await import("../src/lib/format");
+  assert.equal(formatQtyWithSign("−", "5", "تتر", 8), "\u2067\u2066−۵\u2069\u00A0تتر\u2069");
+  assert.equal(formatQtyWithSign("+", "12.5", "تتر", 6), "\u2067\u2066+۱۲.۵\u2069\u00A0تتر\u2069");
+});

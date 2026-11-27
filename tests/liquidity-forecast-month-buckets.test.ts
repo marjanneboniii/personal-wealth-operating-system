@@ -85,13 +85,19 @@ async function loadModules() {
 }
 const modulesReady = loadModules();
 
-test("projectCashflow: ۱۴۰۵/۰۸/۰۱ installment appears in آبان — not مهر", async () => {
+test("projectCashflow: آبان ۰۱ installment appears in آبان — not مهر", async () => {
   await modulesReady;
   await createSchemaIfNotExists();
   await db.delete(installments);
   await db.delete(debts);
   await db.delete(userFxSettings);
   await db.delete(users);
+
+  // Pick the آبان (month 08) inside the active 12-month forward window so the
+  // test never rots as the calendar advances past 1405/08.
+  const targetAban = jalaliMonthStarts(12).find((m) => m.key.endsWith("/08"));
+  assert.ok(targetAban, "a 12-month Jalali window always contains آبان");
+  const abanYear = toJalali(targetAban.iso).y;
 
   const [user] = await db
     .insert(users)
@@ -117,8 +123,8 @@ test("projectCashflow: ۱۴۰۵/۰۸/۰۱ installment appears in آبان — no
   await db.insert(installments).values({
     debtId: debt.id,
     seq: 1,
-    // ۱۴۰۵/۰۸/۰۱ — the exact date from the report.
-    dueDate: "2026-10-23",
+    // 1st day of آبان — Gregorian Oct 22/23 whose Gregorian month start (Oct 1) is in مهر.
+    dueDate: targetAban.iso,
     amountBase: "142.857",
     amountToman: "30000000",
     amountUsdCreated: "142.857",
@@ -129,16 +135,16 @@ test("projectCashflow: ۱۴۰۵/۰۸/۰۱ installment appears in آبان — no
   const projection = await projectCashflow(12, "base", user.id);
   const points = projection.points as any[];
 
-  // The 30,000,000-Toman obligation lives under month key 1405/08 (آبان)…
-  const aban = points.find((p) => jalaliMonthKey(p.month) === "1405/08");
+  // The 30,000,000-Toman obligation lives under month key YYYY/08 (آبان)…
+  const aban = points.find((p) => jalaliMonthKey(p.month) === targetAban.key);
   assert.ok(aban, "an آبان bucket must exist in the 12-month window");
   assert.ok(D(aban.outflow).gte("30000000"), `Aban outflow must contain the installment: ${aban.outflow}`);
   assert.equal(toJalali(aban.month).m, 8, "bucket month must be آبان (08)");
 
-  // …and it must NOT appear under مهر (1405/07) or any other month.
+  // …and it must NOT appear under مهر (YYYY/07) or any other month.
   for (const p of points) {
     const key = jalaliMonthKey(p.month);
-    if (key !== "1405/08") {
+    if (key !== targetAban.key) {
       assert.ok(
         D(p.outflow).lt("30000000"),
         `installment leaked into ${key} (outflow=${p.outflow})`,
@@ -147,5 +153,5 @@ test("projectCashflow: ۱۴۰۵/۰۸/۰۱ installment appears in آبان — no
   }
 
   // Display label of the bucket is آبان (the month of the due date itself).
-  assert.equal(jalaliMonthLabel(jalaliMonthKey(aban.month), "en"), "آبان 1405");
+  assert.equal(jalaliMonthLabel(jalaliMonthKey(aban.month), "en"), `آبان ${abanYear}`);
 });
